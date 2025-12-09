@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter pub get:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter test:*)",
+      "Bash(curl:*)",
+      "Bash(flutter run:*)",
+      "Bash(flutter doctor:*)",
+      "Bash(findstr:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(Select-String -Pattern \"(error|warning|issues found)\" -CaseSensitive:$false)",
+      "Bash(flutter clean:*)",
+      "Bash(tasklist:*)",
+      "Bash(flutter build:*)",
+      "Bash(java:*)",
+      "Bash(Select-String -Pattern \"warning:|Built build\")",
+      "Bash(Select-String -Pattern \"error|Error|ERROR|exception|Exception|EXCEPTION|FAILURE|failed\" -Context 2,2)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
