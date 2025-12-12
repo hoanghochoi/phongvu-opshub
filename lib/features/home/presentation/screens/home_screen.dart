@@ -40,86 +40,98 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       drawer: _buildDrawer(context),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Welcome message
-              Text(
-                'Xin chào,',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                userName,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Welcome message
+                Text(
+                  'Xin chào,',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  userName,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                // Store information
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                     ),
-              ),
-              const SizedBox(height: 12),
-              // Store information
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.store,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          storeInfo,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.store,
-                      size: 20,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        storeInfo,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
+                const SizedBox(height: 32),
+
+                // Chức năng
+                Text(
+                  'Chức năng',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
-                    ),
-                  ],
                 ),
-              ),
-              const SizedBox(height: 32),
+                const SizedBox(height: 16),
 
-              // Chức năng
-              Text(
-                'Chức năng',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 16),
+                // Chat với BOT
+                _FeatureButton(
+                  icon: Icons.chat_bubble_outline,
+                  title: 'Chat với BOT',
+                  description: 'Trò chuyện với trợ lý AI (Mới chỉ có FIFO thôi =))',
+                  color: AppTheme.iconColor,
+                  onTap: widget.onTabChange != null ? () => widget.onTabChange!(0) : null,
+                ),
+                const SizedBox(height: 24),
 
-              // Chat với BOT
-              _FeatureButton(
-                icon: Icons.chat_bubble_outline,
-                title: 'Chat với BOT',
-                description: 'Trò chuyện với trợ lý AI (Mới chỉ có FIFO thôi =))',
-                color: AppTheme.iconColor,
-                onTap: widget.onTabChange != null ? () => widget.onTabChange!(0) : null,
-              ),
-              const SizedBox(height: 12),
+                // Bảo hành/Sửa chữa
+                _FeatureButton(
+                  icon: Icons.build_circle_outlined,
+                  title: 'Bảo hành/Sửa chữa',
+                  description: 'Lưu và xem lại hình ảnh BH/SC',
+                  color: AppTheme.iconColor,
+                  onTap: widget.onTabChange != null ? () => widget.onTabChange!(2) : null,
+                ),
+                const SizedBox(height: 24),
 
-              // Bảo hành/Sửa chữa
-              _FeatureButton(
-                icon: Icons.build_circle_outlined,
-                title: 'Bảo hành/Sửa chữa',
-                description: 'Lưu và xem lại hình ảnh bhsc',
-                color: AppTheme.iconColor,
-                onTap: widget.onTabChange != null ? () => widget.onTabChange!(2) : null,
-              ),
-              const Spacer(),
-            ],
+                // Sắp xếp hàng hóa
+                _FeatureButton(
+                  icon: Icons.inventory_2_outlined,
+                  title: 'Sắp xếp hàng hóa',
+                  description: 'Quét hoặc nhập SKU/BIN để sắp xếp',
+                  color: AppTheme.iconColor,
+                  route: '/sort',
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
       ),

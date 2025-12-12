@@ -59,7 +59,6 @@ ios/Runner/GoogleService-Info.plist
 macos/Pods/
 macos/Flutter/ephemeral/
 
-# Exclude Markdown files
-*.md
+
 # Bỏ qua tệp hệ thống Windows bị lỗi
 nul

@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/warranty_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
@@ -591,21 +592,17 @@ class _ImageCard extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             _isUrl(imageSource)
-                ? Image.network(
-                    imageSource,
+                ? CachedNetworkImage(
+                    imageUrl: imageSource,
                     fit: BoxFit.cover,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
+                    memCacheWidth: 800,
+                    memCacheHeight: 800,
+                    maxWidthDiskCache: 1000,
+                    maxHeightDiskCache: 1000,
+                    placeholder: (context, url) => const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                    errorWidget: (context, url, error) {
                       return Container(
                         color: Colors.grey[300],
                         child: Column(
@@ -716,20 +713,12 @@ class _ImageViewScreen extends StatelessWidget {
         maxScale: 4.0,
         child: Center(
           child: _isUrl(imageSource)
-              ? Image.network(
-                  imageSource,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Center(
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                      ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
+              ? CachedNetworkImage(
+                  imageUrl: imageSource,
+                  placeholder: (context, url) => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                  errorWidget: (context, url, error) {
                     return const Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,

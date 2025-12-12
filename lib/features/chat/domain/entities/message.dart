@@ -1,14 +1,18 @@
+import 'sku_item.dart';
+
 class Message {
   final String id;
   final String content;
   final bool isUser;
   final DateTime timestamp;
+  final List<SKUItem>? skuItems;
 
   const Message({
     required this.id,
     required this.content,
     required this.isUser,
     required this.timestamp,
+    this.skuItems,
   });
 
   @override

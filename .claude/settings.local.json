@@ -15,7 +15,9 @@
       "Bash(flutter build:*)",
       "Bash(java:*)",
       "Bash(Select-String -Pattern \"warning:|Built build\")",
-      "Bash(Select-String -Pattern \"error|Error|ERROR|exception|Exception|EXCEPTION|FAILURE|failed\" -Context 2,2)"
+      "Bash(Select-String -Pattern \"error|Error|ERROR|exception|Exception|EXCEPTION|FAILURE|failed\" -Context 2,2)",
+      "Bash(Select-String -Pattern \"warranty_details_screen.dart\")",
+      "Bash(Select-String -Pattern \"sku|SKU\" -Context 0,1)"
     ],
     "deny": [],
     "ask": []

@@ -12,6 +12,9 @@ class ApiConstants {
   // Chat endpoint
   static const String chatWebhookEndpoint = '/webhook/pva-chat';
 
+  // Sort endpoint
+  static const String sortWebhookEndpoint = '/webhook/pva-sort';
+
   // Feedback endpoint
   static const String feedbackEndpoint = '/webhook/pva-feedback';
 

@@ -15,6 +15,9 @@ import '../features/warranty/presentation/screens/warranty_screen.dart';
 import '../features/warranty/presentation/screens/warranty_main_screen.dart';
 import '../features/warranty/presentation/screens/check_warranty_screen.dart';
 import '../features/feedback/presentation/screens/feedback_screen.dart';
+import '../features/sort/data/repositories/sort_repository.dart';
+import '../features/sort/presentation/providers/sort_provider.dart';
+import '../features/sort/presentation/screens/sort_screen.dart';
 import 'theme/app_theme.dart';
 import 'navigation/main_navigation_screen.dart';
 
@@ -38,6 +41,11 @@ class App extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => WarrantyProvider(
             WarrantyRepository(ApiClient()),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => SortProvider(
+            SortRepository(ApiClient()),
           ),
         ),
       ],
@@ -79,6 +87,7 @@ class App extends StatelessWidget {
               '/warranty': (context) => const WarrantyScreen(),
               '/check-warranty': (context) => const CheckWarrantyScreen(),
               '/feedback': (context) => const FeedbackScreen(),
+              '/sort': (context) => const SortScreen(),
             },
           );
         },

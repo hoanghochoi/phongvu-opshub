@@ -1,8 +1,8 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../domain/entities/message.dart';
+import 'sku_bubble.dart';
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -56,10 +56,8 @@ class MessageBubble extends StatelessWidget {
         ),
       ));
 
-      // Add highlighted value (clickable)
+      // Add highlighted value (selectable)
       final value = match.group(2)!;
-      final tapRecognizer = TapGestureRecognizer()
-        ..onTap = () => _copyToClipboard(context, value);
 
       spans.add(TextSpan(
         text: value,
@@ -70,7 +68,6 @@ class MessageBubble extends StatelessWidget {
           fontWeight: FontWeight.bold,
           decoration: TextDecoration.underline,
         ),
-        recognizer: tapRecognizer,
       ));
 
       lastIndex = match.end;
@@ -139,10 +136,8 @@ class MessageBubble extends StatelessWidget {
         ),
       ));
 
-      // Add highlighted value (clickable)
+      // Add highlighted value (selectable)
       final value = match.group(2)!;
-      final tapRecognizer = TapGestureRecognizer()
-        ..onTap = () => _copyToClipboard(context, value);
 
       spans.add(TextSpan(
         text: value,
@@ -152,7 +147,6 @@ class MessageBubble extends StatelessWidget {
           fontWeight: FontWeight.bold,
           decoration: TextDecoration.underline,
         ),
-        recognizer: tapRecognizer,
       ));
 
       lastIndex = match.end;
@@ -179,6 +173,44 @@ class MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final timeFormat = DateFormat('HH:mm');
 
+    // If bot message has SKU items, display SKU bubbles
+    if (!message.isUser && message.skuItems != null && message.skuItems!.isNotEmpty) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.85,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // SKU Bubbles
+              ...message.skuItems!.map((skuItem) => SKUBubble(
+                    skuItem: skuItem,
+                    onCheckChanged: (item) {
+                      // State is managed in SKUItem.isChecked
+                    },
+                  )),
+              const SizedBox(height: 4),
+              // Timestamp
+              Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Text(
+                  timeFormat.format(message.timestamp),
+                  style: const TextStyle(
+                    color: Colors.black54,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Default message bubble (for user messages or bot messages without SKU items)
     return Align(
       alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -197,9 +229,11 @@ class MessageBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Nội dung tin nhắn
-            message.isUser
-                ? _buildUserMessage(context)
-                : _buildBotMessage(context),
+            SelectionArea(
+              child: message.isUser
+                  ? _buildUserMessage(context)
+                  : _buildBotMessage(context),
+            ),
             const SizedBox(height: 4),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -225,6 +259,12 @@ class MessageBubble extends StatelessWidget {
                         color: Colors.black54,
                       ),
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.check_circle,
+                    size: 14,
+                    color: Colors.green,
                   ),
                 ],
               ],
