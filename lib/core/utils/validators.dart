@@ -56,8 +56,8 @@ class Validators {
   }
 
   // Pattern cho SKU + QTY hoặc chỉ SKU
-  static final RegExp messagePatternWithQty = RegExp(r'^[A-Z0-9]+\s+\d+$');
-  static final RegExp messagePatternSkuOnly = RegExp(r'^[A-Z0-9]+$');
+  static final RegExp messagePatternWithQty = RegExp(r'^[^\s]+\s+\d+$');
+  static final RegExp messagePatternSkuOnly = RegExp(r'^[^\s]+$');
 
   static bool isValidMessage(String message) {
     final trimmed = message.trim().toUpperCase();
