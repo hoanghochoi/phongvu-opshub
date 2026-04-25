@@ -106,6 +106,24 @@ func main() {
 	go hub.listenToRedis()
 
 	r := gin.Default()
+	registerRoutes(r, hub)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Println("Golang Realtime Service starting on port", port)
+	r.Run(":" + port)
+}
+
+func registerRoutes(r *gin.Engine, hub *Hub) {
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"service": "backend-go",
+		})
+	})
 
 	r.GET("/ws", func(c *gin.Context) {
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -135,12 +153,4 @@ func main() {
 			}
 		}(conn)
 	})
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	log.Println("Golang Realtime Service starting on port", port)
-	r.Run(":" + port)
 }
