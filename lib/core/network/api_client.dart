@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'api_exception.dart';
 import '../constants/api_constants.dart';
@@ -10,6 +11,17 @@ class ApiClient {
   ApiClient._internal();
 
   final http.Client _client = http.Client();
+  String? _authToken;
+
+  void setAuthToken(String? token) {
+    _authToken = token;
+    if (kDebugMode) debugPrint('🔑 [ApiClient] Auth token set: ${token != null ? "${token.substring(0, 10)}..." : "null"}');
+  }
+
+  Map<String, String> get _authHeaders => {
+    'Content-Type': 'application/json',
+    if (_authToken != null) 'Authorization': 'Bearer $_authToken',
+  };
 
   Future<http.Response> get(
     String endpoint, {
@@ -22,7 +34,7 @@ class ApiClient {
           : uri;
 
       final response = await _client
-          .get(url)
+          .get(url, headers: _authToken != null ? {'Authorization': 'Bearer $_authToken'} : null)
           .timeout(ApiConstants.defaultTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -58,34 +70,40 @@ class ApiClient {
     try {
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
 
-      print('🔵 API POST: $url');
-      print('🔵 Timeout: ${timeout ?? ApiConstants.defaultTimeout}');
-      print('🔵 Body: ${jsonEncode(body)}');
+      if (kDebugMode) {
+        debugPrint('🔵 API POST: $url');
+        debugPrint('🔵 Body: ${jsonEncode(body)}');
+      }
 
       final response = await _client
           .post(
             url,
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: _authHeaders,
             body: jsonEncode(body),
           )
           .timeout(timeout ?? ApiConstants.defaultTimeout);
 
-      print('✅ Response received: ${response.statusCode}');
-      print('✅ Headers: ${response.headers}');
-      print('✅ Body: ${response.body}');
+      if (kDebugMode) {
+        debugPrint('✅ Response: ${response.statusCode}');
+      }
 
       // Accept response if:
       // 1. Status code is 2xx (success)
       // 2. OR status code is 4xx but body contains valid JSON (n8n behavior)
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return response;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Auth errors should always throw — never treat as success
+        if (kDebugMode) debugPrint('🔒 [ApiClient] Auth error ${response.statusCode}');
+        throw ApiException(
+          'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.',
+          response.statusCode,
+        );
       } else if (response.statusCode >= 400 && response.statusCode < 500) {
-        // Try to parse JSON - if successful, treat as valid response
+        // Try to parse JSON - if successful, treat as valid response (n8n behavior)
         try {
           jsonDecode(response.body);
-          print('⚠️ [ApiClient] Status ${response.statusCode} but has valid JSON body, treating as success');
+          if (kDebugMode) debugPrint('⚠️ [ApiClient] Status ${response.statusCode} but valid JSON, treating as success');
           return response;
         } catch (e) {
           // Not valid JSON, throw error
@@ -106,14 +124,13 @@ class ApiClient {
         );
       }
     } on SocketException catch (e) {
-      print('❌ SocketException: $e');
+      if (kDebugMode) debugPrint('❌ SocketException: $e');
       throw NetworkException();
     } on ApiException {
       rethrow;
     } catch (e) {
-      print('❌ Caught exception: ${e.runtimeType} - $e');
+      if (kDebugMode) debugPrint('❌ Exception: ${e.runtimeType} - $e');
       if (e.toString().contains('TimeoutException')) {
-        print('⏱️ Timeout detected - throwing TimeoutException');
         throw TimeoutException();
       }
       throw ApiException('Lỗi không xác định: $e');
@@ -130,13 +147,18 @@ class ApiClient {
     try {
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
 
-      print('🔵 API POST MULTIPART: $url');
-      print('🔵 Timeout: ${timeout ?? ApiConstants.defaultTimeout}');
-      print('🔵 Fields: $fields');
-      print('🔵 Files count: ${files.length}');
+      if (kDebugMode) {
+        debugPrint('🔵 API POST MULTIPART: $url');
+        debugPrint('🔵 Files count: ${files.length}');
+      }
 
       // Create multipart request
       final request = http.MultipartRequest('POST', url);
+
+      // Add JWT auth header
+      if (_authToken != null) {
+        request.headers['Authorization'] = 'Bearer $_authToken';
+      }
 
       // Add fields
       request.fields.addAll(fields);
@@ -152,9 +174,9 @@ class ApiClient {
       // Convert streamed response to regular response
       final response = await http.Response.fromStream(streamedResponse);
 
-      print('✅ Response received: ${response.statusCode}');
-      print('✅ Headers: ${response.headers}');
-      print('✅ Body: ${response.body}');
+      if (kDebugMode) {
+        debugPrint('✅ Response: ${response.statusCode}');
+      }
 
       // Accept response if:
       // 1. Status code is 2xx (success)
@@ -165,7 +187,7 @@ class ApiClient {
         // Try to parse JSON - if successful, treat as valid response
         try {
           jsonDecode(response.body);
-          print('⚠️ [ApiClient] Status ${response.statusCode} but has valid JSON body, treating as success');
+          if (kDebugMode) debugPrint('⚠️ [ApiClient] Status ${response.statusCode} but valid JSON, treating as success');
           return response;
         } catch (e) {
           // Not valid JSON, throw error
@@ -186,14 +208,13 @@ class ApiClient {
         );
       }
     } on SocketException catch (e) {
-      print('❌ SocketException: $e');
+      if (kDebugMode) debugPrint('❌ SocketException: $e');
       throw NetworkException();
     } on ApiException {
       rethrow;
     } catch (e) {
-      print('❌ Caught exception: ${e.runtimeType} - $e');
+      if (kDebugMode) debugPrint('❌ Exception: ${e.runtimeType} - $e');
       if (e.toString().contains('TimeoutException')) {
-        print('⏱️ Timeout detected - throwing TimeoutException');
         throw TimeoutException();
       }
       throw ApiException('Lỗi không xác định: $e');

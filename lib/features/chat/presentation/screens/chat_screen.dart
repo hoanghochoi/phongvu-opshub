@@ -4,8 +4,9 @@ import '../providers/chat_provider.dart';
 import '../widgets/message_list.dart';
 import '../widgets/message_input.dart';
 import '../widgets/loading_indicator.dart';
+import '../../../../app/widgets/gradient_header.dart';
 
-class ChatScreen extends StatelessWidget {
+class ChatScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
 
   const ChatScreen({
@@ -14,32 +15,46 @@ class ChatScreen extends StatelessWidget {
   });
 
   @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Load local chat history when screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ChatProvider>().loadHistory();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Get keyboard height for manual padding
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Chat với BOT'),
-        leading: onBackToHome != null
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: onBackToHome,
-              )
-            : null,
+      backgroundColor: const Color(0xFFF5F7FB),
+      resizeToAvoidBottomInset: false,
+      appBar: GradientHeader(
+        title: 'Kiểm tra FIFO',
+        showBack: widget.onBackToHome == null,
       ),
       body: Stack(
         children: [
           Column(
             children: [
-              const Expanded(child: MessageList()),
-              SafeArea(
-                top: false,
-                child: const MessageInput(),
+              Expanded(
+                child: const MessageList(),
               ),
+              const MessageInput(),
+              SizedBox(height: keyboardHeight),
             ],
           ),
           Consumer<ChatProvider>(
             builder: (context, provider, child) {
               return provider.isLoading
-                  ? const LoadingIndicator()
+                  ? const Positioned.fill(child: LoadingIndicator())
                   : const SizedBox.shrink();
             },
           ),

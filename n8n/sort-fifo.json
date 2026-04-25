@@ -1,0 +1,323 @@
+{
+  "name": "sort-fifo",
+  "nodes": [
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        288,
+        0
+      ],
+      "id": "113853bf-dbb0-4ce8-8bda-397af00003c6",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "ZKa8qDXvli4HN1HC",
+          "mode": "list",
+          "cachedResultName": "inv-app",
+          "cachedResultUrl": "/projects/GTQprNa3RcCSHh8s/datatables/ZKa8qDXvli4HN1HC"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "sku",
+              "keyValue": "={{ $json.body.text }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -384,
+        16
+      ],
+      "id": "0303edba-eca2-4633-9aeb-01e772933d7f",
+      "name": "getInvBySerial",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2460e8c0-91c4-4f31-89d0-54502564607a",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -256,
+        16
+      ],
+      "id": "7dd32cb6-2260-4d45-a773-f10d08736512",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "8Ug6ouDoHOhz1vLW",
+          "mode": "list",
+          "cachedResultName": "inv-app",
+          "cachedResultUrl": "/projects/WAqDK79b9owhbfuS/datatables/8Ug6ouDoHOhz1vLW"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "bin",
+              "keyValue": "={{ $('sort').first().json.body.text }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        96
+      ],
+      "id": "d08b6dc3-b542-4c42-adca-1312098f3a31",
+      "name": "getInvByBin",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "284df640-cdc6-4429-ba47-dd2f1ce01881",
+              "name": "=sku_{{ $itemIndex }}",
+              "value": "=SKU: {{ $json.sku }}\nTên: {{ $json.sku_name }}\nSerial: {{ $json.serial_number }}\nMã BIN: {{ $json.bin }}\nZone: {{ $json.zone }}\nNgày nhập: {{ DateTime.fromJSDate(new Date($json['import_date'])).toFormat(\"dd-MM-yyyy\") }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        128,
+        0
+      ],
+      "id": "74920d9a-df25-490e-9643-87baf41e2f44",
+      "name": "get_needed_fields"
+    },
+    {
+      "parameters": {
+        "sortFieldsUi": {
+          "sortField": [
+            {
+              "fieldName": "import_date"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.sort",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c01c9145-8de3-4fd5-8988-632725138911",
+      "name": "Sort"
+    },
+    {
+      "parameters": {
+        "multipleMethods": true,
+        "httpMethod": [
+          "POST"
+        ],
+        "path": "pva-sort",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -544,
+        16
+      ],
+      "id": "56bbce2e-604e-4a60-805d-1d6ecb582c6c",
+      "name": "sort",
+      "webhookId": "9000b3c2-d770-476d-b4d8-6157872222f0"
+    },
+    {
+      "parameters": {
+        "multipleMethods": true,
+        "httpMethod": [
+          "POST"
+        ],
+        "path": "pva-sort-report",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -544,
+        224
+      ],
+      "id": "aecae579-90e8-4900-956e-b6eaea01b6b8",
+      "name": "sortReport",
+      "webhookId": "9000b3c2-d770-476d-b4d8-6157872222f0"
+    }
+  ],
+  "pinData": {
+    "sort": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.hoanghochoi.com",
+            "user-agent": "Dart/3.10 (dart:io)",
+            "content-length": "51",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1",
+            "cf-connecting-ip": "2402:9d80:364:e57a::e653:ed19",
+            "cf-ipcountry": "VN",
+            "cf-ray": "9d3e27ff2e5bfdab-SIN",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-warp-tag-id": "41ae2a3a-7aaa-4fea-b4cd-cae9ed852a3f",
+            "connection": "keep-alive",
+            "content-type": "application/json",
+            "x-forwarded-for": "2402:9d80:364:e57a::e653:ed19",
+            "x-forwarded-proto": "https"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "text": "231103653",
+            "user": "son.dh@phongvu-mna.vn"
+          },
+          "webhookUrl": "https://n8n.hoanghochoi.com/webhook/pva-sort",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "getInvBySerial": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Sort",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "getInvByBin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sort": {
+      "main": [
+        [
+          {
+            "node": "get_needed_fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_needed_fields": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "getInvByBin": {
+      "main": [
+        [
+          {
+            "node": "Sort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "sort": {
+      "main": [
+        [
+          {
+            "node": "getInvBySerial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "tUGf8pqhOC0yFiUP",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "62f840ad-9560-46a5-ae86-c7d5c62a64e1",
+  "meta": {
+    "instanceId": "68c41ac370df6979c43f7b043981d851778e281de852517a1e7ed81fd7414bf4"
+  },
+  "id": "fEuqbMMNyh23uJ2V",
+  "tags": []
+}

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../providers/warranty_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../chat/presentation/widgets/barcode_scanner_screen.dart' show BarcodeScannerScreen;
+import '../../../../app/widgets/gradient_header.dart';
 
 class WarrantyScreen extends StatefulWidget {
   const WarrantyScreen({super.key});
@@ -24,7 +25,6 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
   @override
   void initState() {
     super.initState();
-    // Auto-focus receipt field when screen loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _receiptFocusNode.requestFocus();
     });
@@ -37,7 +37,6 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
     super.dispose();
   }
 
-  /// Validate receipt number in real-time
   void _validateReceipt(String value) {
     setState(() {
       if (value.isEmpty) {
@@ -56,33 +55,20 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
   Future<void> _pickImage(ImageSource source) async {
     try {
       if (source == ImageSource.gallery) {
-        // Pick multiple images from gallery
         final List<XFile> selectedImages = await _picker.pickMultiImage();
-
         if (selectedImages.isNotEmpty) {
-          setState(() {
-            _images.addAll(selectedImages);
-          });
+          setState(() { _images.addAll(selectedImages); });
         }
       } else {
-        // Pick single image from camera
-        final XFile? image = await _picker.pickImage(
-          source: source,
-        );
-
+        final XFile? image = await _picker.pickImage(source: source);
         if (image != null) {
-          setState(() {
-            _images.add(image);
-          });
+          setState(() { _images.add(image); });
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi chọn ảnh: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Lỗi khi chọn ảnh: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -91,30 +77,22 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
   Future<void> _scanBarcode() async {
     try {
       final result = await Navigator.of(context).push<String>(
-        MaterialPageRoute(
-          builder: (context) => const BarcodeScannerScreen(),
-        ),
+        MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
       );
-
       if (result != null && mounted) {
         _receiptController.text = result;
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi quét mã: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Lỗi khi quét mã: $e'), backgroundColor: Colors.red),
         );
       }
     }
   }
 
   void _removeImage(int index) {
-    setState(() {
-      _images.removeAt(index);
-    });
+    setState(() { _images.removeAt(index); });
   }
 
   void _showImageSourceDialog() {
@@ -126,18 +104,12 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
             ListTile(
               leading: const Icon(Icons.photo_camera),
               title: const Text('Chụp ảnh'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.camera);
-              },
+              onTap: () { Navigator.pop(context); _pickImage(ImageSource.camera); },
             ),
             ListTile(
               leading: const Icon(Icons.photo_library),
               title: const Text('Chọn từ thư viện'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.gallery);
-              },
+              onTap: () { Navigator.pop(context); _pickImage(ImageSource.gallery); },
             ),
           ],
         ),
@@ -146,16 +118,11 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
   }
 
   Future<void> _saveWarranty() async {
-    if (!(_formKey.currentState?.validate() ?? false)) {
-      return;
-    }
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
     if (_images.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng chọn ít nhất 1 hình ảnh'),
-          backgroundColor: Colors.orange,
-        ),
+        const SnackBar(content: Text('Vui lòng chọn ít nhất 1 hình ảnh'), backgroundColor: Colors.orange),
       );
       return;
     }
@@ -166,15 +133,11 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
 
     if (userEmail.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không tìm thấy thông tin người dùng'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('Không tìm thấy thông tin người dùng'), backgroundColor: Colors.red),
       );
       return;
     }
 
-    // Convert XFile to File
     final List<File> imageFiles = _images.map((xFile) => File(xFile.path)).toList();
 
     final success = await warrantyProvider.saveWarranty(
@@ -185,56 +148,29 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
 
     if (mounted) {
       if (success) {
-        // Show success dialog
         await showDialog(
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            icon: const Icon(
-              Icons.check_circle,
-              color: Colors.green,
-              size: 64,
-            ),
+            icon: const Icon(Icons.check_circle, color: Colors.green, size: 64),
             title: const Text('Thành công'),
             content: const Text('Lưu biên nhận thành công!'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Xác nhận'),
-              ),
-            ],
+            actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Xác nhận'))],
           ),
         );
-
-        // Clear form after user confirms
         if (mounted) {
           _receiptController.clear();
-          setState(() {
-            _images.clear();
-            _receiptError = null;
-          });
+          setState(() { _images.clear(); _receiptError = null; });
         }
       } else {
-        // Show error dialog
         await showDialog(
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            icon: const Icon(
-              Icons.error,
-              color: Colors.red,
-              size: 64,
-            ),
+            icon: const Icon(Icons.error, color: Colors.red, size: 64),
             title: const Text('Thất bại'),
-            content: Text(
-              warrantyProvider.errorMessage ?? 'Lưu không thành công, vui lòng thao tác lại',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Xác nhận'),
-              ),
-            ],
+            content: Text(warrantyProvider.errorMessage ?? 'Lưu không thành công'),
+            actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Xác nhận'))],
           ),
         );
       }
@@ -244,9 +180,8 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Lưu hình ảnh bảo hành/sửa chữa'),
-      ),
+      backgroundColor: const Color(0xFFF5F7FB),
+      appBar: const GradientHeader(title: 'Lưu hình ảnh BH/SC', showBack: true),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),

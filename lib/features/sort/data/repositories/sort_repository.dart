@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/constants/api_constants.dart';
@@ -9,56 +10,53 @@ class SortRepository {
 
   SortRepository(this._apiClient);
 
+  // New backend returns a list of inventory items directly
+  // Each item has: sku, sku_name, serial_number, bin, zone, import_date, count, fifo
   Future<String> sendSortRequest(String text, String user) async {
     try {
-      final request = SortRequest(
-        text: text,
-        user: user,
-      );
+      final request = SortRequest(text: text, user: user);
 
       final response = await _apiClient.post(
         ApiConstants.sortWebhookEndpoint,
         body: request.toJson(),
       );
 
-      print('📥 [SortRepository] Response body: ${response.body}');
+      if (kDebugMode) {
+        debugPrint('📥 [SortRepository] Response: ${response.statusCode}');
+      }
 
-      // Parse response từ n8n
       String responseText;
       try {
-        // Thử parse JSON nếu response là JSON array/object
         final dynamic jsonResponse = jsonDecode(response.body);
 
         if (jsonResponse is List) {
-          // Nếu là array, extract text từ mỗi item
+          // New backend returns: [{sku, sku_name, serial_number, bin, zone, import_date, fifo}]
+          // Format same as n8n for compatibility
           final textParts = <String>[];
-          for (var item in jsonResponse) {
+          for (final item in jsonResponse) {
             if (item is Map<String, dynamic>) {
-              for (var value in item.values) {
-                if (value is String) {
-                  textParts.add(value);
-                }
-              }
-            } else if (item is String) {
-              textParts.add(item);
+              final lines = [
+                'SKU: ${item['sku'] ?? ''}',
+                'Tên: ${item['sku_name'] ?? ''}',
+                'Serial: ${item['serial_number'] ?? ''}',
+                'Mã BIN: ${item['bin'] ?? ''}',
+                'Zone: ${item['zone'] ?? ''}',
+                'Ngày nhập: ${item['import_date'] ?? ''}',
+              ];
+              textParts.add(lines.join('\n'));
             }
           }
           responseText = textParts.join('\n\n');
         } else if (jsonResponse is Map<String, dynamic>) {
-          // Nếu là object, extract text từ values
           final textParts = <String>[];
           for (var value in jsonResponse.values) {
-            if (value is String) {
-              textParts.add(value);
-            }
+            if (value is String) textParts.add(value);
           }
           responseText = textParts.join('\n\n');
         } else {
-          // Nếu không phải array/object, dùng toString
           responseText = jsonResponse.toString();
         }
       } catch (e) {
-        // Nếu không parse được JSON, dùng plain text
         responseText = response.body;
       }
 
@@ -67,6 +65,26 @@ class SortRepository {
       rethrow;
     } catch (e) {
       throw ApiException('Gửi yêu cầu sắp xếp thất bại: $e');
+    }
+  }
+
+  Future<void> sendCompletionReport({
+    required String user,
+    required List<Map<String, dynamic>> sortedSKUs,
+  }) async {
+    try {
+      await _apiClient.post(
+        ApiConstants.sortCompletionReportEndpoint,
+        body: {
+          'user': user,
+          'sortedSKUs': sortedSKUs,
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Gửi báo cáo sắp xếp thất bại: $e');
     }
   }
 }

@@ -5,6 +5,7 @@ import '../providers/warranty_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import 'warranty_details_screen.dart';
 import '../../../chat/presentation/widgets/barcode_scanner_screen.dart' show BarcodeScannerScreen;
+import '../../../../app/widgets/gradient_header.dart';
 
 class CheckWarrantyScreen extends StatefulWidget {
   const CheckWarrantyScreen({super.key});
@@ -122,9 +123,8 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Xem lại biên nhận'),
-      ),
+      backgroundColor: const Color(0xFFF5F7FB),
+      appBar: const GradientHeader(title: 'Xem lại biên nhận', showBack: true),
       body: SafeArea(
         child: Column(
           children: [

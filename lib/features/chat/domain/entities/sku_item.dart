@@ -41,6 +41,26 @@ class SKUItem {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'sku': sku,
+    'name': name,
+    'serial': serial,
+    'bin': bin,
+    'zone': zone,
+    'date': date,
+  };
+
+  factory SKUItem.fromJson(Map<String, dynamic> json) => SKUItem(
+    id: json['id'] ?? '',
+    sku: json['sku'] ?? '',
+    name: json['name'] ?? '',
+    serial: json['serial'] ?? '',
+    bin: json['bin'] ?? '',
+    zone: json['zone'] ?? '',
+    date: json['date'] ?? '',
+  );
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;

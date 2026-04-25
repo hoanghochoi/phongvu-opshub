@@ -21,7 +21,7 @@ class _SKUBubbleState extends State<SKUBubble> {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Đã copy: $text'),
+        content: Text('Đã sao chép: $text'),
         duration: const Duration(seconds: 1),
         behavior: SnackBarBehavior.floating,
       ),
@@ -41,38 +41,39 @@ class _SKUBubbleState extends State<SKUBubble> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
+        color: widget.skuItem.isChecked ? Colors.green[50] : Colors.grey[50],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: widget.skuItem.isChecked ? Colors.green : Colors.grey[300]!,
+          color: widget.skuItem.isChecked ? Colors.green[400]! : Colors.grey[300]!,
           width: widget.skuItem.isChecked ? 2 : 1,
         ),
       ),
-      child: SelectionArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header row with SKU and check button
-            Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row with SKU and check button
+          Row(
             children: [
               Expanded(
                 child: Row(
                   children: [
-                    const Text(
+                    Text(
                       'SKU: ',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
-                        color: Colors.black87,
+                        color: Colors.grey[700],
                       ),
                     ),
-                    Text(
-                      widget.skuItem.sku,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: Colors.blue,
-                      ),
+                    Flexible(
+                      child: Text(
+                        widget.skuItem.sku,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                          ),
                     ),
                   ],
                 ),
@@ -93,79 +94,81 @@ class _SKUBubbleState extends State<SKUBubble> {
                 ),
               ),
             ],
-            ),
-            const SizedBox(height: 8),
+          ),
+          const SizedBox(height: 8),
 
-            // Name
-            if (widget.skuItem.name.isNotEmpty) ...[
+          // Name
+          if (widget.skuItem.name.isNotEmpty) ...[
             Text(
               'Tên: ${widget.skuItem.name}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
-                color: Colors.black87,
+                color: Colors.grey[800],
               ),
-            ),
-              const SizedBox(height: 6),
-            ],
-
-            // Serial (selectable with copy on tap)
-            if (widget.skuItem.serial.isNotEmpty) ...[
-            Row(
-              children: [
-                const Text(
-                  'Serial: ',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _copyToClipboard(context, widget.skuItem.serial),
-                    child: Text(
-                      widget.skuItem.serial,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.blue,
-                        fontWeight: FontWeight.bold,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
             ),
             const SizedBox(height: 6),
           ],
 
-          // BIN (selectable with copy on tap)
-          if (widget.skuItem.bin.isNotEmpty) ...[
-            Row(
-              children: [
-                const Text(
-                  'Mã BIN: ',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w500,
+          // Serial (tap to copy)
+          if (widget.skuItem.serial.isNotEmpty) ...[
+            GestureDetector(
+              onTap: () => _copyToClipboard(context, widget.skuItem.serial),
+              child: Row(
+                children: [
+                  Text(
+                    'Serial: ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _copyToClipboard(context, widget.skuItem.bin),
+                  Expanded(
                     child: Text(
-                      widget.skuItem.bin,
-                      style: const TextStyle(
+                      widget.skuItem.serial,
+                      style: TextStyle(
                         fontSize: 13,
-                        color: Colors.blue,
-                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
                         decoration: TextDecoration.underline,
                       ),
                     ),
                   ),
-                ),
-              ],
+                  Icon(Icons.copy, size: 14, color: Colors.grey[400]),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
+
+          // BIN (tap to copy)
+          if (widget.skuItem.bin.isNotEmpty) ...[
+            GestureDetector(
+              onTap: () => _copyToClipboard(context, widget.skuItem.bin),
+              child: Row(
+                children: [
+                  Text(
+                    'Mã BIN: ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      widget.skuItem.bin,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.copy, size: 14, color: Colors.grey[400]),
+                ],
+              ),
             ),
             const SizedBox(height: 6),
           ],
@@ -174,25 +177,24 @@ class _SKUBubbleState extends State<SKUBubble> {
           if (widget.skuItem.zone.isNotEmpty) ...[
             Text(
               'Zone: ${widget.skuItem.zone}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
-                color: Colors.black87,
+                color: Colors.grey[600],
               ),
-              ),
-              const SizedBox(height: 6),
-            ],
-
-            // Date
-            if (widget.skuItem.date.isNotEmpty)
-              Text(
-              'Ngày nhập: ${widget.skuItem.date}',
-              style: const TextStyle(
-                fontSize: 13,
-                color: Colors.black87,
-              ),
-              ),
+            ),
+            const SizedBox(height: 6),
           ],
-        ),
+
+          // Date
+          if (widget.skuItem.date.isNotEmpty)
+            Text(
+              'Ngày nhập: ${widget.skuItem.date}',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[600],
+              ),
+            ),
+        ],
       ),
     );
   }

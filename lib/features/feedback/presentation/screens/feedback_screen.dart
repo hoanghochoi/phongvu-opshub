@@ -4,8 +4,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../../app/theme/app_theme.dart';
+import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/network/api_client.dart';
 
 class FeedbackScreen extends StatefulWidget {
   const FeedbackScreen({super.key});
@@ -32,7 +33,6 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   Future<void> _pickImage() async {
     try {
       final List<XFile> images = await _picker.pickMultiImage();
-
       if (images.isNotEmpty) {
         setState(() {
           _images.addAll(images.map((xFile) => File(xFile.path)));
@@ -52,10 +52,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
 
   Future<void> _takePhoto() async {
     try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.camera,
-      );
-
+      final XFile? image = await _picker.pickImage(source: ImageSource.camera);
       if (image != null) {
         setState(() {
           _images.add(File(image.path));
@@ -112,9 +109,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   }
 
   Future<void> _submitFeedback() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
     setState(() {
       _isSubmitting = true;
@@ -124,56 +119,47 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       final authProvider = context.read<AuthProvider>();
       final userEmail = authProvider.user?.email ?? '';
 
-      // Create multipart request
-      final uri = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.feedbackEndpoint}');
-      final request = http.MultipartRequest('POST', uri);
-
-      // Add text fields
-      request.fields['function'] = _functionController.text.trim();
-      request.fields['description'] = _descriptionController.text.trim();
-      request.fields['user_email'] = userEmail;
-      request.fields['timestamp'] = DateTime.now().toIso8601String();
-
-      // Add images as binary files with indexed field names
+      final files = <http.MultipartFile>[];
       for (var i = 0; i < _images.length; i++) {
-        final imageFile = _images[i];
-        final bytes = await imageFile.readAsBytes();
-        final multipartFile = http.MultipartFile.fromBytes(
-          'images$i', // field name: images0, images1, images2, ...
-          bytes,
-          filename: 'image_$i.jpg',
+        files.add(
+          await http.MultipartFile.fromPath(
+            'images',
+            _images[i].path,
+            filename: 'feedback_$i.jpg',
+          ),
         );
-        request.files.add(multipartFile);
       }
 
-      // Send request
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      final response = await ApiClient().postMultipart(
+        ApiConstants.feedbackEndpoint,
+        fields: {
+          'function': _functionController.text.trim(),
+          'description': _descriptionController.text.trim(),
+          'user_email': userEmail,
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+        files: files,
+        timeout: ApiConstants.uploadTimeout,
+      );
 
       if (mounted) {
         if (response.statusCode == 200 || response.statusCode == 201) {
-          // Success
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Gửi phản hồi thành công! Cảm ơn bạn đã đóng góp.'),
               backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
             ),
           );
-
-          // Clear form and navigate back
           _functionController.clear();
           _descriptionController.clear();
           setState(() {
             _images.clear();
           });
-
           Navigator.of(context).pop();
         } else {
-          // Error
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Lỗi khi gửi phản hồi: ${response.statusCode}'),
+              content: Text('Lỗi: ${response.statusCode}'),
               backgroundColor: Colors.red,
             ),
           );
@@ -182,10 +168,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi gửi phản hồi: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -200,11 +183,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Phản hồi'),
-        backgroundColor: AppTheme.primaryBlue,
-        foregroundColor: Colors.white,
-      ),
+      backgroundColor: const Color(0xFFF5F7FB),
+      appBar: const GradientHeader(title: 'Phản hồi', showBack: true),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -236,9 +216,9 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               // Function field
               Text(
                 'Chức năng',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               TextFormField(
@@ -260,9 +240,9 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               // Description field
               Text(
                 'Mô tả',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               TextFormField(
@@ -289,8 +269,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   Text(
                     'Hình ảnh (Tùy chọn)',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   TextButton.icon(
                     onPressed: _isSubmitting ? null : _showImageSourceDialog,
@@ -314,7 +294,11 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.image_outlined, size: 48, color: Colors.grey.shade400),
+                        Icon(
+                          Icons.image_outlined,
+                          size: 48,
+                          color: Colors.grey.shade400,
+                        ),
                         const SizedBox(height: 8),
                         Text(
                           'Chưa có hình ảnh',
@@ -323,7 +307,10 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                         const SizedBox(height: 4),
                         Text(
                           'Nhấn "Thêm ảnh" để chọn',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                          ),
                         ),
                       ],
                     ),
@@ -346,10 +333,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.file(
-                            _images[index],
-                            fit: BoxFit.cover,
-                          ),
+                          child: Image.file(_images[index], fit: BoxFit.cover),
                         ),
                         Positioned(
                           top: 4,
@@ -378,32 +362,57 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               const SizedBox(height: 32),
 
               // Submit button
-              ElevatedButton(
-                onPressed: _isSubmitting ? null : _submitFeedback,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+              Container(
+                width: double.infinity,
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFF0D1B6F),
+                      Color(0xFF1E3A8A),
+                      Color(0xFF3B5FCC),
+                    ],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
                   ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0D1B6F).withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _submitFeedback,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : const Text(
+                          'Gửi phản hồi',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      )
-                    : const Text(
-                        'Gửi phản hồi',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                ),
               ),
               const SizedBox(height: 16),
             ],

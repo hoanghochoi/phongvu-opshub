@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/warranty_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../../app/widgets/gradient_header.dart';
 
 class WarrantyDetailsScreen extends StatefulWidget {
   final String receiptNumber;
@@ -373,9 +374,8 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.receiptNumber),
-      ),
+      backgroundColor: const Color(0xFFF5F7FB),
+      appBar: GradientHeader(title: widget.receiptNumber, showBack: true),
       body: SafeArea(
         child: Consumer<WarrantyProvider>(
           builder: (context, warrantyProvider, _) {
@@ -698,8 +698,10 @@ class _ImageViewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
+      backgroundColor: const Color(0xFFF5F7FB),
+      appBar: GradientHeader(
+        title: title,
+        showBack: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.download),

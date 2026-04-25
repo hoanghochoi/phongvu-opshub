@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  # -------------------------------------------------------------------
+  # PostgreSQL Database (Shared between NestJS and Golang)
+  # -------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: opshub_postgres
+    environment:
+      POSTGRES_USER: opshub_user
+      POSTGRES_PASSWORD: opshub_password
+      POSTGRES_DB: opshub_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - opshub_network
+
+  # -------------------------------------------------------------------
+  # Redis (Used for Caching and Pub/Sub between services)
+  # -------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: opshub_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - opshub_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  opshub_network:
+    driver: bridge

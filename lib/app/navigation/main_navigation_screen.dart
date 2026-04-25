@@ -5,7 +5,6 @@ import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/warranty/presentation/screens/warranty_main_screen.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
-import '../theme/app_theme.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   final int initialIndex;
@@ -22,6 +21,29 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   late int _currentIndex;
   DateTime? _lastBackPress;
+  DateTime? _lastRefresh;
+
+  // Static constants to avoid recreating per build
+  static const _activeGradient = LinearGradient(
+    colors: [Color(0xFF0D1B6F), Color(0xFF3B5FCC)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+  static final _homeShadow = [
+    BoxShadow(
+      color: const Color(0xFF0D1B6F).withValues(alpha: 0.3),
+      blurRadius: 8,
+      spreadRadius: 1,
+      offset: const Offset(0, 2),
+    ),
+  ];
+  static final _navBarShadow = [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.08),
+      blurRadius: 12,
+      offset: const Offset(0, -4),
+    ),
+  ];
 
   @override
   void initState() {
@@ -41,18 +63,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       _currentIndex = index;
     });
 
-    // Refresh user data when Home button is tapped
+    // Refresh user data when Home button is tapped (throttled: max once per 5 min)
     if (index == 1) {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      authProvider.refreshUserData();
+      final now = DateTime.now();
+      if (_lastRefresh == null || now.difference(_lastRefresh!) > const Duration(minutes: 5)) {
+        _lastRefresh = now;
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        authProvider.refreshUserData();
+      }
     }
   }
 
   void _backToHome() {
-    // Refresh user data
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    authProvider.refreshUserData();
-    // Navigate to home
     _onItemTapped(1);
   }
 
@@ -100,24 +122,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           index: _currentIndex,
           children: _screens,
         ),
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 8,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
+        bottomNavigationBar: RepaintBoundary(
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: _navBarShadow,
+            ),
           child: SafeArea(
             child: SizedBox(
               height: 60,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  // Chat button (left)
+                  // FIFO button (left)
                   Expanded(
                     child: GestureDetector(
                       key: const ValueKey('nav_chat'),
@@ -129,7 +146,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                         children: [
                           Icon(
                             _currentIndex == 0 ? Icons.chat_bubble : Icons.chat_bubble_outline,
-                            color: _currentIndex == 0 ? AppTheme.primaryBlue : Colors.grey,
+                            color: _currentIndex == 0 ? const Color(0xFF0D1B6F) : Colors.grey,
                             size: 24,
                           ),
                           const SizedBox(height: 2),
@@ -138,14 +155,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: _currentIndex == 0 ? FontWeight.bold : FontWeight.normal,
-                              color: _currentIndex == 0 ? AppTheme.primaryBlue : Colors.grey,
+                              color: _currentIndex == 0 ? const Color(0xFF0D1B6F) : Colors.grey,
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  // Home button (center) with 3D effect
+                  // Home button (center)
                   Expanded(
                     child: GestureDetector(
                       key: const ValueKey('nav_home'),
@@ -156,29 +173,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Container(
-                            width: 40,
-                            height: 40,
+                            width: 42,
+                            height: 42,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: _currentIndex == 1 ? AppTheme.primaryBlue : Colors.white,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppTheme.primaryBlue.withValues(alpha: 0.3),
-                                  blurRadius: 6,
-                                  spreadRadius: 1,
-                                  offset: const Offset(0, 2),
-                                ),
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
-                                  blurRadius: 3,
-                                  offset: const Offset(0, 1),
-                                ),
-                              ],
+                              gradient: _currentIndex == 1
+                                  ? _activeGradient
+                                  : null,
+                              color: _currentIndex == 1 ? null : Colors.white,
+                              boxShadow: _homeShadow,
                             ),
                             child: Icon(
-                              Icons.home,
+                              Icons.home_rounded,
                               size: 22,
-                              color: _currentIndex == 1 ? Colors.white : AppTheme.iconColor,
+                              color: _currentIndex == 1 ? Colors.white : const Color(0xFF0D1B6F),
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -187,7 +195,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: _currentIndex == 1 ? FontWeight.bold : FontWeight.normal,
-                              color: _currentIndex == 1 ? AppTheme.primaryBlue : Colors.grey,
+                              color: _currentIndex == 1 ? const Color(0xFF0D1B6F) : Colors.grey,
                             ),
                           ),
                         ],
@@ -205,8 +213,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            _currentIndex == 2 ? Icons.build_circle : Icons.build_circle_outlined,
-                            color: _currentIndex == 2 ? AppTheme.primaryBlue : Colors.grey,
+                            _currentIndex == 2 ? Icons.headset_mic : Icons.headset_mic_outlined,
+                            color: _currentIndex == 2 ? const Color(0xFF0D1B6F) : Colors.grey,
                             size: 24,
                           ),
                           const SizedBox(height: 2),
@@ -215,7 +223,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: _currentIndex == 2 ? FontWeight.bold : FontWeight.normal,
-                              color: _currentIndex == 2 ? AppTheme.primaryBlue : Colors.grey,
+                              color: _currentIndex == 2 ? const Color(0xFF0D1B6F) : Colors.grey,
                             ),
                           ),
                         ],
@@ -226,14 +234,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               ),
             ),
           ),
+          ),
         ),
       ),
     );
-  }
-
-  // Provide a method to change tab from outside
-  static void changeTab(BuildContext context, int index) {
-    final state = context.findAncestorStateOfType<_MainNavigationScreenState>();
-    state?._onItemTapped(index);
   }
 }

@@ -4,6 +4,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/sort_provider.dart';
 import '../../../chat/presentation/widgets/barcode_scanner_screen.dart';
 import '../widgets/sort_sku_group_widget.dart';
+import '../../../../app/widgets/gradient_header.dart';
 
 class SortScreen extends StatefulWidget {
   const SortScreen({super.key});
@@ -44,12 +45,35 @@ class _SortScreenState extends State<SortScreen> {
     }
   }
 
+  // Check if input looks like a serial number (mix of letters and digits, no dots/dashes)
+  bool _looksLikeSerial(String text) {
+    final trimmed = text.trim();
+    // BIN contains dots or dashes (e.g., "LK.04-A-03-a")
+    if (trimmed.contains('.') || trimmed.contains('-')) return false;
+    // Serial = alphanumeric mix, longer than typical SKU
+    final hasLetters = RegExp(r'[a-zA-Z]').hasMatch(trimmed);
+    final hasDigits = RegExp(r'[0-9]').hasMatch(trimmed);
+    return hasLetters && hasDigits;
+  }
+
   Future<void> _sendSortRequest() async {
     final text = _controller.text.trim();
 
     if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng nhập SKU hoặc BIN')),
+      );
+      return;
+    }
+
+    // Warn if input looks like a serial number
+    if (_looksLikeSerial(text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Chức năng Sắp xếp chỉ hỗ trợ SKU hoặc BIN.\nĐể kiểm tra serial, vui lòng dùng Kiểm tra FIFO.'),
+          duration: Duration(seconds: 3),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
@@ -79,9 +103,8 @@ class _SortScreenState extends State<SortScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Sắp xếp hàng hóa'),
-      ),
+      backgroundColor: const Color(0xFFF5F7FB),
+      appBar: const GradientHeader(title: 'Sắp xếp FIFO', showBack: true),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
