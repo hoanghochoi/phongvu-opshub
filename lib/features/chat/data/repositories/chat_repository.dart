@@ -33,7 +33,10 @@ class ChatRepository {
         line = line.trim();
         if (line.startsWith('SKU:')) {
           // Remove " - Đúng FIFO" or " - Chưa đúng FIFO" suffix
-          sku = line.replaceFirst('SKU:', '').replaceAll(RegExp(r'\s*-\s*(Đúng|Chưa đúng) FIFO'), '').trim();
+          sku = line
+              .replaceFirst('SKU:', '')
+              .replaceAll(RegExp(r'\s*-\s*(Đúng|Chưa đúng) FIFO'), '')
+              .trim();
         } else if (line.startsWith('Tên:')) {
           name = line.replaceFirst('Tên:', '').trim();
         } else if (line.startsWith('Serial:')) {
@@ -48,15 +51,17 @@ class ChatRepository {
       }
 
       if (sku.isNotEmpty && serial.isNotEmpty) {
-        skuItems.add(SKUItem(
-          id: _uuid.v4(),
-          sku: sku,
-          name: name,
-          serial: serial,
-          bin: bin,
-          zone: zone,
-          date: date,
-        ));
+        skuItems.add(
+          SKUItem(
+            id: _uuid.v4(),
+            sku: sku,
+            name: name,
+            serial: serial,
+            bin: bin,
+            zone: zone,
+            date: date,
+          ),
+        );
       }
     }
 
@@ -70,15 +75,13 @@ class ChatRepository {
 
       // Send to backend /sort/fifo-check with text, qty, and user
       final response = await _apiClient.post(
-        ApiConstants.chatWebhookEndpoint,
-        body: {
-          'text': sku,
-          'qty': qtyInt,
-          'user': userEmail,
-        },
+        ApiConstants.fifoCheckEndpoint,
+        body: {'text': sku, 'qty': qtyInt, 'user': userEmail},
       );
 
-      if (kDebugMode) debugPrint('📥 [ChatRepository] Response: ${response.statusCode}');
+      if (kDebugMode) {
+        debugPrint('📥 [ChatRepository] Response: ${response.statusCode}');
+      }
 
       String responseText;
       List<SKUItem>? skuItems;
@@ -110,7 +113,8 @@ class ChatRepository {
           if (jsonResponse.containsKey('is_oldest')) {
             final message = jsonResponse['message'] ?? '';
             final item = jsonResponse['item'] as Map<String, dynamic>?;
-            final suggestedItem = jsonResponse['suggested_item'] as Map<String, dynamic>?;
+            final suggestedItem =
+                jsonResponse['suggested_item'] as Map<String, dynamic>?;
 
             responseText = message;
 
@@ -145,7 +149,8 @@ class ChatRepository {
                 ),
               ];
             }
-          } else if (jsonResponse.containsKey('found') && jsonResponse['found'] == false) {
+          } else if (jsonResponse.containsKey('found') &&
+              jsonResponse['found'] == false) {
             // Serial not found
             responseText = jsonResponse['message'] ?? 'Không tìm thấy';
             skuItems = [];

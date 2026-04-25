@@ -90,7 +90,7 @@ export class AuthService {
   }
 
   // -------------------------------------------------------
-  // GET USER DATA (matches pva-get-user)
+  // GET USER DATA
   // -------------------------------------------------------
   async getUserData(email: string) {
     const user = await this.prisma.user.findUnique({

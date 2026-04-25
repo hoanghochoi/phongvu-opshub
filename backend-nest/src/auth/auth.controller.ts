@@ -19,7 +19,7 @@ export class AuthController {
     return this.authService.googleLogin(body.idToken);
   }
 
-  // POST /auth/get-user — mirrors pva-get-user
+  // POST /auth/get-user
   @Post('get-user')
   @UseGuards(AuthGuard('jwt'))
   async getUserData(@Body() body: { user: string }) {

@@ -1,18 +1,45 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { InventoryController } from './inventory.controller';
 
 describe('InventoryController', () => {
   let controller: InventoryController;
+  let inventoryService: {
+    lookupBySku: jest.Mock;
+    lookupByBin: jest.Mock;
+    syncFromBigQuery: jest.Mock;
+  };
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [InventoryController],
-    }).compile();
-
-    controller = module.get<InventoryController>(InventoryController);
+  beforeEach(() => {
+    inventoryService = {
+      lookupBySku: jest.fn(),
+      lookupByBin: jest.fn(),
+      syncFromBigQuery: jest.fn(),
+    };
+    controller = new InventoryController(inventoryService as any);
   });
 
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
+  it('looks up inventory by SKU by default', async () => {
+    inventoryService.lookupBySku.mockResolvedValue([{ sku: 'SKU1' }]);
+
+    await expect(controller.lookup('SKU1', undefined as any)).resolves.toEqual([
+      { sku: 'SKU1' },
+    ]);
+    expect(inventoryService.lookupBySku).toHaveBeenCalledWith('SKU1');
+  });
+
+  it('looks up inventory by BIN when requested', async () => {
+    inventoryService.lookupByBin.mockResolvedValue([{ bin: 'BIN-A' }]);
+
+    await expect(controller.lookup('BIN-A', 'bin')).resolves.toEqual([
+      { bin: 'BIN-A' },
+    ]);
+    expect(inventoryService.lookupByBin).toHaveBeenCalledWith('BIN-A');
+  });
+
+  it('triggers manual BigQuery sync', async () => {
+    inventoryService.syncFromBigQuery.mockResolvedValue(undefined);
+
+    await expect(controller.manualSync()).resolves.toEqual({
+      message: 'BigQuery sync triggered',
+    });
   });
 });

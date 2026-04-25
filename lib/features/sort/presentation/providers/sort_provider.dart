@@ -125,7 +125,7 @@ class SortProvider extends ChangeNotifier {
       _currentUser = user;
       notifyListeners();
 
-      // Send to n8n and get response
+      // Send to backend and get response
       final result = await _repository.sendSortRequest(text, user);
       _response = result;
       _skuItems = _parseSKUItems(result);

@@ -100,7 +100,10 @@ export class WarrantyService {
       user: warranty.createdBy?.firstName ?? 'N/A',
       date: warranty.createdAt?.toISOString?.() ?? warranty.createdAt,
       images: warranty.imageLinks
-        ? warranty.imageLinks.split(';').filter((link: string) => link.trim())
+        ? warranty.imageLinks
+            .split(';')
+            .map((link: string) => link.trim())
+            .filter((link: string) => link.length > 0)
         : [],
     };
   }
