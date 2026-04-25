@@ -75,6 +75,18 @@ npm run start:dev
 
 The service listens on `PORT` or `3000` by default.
 
+## Smoke Check
+
+```bash
+curl http://localhost:3000/health
+```
+
+Expected response:
+
+```json
+{ "status": "ok", "service": "backend-nest" }
+```
+
 ## Verification
 
 ```bash

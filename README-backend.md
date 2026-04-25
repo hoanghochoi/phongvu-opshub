@@ -42,6 +42,22 @@ Run the Flutter app against the local API:
 flutter run --dart-define=API_BASE_URL=http://localhost:3000
 ```
 
+## Smoke Checks
+
+After starting the services, verify liveness before testing app flows:
+
+```bash
+curl http://localhost:3000/health
+curl http://localhost:8080/health
+```
+
+Expected responses:
+
+```json
+{"status":"ok","service":"backend-nest"}
+{"status":"ok","service":"backend-go"}
+```
+
 ## Deployment Checklist
 
 - Set a strong `JWT_SECRET`.

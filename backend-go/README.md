@@ -25,6 +25,12 @@ The WebSocket endpoint is:
 ws://localhost:8080/ws
 ```
 
+The liveness endpoint is:
+
+```text
+http://localhost:8080/health
+```
+
 ## Redis Event
 
 The service subscribes to:
