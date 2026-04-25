@@ -51,6 +51,7 @@ flutter run --dart-define=API_BASE_URL=http://localhost:3000
 - Set all `BIGQUERY_*` values and place the service-account JSON outside git.
 - Set `UPLOAD_BASE_DIR` to a persistent VPS directory, for example `/data/app_images`.
 - Set `IMAGE_BASE_URL` to the public image domain that serves `UPLOAD_BASE_DIR`.
+- Keep placeholder values out of production; the Nest API validates env values on startup.
 - Run `npx prisma migrate deploy` before starting the Nest API.
 - Start the Go service with the same Redis connection as NestJS.
 
