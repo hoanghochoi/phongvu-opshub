@@ -15,13 +15,13 @@ class User {
 
   String get storeInfo {
     if (storeId != null && storeName != null) {
-      return '$storeId: $storeName';
+      return '$storeId - $storeName';
     } else if (storeId != null) {
-      return '$storeId: #N/A';
+      return storeId!;
     } else if (storeName != null) {
-      return '#N/A: $storeName';
+      return storeName!;
     }
-    return '#N/A';
+    return 'Chưa gán chi nhánh';
   }
 
   @override

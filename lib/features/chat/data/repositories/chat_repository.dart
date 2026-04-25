@@ -1,11 +1,11 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/sku_item.dart';
-import '../models/n8n_request.dart';
 
 class ChatRepository {
   final ApiClient _apiClient;
@@ -15,14 +15,10 @@ class ChatRepository {
 
   List<SKUItem> _parseSKUItems(String text) {
     final skuItems = <SKUItem>[];
-
-    // Split by double newline to separate SKU blocks
     final blocks = text.split('\n\n');
 
     for (var block in blocks) {
       if (block.trim().isEmpty) continue;
-
-      // Check if block contains SKU info
       if (!block.contains('SKU:')) continue;
 
       final lines = block.split('\n');
@@ -36,7 +32,8 @@ class ChatRepository {
       for (var line in lines) {
         line = line.trim();
         if (line.startsWith('SKU:')) {
-          sku = line.replaceFirst('SKU:', '').trim();
+          // Remove " - Đúng FIFO" or " - Chưa đúng FIFO" suffix
+          sku = line.replaceFirst('SKU:', '').replaceAll(RegExp(r'\s*-\s*(Đúng|Chưa đúng) FIFO'), '').trim();
         } else if (line.startsWith('Tên:')) {
           name = line.replaceFirst('Tên:', '').trim();
         } else if (line.startsWith('Serial:')) {
@@ -50,7 +47,6 @@ class ChatRepository {
         }
       }
 
-      // Only add if we have at least SKU and Serial
       if (sku.isNotEmpty && serial.isNotEmpty) {
         skuItems.add(SKUItem(
           id: _uuid.v4(),
@@ -69,72 +65,115 @@ class ChatRepository {
 
   Future<Message> sendMessage(String sku, String qty, String userEmail) async {
     try {
-      final request = N8nRequest(
-        userEmail: userEmail,
-        sku: sku,
-        qty: qty,
-        timestamp: DateTime.now().toIso8601String(),
-      );
+      // Parse qty to int (default 1)
+      final qtyInt = int.tryParse(qty) ?? 1;
 
+      // Send to backend /sort/fifo-check with text, qty, and user
       final response = await _apiClient.post(
         ApiConstants.chatWebhookEndpoint,
-        body: request.toJson(),
+        body: {
+          'text': sku,
+          'qty': qtyInt,
+          'user': userEmail,
+        },
       );
 
-      print('📥 [ChatRepository] Response body: ${response.body}');
+      if (kDebugMode) debugPrint('📥 [ChatRepository] Response: ${response.statusCode}');
 
-      // Parse response từ n8n
       String responseText;
       List<SKUItem>? skuItems;
+      List<SKUItem>? suggestedSkuItems;
 
       try {
-        // Thử parse JSON nếu response là JSON array/object
         final dynamic jsonResponse = jsonDecode(response.body);
 
         if (jsonResponse is List) {
-          // Nếu là array, extract text từ mỗi item
+          // SKU lookup: backend returns list of inventory items
           final textParts = <String>[];
-          for (var item in jsonResponse) {
+          for (final item in jsonResponse) {
             if (item is Map<String, dynamic>) {
-              // Bỏ qua keys như sku_0, sku_1, chỉ lấy values
-              for (var value in item.values) {
-                if (value is String) {
-                  textParts.add(value);
-                }
-              }
-            } else if (item is String) {
-              textParts.add(item);
+              final lines = [
+                'SKU: ${item['sku'] ?? ''}',
+                'Tên: ${item['sku_name'] ?? ''}',
+                'Serial: ${item['serial_number'] ?? ''}',
+                'Mã BIN: ${item['bin'] ?? ''}',
+                'Zone: ${item['zone'] ?? ''}',
+                'Ngày nhập: ${item['import_date'] ?? ''}',
+              ];
+              textParts.add(lines.join('\n'));
             }
           }
           responseText = textParts.join('\n\n');
+          skuItems = _parseSKUItems(responseText);
         } else if (jsonResponse is Map<String, dynamic>) {
-          // Nếu là object, extract text từ values
-          final textParts = <String>[];
-          for (var value in jsonResponse.values) {
-            if (value is String) {
-              textParts.add(value);
+          // Serial lookup: backend returns { found, is_oldest, message, item }
+          if (jsonResponse.containsKey('is_oldest')) {
+            final message = jsonResponse['message'] ?? '';
+            final item = jsonResponse['item'] as Map<String, dynamic>?;
+            final suggestedItem = jsonResponse['suggested_item'] as Map<String, dynamic>?;
+
+            responseText = message;
+
+            if (item != null) {
+              // Create SKU bubble from serial check item (same style as SKU search)
+              skuItems = [
+                SKUItem(
+                  id: _uuid.v4(),
+                  sku: item['sku']?.toString() ?? '',
+                  name: item['sku_name']?.toString() ?? '',
+                  serial: item['serial_number']?.toString() ?? '',
+                  bin: item['bin']?.toString() ?? '',
+                  zone: item['zone']?.toString() ?? '',
+                  date: item['import_date']?.toString() ?? '',
+                ),
+              ];
+            } else {
+              skuItems = [];
             }
+
+            // Parse suggested item when FIFO check is wrong
+            if (suggestedItem != null) {
+              suggestedSkuItems = [
+                SKUItem(
+                  id: _uuid.v4(),
+                  sku: suggestedItem['sku']?.toString() ?? '',
+                  name: suggestedItem['sku_name']?.toString() ?? '',
+                  serial: suggestedItem['serial_number']?.toString() ?? '',
+                  bin: suggestedItem['bin']?.toString() ?? '',
+                  zone: suggestedItem['zone']?.toString() ?? '',
+                  date: suggestedItem['import_date']?.toString() ?? '',
+                ),
+              ];
+            }
+          } else if (jsonResponse.containsKey('found') && jsonResponse['found'] == false) {
+            // Serial not found
+            responseText = jsonResponse['message'] ?? 'Không tìm thấy';
+            skuItems = [];
+          } else {
+            // Fallback for other map responses
+            final textParts = <String>[];
+            for (var value in jsonResponse.values) {
+              if (value is String) textParts.add(value);
+            }
+            responseText = textParts.join('\n\n');
           }
-          responseText = textParts.join('\n\n');
         } else {
-          // Nếu không phải array/object, dùng toString
           responseText = jsonResponse.toString();
         }
       } catch (e) {
-        // Nếu không parse được JSON, dùng plain text
         responseText = response.body;
       }
 
-      // Parse SKU items từ response text
-      skuItems = _parseSKUItems(responseText);
+      // Only parse SKU items if not already set by serial check
+      skuItems ??= _parseSKUItems(responseText);
 
-      // Tạo bot message với response từ n8n
       return Message(
         id: _uuid.v4(),
         content: responseText.trim(),
         isUser: false,
         timestamp: DateTime.now(),
         skuItems: skuItems,
+        suggestedItems: suggestedSkuItems,
       );
     } on ApiException {
       rethrow;

@@ -1,28 +1,38 @@
 class ApiConstants {
   ApiConstants._();
 
-  static const String baseUrl = 'https://n8n.hoanghochoi.com';
+  // ──────────────────────────────────────────────────────────
+  // Base URL — override at build/run time with:
+  // flutter run --dart-define=API_BASE_URL=http://localhost:3000
+  // ──────────────────────────────────────────────────────────
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://192.168.8.100:3000',
+  );
 
   // Auth endpoints
-  static const String checkEmailEndpoint = '/webhook/pva-check-email';
-  static const String registerEndpoint = '/webhook/pva-reg';
-  static const String loginEndpoint = '/webhook/pva-login';
-  static const String getUserEndpoint = '/webhook/pva-get-user';
+  static const String googleLoginEndpoint = '/auth/google-login';
+  static const String getUserEndpoint = '/auth/get-user';
 
-  // Chat endpoint
-  static const String chatWebhookEndpoint = '/webhook/pva-chat';
+  // Chat/FIFO check endpoint
+  static const String chatWebhookEndpoint = '/sort/fifo-check';
 
-  // Sort endpoint
-  static const String sortWebhookEndpoint = '/webhook/pva-sort';
+  // Sort endpoint (mirrors n8n pva-sort)
+  static const String sortWebhookEndpoint = '/sort';
+  static const String sortCompletionReportEndpoint = '/sort/completion-report';
 
   // Feedback endpoint
-  static const String feedbackEndpoint = '/webhook/pva-feedback';
+  static const String feedbackEndpoint = '/feedback';
 
-  // Warranty endpoints
-  static const String saveWarrantyEndpoint = '/webhook/bhsc-save';
-  static const String showAllWarrantyEndpoint = '/webhook/bhsc-show-all';
-  static const String searchWarrantyEndpoint = '/webhook/bhsc-search';
-  static const String getWarrantyEndpoint = '/webhook/bhsc-get';
+  // FIFO Log endpoints
+  static const String fifoLogMyEndpoint = '/fifo-logs/my';
+  static const String fifoLogAdminEndpoint = '/fifo-logs/admin';
+
+  // Warranty endpoints (mirrors n8n bhsc-*)
+  static const String saveWarrantyEndpoint = '/upload/warranty'; // multipart
+  static const String showAllWarrantyEndpoint = '/warranties';
+  static const String searchWarrantyEndpoint = '/warranties/search';
+  static const String getWarrantyEndpoint = '/warranties/detail';
 
   // Timeouts
   static const Duration defaultTimeout = Duration(seconds: 30);

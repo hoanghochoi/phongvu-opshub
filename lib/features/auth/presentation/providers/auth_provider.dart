@@ -1,11 +1,18 @@
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/user.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthRepository _repository;
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+    serverClientId:
+        '771288927234-a4t5p35j56nortpngt3fqmr3uhhs3eu6.apps.googleusercontent.com',
+  );
 
   User? _user;
   bool _isLoading = false;
@@ -31,6 +38,7 @@ class AuthProvider extends ChangeNotifier {
       final storeId = prefs.getString('user_storeId');
       final storeName = prefs.getString('user_storeName');
       final role = prefs.getString('user_role');
+      final token = prefs.getString('user_jwt_token');
 
       if (email != null) {
         _user = User(
@@ -40,18 +48,25 @@ class AuthProvider extends ChangeNotifier {
           storeName: storeName,
           role: role,
         );
-        print('✅ [AuthProvider] Loaded saved session: $email');
+
+        // Restore JWT token to ApiClient for authenticated API calls
+        if (token != null) {
+          ApiClient().setAuthToken(token);
+          if (kDebugMode) debugPrint('✅ [AuthProvider] Restored JWT token');
+        }
+
+        if (kDebugMode) debugPrint('✅ [AuthProvider] Loaded session: $email');
       }
     } catch (e) {
-      print('❌ [AuthProvider] Error loading session: $e');
+      if (kDebugMode) debugPrint('❌ [AuthProvider] Error loading session: $e');
     } finally {
       _isInitialized = true;
       notifyListeners();
     }
   }
 
-  /// Save session to SharedPreferences
-  Future<void> _saveSession(User user) async {
+  /// Save session to SharedPreferences (including JWT token)
+  Future<void> _saveSession(User user, {String? token}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_email', user.email);
@@ -67,9 +82,11 @@ class AuthProvider extends ChangeNotifier {
       if (user.role != null) {
         await prefs.setString('user_role', user.role!);
       }
-      print('✅ [AuthProvider] Session saved');
+      if (token != null) {
+        await prefs.setString('user_jwt_token', token);
+      }
     } catch (e) {
-      print('❌ [AuthProvider] Error saving session: $e');
+      if (kDebugMode) debugPrint('❌ [AuthProvider] Error saving session: $e');
     }
   }
 
@@ -79,42 +96,72 @@ class AuthProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('user_email');
       await prefs.remove('user_name');
-      print('✅ [AuthProvider] Session cleared');
+      await prefs.remove('user_storeId');
+      await prefs.remove('user_storeName');
+      await prefs.remove('user_role');
+      await prefs.remove('user_jwt_token');
+      ApiClient().setAuthToken(null);
     } catch (e) {
-      print('❌ [AuthProvider] Error clearing session: $e');
+      if (kDebugMode) debugPrint('❌ [AuthProvider] Error clearing session: $e');
     }
   }
 
-  Future<bool> login(String email, String password) async {
-    print('🔵 [AuthProvider] Starting login...');
+  /// Sign in with Google OAuth
+  Future<bool> signInWithGoogle() async {
+    if (kDebugMode) debugPrint('🔵 [AuthProvider] Starting Google Sign-In...');
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _user = await _repository.login(email, password);
-      print('✅ [AuthProvider] Login success! User: ${_user?.email}, Name: ${_user?.name}');
-      print('✅ [AuthProvider] isAuthenticated: $isAuthenticated');
+      // 1. Trigger Google Sign-In flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        // User cancelled sign-in
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
 
-      // Save session
+      if (kDebugMode) {
+        debugPrint('✅ [AuthProvider] Google user: ${googleUser.email}');
+      }
+
+      // 2. Get ID Token
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final String? idToken = googleAuth.idToken;
+
+      if (idToken == null) {
+        throw ApiException('Không lấy được Google token');
+      }
+
+      // 3. Send ID Token to backend
+      final (user, token) = await _repository.googleLogin(idToken);
+      _user = user;
+
+      // 4. Save session (including JWT token)
       if (_user != null) {
-        await _saveSession(_user!);
+        await _saveSession(_user!, token: token);
       }
 
       _isLoading = false;
       notifyListeners();
-      print('✅ [AuthProvider] notifyListeners() called');
       return true;
     } on ApiException catch (e) {
-      print('❌ [AuthProvider] Login failed: ${e.message}');
+      if (kDebugMode) {
+        debugPrint('❌ [AuthProvider] Google login failed: ${e.message}');
+      }
       _errorMessage = e.message;
       _isLoading = false;
+      await _googleSignIn.signOut(); // Clean up Google session on failure
       notifyListeners();
       return false;
     } catch (e) {
-      print('❌ [AuthProvider] Login error: $e');
-      _errorMessage = 'Lỗi không xác định: $e';
+      if (kDebugMode) debugPrint('❌ [AuthProvider] Google login error: $e');
+      _errorMessage = 'Đăng nhập thất bại: $e';
       _isLoading = false;
+      await _googleSignIn.signOut();
       notifyListeners();
       return false;
     }
@@ -122,61 +169,11 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     await _clearSession();
+    await _googleSignIn.signOut();
     _user = null;
     _errorMessage = null;
     _isLoading = false;
     notifyListeners();
-  }
-
-  /// Check email status: returns 'new', 'yes', or 'no'
-  Future<String?> checkEmail(String email) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      final status = await _repository.checkEmail(email);
-      _isLoading = false;
-      notifyListeners();
-      return status;
-    } on ApiException catch (e) {
-      _errorMessage = e.message;
-      print('🔴 AuthProvider checkEmail error: $_errorMessage');
-      _isLoading = false;
-      notifyListeners();
-      return null;
-    } catch (e) {
-      _errorMessage = 'Lỗi không xác định: $e';
-      print('🔴 AuthProvider checkEmail error: $_errorMessage');
-      _isLoading = false;
-      notifyListeners();
-      return null;
-    }
-  }
-
-  Future<bool> register(String email, String password, String name) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      await _repository.register(email, password, name);
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } on ApiException catch (e) {
-      _errorMessage = e.message;
-      print('🔴 AuthProvider set errorMessage: $_errorMessage');
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    } catch (e) {
-      _errorMessage = 'Lỗi không xác định: $e';
-      print('🔴 AuthProvider set errorMessage: $_errorMessage');
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
   }
 
   void clearError() {
@@ -184,26 +181,22 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Refresh user data from webhook
+  /// Refresh user data
   Future<void> refreshUserData() async {
     if (_user == null) return;
-
-    print('🔵 [AuthProvider] Refreshing user data...');
 
     try {
       final updatedUser = await _repository.getUserData(_user!.email);
       _user = updatedUser;
-      print('✅ [AuthProvider] User data refreshed: ${_user?.name}, Store: ${_user?.storeName}');
 
-      // Save updated session
       await _saveSession(_user!);
-
       notifyListeners();
     } on ApiException catch (e) {
-      print('❌ [AuthProvider] Refresh failed: ${e.message}');
-      // Don't set error message for silent refresh
+      if (kDebugMode) {
+        debugPrint('❌ [AuthProvider] Refresh failed: ${e.message}');
+      }
     } catch (e) {
-      print('❌ [AuthProvider] Refresh error: $e');
+      if (kDebugMode) debugPrint('❌ [AuthProvider] Refresh error: $e');
     }
   }
 }

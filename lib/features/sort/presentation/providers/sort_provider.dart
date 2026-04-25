@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import '../../data/repositories/sort_repository.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../chat/domain/entities/sku_item.dart';
@@ -55,15 +53,17 @@ class SortProvider extends ChangeNotifier {
       }
 
       if (sku.isNotEmpty && serial.isNotEmpty) {
-        skuItems.add(SKUItem(
-          id: _uuid.v4(),
-          sku: sku,
-          name: name,
-          serial: serial,
-          bin: bin,
-          zone: zone,
-          date: date,
-        ));
+        skuItems.add(
+          SKUItem(
+            id: _uuid.v4(),
+            sku: sku,
+            name: name,
+            serial: serial,
+            bin: bin,
+            zone: zone,
+            date: date,
+          ),
+        );
       }
     }
 
@@ -82,11 +82,7 @@ class SortProvider extends ChangeNotifier {
 
     return grouped.entries.map((entry) {
       final firstItem = entry.value.first;
-      return SKUGroup(
-        sku: entry.key,
-        name: firstItem.name,
-        items: entry.value,
-      );
+      return SKUGroup(sku: entry.key, name: firstItem.name, items: entry.value);
     }).toList();
   }
 
@@ -95,30 +91,24 @@ class SortProvider extends ChangeNotifier {
 
     final sortedSKUs = _skuGroups!
         .where((group) => group.isFullyChecked)
-        .map((group) => {
-              'sku': group.sku,
-              'name': group.name,
-              'bins': group.items.map((item) => item.bin).toSet().toList(),
-              'count': group.items.length,
-            })
+        .map(
+          (group) => {
+            'sku': group.sku,
+            'name': group.name,
+            'bins': group.items.map((item) => item.bin).toSet().toList(),
+            'count': group.items.length,
+          },
+        )
         .toList();
 
     if (sortedSKUs.isEmpty) return;
 
     try {
-      final response = await http.post(
-        Uri.parse('https://n8n.hoanghochoi.com/webhook/pva-sort-report'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'user': _currentUser,
-          'sortedSKUs': sortedSKUs,
-          'timestamp': DateTime.now().toIso8601String(),
-        }),
+      await _repository.sendCompletionReport(
+        user: _currentUser!,
+        sortedSKUs: sortedSKUs,
       );
-
-      if (response.statusCode == 200) {
-        debugPrint('Sort report sent successfully');
-      }
+      debugPrint('Sort report sent successfully');
     } catch (e) {
       debugPrint('Error sending sort report: $e');
     }

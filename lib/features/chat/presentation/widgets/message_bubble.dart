@@ -7,6 +7,11 @@ import 'sku_bubble.dart';
 class MessageBubble extends StatelessWidget {
   final Message message;
 
+  // Cached formatters - avoid recreating on every build
+  static final DateFormat _timeFormat = DateFormat('HH:mm');
+  static final RegExp _botRegex = RegExp(r'(Serial|Mã BIN):\s*(\S+)', caseSensitive: false);
+  static final RegExp _userRegex = RegExp(r'(SKU|sku):\s*(\S+)', caseSensitive: false);
+
   const MessageBubble({
     super.key,
     required this.message,
@@ -29,7 +34,7 @@ class MessageBubble extends StatelessWidget {
     final spans = <TextSpan>[];
 
     // Regex to match Serial: followed by value and BIN: followed by value
-    final regex = RegExp(r'(Serial|Mã BIN):\s*(\S+)', caseSensitive: false);
+    final regex = _botRegex;
     int lastIndex = 0;
 
     for (final match in regex.allMatches(content)) {
@@ -39,7 +44,6 @@ class MessageBubble extends StatelessWidget {
           text: content.substring(lastIndex, match.start),
           style: const TextStyle(
             color: Colors.black87,
-            fontFamily: 'monospace',
             fontSize: 14,
           ),
         ));
@@ -50,7 +54,6 @@ class MessageBubble extends StatelessWidget {
         text: '${match.group(1)!}: ',
         style: const TextStyle(
           color: Colors.black87,
-          fontFamily: 'monospace',
           fontSize: 14,
           fontWeight: FontWeight.bold,
         ),
@@ -61,9 +64,8 @@ class MessageBubble extends StatelessWidget {
 
       spans.add(TextSpan(
         text: value,
-        style: const TextStyle(
-          color: Colors.blue,
-          fontFamily: 'monospace',
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
           fontSize: 14,
           fontWeight: FontWeight.bold,
           decoration: TextDecoration.underline,
@@ -79,7 +81,6 @@ class MessageBubble extends StatelessWidget {
         text: content.substring(lastIndex),
         style: const TextStyle(
           color: Colors.black87,
-          fontFamily: 'monospace',
           fontSize: 14,
         ),
       ));
@@ -96,7 +97,7 @@ class MessageBubble extends StatelessWidget {
     final content = message.content;
 
     // Regex to match SKU: followed by value
-    final regex = RegExp(r'(SKU|sku):\s*(\S+)', caseSensitive: false);
+    final regex = _userRegex;
     final matches = regex.allMatches(content).toList();
 
     // If no SKU found, return plain selectable text
@@ -171,7 +172,7 @@ class MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final timeFormat = DateFormat('HH:mm');
+    final timeFormat = _timeFormat;
 
     // If bot message has SKU items, display SKU bubbles
     if (!message.isUser && message.skuItems != null && message.skuItems!.isNotEmpty) {
@@ -185,13 +186,85 @@ class MessageBubble extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // SKU Bubbles
+              // Show message text above bubbles (e.g., "✅ Đúng FIFO")
+              if (message.content.isNotEmpty && !message.content.contains('SKU:')) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: message.content.contains('✅')
+                        ? Colors.green[50]
+                        : message.content.contains('❌')
+                            ? Colors.red[50]
+                            : Colors.grey[200],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: message.content.contains('✅')
+                          ? Colors.green[300]!
+                          : message.content.contains('❌')
+                              ? Colors.red[300]!
+                              : Colors.grey[400]!,
+                    ),
+                  ),
+                  child: Text(
+                    message.content,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: message.content.contains('✅')
+                          ? Colors.green[800]
+                          : message.content.contains('❌')
+                              ? Colors.red[800]
+                              : Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+              // Checked item's SKU Bubbles
               ...message.skuItems!.map((skuItem) => SKUBubble(
                     skuItem: skuItem,
                     onCheckChanged: (item) {
                       // State is managed in SKUItem.isChecked
                     },
                   )),
+              // FIFO Suggestion section
+              if (message.suggestedItems != null && message.suggestedItems!.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.amber[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber[400]!, width: 1.5),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.lightbulb_outline, color: Colors.amber[700], size: 18),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Gợi ý — Sản phẩm cần lấy trước:',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.amber[900],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ...message.suggestedItems!.map((skuItem) => SKUBubble(
+                            skuItem: skuItem,
+                            onCheckChanged: (item) {},
+                          )),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 4),
               // Timestamp
               Padding(

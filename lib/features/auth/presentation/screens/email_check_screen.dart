@@ -1,311 +1,225 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
-import 'register_screen.dart';
+import '../../../../app/widgets/gradient_header.dart';
 
-class EmailCheckScreen extends StatefulWidget {
+class EmailCheckScreen extends StatelessWidget {
   const EmailCheckScreen({super.key});
-
-  @override
-  State<EmailCheckScreen> createState() => _EmailCheckScreenState();
-}
-
-class _EmailCheckScreenState extends State<EmailCheckScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _emailFocusNode = FocusNode();
-  final _passwordFocusNode = FocusNode();
-
-  bool _showPasswordField = false;
-  String? _userEmail;
-
-  @override
-  void initState() {
-    super.initState();
-    // Auto-focus email field when screen loads
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _emailFocusNode.requestFocus();
-    });
-  }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    _emailFocusNode.dispose();
-    _passwordFocusNode.dispose();
-    super.dispose();
-  }
-
-  Future<void> _handleEmailSubmit() async {
-    if (_formKey.currentState?.validate() ?? false) {
-      final email = _emailController.text.trim();
-      final authProvider = context.read<AuthProvider>();
-
-      final status = await authProvider.checkEmail(email);
-
-      if (!mounted) return;
-
-      if (status == null) {
-        // Error occurred, show error message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authProvider.errorMessage ?? 'Lỗi kiểm tra email'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      print('🔵 [EmailCheckScreen] Received status: "$status"');
-      print('🔵 [EmailCheckScreen] Status length: ${status.length}');
-      print('🔵 [EmailCheckScreen] Status bytes: ${status.codeUnits}');
-      print('🔵 [EmailCheckScreen] Mounted: $mounted');
-
-      setState(() {
-        _userEmail = email;
-      });
-
-      print('🔵 [EmailCheckScreen] After setState, mounted: $mounted');
-
-      // Status is already lowercase from repository
-      switch (status) {
-        case 'new':
-          // Navigate to registration screen
-          if (!mounted) return;
-          final result = await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => RegisterScreen(email: email),
-            ),
-          );
-
-          // If registration successful, clear and go back to email screen
-          if (result == true && mounted) {
-            _emailController.clear();
-            _passwordController.clear();
-            setState(() {
-              _showPasswordField = false;
-              _userEmail = null;
-            });
-          }
-          break;
-
-        case 'yes':
-          // Show password field for login
-          setState(() {
-            _showPasswordField = true;
-          });
-          break;
-
-        case 'no':
-          // Show error message
-          print('🔴 [EmailCheckScreen] Entered case "no"');
-          print('🔴 [EmailCheckScreen] Mounted before dialog: $mounted');
-          if (!mounted) {
-            print('❌ [EmailCheckScreen] Widget not mounted, cannot show dialog');
-            return;
-          }
-          print('🔴 [EmailCheckScreen] Showing dialog now...');
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Thông báo'),
-              content: const Text('Email chưa được xác minh, vui lòng liên hệ Quản lý.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Đóng'),
-                ),
-              ],
-            ),
-          );
-          print('🔴 [EmailCheckScreen] Dialog shown successfully');
-          break;
-
-        default:
-          // Unexpected status
-          print('⚠️ [EmailCheckScreen] Unexpected status: "$status"');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Trạng thái không hợp lệ: "$status"'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-          break;
-      }
-    }
-  }
-
-  Future<void> _handleLogin() async {
-    if (_formKey.currentState?.validate() ?? false) {
-      final authProvider = context.read<AuthProvider>();
-      final success = await authProvider.login(
-        _userEmail!,
-        _passwordController.text,
-      );
-
-      if (!mounted) return;
-
-      if (success) {
-        // Navigate to home
-        Navigator.of(context).pushReplacementNamed('/home');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authProvider.errorMessage ?? 'Đăng nhập thất bại'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _handleBack() {
-    setState(() {
-      _showPasswordField = false;
-      _userEmail = null;
-      _passwordController.clear();
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Đăng nhập'),
-        leading: _showPasswordField
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: _handleBack,
-              )
-            : null,
-      ),
-      body: SafeArea(
-        child: Consumer<AuthProvider>(
-          builder: (context, authProvider, _) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 40),
-
-                    // Logo
-                    Image.asset(
-                      'assets/images/logo.png',
-                      height: 100,
-                      fit: BoxFit.contain,
-                    ),
-                    const SizedBox(height: 24),
-
-                    // App Name
-                    Text(
-                      'PhongVu OpsHub',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Slogan
-                    Text(
-                      'Kết nối con người. Đồng bộ vận hành.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey[600],
-                            fontStyle: FontStyle.italic,
-                          ),
-                    ),
-                    const SizedBox(height: 48),
-
-                    // Email field
-                    TextFormField(
-                      controller: _emailController,
-                      focusNode: _emailFocusNode,
-                      enabled: !_showPasswordField && !authProvider.isLoading,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        hintText: 'Nhập email công ty',
-                        prefixIcon: Icon(Icons.email),
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _handleEmailSubmit(),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Vui lòng nhập email';
-                        }
-                        if (!value.contains('@')) {
-                          return 'Email không hợp lệ';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Password field (shown only after email check returns 'yes')
-                    if (_showPasswordField) ...[
-                      TextFormField(
-                        controller: _passwordController,
-                        focusNode: _passwordFocusNode,
-                        enabled: !authProvider.isLoading,
-                        autofocus: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Mật khẩu',
-                          hintText: 'Nhập mật khẩu',
-                          prefixIcon: Icon(Icons.lock),
-                          border: OutlineInputBorder(),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: GradientHeader.gradient,
+        ),
+        child: SafeArea(
+          child: Consumer<AuthProvider>(
+            builder: (context, authProvider, _) {
+              return Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Logo with glow effect
+                      Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(28),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              blurRadius: 30,
+                              spreadRadius: 5,
+                            ),
+                          ],
                         ),
-                        obscureText: true,
-                        textInputAction: TextInputAction.done,
-                        onFieldSubmitted: (_) => _handleLogin(),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Vui lòng nhập mật khẩu';
-                          }
-                          // Check for Latin characters only
-                          final latinOnly = RegExp(r'^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};:"\\|,.<>/?]+$');
-                          if (!latinOnly.hasMatch(value)) {
-                            return 'Mật khẩu chỉ chấp nhận ký tự Latin không dấu';
-                          }
-                          return null;
-                        },
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(28),
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            height: 120,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 28),
+
+                      // App Name
+                      const Text(
+                        'PhongVu OpsHub',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 1.2,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Slogan
+                      Text(
+                        'Kết nối con người. Đồng bộ vận hành.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          fontSize: 15,
+                          fontStyle: FontStyle.italic,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 56),
+
+                      // Glassmorphism login card
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(28),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            const Text(
+                              'Đăng nhập',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Sử dụng các domain thuộc phongvu.vn để đăng nhập',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.65),
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+
+                            // Google Sign-In Button
+                            SizedBox(
+                              width: double.infinity,
+                              height: 54,
+                              child: ElevatedButton(
+                                onPressed: authProvider.isLoading
+                                    ? null
+                                    : () => _handleGoogleSignIn(context),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: Colors.grey[800],
+                                  disabledBackgroundColor: Colors.white.withValues(alpha: 0.7),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                child: authProvider.isLoading
+                                    ? Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          SizedBox(
+                                            height: 20,
+                                            width: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            'Đang đăng nhập...',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Image.network(
+                                            'https://developers.google.com/identity/images/g-logo.png',
+                                            height: 22,
+                                            width: 22,
+                                            errorBuilder: (context, error, stackTrace) => Icon(
+                                              Icons.login_rounded,
+                                              size: 22,
+                                              color: Colors.grey[700],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          const Text(
+                                            'Đăng nhập bằng Google',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 48),
+
+                      // Footer
+                      Text(
+                        '© 2025 PhongVu OpsHub',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.35),
+                          fontSize: 12,
+                        ),
+                      ),
                     ],
-
-                    if (!_showPasswordField)
-                      const SizedBox(height: 24),
-
-                    // Submit button
-                    ElevatedButton(
-                      onPressed: authProvider.isLoading
-                          ? null
-                          : (_showPasswordField ? _handleLogin : _handleEmailSubmit),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: authProvider.isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(_showPasswordField ? 'Đăng nhập' : 'Tiếp tục'),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _handleGoogleSignIn(BuildContext context) async {
+    final authProvider = context.read<AuthProvider>();
+    final success = await authProvider.signInWithGoogle();
+
+    if (!context.mounted) return;
+
+    if (success) {
+      Navigator.of(context).pushReplacementNamed('/home');
+    } else if (authProvider.errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authProvider.errorMessage!),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

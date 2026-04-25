@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
@@ -10,25 +11,26 @@ class WarrantyRepository {
 
   WarrantyRepository(this._apiClient);
 
+  /// Save warranty + upload images (multipart)
+  /// POST /upload/warranty
+  /// Fields: { receipt } + files: images[]
   Future<Map<String, dynamic>> saveWarranty({
     required String userEmail,
     required String receiptNumber,
     required List<File> images,
   }) async {
     try {
-      // Prepare multipart files
       final List<http.MultipartFile> multipartFiles = [];
       for (int i = 0; i < images.length; i++) {
         final file = images[i];
         final multipartFile = await http.MultipartFile.fromPath(
-          'image$i', // Field name: image0, image1, image2, etc.
+          'images',   // New backend uses 'images' (FilesInterceptor)
           file.path,
           filename: 'image_$i.jpg',
         );
         multipartFiles.add(multipartFile);
       }
 
-      // Send multipart request
       final response = await _apiClient.postMultipart(
         ApiConstants.saveWarrantyEndpoint,
         fields: {
@@ -39,7 +41,7 @@ class WarrantyRepository {
         timeout: ApiConstants.uploadTimeout,
       );
 
-      print('📥 [WarrantyRepository.saveWarranty] Response: ${response.body}');
+      if (kDebugMode) debugPrint('📥 [WarrantyRepository.saveWarranty] Response: ${response.statusCode}');
 
       final dynamic jsonResponse = jsonDecode(response.body);
       Map<String, dynamic> responseData;
@@ -60,14 +62,14 @@ class WarrantyRepository {
     }
   }
 
+  /// GET /warranties  (show all - filtered server-side by JWT user or storeId)
   Future<List<Map<String, dynamic>>> showAllWarranty(String userEmail) async {
     try {
-      final response = await _apiClient.post(
+      final response = await _apiClient.get(
         ApiConstants.showAllWarrantyEndpoint,
-        body: {'user': userEmail},
       );
 
-      print('📥 [WarrantyRepository.showAllWarranty] Response: ${response.body}');
+      if (kDebugMode) debugPrint('📥 [WarrantyRepository.showAllWarranty] Response: ${response.statusCode}');
 
       final dynamic jsonResponse = jsonDecode(response.body);
 
@@ -87,20 +89,17 @@ class WarrantyRepository {
     }
   }
 
+  /// GET /warranties/search?receipt=xxx
   Future<List<Map<String, dynamic>>> searchWarranty({
     required String userEmail,
     required String receiptNumber,
   }) async {
     try {
-      final response = await _apiClient.post(
-        ApiConstants.searchWarrantyEndpoint,
-        body: {
-          'user': userEmail,
-          'receipt': receiptNumber,
-        },
+      final response = await _apiClient.get(
+        '${ApiConstants.searchWarrantyEndpoint}?receipt=${Uri.encodeComponent(receiptNumber)}',
       );
 
-      print('📥 [WarrantyRepository.searchWarranty] Response: ${response.body}');
+      if (kDebugMode) debugPrint('📥 [WarrantyRepository.searchWarranty] Response: ${response.statusCode}');
 
       final dynamic jsonResponse = jsonDecode(response.body);
 
@@ -120,20 +119,17 @@ class WarrantyRepository {
     }
   }
 
+  /// GET /warranties/detail?receipt=xxx
   Future<Map<String, dynamic>> getWarrantyDetails({
     required String userEmail,
     required String receiptNumber,
   }) async {
     try {
-      final response = await _apiClient.post(
-        ApiConstants.getWarrantyEndpoint,
-        body: {
-          'user': userEmail,
-          'receipt': receiptNumber,
-        },
+      final response = await _apiClient.get(
+        '${ApiConstants.getWarrantyEndpoint}?receipt=${Uri.encodeComponent(receiptNumber)}',
       );
 
-      print('📥 [WarrantyRepository.getWarrantyDetails] Response: ${response.body}');
+      if (kDebugMode) debugPrint('📥 [WarrantyRepository.getWarrantyDetails] Response: ${response.statusCode}');
 
       final dynamic jsonResponse = jsonDecode(response.body);
 

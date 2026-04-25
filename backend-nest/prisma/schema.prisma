@@ -1,0 +1,144 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// STORE
+// ============================================================
+model Store {
+  id        String   @id @default(uuid())
+  storeId   String   @unique // e.g. "HCM01", "HN02"
+  storeName String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+}
+
+// ============================================================
+// USER
+// ============================================================
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String?
+  role      Role     @default(STAFF)
+  status    String   @default("yes") // "yes" = active, "no" = locked
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Store relationship (nullable: admin users may not belong to a store)
+  storeId   String?
+  store     Store?   @relation(fields: [storeId], references: [id])
+
+  warrantiesCreated  Warranty[] @relation("CreatedBy")
+  warrantiesHandled  Warranty[] @relation("HandledBy")
+  feedbacks          Feedback[]
+  fifoLogs           FifoLog[]
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+// ============================================================
+// WARRANTY (Bảo hành)
+// The "bhsc" workflow. Images stored on VPS filesystem.
+// ============================================================
+model Warranty {
+  id            String         @id @default(uuid())
+  receipt       String         @unique // Mã phiếu bảo hành (receipt number)
+  customerName  String?
+  customerPhone String?
+  productName   String?
+  serialNumber  String?
+  issue         String?
+  status        WarrantyStatus @default(RECEIVED)
+  note          String?
+  imageLinks    String?        // Ảnh lưu VPS, đây là chuỗi link phân cách bằng ";"
+
+  createdById   String
+  createdBy     User           @relation("CreatedBy", fields: [createdById], references: [id])
+
+  handledById   String?
+  handledBy     User?          @relation("HandledBy", fields: [handledById], references: [id])
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+enum WarrantyStatus {
+  RECEIVED    // Đã tiếp nhận
+  PROCESSING  // Đang xử lý
+  DONE        // Đã xong
+  RETURNED    // Đã trả khách
+}
+
+// ============================================================
+// INVENTORY (inv-app)
+// Synced from Google Sheets every hour via cron job.
+// ============================================================
+model Inventory {
+  id           String   @id @default(uuid())
+  sku          String
+  skuName      String   @map("sku_name")
+  serialNumber String?  @map("serial_number")
+  bin          String?
+  zone         String?
+  importDate   DateTime? @map("import_date")
+  count        Int      @default(1)
+  fifo         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([sku])
+  @@index([bin])
+  @@map("inventory")
+}
+
+// ============================================================
+// FEEDBACK
+// ============================================================
+model Feedback {
+  id        String   @id @default(uuid())
+  content   String
+  rating    Int      @default(5)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+// ============================================================
+// FIFO LOG (Lịch sử Kiểm tra FIFO & Sắp xếp FIFO)
+// ============================================================
+model FifoLog {
+  id          String      @id @default(uuid())
+  type        FifoLogType
+  query       String               // SKU/Serial/BIN mà user nhập
+  result      String?              // Tóm tắt kết quả
+  resultJson  Json?    @map("result_json")  // Full JSON response
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("fifo_logs")
+}
+
+enum FifoLogType {
+  FIFO_CHECK
+  FIFO_SORT
+}

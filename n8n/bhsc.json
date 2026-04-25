@@ -1,0 +1,585 @@
+{
+  "name": "bhsc",
+  "nodes": [
+    {
+      "parameters": {
+        "multipleMethods": true,
+        "httpMethod": [
+          "POST"
+        ],
+        "path": "bhsc-save",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "6cd43661-aa55-48e1-91b6-0d8c0d994950",
+      "name": "save",
+      "webhookId": "44324201-0780-48c2-a394-7bc0b4cbe746",
+      "notesInFlow": true,
+      "notes": "/bhsc-save"
+    },
+    {
+      "parameters": {
+        "multipleMethods": true,
+        "httpMethod": [
+          "POST"
+        ],
+        "path": "bhsc-show-all",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        224
+      ],
+      "id": "b9512126-d0d2-4bbf-b2d1-ad215ee57b80",
+      "name": "showAll",
+      "webhookId": "44324201-0780-48c2-a394-7bc0b4cbe746",
+      "notesInFlow": true,
+      "notes": "bhsc-show-all"
+    },
+    {
+      "parameters": {
+        "multipleMethods": true,
+        "httpMethod": [
+          "POST"
+        ],
+        "path": "bhsc-search",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        448
+      ],
+      "id": "88ae984e-aede-48ab-8c97-e39ee6319d11",
+      "name": "search",
+      "webhookId": "44324201-0780-48c2-a394-7bc0b4cbe746",
+      "notesInFlow": true,
+      "notes": "/bhsc-search"
+    },
+    {
+      "parameters": {
+        "multipleMethods": true,
+        "httpMethod": [
+          "POST"
+        ],
+        "path": "bhsc-get",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        672
+      ],
+      "id": "c3ddef0f-11c3-4a04-b28c-45168faf3135",
+      "name": "get",
+      "webhookId": "44324201-0780-48c2-a394-7bc0b4cbe746",
+      "notesInFlow": true,
+      "notes": "/bhsc-get"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy item duy nhất từ Webhook\nconst item = $input.first();\n\n// Body có thể là item.json.body hoặc item.json tùy config Webhook\nconst body = item.json.body ?? item.json;\n\nconst email = body.user;\nconst receipt = body.receipt;\n\nconst binaries = item.binary || {};\n\nconst out = [];\nlet idx = 0;\n\nfor (const [key, bin] of Object.entries(binaries)) {\n  // chỉ lấy các field bắt đầu bằng 'image'\n  if (!key.startsWith('image')) continue;\n\n  out.push({\n    json: {\n      email,\n      receipt,\n      index: idx,\n    },\n    binary: {\n      data: bin, // chuẩn hóa vào property 'data'\n    },\n  });\n\n  idx++;\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "d96a22f9-26ed-4ef6-9f2c-24a828e9cc1f",
+      "name": "SplitBinary"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\n\nconst items = $input.all();\nif (!items.length) {\n  throw new Error('No items received');\n}\n\n// Body từ item đầu (node save)\nconst body = items[0].json.body || items[0].json || {};\nconst email = body.email;\nconst receipt = body.receipt;\n\nif (!email) throw new Error(\"Missing 'email' in body\");\nif (!receipt) throw new Error(\"Missing 'receipt' in body\");\n\n// Lưu vào host: /data/app_images/<receipt>/\nconst baseDir = '/data/app_images';\nconst receiptDir = path.join(baseDir, receipt);\n\nif (!fs.existsSync(receiptDir)) {\n  fs.mkdirSync(receiptDir, { recursive: true });\n}\n\n// Helper lấy đuôi từ fileName image_0.jpg -> jpg\nconst getExtFromName = (name) => {\n  if (!name) return '';\n  const parts = String(name).split('.');\n  if (parts.length < 2) return '';\n  return parts.pop().toLowerCase();\n};\n\nconst allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];\n\nconst links = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const meta = items[i].binary?.data;\n  if (!meta) {\n    throw new Error(`Item ${i} missing binary.data`);\n  }\n\n  // Lấy đúng buffer từ n8n\n  const buffer = await this.helpers.getBinaryDataBuffer(i, 'data');\n\n  let ext = getExtFromName(meta.fileName);\n  if (!ext || !allowed.includes(ext)) {\n    ext = 'jpg';\n  }\n\n  const filename = `${receipt}-${i}.${ext}`;\n  const filePath = path.join(receiptDir, filename);\n\n  fs.writeFileSync(filePath, buffer);\n\n  links.push(`/app_images/${receipt}/${filename}`);\n}\n\nreturn [\n  {\n    json: {\n      email,\n      receipt,\n      links,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "6c03c157-a630-410f-8cac-fffcc55e05cf",
+      "name": "SaveFiles"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy item duy nhất từ node trước\nconst item = $input.first();\n\nconst email = item.json.email;\nconst receipt = item.json.receipt;\n// links đang là array path tương đối\nconst links = item.json.links || [];\n\n// Nếu muốn convert thành full URL luôn:\nconst baseUrl = 'https://n8n.hoanghochoi.com';\nconst fullLinks = links.map(p => p.startsWith('/') ? baseUrl + p : p);\n\nreturn [\n  {\n    json: {\n      email,\n      receipt,\n      links: fullLinks,             // mảng URL đầy đủ\n      links_str: fullLinks.join(';') // dạng string nếu cần\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "7f92f488-a95c-41f5-8d2b-b0575c74cfe3",
+      "name": "JoinLinks"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "hY8m0IrB9V1iDQQw",
+          "mode": "list",
+          "cachedResultName": "app-warranty",
+          "cachedResultUrl": "/projects/GTQprNa3RcCSHh8s/datatables/hY8m0IrB9V1iDQQw"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "receipt",
+              "keyValue": "={{ $json.receipt }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user": "={{ $json.email }}",
+            "receipt": "={{ $json.receipt }}",
+            "links": "={{ $json.links_str }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "user",
+              "displayName": "user",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "receipt",
+              "displayName": "receipt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "links",
+              "displayName": "links",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        896,
+        0
+      ],
+      "id": "23badf1d-6912-48a4-8e0f-6211e437b255",
+      "name": "InsertInfo"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"success\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "83f161f8-25e9-44a8-b7f9-25e8e146aa85",
+      "name": "SaveSuccess"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "hY8m0IrB9V1iDQQw",
+          "mode": "list",
+          "cachedResultName": "app-warranty",
+          "cachedResultUrl": "/projects/GTQprNa3RcCSHh8s/datatables/hY8m0IrB9V1iDQQw"
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        224,
+        224
+      ],
+      "id": "c9382678-a062-4f6a-aa26-67ea3594e9e4",
+      "name": "getAllReceipts"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        896,
+        224
+      ],
+      "id": "c04cac15-19c4-4034-8898-4774fb63a263",
+      "name": "showAllResponse"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        672,
+        448
+      ],
+      "id": "666f1144-f064-4264-94ba-00240bb199e3",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        672,
+        672
+      ],
+      "id": "155cd9c6-7a3a-4a91-8aa4-b5c26b6972c8",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "hY8m0IrB9V1iDQQw",
+          "mode": "list",
+          "cachedResultName": "app-warranty",
+          "cachedResultUrl": "/projects/GTQprNa3RcCSHh8s/datatables/hY8m0IrB9V1iDQQw"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "receipt",
+              "keyValue": "={{ $json.body.receipt }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        224,
+        448
+      ],
+      "id": "5517d10c-d154-4e78-bcb5-1acfd96040d6",
+      "name": "getSearchReceipt",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst out = items.map(it => {\n  const r = it.json;\n\n  const d = new Date(r.createdAt);\n  const date = `${String(d.getDate()).padStart(2, '0')}/${\n               String(d.getMonth() + 1).padStart(2, '0')}/${\n               d.getFullYear()}`;\n\n  return {\n    receipt: r.receipt,\n    date,\n    user: r.user,\n  };\n});\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        224
+      ],
+      "id": "98becc5a-3ceb-48b1-992d-54ec405d1420",
+      "name": "genListAllReceipt"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst out = items.map(it => {\n  const r = it.json;\n\n  const d = new Date(r.createdAt);\n  const date = `${String(d.getDate()).padStart(2, '0')}/${\n               String(d.getMonth() + 1).padStart(2, '0')}/${\n               d.getFullYear()}`;\n\n  return {\n    receipt: r.receipt,\n    date,\n    user: r.user,\n  };\n});\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        448
+      ],
+      "id": "47e6508f-ab1a-44c5-993a-466ac01e5682",
+      "name": "genListSearchReceipt"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\n\n\nconst receipt = $input.first().json.receipt;\nconst user = $input.first().json.user;\n\nif (!receipt) {\n  throw new Error(\"Missing 'receipt' in webhook body\");\n}\nif (!user) {\n  throw new Error(\"Missing 'user' in webhook body\");\n}\n\n// Thư mục chứa ảnh: /home/ubuntu/n8n/app_images\nconst baseDir = '/data/app_images';\nconst dir = path.join(baseDir, receipt);\n\n// Kiểm tra tồn tại\nif (!fs.existsSync(dir)) {\n  throw new Error(`Folder not found: ${dir}`);\n}\n\n// Lấy danh sách file ảnh\nlet files = fs.readdirSync(dir)\n  .filter(f => /\\.(jpe?g|png|gif|webp)$/i.test(f))\n  .sort(); // sắp xếp cho ổn định\n\n// Build URLs ảnh\nconst baseUrl = 'https://img.hoanghochoi.com';\nconst images = files.map(f => `${baseUrl}/${receipt}/${f}`);\n\n// Lấy ngày folder được tạo (ưu tiên birthtime, fallback mtime)\nconst stats = fs.statSync(dir);\nconst dt = (stats.birthtimeMs && stats.birthtimeMs > 0)\n  ? stats.birthtime\n  : stats.mtime;\n\n// Format dd/MM/yyyy\nconst d = dt;\nconst date =\n  `${String(d.getDate()).padStart(2, '0')}/` +\n  `${String(d.getMonth() + 1).padStart(2, '0')}/` +\n  `${d.getFullYear()}`;\n\n// Trả về 1 item duy nhất\nreturn [\n  {\n    json: {\n      receipt,\n      user,\n      date,\n      images,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        672
+      ],
+      "id": "be533222-d99b-4363-ad31-cb451fd7c740",
+      "name": "getReceiptInfo"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "hY8m0IrB9V1iDQQw",
+          "mode": "list",
+          "cachedResultName": "app-warranty",
+          "cachedResultUrl": "/projects/GTQprNa3RcCSHh8s/datatables/hY8m0IrB9V1iDQQw"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "receipt",
+              "keyValue": "={{ $json.body.receipt }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        224,
+        672
+      ],
+      "id": "b1f3a633-b548-45eb-aa9f-8bff63567235",
+      "name": "getAllReceipts1"
+    },
+    {
+      "parameters": {
+        "sortFieldsUi": {
+          "sortField": [
+            {
+              "fieldName": "createdAt",
+              "order": "descending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.sort",
+      "typeVersion": 1,
+      "position": [
+        448,
+        224
+      ],
+      "id": "716d7373-f3de-4858-9811-39d8c2de6d5e",
+      "name": "Sort"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "save": {
+      "main": [
+        [
+          {
+            "node": "SplitBinary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SplitBinary": {
+      "main": [
+        [
+          {
+            "node": "SaveFiles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SaveFiles": {
+      "main": [
+        [
+          {
+            "node": "JoinLinks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JoinLinks": {
+      "main": [
+        [
+          {
+            "node": "InsertInfo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "InsertInfo": {
+      "main": [
+        [
+          {
+            "node": "SaveSuccess",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "showAll": {
+      "main": [
+        [
+          {
+            "node": "getAllReceipts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "getAllReceipts": {
+      "main": [
+        [
+          {
+            "node": "Sort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "search": {
+      "main": [
+        [
+          {
+            "node": "getSearchReceipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get": {
+      "main": [
+        [
+          {
+            "node": "getAllReceipts1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "getSearchReceipt": {
+      "main": [
+        [
+          {
+            "node": "genListSearchReceipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "genListAllReceipt": {
+      "main": [
+        [
+          {
+            "node": "showAllResponse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "genListSearchReceipt": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "getReceiptInfo": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "getAllReceipts1": {
+      "main": [
+        [
+          {
+            "node": "getReceiptInfo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sort": {
+      "main": [
+        [
+          {
+            "node": "genListAllReceipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "tUGf8pqhOC0yFiUP",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "97215717-2f34-4a8d-9bc2-ed63a8c219e4",
+  "meta": {
+    "instanceId": "68c41ac370df6979c43f7b043981d851778e281de852517a1e7ed81fd7414bf4"
+  },
+  "id": "uD3MnB30Y2TRxcpr",
+  "tags": []
+}

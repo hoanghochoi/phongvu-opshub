@@ -59,6 +59,29 @@ ios/Runner/GoogleService-Info.plist
 macos/Pods/
 macos/Flutter/ephemeral/
 
+# Environment and secret files
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+**/*service-account*.json
+**/*credentials*.json
+**/*secret*.json
+
+# Backend generated/runtime artifacts
+.agents/backups/
+backend-nest/dist/
+backend-nest/node_modules/
+backend-nest/coverage/
+backend-nest/check_user*
+backend-nest/query.sql
+backend-nest/test_fifo_log.js
+backend-go/tmp/
+backend-go/bin/
+uploads/
+app_images/
 
 # Bỏ qua tệp hệ thống Windows bị lỗi
 nul
