@@ -28,13 +28,15 @@ copy .env.example .env
 Important variables:
 
 - `DATABASE_URL`: PostgreSQL connection string.
-- `JWT_SECRET`: JWT signing secret. Use a strong value outside local dev.
+- `JWT_SECRET`: JWT signing secret. There is no runtime fallback; use a long random value.
 - `GOOGLE_CLIENT_ID`: Google OAuth client ID used by the Flutter app.
 - `ALLOWED_DOMAIN`: Comma-separated email domains allowed to sign in.
 - `REDIS_HOST` / `REDIS_PORT`: Redis connection used to publish realtime events.
-- `BIGQUERY_*`: Project, key file, dataset, and table values for sync jobs.
+- `BIGQUERY_*`: Project, dataset, and table values for sync jobs. `BIGQUERY_KEY_FILE` is used when the VPS authenticates with a service-account JSON; it can be omitted when the runtime uses Google Application Default Credentials.
 - `UPLOAD_BASE_DIR`: Directory where uploaded warranty/feedback images are written.
 - `IMAGE_BASE_URL`: Public URL that serves files from `UPLOAD_BASE_DIR`.
+
+The API validates env values on startup. Local development may omit all BigQuery values, which makes sync jobs skip themselves. Production requires complete BigQuery project/dataset/table values and rejects placeholder values such as `change-me` and `https://img.example.com`.
 
 Image links are generated as:
 
@@ -85,5 +87,5 @@ Run these before committing backend changes.
 ## Notes
 
 - Do not commit `.env`, service-account JSON, or local database scratch scripts.
-- BigQuery sync is skipped when the required BigQuery env vars are missing.
+- In local development, BigQuery sync is skipped when all BigQuery env vars are missing.
 - Redis events are published on `WARRANTY_STATUS_UPDATED` and consumed by `backend-go`.
