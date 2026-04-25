@@ -8,7 +8,7 @@ PhongVu OpsHub is an internal operations app for Phong Vu staff. The Flutter app
 - `backend-nest/` - NestJS API service with Prisma, JWT auth, BigQuery sync, warranty, feedback, inventory, sort, and FIFO log modules.
 - `backend-go/` - Go realtime service for Redis-to-WebSocket broadcasts.
 - `docker-compose.yml` - Local PostgreSQL and Redis.
-- `n8n/` - Legacy workflow exports kept for migration/reference.
+- `n8n/` - Legacy workflow exports kept for reference only.
 - `screen_mockups/` - UI mockups for the current mobile flows.
 
 ## Flutter
@@ -46,6 +46,6 @@ go run .
 
 The Go service listens for Redis events and exposes a WebSocket endpoint on `/ws`.
 
-## Current Migration Status
+## Current Backend Status
 
-The app is being migrated from n8n webhooks to the NestJS/Go backend. Auth, FIFO check, sort, feedback submission, and warranty upload are now wired through backend services. The `n8n/` folder remains as a reference until all legacy flows are fully retired.
+Runtime app flows now use the NestJS/Go backend. Auth, FIFO check, sort, feedback submission, warranty upload, and FIFO history are wired through backend services. The `n8n/` folder remains only as legacy reference material.

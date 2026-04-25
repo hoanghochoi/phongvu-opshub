@@ -1,28 +1,77 @@
 # PhongVu OpsHub Backend
 
-This is the new backend architecture for the PhongVu OpsHub mobile application, transitioning from n8n to a robust Microservices architecture for high scalability, real-time tracking, and optimal performance.
+Backend-native architecture for the OpsHub mobile app. The Flutter app talks to the NestJS API for business flows, while the Go service bridges Redis events to WebSocket clients.
 
-## Architecture Overview
+## Services
 
-The system is composed of two primary microservices interacting with a shared PostgreSQL database and Redis for real-time pub/sub:
+- `backend-nest/`: NestJS API with Prisma, JWT auth, Google login, inventory sync, FIFO check/sort, FIFO logs, warranty uploads, and feedback.
+- `backend-go/`: Go realtime service that subscribes to Redis and broadcasts warranty status updates on `/ws`.
+- `docker-compose.yml`: Local PostgreSQL and Redis only.
+- `n8n/`: Legacy workflow exports kept as reference, not used by runtime app code.
 
-1. **Main API Service (NestJS + Prisma)**
-   - **Responsibility:** Core business logic, User Authentication (JWT/RBAC), Warranty Management, and Data Consistency.
-   - **Why NestJS:** Strongly-typed (TypeScript), highly structured (Module-based), excellent for complex business rules.
+## Local Quick Start
 
-2. **Realtime Service (Golang + GORM)**
-   - **Responsibility:** High-performance tasks, Real-time Chat via WebSockets, High-volume barcode scanning (Sorting feature).
-   - **Why Golang:** Incredible concurrency model (Goroutines) allowing tens of thousands of simultaneous WebSocket connections with minimal RAM usage.
+Start infrastructure from the repository root:
 
-## Infrastructure
-- **Message Broker / Cache:** Redis
-- **Database:** PostgreSQL
-- **Deployment:** Docker & Docker Compose
+```bash
+docker compose up -d
+```
 
-## Repository Structure
-- `/backend-nest`: Contains the Main API Service codebase.
-- `/backend-go`: Contains the Realtime Service codebase.
-- `/shared-docs`: API documentation, DB Schemas, and architecture diagrams.
+Run the Nest API:
 
-## Quick Start (Local Development)
-*(Instructions to be added)*
+```bash
+cd backend-nest
+copy .env.example .env
+npm install
+npx prisma generate
+npx prisma migrate deploy
+npm run start:dev
+```
+
+Run the realtime service in another terminal:
+
+```bash
+cd backend-go
+go test ./...
+go run .
+```
+
+Run the Flutter app against the local API:
+
+```bash
+flutter run --dart-define=API_BASE_URL=http://localhost:3000
+```
+
+## Deployment Checklist
+
+- Set a strong `JWT_SECRET`.
+- Set `DATABASE_URL` to the production PostgreSQL database.
+- Set `REDIS_HOST` and `REDIS_PORT` consistently for NestJS and Go.
+- Set `GOOGLE_CLIENT_ID` and `ALLOWED_DOMAIN`.
+- Set all `BIGQUERY_*` values and place the service-account JSON outside git.
+- Set `UPLOAD_BASE_DIR` to a persistent VPS directory, for example `/data/app_images`.
+- Set `IMAGE_BASE_URL` to the public image domain that serves `UPLOAD_BASE_DIR`.
+- Run `npx prisma migrate deploy` before starting the Nest API.
+- Start the Go service with the same Redis connection as NestJS.
+
+## Verification
+
+From the repository root:
+
+```bash
+flutter analyze
+flutter test
+```
+
+From `backend-nest/`:
+
+```bash
+npm run build
+npm test -- --runInBand
+```
+
+From `backend-go/`:
+
+```bash
+go test ./...
+```
