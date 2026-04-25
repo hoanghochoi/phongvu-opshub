@@ -17,7 +17,7 @@ class SortRepository {
       final request = SortRequest(text: text, user: user);
 
       final response = await _apiClient.post(
-        ApiConstants.sortWebhookEndpoint,
+        ApiConstants.sortEndpoint,
         body: request.toJson(),
       );
 
@@ -31,7 +31,7 @@ class SortRepository {
 
         if (jsonResponse is List) {
           // New backend returns: [{sku, sku_name, serial_number, bin, zone, import_date, fifo}]
-          // Format same as n8n for compatibility
+          // Normalize backend response into SKU rows for the UI.
           final textParts = <String>[];
           for (final item in jsonResponse) {
             if (item is Map<String, dynamic>) {

@@ -7,10 +7,10 @@ import { PrismaService } from '../prisma/prisma.service';
 export class UploadService {
   private readonly logger = new Logger(UploadService.name);
 
-  // Base directory for images (same pattern as n8n: /data/app_images)
+  // Base directory for images.
   private readonly baseDir = process.env.UPLOAD_BASE_DIR || '/data/app_images';
   private readonly baseUrl =
-    process.env.IMAGE_BASE_URL || 'https://img.hoanghochoi.com';
+    process.env.IMAGE_BASE_URL || 'https://img.example.com';
 
   constructor(private prisma: PrismaService) {}
 
@@ -90,6 +90,9 @@ export class UploadService {
 
   parseLinksString(linksStr: string): string[] {
     if (!linksStr) return [];
-    return linksStr.split(';').filter((l) => l.trim().length > 0);
+    return linksStr
+      .split(';')
+      .map((link) => link.trim())
+      .filter((link) => link.length > 0);
   }
 }

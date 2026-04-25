@@ -14,11 +14,11 @@ class ApiConstants {
   static const String googleLoginEndpoint = '/auth/google-login';
   static const String getUserEndpoint = '/auth/get-user';
 
-  // Chat/FIFO check endpoint
-  static const String chatWebhookEndpoint = '/sort/fifo-check';
+  // FIFO endpoints
+  static const String fifoCheckEndpoint = '/sort/fifo-check';
 
-  // Sort endpoint (mirrors n8n pva-sort)
-  static const String sortWebhookEndpoint = '/sort';
+  // Sort endpoint
+  static const String sortEndpoint = '/sort';
   static const String sortCompletionReportEndpoint = '/sort/completion-report';
 
   // Feedback endpoint
@@ -28,7 +28,7 @@ class ApiConstants {
   static const String fifoLogMyEndpoint = '/fifo-logs/my';
   static const String fifoLogAdminEndpoint = '/fifo-logs/admin';
 
-  // Warranty endpoints (mirrors n8n bhsc-*)
+  // Warranty endpoints
   static const String saveWarrantyEndpoint = '/upload/warranty'; // multipart
   static const String showAllWarrantyEndpoint = '/warranties';
   static const String searchWarrantyEndpoint = '/warranties/search';

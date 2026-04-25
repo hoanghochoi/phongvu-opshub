@@ -1,18 +1,49 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { UploadController } from './upload.controller';
 
 describe('UploadController', () => {
   let controller: UploadController;
+  let uploadService: {
+    saveWarrantyImages: jest.Mock;
+    upsertWarrantyRecord: jest.Mock;
+    getLinksString: jest.Mock;
+  };
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [UploadController],
-    }).compile();
-
-    controller = module.get<UploadController>(UploadController);
+  beforeEach(() => {
+    uploadService = {
+      saveWarrantyImages: jest.fn(),
+      upsertWarrantyRecord: jest.fn(),
+      getLinksString: jest.fn(),
+    };
+    controller = new UploadController(uploadService as any);
   });
 
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
+  it('saves uploaded warranty images and upserts the warranty record', async () => {
+    const files = [{ originalname: 'receipt.jpg' }] as Express.Multer.File[];
+    const links = ['https://img.example.com/receipt/0.jpg'];
+    uploadService.saveWarrantyImages.mockResolvedValue(links);
+    uploadService.upsertWarrantyRecord.mockResolvedValue({ id: 'warranty-1' });
+    uploadService.getLinksString.mockReturnValue(links[0]);
+
+    await expect(
+      controller.uploadWarrantyImages(
+        { user: { id: 'user-1' } },
+        { receipt: 'CP01-J12345678' },
+        files,
+      ),
+    ).resolves.toEqual({
+      status: 'success',
+      receipt: 'CP01-J12345678',
+      links,
+      links_str: links[0],
+    });
+    expect(uploadService.saveWarrantyImages).toHaveBeenCalledWith(
+      'CP01-J12345678',
+      files,
+    );
+    expect(uploadService.upsertWarrantyRecord).toHaveBeenCalledWith(
+      'CP01-J12345678',
+      links,
+      'user-1',
+    );
   });
 });

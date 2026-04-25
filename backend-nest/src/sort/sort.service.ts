@@ -10,7 +10,7 @@ export class SortService {
     private fifoLogService: FifoLogService,
   ) {}
 
-  // Mirrors n8n pva-sort: first tries SKU lookup, falls back to BIN lookup
+  // First tries SKU lookup, falls back to BIN lookup.
   async sort(text: string, userEmail?: string) {
     // Try by SKU first
     let items = await this.inventoryService.lookupBySku(text);
