@@ -22,8 +22,8 @@ export class AuthController {
   // POST /auth/get-user
   @Post('get-user')
   @UseGuards(AuthGuard('jwt'))
-  async getUserData(@Body() body: { user: string }) {
-    return this.authService.getUserData(body.user);
+  async getUserData(@Request() req: any) {
+    return this.authService.getUserData(req.user.email);
   }
 
   // GET /auth/me — convenience JWT-protected endpoint

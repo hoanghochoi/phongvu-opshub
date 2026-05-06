@@ -47,4 +47,10 @@ describe('UploadService', () => {
       },
     });
   });
+
+  it('rejects unsafe receipt path segments', async () => {
+    await expect(service.saveWarrantyImages('../outside', [])).rejects.toThrow(
+      'receipt không hợp lệ',
+    );
+  });
 });

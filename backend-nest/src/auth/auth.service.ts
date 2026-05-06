@@ -81,6 +81,7 @@ export class AuthService {
     return {
       login: true,
       access_token: this.jwtService.sign(jwtPayload),
+      email: user.email,
       name: user.firstName,
       firstName: user.firstName,
       storeId: user.store?.storeId ?? null,

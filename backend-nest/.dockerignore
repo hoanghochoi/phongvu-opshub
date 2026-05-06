@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+.env
+.env.*
+*.log
+bigquery-service-account.json
+**/*service-account*.json
+**/*credentials*.json
+**/*secret*.json

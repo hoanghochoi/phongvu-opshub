@@ -36,4 +36,15 @@ describe('AuthController', () => {
     });
     expect(authService.getUserData).toHaveBeenCalledWith('staff@phongvu.vn');
   });
+
+  it('ignores body email and loads the JWT user for get-user', async () => {
+    authService.getUserData.mockResolvedValue({ firstName: 'An' });
+
+    await expect(
+      controller.getUserData({ user: { email: 'staff@phongvu.vn' } }),
+    ).resolves.toEqual({
+      firstName: 'An',
+    });
+    expect(authService.getUserData).toHaveBeenCalledWith('staff@phongvu.vn');
+  });
 });

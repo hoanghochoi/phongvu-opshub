@@ -1,0 +1,115 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    env_file:
+      - ${OPSHUB_ENV_FILE:-./env.example}
+    volumes:
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/postgres:/var/lib/postgresql/data
+    networks:
+      - opshub
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/redis:/data
+    networks:
+      - opshub
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: ../../backend-nest
+    env_file:
+      - ${OPSHUB_ENV_FILE:-./env.example}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["npx", "prisma", "migrate", "deploy"]
+    networks:
+      - opshub
+    profiles:
+      - migrate
+
+  api:
+    build:
+      context: ../../backend-nest
+    restart: unless-stopped
+    env_file:
+      - ${OPSHUB_ENV_FILE:-./env.example}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/uploads:/data/app_images
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/import:/data/import:ro
+    networks:
+      - opshub
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  realtime:
+    build:
+      context: ../../backend-go
+    restart: unless-stopped
+    env_file:
+      - ${OPSHUB_ENV_FILE:-./env.example}
+    environment:
+      PORT: 8080
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - opshub
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:8080/health >/dev/null || exit 1",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file:
+      - ${OPSHUB_ENV_FILE:-./env.example}
+    depends_on:
+      - api
+      - realtime
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/caddy/data:/data
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/caddy/config:/config
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/uploads:/srv/uploads:ro
+    networks:
+      - opshub
+
+networks:
+  opshub:
+    driver: bridge

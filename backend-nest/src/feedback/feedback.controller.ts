@@ -11,7 +11,7 @@ import {
 import { FeedbackService } from './feedback.service';
 import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { memoryStorage } from 'multer';
+import { imageUploadOptions } from '../upload/image-upload.options';
 
 @Controller('feedback')
 @UseGuards(AuthGuard('jwt'))
@@ -19,7 +19,7 @@ export class FeedbackController {
   constructor(private readonly feedbackService: FeedbackService) {}
 
   @Post()
-  @UseInterceptors(FilesInterceptor('images', 10, { storage: memoryStorage() }))
+  @UseInterceptors(FilesInterceptor('images', 10, imageUploadOptions))
   async create(
     @Request() req: any,
     @Body()

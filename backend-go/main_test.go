@@ -28,3 +28,25 @@ func TestHealthEndpoint(t *testing.T) {
 		t.Fatalf("expected body %s, got %s", expected, rec.Body.String())
 	}
 }
+
+func TestOriginCheckAllowsConfiguredOrigins(t *testing.T) {
+	t.Setenv("ALLOWED_ORIGINS", "https://ops.example.com,https://admin.example.com")
+
+	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	req.Header.Set("Origin", "https://ops.example.com")
+
+	if !isOriginAllowed(req) {
+		t.Fatal("expected configured origin to be allowed")
+	}
+}
+
+func TestOriginCheckRejectsUnconfiguredOrigins(t *testing.T) {
+	t.Setenv("ALLOWED_ORIGINS", "https://ops.example.com")
+
+	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	req.Header.Set("Origin", "https://evil.example.com")
+
+	if isOriginAllowed(req) {
+		t.Fatal("expected unconfigured origin to be rejected")
+	}
+}

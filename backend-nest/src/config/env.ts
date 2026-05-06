@@ -19,6 +19,9 @@ const BIGQUERY_RUNTIME_KEYS = [
   'BIGQUERY_USER_TABLE_ID',
 ] as const;
 
+const SYNC_SOURCES = ['local', 'bigquery'] as const;
+type SyncSource = (typeof SYNC_SOURCES)[number];
+
 const PRODUCTION_PLACEHOLDERS: Record<string, string[]> = {
   JWT_SECRET: ['change-me', 'super-secret-key-change-me'],
   GOOGLE_CLIENT_ID: ['your-google-oauth-client-id.apps.googleusercontent.com'],
@@ -47,6 +50,14 @@ export function getPort(env: EnvMap = process.env): number {
   return port;
 }
 
+export function getDataSyncSource(env: EnvMap = process.env): SyncSource {
+  const rawSource = getEnvValue(env, 'DATA_SYNC_SOURCE') ?? 'local';
+  if (SYNC_SOURCES.includes(rawSource as SyncSource)) {
+    return rawSource as SyncSource;
+  }
+  throw new Error(`Invalid DATA_SYNC_SOURCE value: ${rawSource}`);
+}
+
 export function validateRuntimeEnv(env: EnvMap = process.env): void {
   const missing = REQUIRED_RUNTIME_KEYS.filter((key) => !getEnvValue(env, key));
 
@@ -57,6 +68,7 @@ export function validateRuntimeEnv(env: EnvMap = process.env): void {
   }
 
   getPort(env);
+  getDataSyncSource(env);
   validateRedisPort(env);
   validateBigQueryEnv(env);
   validateProductionPlaceholders(env);
@@ -74,9 +86,9 @@ function validateBigQueryEnv(env: EnvMap): void {
   const configured = BIGQUERY_RUNTIME_KEYS.filter((key) =>
     getEnvValue(env, key),
   );
-  const isProduction = env.NODE_ENV === 'production';
+  const usesBigQuery = getDataSyncSource(env) === 'bigquery';
 
-  if (configured.length === 0 && !isProduction) {
+  if (configured.length === 0 && !usesBigQuery) {
     return;
   }
 
