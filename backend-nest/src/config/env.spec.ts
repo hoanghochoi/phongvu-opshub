@@ -1,4 +1,9 @@
-import { getPort, getRequiredEnv, validateRuntimeEnv } from './env';
+import {
+  getDataSyncSource,
+  getPort,
+  getRequiredEnv,
+  validateRuntimeEnv,
+} from './env';
 
 const baseEnv = {
   DATABASE_URL: 'postgresql://user:pass@localhost:5432/opshub',
@@ -40,14 +45,29 @@ describe('env validation', () => {
     ).toThrow('Incomplete BigQuery configuration');
   });
 
-  it('requires complete BigQuery config in production', () => {
+  it('allows production local data sync without BigQuery config', () => {
     expect(() =>
       validateRuntimeEnv({
         ...baseEnv,
         NODE_ENV: 'production',
         IMAGE_BASE_URL: 'https://img.phongvu.example',
       }),
+    ).not.toThrow();
+  });
+
+  it('requires complete BigQuery config when BigQuery sync is enabled', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        DATA_SYNC_SOURCE: 'bigquery',
+      }),
     ).toThrow('Incomplete BigQuery configuration');
+  });
+
+  it('rejects invalid data sync source values', () => {
+    expect(() => getDataSyncSource({ DATA_SYNC_SOURCE: 'sheets' })).toThrow(
+      'Invalid DATA_SYNC_SOURCE value: sheets',
+    );
   });
 
   it('rejects placeholder values in production', () => {
@@ -57,11 +77,6 @@ describe('env validation', () => {
         NODE_ENV: 'production',
         JWT_SECRET: 'change-me',
         IMAGE_BASE_URL: 'https://img.phongvu.example',
-        BIGQUERY_PROJECT_ID: 'project-id',
-        BIGQUERY_DATASET_ID: 'inventory',
-        BIGQUERY_TABLE_ID: 'inventory_table',
-        BIGQUERY_USER_DATASET_ID: 'users',
-        BIGQUERY_USER_TABLE_ID: 'users_table',
       }),
     ).toThrow(
       'Unsafe placeholder environment values in production: JWT_SECRET',

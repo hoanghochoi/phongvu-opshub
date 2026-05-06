@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { InventoryController } from './inventory.controller';
 
 describe('InventoryController', () => {
@@ -38,8 +39,17 @@ describe('InventoryController', () => {
   it('triggers manual BigQuery sync', async () => {
     inventoryService.syncFromBigQuery.mockResolvedValue(undefined);
 
-    await expect(controller.manualSync()).resolves.toEqual({
+    await expect(
+      controller.manualSync({ user: { role: 'ADMIN' } }),
+    ).resolves.toEqual({
       message: 'BigQuery sync triggered',
     });
+  });
+
+  it('rejects manual BigQuery sync for non-admin users', async () => {
+    await expect(
+      controller.manualSync({ user: { role: 'STAFF' } }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(inventoryService.syncFromBigQuery).not.toHaveBeenCalled();
   });
 });

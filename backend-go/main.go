@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -16,8 +18,36 @@ var ctx = context.Background()
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all for MVP, restrict in production
+		return isOriginAllowed(r)
 	},
+}
+
+func isOriginAllowed(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+
+	allowedOrigins := strings.TrimSpace(os.Getenv("ALLOWED_ORIGINS"))
+	if allowedOrigins == "*" {
+		return true
+	}
+
+	if allowedOrigins == "" {
+		parsedOrigin, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+		host := parsedOrigin.Hostname()
+		return host == "localhost" || host == "127.0.0.1" || host == "::1"
+	}
+
+	for _, allowedOrigin := range strings.Split(allowedOrigins, ",") {
+		if strings.TrimSpace(allowedOrigin) == origin {
+			return true
+		}
+	}
+	return false
 }
 
 // Hub manages WebSocket clients
@@ -146,10 +176,7 @@ func registerRoutes(r *gin.Engine, hub *Hub) {
 					}
 					break
 				}
-				log.Printf("Received message: %s", message)
-
-				// Echo back for now. In real chat, save to GORM here.
-				hub.broadcast <- message
+				log.Printf("Received client message (%d bytes)", len(message))
 			}
 		}(conn)
 	})

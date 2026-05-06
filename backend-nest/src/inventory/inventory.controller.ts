@@ -1,4 +1,12 @@
-import { Controller, Get, Query, UseGuards, Post } from '@nestjs/common';
+import {
+  Controller,
+  ForbiddenException,
+  Get,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -18,7 +26,12 @@ export class InventoryController {
 
   // POST /inventory/sync - manually trigger sync (admin only)
   @Post('sync')
-  async manualSync() {
+  async manualSync(@Req() req: any) {
+    const role = req.user?.role;
+    if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Không có quyền đồng bộ tồn kho');
+    }
+
     await this.inventoryService.syncFromBigQuery();
     return { message: 'BigQuery sync triggered' };
   }

@@ -44,6 +44,7 @@ describe('AuthService', () => {
     await expect(service.googleLogin('google-token')).resolves.toMatchObject({
       login: true,
       access_token: 'signed-jwt',
+      email: 'staff@phongvu.vn',
       firstName: 'An',
       storeId: 'CP01',
       role: 'USER',

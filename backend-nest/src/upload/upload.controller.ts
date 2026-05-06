@@ -10,7 +10,7 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
 import { UploadService } from './upload.service';
-import { memoryStorage } from 'multer';
+import { imageUploadOptions } from './image-upload.options';
 
 @Controller('upload')
 @UseGuards(AuthGuard('jwt'))
@@ -20,7 +20,7 @@ export class UploadController {
   // POST /upload/warranty
   // Multipart: fields: { receipt, user } + files: image0, image1, ...
   @Post('warranty')
-  @UseInterceptors(FilesInterceptor('images', 10, { storage: memoryStorage() }))
+  @UseInterceptors(FilesInterceptor('images', 10, imageUploadOptions))
   async uploadWarrantyImages(
     @Req() req: any,
     @Body() body: { receipt: string },
