@@ -11,4 +11,5 @@ update them when behavior changes.
 | `sort.md` | SKU sort/grouping workflow |
 | `warranty.md` | Warranty/repair upload and realtime status |
 | `feedback.md` | Staff feedback submission |
+| `vietqr.md` | Manual bank-transfer QR generation |
 | `backend-platform.md` | Backend services, infra, deployment contracts |

@@ -22,6 +22,7 @@ This file maps product behavior to proof. Existing flows are marked
 | FIFO-001 | FIFO check, sort workflows, and admin history | partial | no | no | mobile smoke needed | existing_unverified | Product docs seeded from README/code inspection |
 | WARRANTY-001 | Warranty/repair image capture, upload, status updates | partial | no | no | upload and WebSocket smoke needed | existing_unverified | Product docs seeded from README/code inspection |
 | FEEDBACK-001 | Staff feedback submission through app and API | partial | no | no | mobile smoke needed | existing_unverified | Product docs seeded from README/code inspection |
+| VIETQR-001 | Manual VietQR transfer QR creation screen and API payload generation | yes | no | no | mobile smoke needed | implemented | 2026-05-09: `npm run build`, `npm test -- --runInBand`, `flutter analyze`, `flutter test` |
 | PLATFORM-001 | NestJS, Go realtime, PostgreSQL, Redis local stack health | partial | no | no | health checks needed | existing_unverified | Product docs seeded from README/code inspection |
 
 ## Evidence Rules

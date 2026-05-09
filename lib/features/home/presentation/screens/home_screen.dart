@@ -9,10 +9,7 @@ import '../../../../app/theme/app_theme.dart';
 class HomeScreen extends StatefulWidget {
   final Function(int)? onTabChange;
 
-  const HomeScreen({
-    super.key,
-    this.onTabChange,
-  });
+  const HomeScreen({super.key, this.onTabChange});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -82,7 +79,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.qr_code_scanner_rounded,
                     title: 'FIFO',
                     description: 'Kiểm tra FIFO & Sắp xếp hàng hóa',
-                    gradientColors: const [Color(0xFF0D47A1), Color(0xFF1976D2), Color(0xFF42A5F5)],
+                    gradientColors: const [
+                      Color(0xFF0D47A1),
+                      Color(0xFF1976D2),
+                      Color(0xFF42A5F5),
+                    ],
                     onTap: () => Navigator.of(context).pushNamed('/fifo-menu'),
                   ),
                   const SizedBox(height: 16),
@@ -92,8 +93,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.camera_alt_rounded,
                     title: 'Bảo hành / Sửa chữa',
                     description: 'Lưu và xem lại hình ảnh BH/SC',
-                    gradientColors: const [Color(0xFF2E7D32), Color(0xFF43A047), Color(0xFF66BB6A)],
-                    onTap: widget.onTabChange != null ? () => widget.onTabChange!(2) : null,
+                    gradientColors: const [
+                      Color(0xFF2E7D32),
+                      Color(0xFF43A047),
+                      Color(0xFF66BB6A),
+                    ],
+                    onTap: widget.onTabChange != null
+                        ? () => widget.onTabChange!(2)
+                        : null,
                   ),
                   const SizedBox(height: 16),
 
@@ -102,8 +109,26 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.question_answer_rounded,
                     title: 'Phản hồi',
                     description: 'Gửi ý kiến và đánh giá',
-                    gradientColors: const [Color(0xFF6A1B9A), Color(0xFF8E24AA), Color(0xFFAB47BC)],
+                    gradientColors: const [
+                      Color(0xFF6A1B9A),
+                      Color(0xFF8E24AA),
+                      Color(0xFFAB47BC),
+                    ],
                     onTap: () => Navigator.of(context).pushNamed('/feedback'),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // VietQR
+                  FeatureCard(
+                    icon: Icons.qr_code_2_rounded,
+                    title: 'VietQR',
+                    description: 'Tạo mã chuyển khoản theo đơn hàng',
+                    gradientColors: const [
+                      Color(0xFF00695C),
+                      Color(0xFF00897B),
+                      Color(0xFF26A69A),
+                    ],
+                    onTap: () => Navigator.of(context).pushNamed('/vietqr'),
                   ),
 
                   const SizedBox(height: 32),
@@ -142,14 +167,28 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(Icons.hub_rounded, size: 28, color: AppTheme.primaryBlue),
+                    child: Icon(
+                      Icons.hub_rounded,
+                      size: 28,
+                      color: AppTheme.primaryBlue,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('PhongVu', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-                      Text('OpsHub', style: TextStyle(fontSize: 16, color: Colors.white70)),
+                      Text(
+                        'PhongVu',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        'OpsHub',
+                        style: TextStyle(fontSize: 16, color: Colors.white70),
+                      ),
                     ],
                   ),
                 ],
@@ -157,8 +196,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const Divider(color: Colors.white24, thickness: 1),
             ListTile(
-              leading: const Icon(Icons.question_answer_rounded, color: Colors.white),
-              title: const Text('Phản hồi', style: TextStyle(color: Colors.white, fontSize: 16)),
+              leading: const Icon(
+                Icons.question_answer_rounded,
+                color: Colors.white,
+              ),
+              title: const Text(
+                'Phản hồi',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
               onTap: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).pushNamed('/feedback');
@@ -166,7 +211,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.info_outline, color: Colors.white),
-              title: const Text('Thông tin ứng dụng', style: TextStyle(color: Colors.white, fontSize: 16)),
+              title: const Text(
+                'Thông tin ứng dụng',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
               onTap: () {
                 Navigator.of(context).pop();
                 _showAppInfoDialog(context);
@@ -177,7 +225,10 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.all(16.0),
               child: Text(
                 _version.isNotEmpty ? 'Version $_version' : '',
-                style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5)),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white.withValues(alpha: 0.5),
+                ),
               ),
             ),
           ],
@@ -201,14 +252,36 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('PhongVu OpsHub', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primaryBlue)),
+            Text(
+              'PhongVu OpsHub',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.primaryBlue,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(_version.isNotEmpty ? 'Version $_version' : '', style: const TextStyle(fontSize: 14, color: Colors.grey)),
+            Text(
+              _version.isNotEmpty ? 'Version $_version' : '',
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
+            ),
             const SizedBox(height: 16),
-            Text('Kết nối con người. Đồng bộ vận hành.', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey[600])),
+            Text(
+              'Kết nối con người. Đồng bộ vận hành.',
+              style: TextStyle(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                color: Colors.grey[600],
+              ),
+            ),
           ],
         ),
-        actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Đóng'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Đóng'),
+          ),
+        ],
       ),
     );
   }

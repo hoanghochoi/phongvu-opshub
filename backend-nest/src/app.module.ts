@@ -11,9 +11,22 @@ import { FeedbackModule } from './feedback/feedback.module';
 import { UploadModule } from './upload/upload.module';
 import { UserModule } from './user/user.module';
 import { FifoLogModule } from './fifo-log/fifo-log.module';
+import { VietQrModule } from './vietqr/vietqr.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, WarrantyModule, RedisModule, InventoryModule, SortModule, FeedbackModule, UploadModule, UserModule, FifoLogModule],
+  imports: [
+    PrismaModule,
+    AuthModule,
+    WarrantyModule,
+    RedisModule,
+    InventoryModule,
+    SortModule,
+    FeedbackModule,
+    UploadModule,
+    UserModule,
+    FifoLogModule,
+    VietQrModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

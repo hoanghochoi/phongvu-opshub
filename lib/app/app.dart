@@ -13,6 +13,7 @@ import '../features/warranty/presentation/screens/warranty_screen.dart';
 import '../features/warranty/presentation/screens/warranty_main_screen.dart';
 import '../features/warranty/presentation/screens/check_warranty_screen.dart';
 import '../features/feedback/presentation/screens/feedback_screen.dart';
+import '../features/vietqr/presentation/screens/vietqr_screen.dart';
 import '../features/fifo/presentation/screens/fifo_menu_screen.dart';
 import '../features/fifo/presentation/screens/fifo_history_screen.dart';
 import '../features/sort/data/repositories/sort_repository.dart';
@@ -29,24 +30,16 @@ class App extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => AuthProvider(
-            AuthRepository(ApiClient()),
-          ),
+          create: (_) => AuthProvider(AuthRepository(ApiClient())),
         ),
         ChangeNotifierProvider(
-          create: (_) => ChatProvider(
-            ChatRepository(ApiClient()),
-          ),
+          create: (_) => ChatProvider(ChatRepository(ApiClient())),
         ),
         ChangeNotifierProvider(
-          create: (_) => WarrantyProvider(
-            WarrantyRepository(ApiClient()),
-          ),
+          create: (_) => WarrantyProvider(WarrantyRepository(ApiClient())),
         ),
         ChangeNotifierProvider(
-          create: (_) => SortProvider(
-            SortRepository(ApiClient()),
-          ),
+          create: (_) => SortProvider(SortRepository(ApiClient())),
         ),
       ],
       child: MaterialApp(
@@ -57,9 +50,7 @@ class App extends StatelessWidget {
           builder: (context, authProvider, _) {
             if (!authProvider.isInitialized) {
               return const Scaffold(
-                body: Center(
-                  child: CircularProgressIndicator(),
-                ),
+                body: Center(child: CircularProgressIndicator()),
               );
             }
 
@@ -77,6 +68,7 @@ class App extends StatelessWidget {
           '/warranty': (context) => const WarrantyScreen(),
           '/check-warranty': (context) => const CheckWarrantyScreen(),
           '/feedback': (context) => const FeedbackScreen(),
+          '/vietqr': (context) => const VietQrScreen(),
           '/sort': (context) => const SortScreen(),
           '/fifo-history': (context) => const FifoHistoryScreen(),
         },

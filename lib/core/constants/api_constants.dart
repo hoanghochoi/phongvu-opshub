@@ -24,6 +24,9 @@ class ApiConstants {
   // Feedback endpoint
   static const String feedbackEndpoint = '/feedback';
 
+  // VietQR endpoint
+  static const String vietQrEndpoint = '/vietqr';
+
   // FIFO Log endpoints
   static const String fifoLogMyEndpoint = '/fifo-logs/my';
   static const String fifoLogAdminEndpoint = '/fifo-logs/admin';
