@@ -17,6 +17,7 @@ Go realtime service.
 - Sort: SKU grouping and sorting workflow.
 - Warranty: image capture/upload and repair status updates.
 - Feedback: staff feedback submission.
+- VietQR: manual bank-transfer QR generation for customer self-scan.
 - Platform: NestJS API, Go realtime service, PostgreSQL, Redis, BigQuery.
 
 ## Non-Goals
