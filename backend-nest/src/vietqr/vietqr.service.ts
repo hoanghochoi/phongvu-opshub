@@ -3,6 +3,7 @@ import {
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 
 export interface CreateVietQrInput {
   amount: number;
@@ -21,8 +22,10 @@ export interface VietQrResponse {
 
 @Injectable()
 export class VietQrService {
-  create(input: CreateVietQrInput): VietQrResponse {
-    const config = this.getConfig();
+  constructor(private prisma: PrismaService) {}
+
+  async create(input: CreateVietQrInput): Promise<VietQrResponse> {
+    const config = await this.getConfig(input.storeCode);
     const amount = this.normalizeAmount(input.amount);
     const orderCode = this.normalizeText(input.orderCode, 'orderCode');
     const storeCode = this.normalizeText(input.storeCode, 'storeCode');
@@ -58,11 +61,16 @@ export class VietQrService {
     };
   }
 
-  private getConfig() {
+  private async getConfig(storeCode: string) {
+    const store = storeCode
+      ? await this.prisma.store.findUnique({ where: { storeId: storeCode } })
+      : null;
     const bankBin = this.getEnv('VIETQR_BANK_BIN');
-    const accountNumber = this.getEnv('VIETQR_ACCOUNT_NUMBER');
+    const accountNumber =
+      store?.transferAccountNumber?.trim() ||
+      this.getEnv('VIETQR_ACCOUNT_NUMBER');
     const accountName = this.normalizeTransferContent(
-      this.getEnv('VIETQR_ACCOUNT_NAME'),
+      store?.transferAccountName?.trim() || this.getEnv('VIETQR_ACCOUNT_NAME'),
     );
     const city = this.normalizeTransferContent(
       process.env.VIETQR_MERCHANT_CITY || 'HO CHI MINH',
@@ -74,7 +82,12 @@ export class VietQrService {
       );
     }
 
-    return { bankBin, accountNumber, accountName, city };
+    return {
+      bankBin: store?.transferBankBin?.trim() || bankBin,
+      accountNumber,
+      accountName,
+      city,
+    };
   }
 
   private getEnv(key: string): string {

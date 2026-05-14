@@ -84,9 +84,15 @@ export class AuthService {
       email: user.email,
       name: user.firstName,
       firstName: user.firstName,
+      lastName: user.lastName,
+      avatarUrl: user.avatarUrl,
       storeId: user.store?.storeId ?? null,
       storeName: user.store?.storeName ?? null,
       role: user.role,
+      status: user.status,
+      profileCompletedAt: user.profileCompletedAt,
+      branchLockedAt: user.branchLockedAt,
+      mustSelectStore: this.mustSelectStore(user),
     };
   }
 
@@ -104,9 +110,24 @@ export class AuthService {
     return {
       name: user.firstName,
       firstName: user.firstName,
+      lastName: user.lastName,
+      avatarUrl: user.avatarUrl,
       storeId: user.store?.storeId ?? null,
       storeName: user.store?.storeName ?? null,
       role: user.role,
+      status: user.status,
+      profileCompletedAt: user.profileCompletedAt,
+      branchLockedAt: user.branchLockedAt,
+      mustSelectStore: this.mustSelectStore(user),
     };
+  }
+
+  private mustSelectStore(user: {
+    role: string;
+    storeId?: string | null;
+    store?: { storeId?: string | null } | null;
+  }) {
+    const hasStore = Boolean(user.storeId || user.store?.storeId);
+    return user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN' && !hasStore;
   }
 }

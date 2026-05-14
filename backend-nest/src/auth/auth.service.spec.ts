@@ -69,17 +69,39 @@ describe('AuthService', () => {
 
   it('returns app user profile data by email', async () => {
     prisma.user.findUnique.mockResolvedValue({
+      storeId: 'store-1',
       firstName: 'An',
       role: 'ADMIN',
       store: { storeId: 'CP01', storeName: 'Chi nhanh 1' },
     });
 
-    await expect(service.getUserData('staff@phongvu.vn')).resolves.toEqual({
+    await expect(
+      service.getUserData('staff@phongvu.vn'),
+    ).resolves.toMatchObject({
       name: 'An',
       firstName: 'An',
       storeId: 'CP01',
       storeName: 'Chi nhanh 1',
       role: 'ADMIN',
+      mustSelectStore: false,
+    });
+  });
+
+  it('does not force SUPER_ADMIN without store to select a branch', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      storeId: null,
+      firstName: 'Admin',
+      role: 'SUPER_ADMIN',
+      status: 'yes',
+      store: null,
+    });
+
+    await expect(
+      service.getUserData('admin@phongvu.vn'),
+    ).resolves.toMatchObject({
+      role: 'SUPER_ADMIN',
+      storeId: null,
+      mustSelectStore: false,
     });
   });
 

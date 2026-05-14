@@ -23,6 +23,7 @@ This file maps product behavior to proof. Existing flows are marked
 | WARRANTY-001 | Warranty/repair image capture, upload, status updates | partial | no | no | upload and WebSocket smoke needed | existing_unverified | Product docs seeded from README/code inspection |
 | FEEDBACK-001 | Staff feedback submission through app and API | partial | no | no | mobile smoke needed | existing_unverified | Product docs seeded from README/code inspection |
 | VIETQR-001 | Manual VietQR transfer QR creation screen and API payload generation | yes | no | no | mobile smoke needed | implemented | 2026-05-09: `npm run build`, `npm test -- --runInBand`, `flutter analyze`, `flutter test` |
+| PROFILE-ADMIN-001 | Profile avatar, one-time branch selection, store account import, and admin user management | partial | local DB smoke | no | mobile smoke needed | implemented | 2026-05-14: backend build/test, Flutter analyze/test, migration/import applied; Prisma DB smoke confirmed 32 store transfer accounts |
 | PLATFORM-001 | NestJS, Go realtime, PostgreSQL, Redis local stack health | partial | no | no | health checks needed | existing_unverified | Product docs seeded from README/code inspection |
 
 ## Evidence Rules

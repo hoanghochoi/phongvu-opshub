@@ -13,6 +13,11 @@ class ApiConstants {
   // Auth endpoints
   static const String googleLoginEndpoint = '/auth/google-login';
   static const String getUserEndpoint = '/auth/get-user';
+  static const String storesEndpoint = '/stores';
+  static const String profileEndpoint = '/users/me';
+  static const String selectStoreEndpoint = '/users/me/select-store';
+  static const String avatarEndpoint = '/users/me/avatar';
+  static const String adminUsersEndpoint = '/admin/users';
 
   // FIFO endpoints
   static const String fifoCheckEndpoint = '/sort/fifo-check';

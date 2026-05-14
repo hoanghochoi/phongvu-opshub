@@ -18,6 +18,8 @@ Go realtime service.
 - Warranty: image capture/upload and repair status updates.
 - Feedback: staff feedback submission.
 - VietQR: manual bank-transfer QR generation for customer self-scan.
+- Profile/Admin: personal profile, first-login branch selection, and user
+  administration.
 - Platform: NestJS API, Go realtime service, PostgreSQL, Redis, BigQuery.
 
 ## Non-Goals

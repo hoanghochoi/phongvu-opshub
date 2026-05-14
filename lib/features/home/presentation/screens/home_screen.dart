@@ -74,6 +74,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 16),
 
+                  if (context.watch<AuthProvider>().user?.isAdmin == true) ...[
+                    FeatureCard(
+                      icon: Icons.admin_panel_settings_outlined,
+                      title: 'Quản trị',
+                      description: 'Thêm và chỉnh sửa thông tin user',
+                      gradientColors: const [
+                        Color(0xFF374151),
+                        Color(0xFF4B5563),
+                        Color(0xFF6B7280),
+                      ],
+                      onTap: () =>
+                          Navigator.of(context).pushNamed('/admin/users'),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
                   // FIFO
                   FeatureCard(
                     icon: Icons.qr_code_scanner_rounded,
@@ -195,6 +211,32 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const Divider(color: Colors.white24, thickness: 1),
+            ListTile(
+              leading: const Icon(Icons.person_outline, color: Colors.white),
+              title: const Text(
+                'Thông tin cá nhân',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pushNamed('/profile');
+              },
+            ),
+            if (context.watch<AuthProvider>().user?.isAdmin == true)
+              ListTile(
+                leading: const Icon(
+                  Icons.admin_panel_settings_outlined,
+                  color: Colors.white,
+                ),
+                title: const Text(
+                  'Quản trị user',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pushNamed('/admin/users');
+                },
+              ),
             ListTile(
               leading: const Icon(
                 Icons.question_answer_rounded,

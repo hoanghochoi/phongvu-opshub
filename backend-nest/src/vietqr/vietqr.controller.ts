@@ -8,7 +8,7 @@ export class VietQrController {
   constructor(private readonly vietQrService: VietQrService) {}
 
   @Post()
-  create(
+  async create(
     @Body()
     body: {
       amount?: number;

@@ -35,18 +35,26 @@ class AuthProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       final email = prefs.getString('user_email');
       final name = prefs.getString('user_name');
+      final lastName = prefs.getString('user_lastName');
+      final avatarUrl = prefs.getString('user_avatarUrl');
       final storeId = prefs.getString('user_storeId');
       final storeName = prefs.getString('user_storeName');
       final role = prefs.getString('user_role');
+      final status = prefs.getString('user_status');
       final token = prefs.getString('user_jwt_token');
 
       if (email != null) {
+        final isAdmin = role == 'ADMIN' || role == 'SUPER_ADMIN';
         _user = User(
           email: email,
           name: name,
+          lastName: lastName,
+          avatarUrl: avatarUrl,
           storeId: storeId,
           storeName: storeName,
           role: role,
+          status: status,
+          mustSelectStore: !isAdmin && storeId == null,
         );
 
         // Restore JWT token to ApiClient for authenticated API calls
@@ -73,14 +81,31 @@ class AuthProvider extends ChangeNotifier {
       if (user.name != null) {
         await prefs.setString('user_name', user.name!);
       }
+      if (user.lastName != null) {
+        await prefs.setString('user_lastName', user.lastName!);
+      } else {
+        await prefs.remove('user_lastName');
+      }
+      if (user.avatarUrl != null) {
+        await prefs.setString('user_avatarUrl', user.avatarUrl!);
+      } else {
+        await prefs.remove('user_avatarUrl');
+      }
       if (user.storeId != null) {
         await prefs.setString('user_storeId', user.storeId!);
+      } else {
+        await prefs.remove('user_storeId');
       }
       if (user.storeName != null) {
         await prefs.setString('user_storeName', user.storeName!);
+      } else {
+        await prefs.remove('user_storeName');
       }
       if (user.role != null) {
         await prefs.setString('user_role', user.role!);
+      }
+      if (user.status != null) {
+        await prefs.setString('user_status', user.status!);
       }
       if (token != null) {
         await prefs.setString('user_jwt_token', token);
@@ -96,9 +121,12 @@ class AuthProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('user_email');
       await prefs.remove('user_name');
+      await prefs.remove('user_lastName');
+      await prefs.remove('user_avatarUrl');
       await prefs.remove('user_storeId');
       await prefs.remove('user_storeName');
       await prefs.remove('user_role');
+      await prefs.remove('user_status');
       await prefs.remove('user_jwt_token');
       ApiClient().setAuthToken(null);
     } catch (e) {
@@ -179,6 +207,73 @@ class AuthProvider extends ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  Future<bool> selectStore(String storeId) async {
+    if (_user == null) return false;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _user = await _repository.selectStore(storeId, _user!.email);
+      await _saveSession(_user!);
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateProfile({
+    required String firstName,
+    String? lastName,
+  }) async {
+    if (_user == null) return false;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _user = await _repository.updateProfile(
+        email: _user!.email,
+        firstName: firstName,
+        lastName: lastName,
+      );
+      await _saveSession(_user!);
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> uploadAvatar(String path) async {
+    if (_user == null) return false;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _user = await _repository.uploadAvatar(email: _user!.email, path: path);
+      await _saveSession(_user!);
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
   }
 
   /// Refresh user data

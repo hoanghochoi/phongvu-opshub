@@ -133,6 +133,46 @@ class ApiClient {
     }
   }
 
+  Future<http.Response> patch(
+    String endpoint, {
+    required Map<String, dynamic> body,
+    Duration? timeout,
+  }) async {
+    try {
+      final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
+      final response = await _client
+          .patch(url, headers: _authHeaders, body: jsonEncode(body))
+          .timeout(timeout ?? ApiConstants.defaultTimeout);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        throw ApiException(
+          'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.',
+          response.statusCode,
+        );
+      } else if (response.statusCode >= 500) {
+        throw ServerException(
+          'Lỗi server: ${response.statusCode}',
+          response.statusCode,
+        );
+      }
+      throw ApiException(
+        'Request thất bại: ${response.statusCode}',
+        response.statusCode,
+      );
+    } on SocketException {
+      throw NetworkException();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      if (e.toString().contains('TimeoutException')) {
+        throw TimeoutException();
+      }
+      throw ApiException('Lỗi không xác định: $e');
+    }
+  }
+
   /// Upload files using multipart/form-data
   Future<http.Response> postMultipart(
     String endpoint, {
