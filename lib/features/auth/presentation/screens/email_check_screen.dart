@@ -12,9 +12,7 @@ class EmailCheckScreen extends StatelessWidget {
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: GradientHeader.gradient,
-        ),
+        decoration: const BoxDecoration(gradient: GradientHeader.gradient),
         child: SafeArea(
           child: Consumer<AuthProvider>(
             builder: (context, authProvider, _) {
@@ -126,7 +124,8 @@ class EmailCheckScreen extends StatelessWidget {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white,
                                   foregroundColor: Colors.grey[800],
-                                  disabledBackgroundColor: Colors.white.withValues(alpha: 0.7),
+                                  disabledBackgroundColor: Colors.white
+                                      .withValues(alpha: 0.7),
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(14),
@@ -134,7 +133,8 @@ class EmailCheckScreen extends StatelessWidget {
                                 ),
                                 child: authProvider.isLoading
                                     ? Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
                                           SizedBox(
                                             height: 20,
@@ -156,17 +156,20 @@ class EmailCheckScreen extends StatelessWidget {
                                         ],
                                       )
                                     : Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
                                           Image.network(
                                             'https://developers.google.com/identity/images/g-logo.png',
                                             height: 22,
                                             width: 22,
-                                            errorBuilder: (context, error, stackTrace) => Icon(
-                                              Icons.login_rounded,
-                                              size: 22,
-                                              color: Colors.grey[700],
-                                            ),
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    Icon(
+                                                      Icons.login_rounded,
+                                                      size: 22,
+                                                      color: Colors.grey[700],
+                                                    ),
                                           ),
                                           const SizedBox(width: 12),
                                           const Text(

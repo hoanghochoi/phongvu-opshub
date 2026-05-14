@@ -1,0 +1,165 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../../../app/widgets/gradient_header.dart';
+import '../../../../core/network/api_client.dart';
+import '../../data/repositories/auth_repository.dart';
+import '../../domain/entities/store_branch.dart';
+import '../providers/auth_provider.dart';
+
+class StoreSelectionScreen extends StatefulWidget {
+  const StoreSelectionScreen({super.key});
+
+  @override
+  State<StoreSelectionScreen> createState() => _StoreSelectionScreenState();
+}
+
+class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
+  final _repository = AuthRepository(ApiClient());
+  final _searchController = TextEditingController();
+  List<StoreBranch> _stores = [];
+  StoreBranch? _selected;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStores();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadStores() async {
+    setState(() => _loading = true);
+    try {
+      final stores = await _repository.getStores(query: _searchController.text);
+      if (mounted) setState(() => _stores = stores);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _confirm() async {
+    final selected = _selected;
+    if (selected == null) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Khóa chi nhánh?'),
+        content: Text(
+          'Bạn đang chọn ${selected.displayName}. Thông tin chi nhánh sẽ không thay đổi được sau khi xác nhận.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Xem lại'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Xác nhận'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    final success = await context.read<AuthProvider>().selectStore(
+      selected.storeId,
+    );
+    if (!success && mounted) {
+      final error =
+          context.read<AuthProvider>().errorMessage ??
+          'Không chọn được chi nhánh';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FB),
+      appBar: const GradientHeader(title: 'Chọn chi nhánh'),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    Icon(Icons.lock_outline),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Chọn chi nhánh lần đầu đăng nhập. Sau khi xác nhận, chi nhánh sẽ bị khóa.',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Tìm mã hoặc tên chi nhánh',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  onPressed: _loadStores,
+                  icon: const Icon(Icons.refresh),
+                ),
+                border: const OutlineInputBorder(),
+              ),
+              onSubmitted: (_) => _loadStores(),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.separated(
+                      itemCount: _stores.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final store = _stores[index];
+                        return ListTile(
+                          leading: Icon(
+                            _selected?.storeId == store.storeId
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_off,
+                          ),
+                          onTap: () => setState(() => _selected = store),
+                          title: Text(store.displayName),
+                          subtitle: Text(
+                            [
+                              store.transferBankName,
+                              store.transferAccountNumber,
+                            ].whereType<String>().join(' - '),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _selected == null ? null : _confirm,
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Xác nhận chi nhánh'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

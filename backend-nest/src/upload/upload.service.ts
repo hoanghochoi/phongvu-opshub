@@ -82,6 +82,22 @@ export class UploadService {
     return links;
   }
 
+  async saveUserAvatar(userId: string, file: Express.Multer.File): Promise<string> {
+    const safeUserId = this.getSafePathSegment(userId, 'userId');
+    const avatarDir = this.getPathInsideBase('avatars', safeUserId);
+
+    await fs.promises.mkdir(avatarDir, { recursive: true });
+
+    const ext = this.getSafeImageExtension(file.originalname);
+    const filename = `avatar-${Date.now()}${ext}`;
+    const filePath = path.join(avatarDir, filename);
+
+    await fs.promises.writeFile(filePath, file.buffer);
+    this.logger.log(`Saved avatar image: ${filePath}`);
+
+    return `${this.baseUrl}/avatars/${safeUserId}/${filename}`;
+  }
+
   getLinksString(links: string[]): string {
     return links.join(';');
   }

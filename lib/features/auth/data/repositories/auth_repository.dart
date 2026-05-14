@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../domain/entities/store_branch.dart';
 import '../../domain/entities/user.dart';
 
 class AuthRepository {
@@ -53,13 +55,14 @@ class AuthRepository {
         // Save token to ApiClient for future authorized requests
         _apiClient.setAuthToken(accessToken);
 
-        final user = User(
-          email: responseData['email']?.toString() ?? '',
-          name: firstName,
-          storeId: storeId,
-          storeName: storeName,
-          role: role,
-        );
+        final user = User.fromJson({
+          ...responseData,
+          'email': responseData['email']?.toString() ?? '',
+          'name': firstName,
+          'storeId': storeId,
+          'storeName': storeName,
+          'role': role,
+        });
 
         return (user, accessToken);
       } else {
@@ -94,19 +97,95 @@ class AuthRepository {
         throw ApiException('Response format không hợp lệ');
       }
 
-      return User(
-        email: email,
-        name:
-            responseData['name']?.toString() ??
-            responseData['firstName']?.toString(),
-        storeId: responseData['storeId']?.toString(),
-        storeName: responseData['storeName']?.toString(),
-        role: responseData['role']?.toString(),
-      );
+      return User.fromJson(responseData, fallbackEmail: email);
     } on ApiException {
       rethrow;
     } catch (e) {
       throw ApiException('Không thể lấy thông tin user: $e');
     }
+  }
+
+  Future<List<StoreBranch>> getStores({String? query}) async {
+    final response = await _apiClient.get(
+      ApiConstants.storesEndpoint,
+      queryParameters: query != null && query.trim().isNotEmpty
+          ? {'q': query.trim()}
+          : null,
+    );
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map((item) => StoreBranch.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<User> selectStore(String storeId, String email) async {
+    final response = await _apiClient.post(
+      ApiConstants.selectStoreEndpoint,
+      body: {'storeId': storeId},
+    );
+    return User.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+      fallbackEmail: email,
+    );
+  }
+
+  Future<User> updateProfile({
+    required String email,
+    required String firstName,
+    String? lastName,
+  }) async {
+    final response = await _apiClient.patch(
+      ApiConstants.profileEndpoint,
+      body: {'firstName': firstName, 'lastName': lastName},
+    );
+    return User.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+      fallbackEmail: email,
+    );
+  }
+
+  Future<User> uploadAvatar({
+    required String email,
+    required String path,
+  }) async {
+    final response = await _apiClient.postMultipart(
+      ApiConstants.avatarEndpoint,
+      fields: const {},
+      files: [await http.MultipartFile.fromPath('avatar', path)],
+      timeout: ApiConstants.uploadTimeout,
+    );
+    return User.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+      fallbackEmail: email,
+    );
+  }
+
+  Future<List<User>> listUsers({String? query}) async {
+    final response = await _apiClient.get(
+      ApiConstants.adminUsersEndpoint,
+      queryParameters: query != null && query.trim().isNotEmpty
+          ? {'q': query.trim()}
+          : null,
+    );
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map((item) => User.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<User> createAdminUser(Map<String, dynamic> body) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminUsersEndpoint,
+      body: body,
+    );
+    return User.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<User> updateAdminUser(String id, Map<String, dynamic> body) async {
+    final response = await _apiClient.patch(
+      '${ApiConstants.adminUsersEndpoint}/$id',
+      body: body,
+    );
+    return User.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
   }
 }

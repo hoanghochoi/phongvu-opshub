@@ -7,6 +7,7 @@ import { VietQrService } from './vietqr.service';
 describe('VietQrService', () => {
   const originalEnv = process.env;
   let service: VietQrService;
+  let prisma: { store: { findUnique: jest.Mock } };
 
   beforeEach(() => {
     process.env = {
@@ -16,15 +17,16 @@ describe('VietQrService', () => {
       VIETQR_ACCOUNT_NAME: 'Phong Vu',
       VIETQR_MERCHANT_CITY: 'Ho Chi Minh',
     };
-    service = new VietQrService();
+    prisma = { store: { findUnique: jest.fn().mockResolvedValue(null) } };
+    service = new VietQrService(prisma as any);
   });
 
   afterEach(() => {
     process.env = originalEnv;
   });
 
-  it('creates a VietQR EMV payload with transfer content and crc', () => {
-    const result = service.create({
+  it('creates a VietQR EMV payload with transfer content and crc', async () => {
+    const result = await service.create({
       amount: 150000,
       orderCode: 'DH-001',
       storeCode: 'HCM01',
@@ -44,21 +46,38 @@ describe('VietQrService', () => {
     expect(result.qrPayload).toMatch(/6304[0-9A-F]{4}$/);
   });
 
-  it('rejects invalid amount', () => {
-    expect(() =>
+  it('rejects invalid amount', async () => {
+    await expect(
       service.create({ amount: 0, orderCode: 'DH-001', storeCode: 'HCM01' }),
-    ).toThrow(BadRequestException);
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('fails clearly when backend VietQR config is missing', () => {
+  it('fails clearly when backend VietQR config is missing', async () => {
     delete process.env.VIETQR_BANK_BIN;
 
-    expect(() =>
+    await expect(
       service.create({
         amount: 150000,
         orderCode: 'DH-001',
         storeCode: 'HCM01',
       }),
-    ).toThrow(ServiceUnavailableException);
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('uses store transfer account when configured', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      transferAccountNumber: '999999',
+      transferAccountName: 'Store Account',
+      transferBankBin: null,
+    });
+
+    const result = await service.create({
+      amount: 150000,
+      orderCode: 'DH-001',
+      storeCode: 'HCM01',
+    });
+
+    expect(result.accountNumber).toBe('999999');
+    expect(result.accountName).toBe('STORE ACCOUNT');
   });
 });

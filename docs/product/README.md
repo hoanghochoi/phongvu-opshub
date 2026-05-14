@@ -12,4 +12,5 @@ update them when behavior changes.
 | `warranty.md` | Warranty/repair upload and realtime status |
 | `feedback.md` | Staff feedback submission |
 | `vietqr.md` | Manual bank-transfer QR generation |
+| `profile-admin.md` | Profile, branch selection, and user administration |
 | `backend-platform.md` | Backend services, infra, deployment contracts |
