@@ -27,7 +27,7 @@ describe('SortService', () => {
     inventoryService.lookupBySku.mockResolvedValue([]);
     inventoryService.lookupByBin.mockResolvedValue(binItems);
 
-    await expect(service.sort('BIN-A', 'staff@phongvu.vn')).resolves.toBe(
+    await expect(service.sort('BIN-A', 'staff@phongvu-shop.vn')).resolves.toBe(
       binItems,
     );
     expect(inventoryService.lookupBySku).toHaveBeenCalledWith('BIN-A');
@@ -37,7 +37,7 @@ describe('SortService', () => {
       'BIN-A',
       '1 item(s) found',
       binItems,
-      'staff@phongvu.vn',
+      'staff@phongvu-shop.vn',
     );
   });
 
@@ -46,7 +46,7 @@ describe('SortService', () => {
     inventoryService.fifoCheckBySku.mockResolvedValue(skuItems);
 
     await expect(
-      service.fifoCheck('SKU1', 2, 'staff@phongvu.vn'),
+      service.fifoCheck('SKU1', 2, 'staff@phongvu-shop.vn'),
     ).resolves.toBe(skuItems);
     expect(inventoryService.fifoCheckBySku).toHaveBeenCalledWith('SKU1', 2);
     expect(inventoryService.fifoCheckBySerial).not.toHaveBeenCalled();
@@ -55,7 +55,7 @@ describe('SortService', () => {
       'SKU1',
       'SKU check: 1 item(s)',
       skuItems,
-      'staff@phongvu.vn',
+      'staff@phongvu-shop.vn',
     );
   });
 
@@ -65,7 +65,7 @@ describe('SortService', () => {
     inventoryService.fifoCheckBySerial.mockResolvedValue(serialResult);
 
     await expect(
-      service.fifoCheck('SERIAL-1', undefined, 'staff@phongvu.vn'),
+      service.fifoCheck('SERIAL-1', undefined, 'staff@phongvu-shop.vn'),
     ).resolves.toBe(serialResult);
     expect(inventoryService.fifoCheckBySku).toHaveBeenCalledWith('SERIAL-1', 1);
     expect(inventoryService.fifoCheckBySerial).toHaveBeenCalledWith('SERIAL-1');
@@ -74,7 +74,7 @@ describe('SortService', () => {
       'SERIAL-1',
       'Đúng FIFO',
       serialResult,
-      'staff@phongvu.vn',
+      'staff@phongvu-shop.vn',
     );
   });
 
@@ -84,7 +84,7 @@ describe('SortService', () => {
     await expect(
       service.completionReport(
         sortedSKUs,
-        'staff@phongvu.vn',
+        'staff@phongvu-shop.vn',
         '2026-04-25T00:00:00.000Z',
       ),
     ).resolves.toEqual({ status: 'success', sortedCount: 1 });
@@ -96,7 +96,7 @@ describe('SortService', () => {
         sortedSKUs,
         timestamp: '2026-04-25T00:00:00.000Z',
       },
-      'staff@phongvu.vn',
+      'staff@phongvu-shop.vn',
     );
   });
 });

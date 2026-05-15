@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
 )
@@ -48,6 +50,46 @@ func isOriginAllowed(r *http.Request) bool {
 		}
 	}
 	return false
+}
+
+func authenticateWebSocket(r *http.Request) error {
+	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+	if jwtSecret == "" {
+		return errors.New("JWT_SECRET is not configured")
+	}
+
+	tokenValue := extractBearerToken(r)
+	if tokenValue == "" {
+		tokenValue = strings.TrimSpace(r.URL.Query().Get("access_token"))
+	}
+	if tokenValue == "" {
+		return errors.New("missing websocket access token")
+	}
+
+	claims := jwt.MapClaims{}
+	token, err := jwt.ParseWithClaims(tokenValue, claims, func(token *jwt.Token) (any, error) {
+		if token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
+			return nil, errors.New("unexpected JWT signing method")
+		}
+		return []byte(jwtSecret), nil
+	})
+	if err != nil || !token.Valid {
+		return errors.New("invalid websocket access token")
+	}
+
+	if _, err := claims.GetSubject(); err != nil {
+		return errors.New("missing JWT subject")
+	}
+	return nil
+}
+
+func extractBearerToken(r *http.Request) string {
+	const prefix = "Bearer "
+	header := strings.TrimSpace(r.Header.Get("Authorization"))
+	if !strings.HasPrefix(header, prefix) {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(header, prefix))
 }
 
 // Hub manages WebSocket clients
@@ -156,6 +198,12 @@ func registerRoutes(r *gin.Engine, hub *Hub) {
 	})
 
 	r.GET("/ws", func(c *gin.Context) {
+		if err := authenticateWebSocket(c.Request); err != nil {
+			log.Println("websocket auth rejected:", err)
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
 			log.Println("upgrade error:", err)

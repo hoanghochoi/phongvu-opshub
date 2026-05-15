@@ -6,18 +6,21 @@ Only authorized Phong Vu staff should access OpsHub workflows.
 
 ## Current Shape
 
-- Flutter uses Google Sign-In.
-- NestJS validates login and issues JWT-backed sessions.
-- Backend configuration includes `GOOGLE_CLIENT_ID`, `ALLOWED_DOMAIN`, and
-  `JWT_SECRET`.
-- Persistent login on the client uses local storage.
+- Flutter uses email/password sign-in with a separate registration form.
+- Users without an account register with an email thuộc Phong Vũ and an OpsHub
+  password before signing in.
+- NestJS validates the allowed Phong Vu email domain list from
+  `data/email_domain.txt` and issues JWT-backed sessions.
+- Backend configuration includes `JWT_SECRET`; `EMAIL_DOMAIN_FILE` can override
+  the default domain-list file path.
+- Persistent login on the client stores JWTs in secure storage.
 
 ## Contract Notes
 
 - Login behavior is security-sensitive and defaults to the high-risk lane when
   changed.
-- Allowed domain, token lifetime, session persistence, and logout behavior must
-  be explicit in implementation stories.
+- Allowed Phong Vu email domains, password policy, token lifetime, session persistence, and
+  logout behavior must be explicit in implementation stories.
 - Do not commit real credentials, tokens, service accounts, or production env
   values.
 

@@ -5,6 +5,7 @@ import '../features/auth/data/repositories/auth_repository.dart';
 import '../features/auth/presentation/providers/auth_provider.dart';
 import '../features/auth/presentation/screens/email_check_screen.dart';
 import '../features/auth/presentation/screens/profile_screen.dart';
+import '../features/auth/presentation/screens/register_screen.dart';
 import '../features/auth/presentation/screens/store_selection_screen.dart';
 import '../features/admin/presentation/screens/user_admin_screen.dart';
 import '../features/chat/data/repositories/chat_repository.dart';
@@ -68,6 +69,7 @@ class App extends StatelessWidget {
         ),
         routes: {
           '/login': (context) => const EmailCheckScreen(),
+          '/register': (context) => const RegisterScreen(),
           '/home': (context) => const MainNavigationScreen(),
           '/select-store': (context) => const StoreSelectionScreen(),
           '/profile': (context) => const ProfileScreen(),

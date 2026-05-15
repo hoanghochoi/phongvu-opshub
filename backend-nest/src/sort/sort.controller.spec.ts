@@ -22,11 +22,11 @@ describe('SortController', () => {
 
     await expect(
       controller.sort(
-        { user: { email: 'staff@phongvu.vn' } },
+        { user: { email: 'staff@phongvu-shop.vn' } },
         { text: 'SKU1' },
       ),
     ).resolves.toEqual([{ sku: 'SKU1' }]);
-    expect(sortService.sort).toHaveBeenCalledWith('SKU1', 'staff@phongvu.vn');
+    expect(sortService.sort).toHaveBeenCalledWith('SKU1', 'staff@phongvu-shop.vn');
   });
 
   it('runs FIFO check with optional quantity', async () => {
@@ -34,14 +34,14 @@ describe('SortController', () => {
 
     await expect(
       controller.fifoCheck(
-        { user: { email: 'staff@phongvu.vn' } },
+        { user: { email: 'staff@phongvu-shop.vn' } },
         { text: 'SKU1', qty: 2 },
       ),
     ).resolves.toEqual([{ sku: 'SKU1' }]);
     expect(sortService.fifoCheck).toHaveBeenCalledWith(
       'SKU1',
       2,
-      'staff@phongvu.vn',
+      'staff@phongvu-shop.vn',
     );
   });
 
@@ -50,13 +50,13 @@ describe('SortController', () => {
 
     await expect(
       controller.completionReport(
-        { user: { email: 'staff@phongvu.vn' } },
+        { user: { email: 'staff@phongvu-shop.vn' } },
         { sortedSKUs: undefined as any, timestamp: '2026-04-25T00:00:00.000Z' },
       ),
     ).resolves.toEqual({ status: 'success' });
     expect(sortService.completionReport).toHaveBeenCalledWith(
       [],
-      'staff@phongvu.vn',
+      'staff@phongvu-shop.vn',
       '2026-04-25T00:00:00.000Z',
     );
   });

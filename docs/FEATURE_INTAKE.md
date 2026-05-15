@@ -19,7 +19,7 @@ Mark every flag that applies.
 
 | Flag | Applies when work touches |
 | --- | --- |
-| Auth | login, logout, sessions, JWT, Google OAuth |
+| Auth | login, logout, sessions, JWT, password auth |
 | Authorization | staff scope, admin access, allowed domains, roles |
 | Data model | Prisma schema, migrations, uniqueness, deletion, retention |
 | Audit/security | sensitive data, access logs, upload paths, service accounts |

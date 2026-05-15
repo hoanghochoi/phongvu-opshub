@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/user.dart';
 import '../../data/repositories/auth_repository.dart';
@@ -7,12 +7,10 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 
 class AuthProvider extends ChangeNotifier {
+  static const _secureStorage = FlutterSecureStorage();
+  static const _jwtTokenKey = 'user_jwt_token';
+
   final AuthRepository _repository;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email', 'profile'],
-    serverClientId:
-        '771288927234-a4t5p35j56nortpngt3fqmr3uhhs3eu6.apps.googleusercontent.com',
-  );
 
   User? _user;
   bool _isLoading = false;
@@ -41,7 +39,7 @@ class AuthProvider extends ChangeNotifier {
       final storeName = prefs.getString('user_storeName');
       final role = prefs.getString('user_role');
       final status = prefs.getString('user_status');
-      final token = prefs.getString('user_jwt_token');
+      final token = await _readSavedToken(prefs);
 
       if (email != null) {
         final isAdmin = role == 'ADMIN' || role == 'SUPER_ADMIN';
@@ -108,7 +106,8 @@ class AuthProvider extends ChangeNotifier {
         await prefs.setString('user_status', user.status!);
       }
       if (token != null) {
-        await prefs.setString('user_jwt_token', token);
+        await _secureStorage.write(key: _jwtTokenKey, value: token);
+        await prefs.remove(_jwtTokenKey);
       }
     } catch (e) {
       if (kDebugMode) debugPrint('❌ [AuthProvider] Error saving session: $e');
@@ -127,48 +126,39 @@ class AuthProvider extends ChangeNotifier {
       await prefs.remove('user_storeName');
       await prefs.remove('user_role');
       await prefs.remove('user_status');
-      await prefs.remove('user_jwt_token');
+      await prefs.remove(_jwtTokenKey);
+      await _secureStorage.delete(key: _jwtTokenKey);
       ApiClient().setAuthToken(null);
     } catch (e) {
       if (kDebugMode) debugPrint('❌ [AuthProvider] Error clearing session: $e');
     }
   }
 
-  /// Sign in with Google OAuth
-  Future<bool> signInWithGoogle() async {
-    if (kDebugMode) debugPrint('🔵 [AuthProvider] Starting Google Sign-In...');
+  Future<String?> _readSavedToken(SharedPreferences prefs) async {
+    final secureToken = await _secureStorage.read(key: _jwtTokenKey);
+    if (secureToken != null) return secureToken;
+
+    final legacyToken = prefs.getString(_jwtTokenKey);
+    if (legacyToken != null) {
+      await _secureStorage.write(key: _jwtTokenKey, value: legacyToken);
+      await prefs.remove(_jwtTokenKey);
+    }
+    return legacyToken;
+  }
+
+  Future<bool> login({required String email, required String password}) async {
+    if (kDebugMode) debugPrint('[AuthProvider] Starting password login...');
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      // 1. Trigger Google Sign-In flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) {
-        // User cancelled sign-in
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
-
-      if (kDebugMode) {
-        debugPrint('✅ [AuthProvider] Google user: ${googleUser.email}');
-      }
-
-      // 2. Get ID Token
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final String? idToken = googleAuth.idToken;
-
-      if (idToken == null) {
-        throw ApiException('Không lấy được Google token');
-      }
-
-      // 3. Send ID Token to backend
-      final (user, token) = await _repository.googleLogin(idToken);
+      final (user, token) = await _repository.login(
+        email: email,
+        password: password,
+      );
       _user = user;
 
-      // 4. Save session (including JWT token)
       if (_user != null) {
         await _saveSession(_user!, token: token);
       }
@@ -178,18 +168,58 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } on ApiException catch (e) {
       if (kDebugMode) {
-        debugPrint('❌ [AuthProvider] Google login failed: ${e.message}');
+        debugPrint('[AuthProvider] Login failed: ${e.message}');
       }
       _errorMessage = e.message;
       _isLoading = false;
-      await _googleSignIn.signOut(); // Clean up Google session on failure
       notifyListeners();
       return false;
     } catch (e) {
-      if (kDebugMode) debugPrint('❌ [AuthProvider] Google login error: $e');
+      if (kDebugMode) debugPrint('[AuthProvider] Login error: $e');
       _errorMessage = 'Đăng nhập thất bại: $e';
       _isLoading = false;
-      await _googleSignIn.signOut();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> register({
+    required String firstName,
+    String? lastName,
+    required String email,
+    required String password,
+  }) async {
+    if (kDebugMode) debugPrint('[AuthProvider] Starting registration...');
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final (user, token) = await _repository.register(
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
+        password: password,
+      );
+      _user = user;
+
+      await _saveSession(_user!, token: token);
+
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      if (kDebugMode) {
+        debugPrint('[AuthProvider] Registration failed: ${e.message}');
+      }
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('[AuthProvider] Registration error: $e');
+      _errorMessage = 'Dang ky that bai: $e';
+      _isLoading = false;
       notifyListeners();
       return false;
     }
@@ -197,7 +227,6 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     await _clearSession();
-    await _googleSignIn.signOut();
     _user = null;
     _errorMessage = null;
     _isLoading = false;

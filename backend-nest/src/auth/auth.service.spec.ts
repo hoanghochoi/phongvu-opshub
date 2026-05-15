@@ -1,4 +1,9 @@
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
+import {
+  BadRequestException,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 
 describe('AuthService', () => {
@@ -7,64 +12,193 @@ describe('AuthService', () => {
     user: {
       findUnique: jest.Mock;
       create: jest.Mock;
+      update: jest.Mock;
     };
   };
   let jwtService: { sign: jest.Mock };
 
   beforeEach(() => {
-    process.env.ALLOWED_DOMAIN = 'phongvu.vn';
     prisma = {
       user: {
         findUnique: jest.fn(),
         create: jest.fn(),
+        update: jest.fn(),
       },
     };
     jwtService = { sign: jest.fn().mockReturnValue('signed-jwt') };
     service = new AuthService(prisma as any, jwtService as any);
-    (service as any).googleClient = { verifyIdToken: jest.fn() };
   });
 
-  afterEach(() => {
-    delete process.env.ALLOWED_DOMAIN;
-  });
+  it('registers a new password account for an allowed Phong Vu email domain', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.user.create.mockImplementation(async ({ data }) => ({
+      id: 'user-1',
+      email: data.email,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      password: data.password,
+      role: 'STAFF',
+      status: 'yes',
+      storeId: null,
+      store: null,
+    }));
 
-  it('issues a JWT for an active Google user in the allowed domain', async () => {
-    (service as any).googleClient.verifyIdToken.mockResolvedValue({
-      getPayload: () => ({ email: 'staff@phongvu.vn', given_name: 'An' }),
+    await expect(
+      service.register({
+        email: ' Staff@PhongVu-Shop.vn ',
+        firstName: 'An',
+        lastName: 'Nguyen',
+        password: 'Password1!',
+      }),
+    ).resolves.toMatchObject({
+      login: true,
+      access_token: 'signed-jwt',
+      email: 'staff@phongvu-shop.vn',
+      firstName: 'An',
+      lastName: 'Nguyen',
+      role: 'STAFF',
     });
+
+    expect(prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: 'staff@phongvu-shop.vn',
+          firstName: 'An',
+          lastName: 'Nguyen',
+          status: 'yes',
+        }),
+      }),
+    );
+    const savedPassword = prisma.user.create.mock.calls[0][0].data.password;
+    await expect(bcrypt.compare('Password1!', savedPassword)).resolves.toBe(
+      true,
+    );
+  });
+
+  it('sets a password for an imported user through registration', async () => {
     prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
-      email: 'staff@phongvu.vn',
-      firstName: 'An',
-      role: 'USER',
+      email: 'staff@phongvu-shop.vn',
+      firstName: 'Old',
+      password: '',
+      role: 'STAFF',
       status: 'yes',
+      storeId: null,
+      store: null,
+    });
+    prisma.user.update.mockImplementation(async ({ data }) => ({
+      id: 'user-1',
+      email: 'staff@phongvu-shop.vn',
+      firstName: data.firstName,
+      lastName: data.lastName,
+      password: data.password,
+      role: 'STAFF',
+      status: 'yes',
+      storeId: null,
+      store: null,
+    }));
+
+    await expect(
+      service.register({
+        email: 'staff@phongvu-shop.vn',
+        firstName: 'An',
+        password: 'Password1!',
+      }),
+    ).resolves.toMatchObject({
+      login: true,
+      email: 'staff@phongvu-shop.vn',
+      firstName: 'An',
+    });
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'user-1' },
+        data: expect.objectContaining({ password: expect.any(String) }),
+      }),
+    );
+  });
+
+  it('rejects registration for an email that already has a password', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'staff@phongvu-shop.vn',
+      firstName: 'An',
+      password: await bcrypt.hash('Password1!', 4),
+      role: 'STAFF',
+      status: 'yes',
+      storeId: null,
+      store: null,
+    });
+
+    await expect(
+      service.register({
+        email: 'staff@phongvu-shop.vn',
+        firstName: 'An',
+        password: 'Password1!',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects login when the account is not registered yet', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.passwordLogin('staff@phongvu-shop.vn', 'Password1!'),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
+  it('issues a JWT for an existing user with a valid password', async () => {
+    const password = await bcrypt.hash('Password1!', 4);
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'staff@phongvu-shop.vn',
+      firstName: 'An',
+      password,
+      role: 'ADMIN',
+      status: 'yes',
+      storeId: 'store-1',
       store: { storeId: 'CP01', storeName: 'Chi nhanh 1' },
     });
 
-    await expect(service.googleLogin('google-token')).resolves.toMatchObject({
+    await expect(
+      service.passwordLogin('staff@phongvu-shop.vn', 'Password1!'),
+    ).resolves.toMatchObject({
       login: true,
       access_token: 'signed-jwt',
-      email: 'staff@phongvu.vn',
+      email: 'staff@phongvu-shop.vn',
       firstName: 'An',
       storeId: 'CP01',
-      role: 'USER',
+      role: 'ADMIN',
     });
     expect(jwtService.sign).toHaveBeenCalledWith({
-      email: 'staff@phongvu.vn',
+      email: 'staff@phongvu-shop.vn',
       sub: 'user-1',
-      role: 'USER',
+      role: 'ADMIN',
     });
   });
 
-  it('rejects Google users outside the allowed domain', async () => {
-    (service as any).googleClient.verifyIdToken.mockResolvedValue({
-      getPayload: () => ({ email: 'staff@example.com' }),
+  it('rejects users outside the allowed Phong Vu email domains', async () => {
+    await expect(
+      service.passwordLogin('staff@example.com', 'Password1!'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid passwords for existing users', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'staff@phongvu-shop.vn',
+      firstName: 'An',
+      password: await bcrypt.hash('Password1!', 4),
+      role: 'STAFF',
+      status: 'yes',
+      storeId: null,
+      store: null,
     });
 
-    await expect(service.googleLogin('google-token')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
-    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    await expect(
+      service.passwordLogin('staff@phongvu-shop.vn', 'WrongPassword1!'),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('returns app user profile data by email', async () => {
@@ -76,7 +210,7 @@ describe('AuthService', () => {
     });
 
     await expect(
-      service.getUserData('staff@phongvu.vn'),
+      service.getUserData('staff@phongvu-shop.vn'),
     ).resolves.toMatchObject({
       name: 'An',
       firstName: 'An',
@@ -97,7 +231,7 @@ describe('AuthService', () => {
     });
 
     await expect(
-      service.getUserData('admin@phongvu.vn'),
+      service.getUserData('admin@phongvu-shop.vn'),
     ).resolves.toMatchObject({
       role: 'SUPER_ADMIN',
       storeId: null,
@@ -109,7 +243,7 @@ describe('AuthService', () => {
     prisma.user.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.getUserData('missing@phongvu.vn'),
+      service.getUserData('missing@phongvu-shop.vn'),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 });

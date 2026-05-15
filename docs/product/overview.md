@@ -12,7 +12,8 @@ Go realtime service.
 
 ## Current Domains
 
-- Auth: Google sign-in, JWT sessions, allowed staff domain.
+- Auth: email/password registration and sign-in, JWT sessions, allowed Phong Vu
+  staff email domains.
 - FIFO: FIFO check, FIFO sorting, and history.
 - Sort: SKU grouping and sorting workflow.
 - Warranty: image capture/upload and repair status updates.

@@ -1,6 +1,6 @@
 # PhongVu OpsHub
 
-PhongVu OpsHub is an internal operations app for Phong Vu staff. The Flutter app covers daily store and warehouse workflows: Google sign-in, FIFO check, FIFO sorting, warranty/repair image capture, feedback, and admin FIFO history.
+PhongVu OpsHub is an internal operations app for Phong Vu staff. The Flutter app covers daily store and warehouse workflows: email/password registration and sign-in, FIFO check, FIFO sorting, warranty/repair image capture, feedback, and admin FIFO history.
 
 ## Project Layout
 
@@ -34,7 +34,7 @@ npm run build
 npm run start:dev
 ```
 
-The NestJS service needs PostgreSQL, Redis, Google OAuth, and BigQuery environment variables. Do not commit real `.env` files or service-account JSON.
+The NestJS service needs PostgreSQL, Redis, auth, and BigQuery environment variables. Do not commit real `.env` files or service-account JSON.
 
 ## Realtime Service
 

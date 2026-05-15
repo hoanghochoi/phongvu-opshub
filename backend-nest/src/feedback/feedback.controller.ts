@@ -12,6 +12,7 @@ import { FeedbackService } from './feedback.service';
 import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { imageUploadOptions } from '../upload/image-upload.options';
+import { CreateFeedbackDto } from './feedback.dto';
 
 @Controller('feedback')
 @UseGuards(AuthGuard('jwt'))
@@ -22,13 +23,7 @@ export class FeedbackController {
   @UseInterceptors(FilesInterceptor('images', 10, imageUploadOptions))
   async create(
     @Request() req: any,
-    @Body()
-    body: {
-      content?: string;
-      function?: string;
-      description?: string;
-      rating?: number;
-    },
+    @Body() body: CreateFeedbackDto,
     @UploadedFiles() files: Express.Multer.File[] = [],
   ) {
     return this.feedbackService.create(

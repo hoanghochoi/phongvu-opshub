@@ -33,13 +33,13 @@ describe('FifoLogService', () => {
     prisma.user.findUnique
       .mockResolvedValueOnce({
         id: 'admin-1',
-        email: 'admin@phongvu.vn',
+        email: 'admin@phongvu-shop.vn',
         role: 'ADMIN',
         storeId: 'store-1',
       })
       .mockResolvedValueOnce({
         id: 'outside-user',
-        email: 'outside@phongvu.vn',
+        email: 'outside@phongvu-shop.vn',
         role: 'STAFF',
         storeId: 'store-2',
       });
@@ -47,11 +47,11 @@ describe('FifoLogService', () => {
 
     await expect(
       service.getAdminLogs(
-        'admin@phongvu.vn',
+        'admin@phongvu-shop.vn',
         undefined,
         1,
         20,
-        'outside@phongvu.vn',
+        'outside@phongvu-shop.vn',
       ),
     ).resolves.toEqual({ data: [], total: 0, page: 1, limit: 20 });
     expect(prisma.fifoLog.findMany).not.toHaveBeenCalled();

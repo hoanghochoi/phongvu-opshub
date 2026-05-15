@@ -11,7 +11,8 @@ class ApiConstants {
   );
 
   // Auth endpoints
-  static const String googleLoginEndpoint = '/auth/google-login';
+  static const String loginEndpoint = '/auth/login';
+  static const String registerEndpoint = '/auth/register';
   static const String getUserEndpoint = '/auth/get-user';
   static const String storesEndpoint = '/stores';
   static const String profileEndpoint = '/users/me';

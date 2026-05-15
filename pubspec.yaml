@@ -64,9 +64,6 @@ dependencies:
   # Local storage for persistent login
   shared_preferences: ^2.2.2
 
-  # Google Sign-In for OAuth
-  google_sign_in: ^6.2.2
-
   # File system paths
   path_provider: ^2.1.1
 
@@ -76,6 +73,7 @@ dependencies:
   # Cached network images
   cached_network_image: ^3.4.1
   qr_flutter: ^4.1.0
+  flutter_secure_storage: ^10.2.0
 
 dev_dependencies:
   flutter_launcher_icons: ^0.13.1
@@ -107,6 +105,7 @@ flutter:
   assets:
     - assets/icon/
     - assets/images/
+    - data/email_domain.txt
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
