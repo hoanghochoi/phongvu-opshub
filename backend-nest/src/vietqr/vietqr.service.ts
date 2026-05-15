@@ -13,6 +13,7 @@ export interface CreateVietQrInput {
 
 export interface VietQrResponse {
   bankBin: string;
+  bankName: string;
   accountNumber: string;
   accountName: string;
   amount: number;
@@ -22,6 +23,17 @@ export interface VietQrResponse {
 
 @Injectable()
 export class VietQrService {
+  private readonly bankBinsByName: Record<string, string> = {
+    VIETINBANK: '970415',
+    ICB: '970415',
+    VIETCOMBANK: '970436',
+    VCB: '970436',
+  };
+  private readonly bankNamesByBin: Record<string, string> = {
+    '970415': 'VietinBank',
+    '970436': 'Vietcombank',
+  };
+
   constructor(private prisma: PrismaService) {}
 
   async create(input: CreateVietQrInput): Promise<VietQrResponse> {
@@ -53,6 +65,7 @@ export class VietQrService {
 
     return {
       bankBin: config.bankBin,
+      bankName: config.bankName,
       accountNumber: config.accountNumber,
       accountName: config.accountName,
       amount,
@@ -65,7 +78,10 @@ export class VietQrService {
     const store = storeCode
       ? await this.prisma.store.findUnique({ where: { storeId: storeCode } })
       : null;
-    const bankBin = this.getEnv('VIETQR_BANK_BIN');
+    const bankBin =
+      store?.transferBankBin?.trim() ||
+      this.resolveBankBin(store?.transferBankName) ||
+      this.getEnv('VIETQR_BANK_BIN');
     const accountNumber =
       store?.transferAccountNumber?.trim() ||
       this.getEnv('VIETQR_ACCOUNT_NUMBER');
@@ -83,11 +99,28 @@ export class VietQrService {
     }
 
     return {
-      bankBin: store?.transferBankBin?.trim() || bankBin,
+      bankBin,
+      bankName: this.resolveBankName(store?.transferBankName, bankBin),
       accountNumber,
       accountName,
       city,
     };
+  }
+
+  private resolveBankBin(bankName?: string | null): string {
+    const normalized = this.normalizeTransferContent(bankName || '').replace(
+      /\s+/g,
+      '',
+    );
+    return this.bankBinsByName[normalized] || '';
+  }
+
+  private resolveBankName(
+    bankName: string | null | undefined,
+    bankBin: string,
+  ) {
+    const normalized = (bankName || '').trim();
+    return normalized || this.bankNamesByBin[bankBin] || bankBin;
   }
 
   private getEnv(key: string): string {

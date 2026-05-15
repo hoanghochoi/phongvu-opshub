@@ -11,20 +11,34 @@ try {
   for (const row of rows) {
     const storeId = pick(row, ['store', 'storeId', 'store_id']).trim();
     if (!storeId) continue;
+    const storeName = pick(row, [
+      'store_name',
+      'storeName',
+      'branch_name',
+      'branchName',
+    ]);
+    const updateData = {
+      transferAccountNumber: pick(row, ['account']) || null,
+      transferAccountName: pick(row, ['account_name', 'accountName']) || null,
+      transferBankName: pick(row, ['account_bank', 'accountBank']) || null,
+      transferBankBin:
+        pick(row, ['account_bank_bin', 'accountBankBin', 'bank_bin']) || null,
+    };
+    if (storeName) {
+      updateData.storeName = storeName;
+    }
 
     await prisma.store.upsert({
       where: { storeId },
-      update: {
-        transferAccountNumber: pick(row, ['account']) || null,
-        transferAccountName: pick(row, ['account_name', 'accountName']) || null,
-        transferBankName: pick(row, ['account_bank', 'accountBank']) || null,
-      },
+      update: updateData,
       create: {
         storeId,
-        storeName: storeId,
+        storeName: storeName || storeId,
         transferAccountNumber: pick(row, ['account']) || null,
         transferAccountName: pick(row, ['account_name', 'accountName']) || null,
         transferBankName: pick(row, ['account_bank', 'accountBank']) || null,
+        transferBankBin:
+          pick(row, ['account_bank_bin', 'accountBankBin', 'bank_bin']) || null,
       },
     });
     count++;
