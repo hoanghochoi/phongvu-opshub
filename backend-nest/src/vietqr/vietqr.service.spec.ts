@@ -34,6 +34,7 @@ describe('VietQrService', () => {
 
     expect(result).toMatchObject({
       bankBin: '970436',
+      bankName: 'Vietcombank',
       accountNumber: '123456789',
       accountName: 'PHONG VU',
       amount: 150000,
@@ -68,6 +69,7 @@ describe('VietQrService', () => {
     prisma.store.findUnique.mockResolvedValue({
       transferAccountNumber: '999999',
       transferAccountName: 'Store Account',
+      transferBankName: 'VietinBank',
       transferBankBin: null,
     });
 
@@ -79,5 +81,27 @@ describe('VietQrService', () => {
 
     expect(result.accountNumber).toBe('999999');
     expect(result.accountName).toBe('STORE ACCOUNT');
+    expect(result.bankBin).toBe('970415');
+    expect(result.bankName).toBe('VietinBank');
+  });
+
+  it('resolves VietinBank BIN from store bank name when env fallback is missing', async () => {
+    delete process.env.VIETQR_BANK_BIN;
+    prisma.store.findUnique.mockResolvedValue({
+      transferAccountNumber: '18PVICU',
+      transferAccountName: 'Phong Vu',
+      transferBankName: 'VietinBank',
+      transferBankBin: null,
+    });
+
+    const result = await service.create({
+      amount: 150000,
+      orderCode: 'DH-001',
+      storeCode: 'CP62',
+    });
+
+    expect(result.bankBin).toBe('970415');
+    expect(result.bankName).toBe('VietinBank');
+    expect(result.accountNumber).toBe('18PVICU');
   });
 });

@@ -2,7 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class BarcodeScannerScreen extends StatefulWidget {
-  const BarcodeScannerScreen({super.key});
+  final String title;
+  final String instruction;
+  final String helperText;
+  final bool parsePhongVuSku;
+
+  const BarcodeScannerScreen({
+    super.key,
+    this.title = 'Quét mã SKU',
+    this.instruction = 'Đưa mã vào khung hình để quét',
+    this.helperText = 'Hỗ trợ Barcode và QR Code',
+    this.parsePhongVuSku = true,
+  });
 
   @override
   State<BarcodeScannerScreen> createState() => _BarcodeScannerScreenState();
@@ -42,7 +53,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
       final code = barcodes.first.rawValue;
       if (code != null && code.isNotEmpty) {
         // Parse SKU từ QR code
-        final sku = _parseSku(code);
+        final sku = widget.parsePhongVuSku ? _parseSku(code) : code;
         if (sku != null && sku.isNotEmpty) {
           Navigator.of(context).pop(sku);
         }
@@ -61,7 +72,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Quét mã SKU'),
+        title: Text(widget.title),
         actions: [
           IconButton(
             icon: Icon(_isTorchOn ? Icons.flash_on : Icons.flash_off),
@@ -76,10 +87,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
       body: Stack(
         children: [
           // Camera scanner
-          MobileScanner(
-            controller: _controller,
-            onDetect: _onDetect,
-          ),
+          MobileScanner(controller: _controller, onDetect: _onDetect),
           // Overlay với hướng dẫn
           Align(
             alignment: Alignment.bottomCenter,
@@ -103,19 +111,19 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Đưa mã vào khung hình để quét',
+                    widget.instruction,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Hỗ trợ Barcode và QR Code',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.white70,
-                        ),
+                    widget.helperText,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
                     textAlign: TextAlign.center,
                   ),
                 ],
