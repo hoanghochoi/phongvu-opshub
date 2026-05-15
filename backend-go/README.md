@@ -9,6 +9,9 @@ The service reads environment variables from the process:
 - `PORT`: HTTP/WebSocket port, defaults to `8080`.
 - `REDIS_HOST`: Redis host, defaults to `localhost`.
 - `REDIS_PORT`: Redis port, defaults to `6379`.
+- `JWT_SECRET`: required for `/ws`; use the same value as the NestJS API.
+- `ALLOWED_ORIGINS`: comma-separated WebSocket origins. Defaults to localhost
+  only when unset. Do not use `*` in production.
 
 `.env.example` is a template for deployment tools or process managers. `go run .` does not load `.env` automatically.
 
@@ -22,7 +25,7 @@ go run .
 The WebSocket endpoint is:
 
 ```text
-ws://localhost:8080/ws
+ws://localhost:8080/ws?access_token=<jwt>
 ```
 
 The liveness endpoint is:

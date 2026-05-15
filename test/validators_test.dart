@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/core/utils/email_domain_policy.dart';
 import 'package:phongvu_opshub/core/utils/validators.dart';
 
 void main() {
@@ -31,6 +32,28 @@ void main() {
 
     test('rejects multi-token free text', () {
       expect(Validators.isValidMessage('ABC123 two items'), isFalse);
+    });
+  });
+
+  group('EmailDomainPolicy', () {
+    test('parses allowed Phong Vu email domains from file contents', () {
+      expect(EmailDomainPolicy.parse('phongvu-shop.vn\nphongvu-mna.vn\t\n'), [
+        'phongvu-shop.vn',
+        'phongvu-mna.vn',
+      ]);
+    });
+
+    test('accepts only configured Phong Vu email domains', () {
+      const domains = ['phongvu-shop.vn', 'phongvu-care.vn'];
+
+      expect(
+        EmailDomainPolicy.isAllowedEmail('staff@phongvu-shop.vn', domains),
+        isTrue,
+      );
+      expect(
+        EmailDomainPolicy.isAllowedEmail('staff@example.com', domains),
+        isFalse,
+      );
     });
   });
 }

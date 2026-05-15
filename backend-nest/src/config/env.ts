@@ -3,8 +3,6 @@ type EnvMap = Record<string, string | undefined>;
 const REQUIRED_RUNTIME_KEYS = [
   'DATABASE_URL',
   'JWT_SECRET',
-  'GOOGLE_CLIENT_ID',
-  'ALLOWED_DOMAIN',
   'REDIS_HOST',
   'REDIS_PORT',
   'UPLOAD_BASE_DIR',
@@ -24,9 +22,10 @@ type SyncSource = (typeof SYNC_SOURCES)[number];
 
 const PRODUCTION_PLACEHOLDERS: Record<string, string[]> = {
   JWT_SECRET: ['change-me', 'super-secret-key-change-me'],
-  GOOGLE_CLIENT_ID: ['your-google-oauth-client-id.apps.googleusercontent.com'],
   IMAGE_BASE_URL: ['https://img.example.com'],
 };
+
+const LOCAL_ORIGIN_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 
 function getEnvValue(env: EnvMap, key: string): string | undefined {
   const value = env[key]?.trim();
@@ -58,6 +57,43 @@ export function getDataSyncSource(env: EnvMap = process.env): SyncSource {
   throw new Error(`Invalid DATA_SYNC_SOURCE value: ${rawSource}`);
 }
 
+export function getRequestBodyLimit(env: EnvMap = process.env): string {
+  return getEnvValue(env, 'REQUEST_BODY_LIMIT') ?? '1mb';
+}
+
+export function isCorsOriginAllowed(
+  origin?: string,
+  env: EnvMap = process.env,
+): boolean {
+  if (!origin) {
+    return true;
+  }
+
+  const allowedOrigins = getEnvValue(env, 'ALLOWED_ORIGINS');
+  if (allowedOrigins === '*') {
+    return env.NODE_ENV !== 'production';
+  }
+
+  if (allowedOrigins) {
+    return allowedOrigins
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .includes(origin);
+  }
+
+  if (env.NODE_ENV === 'production') {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(origin);
+    return LOCAL_ORIGIN_HOSTS.has(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function validateRuntimeEnv(env: EnvMap = process.env): void {
   const missing = REQUIRED_RUNTIME_KEYS.filter((key) => !getEnvValue(env, key));
 
@@ -70,6 +106,7 @@ export function validateRuntimeEnv(env: EnvMap = process.env): void {
   getPort(env);
   getDataSyncSource(env);
   validateRedisPort(env);
+  validateAllowedOrigins(env);
   validateBigQueryEnv(env);
   validateProductionPlaceholders(env);
 }
@@ -97,6 +134,16 @@ function validateBigQueryEnv(env: EnvMap): void {
     throw new Error(
       `Incomplete BigQuery configuration. Missing: ${missing.join(', ')}`,
     );
+  }
+}
+
+function validateAllowedOrigins(env: EnvMap): void {
+  const allowedOrigins = getEnvValue(env, 'ALLOWED_ORIGINS');
+  if (env.NODE_ENV === 'production' && !allowedOrigins) {
+    throw new Error('Missing required environment variable: ALLOWED_ORIGINS');
+  }
+  if (env.NODE_ENV === 'production' && allowedOrigins === '*') {
+    throw new Error('ALLOWED_ORIGINS cannot be * in production');
   }
 }
 

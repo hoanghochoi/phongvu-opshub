@@ -139,7 +139,7 @@ export class UserService implements OnModuleInit {
           },
           create: {
             email,
-            password: '', // Not used for Google login
+            password: '',
             firstName: firstName || email.split('@')[0],
             lastName: lastName || null,
             role,

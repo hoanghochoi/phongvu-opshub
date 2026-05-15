@@ -18,7 +18,7 @@ This file maps product behavior to proof. Existing flows are marked
 
 | Story | Contract | Unit | Integration | E2E | Platform | Status | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| AUTH-001 | Google sign-in and JWT-backed sessions for Phong Vu staff | partial | no | no | mobile smoke needed | existing_unverified | Product docs seeded from README/code inspection |
+| AUTH-001 | Email/password registration, sign-in, accepted Phong Vu email domains, and JWT-backed sessions for Phong Vu staff | partial | no | no | mobile smoke needed | changed | 2026-05-15: flow changed to explicit registration; validation pending in current patch |
 | FIFO-001 | FIFO check, sort workflows, and admin history | partial | no | no | mobile smoke needed | existing_unverified | Product docs seeded from README/code inspection |
 | WARRANTY-001 | Warranty/repair image capture, upload, status updates | partial | no | no | upload and WebSocket smoke needed | existing_unverified | Product docs seeded from README/code inspection |
 | FEEDBACK-001 | Staff feedback submission through app and API | partial | no | no | mobile smoke needed | existing_unverified | Product docs seeded from README/code inspection |

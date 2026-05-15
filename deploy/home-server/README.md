@@ -54,7 +54,7 @@ Useful CSV headers:
 
 - `inventory` table: `sku`, `sku_name`, `serial_number`, `bin`, `zone`, `import_date`, `count`.
 - `Store`: create stores first with `storeId` and `storeName`.
-- `User`: Google login can auto-create users, then admins can update role/store directly in Postgres until an admin UI exists.
+- `User`: first-use password login can auto-create users, then admins can update role/store directly in Postgres until an admin UI exists.
 
 ## Network
 

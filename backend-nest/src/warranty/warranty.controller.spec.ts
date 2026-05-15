@@ -44,11 +44,9 @@ describe('WarrantyController', () => {
     warrantyService.updateWarrantyStatus.mockResolvedValue({ status: 'DONE' });
 
     await expect(
-      controller.updateStatus(
-        { user: { id: 'handler-1' } },
-        'warranty-1',
-        'DONE',
-      ),
+      controller.updateStatus({ user: { id: 'handler-1' } }, 'warranty-1', {
+        status: 'DONE',
+      }),
     ).resolves.toEqual({ status: 'DONE' });
     expect(warrantyService.updateWarrantyStatus).toHaveBeenCalledWith(
       'warranty-1',

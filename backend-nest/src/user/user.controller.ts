@@ -15,6 +15,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { imageUploadOptions } from '../upload/image-upload.options';
 import { UserService } from './user.service';
+import { AdminUserDto, SelectStoreDto, UpdateProfileDto } from './user.dto';
 
 @Controller()
 @UseGuards(AuthGuard('jwt'))
@@ -32,10 +33,7 @@ export class UserController {
   }
 
   @Patch('users/me')
-  updateProfile(
-    @Request() req: any,
-    @Body() body: { firstName?: string; lastName?: string },
-  ) {
+  updateProfile(@Request() req: any, @Body() body: UpdateProfileDto) {
     return this.userService.updateProfile(req.user.id, body);
   }
 
@@ -49,8 +47,8 @@ export class UserController {
   }
 
   @Post('users/me/select-store')
-  selectStore(@Request() req: any, @Body() body: { storeId?: string }) {
-    return this.userService.selectStoreOnce(req.user.id, body.storeId ?? '');
+  selectStore(@Request() req: any, @Body() body: SelectStoreDto) {
+    return this.userService.selectStoreOnce(req.user.id, body.storeId);
   }
 
   @Get('admin/users')
@@ -59,12 +57,16 @@ export class UserController {
   }
 
   @Post('admin/users')
-  createUser(@Request() req: any, @Body() body: any) {
+  createUser(@Request() req: any, @Body() body: AdminUserDto) {
     return this.userService.adminCreateUser(req.user, body);
   }
 
   @Patch('admin/users/:id')
-  updateUser(@Request() req: any, @Param('id') id: string, @Body() body: any) {
+  updateUser(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: AdminUserDto,
+  ) {
     return this.userService.adminUpdateUser(req.user, id, body);
   }
 }

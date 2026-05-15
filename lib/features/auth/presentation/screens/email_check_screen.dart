@@ -1,10 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../core/utils/email_domain_policy.dart';
+import '../../../../core/utils/validators.dart';
+import '../providers/auth_provider.dart';
 
-class EmailCheckScreen extends StatelessWidget {
+class EmailCheckScreen extends StatefulWidget {
   const EmailCheckScreen({super.key});
+
+  @override
+  State<EmailCheckScreen> createState() => _EmailCheckScreenState();
+}
+
+class _EmailCheckScreenState extends State<EmailCheckScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  List<String> _allowedDomains = const [];
+  bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDomains();
+  }
+
+  Future<void> _loadDomains() async {
+    final domains = await EmailDomainPolicy.loadAllowedDomains();
+    if (mounted) setState(() => _allowedDomains = domains);
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,174 +53,23 @@ class EmailCheckScreen extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Logo with glow effect
-                      Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(28),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              blurRadius: 30,
-                              spreadRadius: 5,
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(28),
-                          child: Image.asset(
-                            'assets/images/logo.png',
-                            height: 120,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
+                      _LogoHeader(),
+                      const SizedBox(height: 40),
+                      _LoginCard(
+                        formKey: _formKey,
+                        emailController: _emailController,
+                        passwordController: _passwordController,
+                        allowedDomains: _allowedDomains,
+                        obscurePassword: _obscurePassword,
+                        isLoading: authProvider.isLoading,
+                        onTogglePassword: () {
+                          setState(() => _obscurePassword = !_obscurePassword);
+                        },
+                        onSubmit: () => _handleLogin(context),
+                        onRegister: () =>
+                            Navigator.of(context).pushNamed('/register'),
                       ),
-                      const SizedBox(height: 28),
-
-                      // App Name
-                      const Text(
-                        'PhongVu OpsHub',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 1.2,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Slogan
-                      Text(
-                        'Kết nối con người. Đồng bộ vận hành.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.7),
-                          fontSize: 15,
-                          fontStyle: FontStyle.italic,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 56),
-
-                      // Glassmorphism login card
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(28),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            const Text(
-                              'Đăng nhập',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Sử dụng các domain thuộc phongvu.vn để đăng nhập',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.65),
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 28),
-
-                            // Google Sign-In Button
-                            SizedBox(
-                              width: double.infinity,
-                              height: 54,
-                              child: ElevatedButton(
-                                onPressed: authProvider.isLoading
-                                    ? null
-                                    : () => _handleGoogleSignIn(context),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: Colors.grey[800],
-                                  disabledBackgroundColor: Colors.white
-                                      .withValues(alpha: 0.7),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                ),
-                                child: authProvider.isLoading
-                                    ? Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          SizedBox(
-                                            height: 20,
-                                            width: 20,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Text(
-                                            'Đang đăng nhập...',
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                        ],
-                                      )
-                                    : Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Image.network(
-                                            'https://developers.google.com/identity/images/g-logo.png',
-                                            height: 22,
-                                            width: 22,
-                                            errorBuilder:
-                                                (context, error, stackTrace) =>
-                                                    Icon(
-                                                      Icons.login_rounded,
-                                                      size: 22,
-                                                      color: Colors.grey[700],
-                                                    ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          const Text(
-                                            'Đăng nhập bằng Google',
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 48),
-
-                      // Footer
+                      const SizedBox(height: 40),
                       Text(
                         '© 2025 PhongVu OpsHub',
                         style: TextStyle(
@@ -208,14 +88,22 @@ class EmailCheckScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _handleGoogleSignIn(BuildContext context) async {
+  Future<void> _handleLogin(BuildContext context) async {
+    if (!_formKey.currentState!.validate()) return;
+
     final authProvider = context.read<AuthProvider>();
-    final success = await authProvider.signInWithGoogle();
+    final success = await authProvider.login(
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+    );
 
     if (!context.mounted) return;
 
     if (success) {
-      Navigator.of(context).pushReplacementNamed('/home');
+      final route = authProvider.user?.needsStoreSelection == true
+          ? '/select-store'
+          : '/home';
+      Navigator.of(context).pushReplacementNamed(route);
     } else if (authProvider.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -224,5 +112,239 @@ class EmailCheckScreen extends StatelessWidget {
         ),
       );
     }
+  }
+}
+
+class _LogoHeader extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.white.withValues(alpha: 0.15),
+                blurRadius: 30,
+                spreadRadius: 5,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: Image.asset(
+              'assets/images/logo.png',
+              height: 120,
+              fit: BoxFit.contain,
+            ),
+          ),
+        ),
+        const SizedBox(height: 28),
+        const Text(
+          'PhongVu OpsHub',
+          style: TextStyle(
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            letterSpacing: 1.2,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Kết nối con người. Đồng bộ vận hành.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.7),
+            fontSize: 15,
+            fontStyle: FontStyle.italic,
+            letterSpacing: 0.5,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LoginCard extends StatelessWidget {
+  const _LoginCard({
+    required this.formKey,
+    required this.emailController,
+    required this.passwordController,
+    required this.allowedDomains,
+    required this.obscurePassword,
+    required this.isLoading,
+    required this.onTogglePassword,
+    required this.onSubmit,
+    required this.onRegister,
+  });
+
+  final GlobalKey<FormState> formKey;
+  final TextEditingController emailController;
+  final TextEditingController passwordController;
+  final List<String> allowedDomains;
+  final bool obscurePassword;
+  final bool isLoading;
+  final VoidCallback onTogglePassword;
+  final VoidCallback onSubmit;
+  final VoidCallback onRegister;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Form(
+        key: formKey,
+        child: Column(
+          children: [
+            const Text(
+              'Đăng nhập',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              EmailDomainPolicy.promptText,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.65),
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 24),
+            TextFormField(
+              controller: emailController,
+              enabled: !isLoading,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autocorrect: false,
+              autofillHints: const [
+                AutofillHints.username,
+                AutofillHints.email,
+              ],
+              decoration: _inputDecoration(
+                label: 'Email',
+                icon: Icons.alternate_email_rounded,
+              ),
+              validator: (value) {
+                final email = value?.trim() ?? '';
+                if (!Validators.isValidEmail(email)) {
+                  return 'Email không hợp lệ';
+                }
+                if (!EmailDomainPolicy.isAllowedEmail(email, allowedDomains)) {
+                  return EmailDomainPolicy.invalidDomainMessage;
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: passwordController,
+              enabled: !isLoading,
+              obscureText: obscurePassword,
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.password],
+              onFieldSubmitted: (_) => isLoading ? null : onSubmit(),
+              decoration: _inputDecoration(
+                label: 'Mật khẩu',
+                icon: Icons.lock_rounded,
+                suffixIcon: IconButton(
+                  onPressed: isLoading ? null : onTogglePassword,
+                  icon: Icon(
+                    obscurePassword
+                        ? Icons.visibility_rounded
+                        : Icons.visibility_off_rounded,
+                  ),
+                ),
+              ),
+              validator: (value) {
+                final password = value ?? '';
+                return Validators.getPasswordError(password);
+              },
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: ElevatedButton.icon(
+                onPressed: isLoading ? null : onSubmit,
+                icon: isLoading
+                    ? SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.grey[600],
+                        ),
+                      )
+                    : const Icon(Icons.login_rounded),
+                label: Text(isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.grey[800],
+                  disabledBackgroundColor: Colors.white.withValues(alpha: 0.7),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: isLoading ? null : onRegister,
+              icon: const Icon(Icons.person_add_alt_1_rounded),
+              label: const Text('Đăng ký'),
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration({
+    required String label,
+    required IconData icon,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon),
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      errorMaxLines: 4,
+    );
   }
 }

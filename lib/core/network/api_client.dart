@@ -16,10 +16,9 @@ class ApiClient {
   void setAuthToken(String? token) {
     _authToken = token;
     if (kDebugMode) {
-      final tokenPreview = token != null && token.length >= 10
-          ? '${token.substring(0, 10)}...'
-          : token;
-      debugPrint('🔑 [ApiClient] Auth token set: ${tokenPreview ?? "null"}');
+      debugPrint(
+        '[ApiClient] Auth token ${token == null ? "cleared" : "updated"}',
+      );
     }
   }
 
@@ -82,7 +81,6 @@ class ApiClient {
 
       if (kDebugMode) {
         debugPrint('🔵 API POST: $url');
-        debugPrint('🔵 Body: ${jsonEncode(body)}');
       }
 
       final response = await _client

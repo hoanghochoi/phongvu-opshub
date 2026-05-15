@@ -1,87 +1,106 @@
 import {
+  BadRequestException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
-  ForbiddenException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
-import { OAuth2Client } from 'google-auth-library';
+import { PrismaService } from '../prisma/prisma.service';
+import { RegisterDto } from './auth.dto';
+import {
+  allowedEmailDomainMessage,
+  getAllowedEmailDomains,
+  isAllowedEmailDomain,
+} from './email-domain-policy';
+
+const PASSWORD_SALT_ROUNDS = 12;
 
 @Injectable()
 export class AuthService {
-  private googleClient: OAuth2Client;
-
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-  ) {
-    this.googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-  }
+  ) {}
 
-  // -------------------------------------------------------
-  // GOOGLE LOGIN: verify ID token, check domain, issue JWT
-  // -------------------------------------------------------
-  async googleLogin(idToken: string) {
-    // 1. Verify Google ID Token
-    let payload: any;
-    try {
-      const ticket = await this.googleClient.verifyIdToken({
-        idToken,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      });
-      payload = ticket.getPayload();
-    } catch (error) {
-      throw new UnauthorizedException('Google token không hợp lệ');
-    }
+  async passwordLogin(emailInput: string, password: string) {
+    const email = this.normalizeEmail(emailInput);
+    this.assertAllowedDomain(email);
 
-    if (!payload || !payload.email) {
-      throw new UnauthorizedException('Không lấy được thông tin từ Google');
-    }
-
-    // 2. Check domain restriction
-    const allowedDomains = (process.env.ALLOWED_DOMAIN || 'phongvu.vn')
-      .split(',')
-      .map((d) => d.trim())
-      .filter((d) => d.length > 0);
-    const emailDomain = payload.email.split('@')[1];
-    if (!allowedDomains.includes(emailDomain)) {
-      throw new ForbiddenException(
-        `Chỉ cho phép đăng nhập bằng email @${allowedDomains.join(', @')}`,
-      );
-    }
-
-    // 3. Find or create user
-    let user = await this.prisma.user.findUnique({
-      where: { email: payload.email },
+    const user = await this.prisma.user.findUnique({
+      where: { email },
       include: { store: true },
     });
 
     if (!user) {
-      // Auto-create user on first Google login
-      user = await this.prisma.user.create({
-        data: {
-          email: payload.email,
-          password: '', // Not used for Google login
-          firstName:
-            payload.given_name || payload.name || payload.email.split('@')[0],
-          lastName: payload.family_name || null,
-          status: 'yes',
-        },
-        include: { store: true },
-      });
+      throw new UnauthorizedException(
+        'Tai khoan chua ton tai. Vui long dang ky truoc.',
+      );
     }
 
-    // 4. Check if user is locked
+    if (!user.password) {
+      throw new UnauthorizedException(
+        'Tai khoan chua co mat khau. Vui long dang ky de tao mat khau.',
+      );
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Email hoac mat khau khong dung');
+    }
+
     if (user.status === 'no') {
-      throw new ForbiddenException('Tài khoản đã bị khóa. Liên hệ Quản lý.');
+      throw new ForbiddenException('Tai khoan da bi khoa. Lien he Quan ly.');
     }
 
-    // 5. Issue JWT
-    const jwtPayload = { email: user.email, sub: user.id, role: user.role };
+    return this.buildLoginResponse(user);
+  }
+
+  async register(input: RegisterDto) {
+    const email = this.normalizeEmail(input.email);
+    this.assertAllowedDomain(email);
+
+    const firstName = input.firstName.trim();
+    const lastName = input.lastName?.trim() || null;
+    if (!firstName) {
+      throw new BadRequestException('Vui long nhap ho ten');
+    }
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+      include: { store: true },
+    });
+
+    if (existingUser?.password) {
+      throw new BadRequestException(
+        'Email nay da duoc dang ky. Vui long dang nhap.',
+      );
+    }
+
+    const password = await this.hashPassword(input.password);
+    const user = existingUser
+      ? await this.prisma.user.update({
+          where: { id: existingUser.id },
+          data: { firstName, lastName, password, status: 'yes' },
+          include: { store: true },
+        })
+      : await this.prisma.user.create({
+          data: { email, firstName, lastName, password, status: 'yes' },
+          include: { store: true },
+        });
+
+    return this.buildLoginResponse(user);
+  }
+
+  async getUserData(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { store: true },
+    });
+
+    if (!user) throw new UnauthorizedException('User not found');
+
     return {
-      login: true,
-      access_token: this.jwtService.sign(jwtPayload),
-      email: user.email,
       name: user.firstName,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -96,18 +115,46 @@ export class AuthService {
     };
   }
 
-  // -------------------------------------------------------
-  // GET USER DATA
-  // -------------------------------------------------------
-  async getUserData(email: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-      include: { store: true },
-    });
+  private normalizeEmail(emailInput: string) {
+    const email = emailInput.trim().toLowerCase();
+    if (!email || !email.includes('@')) {
+      throw new BadRequestException('Email khong hop le');
+    }
+    return email;
+  }
 
-    if (!user) throw new UnauthorizedException('User not found');
+  private assertAllowedDomain(email: string) {
+    if (getAllowedEmailDomains().length === 0) {
+      throw new ForbiddenException('Chua cau hinh domain email Phong Vu');
+    }
 
+    if (!isAllowedEmailDomain(email)) {
+      throw new ForbiddenException(allowedEmailDomainMessage());
+    }
+  }
+
+  private async hashPassword(password: string) {
+    return bcrypt.hash(password, PASSWORD_SALT_ROUNDS);
+  }
+
+  private buildLoginResponse(user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName?: string | null;
+    avatarUrl?: string | null;
+    role: string;
+    status: string;
+    profileCompletedAt?: Date | null;
+    branchLockedAt?: Date | null;
+    storeId?: string | null;
+    store?: { storeId?: string | null; storeName?: string | null } | null;
+  }) {
+    const jwtPayload = { email: user.email, sub: user.id, role: user.role };
     return {
+      login: true,
+      access_token: this.jwtService.sign(jwtPayload),
+      email: user.email,
       name: user.firstName,
       firstName: user.firstName,
       lastName: user.lastName,

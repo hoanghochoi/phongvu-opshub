@@ -1,6 +1,7 @@
 import {
   getDataSyncSource,
   getPort,
+  isCorsOriginAllowed,
   getRequiredEnv,
   validateRuntimeEnv,
 } from './env';
@@ -8,8 +9,6 @@ import {
 const baseEnv = {
   DATABASE_URL: 'postgresql://user:pass@localhost:5432/opshub',
   JWT_SECRET: 'local-secret',
-  GOOGLE_CLIENT_ID: 'client-id.apps.googleusercontent.com',
-  ALLOWED_DOMAIN: 'phongvu.vn',
   REDIS_HOST: 'localhost',
   REDIS_PORT: '6379',
   UPLOAD_BASE_DIR: '/data/app_images',
@@ -50,6 +49,7 @@ describe('env validation', () => {
       validateRuntimeEnv({
         ...baseEnv,
         NODE_ENV: 'production',
+        ALLOWED_ORIGINS: 'https://opshub.example.com',
         IMAGE_BASE_URL: 'https://img.phongvu.example',
       }),
     ).not.toThrow();
@@ -75,6 +75,7 @@ describe('env validation', () => {
       validateRuntimeEnv({
         ...baseEnv,
         NODE_ENV: 'production',
+        ALLOWED_ORIGINS: 'https://opshub.example.com',
         JWT_SECRET: 'change-me',
         IMAGE_BASE_URL: 'https://img.phongvu.example',
       }),
@@ -87,5 +88,30 @@ describe('env validation', () => {
     expect(getRequiredEnv('JWT_SECRET', { JWT_SECRET: '  secret  ' })).toBe(
       'secret',
     );
+  });
+
+  it('requires explicit CORS origins in production', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        NODE_ENV: 'production',
+        IMAGE_BASE_URL: 'https://img.phongvu.example',
+      }),
+    ).toThrow('Missing required environment variable: ALLOWED_ORIGINS');
+  });
+
+  it('checks CORS origins against the configured allowlist', () => {
+    expect(
+      isCorsOriginAllowed('https://opshub.example.com', {
+        NODE_ENV: 'production',
+        ALLOWED_ORIGINS: 'https://opshub.example.com',
+      }),
+    ).toBe(true);
+    expect(
+      isCorsOriginAllowed('https://evil.example.com', {
+        NODE_ENV: 'production',
+        ALLOWED_ORIGINS: 'https://opshub.example.com',
+      }),
+    ).toBe(false);
   });
 });

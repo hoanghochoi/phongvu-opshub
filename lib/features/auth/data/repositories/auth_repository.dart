@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
@@ -12,69 +11,91 @@ class AuthRepository {
 
   AuthRepository(this._apiClient);
 
-  /// Login with Google ID Token — returns (User, JWT token)
-  Future<(User, String?)> googleLogin(String idToken) async {
+  Future<(User, String?)> login({
+    required String email,
+    required String password,
+  }) async {
     try {
       final response = await _apiClient.post(
-        ApiConstants.googleLoginEndpoint,
-        body: {'idToken': idToken},
+        ApiConstants.loginEndpoint,
+        body: {'email': email, 'password': password},
         timeout: ApiConstants.defaultTimeout,
       );
-
-      if (kDebugMode) debugPrint('📥 Google login response: ${response.body}');
-      final dynamic jsonResponse = jsonDecode(response.body);
-
-      Map<String, dynamic> responseData;
-      if (jsonResponse is List && jsonResponse.isNotEmpty) {
-        responseData = jsonResponse[0] as Map<String, dynamic>;
-      } else if (jsonResponse is Map<String, dynamic>) {
-        responseData = jsonResponse;
-      } else {
-        throw ApiException('Response format không hợp lệ');
-      }
-
-      final loginValue = responseData['login'];
-      final bool loginSuccess = loginValue == true || loginValue == 'true';
-
-      if (loginSuccess) {
-        final accessToken = responseData['access_token']?.toString();
-        final firstName =
-            responseData['firstName']?.toString() ??
-            responseData['name']?.toString();
-        final storeId = responseData['storeId']?.toString();
-        final storeName = responseData['storeName']?.toString();
-        final role = responseData['role']?.toString();
-
-        if (kDebugMode) {
-          final tokenPreview = accessToken != null && accessToken.length >= 10
-              ? '${accessToken.substring(0, 10)}...'
-              : accessToken;
-          debugPrint('✅ Google login success! token: $tokenPreview');
-        }
-
-        // Save token to ApiClient for future authorized requests
-        _apiClient.setAuthToken(accessToken);
-
-        final user = User.fromJson({
-          ...responseData,
-          'email': responseData['email']?.toString() ?? '',
-          'name': firstName,
-          'storeId': storeId,
-          'storeName': storeName,
-          'role': role,
-        });
-
-        return (user, accessToken);
-      } else {
-        final message =
-            responseData['message']?.toString() ?? 'Đăng nhập thất bại';
-        throw ApiException(message);
-      }
+      return _userAndTokenFromResponse(_readResponseMap(response.body));
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException('Đăng nhập Google thất bại: $e');
+      throw ApiException('Dang nhap that bai: $e');
     }
+  }
+
+  Future<(User, String?)> register({
+    required String firstName,
+    String? lastName,
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        ApiConstants.registerEndpoint,
+        body: {
+          'firstName': firstName,
+          if (lastName != null && lastName.trim().isNotEmpty)
+            'lastName': lastName,
+          'email': email,
+          'password': password,
+        },
+        timeout: ApiConstants.defaultTimeout,
+      );
+      return _userAndTokenFromResponse(_readResponseMap(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Dang ky that bai: $e');
+    }
+  }
+
+  Map<String, dynamic> _readResponseMap(String body) {
+    final dynamic jsonResponse = jsonDecode(body);
+
+    if (jsonResponse is List && jsonResponse.isNotEmpty) {
+      return jsonResponse[0] as Map<String, dynamic>;
+    } else if (jsonResponse is Map<String, dynamic>) {
+      return jsonResponse;
+    }
+    throw ApiException('Response format khong hop le');
+  }
+
+  (User, String?) _userAndTokenFromResponse(Map<String, dynamic> responseData) {
+    final loginValue = responseData['login'];
+    final bool loginSuccess = loginValue == true || loginValue == 'true';
+
+    if (!loginSuccess) {
+      final message =
+          responseData['message']?.toString() ?? 'Dang nhap that bai';
+      throw ApiException(message);
+    }
+
+    final accessToken = responseData['access_token']?.toString();
+    final firstName =
+        responseData['firstName']?.toString() ??
+        responseData['name']?.toString();
+    final storeId = responseData['storeId']?.toString();
+    final storeName = responseData['storeName']?.toString();
+    final role = responseData['role']?.toString();
+
+    _apiClient.setAuthToken(accessToken);
+
+    final user = User.fromJson({
+      ...responseData,
+      'email': responseData['email']?.toString() ?? '',
+      'name': firstName,
+      'storeId': storeId,
+      'storeName': storeName,
+      'role': role,
+    });
+
+    return (user, accessToken);
   }
 
   Future<User> getUserData(String email) async {
@@ -85,23 +106,14 @@ class AuthRepository {
         timeout: ApiConstants.defaultTimeout,
       );
 
-      if (kDebugMode) debugPrint('📥 Get user response: ${response.body}');
-      final dynamic jsonResponse = jsonDecode(response.body);
-
-      Map<String, dynamic> responseData;
-      if (jsonResponse is List && jsonResponse.isNotEmpty) {
-        responseData = jsonResponse[0] as Map<String, dynamic>;
-      } else if (jsonResponse is Map<String, dynamic>) {
-        responseData = jsonResponse;
-      } else {
-        throw ApiException('Response format không hợp lệ');
-      }
-
-      return User.fromJson(responseData, fallbackEmail: email);
+      return User.fromJson(
+        _readResponseMap(response.body),
+        fallbackEmail: email,
+      );
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException('Không thể lấy thông tin user: $e');
+      throw ApiException('Khong the lay thong tin user: $e');
     }
   }
 

@@ -4,7 +4,7 @@ Backend-native architecture for the OpsHub mobile app. The Flutter app talks to 
 
 ## Services
 
-- `backend-nest/`: NestJS API with Prisma, JWT auth, Google login, inventory sync, FIFO check/sort, FIFO logs, warranty uploads, and feedback.
+- `backend-nest/`: NestJS API with Prisma, JWT auth, first-use password login, inventory sync, FIFO check/sort, FIFO logs, warranty uploads, and feedback.
 - `backend-go/`: Go realtime service that subscribes to Redis and broadcasts warranty status updates on `/ws`.
 - `docker-compose.yml`: Local PostgreSQL and Redis only.
 - `n8n/`: Legacy workflow exports kept as reference, not used by runtime app code.
@@ -63,7 +63,8 @@ Expected responses:
 - Set a strong `JWT_SECRET`.
 - Set `DATABASE_URL` to the production PostgreSQL database.
 - Set `REDIS_HOST` and `REDIS_PORT` consistently for NestJS and Go.
-- Set `GOOGLE_CLIENT_ID` and `ALLOWED_DOMAIN`.
+- Keep `data/email_domain.txt` current with accepted Phong Vu email domains, or
+  set `EMAIL_DOMAIN_FILE` to an equivalent file path.
 - Set all `BIGQUERY_*` values and place the service-account JSON outside git.
 - Set `UPLOAD_BASE_DIR` to a persistent VPS directory, for example `/data/app_images`.
 - Set `IMAGE_BASE_URL` to the public image domain that serves `UPLOAD_BASE_DIR`.

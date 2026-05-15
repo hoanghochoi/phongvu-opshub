@@ -7,7 +7,6 @@ NestJS API service for the OpsHub mobile app. It owns authentication, users, inv
 - Node.js and npm
 - PostgreSQL
 - Redis
-- Google OAuth client ID
 - BigQuery service account and dataset/table IDs for inventory/user sync
 - Writable image directory on the host or VPS
 
@@ -29,10 +28,10 @@ Important variables:
 
 - `DATABASE_URL`: PostgreSQL connection string.
 - `JWT_SECRET`: JWT signing secret. There is no runtime fallback; use a long random value.
-- `GOOGLE_CLIENT_ID`: Google OAuth client ID used by the Flutter app.
-- `ALLOWED_DOMAIN`: Comma-separated email domains allowed to sign in.
+- `EMAIL_DOMAIN_FILE`: Optional path to the accepted Phong Vu email domain list.
+  Defaults to `../data/email_domain.txt` when running from `backend-nest/`.
 - `REDIS_HOST` / `REDIS_PORT`: Redis connection used to publish realtime events.
-- `BIGQUERY_*`: Project, dataset, and table values for sync jobs. `BIGQUERY_KEY_FILE` is used when the VPS authenticates with a service-account JSON; it can be omitted when the runtime uses Google Application Default Credentials.
+- `BIGQUERY_*`: Project, dataset, and table values for sync jobs. `BIGQUERY_KEY_FILE` is used when the VPS authenticates with a service-account JSON; keep that JSON outside the repo checkout, for example under `/data/import`, or omit it when the runtime uses Google Application Default Credentials.
 - `UPLOAD_BASE_DIR`: Directory where uploaded warranty/feedback images are written.
 - `IMAGE_BASE_URL`: Public URL that serves files from `UPLOAD_BASE_DIR`.
 

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { WarrantyService } from './warranty.service';
 import { AuthGuard } from '@nestjs/passport';
+import { CreateWarrantyDto, UpdateWarrantyStatusDto } from './warranty.dto';
 
 @Controller('warranties')
 @UseGuards(AuthGuard('jwt'))
@@ -19,7 +20,7 @@ export class WarrantyController {
 
   // POST /warranties — create (called after image upload)
   @Post()
-  async create(@Request() req: any, @Body() body: any) {
+  async create(@Request() req: any, @Body() body: CreateWarrantyDto) {
     return this.warrantyService.createWarranty(req.user.id, body);
   }
 
@@ -52,12 +53,12 @@ export class WarrantyController {
   async updateStatus(
     @Request() req: any,
     @Param('id') id: string,
-    @Body('status') status: string,
+    @Body() body: UpdateWarrantyStatusDto,
   ) {
     return this.warrantyService.updateWarrantyStatus(
       id,
       req.user.id,
-      status as any,
+      body.status,
     );
   }
 }
