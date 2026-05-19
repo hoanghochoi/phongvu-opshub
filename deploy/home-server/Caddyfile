@@ -14,5 +14,10 @@
     file_server
   }
 
+  handle_path /downloads/* {
+    root * /srv/downloads
+    file_server
+  }
+
   respond /health "ok" 200
 }

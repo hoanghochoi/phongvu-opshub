@@ -42,21 +42,25 @@ try {
       storeCount++;
     }
 
+    const role = normalizeRole(pick(row, ['role', 'Role']));
+    await ensureRoleExists(prisma, role);
+
     await prisma.user.upsert({
       where: { email },
       update: {
         firstName: pick(row, ['first_name', 'firstName']) || undefined,
         lastName: pick(row, ['last_name', 'lastName']) || undefined,
-        role: parseRole(pick(row, ['role', 'Role']).toUpperCase()),
+        role,
         status: pick(row, ['status'], 'yes').toLowerCase(),
         storeId: storeUuid,
       },
       create: {
         email,
         password: '',
-        firstName: pick(row, ['first_name', 'firstName']) || email.split('@')[0],
+        firstName:
+          pick(row, ['first_name', 'firstName']) || email.split('@')[0],
         lastName: pick(row, ['last_name', 'lastName']) || null,
-        role: parseRole(pick(row, ['role', 'Role']).toUpperCase()),
+        role,
         status: pick(row, ['status'], 'yes').toLowerCase(),
         storeId: storeUuid,
       },
@@ -69,8 +73,23 @@ try {
   await close();
 }
 
-function parseRole(role) {
-  return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF'].includes(role)
-    ? role
-    : 'STAFF';
+function normalizeRole(role) {
+  const code = String(role || 'STAFF')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]/g, '_');
+  return /^[A-Z][A-Z0-9_]{1,39}$/.test(code) ? code : 'STAFF';
+}
+
+async function ensureRoleExists(prisma, code) {
+  await prisma.roleDefinition.upsert({
+    where: { code },
+    update: {},
+    create: {
+      code,
+      displayName: code,
+      description: null,
+      isSystem: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF'].includes(code),
+    },
+  });
 }

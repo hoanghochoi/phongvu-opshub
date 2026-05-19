@@ -7,6 +7,10 @@ import '../features/auth/presentation/screens/email_check_screen.dart';
 import '../features/auth/presentation/screens/profile_screen.dart';
 import '../features/auth/presentation/screens/register_screen.dart';
 import '../features/auth/presentation/screens/store_selection_screen.dart';
+import '../features/app_update/presentation/app_update_gate.dart';
+import '../features/admin/presentation/screens/admin_menu_screen.dart';
+import '../features/admin/presentation/screens/role_admin_screen.dart';
+import '../features/admin/presentation/screens/store_admin_screen.dart';
 import '../features/admin/presentation/screens/user_admin_screen.dart';
 import '../features/chat/data/repositories/chat_repository.dart';
 import '../features/chat/presentation/providers/chat_provider.dart';
@@ -50,22 +54,24 @@ class App extends StatelessWidget {
         title: 'PhongVu OpsHub',
         theme: AppTheme.lightTheme,
         debugShowCheckedModeBanner: false,
-        home: Consumer<AuthProvider>(
-          builder: (context, authProvider, _) {
-            if (!authProvider.isInitialized) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
-            }
+        home: AppUpdateGate(
+          child: Consumer<AuthProvider>(
+            builder: (context, authProvider, _) {
+              if (!authProvider.isInitialized) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
 
-            if (!authProvider.isAuthenticated) {
-              return const EmailCheckScreen();
-            }
-            if (authProvider.user?.needsStoreSelection == true) {
-              return const StoreSelectionScreen();
-            }
-            return const MainNavigationScreen();
-          },
+              if (!authProvider.isAuthenticated) {
+                return const EmailCheckScreen();
+              }
+              if (authProvider.user?.needsStoreSelection == true) {
+                return const StoreSelectionScreen();
+              }
+              return const MainNavigationScreen();
+            },
+          ),
         ),
         routes: {
           '/login': (context) => const EmailCheckScreen(),
@@ -73,7 +79,10 @@ class App extends StatelessWidget {
           '/home': (context) => const MainNavigationScreen(),
           '/select-store': (context) => const StoreSelectionScreen(),
           '/profile': (context) => const ProfileScreen(),
+          '/admin': (context) => const AdminMenuScreen(),
           '/admin/users': (context) => const UserAdminScreen(),
+          '/admin/roles': (context) => const RoleAdminScreen(),
+          '/admin/stores': (context) => const StoreAdminScreen(),
           '/fifo-menu': (context) => const FifoMenuScreen(),
           '/chat': (context) => const ChatScreen(),
           '/warranty-main': (context) => const WarrantyMainScreen(),

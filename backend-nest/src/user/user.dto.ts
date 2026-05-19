@@ -1,11 +1,4 @@
-import {
-  IsEmail,
-  IsEnum,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
-import { Role } from '@prisma/client';
+import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateProfileDto {
   @IsOptional()
@@ -32,8 +25,9 @@ export class AdminUserDto extends UpdateProfileDto {
   email?: string;
 
   @IsOptional()
-  @IsEnum(Role)
-  role?: Role;
+  @IsString()
+  @MaxLength(40)
+  role?: string;
 
   @IsOptional()
   @IsString()
@@ -43,4 +37,51 @@ export class AdminUserDto extends UpdateProfileDto {
   @IsString()
   @MaxLength(40)
   storeId?: string;
+}
+
+export class AdminRoleDto {
+  @IsString()
+  @MaxLength(40)
+  code!: string;
+
+  @IsString()
+  @MaxLength(80)
+  displayName!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  description?: string;
+}
+
+export class AdminStoreDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  storeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  storeName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  transferAccountNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  transferAccountName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  transferBankName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  transferBankBin?: string;
 }

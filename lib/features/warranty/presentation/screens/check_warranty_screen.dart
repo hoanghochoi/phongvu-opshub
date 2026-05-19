@@ -4,8 +4,10 @@ import 'package:intl/intl.dart';
 import '../providers/warranty_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import 'warranty_details_screen.dart';
-import '../../../chat/presentation/widgets/barcode_scanner_screen.dart' show BarcodeScannerScreen;
+import '../../../chat/presentation/widgets/barcode_scanner_screen.dart'
+    show BarcodeScannerScreen;
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/widgets/app_buttons.dart';
 
 class CheckWarrantyScreen extends StatefulWidget {
   const CheckWarrantyScreen({super.key});
@@ -70,9 +72,7 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
   Future<void> _scanBarcode() async {
     try {
       final result = await Navigator.of(context).push<String>(
-        MaterialPageRoute(
-          builder: (context) => const BarcodeScannerScreen(),
-        ),
+        MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
       );
 
       if (result != null && mounted) {
@@ -106,7 +106,8 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
     // Navigate to details screen
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => WarrantyDetailsScreen(receiptNumber: receiptNumber),
+        builder: (context) =>
+            WarrantyDetailsScreen(receiptNumber: receiptNumber),
       ),
     );
 
@@ -142,13 +143,15 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
                         hintText: 'Tìm kiếm biên nhận',
                         prefixIcon: const Icon(Icons.search),
                         suffixIcon: _isSearchMode
-                            ? IconButton(
-                                icon: const Icon(Icons.clear),
+                            ? AppIconAction(
+                                icon: Icons.clear,
                                 onPressed: _clearSearch,
+                                tooltip: 'Xóa tìm kiếm',
                               )
-                            : IconButton(
-                                icon: const Icon(Icons.qr_code_scanner),
+                            : AppIconAction(
+                                icon: Icons.qr_code_scanner,
                                 onPressed: _scanBarcode,
+                                tooltip: 'Quét mã',
                               ),
                         border: const OutlineInputBorder(),
                       ),
@@ -156,9 +159,13 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _searchReceipt,
-                    child: const Text('Tìm'),
+                  SizedBox(
+                    width: 84,
+                    height: AppButtonMetrics.height,
+                    child: ElevatedButton(
+                      onPressed: _searchReceipt,
+                      child: const Text('Tìm'),
+                    ),
                   ),
                 ],
               ),
@@ -169,9 +176,7 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
               child: Consumer<WarrantyProvider>(
                 builder: (context, warrantyProvider, _) {
                   if (warrantyProvider.isLoading) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
+                    return const Center(child: CircularProgressIndicator());
                   }
 
                   if (warrantyProvider.errorMessage != null) {
@@ -191,9 +196,10 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
                             style: const TextStyle(color: Colors.red),
                           ),
                           const SizedBox(height: 16),
-                          ElevatedButton(
+                          AppSecondaryButton(
                             onPressed: _loadAllReceipts,
-                            child: const Text('Thử lại'),
+                            icon: Icons.refresh_rounded,
+                            label: 'Thử lại',
                           ),
                         ],
                       ),
@@ -215,9 +221,8 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
                             _isSearchMode
                                 ? 'Không tìm thấy biên nhận'
                                 : 'Chưa có biên nhận nào',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  color: Colors.grey[600],
-                                ),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(color: Colors.grey[600]),
                           ),
                         ],
                       ),
@@ -252,10 +257,7 @@ class _ReceiptCard extends StatelessWidget {
   final Map<String, dynamic> receipt;
   final VoidCallback onTap;
 
-  const _ReceiptCard({
-    required this.receipt,
-    required this.onTap,
-  });
+  const _ReceiptCard({required this.receipt, required this.onTap});
 
   String _formatDate(String? dateString) {
     if (dateString == null || dateString.isEmpty) {
@@ -406,11 +408,7 @@ class _ReceiptCard extends StatelessWidget {
               ),
 
               // Arrow
-              Icon(
-                Icons.arrow_forward_ios,
-                size: 16,
-                color: Colors.grey[400],
-              ),
+              Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
             ],
           ),
         ),

@@ -1,7 +1,7 @@
-# Profile And User Administration
+# Profile And Administration
 
 OpsHub supports personal profile management, one-time branch selection, and
-basic user administration for privileged roles.
+basic administration for privileged roles.
 
 ## Personal Profile
 
@@ -21,10 +21,20 @@ basic user administration for privileged roles.
   name, and bank name.
 - VietQR generation prefers the selected store's transfer account when present.
 
-## Admin User Management
+## Admin Management
 
-- `SUPER_ADMIN` and `ADMIN` can open the user administration screen.
+- `SUPER_ADMIN` and `ADMIN` can open the administration menu.
+- The administration menu contains user management, role management, and store
+  management.
 - Admin users can list, add, and edit users.
+- Role management lists roles from the backend role catalog.
+- `SUPER_ADMIN` can add, edit, and delete custom roles.
+- System roles are seeded by the backend and cannot be deleted from the app.
+- Custom roles cannot be deleted while assigned to users.
+- Store management lists store code, store name, and transfer account
+  configuration.
+- `SUPER_ADMIN` can add, edit, and delete stores.
+- Stores cannot be deleted while assigned to users.
 - `ADMIN` is scoped to users in the same store and cannot assign
   `SUPER_ADMIN`.
 - `SUPER_ADMIN` can manage all users.

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/widgets/app_buttons.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
+import '../../domain/admin_role_definition.dart';
 
 class UserAdminScreen extends StatefulWidget {
   const UserAdminScreen({super.key});
@@ -18,6 +20,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   final _searchController = TextEditingController();
   List<User> _users = [];
   List<StoreBranch> _stores = [];
+  List<AdminRoleDefinition> _roles = AdminRoles.definitions;
   bool _loading = true;
 
   @override
@@ -38,11 +41,13 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       final results = await Future.wait([
         _repository.listUsers(query: _searchController.text),
         _repository.getStores(),
+        _repository.listAdminRoles(),
       ]);
       if (!mounted) return;
       setState(() {
         _users = results[0] as List<User>;
         _stores = results[1] as List<StoreBranch>;
+        _roles = results[2] as List<AdminRoleDefinition>;
       });
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -55,6 +60,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       builder: (context) => _UserEditorDialog(
         repository: _repository,
         stores: _stores,
+        roles: _roles,
         user: user,
       ),
     );
@@ -72,6 +78,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
           IconButton(
             onPressed: () => _openEditor(),
             icon: const Icon(Icons.person_add_alt_1_outlined),
+            tooltip: 'Thêm user',
           ),
         ],
       ),
@@ -84,9 +91,10 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
               decoration: InputDecoration(
                 hintText: 'Tìm email hoặc tên',
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
+                suffixIcon: AppIconAction(
                   onPressed: _load,
-                  icon: const Icon(Icons.refresh),
+                  icon: Icons.refresh,
+                  tooltip: 'Tải lại',
                 ),
                 border: const OutlineInputBorder(),
               ),
@@ -116,9 +124,10 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                           subtitle: Text(
                             '${user.role ?? ''} • ${user.storeInfo}',
                           ),
-                          trailing: IconButton(
+                          trailing: AppIconAction(
                             onPressed: () => _openEditor(user),
-                            icon: const Icon(Icons.edit_outlined),
+                            icon: Icons.edit_outlined,
+                            tooltip: 'Sửa user',
                           ),
                         );
                       },
@@ -134,11 +143,13 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
 class _UserEditorDialog extends StatefulWidget {
   final AuthRepository repository;
   final List<StoreBranch> stores;
+  final List<AdminRoleDefinition> roles;
   final User? user;
 
   const _UserEditorDialog({
     required this.repository,
     required this.stores,
+    required this.roles,
     this.user,
   });
 
@@ -224,7 +235,8 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
               DropdownButtonFormField<String>(
                 initialValue: _role,
                 decoration: const InputDecoration(labelText: 'Quyền'),
-                items: const ['STAFF', 'MANAGER', 'ADMIN', 'SUPER_ADMIN']
+                items: widget.roles
+                    .map((role) => role.value)
                     .map(
                       (role) =>
                           DropdownMenuItem(value: role, child: Text(role)),

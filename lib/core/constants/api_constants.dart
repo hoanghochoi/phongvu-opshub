@@ -7,8 +7,10 @@ class ApiConstants {
   // ──────────────────────────────────────────────────────────
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://192.168.8.100:3000',
+    defaultValue: 'https://opshub.hoanghochoi.com/api',
   );
+
+  static const String appVersionEndpoint = '/app-version';
 
   // Auth endpoints
   static const String loginEndpoint = '/auth/login';
@@ -19,6 +21,8 @@ class ApiConstants {
   static const String selectStoreEndpoint = '/users/me/select-store';
   static const String avatarEndpoint = '/users/me/avatar';
   static const String adminUsersEndpoint = '/admin/users';
+  static const String adminRolesEndpoint = '/admin/roles';
+  static const String adminStoresEndpoint = '/admin/stores';
 
   // FIFO endpoints
   static const String fifoCheckEndpoint = '/sort/fifo-check';

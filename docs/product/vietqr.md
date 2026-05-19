@@ -9,7 +9,7 @@ a customer to scan and pay manually.
 - Staff enters the transfer amount and order code.
 - The app reads the store code from the signed-in user session and keeps it
   read-only.
-- Transfer content is generated as `{STORE_CODE}-{ORDER_CODE}` and is read-only.
+- Transfer content is generated as `{ORDER_CODE} {STORE_CODE} BOT` and is read-only.
 - The Flutter app requests VietQR data from the NestJS API and renders the QR
   image locally from the returned EMV payload.
 - The backend owns the bank BIN, account number, account name, and merchant

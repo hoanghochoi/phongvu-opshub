@@ -3,7 +3,7 @@
 ## Scope
 
 Add personal profile management, one-time branch selection on first login, store
-payment account import from CSV, and user administration for privileged roles.
+payment account import from CSV, and administration for privileged roles.
 
 ## Acceptance Criteria
 
@@ -11,7 +11,14 @@ payment account import from CSV, and user administration for privileged roles.
 - Backend can import store account rows into `Store`.
 - First-login users without a branch must choose one and see a lock warning.
 - Users can edit profile display names and upload an avatar.
-- `ADMIN` and `SUPER_ADMIN` can manage users from the app.
+- `ADMIN` and `SUPER_ADMIN` can open administration from the app.
+- Administration contains user management, role management, and store
+  management.
+- Role management supports adding, editing, and deleting custom roles.
+- System roles are protected from deletion.
+- Store management supports adding, editing, and deleting stores.
+- Stores assigned to users are protected from deletion.
+- User assignment uses the backend role catalog.
 - User self-service branch changes are rejected after the first selection.
 - VietQR uses the selected store's configured transfer account when available.
 

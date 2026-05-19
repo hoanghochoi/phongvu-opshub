@@ -42,7 +42,7 @@ export class VietQrService {
     const orderCode = this.normalizeText(input.orderCode, 'orderCode');
     const storeCode = this.normalizeText(input.storeCode, 'storeCode');
     const transferContent = this.normalizeTransferContent(
-      `${storeCode}-${orderCode}`,
+      `${orderCode} ${storeCode} BOT`,
     );
 
     const merchantAccountInfo = this.buildMerchantAccountInfo(

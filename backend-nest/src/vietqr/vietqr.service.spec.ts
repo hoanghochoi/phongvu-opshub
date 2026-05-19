@@ -38,12 +38,12 @@ describe('VietQrService', () => {
       accountNumber: '123456789',
       accountName: 'PHONG VU',
       amount: 150000,
-      transferContent: 'HCM01-DH-001',
+      transferContent: 'DH-001 HCM01 BOT',
     });
     expect(result.qrPayload).toContain('0010A000000727');
     expect(result.qrPayload).toContain('0208QRIBFTTA');
     expect(result.qrPayload).toContain('5406150000');
-    expect(result.qrPayload).toContain('0812HCM01-DH-001');
+    expect(result.qrPayload).toContain('0816DH-001 HCM01 BOT');
     expect(result.qrPayload).toMatch(/6304[0-9A-F]{4}$/);
   });
 

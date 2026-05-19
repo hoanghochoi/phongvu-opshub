@@ -5,6 +5,8 @@ class StoreBranch {
   final String? transferAccountNumber;
   final String? transferAccountName;
   final String? transferBankName;
+  final String? transferBankBin;
+  final int userCount;
 
   const StoreBranch({
     required this.id,
@@ -13,6 +15,8 @@ class StoreBranch {
     this.transferAccountNumber,
     this.transferAccountName,
     this.transferBankName,
+    this.transferBankBin,
+    this.userCount = 0,
   });
 
   factory StoreBranch.fromJson(Map<String, dynamic> json) {
@@ -23,8 +27,21 @@ class StoreBranch {
       transferAccountNumber: json['transferAccountNumber']?.toString(),
       transferAccountName: json['transferAccountName']?.toString(),
       transferBankName: json['transferBankName']?.toString(),
+      transferBankBin: json['transferBankBin']?.toString(),
+      userCount: int.tryParse(json['userCount']?.toString() ?? '') ?? 0,
     );
   }
 
   String get displayName => '$storeId - $storeName';
+
+  Map<String, dynamic> toAdminJson() {
+    return {
+      'storeId': storeId,
+      'storeName': storeName,
+      'transferAccountNumber': transferAccountNumber,
+      'transferAccountName': transferAccountName,
+      'transferBankName': transferBankName,
+      'transferBankBin': transferBankBin,
+    };
+  }
 }
