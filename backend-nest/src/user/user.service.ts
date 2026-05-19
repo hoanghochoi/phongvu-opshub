@@ -11,7 +11,33 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { getDataSyncSource } from '../config/env';
 import { UploadService } from '../upload/upload.service';
-import { Role } from '@prisma/client';
+
+const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
+const ADMIN_ROLE = 'ADMIN';
+const STAFF_ROLE = 'STAFF';
+
+const DEFAULT_ROLE_DEFINITIONS = [
+  {
+    code: SUPER_ADMIN_ROLE,
+    displayName: 'Super Admin',
+    description: 'Toan quyen he thong',
+  },
+  {
+    code: ADMIN_ROLE,
+    displayName: 'Admin',
+    description: 'Quan ly user theo pham vi',
+  },
+  {
+    code: 'MANAGER',
+    displayName: 'Manager',
+    description: 'Nhom quyen quan ly van hanh',
+  },
+  {
+    code: STAFF_ROLE,
+    displayName: 'Staff',
+    description: 'Quyen thao tac hang ngay',
+  },
+];
 
 @Injectable()
 export class UserService implements OnModuleInit {
@@ -35,7 +61,9 @@ export class UserService implements OnModuleInit {
     });
   }
 
-  onModuleInit() {
+  async onModuleInit() {
+    await this.seedDefaultRoles();
+
     if (getDataSyncSource() !== 'bigquery') {
       this.logger.log('DATA_SYNC_SOURCE=local, skipping BigQuery user sync');
       return;
@@ -88,11 +116,12 @@ export class UserService implements OnModuleInit {
 
         const firstName = String(row.first_name || '').trim();
         const lastName = String(row.last_name || '').trim();
-        const role = this.parseRole(
+        const role = this.normalizeRoleCode(
           String(row.role || 'STAFF')
             .trim()
             .toUpperCase(),
         );
+        await this.ensureRoleExists(role);
         const branchId = String(row.branch_id || '').trim();
         const branchName = String(row.branch_name || '').trim();
         const status = String(row.status || 'yes')
@@ -159,19 +188,6 @@ export class UserService implements OnModuleInit {
     }
   }
 
-  // -------------------------------------------------------
-  // Parse role string to valid Prisma Role enum
-  // -------------------------------------------------------
-  private parseRole(
-    roleStr: string,
-  ): 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'STAFF' {
-    const validRoles = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF'] as const;
-    if (validRoles.includes(roleStr as any)) {
-      return roleStr as (typeof validRoles)[number];
-    }
-    return 'STAFF'; // Default
-  }
-
   async listStores(q?: string) {
     const query = q?.trim();
     return this.prisma.store.findMany({
@@ -191,6 +207,7 @@ export class UserService implements OnModuleInit {
         transferAccountNumber: true,
         transferAccountName: true,
         transferBankName: true,
+        transferBankBin: true,
       },
     });
   }
@@ -299,7 +316,7 @@ export class UserService implements OnModuleInit {
       .toLowerCase();
     if (!email) throw new BadRequestException('Email không được để trống');
 
-    const role = this.parseRole(String(body.role || 'STAFF').toUpperCase());
+    const role = await this.resolveAssignableRole(body.role || STAFF_ROLE);
     this.assertRoleEditable(admin, role);
     const storeUuid = await this.resolveStoreForAdmin(admin, body.storeId);
 
@@ -329,12 +346,12 @@ export class UserService implements OnModuleInit {
     });
     if (!current) throw new NotFoundException('Không tìm thấy user');
 
-    if (admin.role === Role.ADMIN && current.storeId !== admin.storeId) {
+    if (admin.role === ADMIN_ROLE && current.storeId !== admin.storeId) {
       throw new ForbiddenException('Không có quyền sửa user ngoài chi nhánh');
     }
 
     const role = body.role
-      ? this.parseRole(String(body.role).toUpperCase())
+      ? await this.resolveAssignableRole(body.role)
       : current.role;
     this.assertRoleEditable(admin, role);
     const storeUuid =
@@ -378,7 +395,7 @@ export class UserService implements OnModuleInit {
       where: { storeId: normalizedStoreCode },
     });
     if (!store) throw new BadRequestException('Chi nhánh không hợp lệ');
-    if (admin.role === Role.ADMIN && admin.storeId !== store.id) {
+    if (admin.role === ADMIN_ROLE && admin.storeId !== store.id) {
       throw new ForbiddenException(
         'Admin chỉ được gán user vào chi nhánh của mình',
       );
@@ -387,19 +404,25 @@ export class UserService implements OnModuleInit {
   }
 
   private assertAdmin(user: any) {
-    if (user.role !== Role.SUPER_ADMIN && user.role !== Role.ADMIN) {
+    if (user.role !== SUPER_ADMIN_ROLE && user.role !== ADMIN_ROLE) {
       throw new ForbiddenException('Không có quyền quản trị user');
     }
   }
 
-  private assertRoleEditable(admin: any, role: Role | string) {
-    if (admin.role === Role.ADMIN && role === Role.SUPER_ADMIN) {
+  private assertSuperAdmin(user: any) {
+    if (user.role !== SUPER_ADMIN_ROLE) {
+      throw new ForbiddenException('Chi SUPER_ADMIN duoc quan ly role');
+    }
+  }
+
+  private assertRoleEditable(admin: any, role: string) {
+    if (admin.role === ADMIN_ROLE && role === SUPER_ADMIN_ROLE) {
       throw new ForbiddenException('Admin không được gán quyền SUPER_ADMIN');
     }
   }
 
   private adminScope(admin: any) {
-    if (admin.role === Role.ADMIN) {
+    if (admin.role === ADMIN_ROLE) {
       return { storeId: admin.storeId };
     }
     return {};
@@ -430,7 +453,324 @@ export class UserService implements OnModuleInit {
   }) {
     const hasStore = Boolean(user.storeId || user.store?.storeId);
     return (
-      user.role !== Role.SUPER_ADMIN && user.role !== Role.ADMIN && !hasStore
+      user.role !== SUPER_ADMIN_ROLE && user.role !== ADMIN_ROLE && !hasStore
     );
+  }
+
+  async adminListRoles(admin: any) {
+    this.assertAdmin(admin);
+    await this.seedDefaultRoles();
+    return this.prisma.roleDefinition.findMany({
+      orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
+    });
+  }
+
+  async adminCreateRole(admin: any, body: any) {
+    this.assertSuperAdmin(admin);
+    const code = this.normalizeRoleCode(body.code, true);
+    const existing = await this.prisma.roleDefinition.findUnique({
+      where: { code },
+    });
+    if (existing) {
+      throw new BadRequestException('Role da ton tai');
+    }
+    return this.prisma.roleDefinition.create({
+      data: {
+        code,
+        displayName: this.normalizeRoleDisplayName(body.displayName, code),
+        description: this.normalizeRoleDescription(body.description),
+        isSystem: false,
+      },
+    });
+  }
+
+  async adminUpdateRole(admin: any, currentCode: string, body: any) {
+    this.assertSuperAdmin(admin);
+    const code = this.normalizeRoleCode(currentCode, true);
+    const current = await this.prisma.roleDefinition.findUnique({
+      where: { code },
+    });
+    if (!current) throw new NotFoundException('Khong tim thay role');
+
+    const nextCode = body.code
+      ? this.normalizeRoleCode(body.code, true)
+      : current.code;
+    if (current.isSystem && nextCode !== current.code) {
+      throw new BadRequestException('Khong duoc doi ma role he thong');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.roleDefinition.update({
+        where: { code: current.code },
+        data: {
+          code: nextCode,
+          displayName: this.normalizeRoleDisplayName(
+            body.displayName ?? current.displayName,
+            nextCode,
+          ),
+          description:
+            body.description === undefined
+              ? current.description
+              : this.normalizeRoleDescription(body.description),
+        },
+      });
+
+      if (nextCode !== current.code) {
+        await tx.user.updateMany({
+          where: { role: current.code },
+          data: { role: nextCode },
+        });
+      }
+
+      return updated;
+    });
+  }
+
+  async adminDeleteRole(admin: any, codeInput: string) {
+    this.assertSuperAdmin(admin);
+    const code = this.normalizeRoleCode(codeInput, true);
+    const role = await this.prisma.roleDefinition.findUnique({
+      where: { code },
+    });
+    if (!role) throw new NotFoundException('Khong tim thay role');
+    if (role.isSystem) {
+      throw new BadRequestException('Khong duoc xoa role he thong');
+    }
+
+    const assignedUsers = await this.prisma.user.count({
+      where: { role: code },
+    });
+    if (assignedUsers > 0) {
+      throw new BadRequestException('Role dang duoc gan cho user');
+    }
+
+    await this.prisma.roleDefinition.delete({ where: { code } });
+    return { deleted: true, code };
+  }
+
+  async adminListStores(admin: any, q?: string) {
+    this.assertAdmin(admin);
+    const query = q?.trim();
+    const stores = await this.prisma.store.findMany({
+      where: query
+        ? {
+            OR: [
+              { storeId: { contains: query, mode: 'insensitive' } },
+              { storeName: { contains: query, mode: 'insensitive' } },
+              {
+                transferAccountNumber: {
+                  contains: query,
+                  mode: 'insensitive',
+                },
+              },
+              { transferAccountName: { contains: query, mode: 'insensitive' } },
+              { transferBankName: { contains: query, mode: 'insensitive' } },
+            ],
+          }
+        : undefined,
+      orderBy: { storeId: 'asc' },
+      include: { _count: { select: { users: true } } },
+    });
+    return stores.map((store) => this.toStoreDto(store));
+  }
+
+  async adminCreateStore(admin: any, body: any) {
+    this.assertSuperAdmin(admin);
+    const storeId = this.normalizeStoreCode(body.storeId);
+    const storeName = this.normalizeRequiredText(
+      body.storeName,
+      'Tên store không được để trống',
+      120,
+    );
+
+    const existing = await this.prisma.store.findUnique({
+      where: { storeId },
+    });
+    if (existing) throw new BadRequestException('Store đã tồn tại');
+
+    const store = await this.prisma.store.create({
+      data: {
+        storeId,
+        storeName,
+        ...this.normalizeStorePaymentFields(body),
+      },
+      include: { _count: { select: { users: true } } },
+    });
+    return this.toStoreDto(store);
+  }
+
+  async adminUpdateStore(admin: any, currentStoreId: string, body: any) {
+    this.assertSuperAdmin(admin);
+    const currentCode = this.normalizeStoreCode(currentStoreId);
+    const current = await this.prisma.store.findUnique({
+      where: { storeId: currentCode },
+    });
+    if (!current) throw new NotFoundException('Không tìm thấy store');
+
+    const nextCode = body.storeId
+      ? this.normalizeStoreCode(body.storeId)
+      : current.storeId;
+    if (nextCode !== current.storeId) {
+      const existing = await this.prisma.store.findUnique({
+        where: { storeId: nextCode },
+      });
+      if (existing) throw new BadRequestException('Store đã tồn tại');
+    }
+
+    const store = await this.prisma.store.update({
+      where: { storeId: current.storeId },
+      data: {
+        storeId: nextCode,
+        storeName:
+          body.storeName === undefined
+            ? current.storeName
+            : this.normalizeRequiredText(
+                body.storeName,
+                'Tên store không được để trống',
+                120,
+              ),
+        ...this.normalizeStorePaymentFields(body),
+      },
+      include: { _count: { select: { users: true } } },
+    });
+    return this.toStoreDto(store);
+  }
+
+  async adminDeleteStore(admin: any, storeIdInput: string) {
+    this.assertSuperAdmin(admin);
+    const storeId = this.normalizeStoreCode(storeIdInput);
+    const store = await this.prisma.store.findUnique({
+      where: { storeId },
+      include: { _count: { select: { users: true } } },
+    });
+    if (!store) throw new NotFoundException('Không tìm thấy store');
+    if (store._count.users > 0) {
+      throw new BadRequestException('Store đang có user, không thể xóa');
+    }
+
+    await this.prisma.store.delete({ where: { storeId } });
+    return { deleted: true, storeId };
+  }
+
+  private async seedDefaultRoles() {
+    await Promise.all(
+      DEFAULT_ROLE_DEFINITIONS.map((role) =>
+        this.prisma.roleDefinition.upsert({
+          where: { code: role.code },
+          update: {
+            displayName: role.displayName,
+            description: role.description,
+            isSystem: true,
+          },
+          create: { ...role, isSystem: true },
+        }),
+      ),
+    );
+  }
+
+  private normalizeRoleCode(roleStr: string, strict = false) {
+    const code = String(roleStr || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]/g, '_');
+
+    if (!/^[A-Z][A-Z0-9_]{1,39}$/.test(code)) {
+      if (strict) {
+        throw new BadRequestException(
+          'Ma role phai bat dau bang chu, toi da 40 ky tu',
+        );
+      }
+      return STAFF_ROLE;
+    }
+    return code;
+  }
+
+  private normalizeRoleDisplayName(value: string, fallback: string) {
+    const displayName = String(value || '').trim();
+    if (!displayName) return fallback;
+    return displayName.slice(0, 80);
+  }
+
+  private normalizeRoleDescription(value?: string | null) {
+    const description = String(value || '').trim();
+    return description ? description.slice(0, 180) : null;
+  }
+
+  private async ensureRoleExists(code: string) {
+    await this.prisma.roleDefinition.upsert({
+      where: { code },
+      update: {},
+      create: {
+        code,
+        displayName: code,
+        description: null,
+        isSystem: false,
+      },
+    });
+  }
+
+  private async resolveAssignableRole(roleInput: string) {
+    const code = this.normalizeRoleCode(roleInput, true);
+    const role = await this.prisma.roleDefinition.findUnique({
+      where: { code },
+    });
+    if (!role) {
+      throw new BadRequestException('Role khong ton tai');
+    }
+    return role.code;
+  }
+
+  private normalizeStoreCode(value: string) {
+    const code = String(value || '')
+      .trim()
+      .toUpperCase();
+    if (!/^[A-Z0-9][A-Z0-9_-]{1,39}$/.test(code)) {
+      throw new BadRequestException('Mã store phải có 2-40 ký tự chữ hoặc số');
+    }
+    return code;
+  }
+
+  private normalizeRequiredText(
+    value: string | undefined,
+    message: string,
+    maxLength: number,
+  ) {
+    const text = String(value || '').trim();
+    if (!text) throw new BadRequestException(message);
+    return text.slice(0, maxLength);
+  }
+
+  private normalizeOptionalText(value: string | undefined, maxLength: number) {
+    if (value === undefined) return undefined;
+    const text = String(value || '').trim();
+    return text ? text.slice(0, maxLength) : null;
+  }
+
+  private normalizeStorePaymentFields(body: any) {
+    return {
+      transferAccountNumber: this.normalizeOptionalText(
+        body.transferAccountNumber,
+        80,
+      ),
+      transferAccountName: this.normalizeOptionalText(
+        body.transferAccountName,
+        120,
+      ),
+      transferBankName: this.normalizeOptionalText(body.transferBankName, 80),
+      transferBankBin: this.normalizeOptionalText(body.transferBankBin, 20),
+    };
+  }
+
+  private toStoreDto(store: any) {
+    return {
+      id: store.id,
+      storeId: store.storeId,
+      storeName: store.storeName,
+      transferAccountNumber: store.transferAccountNumber,
+      transferAccountName: store.transferAccountName,
+      transferBankName: store.transferBankName,
+      transferBankBin: store.transferBankBin,
+      userCount: store._count?.users ?? 0,
+    };
   }
 }

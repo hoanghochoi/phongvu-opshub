@@ -1,0 +1,151 @@
+name: Deploy OpsHub
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OPSHUB_PUBLIC_BASE_URL: https://opshub.hoanghochoi.com
+  OPSHUB_API_BASE_URL: https://opshub.hoanghochoi.com/api
+  OPSHUB_REMOTE_APP_DIR: /home/ubuntu/phongvu-opshub
+  OPSHUB_ENV_FILE: /srv/opshub/env
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Compute release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version_name="$(date -u +%Y.%m.%d).${GITHUB_RUN_NUMBER}"
+          version_code="$((100000 + GITHUB_RUN_NUMBER))"
+          apk_name="phongvu-opshub-v${version_name}+${version_code}.apk"
+          echo "version_name=${version_name}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${version_code}" >> "$GITHUB_OUTPUT"
+          echo "apk_name=${apk_name}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build release APK
+        run: |
+          flutter pub get
+          flutter build apk --release \
+            --build-name "${{ steps.version.outputs.version_name }}" \
+            --build-number "${{ steps.version.outputs.version_code }}" \
+            --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}"
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          VPS_HOST: ${{ secrets.OPSHUB_VPS_HOST }}
+          VPS_PORT: ${{ secrets.OPSHUB_VPS_PORT || '22' }}
+          VPS_USER: ${{ secrets.OPSHUB_VPS_USER || 'ubuntu' }}
+          VPS_SSH_KEY: ${{ secrets.OPSHUB_VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/opshub_deploy_key
+          chmod 600 ~/.ssh/opshub_deploy_key
+          ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts
+          {
+            echo "Host opshub-vps"
+            echo "  HostName $VPS_HOST"
+            echo "  Port $VPS_PORT"
+            echo "  User $VPS_USER"
+            echo "  IdentityFile ~/.ssh/opshub_deploy_key"
+            echo "  IdentitiesOnly yes"
+          } >> ~/.ssh/config
+
+      - name: Upload app bundle and APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
+          ssh opshub-vps "mkdir -p '$remote_release_dir' /srv/opshub/downloads"
+          rsync -az --delete \
+            --exclude '.git/' \
+            --exclude '.dart_tool/' \
+            --exclude 'build/' \
+            ./ "opshub-vps:${remote_release_dir}/"
+          scp "build/app/outputs/flutter-apk/app-release.apk" \
+            "opshub-vps:/srv/opshub/downloads/${{ steps.version.outputs.apk_name }}"
+
+      - name: Deploy backend and publish version metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
+          update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ steps.version.outputs.apk_name }}"
+          ssh opshub-vps \
+            "REMOTE_RELEASE_DIR='$remote_release_dir' \
+             CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
+             OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
+             APP_VERSION='${{ steps.version.outputs.version_name }}' \
+             APP_BUILD_NUMBER='${{ steps.version.outputs.version_code }}' \
+             APP_UPDATE_URL='$update_url' \
+             APP_RELEASE_NOTES='GitHub ${GITHUB_SHA::7}' \
+             bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          sudo mkdir -p "$(dirname "$OPSHUB_ENV_FILE")"
+          sudo touch "$OPSHUB_ENV_FILE"
+          sudo chmod 600 "$OPSHUB_ENV_FILE"
+
+          upsert_env() {
+            key="$1"
+            value="$2"
+            escaped_value=$(printf '%s' "$value" | sed 's/[\/&]/\\&/g')
+            if sudo grep -q "^${key}=" "$OPSHUB_ENV_FILE"; then
+              sudo sed -i "s/^${key}=.*/${key}=${escaped_value}/" "$OPSHUB_ENV_FILE"
+            else
+              printf '%s=%s\n' "$key" "$value" | sudo tee -a "$OPSHUB_ENV_FILE" >/dev/null
+            fi
+          }
+
+          upsert_env APP_VERSION "$APP_VERSION"
+          upsert_env APP_BUILD_NUMBER "$APP_BUILD_NUMBER"
+          upsert_env APP_MIN_SUPPORTED_BUILD "$APP_BUILD_NUMBER"
+          upsert_env APP_UPDATE_URL "$APP_UPDATE_URL"
+          upsert_env APP_RELEASE_NOTES "$APP_RELEASE_NOTES"
+          upsert_env APP_FORCE_UPDATE true
+
+          ln -sfn "$REMOTE_RELEASE_DIR" "${CURRENT_DIR}.next"
+          mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
+          cd "$CURRENT_DIR"
+
+          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
+            --env-file "$OPSHUB_ENV_FILE" \
+            -f deploy/home-server/docker-compose.home.yml \
+            --profile migrate run --rm migrate
+
+          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
+            --env-file "$OPSHUB_ENV_FILE" \
+            -f deploy/home-server/docker-compose.home.yml \
+            up -d --build
+
+          docker compose \
+            --env-file "$OPSHUB_ENV_FILE" \
+            -f deploy/home-server/docker-compose.home.yml ps
+          REMOTE
+
+      - name: Verify public health and version metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS "${OPSHUB_PUBLIC_BASE_URL}/health"
+          curl -fsS "${OPSHUB_API_BASE_URL}/app-version"

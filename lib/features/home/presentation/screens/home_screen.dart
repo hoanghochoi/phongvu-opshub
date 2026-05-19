@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
@@ -73,25 +74,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Chức năng',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.grey[850],
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        '${actions.length} mục',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _HomeGrid(actions: actions),
+                  AppFeatureSection(actions: actions),
                   const SizedBox(height: 20),
                   Center(
                     child: Text(
@@ -108,38 +91,31 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  List<_HomeAction> _buildHomeActions(BuildContext context, bool isAdmin) {
+  List<AppFeatureAction> _buildHomeActions(BuildContext context, bool isAdmin) {
     return [
       if (isAdmin)
-        _HomeAction(
+        AppFeatureAction(
           icon: Icons.admin_panel_settings_outlined,
           title: 'Quản trị',
-          description: 'Users & phân quyền',
+          description: 'Users & role',
           color: const Color(0xFF4B5563),
-          onTap: () => Navigator.of(context).pushNamed('/admin/users'),
+          onTap: () => Navigator.of(context).pushNamed('/admin'),
         ),
-      _HomeAction(
+      AppFeatureAction(
         icon: Icons.qr_code_scanner_rounded,
         title: 'FIFO',
         description: 'Kiểm tra & sắp xếp',
         color: const Color(0xFF2563EB),
         onTap: () => Navigator.of(context).pushNamed('/fifo-menu'),
       ),
-      _HomeAction(
+      AppFeatureAction(
         icon: Icons.camera_alt_rounded,
         title: 'BH / SC',
         description: 'Ảnh bảo hành',
         color: const Color(0xFF16A34A),
         onTap: widget.onTabChange != null ? () => widget.onTabChange!(2) : null,
       ),
-      _HomeAction(
-        icon: Icons.question_answer_rounded,
-        title: 'Phản hồi',
-        description: 'Gửi ý kiến',
-        color: const Color(0xFF9333EA),
-        onTap: () => Navigator.of(context).pushNamed('/feedback'),
-      ),
-      _HomeAction(
+      AppFeatureAction(
         icon: Icons.qr_code_2_rounded,
         title: 'VietQR',
         description: 'Tạo mã chuyển khoản',
@@ -219,12 +195,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: Colors.white,
                 ),
                 title: const Text(
-                  'Quản trị user',
+                  'Quản trị',
                   style: TextStyle(color: Colors.white, fontSize: 16),
                 ),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.of(context).pushNamed('/admin/users');
+                  Navigator.of(context).pushNamed('/admin');
                 },
               ),
             ListTile(
@@ -315,59 +291,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _HomeAction {
-  final IconData icon;
-  final String title;
-  final String description;
-  final Color color;
-  final VoidCallback? onTap;
-
-  const _HomeAction({
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.color,
-    required this.onTap,
-  });
-}
-
-class _HomeGrid extends StatelessWidget {
-  final List<_HomeAction> actions;
-
-  const _HomeGrid({required this.actions});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final crossAxisCount = width < 300
-            ? 1
-            : width >= 720
-            ? 4
-            : width >= 520
-            ? 3
-            : 2;
-        final spacing = width >= 520 ? 14.0 : 12.0;
-        final tileHeight = width < 340 ? 124.0 : 118.0;
-
-        return GridView.builder(
-          itemCount: actions.length,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            mainAxisSpacing: spacing,
-            crossAxisSpacing: spacing,
-            mainAxisExtent: tileHeight,
-          ),
-          itemBuilder: (context, index) => _FeatureTile(action: actions[index]),
-        );
-      },
     );
   }
 }
@@ -503,74 +426,6 @@ class _CompactHomeHeader extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _FeatureTile extends StatelessWidget {
-  final _HomeAction action;
-
-  const _FeatureTile({required this.action});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: action.onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: action.color.withValues(alpha: 0.11),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(action.icon, color: action.color, size: 20),
-              ),
-              const Spacer(),
-              Text(
-                action.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF111827),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                action.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF6B7280),
-                  fontSize: 12,
-                  height: 1.2,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

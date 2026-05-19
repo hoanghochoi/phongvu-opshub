@@ -14,6 +14,7 @@ import { UploadModule } from './upload/upload.module';
 import { UserModule } from './user/user.module';
 import { FifoLogModule } from './fifo-log/fifo-log.module';
 import { VietQrModule } from './vietqr/vietqr.module';
+import { AppVersionModule } from './app-version/app-version.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { VietQrModule } from './vietqr/vietqr.module';
     UserModule,
     FifoLogModule,
     VietQrModule,
+    AppVersionModule,
   ],
   controllers: [AppController],
   providers: [

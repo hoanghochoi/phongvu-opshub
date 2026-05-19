@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/widgets/app_buttons.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../chat/presentation/widgets/barcode_scanner_screen.dart';
@@ -122,7 +123,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
     final storeCode = _storeCodeController.text.trim();
     final orderCode = _orderCodeController.text.trim();
     if (storeCode.isEmpty || orderCode.isEmpty) return '';
-    return '$storeCode-$orderCode'.toUpperCase();
+    return '$orderCode $storeCode BOT'.toUpperCase();
   }
 
   void _createNewQr() {
@@ -266,10 +267,10 @@ class _VietQrScreenState extends State<VietQrScreen> {
               decoration: InputDecoration(
                 labelText: 'Mã đơn',
                 prefixIcon: const Icon(Icons.receipt_long_outlined),
-                suffixIcon: IconButton(
+                suffixIcon: AppIconAction(
                   tooltip: 'Quét mã đơn',
                   onPressed: _isLoading ? null : _scanOrderCode,
-                  icon: const Icon(Icons.qr_code_scanner_rounded),
+                  icon: Icons.qr_code_scanner_rounded,
                 ),
                 border: const OutlineInputBorder(),
               ),
@@ -308,16 +309,12 @@ class _VietQrScreenState extends State<VietQrScreen> {
               readOnly: true,
             ),
             const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: _isLoading ? null : _createQr,
-              icon: _isLoading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.qr_code_2_rounded),
-              label: Text(_isLoading ? 'Đang tạo...' : 'Tạo mã QR'),
+            AppPrimaryButton(
+              onPressed: _createQr,
+              icon: Icons.qr_code_2_rounded,
+              label: 'Tạo mã QR',
+              isLoading: _isLoading,
+              loadingLabel: 'Đang tạo...',
             ),
           ],
         ),
@@ -352,22 +349,18 @@ class _VietQrScreenState extends State<VietQrScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        FilledButton.icon(
-          onPressed: _isSaving ? null : _saveQrImage,
-          icon: _isSaving
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.download_rounded),
-          label: Text(_isSaving ? 'Đang lưu...' : 'Tải ảnh QR'),
+        AppPrimaryButton(
+          onPressed: _saveQrImage,
+          icon: Icons.download_rounded,
+          label: 'Tải ảnh QR',
+          isLoading: _isSaving,
+          loadingLabel: 'Đang lưu...',
         ),
         const SizedBox(height: 10),
-        OutlinedButton.icon(
+        AppSecondaryButton(
           onPressed: _createNewQr,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('Tạo mã mới'),
+          icon: Icons.add_rounded,
+          label: 'Tạo mã mới',
         ),
         const SizedBox(height: 10),
         TextButton.icon(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/chat_provider.dart';
+import '../../../../app/widgets/app_buttons.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import 'barcode_scanner_screen.dart';
@@ -122,20 +123,9 @@ class _MessageInputState extends State<MessageInput> {
           return Row(
             children: [
               // Nút quét barcode/QR code
-              IconButton(
+              AppIconAction(
                 onPressed: isLoading ? null : _scanBarcode,
-                icon: Icon(
-                  Icons.qr_code_scanner,
-                  color: isLoading
-                      ? Colors.grey
-                      : Theme.of(context).colorScheme.primary,
-                ),
-                style: IconButton.styleFrom(
-                  backgroundColor: isLoading
-                      ? Colors.grey[200]
-                      : Theme.of(context).colorScheme.primaryContainer,
-                  padding: const EdgeInsets.all(12),
-                ),
+                icon: Icons.qr_code_scanner,
                 tooltip: 'Quét mã',
               ),
               const SizedBox(width: 8),
@@ -152,20 +142,9 @@ class _MessageInputState extends State<MessageInput> {
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton(
+              AppIconAction(
                 onPressed: isLoading ? null : _sendMessage,
-                icon: Icon(
-                  Icons.send,
-                  color: isLoading
-                      ? Colors.grey
-                      : Theme.of(context).colorScheme.primary,
-                ),
-                style: IconButton.styleFrom(
-                  backgroundColor: isLoading
-                      ? Colors.grey[200]
-                      : Theme.of(context).colorScheme.primaryContainer,
-                  padding: const EdgeInsets.all(12),
-                ),
+                icon: Icons.send,
                 tooltip: 'Gửi',
               ),
             ],

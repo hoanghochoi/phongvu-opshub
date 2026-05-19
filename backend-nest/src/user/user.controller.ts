@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -15,7 +16,13 @@ import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { imageUploadOptions } from '../upload/image-upload.options';
 import { UserService } from './user.service';
-import { AdminUserDto, SelectStoreDto, UpdateProfileDto } from './user.dto';
+import {
+  AdminRoleDto,
+  AdminStoreDto,
+  AdminUserDto,
+  SelectStoreDto,
+  UpdateProfileDto,
+} from './user.dto';
 
 @Controller()
 @UseGuards(AuthGuard('jwt'))
@@ -68,5 +75,53 @@ export class UserController {
     @Body() body: AdminUserDto,
   ) {
     return this.userService.adminUpdateUser(req.user, id, body);
+  }
+
+  @Get('admin/roles')
+  listRoles(@Request() req: any) {
+    return this.userService.adminListRoles(req.user);
+  }
+
+  @Post('admin/roles')
+  createRole(@Request() req: any, @Body() body: AdminRoleDto) {
+    return this.userService.adminCreateRole(req.user, body);
+  }
+
+  @Patch('admin/roles/:code')
+  updateRole(
+    @Request() req: any,
+    @Param('code') code: string,
+    @Body() body: AdminRoleDto,
+  ) {
+    return this.userService.adminUpdateRole(req.user, code, body);
+  }
+
+  @Delete('admin/roles/:code')
+  deleteRole(@Request() req: any, @Param('code') code: string) {
+    return this.userService.adminDeleteRole(req.user, code);
+  }
+
+  @Get('admin/stores')
+  listAdminStores(@Request() req: any, @Query('q') q?: string) {
+    return this.userService.adminListStores(req.user, q);
+  }
+
+  @Post('admin/stores')
+  createStore(@Request() req: any, @Body() body: AdminStoreDto) {
+    return this.userService.adminCreateStore(req.user, body);
+  }
+
+  @Patch('admin/stores/:storeId')
+  updateStore(
+    @Request() req: any,
+    @Param('storeId') storeId: string,
+    @Body() body: AdminStoreDto,
+  ) {
+    return this.userService.adminUpdateStore(req.user, storeId, body);
+  }
+
+  @Delete('admin/stores/:storeId')
+  deleteStore(@Request() req: any, @Param('storeId') storeId: string) {
+    return this.userService.adminDeleteStore(req.user, storeId);
   }
 }

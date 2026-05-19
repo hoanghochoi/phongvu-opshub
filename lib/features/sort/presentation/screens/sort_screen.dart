@@ -5,6 +5,7 @@ import '../providers/sort_provider.dart';
 import '../../../chat/presentation/widgets/barcode_scanner_screen.dart';
 import '../widgets/sort_sku_group_widget.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/widgets/app_buttons.dart';
 
 class SortScreen extends StatefulWidget {
   const SortScreen({super.key});
@@ -27,9 +28,7 @@ class _SortScreenState extends State<SortScreen> {
   Future<void> _scanBarcode() async {
     try {
       final result = await Navigator.of(context).push<String>(
-        MaterialPageRoute(
-          builder: (context) => const BarcodeScannerScreen(),
-        ),
+        MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
       );
 
       if (result != null && mounted) {
@@ -38,9 +37,9 @@ class _SortScreenState extends State<SortScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi quét mã: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi quét mã: $e')));
       }
     }
   }
@@ -70,7 +69,9 @@ class _SortScreenState extends State<SortScreen> {
     if (_looksLikeSerial(text)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ Chức năng Sắp xếp chỉ hỗ trợ SKU hoặc BIN.\nĐể kiểm tra serial, vui lòng dùng Kiểm tra FIFO.'),
+          content: Text(
+            '⚠️ Chức năng Sắp xếp chỉ hỗ trợ SKU hoặc BIN.\nĐể kiểm tra serial, vui lòng dùng Kiểm tra FIFO.',
+          ),
           duration: Duration(seconds: 3),
           backgroundColor: Colors.orange,
         ),
@@ -91,10 +92,7 @@ class _SortScreenState extends State<SortScreen> {
 
       if (error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text(error), backgroundColor: Colors.red),
         );
       }
     }
@@ -113,7 +111,9 @@ class _SortScreenState extends State<SortScreen> {
             children: [
               // Hướng dẫn
               Card(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.1),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -151,7 +151,8 @@ class _SortScreenState extends State<SortScreen> {
               // Response display
               Consumer<SortProvider>(
                 builder: (context, provider, child) {
-                  if (provider.skuGroups != null && provider.skuGroups!.isNotEmpty) {
+                  if (provider.skuGroups != null &&
+                      provider.skuGroups!.isNotEmpty) {
                     return Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,41 +230,22 @@ class _SortScreenState extends State<SortScreen> {
                         children: [
                           // Scan button
                           Expanded(
-                            child: OutlinedButton.icon(
+                            child: AppSecondaryButton(
                               onPressed: isLoading ? null : _scanBarcode,
-                              icon: const Icon(Icons.qr_code_scanner),
-                              label: const Text('Quét mã'),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
+                              icon: Icons.qr_code_scanner,
+                              label: 'Quét mã',
                             ),
                           ),
                           const SizedBox(width: 16),
 
                           // Send button
                           Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: isLoading ? null : _sendSortRequest,
-                              icon: isLoading
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                      ),
-                                    )
-                                  : const Icon(Icons.send),
-                              label: Text(isLoading ? 'Đang gửi...' : 'Gửi'),
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
+                            child: AppPrimaryButton(
+                              onPressed: _sendSortRequest,
+                              icon: Icons.send,
+                              label: 'Gửi',
+                              isLoading: isLoading,
+                              loadingLabel: 'Đang gửi...',
                             ),
                           ),
                         ],

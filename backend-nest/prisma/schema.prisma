@@ -35,7 +35,7 @@ model User {
   password           String
   firstName          String
   lastName           String?
-  role               Role      @default(STAFF)
+  role               String    @default("STAFF")
   status             String    @default("yes") // "yes" = active, "no" = locked
   avatarUrl          String?
   profileCompletedAt DateTime?
@@ -53,11 +53,14 @@ model User {
   fifoLogs          FifoLog[]
 }
 
-enum Role {
-  SUPER_ADMIN
-  ADMIN
-  MANAGER
-  STAFF
+model RoleDefinition {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  displayName String
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 // ============================================================

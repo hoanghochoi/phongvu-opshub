@@ -23,8 +23,9 @@ This file maps product behavior to proof. Existing flows are marked
 | WARRANTY-001 | Warranty/repair image capture, upload, status updates | partial | no | no | upload and WebSocket smoke needed | existing_unverified | Product docs seeded from README/code inspection |
 | FEEDBACK-001 | Staff feedback submission through app and API | partial | no | no | mobile smoke needed | existing_unverified | Product docs seeded from README/code inspection |
 | VIETQR-001 | Manual VietQR transfer QR creation screen and API payload generation | yes | no | no | mobile smoke needed | implemented | 2026-05-09: `npm run build`, `npm test -- --runInBand`, `flutter analyze`, `flutter test` |
-| PROFILE-ADMIN-001 | Profile avatar, one-time branch selection, store account import, and admin user management | partial | local DB smoke | no | mobile smoke needed | implemented | 2026-05-14: backend build/test, Flutter analyze/test, migration/import applied; Prisma DB smoke confirmed 32 store transfer accounts |
+| PROFILE-ADMIN-001 | Profile avatar, one-time branch selection, store account import, and admin user/user role/store management | partial | local DB smoke | mobile smoke | Android | changed | 2026-05-16: `npm run build`, `npm test -- --runInBand`, `flutter analyze`, `flutter test`; Android smoke verified admin menu, store list, create/update/delete refresh flow |
 | PLATFORM-001 | NestJS, Go realtime, PostgreSQL, Redis local stack health | partial | no | no | health checks needed | existing_unverified | Product docs seeded from README/code inspection |
+| UPDATE-001 | Mobile clients check backend version metadata and require APK updates when server build is newer or minimum supported build is raised | yes | no | mobile smoke needed | Android | changed | Pending validation in current patch |
 
 ## Evidence Rules
 

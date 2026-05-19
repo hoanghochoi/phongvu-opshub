@@ -171,6 +171,42 @@ class ApiClient {
     }
   }
 
+  Future<http.Response> delete(String endpoint, {Duration? timeout}) async {
+    try {
+      final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
+      final response = await _client
+          .delete(url, headers: _authHeaders)
+          .timeout(timeout ?? ApiConstants.defaultTimeout);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        throw ApiException(
+          'PhiÃªn Ä‘Äƒng nháº­p háº¿t háº¡n. Vui lÃ²ng Ä‘Äƒng nháº­p láº¡i.',
+          response.statusCode,
+        );
+      } else if (response.statusCode >= 500) {
+        throw ServerException(
+          'Lá»—i server: ${response.statusCode}',
+          response.statusCode,
+        );
+      }
+      throw ApiException(
+        'Request tháº¥t báº¡i: ${response.statusCode}',
+        response.statusCode,
+      );
+    } on SocketException {
+      throw NetworkException();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      if (e.toString().contains('TimeoutException')) {
+        throw TimeoutException();
+      }
+      throw ApiException('Lá»—i khÃ´ng xÃ¡c Ä‘á»‹nh: $e');
+    }
+  }
+
   /// Upload files using multipart/form-data
   Future<http.Response> postMultipart(
     String endpoint, {

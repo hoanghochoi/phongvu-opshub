@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../admin/domain/admin_role_definition.dart';
 import '../../domain/entities/store_branch.dart';
 import '../../domain/entities/user.dart';
 
@@ -130,6 +131,46 @@ class AuthRepository {
         .toList();
   }
 
+  Future<List<StoreBranch>> listAdminStores({String? query}) async {
+    final response = await _apiClient.get(
+      ApiConstants.adminStoresEndpoint,
+      queryParameters: query != null && query.trim().isNotEmpty
+          ? {'q': query.trim()}
+          : null,
+    );
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map((item) => StoreBranch.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<StoreBranch> createAdminStore(Map<String, dynamic> body) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminStoresEndpoint,
+      body: body,
+    );
+    return StoreBranch.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<StoreBranch> updateAdminStore(
+    String storeId,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await _apiClient.patch(
+      '${ApiConstants.adminStoresEndpoint}/$storeId',
+      body: body,
+    );
+    return StoreBranch.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> deleteAdminStore(String storeId) async {
+    await _apiClient.delete('${ApiConstants.adminStoresEndpoint}/$storeId');
+  }
+
   Future<User> selectStore(String storeId, String email) async {
     final response = await _apiClient.post(
       ApiConstants.selectStoreEndpoint,
@@ -199,5 +240,42 @@ class AuthRepository {
       body: body,
     );
     return User.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<List<AdminRoleDefinition>> listAdminRoles() async {
+    final response = await _apiClient.get(ApiConstants.adminRolesEndpoint);
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map(
+          (item) => AdminRoleDefinition.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<AdminRoleDefinition> createAdminRole(AdminRoleDefinition role) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminRolesEndpoint,
+      body: role.toJson(),
+    );
+    return AdminRoleDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<AdminRoleDefinition> updateAdminRole(
+    String code,
+    AdminRoleDefinition role,
+  ) async {
+    final response = await _apiClient.patch(
+      '${ApiConstants.adminRolesEndpoint}/$code',
+      body: role.toJson(),
+    );
+    return AdminRoleDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> deleteAdminRole(String code) async {
+    await _apiClient.delete('${ApiConstants.adminRolesEndpoint}/$code');
   }
 }

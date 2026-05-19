@@ -100,13 +100,14 @@ services:
       - api
       - realtime
     ports:
-      - "80:80"
-      - "443:443"
+      - "${OPSHUB_HTTP_BIND:-80}:80"
+      - "${OPSHUB_HTTPS_BIND:-443}:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/caddy/data:/data
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/caddy/config:/config
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/uploads:/srv/uploads:ro
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/downloads:/srv/downloads:ro
     networks:
       - opshub
 

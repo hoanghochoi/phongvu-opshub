@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/widgets/app_buttons.dart';
 import '../providers/auth_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -92,9 +93,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ? Text((user?.name ?? '?')[0].toUpperCase())
                       : null,
                 ),
-                IconButton.filled(
+                AppIconAction(
                   onPressed: _pickAvatar,
-                  icon: const Icon(Icons.camera_alt_outlined),
+                  icon: Icons.camera_alt_outlined,
+                  tooltip: 'Cập nhật avatar',
+                  filled: true,
                 ),
               ],
             ),
@@ -131,10 +134,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             subtitle: const Text('Chi nhánh đã chọn sẽ không tự thay đổi được'),
           ),
           const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: context.watch<AuthProvider>().isLoading ? null : _save,
-            icon: const Icon(Icons.save_outlined),
-            label: const Text('Lưu'),
+          AppPrimaryButton(
+            onPressed: _save,
+            icon: Icons.save_outlined,
+            label: 'Lưu',
+            isLoading: context.watch<AuthProvider>().isLoading,
+            loadingLabel: 'Đang lưu...',
           ),
         ],
       ),
