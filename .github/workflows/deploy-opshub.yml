@@ -148,8 +148,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsS "${OPSHUB_PUBLIC_BASE_URL}/health"
-          version_json="$(curl -fsS "${OPSHUB_API_BASE_URL}/app-version")"
+          retry_curl() {
+            local url="$1"
+            local attempt
+            for attempt in {1..12}; do
+              if curl -fsS "$url"; then
+                return 0
+              fi
+              sleep 5
+            done
+            curl -fsS "$url"
+          }
+
+          retry_curl "${OPSHUB_PUBLIC_BASE_URL}/health"
+          version_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version")"
           node -e "
             const data = JSON.parse(process.argv[1]);
             const expectedBuild = Number(process.argv[2]);
