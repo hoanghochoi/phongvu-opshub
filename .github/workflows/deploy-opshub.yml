@@ -132,7 +132,7 @@ jobs:
           OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
             -f deploy/home-server/docker-compose.home.yml \
-            --profile migrate run --rm -T migrate
+            --profile migrate run --rm -T migrate < /dev/null
 
           OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
@@ -149,4 +149,11 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsS "${OPSHUB_PUBLIC_BASE_URL}/health"
-          curl -fsS "${OPSHUB_API_BASE_URL}/app-version"
+          version_json="$(curl -fsS "${OPSHUB_API_BASE_URL}/app-version")"
+          node -e "
+            const data = JSON.parse(process.argv[1]);
+            const expectedBuild = Number(process.argv[2]);
+            if (data.latestBuild !== expectedBuild) {
+              throw new Error(\`Expected latestBuild \${expectedBuild}, got \${data.latestBuild}\`);
+            }
+          " "$version_json" "${{ steps.version.outputs.version_code }}"
