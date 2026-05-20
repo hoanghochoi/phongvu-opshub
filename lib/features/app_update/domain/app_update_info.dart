@@ -29,7 +29,8 @@ class AppUpdateInfo {
   bool hasUpdate(int currentBuild) => latestBuild > currentBuild;
 
   bool requiresUpdate(int currentBuild) {
-    return forceUpdate || minSupportedBuild > currentBuild;
+    return minSupportedBuild > currentBuild ||
+        (forceUpdate && hasUpdate(currentBuild));
   }
 
   static int _readInt(Object? value) {
