@@ -104,7 +104,8 @@ jobs:
 
           sudo mkdir -p "$(dirname "$OPSHUB_ENV_FILE")"
           sudo touch "$OPSHUB_ENV_FILE"
-          sudo chmod 600 "$OPSHUB_ENV_FILE"
+          sudo chown root:"$(id -gn)" "$OPSHUB_ENV_FILE"
+          sudo chmod 640 "$OPSHUB_ENV_FILE"
 
           upsert_env() {
             key="$1"
