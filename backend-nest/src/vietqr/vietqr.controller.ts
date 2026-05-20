@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Post, Request, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { VietQrService } from './vietqr.service';
 
@@ -9,6 +9,7 @@ export class VietQrController {
 
   @Post()
   async create(
+    @Request() req: any,
     @Body()
     body: {
       amount?: number | string | null;
@@ -26,6 +27,12 @@ export class VietQrController {
       amount,
       orderCode: body.orderCode ?? '',
       storeCode: body.storeCode ?? '',
+      createdById: req.user?.id,
     });
+  }
+
+  @Post(':id/confirm')
+  async confirm(@Request() req: any, @Param('id') id: string) {
+    return this.vietQrService.confirmPayment(req.user, id);
   }
 }

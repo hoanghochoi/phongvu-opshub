@@ -33,8 +33,10 @@ class _VietQrScreenState extends State<VietQrScreen> {
   final _currencyFormatter = NumberFormat.decimalPattern('vi_VN');
   late final VietQrRepository _repository;
   VietQrTransfer? _transfer;
+  VietQrPaymentConfirmation? _paymentConfirmation;
   bool _isLoading = false;
   bool _isSaving = false;
+  bool _isCheckingPayment = false;
 
   @override
   void initState() {
@@ -72,6 +74,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
     setState(() {
       _isLoading = true;
       _transfer = null;
+      _paymentConfirmation = null;
     });
 
     try {
@@ -141,9 +144,43 @@ class _VietQrScreenState extends State<VietQrScreen> {
   void _createNewQr() {
     setState(() {
       _transfer = null;
+      _paymentConfirmation = null;
       _amountController.clear();
       _orderCodeController.clear();
     });
+  }
+
+  Future<void> _confirmPayment() async {
+    final transfer = _transfer;
+    if (transfer == null || transfer.id.isEmpty || _isCheckingPayment) return;
+
+    setState(() => _isCheckingPayment = true);
+    try {
+      final confirmation = await _repository.confirmPayment(transfer.id);
+      if (!mounted) return;
+      setState(() => _paymentConfirmation = confirmation);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            confirmation.confirmed
+                ? 'Đã xác nhận thanh toán'
+                : _confirmationMessage(confirmation),
+          ),
+          backgroundColor: confirmation.confirmed ? Colors.green : null,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không xác nhận được thanh toán: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isCheckingPayment = false);
+    }
   }
 
   Future<void> _scanOrderCode() async {
@@ -368,6 +405,21 @@ class _VietQrScreenState extends State<VietQrScreen> {
           ),
         ),
         const SizedBox(height: 16),
+        if (_paymentConfirmation != null) ...[
+          _PaymentConfirmationCard(
+            confirmation: _paymentConfirmation!,
+            amountFormatter: _currencyFormatter,
+          ),
+          const SizedBox(height: 16),
+        ],
+        AppPrimaryButton(
+          onPressed: _confirmPayment,
+          icon: Icons.verified_rounded,
+          label: 'Xác nhận thanh toán',
+          isLoading: _isCheckingPayment,
+          loadingLabel: 'Đang kiểm tra...',
+        ),
+        const SizedBox(height: 10),
         AppPrimaryButton(
           onPressed: _saveQrImage,
           icon: Icons.download_rounded,
@@ -389,6 +441,19 @@ class _VietQrScreenState extends State<VietQrScreen> {
         ),
       ],
     );
+  }
+
+  String _confirmationMessage(VietQrPaymentConfirmation confirmation) {
+    switch (confirmation.reason) {
+      case 'NO_MATCH':
+        return 'Chưa thấy giao dịch khớp';
+      case 'MULTIPLE_MATCHES':
+        return 'Có nhiều giao dịch khớp, cần kiểm tra thủ công';
+      case 'MISSING_MATCH_FIELDS':
+        return 'QR thiếu số tiền hoặc nội dung, cần kiểm tra thủ công';
+      default:
+        return 'Chưa xác nhận được thanh toán';
+    }
   }
 
   Future<Uint8List> _buildExportPng(VietQrTransfer transfer) async {
@@ -616,5 +681,78 @@ class _InfoRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _PaymentConfirmationCard extends StatelessWidget {
+  final VietQrPaymentConfirmation confirmation;
+  final NumberFormat amountFormatter;
+
+  const _PaymentConfirmationCard({
+    required this.confirmation,
+    required this.amountFormatter,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final confirmed = confirmation.confirmed;
+    final color = confirmed ? Colors.green : Colors.orange;
+    final title = confirmed
+        ? 'Đã xác nhận thanh toán'
+        : _statusTitle(confirmation.reason);
+
+    return Card(
+      elevation: 0,
+      color: color.withValues(alpha: 0.08),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              confirmed ? Icons.check_circle_rounded : Icons.info_rounded,
+              color: color,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(color: color, fontWeight: FontWeight.w800),
+                  ),
+                  if (confirmation.matchedAmount != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Số tiền: ${amountFormatter.format(confirmation.matchedAmount)} VND',
+                    ),
+                  ],
+                  if (confirmation.matchedTransactionNumber != null &&
+                      confirmation.matchedTransactionNumber!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text('Mã GD: ${confirmation.matchedTransactionNumber}'),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _statusTitle(String reason) {
+    switch (reason) {
+      case 'NO_MATCH':
+        return 'Chưa thấy giao dịch khớp';
+      case 'MULTIPLE_MATCHES':
+        return 'Cần kiểm tra thủ công';
+      case 'MISSING_MATCH_FIELDS':
+        return 'Thiếu dữ liệu để tự xác nhận';
+      default:
+        return 'Chưa xác nhận được';
+    }
   }
 }

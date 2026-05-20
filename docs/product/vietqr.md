@@ -24,6 +24,13 @@ a customer to scan and pay manually.
 - Admin backend can probe VietinBank MAP payment transactions for a configured
   showroom so the next reconciliation step can match by amount, transfer
   content, success status, and time window.
+- Each generated QR is stored as a payment intent so staff can run payment
+  confirmation after showing the QR to the customer.
+- Payment confirmation marks the intent as `PAID` only when exactly one
+  VietinBank MAP transaction matches fixed amount, transfer content/order
+  content, successful transaction status, and transaction time after QR
+  creation. Missing amount/content, no match, or multiple matches remain
+  unconfirmed and require manual review.
 
 ## Payment Confirmation Research
 

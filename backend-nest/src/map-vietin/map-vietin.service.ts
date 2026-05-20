@@ -52,6 +52,28 @@ export class MapVietinService {
 
   async searchTransactions(admin: any, input: SearchMapVietinTransactionsDto) {
     const store = await this.resolveStore(admin, input.storeId);
+    return this.searchTransactionsForStore(store, input);
+  }
+
+  async searchTransactionsForStoreCode(
+    storeCode: string,
+    input: SearchMapVietinTransactionsDto,
+  ) {
+    const store = await this.prisma.store.findUnique({
+      where: { storeId: storeCode },
+    });
+    if (!store) throw new BadRequestException('Showroom không hợp lệ');
+    return this.searchTransactionsForStore(store, input);
+  }
+
+  private async searchTransactionsForStore(
+    store: {
+      storeId: string;
+      mapVietinUsername?: string | null;
+      mapVietinPasswordCipher?: string | null;
+    },
+    input: SearchMapVietinTransactionsDto,
+  ) {
     if (!store.mapVietinUsername || !store.mapVietinPasswordCipher) {
       throw new BadRequestException(
         'Showroom chưa cấu hình tài khoản VietinBank MAP',

@@ -23,4 +23,16 @@ class VietQrRepository {
       jsonDecode(response.body) as Map<String, dynamic>,
     );
   }
+
+  Future<VietQrPaymentConfirmation> confirmPayment(String paymentId) async {
+    final response = await _apiClient.post(
+      ApiConstants.vietQrConfirmEndpoint(paymentId),
+      body: const {},
+      timeout: const Duration(seconds: 45),
+    );
+
+    return VietQrPaymentConfirmation.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
 }

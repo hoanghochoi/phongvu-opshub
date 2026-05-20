@@ -17,8 +17,13 @@ optional amount, optional transfer content, and the signed-in user's store code.
 - Backend returns a VietQR EMV payload plus account display fields.
 - Backend omits amount/content EMV fields when staff leaves them blank.
 - Flutter renders the QR image from the backend payload.
-- No automatic payment confirmation is introduced until the bank web
-  reconciliation path is approved separately.
+- Backend stores each QR as a payment intent.
+- Staff can run payment confirmation after QR creation.
+- Payment confirmation marks `PAID` only when exactly one successful MAP
+  transaction matches amount, transfer content/order content, and time after QR
+  creation.
+- Missing amount/content, no match, or multiple matches remain unconfirmed and
+  require manual review.
 
 ## Validation
 

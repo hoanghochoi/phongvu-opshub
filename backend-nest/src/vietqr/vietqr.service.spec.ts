@@ -7,7 +7,15 @@ import { VietQrService } from './vietqr.service';
 describe('VietQrService', () => {
   const originalEnv = process.env;
   let service: VietQrService;
-  let prisma: { store: { findUnique: jest.Mock } };
+  let prisma: {
+    store: { findUnique: jest.Mock };
+    vietQrPaymentIntent: {
+      create: jest.Mock;
+      findUnique: jest.Mock;
+      update: jest.Mock;
+    };
+  };
+  let mapVietinService: { searchTransactionsForStoreCode: jest.Mock };
 
   beforeEach(() => {
     process.env = {
@@ -17,8 +25,21 @@ describe('VietQrService', () => {
       VIETQR_ACCOUNT_NAME: 'Phong Vu',
       VIETQR_MERCHANT_CITY: 'Ho Chi Minh',
     };
-    prisma = { store: { findUnique: jest.fn().mockResolvedValue(null) } };
-    service = new VietQrService(prisma as any);
+    prisma = {
+      store: { findUnique: jest.fn().mockResolvedValue(null) },
+      vietQrPaymentIntent: {
+        create: jest.fn(async ({ data }) => ({
+          id: 'payment-1',
+          status: 'PENDING',
+          createdAt: new Date('2026-05-20T10:00:00.000Z'),
+          ...data,
+        })),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+      },
+    };
+    mapVietinService = { searchTransactionsForStoreCode: jest.fn() };
+    service = new VietQrService(prisma as any, mapVietinService as any);
   });
 
   afterEach(() => {
@@ -39,6 +60,8 @@ describe('VietQrService', () => {
       accountName: 'PHONG VU',
       amount: 150000,
       transferContent: 'DH-001 HCM01 BOT',
+      id: 'payment-1',
+      status: 'PENDING',
     });
     expect(result.qrPayload).toContain('0010A000000727');
     expect(result.qrPayload).toContain('0208QRIBFTTA');
@@ -56,6 +79,15 @@ describe('VietQrService', () => {
 
     expect(result.amount).toBeNull();
     expect(result.transferContent).toBe('');
+    expect(prisma.vietQrPaymentIntent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          amount: null,
+          orderCode: null,
+          transferContent: '',
+        }),
+      }),
+    );
     expect(readTopLevelEmvTags(result.qrPayload)).not.toHaveProperty('54');
     expect(readTopLevelEmvTags(result.qrPayload)).not.toHaveProperty('62');
   });
@@ -127,6 +159,171 @@ describe('VietQrService', () => {
     expect(result.bankBin).toBe('970415');
     expect(result.bankName).toBe('VietinBank');
     expect(result.accountNumber).toBe('18PVICU');
+  });
+
+  it('confirms payment when transaction content contains QR transfer content', async () => {
+    const createdAt = new Date('2026-05-20T10:00:00.000Z');
+    prisma.vietQrPaymentIntent.findUnique.mockResolvedValue({
+      id: 'payment-1',
+      storeCode: 'CP62',
+      amount: 150000,
+      orderCode: 'DH-001',
+      transferContent: 'DH-001 CP62 BOT',
+      status: 'PENDING',
+      createdAt,
+    });
+    prisma.vietQrPaymentIntent.update.mockImplementation(async ({ data }) => ({
+      id: 'payment-1',
+      ...data,
+    }));
+    mapVietinService.searchTransactionsForStoreCode.mockResolvedValue({
+      total: 1,
+      list: [
+        {
+          id: 'map-id-1',
+          transactionNumber: 'txn-1',
+          amount: 150000,
+          statusText: 'Thành công',
+          transactionDescription: 'IBFT 123 DH-001 CP62 BOT 456',
+          tranTime: '20/05/2026 17:05:00',
+        },
+      ],
+    });
+
+    await expect(
+      service.confirmPayment({ role: 'SUPER_ADMIN' }, 'payment-1'),
+    ).resolves.toMatchObject({
+      id: 'payment-1',
+      status: 'PAID',
+      confirmed: true,
+      reason: 'MATCHED',
+      matchedTransactionNumber: 'txn-1',
+      matchedAmount: 150000,
+    });
+
+    expect(mapVietinService.searchTransactionsForStoreCode).toHaveBeenCalledWith(
+      'CP62',
+      expect.objectContaining({
+        amount: '150000',
+        page: 0,
+        size: 100,
+      }),
+    );
+    expect(prisma.vietQrPaymentIntent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'PAID',
+          matchedTransactionId: 'map-id-1',
+          matchedTransactionNumber: 'txn-1',
+          matchedAmount: 150000,
+        }),
+      }),
+    );
+  });
+
+  it('does not confirm when only order code fields match without transfer content', async () => {
+    prisma.vietQrPaymentIntent.findUnique.mockResolvedValue({
+      id: 'payment-1',
+      storeCode: 'CP62',
+      amount: 150000,
+      orderCode: 'DH-001',
+      transferContent: 'DH-001 CP62 BOT',
+      status: 'PENDING',
+      createdAt: new Date('2026-05-20T10:00:00.000Z'),
+    });
+    prisma.vietQrPaymentIntent.update.mockImplementation(async ({ data }) => ({
+      id: 'payment-1',
+      ...data,
+    }));
+    mapVietinService.searchTransactionsForStoreCode.mockResolvedValue({
+      total: 1,
+      list: [
+        {
+          amount: 150000,
+          statusText: 'SUCCESS',
+          transactionDescription: 'Khach chuyen tien',
+          billNumber: 'DH-001',
+          requestId: 'CP62',
+          tranTime: '20/05/2026 17:05:00',
+        },
+      ],
+    });
+
+    await expect(
+      service.confirmPayment({ role: 'SUPER_ADMIN' }, 'payment-1'),
+    ).resolves.toMatchObject({
+      status: 'NOT_FOUND',
+      confirmed: false,
+      reason: 'NO_MATCH',
+    });
+  });
+
+  it('does not auto-confirm when amount or transfer content is missing', async () => {
+    prisma.vietQrPaymentIntent.findUnique.mockResolvedValue({
+      id: 'payment-1',
+      storeCode: 'CP62',
+      amount: null,
+      orderCode: null,
+      transferContent: '',
+      status: 'PENDING',
+      createdAt: new Date('2026-05-20T10:00:00.000Z'),
+    });
+    prisma.vietQrPaymentIntent.update.mockImplementation(async ({ data }) => ({
+      id: 'payment-1',
+      ...data,
+    }));
+
+    await expect(
+      service.confirmPayment({ role: 'SUPER_ADMIN' }, 'payment-1'),
+    ).resolves.toMatchObject({
+      id: 'payment-1',
+      status: 'MANUAL_REVIEW',
+      confirmed: false,
+      reason: 'MISSING_MATCH_FIELDS',
+    });
+    expect(mapVietinService.searchTransactionsForStoreCode).not.toHaveBeenCalled();
+  });
+
+  it('keeps payment unconfirmed when multiple MAP transactions match', async () => {
+    prisma.vietQrPaymentIntent.findUnique.mockResolvedValue({
+      id: 'payment-1',
+      storeCode: 'CP62',
+      amount: 150000,
+      orderCode: 'DH-001',
+      transferContent: 'DH-001 CP62 BOT',
+      status: 'PENDING',
+      createdAt: new Date('2026-05-20T10:00:00.000Z'),
+    });
+    prisma.vietQrPaymentIntent.update.mockImplementation(async ({ data }) => ({
+      id: 'payment-1',
+      ...data,
+    }));
+    mapVietinService.searchTransactionsForStoreCode.mockResolvedValue({
+      total: 2,
+      list: [
+        {
+          amount: 150000,
+          statusText: 'SUCCESS',
+          transactionDescription: 'DH-001 CP62 BOT',
+          tranTime: '20/05/2026 17:05:00',
+        },
+        {
+          amount: 150000,
+          statusText: 'SUCCESS',
+          transactionDescription: 'DH-001 CP62 BOT',
+          tranTime: '20/05/2026 17:06:00',
+        },
+      ],
+    });
+
+    await expect(
+      service.confirmPayment({ role: 'SUPER_ADMIN' }, 'payment-1'),
+    ).resolves.toMatchObject({
+      status: 'AMBIGUOUS',
+      confirmed: false,
+      reason: 'MULTIPLE_MATCHES',
+      matchedCandidates: 2,
+    });
   });
 });
 
