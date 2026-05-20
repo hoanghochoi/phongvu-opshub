@@ -49,18 +49,18 @@ class _AppUpdateGateState extends State<AppUpdateGate> {
           canPop: !isRequired,
           child: AlertDialog(
             title: Text(
-              isRequired ? 'Can cap nhat ung dung' : 'Co ban cap nhat moi',
+              isRequired ? 'Cần cập nhật ứng dụng' : 'Có bản cập nhật mới',
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Phien ban hien tai: ${result.currentVersion}+${result.currentBuild}',
+                  'Phiên bản hiện tại: ${result.currentVersion}+${result.currentBuild}',
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Phien ban moi: ${updateInfo.latestVersion}+${updateInfo.latestBuild}',
+                  'Phiên bản mới: ${updateInfo.latestVersion}+${updateInfo.latestBuild}',
                 ),
                 if (updateInfo.releaseNotes.isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -72,13 +72,13 @@ class _AppUpdateGateState extends State<AppUpdateGate> {
               if (!isRequired)
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('De sau'),
+                  child: const Text('Để sau'),
                 ),
               FilledButton(
                 onPressed: updateInfo.updateUrl.isEmpty
                     ? null
                     : () => _openUpdateUrl(updateInfo.updateUrl),
-                child: const Text('Cap nhat'),
+                child: const Text('Cập nhật'),
               ),
             ],
           ),
