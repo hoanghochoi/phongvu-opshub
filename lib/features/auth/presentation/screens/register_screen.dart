@@ -19,9 +19,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _verificationCodeController = TextEditingController();
   List<String> _allowedDomains = const [];
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isSendingCode = false;
+  bool _loadedRouteEmail = false;
 
   @override
   void initState() {
@@ -35,12 +38,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loadedRouteEmail) return;
+    _loadedRouteEmail = true;
+    final routeEmail = ModalRoute.of(context)?.settings.arguments;
+    if (routeEmail is String && routeEmail.trim().isNotEmpty) {
+      _emailController.text = routeEmail.trim();
+    }
+  }
+
+  @override
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _verificationCodeController.dispose();
     super.dispose();
   }
 
@@ -137,7 +152,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           const SizedBox(height: 14),
                           TextFormField(
                             controller: _emailController,
-                            enabled: !authProvider.isLoading,
+                            enabled: !authProvider.isLoading && !_isSendingCode,
                             keyboardType: TextInputType.emailAddress,
                             textInputAction: TextInputAction.next,
                             autocorrect: false,
@@ -159,6 +174,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 _allowedDomains,
                               )) {
                                 return EmailDomainPolicy.invalidDomainMessage;
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed:
+                                  authProvider.isLoading || _isSendingCode
+                                  ? null
+                                  : () => _handleSendVerificationCode(context),
+                              icon: _isSendingCode
+                                  ? const SizedBox(
+                                      height: 16,
+                                      width: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.mark_email_read_rounded),
+                              label: Text(
+                                _isSendingCode
+                                    ? 'Đang gửi mã...'
+                                    : 'Gửi mã xác thực email',
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: BorderSide(
+                                  color: Colors.white.withValues(alpha: 0.6),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: _verificationCodeController,
+                            enabled: !authProvider.isLoading && !_isSendingCode,
+                            keyboardType: TextInputType.number,
+                            textInputAction: TextInputAction.next,
+                            maxLength: 6,
+                            decoration: _inputDecoration(
+                              label: 'Mã xác thực email',
+                              icon: Icons.verified_user_outlined,
+                            ).copyWith(counterText: ''),
+                            validator: (value) {
+                              final code = value?.trim() ?? '';
+                              if (!RegExp(r'^[0-9]{6}$').hasMatch(code)) {
+                                return 'Vui lòng nhập mã xác thực gồm 6 số';
                               }
                               return null;
                             },
@@ -297,6 +361,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       lastName: _lastNameController.text.trim(),
       email: _emailController.text.trim(),
       password: _passwordController.text,
+      verificationCode: _verificationCodeController.text.trim(),
     );
 
     if (!context.mounted) return;
@@ -314,6 +379,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _handleSendVerificationCode(BuildContext context) async {
+    final email = _emailController.text.trim();
+    if (!Validators.isValidEmail(email)) {
+      _showError(context, 'Email không hợp lệ');
+      return;
+    }
+    if (!EmailDomainPolicy.isAllowedEmail(email, _allowedDomains)) {
+      _showError(context, EmailDomainPolicy.invalidDomainMessage);
+      return;
+    }
+
+    setState(() => _isSendingCode = true);
+    final authProvider = context.read<AuthProvider>();
+    final ok = await authProvider.sendRegistrationVerificationCode(
+      email: email,
+    );
+
+    if (!context.mounted) return;
+    setState(() => _isSendingCode = false);
+
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã gửi mã xác thực. Vui lòng kiểm tra email.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else if (authProvider.errorMessage != null) {
+      _showError(context, authProvider.errorMessage!);
+    }
+  }
+
+  void _showError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   InputDecoration _inputDecoration({

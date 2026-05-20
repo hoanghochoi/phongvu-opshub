@@ -8,7 +8,12 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
-import { GetUserDto, PasswordLoginDto, RegisterDto } from './auth.dto';
+import {
+  GetUserDto,
+  PasswordLoginDto,
+  RegisterDto,
+  SendEmailVerificationDto,
+} from './auth.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -22,6 +27,11 @@ export class AuthController {
   @Post('register')
   async register(@Body() body: RegisterDto) {
     return this.authService.register(body);
+  }
+
+  @Post('verification-code')
+  async sendVerificationCode(@Body() body: SendEmailVerificationDto) {
+    return this.authService.sendRegistrationVerificationCode(body.email);
   }
 
   // POST /auth/get-user

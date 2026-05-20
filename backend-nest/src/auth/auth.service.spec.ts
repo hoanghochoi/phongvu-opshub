@@ -16,6 +16,10 @@ describe('AuthService', () => {
     };
   };
   let jwtService: { sign: jest.Mock };
+  let emailVerificationService: {
+    consumeRegistrationCode: jest.Mock;
+    sendRegistrationCode: jest.Mock;
+  };
 
   beforeEach(() => {
     prisma = {
@@ -26,7 +30,18 @@ describe('AuthService', () => {
       },
     };
     jwtService = { sign: jest.fn().mockReturnValue('signed-jwt') };
-    service = new AuthService(prisma as any, jwtService as any);
+    emailVerificationService = {
+      consumeRegistrationCode: jest.fn().mockResolvedValue(undefined),
+      sendRegistrationCode: jest.fn().mockResolvedValue({
+        ok: true,
+        expiresInMinutes: 10,
+      }),
+    };
+    service = new AuthService(
+      prisma as any,
+      jwtService as any,
+      emailVerificationService as any,
+    );
   });
 
   it('registers a new password account for an allowed Phong Vu email domain', async () => {
@@ -49,6 +64,7 @@ describe('AuthService', () => {
         firstName: 'An',
         lastName: 'Nguyen',
         password: 'Password1!',
+        verificationCode: '123456',
       }),
     ).resolves.toMatchObject({
       login: true,
@@ -73,6 +89,9 @@ describe('AuthService', () => {
     await expect(bcrypt.compare('Password1!', savedPassword)).resolves.toBe(
       true,
     );
+    expect(
+      emailVerificationService.consumeRegistrationCode,
+    ).toHaveBeenCalledWith('staff@phongvu-shop.vn', '123456');
   });
 
   it('sets a password for an imported user through registration', async () => {
@@ -103,6 +122,7 @@ describe('AuthService', () => {
         email: 'staff@phongvu-shop.vn',
         firstName: 'An',
         password: 'Password1!',
+        verificationCode: '123456',
       }),
     ).resolves.toMatchObject({
       login: true,
@@ -134,8 +154,23 @@ describe('AuthService', () => {
         email: 'staff@phongvu-shop.vn',
         firstName: 'An',
         password: 'Password1!',
+        verificationCode: '123456',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('sends a registration verification code for a new account', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.sendRegistrationVerificationCode(' Staff@PhongVu-Shop.vn '),
+    ).resolves.toEqual({
+      ok: true,
+      expiresInMinutes: 10,
+    });
+    expect(emailVerificationService.sendRegistrationCode).toHaveBeenCalledWith(
+      'staff@phongvu-shop.vn',
+    );
   });
 
   it('rejects login when the account is not registered yet', async () => {

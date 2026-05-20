@@ -5,6 +5,7 @@ describe('AuthController', () => {
   let authService: {
     passwordLogin: jest.Mock;
     register: jest.Mock;
+    sendRegistrationVerificationCode: jest.Mock;
     getUserData: jest.Mock;
   };
 
@@ -12,6 +13,7 @@ describe('AuthController', () => {
     authService = {
       passwordLogin: jest.fn(),
       register: jest.fn(),
+      sendRegistrationVerificationCode: jest.fn(),
       getUserData: jest.fn(),
     };
     controller = new AuthController(authService as any);
@@ -43,6 +45,7 @@ describe('AuthController', () => {
         firstName: 'An',
         lastName: 'Nguyen',
         password: 'Password1!',
+        verificationCode: '123456',
       }),
     ).resolves.toEqual({
       access_token: 'jwt',
@@ -52,7 +55,23 @@ describe('AuthController', () => {
       firstName: 'An',
       lastName: 'Nguyen',
       password: 'Password1!',
+      verificationCode: '123456',
     });
+  });
+
+  it('delegates registration verification code sending', async () => {
+    authService.sendRegistrationVerificationCode.mockResolvedValue({
+      ok: true,
+    });
+
+    await expect(
+      controller.sendVerificationCode({ email: 'staff@phongvu-shop.vn' }),
+    ).resolves.toEqual({
+      ok: true,
+    });
+    expect(authService.sendRegistrationVerificationCode).toHaveBeenCalledWith(
+      'staff@phongvu-shop.vn',
+    );
   });
 
   it('loads the current JWT user by email', async () => {

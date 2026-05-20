@@ -105,11 +105,22 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
           : '/home';
       Navigator.of(context).pushReplacementNamed(route);
     } else if (authProvider.errorMessage != null) {
+      final message = authProvider.errorMessage!;
+      if (message.contains('chưa tồn tại') ||
+          message.contains('chưa có mật khẩu')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.orange[700]),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        if (context.mounted) {
+          Navigator.of(
+            context,
+          ).pushNamed('/register', arguments: _emailController.text.trim());
+        }
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authProvider.errorMessage!),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
     }
   }
