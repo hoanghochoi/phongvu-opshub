@@ -19,6 +19,13 @@ payment account import from CSV, and administration for privileged roles.
 - Store management supports adding, editing, and deleting stores.
 - Stores assigned to users are protected from deletion.
 - User assignment uses the backend role catalog.
+- `SUPER_ADMIN` can change user roles after registration; registration itself
+  does not expose role selection.
+- `MANAGER` can manage users and store settings only inside their assigned
+  showroom.
+- Store settings include VietinBank MAP username/password fields for future
+  bank-web reconciliation. Passwords are encrypted at rest and are never sent
+  back to the app.
 - User self-service branch changes are rejected after the first selection.
 - VietQR uses the selected store's configured transfer account when available.
 

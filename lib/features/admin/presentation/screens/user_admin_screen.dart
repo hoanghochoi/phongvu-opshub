@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
@@ -6,6 +7,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/admin_role_definition.dart';
 
 class UserAdminScreen extends StatefulWidget {
@@ -40,7 +42,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     try {
       final results = await Future.wait([
         _repository.listUsers(query: _searchController.text),
-        _repository.getStores(),
+        _repository.listAdminStores(),
         _repository.listAdminRoles(),
       ]);
       if (!mounted) return;
@@ -55,6 +57,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   }
 
   Future<void> _openEditor([User? user]) async {
+    final canEditRole =
+        context.read<AuthProvider>().user?.role == 'SUPER_ADMIN';
     final updated = await showDialog<bool>(
       context: context,
       builder: (context) => _UserEditorDialog(
@@ -62,6 +66,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         stores: _stores,
         roles: _roles,
         user: user,
+        canEditRole: canEditRole,
       ),
     );
     if (updated == true) await _load();
@@ -145,11 +150,13 @@ class _UserEditorDialog extends StatefulWidget {
   final List<StoreBranch> stores;
   final List<AdminRoleDefinition> roles;
   final User? user;
+  final bool canEditRole;
 
   const _UserEditorDialog({
     required this.repository,
     required this.stores,
     required this.roles,
+    required this.canEditRole,
     this.user,
   });
 
@@ -193,9 +200,9 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
         'email': _emailController.text.trim(),
         'firstName': _firstNameController.text.trim(),
         'lastName': _lastNameController.text.trim(),
-        'role': _role,
         'status': _status,
         'storeId': _storeId,
+        if (widget.canEditRole) 'role': _role,
       };
       final user = widget.user;
       if (user == null) {
@@ -232,18 +239,26 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                 controller: _lastNameController,
                 decoration: const InputDecoration(labelText: 'Họ'),
               ),
-              DropdownButtonFormField<String>(
-                initialValue: _role,
-                decoration: const InputDecoration(labelText: 'Quyền'),
-                items: widget.roles
-                    .map((role) => role.value)
-                    .map(
-                      (role) =>
-                          DropdownMenuItem(value: role, child: Text(role)),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() => _role = value ?? 'STAFF'),
-              ),
+              if (widget.canEditRole)
+                DropdownButtonFormField<String>(
+                  initialValue: _role,
+                  decoration: const InputDecoration(labelText: 'Quyền'),
+                  items: widget.roles
+                      .map((role) => role.value)
+                      .map(
+                        (role) =>
+                            DropdownMenuItem(value: role, child: Text(role)),
+                      )
+                      .toList(),
+                  onChanged: (value) =>
+                      setState(() => _role = value ?? 'STAFF'),
+                )
+              else
+                TextFormField(
+                  initialValue: _role,
+                  enabled: false,
+                  decoration: const InputDecoration(labelText: 'Quyền'),
+                ),
               DropdownButtonFormField<String>(
                 initialValue: _status,
                 decoration: const InputDecoration(labelText: 'Trạng thái'),

@@ -94,16 +94,19 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canManageStores = context.select<AuthProvider, bool>(
-      (auth) => auth.user?.role == 'SUPER_ADMIN',
+    final role = context.select<AuthProvider, String?>(
+      (auth) => auth.user?.role,
     );
+    final canCreateStores = role == 'SUPER_ADMIN';
+    final canEditStores =
+        role == 'SUPER_ADMIN' || role == 'MANAGER' || role == 'ADMIN';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: GradientHeader(
         title: 'Quản lý store',
         showBack: true,
-        actions: canManageStores
+        actions: canCreateStores
             ? [
                 IconButton(
                   onPressed: () => _openEditor(),
@@ -145,10 +148,10 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
                           final store = _stores[index];
                           return _StoreCard(
                             store: store,
-                            onEdit: canManageStores
+                            onEdit: canEditStores
                                 ? () => _openEditor(store)
                                 : null,
-                            onDelete: canManageStores && store.userCount == 0
+                            onDelete: canCreateStores && store.userCount == 0
                                 ? () => _deleteStore(store)
                                 : null,
                           );
@@ -181,6 +184,11 @@ class _StoreCard extends StatelessWidget {
       if ((store.transferAccountNumber ?? '').isNotEmpty)
         store.transferAccountNumber,
     ].whereType<String>().join(' • ');
+    final mapAccount = [
+      if ((store.mapVietinUsername ?? '').isNotEmpty)
+        'MAP: ${store.mapVietinUsername}',
+      if (store.hasMapVietinPassword) 'đã lưu mật khẩu',
+    ].join(' • ');
 
     return Material(
       color: Colors.white,
@@ -229,15 +237,32 @@ class _StoreCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    account.isEmpty ? '${store.userCount} user' : account,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF6B7280),
-                      fontSize: 13,
-                      height: 1.25,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        account.isEmpty ? '${store.userCount} user' : account,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF6B7280),
+                          fontSize: 13,
+                          height: 1.25,
+                        ),
+                      ),
+                      if (mapAccount.isNotEmpty)
+                        Text(
+                          mapAccount,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF0F766E),
+                            fontSize: 12,
+                            height: 1.25,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -280,6 +305,8 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
   final _accountNameController = TextEditingController();
   final _bankNameController = TextEditingController();
   final _bankBinController = TextEditingController();
+  final _mapUsernameController = TextEditingController();
+  final _mapPasswordController = TextEditingController();
   bool _saving = false;
 
   @override
@@ -292,6 +319,7 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
     _accountNameController.text = store?.transferAccountName ?? '';
     _bankNameController.text = store?.transferBankName ?? '';
     _bankBinController.text = store?.transferBankBin ?? '';
+    _mapUsernameController.text = store?.mapVietinUsername ?? '';
   }
 
   @override
@@ -302,6 +330,8 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
     _accountNameController.dispose();
     _bankNameController.dispose();
     _bankBinController.dispose();
+    _mapUsernameController.dispose();
+    _mapPasswordController.dispose();
     super.dispose();
   }
 
@@ -315,6 +345,9 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
         'transferAccountName': _accountNameController.text.trim(),
         'transferBankName': _bankNameController.text.trim(),
         'transferBankBin': _bankBinController.text.trim(),
+        'mapVietinUsername': _mapUsernameController.text.trim(),
+        if (_mapPasswordController.text.trim().isNotEmpty)
+          'mapVietinPassword': _mapPasswordController.text.trim(),
       };
 
       final store = widget.store;
@@ -375,6 +408,23 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
                 controller: _bankBinController,
                 decoration: const InputDecoration(labelText: 'BIN ngân hàng'),
                 keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _mapUsernameController,
+                decoration: const InputDecoration(
+                  labelText: 'Tài khoản VietinBank MAP',
+                ),
+              ),
+              TextField(
+                controller: _mapPasswordController,
+                decoration: InputDecoration(
+                  labelText: 'Mật khẩu VietinBank MAP',
+                  helperText: widget.store?.hasMapVietinPassword == true
+                      ? 'Để trống nếu muốn giữ mật khẩu hiện tại'
+                      : null,
+                ),
+                obscureText: true,
               ),
             ],
           ),

@@ -42,7 +42,7 @@ class AuthProvider extends ChangeNotifier {
       final token = await _readSavedToken(prefs);
 
       if (email != null) {
-        final isAdmin = role == 'ADMIN' || role == 'SUPER_ADMIN';
+        final canSkipStoreSelection = role == 'ADMIN' || role == 'SUPER_ADMIN';
         _user = User(
           email: email,
           name: name,
@@ -52,7 +52,7 @@ class AuthProvider extends ChangeNotifier {
           storeName: storeName,
           role: role,
           status: status,
-          mustSelectStore: !isAdmin && storeId == null,
+          mustSelectStore: !canSkipStoreSelection && storeId == null,
         );
 
         // Restore JWT token to ApiClient for authenticated API calls

@@ -6,6 +6,8 @@ class StoreBranch {
   final String? transferAccountName;
   final String? transferBankName;
   final String? transferBankBin;
+  final String? mapVietinUsername;
+  final bool hasMapVietinPassword;
   final int userCount;
 
   const StoreBranch({
@@ -16,6 +18,8 @@ class StoreBranch {
     this.transferAccountName,
     this.transferBankName,
     this.transferBankBin,
+    this.mapVietinUsername,
+    this.hasMapVietinPassword = false,
     this.userCount = 0,
   });
 
@@ -28,6 +32,10 @@ class StoreBranch {
       transferAccountName: json['transferAccountName']?.toString(),
       transferBankName: json['transferBankName']?.toString(),
       transferBankBin: json['transferBankBin']?.toString(),
+      mapVietinUsername: json['mapVietinUsername']?.toString(),
+      hasMapVietinPassword:
+          json['hasMapVietinPassword'] == true ||
+          json['hasMapVietinPassword'] == 'true',
       userCount: int.tryParse(json['userCount']?.toString() ?? '') ?? 0,
     );
   }
@@ -42,6 +50,7 @@ class StoreBranch {
       'transferAccountName': transferAccountName,
       'transferBankName': transferBankName,
       'transferBankBin': transferBankBin,
+      'mapVietinUsername': mapVietinUsername,
     };
   }
 }

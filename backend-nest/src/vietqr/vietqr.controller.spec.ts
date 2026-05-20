@@ -20,4 +20,23 @@ describe('VietQrController', () => {
       storeCode: 'HCM02',
     });
   });
+
+  it('passes blank amount as null for editable VietQR amounts', async () => {
+    const service = {
+      create: jest.fn().mockResolvedValue({ qrPayload: 'payload' }),
+    };
+    const controller = new VietQrController(service as any);
+
+    await controller.create({
+      amount: '',
+      orderCode: '',
+      storeCode: 'HCM02',
+    });
+
+    expect(service.create).toHaveBeenCalledWith({
+      amount: null,
+      orderCode: '',
+      storeCode: 'HCM02',
+    });
+  });
 });

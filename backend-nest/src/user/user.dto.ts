@@ -84,4 +84,14 @@ export class AdminStoreDto {
   @IsString()
   @MaxLength(20)
   transferBankBin?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  mapVietinUsername?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  mapVietinPassword?: string;
 }

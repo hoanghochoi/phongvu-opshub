@@ -15,6 +15,7 @@ import { UserModule } from './user/user.module';
 import { FifoLogModule } from './fifo-log/fifo-log.module';
 import { VietQrModule } from './vietqr/vietqr.module';
 import { AppVersionModule } from './app-version/app-version.module';
+import { MapVietinModule } from './map-vietin/map-vietin.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { AppVersionModule } from './app-version/app-version.module';
     FifoLogModule,
     VietQrModule,
     AppVersionModule,
+    MapVietinModule,
   ],
   controllers: [AppController],
   providers: [

@@ -39,10 +39,13 @@ class User {
     );
   }
 
-  bool get isAdmin => role == 'ADMIN' || role == 'SUPER_ADMIN';
+  bool get isAdmin =>
+      role == 'ADMIN' || role == 'SUPER_ADMIN' || role == 'MANAGER';
 
   bool get needsStoreSelection =>
-      !isAdmin && (mustSelectStore || storeId == null);
+      role != 'SUPER_ADMIN' &&
+      role != 'ADMIN' &&
+      (mustSelectStore || storeId == null);
 
   String get storeInfo {
     if (storeId != null && storeName != null) {

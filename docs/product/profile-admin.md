@@ -38,3 +38,9 @@ basic administration for privileged roles.
 - `ADMIN` is scoped to users in the same store and cannot assign
   `SUPER_ADMIN`.
 - `SUPER_ADMIN` can manage all users.
+- `MANAGER` can open administration for their own showroom scope.
+- `SUPER_ADMIN` can assign or change user roles after registration; users do
+  not choose roles during registration.
+- Store administration can keep a VietinBank MAP username plus an encrypted MAP
+  password for later transaction reconciliation. The API returns whether a MAP
+  password exists, but never returns the password itself.

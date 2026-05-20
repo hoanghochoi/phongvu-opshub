@@ -11,13 +11,19 @@ export class VietQrController {
   async create(
     @Body()
     body: {
-      amount?: number;
+      amount?: number | string | null;
       orderCode?: string;
       storeCode?: string;
     },
   ) {
+    const rawAmount = body.amount;
+    const amount =
+      rawAmount === undefined || rawAmount === null || rawAmount === ''
+        ? null
+        : Number(rawAmount);
+
     return this.vietQrService.create({
-      amount: Number(body.amount),
+      amount,
       orderCode: body.orderCode ?? '',
       storeCode: body.storeCode ?? '',
     });

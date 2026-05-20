@@ -6,14 +6,17 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { BigQuery } from '@google-cloud/bigquery';
 import { PrismaService } from '../prisma/prisma.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { getDataSyncSource } from '../config/env';
 import { UploadService } from '../upload/upload.service';
+import { encryptSecret } from '../common/secret-cipher';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 const ADMIN_ROLE = 'ADMIN';
+const MANAGER_ROLE = 'MANAGER';
 const STAFF_ROLE = 'STAFF';
 
 const DEFAULT_ROLE_DEFINITIONS = [
@@ -28,7 +31,7 @@ const DEFAULT_ROLE_DEFINITIONS = [
     description: 'Quan ly user theo pham vi',
   },
   {
-    code: 'MANAGER',
+    code: MANAGER_ROLE,
     displayName: 'Manager',
     description: 'Nhom quyen quan ly van hanh',
   },
@@ -346,14 +349,14 @@ export class UserService implements OnModuleInit {
     });
     if (!current) throw new NotFoundException('Không tìm thấy user');
 
-    if (admin.role === ADMIN_ROLE && current.storeId !== admin.storeId) {
+    if (this.isScopedAdmin(admin) && current.storeId !== admin.storeId) {
       throw new ForbiddenException('Không có quyền sửa user ngoài chi nhánh');
     }
 
     const role = body.role
       ? await this.resolveAssignableRole(body.role)
       : current.role;
-    this.assertRoleEditable(admin, role);
+    this.assertRoleEditable(admin, role, current.role);
     const storeUuid =
       body.storeId !== undefined
         ? await this.resolveStoreForAdmin(admin, body.storeId)
@@ -395,16 +398,18 @@ export class UserService implements OnModuleInit {
       where: { storeId: normalizedStoreCode },
     });
     if (!store) throw new BadRequestException('Chi nhánh không hợp lệ');
-    if (admin.role === ADMIN_ROLE && admin.storeId !== store.id) {
-      throw new ForbiddenException(
-        'Admin chỉ được gán user vào chi nhánh của mình',
-      );
+    if (this.isScopedAdmin(admin) && admin.storeId !== store.id) {
+      throw new ForbiddenException('Chỉ được gán user vào chi nhánh của mình');
     }
     return store.id;
   }
 
   private assertAdmin(user: any) {
-    if (user.role !== SUPER_ADMIN_ROLE && user.role !== ADMIN_ROLE) {
+    if (
+      user.role !== SUPER_ADMIN_ROLE &&
+      user.role !== ADMIN_ROLE &&
+      user.role !== MANAGER_ROLE
+    ) {
       throw new ForbiddenException('Không có quyền quản trị user');
     }
   }
@@ -415,17 +420,30 @@ export class UserService implements OnModuleInit {
     }
   }
 
-  private assertRoleEditable(admin: any, role: string) {
-    if (admin.role === ADMIN_ROLE && role === SUPER_ADMIN_ROLE) {
-      throw new ForbiddenException('Admin không được gán quyền SUPER_ADMIN');
+  private assertRoleEditable(admin: any, role: string, currentRole?: string) {
+    if (admin.role === SUPER_ADMIN_ROLE) {
+      return;
     }
+    if (!currentRole && role === STAFF_ROLE) {
+      return;
+    }
+    if (currentRole && role === currentRole) {
+      return;
+    }
+    throw new ForbiddenException('Chỉ SUPER_ADMIN được sửa role');
   }
 
   private adminScope(admin: any) {
-    if (admin.role === ADMIN_ROLE) {
-      return { storeId: admin.storeId };
+    if (this.isScopedAdmin(admin)) {
+      return admin.storeId
+        ? { storeId: admin.storeId }
+        : { id: '__NO_STORE__' };
     }
     return {};
+  }
+
+  private isScopedAdmin(user: any) {
+    return user.role === ADMIN_ROLE || user.role === MANAGER_ROLE;
   }
 
   private toUserDto(user: any) {
@@ -552,22 +570,7 @@ export class UserService implements OnModuleInit {
     this.assertAdmin(admin);
     const query = q?.trim();
     const stores = await this.prisma.store.findMany({
-      where: query
-        ? {
-            OR: [
-              { storeId: { contains: query, mode: 'insensitive' } },
-              { storeName: { contains: query, mode: 'insensitive' } },
-              {
-                transferAccountNumber: {
-                  contains: query,
-                  mode: 'insensitive',
-                },
-              },
-              { transferAccountName: { contains: query, mode: 'insensitive' } },
-              { transferBankName: { contains: query, mode: 'insensitive' } },
-            ],
-          }
-        : undefined,
+      where: this.adminStoreScope(admin, query),
       orderBy: { storeId: 'asc' },
       include: { _count: { select: { users: true } } },
     });
@@ -593,6 +596,7 @@ export class UserService implements OnModuleInit {
         storeId,
         storeName,
         ...this.normalizeStorePaymentFields(body),
+        ...this.normalizeMapVietinFields(body),
       },
       include: { _count: { select: { users: true } } },
     });
@@ -600,16 +604,24 @@ export class UserService implements OnModuleInit {
   }
 
   async adminUpdateStore(admin: any, currentStoreId: string, body: any) {
-    this.assertSuperAdmin(admin);
     const currentCode = this.normalizeStoreCode(currentStoreId);
     const current = await this.prisma.store.findUnique({
       where: { storeId: currentCode },
     });
     if (!current) throw new NotFoundException('Không tìm thấy store');
 
+    if (this.isScopedAdmin(admin) && current.id !== admin.storeId) {
+      throw new ForbiddenException('Không có quyền sửa showroom khác');
+    } else if (!this.isScopedAdmin(admin)) {
+      this.assertSuperAdmin(admin);
+    }
+
     const nextCode = body.storeId
       ? this.normalizeStoreCode(body.storeId)
       : current.storeId;
+    if (this.isScopedAdmin(admin) && nextCode !== current.storeId) {
+      throw new ForbiddenException('Không có quyền đổi mã showroom');
+    }
     if (nextCode !== current.storeId) {
       const existing = await this.prisma.store.findUnique({
         where: { storeId: nextCode },
@@ -630,6 +642,7 @@ export class UserService implements OnModuleInit {
                 120,
               ),
         ...this.normalizeStorePaymentFields(body),
+        ...this.normalizeMapVietinFields(body),
       },
       include: { _count: { select: { users: true } } },
     });
@@ -761,6 +774,53 @@ export class UserService implements OnModuleInit {
     };
   }
 
+  private normalizeMapVietinFields(body: any) {
+    const data: Record<string, string | null> = {};
+    if (body.mapVietinUsername !== undefined) {
+      data.mapVietinUsername = this.normalizeOptionalText(
+        body.mapVietinUsername,
+        120,
+      ) as string | null;
+    }
+    if (body.mapVietinPassword !== undefined) {
+      const password = String(body.mapVietinPassword || '').trim();
+      if (password) {
+        data.mapVietinPasswordCipher = encryptSecret(password);
+      }
+    }
+    return data;
+  }
+
+  private adminStoreScope(
+    admin: any,
+    query?: string,
+  ): Prisma.StoreWhereInput | undefined {
+    const insensitive = Prisma.QueryMode.insensitive;
+    const queryWhere = query
+      ? {
+          OR: [
+            { storeId: { contains: query, mode: insensitive } },
+            { storeName: { contains: query, mode: insensitive } },
+            {
+              transferAccountNumber: {
+                contains: query,
+                mode: insensitive,
+              },
+            },
+            { transferAccountName: { contains: query, mode: insensitive } },
+            { transferBankName: { contains: query, mode: insensitive } },
+            { mapVietinUsername: { contains: query, mode: insensitive } },
+          ],
+        }
+      : undefined;
+    const scopeWhere = this.isScopedAdmin(admin)
+      ? { id: admin.storeId || '__NO_STORE__' }
+      : undefined;
+
+    if (queryWhere && scopeWhere) return { AND: [scopeWhere, queryWhere] };
+    return queryWhere || scopeWhere;
+  }
+
   private toStoreDto(store: any) {
     return {
       id: store.id,
@@ -770,6 +830,8 @@ export class UserService implements OnModuleInit {
       transferAccountName: store.transferAccountName,
       transferBankName: store.transferBankName,
       transferBankBin: store.transferBankBin,
+      mapVietinUsername: store.mapVietinUsername,
+      hasMapVietinPassword: Boolean(store.mapVietinPasswordCipher),
       userCount: store._count?.users ?? 0,
     };
   }
