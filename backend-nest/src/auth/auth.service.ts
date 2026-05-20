@@ -8,6 +8,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './auth.dto';
+import { EmailVerificationService } from './email-verification.service';
 import {
   allowedEmailDomainMessage,
   getAllowedEmailDomains,
@@ -21,6 +22,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private emailVerificationService: EmailVerificationService,
   ) {}
 
   async passwordLogin(emailInput: string, password: string) {
@@ -34,13 +36,13 @@ export class AuthService {
 
     if (!user) {
       throw new UnauthorizedException(
-        'Tai khoan chua ton tai. Vui long dang ky truoc.',
+        'Tài khoản chưa tồn tại. Vui lòng tạo tài khoản trước.',
       );
     }
 
     if (!user.password) {
       throw new UnauthorizedException(
-        'Tai khoan chua co mat khau. Vui long dang ky de tao mat khau.',
+        'Tài khoản chưa có mật khẩu. Vui lòng tạo tài khoản trước.',
       );
     }
 
@@ -77,6 +79,11 @@ export class AuthService {
       );
     }
 
+    await this.emailVerificationService.consumeRegistrationCode(
+      email,
+      input.verificationCode,
+    );
+
     const password = await this.hashPassword(input.password);
     const user = existingUser
       ? await this.prisma.user.update({
@@ -90,6 +97,23 @@ export class AuthService {
         });
 
     return this.buildLoginResponse(user);
+  }
+
+  async sendRegistrationVerificationCode(emailInput: string) {
+    const email = this.normalizeEmail(emailInput);
+    this.assertAllowedDomain(email);
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+      select: { password: true },
+    });
+    if (existingUser?.password) {
+      throw new BadRequestException(
+        'Email này đã được đăng ký. Vui lòng đăng nhập.',
+      );
+    }
+
+    return this.emailVerificationService.sendRegistrationCode(email);
   }
 
   async getUserData(email: string) {

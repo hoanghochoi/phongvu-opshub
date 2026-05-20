@@ -188,6 +188,7 @@ class AuthProvider extends ChangeNotifier {
     String? lastName,
     required String email,
     required String password,
+    required String verificationCode,
   }) async {
     if (kDebugMode) debugPrint('[AuthProvider] Starting registration...');
     _isLoading = true;
@@ -200,6 +201,7 @@ class AuthProvider extends ChangeNotifier {
         lastName: lastName,
         email: email,
         password: password,
+        verificationCode: verificationCode,
       );
       _user = user;
 
@@ -219,6 +221,29 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       if (kDebugMode) debugPrint('[AuthProvider] Registration error: $e');
       _errorMessage = 'Dang ky that bai: $e';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> sendRegistrationVerificationCode({required String email}) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _repository.sendRegistrationVerificationCode(email: email);
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Không gửi được mã xác thực: $e';
       _isLoading = false;
       notifyListeners();
       return false;

@@ -63,6 +63,19 @@ model RoleDefinition {
   updatedAt   DateTime @updatedAt
 }
 
+model EmailVerificationCode {
+  id         String    @id @default(uuid())
+  email      String
+  purpose    String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([email, purpose, createdAt])
+}
+
 // ============================================================
 // WARRANTY (Bảo hành)
 // The "bhsc" workflow. Images stored on VPS filesystem.

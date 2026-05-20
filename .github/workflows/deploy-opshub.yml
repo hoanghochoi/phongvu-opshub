@@ -132,7 +132,7 @@ jobs:
           OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
             -f deploy/home-server/docker-compose.home.yml \
-            --profile migrate run --rm -T migrate < /dev/null
+            --profile migrate run --rm -T --build migrate < /dev/null
 
           OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
             --env-file "$OPSHUB_ENV_FILE" \

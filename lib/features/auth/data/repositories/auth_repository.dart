@@ -17,10 +17,9 @@ class AuthRepository {
     required String password,
   }) async {
     try {
-      final response = await _apiClient.post(
+      final response = await _postPublicAuth(
         ApiConstants.loginEndpoint,
         body: {'email': email, 'password': password},
-        timeout: ApiConstants.defaultTimeout,
       );
       return _userAndTokenFromResponse(_readResponseMap(response.body));
     } on ApiException {
@@ -35,9 +34,10 @@ class AuthRepository {
     String? lastName,
     required String email,
     required String password,
+    required String verificationCode,
   }) async {
     try {
-      final response = await _apiClient.post(
+      final response = await _postPublicAuth(
         ApiConstants.registerEndpoint,
         body: {
           'firstName': firstName,
@@ -45,8 +45,8 @@ class AuthRepository {
             'lastName': lastName,
           'email': email,
           'password': password,
+          'verificationCode': verificationCode,
         },
-        timeout: ApiConstants.defaultTimeout,
       );
       return _userAndTokenFromResponse(_readResponseMap(response.body));
     } on ApiException {
@@ -54,6 +54,60 @@ class AuthRepository {
     } catch (e) {
       throw ApiException('Dang ky that bai: $e');
     }
+  }
+
+  Future<void> sendRegistrationVerificationCode({required String email}) async {
+    try {
+      await _postPublicAuth(
+        ApiConstants.verificationCodeEndpoint,
+        body: {'email': email},
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Không gửi được mã xác thực: $e');
+    }
+  }
+
+  Future<http.Response> _postPublicAuth(
+    String endpoint, {
+    required Map<String, dynamic> body,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('${ApiConstants.baseUrl}$endpoint'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(ApiConstants.defaultTimeout);
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return response;
+    }
+
+    throw ApiException(
+      _messageFromResponse(response.body) ??
+          'Request thất bại: ${response.statusCode}',
+      response.statusCode,
+    );
+  }
+
+  String? _messageFromResponse(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        final message = decoded['message'];
+        if (message is String && message.trim().isNotEmpty) {
+          return message;
+        }
+        if (message is List && message.isNotEmpty) {
+          return message.join('\n');
+        }
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
   }
 
   Map<String, dynamic> _readResponseMap(String body) {

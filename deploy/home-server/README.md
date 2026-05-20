@@ -17,6 +17,10 @@ sudo mkdir -p /mnt/truenas/opshub-backups
 
 2. Copy `deploy/home-server/env.example` to `deploy/home-server/env` and replace all secrets/domain values.
 
+   Registration email verification requires SMTP settings in the env file:
+   `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, and
+   `SMTP_FROM`. For Gmail, use an app password.
+
 3. Start the stack:
 
 ```bash
