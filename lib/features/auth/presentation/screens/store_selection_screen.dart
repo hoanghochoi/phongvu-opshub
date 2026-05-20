@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -20,26 +22,45 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
   List<StoreBranch> _stores = [];
   StoreBranch? _selected;
   bool _loading = true;
+  Timer? _searchDebounce;
+  int _loadSequence = 0;
 
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(_onSearchChanged);
     _loadStores();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
+  void _onSearchChanged() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), _loadStores);
+  }
+
   Future<void> _loadStores() async {
+    final sequence = ++_loadSequence;
     setState(() => _loading = true);
     try {
       final stores = await _repository.getStores(query: _searchController.text);
-      if (mounted) setState(() => _stores = stores);
+      if (!mounted || sequence != _loadSequence) return;
+      setState(() {
+        _stores = stores;
+        if (_selected != null &&
+            !stores.any((store) => store.storeId == _selected!.storeId)) {
+          _selected = null;
+        }
+      });
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && sequence == _loadSequence) {
+        setState(() => _loading = false);
+      }
     }
   }
 
