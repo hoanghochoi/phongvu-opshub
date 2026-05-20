@@ -13,15 +13,17 @@ datasource db {
 // STORE
 // ============================================================
 model Store {
-  id                    String   @id @default(uuid())
-  storeId               String   @unique // e.g. "HCM01", "HN02"
-  storeName             String
-  transferAccountNumber String?
-  transferAccountName   String?
-  transferBankName      String?
-  transferBankBin       String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                      String   @id @default(uuid())
+  storeId                 String   @unique // e.g. "HCM01", "HN02"
+  storeName               String
+  transferAccountNumber   String?
+  transferAccountName     String?
+  transferBankName        String?
+  transferBankBin         String?
+  mapVietinUsername       String?
+  mapVietinPasswordCipher String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   users User[]
 }

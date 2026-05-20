@@ -100,9 +100,20 @@ class _VietQrScreenState extends State<VietQrScreen> {
     }
   }
 
-  int get _amountValue {
+  int? get _amountValue {
     final raw = _amountController.text.replaceAll(RegExp(r'[^0-9]'), '');
-    return int.tryParse(raw) ?? 0;
+    if (raw.isEmpty) return null;
+    return int.tryParse(raw);
+  }
+
+  String _amountLabel(int? amount) {
+    if (amount == null) return 'Người chuyển nhập';
+    return '${_currencyFormatter.format(amount)} VND';
+  }
+
+  String _contentLabel(String transferContent) {
+    if (transferContent.isEmpty) return 'Người chuyển nhập';
+    return transferContent;
   }
 
   void _formatAmount(String value) {
@@ -122,7 +133,8 @@ class _VietQrScreenState extends State<VietQrScreen> {
   String _previewContent() {
     final storeCode = _storeCodeController.text.trim();
     final orderCode = _orderCodeController.text.trim();
-    if (storeCode.isEmpty || orderCode.isEmpty) return '';
+    if (orderCode.isEmpty) return '';
+    if (storeCode.isEmpty) return orderCode.toUpperCase();
     return '$orderCode $storeCode BOT'.toUpperCase();
   }
 
@@ -173,8 +185,11 @@ class _VietQrScreenState extends State<VietQrScreen> {
     setState(() => _isSaving = true);
     try {
       final bytes = await _buildExportPng(transfer);
+      final exportName = transfer.transferContent.isEmpty
+          ? DateTime.now().millisecondsSinceEpoch.toString()
+          : transfer.transferContent;
       final fileName =
-          'vietqr_${transfer.transferContent.replaceAll(RegExp(r'[^A-Z0-9_-]'), '_')}.png';
+          'vietqr_${exportName.replaceAll(RegExp(r'[^A-Z0-9_-]'), '_')}.png';
       await _mediaChannel.invokeMethod<String>('savePngToGallery', {
         'fileName': fileName,
         'bytes': bytes,
@@ -247,6 +262,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
               controller: _amountController,
               decoration: const InputDecoration(
                 labelText: 'Số tiền',
+                hintText: 'Để trống nếu người chuyển tự nhập',
                 prefixIcon: Icon(Icons.payments_outlined),
                 suffixText: 'VND',
                 border: OutlineInputBorder(),
@@ -255,8 +271,12 @@ class _VietQrScreenState extends State<VietQrScreen> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               onChanged: _formatAmount,
               validator: (_) {
-                if (_amountValue <= 0) {
-                  return 'Vui lòng nhập số tiền';
+                final amount = _amountValue;
+                if (_amountController.text.trim().isEmpty) {
+                  return null;
+                }
+                if (amount == null || amount <= 0) {
+                  return 'Số tiền phải lớn hơn 0 hoặc để trống';
                 }
                 return null;
               },
@@ -265,7 +285,8 @@ class _VietQrScreenState extends State<VietQrScreen> {
             TextFormField(
               controller: _orderCodeController,
               decoration: InputDecoration(
-                labelText: 'Mã đơn',
+                labelText: 'Mã đơn / nội dung',
+                hintText: 'Có thể để trống để người chuyển tự nhập',
                 prefixIcon: const Icon(Icons.receipt_long_outlined),
                 suffixIcon: AppIconAction(
                   tooltip: 'Quét mã đơn',
@@ -275,12 +296,6 @@ class _VietQrScreenState extends State<VietQrScreen> {
                 border: const OutlineInputBorder(),
               ),
               textCapitalization: TextCapitalization.characters,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Vui lòng nhập mã đơn';
-                }
-                return null;
-              },
             ),
             const SizedBox(height: 14),
             TextFormField(
@@ -303,6 +318,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
               controller: _previewContentController,
               decoration: const InputDecoration(
                 labelText: 'Nội dung chuyển khoản',
+                hintText: 'Người chuyển tự nhập nếu ô này trống',
                 prefixIcon: Icon(Icons.lock_outline),
                 border: OutlineInputBorder(),
               ),
@@ -341,9 +357,12 @@ class _VietQrScreenState extends State<VietQrScreen> {
                 _InfoRow(label: 'Chủ tài khoản', value: transfer.accountName),
                 _InfoRow(
                   label: 'Số tiền',
-                  value: '${_currencyFormatter.format(transfer.amount)} VND',
+                  value: _amountLabel(transfer.amount),
                 ),
-                _InfoRow(label: 'Nội dung', value: transfer.transferContent),
+                _InfoRow(
+                  label: 'Nội dung',
+                  value: _contentLabel(transfer.transferContent),
+                ),
               ],
             ),
           ),
@@ -468,7 +487,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
     y = _drawInfo(
       canvas,
       'Số tiền',
-      '${_currencyFormatter.format(transfer.amount)} VND',
+      _amountLabel(transfer.amount),
       y,
       labelStyle,
       valueStyle,
@@ -476,7 +495,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
     _drawInfo(
       canvas,
       'Nội dung',
-      transfer.transferContent,
+      _contentLabel(transfer.transferContent),
       y,
       labelStyle,
       valueStyle,

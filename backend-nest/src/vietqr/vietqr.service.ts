@@ -6,8 +6,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface CreateVietQrInput {
-  amount: number;
-  orderCode: string;
+  amount?: number | null;
+  orderCode?: string | null;
   storeCode: string;
 }
 
@@ -16,7 +16,7 @@ export interface VietQrResponse {
   bankName: string;
   accountNumber: string;
   accountName: string;
-  amount: number;
+  amount: number | null;
   transferContent: string;
   qrPayload: string;
 }
@@ -39,27 +39,28 @@ export class VietQrService {
   async create(input: CreateVietQrInput): Promise<VietQrResponse> {
     const config = await this.getConfig(input.storeCode);
     const amount = this.normalizeAmount(input.amount);
-    const orderCode = this.normalizeText(input.orderCode, 'orderCode');
     const storeCode = this.normalizeText(input.storeCode, 'storeCode');
-    const transferContent = this.normalizeTransferContent(
-      `${orderCode} ${storeCode} BOT`,
-    );
+    const orderCode = this.normalizeOptionalText(input.orderCode);
+    const transferContent = orderCode
+      ? this.normalizeTransferContent(`${orderCode} ${storeCode} BOT`)
+      : '';
 
     const merchantAccountInfo = this.buildMerchantAccountInfo(
       config.bankBin,
       config.accountNumber,
     );
-    const additionalData = this.field('08', transferContent);
     const payloadWithoutCrc = [
       this.field('00', '01'),
       this.field('01', '12'),
       this.field('38', merchantAccountInfo),
       this.field('53', '704'),
-      this.field('54', String(amount)),
+      amount === null ? '' : this.field('54', String(amount)),
       this.field('58', 'VN'),
       this.field('59', config.accountName),
       this.field('60', config.city),
-      this.field('62', additionalData),
+      transferContent
+        ? this.field('62', this.field('08', transferContent))
+        : '',
       '6304',
     ].join('');
 
@@ -127,7 +128,10 @@ export class VietQrService {
     return (process.env[key] || '').trim();
   }
 
-  private normalizeAmount(amount: number): number {
+  private normalizeAmount(amount: number | null | undefined): number | null {
+    if (amount === null || amount === undefined) {
+      return null;
+    }
     if (!Number.isInteger(amount) || amount <= 0 || amount > 999999999999) {
       throw new BadRequestException('Số tiền VietQR không hợp lệ');
     }
@@ -140,6 +144,10 @@ export class VietQrService {
       throw new BadRequestException(`${fieldName} không được để trống`);
     }
     return normalized;
+  }
+
+  private normalizeOptionalText(value: string | null | undefined): string {
+    return this.normalizeTransferContent(value || '');
   }
 
   private normalizeTransferContent(value: string): string {

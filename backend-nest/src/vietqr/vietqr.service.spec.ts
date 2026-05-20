@@ -47,6 +47,30 @@ describe('VietQrService', () => {
     expect(result.qrPayload).toMatch(/6304[0-9A-F]{4}$/);
   });
 
+  it('creates an editable QR when amount and transfer content are blank', async () => {
+    const result = await service.create({
+      amount: null,
+      orderCode: '',
+      storeCode: 'HCM01',
+    });
+
+    expect(result.amount).toBeNull();
+    expect(result.transferContent).toBe('');
+    expect(readTopLevelEmvTags(result.qrPayload)).not.toHaveProperty('54');
+    expect(readTopLevelEmvTags(result.qrPayload)).not.toHaveProperty('62');
+  });
+
+  it('accepts arbitrary transfer content instead of only order numbers', async () => {
+    const result = await service.create({
+      amount: 150000,
+      orderCode: 'Cọc bảo hành máy A',
+      storeCode: 'HCM01',
+    });
+
+    expect(result.transferContent).toBe('COC BAO HANH MAY A HCM01 BOT');
+    expect(result.qrPayload).toContain('0828COC BAO HANH MAY A HCM01 BOT');
+  });
+
   it('rejects invalid amount', async () => {
     await expect(
       service.create({ amount: 0, orderCode: 'DH-001', storeCode: 'HCM01' }),
@@ -105,3 +129,18 @@ describe('VietQrService', () => {
     expect(result.accountNumber).toBe('18PVICU');
   });
 });
+
+function readTopLevelEmvTags(payload: string): Record<string, string> {
+  const tags: Record<string, string> = {};
+  let index = 0;
+  while (index + 4 <= payload.length) {
+    const id = payload.slice(index, index + 2);
+    const length = Number(payload.slice(index + 2, index + 4));
+    const valueStart = index + 4;
+    const valueEnd = valueStart + length;
+    tags[id] = payload.slice(valueStart, valueEnd);
+    index = valueEnd;
+    if (id === '63') break;
+  }
+  return tags;
+}

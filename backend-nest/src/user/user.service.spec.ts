@@ -7,6 +7,7 @@ describe('UserService admin store management', () => {
 
   const superAdmin = { role: 'SUPER_ADMIN' };
   const admin = { role: 'ADMIN' };
+  const manager = { role: 'MANAGER', storeId: 'store-1' };
 
   beforeEach(() => {
     prisma = {
@@ -19,8 +20,14 @@ describe('UserService admin store management', () => {
       },
       roleDefinition: {
         upsert: jest.fn(),
+        findUnique: jest.fn(),
+      },
+      user: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
       },
     };
+    process.env.JWT_SECRET = 'test-secret';
     service = new UserService(prisma, {} as any);
   });
 
@@ -40,12 +47,16 @@ describe('UserService admin store management', () => {
         transferAccountName: ' Phong Vu CP99 ',
         transferBankName: ' VietinBank ',
         transferBankBin: ' 970415 ',
+        mapVietinUsername: ' map-user ',
+        mapVietinPassword: ' map-pass ',
       }),
     ).resolves.toMatchObject({
       storeId: 'CP99',
       storeName: 'Cửa hàng CP99',
       transferAccountNumber: '123456',
       transferBankBin: '970415',
+      mapVietinUsername: 'map-user',
+      hasMapVietinPassword: true,
       userCount: 0,
     });
 
@@ -54,9 +65,65 @@ describe('UserService admin store management', () => {
         data: expect.objectContaining({
           storeId: 'CP99',
           storeName: 'Cửa hàng CP99',
+          mapVietinUsername: 'map-user',
+          mapVietinPasswordCipher: expect.stringMatching(/^v1:/),
         }),
       }),
     );
+  });
+
+  it('lets a manager update only their own store MAP credentials', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-1',
+      storeId: 'CP01',
+      storeName: 'CP01',
+      mapVietinPasswordCipher: 'old-cipher',
+    });
+    prisma.store.update.mockImplementation(async ({ data }: any) => ({
+      id: 'store-1',
+      storeId: 'CP01',
+      storeName: 'CP01',
+      ...data,
+      _count: { users: 1 },
+    }));
+
+    await expect(
+      service.adminUpdateStore(manager, 'CP01', {
+        mapVietinUsername: 'manager-map',
+        mapVietinPassword: 'new-secret',
+      }),
+    ).resolves.toMatchObject({
+      storeId: 'CP01',
+      mapVietinUsername: 'manager-map',
+      hasMapVietinPassword: true,
+    });
+
+    expect(prisma.store.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          mapVietinUsername: 'manager-map',
+          mapVietinPasswordCipher: expect.stringMatching(/^v1:/),
+        }),
+      }),
+    );
+  });
+
+  it('blocks a manager from changing user roles', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'staff@phongvu.vn',
+      firstName: 'Staff',
+      role: 'STAFF',
+      status: 'yes',
+      storeId: 'store-1',
+      store: { storeId: 'CP01', storeName: 'CP01' },
+    });
+    prisma.roleDefinition.findUnique.mockResolvedValue({ code: 'MANAGER' });
+
+    await expect(
+      service.adminUpdateUser(manager, 'user-1', { role: 'MANAGER' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
   it('blocks branch admin from mutating stores', async () => {

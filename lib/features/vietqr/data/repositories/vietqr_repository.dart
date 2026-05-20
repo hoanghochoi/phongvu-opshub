@@ -10,7 +10,7 @@ class VietQrRepository {
   VietQrRepository(this._apiClient);
 
   Future<VietQrTransfer> createTransferQr({
-    required int amount,
+    required int? amount,
     required String orderCode,
     required String storeCode,
   }) async {
