@@ -1,4 +1,4 @@
-{$OPSHUB_DOMAIN} {
+http://{$OPSHUB_DOMAIN} {
   encode gzip zstd
 
   handle_path /api/* {
