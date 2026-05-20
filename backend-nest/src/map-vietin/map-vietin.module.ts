@@ -7,5 +7,6 @@ import { MapVietinService } from './map-vietin.service';
   imports: [PrismaModule],
   controllers: [MapVietinController],
   providers: [MapVietinService],
+  exports: [MapVietinService],
 })
 export class MapVietinModule {}

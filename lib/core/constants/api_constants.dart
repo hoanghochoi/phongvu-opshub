@@ -37,6 +37,8 @@ class ApiConstants {
 
   // VietQR endpoint
   static const String vietQrEndpoint = '/vietqr';
+  static String vietQrConfirmEndpoint(String id) =>
+      '$vietQrEndpoint/$id/confirm';
 
   // FIFO Log endpoints
   static const String fifoLogMyEndpoint = '/fifo-logs/my';

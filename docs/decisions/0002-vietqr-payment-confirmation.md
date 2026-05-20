@@ -57,7 +57,9 @@ showroom and never returns the password or token through its API.
 
 ## Consequences
 
-QR generation remains low-risk and usable without bank credentials. The first
-backend probe can fetch MAP transactions for admin review, but automatic
-payment confirmation should still require matching rules, audit logging, and a
-manual fallback before marking any QR as paid.
+QR generation remains low-risk and usable without bank credentials. The backend
+stores each generated QR as a payment intent and can mark it `PAID` only when
+exactly one successful MAP transaction matches fixed amount, transfer
+content/order content, and transaction time after QR creation. Missing
+amount/content, no match, or multiple matches remain unconfirmed and require
+manual review.
