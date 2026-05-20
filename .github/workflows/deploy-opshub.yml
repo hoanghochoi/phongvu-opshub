@@ -137,7 +137,7 @@ jobs:
           OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
             -f deploy/home-server/docker-compose.home.yml \
-            up -d --build
+            up -d --build --force-recreate api caddy
 
           docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
