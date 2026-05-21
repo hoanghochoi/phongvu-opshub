@@ -21,6 +21,10 @@ import '../features/warranty/presentation/screens/warranty_screen.dart';
 import '../features/warranty/presentation/screens/warranty_main_screen.dart';
 import '../features/warranty/presentation/screens/check_warranty_screen.dart';
 import '../features/feedback/presentation/screens/feedback_screen.dart';
+import '../features/payment_monitor/data/payment_speaker.dart';
+import '../features/payment_monitor/data/repositories/payment_monitor_repository.dart';
+import '../features/payment_monitor/presentation/providers/payment_monitor_provider.dart';
+import '../features/payment_monitor/presentation/screens/payment_monitor_screen.dart';
 import '../features/vietqr/presentation/screens/vietqr_screen.dart';
 import '../features/fifo/presentation/screens/fifo_menu_screen.dart';
 import '../features/fifo/presentation/screens/fifo_history_screen.dart';
@@ -48,6 +52,27 @@ class App extends StatelessWidget {
         ),
         ChangeNotifierProvider(
           create: (_) => SortProvider(SortRepository(ApiClient())),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, PaymentMonitorProvider>(
+          create: (_) => PaymentMonitorProvider(
+            PaymentMonitorRepository(ApiClient()),
+            PaymentSpeaker(),
+          ),
+          update: (_, auth, monitor) {
+            final provider =
+                monitor ??
+                PaymentMonitorProvider(
+                  PaymentMonitorRepository(ApiClient()),
+                  PaymentSpeaker(),
+                );
+            Future.microtask(
+              () => provider.syncAuth(
+                auth.user,
+                isInitialized: auth.isInitialized,
+              ),
+            );
+            return provider;
+          },
         ),
       ],
       child: MaterialApp(
@@ -89,6 +114,7 @@ class App extends StatelessWidget {
           '/warranty': (context) => const WarrantyScreen(),
           '/check-warranty': (context) => const CheckWarrantyScreen(),
           '/feedback': (context) => const FeedbackScreen(),
+          '/payment-monitor': (context) => const PaymentMonitorScreen(),
           '/vietqr': (context) => const VietQrScreen(),
           '/sort': (context) => const SortScreen(),
           '/fifo-history': (context) => const FifoHistoryScreen(),

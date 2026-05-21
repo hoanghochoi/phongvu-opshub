@@ -77,3 +77,22 @@ export class SearchMapVietinTransactionsDto {
   @Max(100)
   size?: number;
 }
+
+export class ListStoredMapVietinTransactionsDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  storeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  afterFirstSeenAt?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+}
