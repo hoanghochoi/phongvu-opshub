@@ -52,7 +52,7 @@ describe('AppVersionService', () => {
           APP_WINDOWS_APP_BUILD_NUMBER: '43',
           APP_WINDOWS_APP_MIN_SUPPORTED_BUILD: '43',
           APP_WINDOWS_APP_UPDATE_URL:
-            'https://opshub.hoanghochoi.com/downloads/app-windows.zip',
+            'https://opshub.hoanghochoi.com/downloads/app-windows-setup.exe',
           APP_WINDOWS_APP_RELEASE_NOTES: 'Windows fixes',
           APP_WINDOWS_APP_FORCE_UPDATE: 'true',
         },
@@ -63,7 +63,7 @@ describe('AppVersionService', () => {
       latestVersion: '1.2.4',
       latestBuild: 43,
       minSupportedBuild: 43,
-      updateUrl: 'https://opshub.hoanghochoi.com/downloads/app-windows.zip',
+      updateUrl: 'https://opshub.hoanghochoi.com/downloads/app-windows-setup.exe',
       releaseNotes: 'Windows fixes',
       forceUpdate: true,
     });

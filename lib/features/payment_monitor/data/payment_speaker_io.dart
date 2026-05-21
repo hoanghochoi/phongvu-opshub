@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/logging/app_logger.dart';
@@ -67,7 +68,8 @@ class PaymentSpeaker {
   Future<void> _playTingTing() async {
     final player = AudioPlayer();
     try {
-      await player.play(AssetSource('data/ting ting.mp3'));
+      final asset = await rootBundle.load('data/ting_ting.mp3');
+      await player.play(BytesSource(asset.buffer.asUint8List()));
       await player.onPlayerComplete.first.timeout(const Duration(seconds: 5));
     } finally {
       await player.dispose();

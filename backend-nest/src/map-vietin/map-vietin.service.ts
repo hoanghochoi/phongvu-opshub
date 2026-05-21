@@ -148,18 +148,49 @@ export class MapVietinService {
     const afterFirstSeenAt = input.afterFirstSeenAt
       ? this.parseDate(input.afterFirstSeenAt, 'afterFirstSeenAt')
       : null;
+    const localDateRange = input.date
+      ? this.parseVietnamDateRange(input.date)
+      : null;
+    const limit = input.limit ?? 10;
+    const page = input.page ?? 0;
     const where: Prisma.MapVietinTransactionWhereInput = {
       storeCode: store.storeId,
       ...(afterFirstSeenAt ? { firstSeenAt: { gt: afterFirstSeenAt } } : {}),
+      ...(localDateRange
+        ? {
+            OR: [
+              {
+                paidAt: {
+                  gte: localDateRange.start,
+                  lt: localDateRange.end,
+                },
+              },
+              {
+                paidAt: null,
+                firstSeenAt: {
+                  gte: localDateRange.start,
+                  lt: localDateRange.end,
+                },
+              },
+            ],
+          }
+        : {}),
     };
-    const rows = await this.prisma.mapVietinTransaction.findMany({
-      where,
-      orderBy: { firstSeenAt: 'desc' },
-      take: input.limit ?? 50,
-    });
+    const [rows, total] = await Promise.all([
+      this.prisma.mapVietinTransaction.findMany({
+        where,
+        orderBy: [{ paidAt: 'desc' }, { firstSeenAt: 'desc' }],
+        skip: page * limit,
+        take: limit,
+      }),
+      this.prisma.mapVietinTransaction.count({ where }),
+    ]);
 
     return {
       storeId: store.storeId,
+      page,
+      limit,
+      total,
       list: rows.map((row) => this.toStoredTransactionDto(row)),
     };
   }
@@ -541,6 +572,22 @@ export class MapVietinService {
       throw new BadRequestException(`${fieldName} không hợp lệ`);
     }
     return parsed;
+  }
+
+  private parseVietnamDateRange(value: string) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!match) {
+      throw new BadRequestException('date khÃ´ng há»£p lá»‡');
+    }
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const start = new Date(Date.UTC(year, month - 1, day, -7, 0, 0, 0));
+    const end = new Date(Date.UTC(year, month - 1, day + 1, -7, 0, 0, 0));
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      throw new BadRequestException('date khÃ´ng há»£p lá»‡');
+    }
+    return { start, end };
   }
 
   private assertCanSearch(admin: any) {

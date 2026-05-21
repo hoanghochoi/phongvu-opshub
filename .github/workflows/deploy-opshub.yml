@@ -24,6 +24,8 @@ jobs:
       version_code: ${{ steps.version.outputs.version_code }}
       apk_name: ${{ steps.version.outputs.apk_name }}
       windows_zip_name: ${{ steps.version.outputs.windows_zip_name }}
+      windows_installer_basename: ${{ steps.version.outputs.windows_installer_basename }}
+      windows_installer_name: ${{ steps.version.outputs.windows_installer_name }}
       release_notes: ${{ steps.version.outputs.release_notes }}
     steps:
       - name: Compute release version
@@ -36,12 +38,16 @@ jobs:
           version_code="$((100000 + GITHUB_RUN_NUMBER))"
           apk_name="phongvu-opshub-v${version_name}+${version_code}.apk"
           windows_zip_name="phongvu-opshub-windows-v${version_name}+${version_code}.zip"
+          windows_installer_basename="phongvu-opshub-windows-setup-v${version_name}+${version_code}"
+          windows_installer_name="${windows_installer_basename}.exe"
           release_notes="GitHub ${GITHUB_SHA::7}"
           echo "version_name=${version_name}" >> "$GITHUB_OUTPUT"
           echo "windows_build_name=${windows_build_name}" >> "$GITHUB_OUTPUT"
           echo "version_code=${version_code}" >> "$GITHUB_OUTPUT"
           echo "apk_name=${apk_name}" >> "$GITHUB_OUTPUT"
           echo "windows_zip_name=${windows_zip_name}" >> "$GITHUB_OUTPUT"
+          echo "windows_installer_basename=${windows_installer_basename}" >> "$GITHUB_OUTPUT"
+          echo "windows_installer_name=${windows_installer_name}" >> "$GITHUB_OUTPUT"
           echo "release_notes=${release_notes}" >> "$GITHUB_OUTPUT"
 
   build_android:
@@ -128,11 +134,33 @@ jobs:
             -DestinationPath $zipPath `
             -Force
 
-      - name: Upload Windows artifact
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            $iscc = "iscc"
+          }
+          $releaseDir = (Resolve-Path "build\windows\x64\runner\Release").Path
+          $outputDir = (Resolve-Path "build\windows\x64\runner").Path
+          & $iscc `
+            "/DAppVersion=${{ needs.prepare.outputs.version_name }}" `
+            "/DSourceDir=$releaseDir" `
+            "/DOutputDir=$outputDir" `
+            "/DOutputBaseFilename=${{ needs.prepare.outputs.windows_installer_basename }}" `
+            "deploy\windows\phongvu-opshub.iss"
+
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: windows-zip
-          path: build/windows/x64/runner/${{ needs.prepare.outputs.windows_zip_name }}
+          name: windows-client
+          path: |
+            build/windows/x64/runner/${{ needs.prepare.outputs.windows_zip_name }}
+            build/windows/x64/runner/${{ needs.prepare.outputs.windows_installer_name }}
           if-no-files-found: error
 
   deploy:
@@ -154,7 +182,7 @@ jobs:
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
-          name: windows-zip
+          name: windows-client
           path: dist/windows
 
       - name: Configure SSH
@@ -195,6 +223,8 @@ jobs:
             "opshub-vps:/srv/opshub/downloads/${{ needs.prepare.outputs.apk_name }}"
           scp "dist/windows/${{ needs.prepare.outputs.windows_zip_name }}" \
             "opshub-vps:/srv/opshub/downloads/${{ needs.prepare.outputs.windows_zip_name }}"
+          scp "dist/windows/${{ needs.prepare.outputs.windows_installer_name }}" \
+            "opshub-vps:/srv/opshub/downloads/${{ needs.prepare.outputs.windows_installer_name }}"
 
       - name: Deploy backend and publish version metadata
         shell: bash
@@ -202,7 +232,7 @@ jobs:
           set -euo pipefail
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
           android_update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.apk_name }}"
-          windows_update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.windows_zip_name }}"
+          windows_update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.windows_installer_name }}"
           ssh opshub-vps \
             "REMOTE_RELEASE_DIR='$remote_release_dir' \
              CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
@@ -283,10 +313,10 @@ jobs:
             rm -rf "$dir"
           done
 
-          mapfile -t client_files < <(find /srv/opshub/downloads -maxdepth 1 -type f \( -name 'phongvu-opshub-v*.apk' -o -name 'phongvu-opshub-windows-v*.zip' \) -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
+          mapfile -t client_files < <(find /srv/opshub/downloads -maxdepth 1 -type f \( -name 'phongvu-opshub-v*.apk' -o -name 'phongvu-opshub-windows-v*.zip' -o -name 'phongvu-opshub-windows-setup-v*.exe' \) -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
           kept=0
           for file in "${client_files[@]}"; do
-            if [ "$kept" -lt 10 ]; then
+            if [ "$kept" -lt 15 ]; then
               kept=$((kept + 1))
               continue
             fi
@@ -326,7 +356,9 @@ jobs:
             if (!String(android.updateUrl || '').endsWith('.apk')) {
               throw new Error('Android updateUrl is not an APK');
             }
-            if (!String(windows.updateUrl || '').endsWith('.zip')) {
-              throw new Error('Windows updateUrl is not a ZIP');
+            if (!String(windows.updateUrl || '').endsWith('.exe')) {
+              throw new Error('Windows updateUrl is not an installer EXE');
             }
           " "$android_json" "$windows_json" "${{ needs.prepare.outputs.version_code }}"
+          curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$android_json")" >/dev/null
+          curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$windows_json")" >/dev/null
