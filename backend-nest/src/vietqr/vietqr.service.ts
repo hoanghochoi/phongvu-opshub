@@ -33,6 +33,76 @@ type MapTransaction = Record<string, unknown>;
 
 @Injectable()
 export class VietQrService {
+  private readonly mapAmountKeys = [
+    'amount',
+    'txnAmount',
+    'transactionAmount',
+    'paymentAmount',
+    'paidAmount',
+    'totalAmount',
+    'transAmount',
+    'txnAmt',
+  ];
+  private readonly mapContentKeys = [
+    'transactionDescription',
+    'description',
+    'content',
+    'transferContent',
+    'addInfo',
+    'additionalInfo',
+    'remark',
+    'remarks',
+    'txnDesc',
+    'txnRemark',
+    'transactionContent',
+    'paymentContent',
+  ];
+  private readonly mapStatusKeys = [
+    'statusText',
+    'status',
+    'statusName',
+    'transactionStatus',
+    'transactionStatusName',
+    'txnStatus',
+    'txnStatusName',
+    'paymentStatus',
+    'paymentStatusName',
+  ];
+  private readonly mapTransactionNumberKeys = [
+    'transactionNumber',
+    'txnNumber',
+    'tranNumber',
+    'transactionNo',
+    'txnNo',
+  ];
+  private readonly mapTransactionTimeKeys = [
+    'tranTime',
+    'txnDate',
+    'transactionDate',
+    'transactionTime',
+    'paymentDate',
+    'createdDate',
+  ];
+  private readonly mapPayerNameKeys = [
+    'payerName',
+    'payerFullName',
+    'senderName',
+    'senderFullName',
+    'fromAccountName',
+    'debitAccountName',
+    'customerName',
+    'buyerName',
+  ];
+  private readonly mapPayerAccountKeys = [
+    'payerAccount',
+    'payerAccountNo',
+    'senderAccount',
+    'senderAccountNo',
+    'fromAccount',
+    'fromAccountNo',
+    'debitAccount',
+    'debitAccountNo',
+  ];
   private readonly bankBinsByName: Record<string, string> = {
     VIETINBANK: '970415',
     ICB: '970415',
@@ -120,6 +190,11 @@ export class VietQrService {
         confirmed: true,
         reason: 'ALREADY_CONFIRMED',
         matchedTransactionNumber: intent.matchedTransactionNumber,
+        matchedAmount: intent.matchedAmount,
+        matchedTranTime: intent.matchedTranTime,
+        matchedPayerName: intent.matchedPayerName,
+        matchedPayerAccount: intent.matchedPayerAccount,
+        matchedTransactionContent: intent.matchedTransactionContent,
         confirmedAt: intent.confirmedAt,
       };
     }
@@ -158,9 +233,21 @@ export class VietQrService {
         data: {
           status: 'PAID',
           matchedTransactionId: this.readText(match, 'id'),
-          matchedTransactionNumber: this.readText(match, 'transactionNumber'),
+          matchedTransactionNumber: this.readFirstText(
+            match,
+            this.mapTransactionNumberKeys,
+          ),
           matchedAmount: this.readAmount(match),
           matchedTranTime,
+          matchedPayerName: this.readFirstText(match, this.mapPayerNameKeys),
+          matchedPayerAccount: this.readFirstText(
+            match,
+            this.mapPayerAccountKeys,
+          ),
+          matchedTransactionContent: this.readFirstText(
+            match,
+            this.mapContentKeys,
+          ),
           confirmedAt: now,
           lastCheckedAt: now,
           lastCheckResult: this.buildCheckResult('MATCHED', matches.length),
@@ -175,6 +262,9 @@ export class VietQrService {
         matchedTransactionNumber: updated.matchedTransactionNumber,
         matchedAmount: updated.matchedAmount,
         matchedTranTime: updated.matchedTranTime,
+        matchedPayerName: updated.matchedPayerName,
+        matchedPayerAccount: updated.matchedPayerAccount,
+        matchedTransactionContent: updated.matchedTransactionContent,
         confirmedAt: updated.confirmedAt,
       };
     }
@@ -190,10 +280,15 @@ export class VietQrService {
 
   private async assertCanAccessIntent(user: any, storeCode: string) {
     if (user.role === 'SUPER_ADMIN') return;
-    if (!user.storeId) throw new ForbiddenException('Tài khoản chưa có showroom');
-    const store = await this.prisma.store.findUnique({ where: { id: user.storeId } });
+    if (!user.storeId)
+      throw new ForbiddenException('Tài khoản chưa có showroom');
+    const store = await this.prisma.store.findUnique({
+      where: { id: user.storeId },
+    });
     if (!store || store.storeId !== storeCode) {
-      throw new ForbiddenException('Không có quyền xác nhận QR của showroom khác');
+      throw new ForbiddenException(
+        'Không có quyền xác nhận QR của showroom khác',
+      );
     }
   }
 
@@ -233,7 +328,7 @@ export class VietQrService {
 
   private transactionContentMatches(row: MapTransaction, intent: any) {
     const transactionContent = this.normalizeMatchText(
-      this.readText(row, 'transactionDescription'),
+      this.readFirstText(row, this.mapContentKeys),
     );
     const transferContent = this.normalizeMatchText(intent.transferContent);
 
@@ -243,13 +338,20 @@ export class VietQrService {
   }
 
   private isSuccessfulTransaction(row: MapTransaction) {
-    const statusText = this.normalizeMatchText(
-      `${this.readText(row, 'statusText')} ${this.readText(row, 'status')}`,
-    );
+    const statusValues = this.mapStatusKeys
+      .map((key) => this.readText(row, key))
+      .filter(Boolean);
+    const statusText = this.normalizeMatchText(statusValues.join(' '));
+    const statusCodes = statusValues.map((value) => value.trim().toUpperCase());
+
     return (
       statusText.includes('THANH CONG') ||
       statusText.includes('SUCCESS') ||
-      statusText.includes('DA THANH TOAN')
+      statusText.includes('DA THANH TOAN') ||
+      statusText.includes('HOAN THANH') ||
+      statusText.includes('COMPLETED') ||
+      statusText.includes('APPROVED') ||
+      statusCodes.includes('00')
     );
   }
 
@@ -258,30 +360,44 @@ export class VietQrService {
     return value === null || value === undefined ? '' : String(value).trim();
   }
 
+  private readFirstText(row: MapTransaction, keys: string[]) {
+    for (const key of keys) {
+      const value = this.readText(row, key);
+      if (value) return value;
+    }
+    return '';
+  }
+
   private readAmount(row: MapTransaction) {
-    const value = row.amount;
-    if (typeof value === 'number') return Math.trunc(value);
-    const normalized = String(value || '').replace(/[^0-9]/g, '');
-    return normalized ? Number(normalized) : null;
+    for (const key of this.mapAmountKeys) {
+      const value = row[key];
+      if (typeof value === 'number') return Math.trunc(value);
+      const normalized = String(value || '').replace(/[^0-9]/g, '');
+      if (normalized) return Number(normalized);
+    }
+    return null;
   }
 
   private readTransactionTime(row: MapTransaction) {
-    const raw = this.readText(row, 'tranTime') || this.readText(row, 'txnDate');
+    const raw = this.readFirstText(row, this.mapTransactionTimeKeys);
     if (!raw) return null;
-    const match = /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(
-      raw,
-    );
+    const match =
+      /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(
+        raw,
+      );
     if (!match) {
       const parsed = new Date(raw);
       return Number.isNaN(parsed.getTime()) ? null : parsed;
     }
     return new Date(
-      Number(match[3]),
-      Number(match[2]) - 1,
-      Number(match[1]),
-      Number(match[4] || '0'),
-      Number(match[5] || '0'),
-      Number(match[6] || '0'),
+      Date.UTC(
+        Number(match[3]),
+        Number(match[2]) - 1,
+        Number(match[1]),
+        Number(match[4] || '0') - 7,
+        Number(match[5] || '0'),
+        Number(match[6] || '0'),
+      ),
     );
   }
 
@@ -302,10 +418,11 @@ export class VietQrService {
   }
 
   private formatMapDate(value: Date) {
+    const vietnamTime = new Date(value.getTime() + 7 * 60 * 60 * 1000);
     return [
-      String(value.getDate()).padStart(2, '0'),
-      String(value.getMonth() + 1).padStart(2, '0'),
-      value.getFullYear(),
+      String(vietnamTime.getUTCDate()).padStart(2, '0'),
+      String(vietnamTime.getUTCMonth() + 1).padStart(2, '0'),
+      vietnamTime.getUTCFullYear(),
     ].join('/');
   }
 

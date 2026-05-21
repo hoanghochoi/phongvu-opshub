@@ -20,16 +20,22 @@ a customer to scan and pay manually.
   image locally from the returned EMV payload.
 - The backend owns the bank BIN, account number, account name, and merchant
   city through environment configuration.
-- OpsHub does not mark an order as paid automatically yet.
 - Admin backend can probe VietinBank MAP payment transactions for a configured
   showroom so the next reconciliation step can match by amount, transfer
   content, success status, and time window.
 - Each generated QR is stored as a payment intent so staff can run payment
   confirmation after showing the QR to the customer.
+- The QR result screen automatically checks payment status while the screen is
+  open when amount and transfer content are fixed. Staff can also tap `Kiểm tra
+  ngay` to run the same check immediately.
+- Once payment is confirmed, the app hides the QR and shows a green success
+  state with MAP transaction details when available: payer, received amount,
+  transfer content, transaction number, and transaction time.
 - Payment confirmation marks the intent as `PAID` only when exactly one
-  VietinBank MAP transaction matches fixed amount, transfer content/order
-  content, successful transaction status, and transaction time after QR
-  creation. Missing amount/content, no match, or multiple matches remain
+  VietinBank MAP transaction matches fixed amount, transfer content contained
+  in the MAP transfer content, successful transaction status, and transaction
+  time after QR creation. MAP transaction timestamps are interpreted as Vietnam
+  local time. Missing amount/content, no match, or multiple matches remain
   unconfirmed and require manual review.
 
 ## Payment Confirmation Research

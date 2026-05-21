@@ -95,7 +95,8 @@ The repository includes `.github/workflows/deploy-opshub.yml`. On every push to
 - `--build-number 100000+<github-run-number>`
 
 Then it uploads the APK to `/srv/opshub/downloads/`, updates the backend
-`APP_*` env values, runs Prisma migrations, and rebuilds the Docker stack.
+`APP_*` env values, runs Prisma migrations, rebuilds the Docker stack, and
+keeps only the five newest release folders and APK downloads.
 
 Required GitHub repository secrets:
 
@@ -103,3 +104,11 @@ Required GitHub repository secrets:
 - `OPSHUB_VPS_SSH_KEY` - private SSH key allowed to deploy as the VPS user.
 - `OPSHUB_VPS_USER` - optional, defaults to `ubuntu`.
 - `OPSHUB_VPS_PORT` - optional, defaults to `22`.
+- `ANDROID_KEYSTORE_BASE64` - base64 text of the Android release keystore.
+- `ANDROID_KEYSTORE_PASSWORD` - Android release keystore password.
+- `ANDROID_KEY_ALIAS` - Android release key alias.
+- `ANDROID_KEY_PASSWORD` - Android release key password.
+
+The Android signing secrets must stay stable across releases. If the APK is
+signed with a different key, Android will reject in-place updates with
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE` and users must uninstall the old app.

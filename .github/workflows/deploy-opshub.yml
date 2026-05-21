@@ -41,8 +41,32 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Build release APK
+      - name: Configure Android signing
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
+          set -euo pipefail
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "ANDROID_KEYSTORE_BASE64 secret is required for upgrade-safe release APK signing." >&2
+            exit 1
+          fi
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+
+      - name: Build release APK
+        env:
+          ANDROID_KEYSTORE_PATH: upload-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for key in ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!key}" ]; then
+              echo "$key secret is required for upgrade-safe release APK signing." >&2
+              exit 1
+            fi
+          done
           flutter pub get
           flutter build apk --release \
             --build-name "${{ steps.version.outputs.version_name }}" \
@@ -142,6 +166,29 @@ jobs:
           docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
             -f deploy/home-server/docker-compose.home.yml ps
+
+          releases_dir="$(dirname "$REMOTE_RELEASE_DIR")"
+          current_real="$(readlink -f "$CURRENT_DIR" || true)"
+          mapfile -t release_dirs < <(find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
+          kept=0
+          for dir in "${release_dirs[@]}"; do
+            dir_real="$(readlink -f "$dir")"
+            if [ "$dir_real" = "$current_real" ] || [ "$kept" -lt 5 ]; then
+              kept=$((kept + 1))
+              continue
+            fi
+            rm -rf "$dir"
+          done
+
+          mapfile -t apk_files < <(find /srv/opshub/downloads -maxdepth 1 -type f -name 'phongvu-opshub-v*.apk' -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
+          kept=0
+          for apk in "${apk_files[@]}"; do
+            if [ "$kept" -lt 5 ]; then
+              kept=$((kept + 1))
+              continue
+            fi
+            rm -f "$apk"
+          done
           REMOTE
 
       - name: Verify public health and version metadata

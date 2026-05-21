@@ -185,6 +185,8 @@ describe('VietQrService', () => {
           amount: 150000,
           statusText: 'Thành công',
           transactionDescription: 'IBFT 123 DH-001 CP62 BOT 456',
+          senderName: 'Nguyen Van A',
+          senderAccount: '123456789',
           tranTime: '20/05/2026 17:05:00',
         },
       ],
@@ -199,9 +201,14 @@ describe('VietQrService', () => {
       reason: 'MATCHED',
       matchedTransactionNumber: 'txn-1',
       matchedAmount: 150000,
+      matchedPayerName: 'Nguyen Van A',
+      matchedPayerAccount: '123456789',
+      matchedTransactionContent: 'IBFT 123 DH-001 CP62 BOT 456',
     });
 
-    expect(mapVietinService.searchTransactionsForStoreCode).toHaveBeenCalledWith(
+    expect(
+      mapVietinService.searchTransactionsForStoreCode,
+    ).toHaveBeenCalledWith(
       'CP62',
       expect.objectContaining({
         amount: '150000',
@@ -216,9 +223,63 @@ describe('VietQrService', () => {
           matchedTransactionId: 'map-id-1',
           matchedTransactionNumber: 'txn-1',
           matchedAmount: 150000,
+          matchedPayerName: 'Nguyen Van A',
+          matchedPayerAccount: '123456789',
+          matchedTransactionContent: 'IBFT 123 DH-001 CP62 BOT 456',
         }),
       }),
     );
+  });
+
+  it('confirms MAP rows that use Vietnam-local time and alternate field names', async () => {
+    const nowSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2026-05-20T14:10:00.000Z').getTime());
+    prisma.vietQrPaymentIntent.findUnique.mockResolvedValue({
+      id: 'payment-1',
+      storeCode: 'CP62',
+      amount: 150000,
+      orderCode: 'DH-001',
+      transferContent: 'DH-001 CP62 BOT',
+      status: 'PENDING',
+      createdAt: new Date('2026-05-20T14:00:00.000Z'),
+    });
+    prisma.vietQrPaymentIntent.update.mockImplementation(async ({ data }) => ({
+      id: 'payment-1',
+      ...data,
+    }));
+    mapVietinService.searchTransactionsForStoreCode.mockResolvedValue({
+      total: 1,
+      list: [
+        {
+          id: 'map-id-1',
+          txnNumber: 'txn-1',
+          txnAmount: '150,000',
+          statusName: 'Hoàn thành',
+          paymentContent: 'MAP DH-001 CP62 BOT extra',
+          payerName: 'Tran Thi B',
+          payerAccountNo: '987654321',
+          txnDate: '20/05/2026 21:05:00',
+        },
+      ],
+    });
+
+    try {
+      await expect(
+        service.confirmPayment({ role: 'SUPER_ADMIN' }, 'payment-1'),
+      ).resolves.toMatchObject({
+        status: 'PAID',
+        confirmed: true,
+        matchedTransactionNumber: 'txn-1',
+        matchedAmount: 150000,
+        matchedTranTime: new Date('2026-05-20T14:05:00.000Z'),
+        matchedPayerName: 'Tran Thi B',
+        matchedPayerAccount: '987654321',
+        matchedTransactionContent: 'MAP DH-001 CP62 BOT extra',
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   it('does not confirm when only order code fields match without transfer content', async () => {
@@ -281,7 +342,9 @@ describe('VietQrService', () => {
       confirmed: false,
       reason: 'MISSING_MATCH_FIELDS',
     });
-    expect(mapVietinService.searchTransactionsForStoreCode).not.toHaveBeenCalled();
+    expect(
+      mapVietinService.searchTransactionsForStoreCode,
+    ).not.toHaveBeenCalled();
   });
 
   it('keeps payment unconfirmed when multiple MAP transactions match', async () => {

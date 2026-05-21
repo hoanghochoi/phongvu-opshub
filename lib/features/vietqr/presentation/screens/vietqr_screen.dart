@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -24,6 +25,8 @@ class VietQrScreen extends StatefulWidget {
 class _VietQrScreenState extends State<VietQrScreen> {
   static const _mediaChannel = MethodChannel('phongvu_opshub/media');
   static const _logoAsset = 'assets/images/vietqr_logo.jpg';
+  static const _paymentPollInterval = Duration(seconds: 10);
+  static const _paymentPollMaxAttempts = 36;
 
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
@@ -34,9 +37,12 @@ class _VietQrScreenState extends State<VietQrScreen> {
   late final VietQrRepository _repository;
   VietQrTransfer? _transfer;
   VietQrPaymentConfirmation? _paymentConfirmation;
+  Timer? _paymentPollingTimer;
   bool _isLoading = false;
   bool _isSaving = false;
   bool _isCheckingPayment = false;
+  int _paymentPollAttempts = 0;
+  bool _hasShownPaymentReceived = false;
 
   @override
   void initState() {
@@ -52,6 +58,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
 
   @override
   void dispose() {
+    _stopPaymentPolling();
     _amountController.dispose();
     _orderCodeController.dispose();
     _storeCodeController.dispose();
@@ -71,10 +78,13 @@ class _VietQrScreenState extends State<VietQrScreen> {
   Future<void> _createQr() async {
     if (!_formKey.currentState!.validate()) return;
 
+    _stopPaymentPolling();
     setState(() {
       _isLoading = true;
       _transfer = null;
       _paymentConfirmation = null;
+      _paymentPollAttempts = 0;
+      _hasShownPaymentReceived = false;
     });
 
     try {
@@ -86,6 +96,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
 
       if (mounted) {
         setState(() => _transfer = transfer);
+        _startPaymentPolling(transfer);
       }
     } catch (e) {
       if (mounted) {
@@ -142,41 +153,99 @@ class _VietQrScreenState extends State<VietQrScreen> {
   }
 
   void _createNewQr() {
+    _stopPaymentPolling();
     setState(() {
       _transfer = null;
       _paymentConfirmation = null;
       _amountController.clear();
       _orderCodeController.clear();
+      _paymentPollAttempts = 0;
+      _hasShownPaymentReceived = false;
     });
   }
 
   Future<void> _confirmPayment() async {
-    final transfer = _transfer;
-    if (transfer == null || transfer.id.isEmpty || _isCheckingPayment) return;
+    await _checkPayment(showFeedback: true);
+  }
 
-    setState(() => _isCheckingPayment = true);
+  void _startPaymentPolling(VietQrTransfer transfer) {
+    _stopPaymentPolling();
+    if (!_canAutoConfirm(transfer)) return;
+    _paymentPollAttempts = 0;
+    _hasShownPaymentReceived = false;
+    _checkPayment();
+    _paymentPollingTimer = Timer.periodic(
+      _paymentPollInterval,
+      (_) => _checkPayment(),
+    );
+  }
+
+  void _stopPaymentPolling() {
+    _paymentPollingTimer?.cancel();
+    _paymentPollingTimer = null;
+  }
+
+  bool _canAutoConfirm(VietQrTransfer transfer) {
+    return transfer.id.isNotEmpty &&
+        transfer.amount != null &&
+        transfer.transferContent.trim().isNotEmpty;
+  }
+
+  bool get _hasConfirmedPayment => _paymentConfirmation?.confirmed == true;
+
+  bool _shouldStopAutoCheck(VietQrPaymentConfirmation confirmation) {
+    return confirmation.confirmed ||
+        confirmation.reason == 'MISSING_MATCH_FIELDS' ||
+        confirmation.reason == 'MULTIPLE_MATCHES';
+  }
+
+  Future<void> _checkPayment({bool showFeedback = false}) async {
+    final transfer = _transfer;
+    if (transfer == null ||
+        transfer.id.isEmpty ||
+        _isCheckingPayment ||
+        _hasConfirmedPayment) {
+      return;
+    }
+    if (!showFeedback && _paymentPollAttempts >= _paymentPollMaxAttempts) {
+      _stopPaymentPolling();
+      return;
+    }
+
+    setState(() {
+      _isCheckingPayment = true;
+      _paymentPollAttempts += 1;
+    });
     try {
       final confirmation = await _repository.confirmPayment(transfer.id);
       if (!mounted) return;
       setState(() => _paymentConfirmation = confirmation);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            confirmation.confirmed
-                ? 'Đã xác nhận thanh toán'
-                : _confirmationMessage(confirmation),
-          ),
-          backgroundColor: confirmation.confirmed ? Colors.green : null,
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
+      if (_shouldStopAutoCheck(confirmation)) {
+        _stopPaymentPolling();
+      }
+      if (confirmation.confirmed && !_hasShownPaymentReceived) {
+        _hasShownPaymentReceived = true;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Không xác nhận được thanh toán: $e'),
-            backgroundColor: Colors.red,
+          const SnackBar(
+            content: Text('Đã nhận thanh toán'),
+            backgroundColor: Colors.green,
           ),
         );
+      } else if (showFeedback) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_confirmationMessage(confirmation))),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        if (showFeedback) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Không xác nhận được thanh toán: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) setState(() => _isCheckingPayment = false);
@@ -376,58 +445,77 @@ class _VietQrScreenState extends State<VietQrScreen> {
   }
 
   Widget _buildResultView(VietQrTransfer transfer) {
+    final confirmed = _hasConfirmedPayment;
+    final canAutoConfirm = _canAutoConfirm(transfer);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _QrWithLogo(size: 280, transfer: transfer),
-                const SizedBox(height: 20),
-                _InfoRow(label: 'Ngân hàng', value: transfer.bankName),
-                _InfoRow(label: 'Số tài khoản', value: transfer.accountNumber),
-                _InfoRow(label: 'Chủ tài khoản', value: transfer.accountName),
-                _InfoRow(
-                  label: 'Số tiền',
-                  value: _amountLabel(transfer.amount),
-                ),
-                _InfoRow(
-                  label: 'Nội dung',
-                  value: _contentLabel(transfer.transferContent),
-                ),
-              ],
+        if (confirmed && _paymentConfirmation != null)
+          _PaymentSuccessPanel(
+            confirmation: _paymentConfirmation!,
+            amountFormatter: _currencyFormatter,
+          )
+        else
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _QrWithLogo(size: 280, transfer: transfer),
+                  const SizedBox(height: 20),
+                  _InfoRow(label: 'Ngân hàng', value: transfer.bankName),
+                  _InfoRow(
+                    label: 'Số tài khoản',
+                    value: transfer.accountNumber,
+                  ),
+                  _InfoRow(label: 'Chủ tài khoản', value: transfer.accountName),
+                  _InfoRow(
+                    label: 'Số tiền',
+                    value: _amountLabel(transfer.amount),
+                  ),
+                  _InfoRow(
+                    label: 'Nội dung',
+                    value: _contentLabel(transfer.transferContent),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
         const SizedBox(height: 16),
-        if (_paymentConfirmation != null) ...[
+        if (_paymentConfirmation != null && !confirmed) ...[
           _PaymentConfirmationCard(
             confirmation: _paymentConfirmation!,
             amountFormatter: _currencyFormatter,
           ),
           const SizedBox(height: 16),
+        ] else if (canAutoConfirm) ...[
+          _PaymentWaitingCard(isChecking: _isCheckingPayment),
+          const SizedBox(height: 16),
         ],
-        AppPrimaryButton(
-          onPressed: _confirmPayment,
-          icon: Icons.verified_rounded,
-          label: 'Xác nhận thanh toán',
-          isLoading: _isCheckingPayment,
-          loadingLabel: 'Đang kiểm tra...',
-        ),
-        const SizedBox(height: 10),
-        AppPrimaryButton(
-          onPressed: _saveQrImage,
-          icon: Icons.download_rounded,
-          label: 'Tải ảnh QR',
-          isLoading: _isSaving,
-          loadingLabel: 'Đang lưu...',
-        ),
-        const SizedBox(height: 10),
+        if (!confirmed) ...[
+          AppPrimaryButton(
+            onPressed: _confirmPayment,
+            icon: Icons.sync_rounded,
+            label: 'Kiểm tra ngay',
+            isLoading: _isCheckingPayment,
+            loadingLabel: 'Đang kiểm tra...',
+          ),
+          const SizedBox(height: 10),
+          AppPrimaryButton(
+            onPressed: _saveQrImage,
+            icon: Icons.download_rounded,
+            label: 'Tải ảnh QR',
+            isLoading: _isSaving,
+            loadingLabel: 'Đang lưu...',
+          ),
+          const SizedBox(height: 10),
+        ],
         AppSecondaryButton(
           onPressed: _createNewQr,
           icon: Icons.add_rounded,
@@ -681,6 +769,127 @@ class _InfoRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _PaymentWaitingCard extends StatelessWidget {
+  final bool isChecking;
+
+  const _PaymentWaitingCard({required this.isChecking});
+
+  @override
+  Widget build(BuildContext context) {
+    const color = Color(0xFF1565C0);
+
+    return Card(
+      elevation: 0,
+      color: color.withValues(alpha: 0.08),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            SizedBox.square(
+              dimension: 24,
+              child: isChecking
+                  ? const CircularProgressIndicator(strokeWidth: 2.4)
+                  : const Icon(Icons.sync_rounded, color: color),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Đang chờ thanh toán',
+                    style: TextStyle(color: color, fontWeight: FontWeight.w800),
+                  ),
+                  SizedBox(height: 4),
+                  Text('OpsHub sẽ tự kiểm tra giao dịch trên MAP.'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentSuccessPanel extends StatelessWidget {
+  final VietQrPaymentConfirmation confirmation;
+  final NumberFormat amountFormatter;
+
+  const _PaymentSuccessPanel({
+    required this.confirmation,
+    required this.amountFormatter,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final payer = _payerLabel();
+
+    return Card(
+      elevation: 0,
+      color: Colors.green.withValues(alpha: 0.08),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Icon(
+              Icons.check_circle_rounded,
+              color: Colors.green,
+              size: 92,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Đã nhận thanh toán',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.green,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 18),
+            if (payer.isNotEmpty) _InfoRow(label: 'Người chuyển', value: payer),
+            if (confirmation.matchedAmount != null)
+              _InfoRow(
+                label: 'Đã nhận',
+                value:
+                    '${amountFormatter.format(confirmation.matchedAmount)} VND',
+              ),
+            if (confirmation.matchedTransactionContent != null)
+              _InfoRow(
+                label: 'Nội dung',
+                value: confirmation.matchedTransactionContent!,
+              ),
+            if (confirmation.matchedTransactionNumber != null)
+              _InfoRow(
+                label: 'Mã GD',
+                value: confirmation.matchedTransactionNumber!,
+              ),
+            if (confirmation.matchedTranTime != null)
+              _InfoRow(
+                label: 'Thời gian',
+                value: DateFormat(
+                  'HH:mm dd/MM/yyyy',
+                ).format(confirmation.matchedTranTime!.toLocal()),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _payerLabel() {
+    final parts = [
+      confirmation.matchedPayerName,
+      confirmation.matchedPayerAccount,
+    ].where((value) => value != null && value.trim().isNotEmpty).cast<String>();
+    return parts.join(' - ');
   }
 }
 
