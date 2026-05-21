@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/features/payment_monitor/data/vietnamese_amount_words.dart';
 import 'package:phongvu_opshub/features/payment_monitor/domain/map_payment_transaction.dart';
+import 'package:phongvu_opshub/features/payment_monitor/domain/payment_notification.dart';
 
 void main() {
   group('MapPaymentTransaction', () {
@@ -35,6 +37,43 @@ void main() {
 
       expect(pending.isValidIncoming, isFalse);
       expect(emptyAmount.isValidIncoming, isFalse);
+    });
+  });
+
+  group('vietnameseAmountWords', () {
+    test('formats common payment amounts for speech', () {
+      expect(vietnameseAmountWords(150000), 'một trăm năm mươi nghìn');
+      expect(
+        vietnameseAmountWords(1250000),
+        'một triệu hai trăm năm mươi nghìn',
+      );
+      expect(
+        vietnameseAmountWords(1005000),
+        'một triệu không trăm lẻ năm nghìn',
+      );
+      expect(
+        vietnameseAmountWords(21000005),
+        'hai mươi mốt triệu không trăm lẻ năm',
+      );
+    });
+  });
+
+  group('PaymentNotification', () {
+    test('parses scoped realtime notification payload', () {
+      final notification = PaymentNotification.fromJson({
+        'notificationId': 'note-1',
+        'transactionId': 'txn-1',
+        'storeCode': 'CP01',
+        'amount': '1,250,000',
+        'audioStatus': 'READY',
+        'audioUrl': '/payment-notifications/note-1/audio',
+        'createdAt': '2026-05-21T10:00:00.000Z',
+      });
+
+      expect(notification.isValid, isTrue);
+      expect(notification.amount, 1250000);
+      expect(notification.storeCode, 'CP01');
+      expect(notification.audioUrl, '/payment-notifications/note-1/audio');
     });
   });
 }

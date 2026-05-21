@@ -64,6 +64,10 @@ dependencies:
   # Local storage for persistent login
   shared_preferences: ^2.2.2
 
+  # Realtime/audio notifications
+  web_socket_channel: ^3.0.1
+  audioplayers: ^6.1.0
+
   # File system paths
   path_provider: ^2.1.1
 
@@ -106,6 +110,7 @@ flutter:
     - assets/icon/
     - assets/images/
     - data/email_domain.txt
+    - data/ting ting.mp3
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

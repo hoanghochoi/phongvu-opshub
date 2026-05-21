@@ -22,6 +22,8 @@ class ApiClient {
     }
   }
 
+  String? get authToken => _authToken;
+
   Map<String, String> get _authHeaders => {
     'Content-Type': 'application/json',
     if (_authToken != null) 'Authorization': 'Bearer $_authToken',
@@ -68,6 +70,36 @@ class ApiClient {
         throw TimeoutException();
       }
       throw ApiException('Lỗi không xác định: $e');
+    }
+  }
+
+  Future<List<int>> getBytes(String endpoint) async {
+    try {
+      final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
+      final response = await _client
+          .get(
+            url,
+            headers: _authToken != null
+                ? {'Authorization': 'Bearer $_authToken'}
+                : null,
+          )
+          .timeout(ApiConstants.defaultTimeout);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response.bodyBytes;
+      }
+      throw ApiException(
+        'Request tháº¥t báº¡i: ${response.statusCode}',
+        response.statusCode,
+      );
+    } on SocketException {
+      throw NetworkException();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      if (e.toString().contains('TimeoutException')) {
+        throw TimeoutException();
+      }
+      throw ApiException('Lá»—i khÃ´ng xÃ¡c Ä‘á»‹nh: $e');
     }
   }
 

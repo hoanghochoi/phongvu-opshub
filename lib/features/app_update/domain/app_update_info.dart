@@ -1,5 +1,6 @@
 class AppUpdateInfo {
   const AppUpdateInfo({
+    required this.platform,
     required this.latestVersion,
     required this.latestBuild,
     required this.minSupportedBuild,
@@ -8,6 +9,7 @@ class AppUpdateInfo {
     required this.forceUpdate,
   });
 
+  final String platform;
   final String latestVersion;
   final int latestBuild;
   final int minSupportedBuild;
@@ -17,6 +19,7 @@ class AppUpdateInfo {
 
   factory AppUpdateInfo.fromJson(Map<String, dynamic> json) {
     return AppUpdateInfo(
+      platform: json['platform']?.toString() ?? '',
       latestVersion: json['latestVersion']?.toString() ?? '',
       latestBuild: _readInt(json['latestBuild']),
       minSupportedBuild: _readInt(json['minSupportedBuild']),

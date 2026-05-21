@@ -59,7 +59,7 @@ func TestWebSocketAuthAllowsValidBearerToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
 	req.Header.Set("Authorization", "Bearer "+signTestToken(t, "user-1"))
 
-	if err := authenticateWebSocket(req); err != nil {
+	if _, err := authenticateWebSocket(req); err != nil {
 		t.Fatalf("expected valid token to be accepted, got %v", err)
 	}
 }
@@ -69,7 +69,7 @@ func TestWebSocketAuthRejectsMissingToken(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
 
-	if err := authenticateWebSocket(req); err == nil {
+	if _, err := authenticateWebSocket(req); err == nil {
 		t.Fatal("expected missing token to be rejected")
 	}
 }
@@ -80,8 +80,34 @@ func TestWebSocketAuthRejectsWrongSecret(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
 	req.Header.Set("Authorization", "Bearer "+signTokenWithSecret(t, "user-1", "wrong-secret"))
 
-	if err := authenticateWebSocket(req); err == nil {
+	if _, err := authenticateWebSocket(req); err == nil {
 		t.Fatal("expected token signed with another secret to be rejected")
+	}
+}
+
+func TestPaymentEventFilteringByStore(t *testing.T) {
+	client := &Client{auth: &ClientAuth{Role: "MANAGER", StoreCode: "CP01"}}
+	message := []byte(`{"type":"PAYMENT_NOTIFICATION","payload":{"storeCode":"CP01"}}`)
+	if !client.canReceive(message) {
+		t.Fatal("expected client to receive own store payment event")
+	}
+
+	otherMessage := []byte(`{"type":"PAYMENT_NOTIFICATION","payload":{"storeCode":"CP02"}}`)
+	if client.canReceive(otherMessage) {
+		t.Fatal("expected client not to receive another store payment event")
+	}
+}
+
+func TestSuperAdminRequiresSelectedStoreForPaymentEvents(t *testing.T) {
+	client := &Client{auth: &ClientAuth{Role: "SUPER_ADMIN", SelectedStore: "CP02"}}
+	message := []byte(`{"type":"PAYMENT_NOTIFICATION","payload":{"storeCode":"CP02"}}`)
+	if !client.canReceive(message) {
+		t.Fatal("expected super admin to receive selected store payment event")
+	}
+
+	missingSelection := &Client{auth: &ClientAuth{Role: "SUPER_ADMIN"}}
+	if missingSelection.canReceive(message) {
+		t.Fatal("expected super admin without selected store not to receive payment event")
 	}
 }
 
@@ -93,8 +119,10 @@ func signTestToken(t *testing.T, subject string) string {
 func signTokenWithSecret(t *testing.T, subject string, secret string) string {
 	t.Helper()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": subject,
-		"exp": time.Now().Add(time.Hour).Unix(),
+		"sub":       subject,
+		"role":      "MANAGER",
+		"storeCode": "CP01",
+		"exp":       time.Now().Add(time.Hour).Unix(),
 	})
 	signed, err := token.SignedString([]byte(secret))
 	if err != nil {

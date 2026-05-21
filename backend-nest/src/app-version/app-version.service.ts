@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 type EnvMap = Record<string, string | undefined>;
 
 export interface AppVersionResponse {
+  platform: string;
   latestVersion: string;
   latestBuild: number;
   minSupportedBuild: number;
@@ -13,22 +14,56 @@ export interface AppVersionResponse {
 
 @Injectable()
 export class AppVersionService {
-  getVersion(env: EnvMap = process.env): AppVersionResponse {
-    const latestBuild = readPositiveInt(env.APP_BUILD_NUMBER, 1);
+  getVersion(
+    env: EnvMap = process.env,
+    platformInput?: string,
+  ): AppVersionResponse {
+    const platform = normalizePlatform(platformInput);
+    const prefix = platformEnvPrefix(platform);
+    const latestBuild = readPositiveInt(
+      env[`${prefix}APP_BUILD_NUMBER`],
+      readPositiveInt(env.APP_BUILD_NUMBER, 1),
+    );
     const minSupportedBuild = readPositiveInt(
-      env.APP_MIN_SUPPORTED_BUILD,
-      latestBuild,
+      env[`${prefix}APP_MIN_SUPPORTED_BUILD`],
+      readPositiveInt(env.APP_MIN_SUPPORTED_BUILD, latestBuild),
     );
 
     return {
-      latestVersion: readString(env.APP_VERSION, '1.0.0'),
+      platform,
+      latestVersion: readString(
+        env[`${prefix}APP_VERSION`],
+        readString(env.APP_VERSION, '1.0.0'),
+      ),
       latestBuild,
       minSupportedBuild,
-      updateUrl: readString(env.APP_UPDATE_URL, ''),
-      releaseNotes: readString(env.APP_RELEASE_NOTES, ''),
-      forceUpdate: readBoolean(env.APP_FORCE_UPDATE, false),
+      updateUrl: readString(
+        env[`${prefix}APP_UPDATE_URL`],
+        readString(env.APP_UPDATE_URL, ''),
+      ),
+      releaseNotes: readString(
+        env[`${prefix}APP_RELEASE_NOTES`],
+        readString(env.APP_RELEASE_NOTES, ''),
+      ),
+      forceUpdate: readBoolean(
+        env[`${prefix}APP_FORCE_UPDATE`],
+        readBoolean(env.APP_FORCE_UPDATE, false),
+      ),
     };
   }
+}
+
+function normalizePlatform(value: string | undefined): string {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === 'windows') return 'windows';
+  if (normalized === 'android') return 'android';
+  return 'android';
+}
+
+function platformEnvPrefix(platform: string): string {
+  if (platform === 'windows') return 'APP_WINDOWS_';
+  if (platform === 'android') return 'APP_ANDROID_';
+  return '';
 }
 
 function readString(value: string | undefined, fallback: string): string {

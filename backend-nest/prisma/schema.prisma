@@ -85,6 +85,56 @@ model MapVietinSyncState {
   updatedAt     DateTime @updatedAt
 }
 
+model PaymentNotification {
+  id            String    @id @default(uuid())
+  storeCode     String
+  transactionId String    @unique
+  text          String
+  amount        Int
+  audioStatus   String    @default("PENDING")
+  audioPath     String?
+  audioMime     String?
+  audioError    String?
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([storeCode, createdAt])
+  @@index([expiresAt])
+}
+
+model PaymentNotificationDeliveryLog {
+  id             String   @id @default(uuid())
+  notificationId String
+  transactionId  String?
+  storeCode      String
+  userId         String?
+  clientId       String?
+  event          String
+  error          String?
+  createdAt      DateTime @default(now())
+
+  @@index([notificationId, createdAt])
+  @@index([storeCode, createdAt])
+  @@index([createdAt])
+}
+
+model AppLog {
+  id        String   @id @default(uuid())
+  level     String
+  source    String
+  message   String
+  userId    String?
+  clientId  String?
+  storeCode String?
+  context   Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([source, createdAt])
+  @@index([storeCode, createdAt])
+}
+
 // ============================================================
 // USER
 // ============================================================

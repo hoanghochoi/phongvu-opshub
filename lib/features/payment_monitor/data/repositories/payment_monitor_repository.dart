@@ -33,4 +33,26 @@ class PaymentMonitorRepository {
         .where((transaction) => transaction.isValidIncoming)
         .toList();
   }
+
+  Future<List<int>> downloadNotificationAudio(String notificationId) {
+    return _apiClient.getBytes(
+      ApiConstants.paymentNotificationAudioEndpoint(notificationId),
+    );
+  }
+
+  Future<void> acknowledgeNotification({
+    required String notificationId,
+    required String clientId,
+    required String event,
+    String? error,
+  }) async {
+    await _apiClient.post(
+      ApiConstants.paymentNotificationAckEndpoint(notificationId),
+      body: {
+        'clientId': clientId,
+        'event': event,
+        if (error != null && error.trim().isNotEmpty) 'error': error.trim(),
+      },
+    );
+  }
 }

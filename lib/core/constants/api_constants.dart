@@ -28,6 +28,26 @@ class ApiConstants {
       '/admin/map-vietin/transactions/search';
   static const String adminMapVietinStoredTransactionsEndpoint =
       '/admin/map-vietin/transactions';
+  static String paymentNotificationAudioEndpoint(String id) =>
+      '/payment-notifications/$id/audio';
+  static String paymentNotificationAckEndpoint(String id) =>
+      '/payment-notifications/$id/ack';
+  static const String appLogsEndpoint = '/app-logs';
+  static String realtimeWsUrl({String? storeId}) {
+    final base = Uri.parse(baseUrl);
+    final scheme = base.scheme == 'https' ? 'wss' : 'ws';
+    final query = {
+      if (storeId != null && storeId.trim().isNotEmpty)
+        'store_id': storeId.trim().toUpperCase(),
+    };
+    return base
+        .replace(
+          scheme: scheme,
+          path: '/ws',
+          queryParameters: query.isEmpty ? null : query,
+        )
+        .toString();
+  }
 
   // FIFO endpoints
   static const String fifoCheckEndpoint = '/sort/fifo-check';

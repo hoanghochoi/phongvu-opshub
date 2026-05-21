@@ -52,10 +52,17 @@ func isOriginAllowed(r *http.Request) bool {
 	return false
 }
 
-func authenticateWebSocket(r *http.Request) error {
+type ClientAuth struct {
+	UserID        string
+	Role          string
+	StoreCode     string
+	SelectedStore string
+}
+
+func authenticateWebSocket(r *http.Request) (*ClientAuth, error) {
 	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
 	if jwtSecret == "" {
-		return errors.New("JWT_SECRET is not configured")
+		return nil, errors.New("JWT_SECRET is not configured")
 	}
 
 	tokenValue := extractBearerToken(r)
@@ -63,7 +70,7 @@ func authenticateWebSocket(r *http.Request) error {
 		tokenValue = strings.TrimSpace(r.URL.Query().Get("access_token"))
 	}
 	if tokenValue == "" {
-		return errors.New("missing websocket access token")
+		return nil, errors.New("missing websocket access token")
 	}
 
 	claims := jwt.MapClaims{}
@@ -74,13 +81,38 @@ func authenticateWebSocket(r *http.Request) error {
 		return []byte(jwtSecret), nil
 	})
 	if err != nil || !token.Valid {
-		return errors.New("invalid websocket access token")
+		return nil, errors.New("invalid websocket access token")
 	}
 
-	if _, err := claims.GetSubject(); err != nil {
-		return errors.New("missing JWT subject")
+	subject, err := claims.GetSubject()
+	if err != nil {
+		return nil, errors.New("missing JWT subject")
 	}
-	return nil
+	auth := &ClientAuth{
+		UserID:    subject,
+		Role:      strings.ToUpper(strings.TrimSpace(readClaimString(claims, "role"))),
+		StoreCode: strings.ToUpper(strings.TrimSpace(readClaimString(claims, "storeCode"))),
+	}
+	selectedStore := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("store_id")))
+	if auth.Role == "SUPER_ADMIN" {
+		auth.SelectedStore = selectedStore
+	} else if selectedStore != "" && selectedStore != auth.StoreCode {
+		return nil, errors.New("store subscription is outside token scope")
+	}
+	return auth, nil
+}
+
+func readClaimString(claims jwt.MapClaims, key string) string {
+	value, ok := claims[key]
+	if !ok || value == nil {
+		return ""
+	}
+	switch typed := value.(type) {
+	case string:
+		return typed
+	default:
+		return ""
+	}
 }
 
 func extractBearerToken(r *http.Request) string {
@@ -92,20 +124,25 @@ func extractBearerToken(r *http.Request) string {
 	return strings.TrimSpace(strings.TrimPrefix(header, prefix))
 }
 
+type Client struct {
+	conn *websocket.Conn
+	auth *ClientAuth
+}
+
 // Hub manages WebSocket clients
 type Hub struct {
-	clients    map[*websocket.Conn]bool
+	clients    map[*Client]bool
 	broadcast  chan []byte
-	register   chan *websocket.Conn
-	unregister chan *websocket.Conn
+	register   chan *Client
+	unregister chan *Client
 }
 
 func newHub() *Hub {
 	return &Hub{
 		broadcast:  make(chan []byte),
-		register:   make(chan *websocket.Conn),
-		unregister: make(chan *websocket.Conn),
-		clients:    make(map[*websocket.Conn]bool),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
+		clients:    make(map[*Client]bool),
 	}
 }
 
@@ -114,24 +151,52 @@ func (h *Hub) run() {
 		select {
 		case client := <-h.register:
 			h.clients[client] = true
-			log.Println("New client connected. Total:", len(h.clients))
+			log.Printf("New client connected user=%s role=%s store=%s selectedStore=%s total=%d",
+				client.auth.UserID, client.auth.Role, client.auth.StoreCode, client.auth.SelectedStore, len(h.clients))
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
-				client.Close()
-				log.Println("Client disconnected. Total:", len(h.clients))
+				client.conn.Close()
+				log.Printf("Client disconnected user=%s total=%d", client.auth.UserID, len(h.clients))
 			}
 		case message := <-h.broadcast:
 			for client := range h.clients {
-				err := client.WriteMessage(websocket.TextMessage, message)
+				if !client.canReceive(message) {
+					continue
+				}
+				err := client.conn.WriteMessage(websocket.TextMessage, message)
 				if err != nil {
 					log.Printf("error: %v", err)
-					client.Close()
+					client.conn.Close()
 					delete(h.clients, client)
 				}
 			}
 		}
 	}
+}
+
+func (c *Client) canReceive(message []byte) bool {
+	var envelope struct {
+		Type    string          `json:"type"`
+		Payload json.RawMessage `json:"payload"`
+	}
+	if err := json.Unmarshal(message, &envelope); err != nil {
+		return false
+	}
+	if envelope.Type != "PAYMENT_NOTIFICATION" {
+		return true
+	}
+	var payload struct {
+		StoreCode string `json:"storeCode"`
+	}
+	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
+		return false
+	}
+	storeCode := strings.ToUpper(strings.TrimSpace(payload.StoreCode))
+	if c.auth.Role == "SUPER_ADMIN" {
+		return c.auth.SelectedStore != "" && c.auth.SelectedStore == storeCode
+	}
+	return c.auth.StoreCode != "" && c.auth.StoreCode == storeCode
 }
 
 // Subscribe to Redis events from NestJS
@@ -149,9 +214,9 @@ func (h *Hub) listenToRedis() {
 		Addr: redisHost + ":" + redisPort,
 	})
 
-	pubsub := rdb.Subscribe(ctx, "WARRANTY_STATUS_UPDATED")
+	pubsub := rdb.Subscribe(ctx, "WARRANTY_STATUS_UPDATED", "PAYMENT_NOTIFICATION_READY")
 	defer pubsub.Close()
-	log.Println("Listening to Redis channel: WARRANTY_STATUS_UPDATED...")
+	log.Println("Listening to Redis channels: WARRANTY_STATUS_UPDATED, PAYMENT_NOTIFICATION_READY...")
 
 	ch := pubsub.Channel()
 
@@ -163,8 +228,12 @@ func (h *Hub) listenToRedis() {
 			Payload json.RawMessage `json:"payload"`
 		}
 
+		eventType := "WARRANTY_EVENT"
+		if msg.Channel == "PAYMENT_NOTIFICATION_READY" {
+			eventType = "PAYMENT_NOTIFICATION"
+		}
 		formattedMsg, _ := json.Marshal(BroadcastMsg{
-			Type:    "WARRANTY_EVENT",
+			Type:    eventType,
 			Payload: json.RawMessage(msg.Payload),
 		})
 
@@ -198,7 +267,8 @@ func registerRoutes(r *gin.Engine, hub *Hub) {
 	})
 
 	r.GET("/ws", func(c *gin.Context) {
-		if err := authenticateWebSocket(c.Request); err != nil {
+		auth, err := authenticateWebSocket(c.Request)
+		if err != nil {
 			log.Println("websocket auth rejected:", err)
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
@@ -209,15 +279,16 @@ func registerRoutes(r *gin.Engine, hub *Hub) {
 			log.Println("upgrade error:", err)
 			return
 		}
-		hub.register <- conn
+		client := &Client{conn: conn, auth: auth}
+		hub.register <- client
 
 		// Listen for incoming websocket messages (e.g for chat)
-		go func(c *websocket.Conn) {
+		go func(client *Client) {
 			defer func() {
-				hub.unregister <- c
+				hub.unregister <- client
 			}()
 			for {
-				_, message, err := c.ReadMessage()
+				_, message, err := client.conn.ReadMessage()
 				if err != nil {
 					if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 						log.Printf("error: %v", err)
@@ -226,6 +297,6 @@ func registerRoutes(r *gin.Engine, hub *Hub) {
 				}
 				log.Printf("Received client message (%d bytes)", len(message))
 			}
-		}(conn)
+		}(client)
 	})
 }

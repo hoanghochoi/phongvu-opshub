@@ -59,6 +59,14 @@ a customer to scan and pay manually.
   existing direct MAP check remains a fallback.
 - SUPER_ADMIN users choose the showroom to monitor. Other users are scoped by
   the backend to their assigned showroom.
+- New incoming transaction audio is delivered through backend-generated payment
+  notifications. The backend stores notification/audit rows, optionally calls a
+  server-side TTS service, publishes a scoped realtime event, and serves audio
+  only through JWT-protected endpoints. The Windows app plays
+  `data/ting ting.mp3` before the generated audio, then falls back to local
+  Windows speech if the server audio is unavailable.
+- Payment notification audio is cleaned after 7 days, delivery/app logs after
+  30 days, and stored MAP transactions after 90 days by default.
 
 ## Payment Confirmation Research
 
