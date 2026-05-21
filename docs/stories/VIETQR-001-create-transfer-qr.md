@@ -18,10 +18,14 @@ optional amount, optional transfer content, and the signed-in user's store code.
 - Backend omits amount/content EMV fields when staff leaves them blank.
 - Flutter renders the QR image from the backend payload.
 - Backend stores each QR as a payment intent.
-- Staff can run payment confirmation after QR creation.
+- The QR result screen automatically checks payment status when amount and
+  transfer content are fixed; staff can also run an immediate manual check.
+- After confirmation, the QR is replaced by a green success state that shows
+  available MAP transaction details such as payer, received amount, transfer
+  content, transaction number, and transaction time.
 - Payment confirmation marks `PAID` only when exactly one successful MAP
-  transaction matches amount, transfer content/order content, and time after QR
-  creation.
+  transaction matches amount, transfer content contained in MAP transaction
+  content, and Vietnam-local transaction time after QR creation.
 - Missing amount/content, no match, or multiple matches remain unconfirmed and
   require manual review.
 

@@ -29,24 +29,27 @@ model Store {
 }
 
 model VietQrPaymentIntent {
-  id                       String   @id @default(uuid())
-  storeCode                String
-  createdById              String?
-  createdBy                User?    @relation(fields: [createdById], references: [id])
-  amount                   Int?
-  orderCode                String?
-  transferContent          String
-  qrPayload                String
-  status                   String   @default("PENDING")
-  matchedTransactionId     String?
-  matchedTransactionNumber String?
-  matchedAmount            Int?
-  matchedTranTime          DateTime?
-  confirmedAt              DateTime?
-  lastCheckedAt            DateTime?
-  lastCheckResult          Json?
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  id                        String    @id @default(uuid())
+  storeCode                 String
+  createdById               String?
+  createdBy                 User?     @relation(fields: [createdById], references: [id])
+  amount                    Int?
+  orderCode                 String?
+  transferContent           String
+  qrPayload                 String
+  status                    String    @default("PENDING")
+  matchedTransactionId      String?
+  matchedTransactionNumber  String?
+  matchedAmount             Int?
+  matchedTranTime           DateTime?
+  matchedPayerName          String?
+  matchedPayerAccount       String?
+  matchedTransactionContent String?
+  confirmedAt               DateTime?
+  lastCheckedAt             DateTime?
+  lastCheckResult           Json?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   @@index([storeCode, createdAt])
   @@index([status, createdAt])
@@ -73,8 +76,8 @@ model User {
   storeId String?
   store   Store?  @relation(fields: [storeId], references: [id])
 
-  warrantiesCreated Warranty[] @relation("CreatedBy")
-  warrantiesHandled Warranty[] @relation("HandledBy")
+  warrantiesCreated Warranty[]            @relation("CreatedBy")
+  warrantiesHandled Warranty[]            @relation("HandledBy")
   feedbacks         Feedback[]
   fifoLogs          FifoLog[]
   vietQrPayments    VietQrPaymentIntent[]

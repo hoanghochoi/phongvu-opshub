@@ -45,6 +45,9 @@ class VietQrPaymentConfirmation {
   final String? matchedTransactionNumber;
   final int? matchedAmount;
   final DateTime? matchedTranTime;
+  final String? matchedPayerName;
+  final String? matchedPayerAccount;
+  final String? matchedTransactionContent;
   final DateTime? confirmedAt;
 
   const VietQrPaymentConfirmation({
@@ -55,6 +58,9 @@ class VietQrPaymentConfirmation {
     this.matchedTransactionNumber,
     this.matchedAmount,
     this.matchedTranTime,
+    this.matchedPayerName,
+    this.matchedPayerAccount,
+    this.matchedTransactionContent,
     this.confirmedAt,
   });
 
@@ -69,8 +75,18 @@ class VietQrPaymentConfirmation {
           ? (json['matchedAmount'] as num).toInt()
           : null,
       matchedTranTime: _parseDateTime(json['matchedTranTime']),
+      matchedPayerName: _parseString(json['matchedPayerName']),
+      matchedPayerAccount: _parseString(json['matchedPayerAccount']),
+      matchedTransactionContent: _parseString(
+        json['matchedTransactionContent'],
+      ),
       confirmedAt: _parseDateTime(json['confirmedAt']),
     );
+  }
+
+  static String? _parseString(Object? value) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? null : text;
   }
 
   static DateTime? _parseDateTime(Object? value) {

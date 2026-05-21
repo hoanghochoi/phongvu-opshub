@@ -60,6 +60,12 @@ showroom and never returns the password or token through its API.
 QR generation remains low-risk and usable without bank credentials. The backend
 stores each generated QR as a payment intent and can mark it `PAID` only when
 exactly one successful MAP transaction matches fixed amount, transfer
-content/order content, and transaction time after QR creation. Missing
-amount/content, no match, or multiple matches remain unconfirmed and require
-manual review.
+content contained in MAP transaction content, and transaction time after QR
+creation. MAP `dd/MM/yyyy HH:mm:ss` timestamps are interpreted as Vietnam local
+time before comparing with the UTC payment intent timestamp. The Flutter QR
+result screen polls this backend confirmation while it is open so staff do not
+have to tap manually. Once confirmed, OpsHub persists and returns non-secret
+matched transaction display details from MAP, including payer, amount, transfer
+content, transaction number, and transaction time when those fields are present.
+Missing amount/content, no match, or multiple matches remain unconfirmed and
+require manual review.

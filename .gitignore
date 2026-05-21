@@ -72,6 +72,7 @@ macos/Flutter/ephemeral/
 **/*secret*.json
 
 # Backend generated/runtime artifacts
+.codex-runlogs/
 .agents/backups/
 backend-nest/dist/
 backend-nest/node_modules/
