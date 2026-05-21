@@ -24,6 +24,10 @@ class ApiConstants {
   static const String adminUsersEndpoint = '/admin/users';
   static const String adminRolesEndpoint = '/admin/roles';
   static const String adminStoresEndpoint = '/admin/stores';
+  static const String adminMapVietinTransactionsEndpoint =
+      '/admin/map-vietin/transactions/search';
+  static const String adminMapVietinStoredTransactionsEndpoint =
+      '/admin/map-vietin/transactions';
 
   // FIFO endpoints
   static const String fifoCheckEndpoint = '/sort/fifo-check';

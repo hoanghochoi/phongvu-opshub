@@ -18,6 +18,15 @@ describe('MapVietinService', () => {
     prisma = {
       store: {
         findUnique: jest.fn(),
+        findMany: jest.fn(),
+      },
+      mapVietinTransaction: {
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        upsert: jest.fn(),
+      },
+      mapVietinSyncState: {
+        upsert: jest.fn(),
       },
     };
     fetchMock = jest.fn();
@@ -38,21 +47,25 @@ describe('MapVietinService', () => {
       mapVietinPasswordCipher: encryptSecret('map-pass'),
     });
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({
-        access_token: 'access-token',
-        merchant_info: [
-          { merchant_id: 'merchant-fallback', is_default: false },
-          { merchant_id: 'merchant-default', is_default: true },
-        ],
-      }))
-      .mockResolvedValueOnce(jsonResponse({
-        data: {
-          list: [{ transactionNumber: 'masked-in-test' }],
-          pageIndex: 0,
-          pageSize: 20,
-          total: 1,
-        },
-      }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'access-token',
+          merchant_info: [
+            { merchant_id: 'merchant-fallback', is_default: false },
+            { merchant_id: 'merchant-default', is_default: true },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            list: [{ transactionNumber: 'masked-in-test' }],
+            pageIndex: 0,
+            pageSize: 20,
+            total: 1,
+          },
+        }),
+      );
 
     await expect(
       service.searchTransactions(manager, {
@@ -133,10 +146,106 @@ describe('MapVietinService', () => {
       mapVietinPasswordCipher: null,
     });
 
-    await expect(service.searchTransactions(manager, {})).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      service.searchTransactions(manager, {}),
+    ).rejects.toBeInstanceOf(BadRequestException);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('syncs successful MAP transactions into OpsHub database', async () => {
+    const store = {
+      storeId: 'CP01',
+      mapVietinUsername: 'map-user',
+      mapVietinPasswordCipher: encryptSecret('map-pass'),
+    };
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'access-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            list: [
+              {
+                txnNo: 'TXN-001',
+                txnAmount: '1,250,000',
+                txnDate: '21/05/2026 10:00:00',
+                txnDesc: 'Khach chuyen tien',
+                status: '00',
+              },
+              {
+                txnNo: 'TXN-002',
+                txnAmount: '500,000',
+                txnDate: '21/05/2026 10:01:00',
+                status: 'PENDING',
+              },
+            ],
+          },
+        }),
+      );
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({});
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(service.syncStoreTransactions(store)).resolves.toBe(1);
+
+    expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledTimes(1);
+    expect(
+      prisma.mapVietinTransaction.upsert.mock.calls[0][0].create,
+    ).toMatchObject({
+      storeCode: 'CP01',
+      transactionNumber: 'TXN-001',
+      amount: 1250000,
+      content: 'Khach chuyen tien',
+    });
+  });
+
+  it('lists stored transactions for the signed-in user store', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      {
+        id: 'stored-1',
+        storeCode: 'CP01',
+        transactionKey: 'CP01:key',
+        transactionNumber: 'TXN-001',
+        amount: 1250000,
+        content: 'Khach chuyen tien',
+        status: '00',
+        paidAt: new Date('2026-05-21T03:00:00.000Z'),
+        payerName: null,
+        payerAccount: null,
+        firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+      },
+    ]);
+
+    await expect(
+      service.listStoredTransactions(
+        { role: 'STAFF', storeId: 'store-uuid-1' },
+        {},
+      ),
+    ).resolves.toMatchObject({
+      storeId: 'CP01',
+      list: [
+        {
+          id: 'stored-1',
+          transactionNumber: 'TXN-001',
+          amount: 1250000,
+        },
+      ],
+    });
+
+    expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeCode: 'CP01' },
+        take: 50,
+      }),
+    );
   });
 });
 

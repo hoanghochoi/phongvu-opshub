@@ -55,6 +55,36 @@ model VietQrPaymentIntent {
   @@index([status, createdAt])
 }
 
+model MapVietinTransaction {
+  id                String   @id @default(uuid())
+  storeCode         String
+  transactionKey    String   @unique
+  transactionNumber String?
+  amount            Int
+  content           String
+  status            String?
+  paidAt            DateTime?
+  payerName         String?
+  payerAccount      String?
+  rawData           Json
+  firstSeenAt       DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([storeCode, paidAt])
+  @@index([storeCode, firstSeenAt])
+}
+
+model MapVietinSyncState {
+  id            String   @id @default(uuid())
+  storeCode     String   @unique
+  lastSyncedAt  DateTime?
+  lastSuccessAt DateTime?
+  lastError     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 // ============================================================
 // USER
 // ============================================================

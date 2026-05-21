@@ -14,6 +14,9 @@ describe('VietQrService', () => {
       findUnique: jest.Mock;
       update: jest.Mock;
     };
+    mapVietinTransaction: {
+      findMany: jest.Mock;
+    };
   };
   let mapVietinService: { searchTransactionsForStoreCode: jest.Mock };
 
@@ -36,6 +39,9 @@ describe('VietQrService', () => {
         })),
         findUnique: jest.fn(),
         update: jest.fn(),
+      },
+      mapVietinTransaction: {
+        findMany: jest.fn().mockResolvedValue([]),
       },
     };
     mapVietinService = { searchTransactionsForStoreCode: jest.fn() };
@@ -229,6 +235,53 @@ describe('VietQrService', () => {
         }),
       }),
     );
+  });
+
+  it('confirms payment from stored MAP transactions before calling MAP directly', async () => {
+    const createdAt = new Date('2026-05-20T10:00:00.000Z');
+    prisma.vietQrPaymentIntent.findUnique.mockResolvedValue({
+      id: 'payment-1',
+      storeCode: 'CP62',
+      amount: 150000,
+      orderCode: 'DH-001',
+      transferContent: 'DH-001 CP62 BOT',
+      status: 'PENDING',
+      createdAt,
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      {
+        id: 'stored-map-1',
+        transactionNumber: 'txn-1',
+        amount: 150000,
+        content: 'IBFT 123 DH-001 CP62 BOT 456',
+        paidAt: new Date('2026-05-20T10:05:00.000Z'),
+        payerName: 'Nguyen Van A',
+        payerAccount: '123456789',
+        firstSeenAt: new Date('2026-05-20T10:05:05.000Z'),
+      },
+    ]);
+    prisma.vietQrPaymentIntent.update.mockImplementation(async ({ data }) => ({
+      id: 'payment-1',
+      ...data,
+    }));
+
+    await expect(
+      service.confirmPayment({ role: 'SUPER_ADMIN' }, 'payment-1'),
+    ).resolves.toMatchObject({
+      id: 'payment-1',
+      status: 'PAID',
+      confirmed: true,
+      reason: 'MATCHED_STORED',
+      matchedTransactionNumber: 'txn-1',
+      matchedAmount: 150000,
+      matchedPayerName: 'Nguyen Van A',
+      matchedPayerAccount: '123456789',
+      matchedTransactionContent: 'IBFT 123 DH-001 CP62 BOT 456',
+    });
+
+    expect(
+      mapVietinService.searchTransactionsForStoreCode,
+    ).not.toHaveBeenCalled();
   });
 
   it('confirms MAP rows that use Vietnam-local time and alternate field names', async () => {

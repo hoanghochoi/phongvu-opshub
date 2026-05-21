@@ -208,6 +208,49 @@ export class VietQrService {
       });
     }
 
+    const storedMatches = await this.findStoredMatches(intent);
+    if (storedMatches.length === 1) {
+      const match = storedMatches[0];
+      const now = new Date();
+      const updated = await this.prisma.vietQrPaymentIntent.update({
+        where: { id: intent.id },
+        data: {
+          status: 'PAID',
+          matchedTransactionId: match.id,
+          matchedTransactionNumber: match.transactionNumber,
+          matchedAmount: match.amount,
+          matchedTranTime: match.paidAt,
+          matchedPayerName: match.payerName,
+          matchedPayerAccount: match.payerAccount,
+          matchedTransactionContent: match.content,
+          confirmedAt: now,
+          lastCheckedAt: now,
+          lastCheckResult: this.buildCheckResult('MATCHED_STORED', 1),
+        },
+      });
+
+      return {
+        id: updated.id,
+        status: updated.status,
+        confirmed: true,
+        reason: 'MATCHED_STORED',
+        matchedTransactionNumber: updated.matchedTransactionNumber,
+        matchedAmount: updated.matchedAmount,
+        matchedTranTime: updated.matchedTranTime,
+        matchedPayerName: updated.matchedPayerName,
+        matchedPayerAccount: updated.matchedPayerAccount,
+        matchedTransactionContent: updated.matchedTransactionContent,
+        confirmedAt: updated.confirmedAt,
+      };
+    }
+    if (storedMatches.length > 1) {
+      return this.updateCheckResult(intent.id, 'AMBIGUOUS', {
+        confirmed: false,
+        reason: 'MULTIPLE_STORED_MATCHES',
+        matchedCandidates: storedMatches.length,
+      });
+    }
+
     const now = new Date();
     const searchResult =
       await this.mapVietinService.searchTransactionsForStoreCode(
@@ -275,6 +318,29 @@ export class VietQrService {
       reason: matches.length > 1 ? 'MULTIPLE_MATCHES' : 'NO_MATCH',
       totalCandidates: searchResult.total,
       matchedCandidates: matches.length,
+    });
+  }
+
+  private async findStoredMatches(intent: any) {
+    const lowerBound = new Date(intent.createdAt.getTime() - 10 * 60 * 1000);
+    const candidates = await this.prisma.mapVietinTransaction.findMany({
+      where: {
+        storeCode: intent.storeCode,
+        amount: intent.amount,
+        OR: [{ paidAt: { gte: lowerBound } }, { paidAt: null }],
+      },
+      orderBy: { firstSeenAt: 'desc' },
+      take: 100,
+    });
+    return candidates.filter((row) => {
+      if (row.paidAt && row.paidAt > new Date(Date.now() + 5 * 60 * 1000)) {
+        return false;
+      }
+      const transactionContent = this.normalizeMatchText(row.content || '');
+      const transferContent = this.normalizeMatchText(intent.transferContent);
+      return Boolean(
+        transferContent && transactionContent.includes(transferContent),
+      );
     });
   }
 

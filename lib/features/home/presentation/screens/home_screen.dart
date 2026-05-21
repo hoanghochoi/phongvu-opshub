@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
@@ -122,6 +123,14 @@ class _HomeScreenState extends State<HomeScreen> {
         color: const Color(0xFF0F766E),
         onTap: () => Navigator.of(context).pushNamed('/vietqr'),
       ),
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows)
+        AppFeatureAction(
+          icon: Icons.volume_up_rounded,
+          title: 'Tiền vào',
+          description: 'Theo dõi MAP',
+          color: const Color(0xFF7C3AED),
+          onTap: () => Navigator.of(context).pushNamed('/payment-monitor'),
+        ),
     ];
   }
 

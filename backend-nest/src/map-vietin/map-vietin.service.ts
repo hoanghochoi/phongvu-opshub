@@ -6,10 +6,15 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
+import { Prisma } from '@prisma/client';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { decryptSecret } from '../common/secret-cipher';
-import { SearchMapVietinTransactionsDto } from './map-vietin.dto';
+import {
+  ListStoredMapVietinTransactionsDto,
+  SearchMapVietinTransactionsDto,
+} from './map-vietin.dto';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 const ADMIN_ROLE = 'ADMIN';
@@ -44,15 +49,190 @@ type MapSearchResponse = {
   code?: string;
 };
 
+type MapTransactionRow = Record<string, unknown>;
+
 @Injectable()
 export class MapVietinService {
   private readonly logger = new Logger(MapVietinService.name);
+  private syncInProgress = false;
+  private readonly amountKeys = [
+    'amount',
+    'txnAmount',
+    'transactionAmount',
+    'paymentAmount',
+    'paidAmount',
+    'totalAmount',
+    'transAmount',
+    'txnAmt',
+  ];
+  private readonly contentKeys = [
+    'transactionDescription',
+    'description',
+    'content',
+    'transferContent',
+    'addInfo',
+    'additionalInfo',
+    'remark',
+    'remarks',
+    'txnDesc',
+    'txnRemark',
+    'transactionContent',
+    'paymentContent',
+  ];
+  private readonly statusKeys = [
+    'statusText',
+    'status',
+    'statusName',
+    'transactionStatus',
+    'transactionStatusName',
+    'txnStatus',
+    'txnStatusName',
+    'paymentStatus',
+    'paymentStatusName',
+  ];
+  private readonly transactionNumberKeys = [
+    'transactionNumber',
+    'txnNumber',
+    'tranNumber',
+    'transactionNo',
+    'txnNo',
+    'id',
+  ];
+  private readonly transactionTimeKeys = [
+    'tranTime',
+    'txnDate',
+    'transactionDate',
+    'transactionTime',
+    'paymentDate',
+    'createdDate',
+  ];
+  private readonly payerNameKeys = [
+    'payerName',
+    'payerFullName',
+    'senderName',
+    'senderFullName',
+    'fromAccountName',
+    'debitAccountName',
+    'customerName',
+    'buyerName',
+  ];
+  private readonly payerAccountKeys = [
+    'payerAccount',
+    'payerAccountNo',
+    'senderAccount',
+    'senderAccountNo',
+    'fromAccount',
+    'fromAccountNo',
+    'debitAccount',
+    'debitAccountNo',
+  ];
 
   constructor(private prisma: PrismaService) {}
 
   async searchTransactions(admin: any, input: SearchMapVietinTransactionsDto) {
     const store = await this.resolveStore(admin, input.storeId);
     return this.searchTransactionsForStore(store, input);
+  }
+
+  async listStoredTransactions(
+    user: any,
+    input: ListStoredMapVietinTransactionsDto,
+  ) {
+    const store = await this.resolveReadableStore(user, input.storeId);
+    const afterFirstSeenAt = input.afterFirstSeenAt
+      ? this.parseDate(input.afterFirstSeenAt, 'afterFirstSeenAt')
+      : null;
+    const where: Prisma.MapVietinTransactionWhereInput = {
+      storeCode: store.storeId,
+      ...(afterFirstSeenAt ? { firstSeenAt: { gt: afterFirstSeenAt } } : {}),
+    };
+    const rows = await this.prisma.mapVietinTransaction.findMany({
+      where,
+      orderBy: { firstSeenAt: 'desc' },
+      take: input.limit ?? 50,
+    });
+
+    return {
+      storeId: store.storeId,
+      list: rows.map((row) => this.toStoredTransactionDto(row)),
+    };
+  }
+
+  @Interval(5000)
+  async syncConfiguredStores() {
+    if (process.env.MAP_VIETIN_SYNC_ENABLED === 'false') return;
+    if (this.syncInProgress) return;
+    this.syncInProgress = true;
+    try {
+      const stores = await this.prisma.store.findMany({
+        where: {
+          mapVietinUsername: { not: null },
+          mapVietinPasswordCipher: { not: null },
+        },
+      });
+      for (const store of stores) {
+        await this.syncStoreTransactions(store);
+      }
+    } finally {
+      this.syncInProgress = false;
+    }
+  }
+
+  async syncStoreTransactions(store: {
+    storeId: string;
+    mapVietinUsername?: string | null;
+    mapVietinPasswordCipher?: string | null;
+  }) {
+    const now = new Date();
+    try {
+      const today = this.formatMapDate(now);
+      const result = await this.searchTransactionsForStore(store, {
+        startDate: today,
+        endDate: today,
+        page: 0,
+        size: 100,
+      });
+      const created = await this.persistTransactions(
+        store.storeId,
+        result.list,
+      );
+      await this.prisma.mapVietinSyncState.upsert({
+        where: { storeCode: store.storeId },
+        create: {
+          storeCode: store.storeId,
+          lastSyncedAt: now,
+          lastSuccessAt: now,
+          lastError: null,
+        },
+        update: {
+          lastSyncedAt: now,
+          lastSuccessAt: now,
+          lastError: null,
+        },
+      });
+      if (created > 0) {
+        this.logger.log(
+          `MAP sync stored ${created} new transactions for ${store.storeId}`,
+        );
+      }
+      return created;
+    } catch (error) {
+      const message = this.safeError(error).slice(0, 500);
+      this.logger.warn(`MAP sync failed for ${store.storeId}: ${message}`);
+      await this.prisma.mapVietinSyncState.upsert({
+        where: { storeCode: store.storeId },
+        create: {
+          storeCode: store.storeId,
+          lastSyncedAt: now,
+          lastError: message,
+        },
+        update: {
+          lastSyncedAt: now,
+          lastError: message,
+        },
+      });
+      return 0;
+    }
   }
 
   async searchTransactionsForStoreCode(
@@ -138,6 +318,214 @@ export class MapVietinService {
       throw new ForbiddenException('Chỉ được kiểm tra showroom của mình');
     }
     return store;
+  }
+
+  private async resolveReadableStore(user: any, storeCode?: string) {
+    const normalizedStoreCode = String(storeCode || '')
+      .trim()
+      .toUpperCase();
+
+    if (user.role === SUPER_ADMIN_ROLE) {
+      if (!normalizedStoreCode) {
+        throw new BadRequestException('Vui lòng chọn showroom cần theo dõi');
+      }
+      const store = await this.prisma.store.findUnique({
+        where: { storeId: normalizedStoreCode },
+      });
+      if (!store) throw new BadRequestException('Showroom không hợp lệ');
+      return store;
+    }
+
+    if (!user.storeId) {
+      throw new ForbiddenException('Tài khoản chưa được gán showroom');
+    }
+
+    const store = await this.prisma.store.findUnique({
+      where: { id: user.storeId },
+    });
+    if (!store) throw new BadRequestException('Showroom không hợp lệ');
+    if (normalizedStoreCode && normalizedStoreCode !== store.storeId) {
+      throw new ForbiddenException('Chỉ được xem giao dịch showroom của mình');
+    }
+    return store;
+  }
+
+  private async persistTransactions(storeCode: string, rows: unknown[]) {
+    let created = 0;
+    for (const raw of rows) {
+      if (!raw || typeof raw !== 'object') continue;
+      const row = raw as MapTransactionRow;
+      const normalized = this.normalizeTransaction(storeCode, row);
+      if (!normalized) continue;
+      const existing = await this.prisma.mapVietinTransaction.findUnique({
+        where: { transactionKey: normalized.transactionKey },
+      });
+      if (!existing) created += 1;
+      await this.prisma.mapVietinTransaction.upsert({
+        where: { transactionKey: normalized.transactionKey },
+        create: normalized,
+        update: {
+          transactionNumber: normalized.transactionNumber,
+          amount: normalized.amount,
+          content: normalized.content,
+          status: normalized.status,
+          paidAt: normalized.paidAt,
+          payerName: normalized.payerName,
+          payerAccount: normalized.payerAccount,
+          rawData: normalized.rawData,
+        },
+      });
+    }
+    return created;
+  }
+
+  private normalizeTransaction(storeCode: string, row: MapTransactionRow) {
+    const amount = this.readAmount(row);
+    if (!amount || amount <= 0) return null;
+    if (!this.isSuccessfulTransaction(row)) return null;
+    const content = this.readFirstText(row, this.contentKeys);
+    const transactionNumber = this.readFirstText(
+      row,
+      this.transactionNumberKeys,
+    );
+    const paidAt = this.readTransactionTime(row);
+    const status = this.readFirstText(row, this.statusKeys);
+    const payerName = this.readFirstText(row, this.payerNameKeys);
+    const payerAccount = this.readFirstText(row, this.payerAccountKeys);
+    const fallback = [
+      transactionNumber,
+      amount,
+      paidAt?.toISOString() ?? '',
+      content,
+    ].join('|');
+    const hash = createHash('sha256')
+      .update(`${storeCode}|${fallback}`)
+      .digest('hex');
+
+    return {
+      storeCode,
+      transactionKey: `${storeCode}:${hash}`,
+      transactionNumber: transactionNumber || null,
+      amount,
+      content,
+      status: status || null,
+      paidAt,
+      payerName: payerName || null,
+      payerAccount: payerAccount || null,
+      rawData: row as Prisma.InputJsonObject,
+    };
+  }
+
+  private toStoredTransactionDto(row: {
+    id: string;
+    storeCode: string;
+    transactionKey: string;
+    transactionNumber: string | null;
+    amount: number;
+    content: string;
+    status: string | null;
+    paidAt: Date | null;
+    payerName: string | null;
+    payerAccount: string | null;
+    firstSeenAt: Date;
+  }) {
+    return {
+      id: row.id,
+      storeId: row.storeCode,
+      transactionKey: row.transactionKey,
+      transactionNumber: row.transactionNumber,
+      amount: row.amount,
+      content: row.content,
+      status: row.status,
+      paidAt: row.paidAt,
+      payerName: row.payerName,
+      payerAccount: row.payerAccount,
+      firstSeenAt: row.firstSeenAt,
+    };
+  }
+
+  private isSuccessfulTransaction(row: MapTransactionRow) {
+    const values = this.statusKeys
+      .map((key) => this.readText(row, key))
+      .filter(Boolean);
+    const statusText = this.normalizeMatchText(values.join(' '));
+    const statusCodes = values.map((value) => value.trim().toUpperCase());
+
+    return (
+      statusText.includes('THANH CONG') ||
+      statusText.includes('SUCCESS') ||
+      statusText.includes('DA THANH TOAN') ||
+      statusText.includes('HOAN THANH') ||
+      statusText.includes('COMPLETED') ||
+      statusText.includes('APPROVED') ||
+      statusCodes.includes('00')
+    );
+  }
+
+  private readAmount(row: MapTransactionRow) {
+    for (const key of this.amountKeys) {
+      const value = row[key];
+      if (typeof value === 'number') return Math.trunc(value);
+      const normalized = String(value || '').replace(/[^0-9]/g, '');
+      if (normalized) return Number(normalized);
+    }
+    return null;
+  }
+
+  private readTransactionTime(row: MapTransactionRow) {
+    const raw = this.readFirstText(row, this.transactionTimeKeys);
+    if (!raw) return null;
+    const match =
+      /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(
+        raw,
+      );
+    if (!match) {
+      const parsed = new Date(raw);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    return new Date(
+      Date.UTC(
+        Number(match[3]),
+        Number(match[2]) - 1,
+        Number(match[1]),
+        Number(match[4] || '0') - 7,
+        Number(match[5] || '0'),
+        Number(match[6] || '0'),
+      ),
+    );
+  }
+
+  private readText(row: MapTransactionRow, key: string) {
+    const value = row[key];
+    return value === null || value === undefined ? '' : String(value).trim();
+  }
+
+  private readFirstText(row: MapTransactionRow, keys: string[]) {
+    for (const key of keys) {
+      const value = this.readText(row, key);
+      if (value) return value;
+    }
+    return '';
+  }
+
+  private normalizeMatchText(value: string) {
+    return (value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/Đ/g, 'D')
+      .replace(/đ/g, 'd')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private parseDate(value: string, fieldName: string) {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException(`${fieldName} không hợp lệ`);
+    }
+    return parsed;
   }
 
   private assertCanSearch(admin: any) {
@@ -251,7 +639,9 @@ export class MapVietinService {
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(text)) return text;
     const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
     if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
-    throw new BadRequestException('Ngày MAP phải có dạng dd/MM/yyyy hoặc yyyy-MM-dd');
+    throw new BadRequestException(
+      'Ngày MAP phải có dạng dd/MM/yyyy hoặc yyyy-MM-dd',
+    );
   }
 
   private formatMapDate(value: Date) {
@@ -297,10 +687,9 @@ export class MapVietinService {
   private safeProviderMessage(value: unknown) {
     if (!value || typeof value !== 'object') return 'Không rõ lỗi';
     const record = value as Record<string, unknown>;
-    return String(record.message || record.error_desc || record.error || 'Không rõ lỗi').slice(
-      0,
-      180,
-    );
+    return String(
+      record.message || record.error_desc || record.error || 'Không rõ lỗi',
+    ).slice(0, 180);
   }
 
   private signature(body: Record<string, unknown>) {

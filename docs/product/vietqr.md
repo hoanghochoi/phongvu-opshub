@@ -38,6 +38,28 @@ a customer to scan and pay manually.
   local time. Missing amount/content, no match, or multiple matches remain
   unconfirmed and require manual review.
 
+## PC Payment Monitor
+
+- The Windows PC app exposes a `Tiền vào` home action.
+- The NestJS API is the source of truth for MAP transactions. It polls
+  configured showroom MAP accounts in the background, stores successful incoming
+  transactions in Postgres, and exposes the stored list to scoped clients.
+- The monitor is independent from OpsHub-created QR/payment intents. It reads
+  all successful incoming VietinBank MAP transactions stored for the selected
+  showroom, not only transfers that match an OpsHub QR.
+- The Windows app starts the monitor after sign-in when the account has a
+  showroom scope. It seeds currently visible server transactions silently so old
+  rows are not announced again.
+- While the app is running, the PC polls OpsHub every 5 seconds. Each newly
+  observed successful incoming transaction is announced through the Windows
+  speech engine as `Đã nhận <amount> đồng`.
+- QR payment confirmation checks stored MAP transactions first. If a matching
+  stored transaction exists, the QR screen moves to the paid state and the PC
+  monitor also announces that transaction. If no stored match exists yet, the
+  existing direct MAP check remains a fallback.
+- SUPER_ADMIN users choose the showroom to monitor. Other users are scoped by
+  the backend to their assigned showroom.
+
 ## Payment Confirmation Research
 
 Bank-web confirmation is possible only as a separate reconciliation feature

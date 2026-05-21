@@ -801,11 +801,13 @@ class _PaymentWaitingCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Đang chờ thanh toán',
+                    'Đang tự kiểm tra MAP',
                     style: TextStyle(color: color, fontWeight: FontWeight.w800),
                   ),
                   SizedBox(height: 4),
-                  Text('OpsHub sẽ tự kiểm tra giao dịch trên MAP.'),
+                  Text(
+                    'Màn hình sẽ đổi sang đã nhận khi MAP có giao dịch khớp.',
+                  ),
                 ],
               ),
             ),
