@@ -5,26 +5,44 @@ import '../../../../core/network/api_client.dart';
 import '../../domain/map_payment_transaction.dart';
 import '../../domain/payment_notification.dart';
 
+class StoredPaymentTransactionsPage {
+  final List<MapPaymentTransaction> transactions;
+  final int page;
+  final int limit;
+  final int total;
+
+  const StoredPaymentTransactionsPage({
+    required this.transactions,
+    required this.page,
+    required this.limit,
+    required this.total,
+  });
+}
+
 class PaymentMonitorRepository {
   final ApiClient _apiClient;
 
   PaymentMonitorRepository(this._apiClient);
 
-  Future<List<MapPaymentTransaction>> fetchStoredTransactions({
+  Future<StoredPaymentTransactionsPage> fetchStoredTransactions({
     String? storeId,
-    int limit = 50,
+    String? date,
+    int page = 0,
+    int limit = 10,
   }) async {
     final response = await _apiClient.get(
       ApiConstants.adminMapVietinStoredTransactionsEndpoint,
       queryParameters: {
         if (storeId != null && storeId.trim().isNotEmpty)
           'storeId': storeId.trim().toUpperCase(),
+        if (date != null && date.trim().isNotEmpty) 'date': date.trim(),
+        'page': page.toString(),
         'limit': limit.toString(),
       },
     );
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     final rows = data['list'] is List ? data['list'] as List : const [];
-    return rows
+    final transactions = rows
         .whereType<Map>()
         .map(
           (row) => MapPaymentTransaction.fromJson(
@@ -33,6 +51,13 @@ class PaymentMonitorRepository {
         )
         .where((transaction) => transaction.isValidIncoming)
         .toList();
+    return StoredPaymentTransactionsPage(
+      transactions: transactions,
+      page: int.tryParse(data['page']?.toString() ?? '') ?? page,
+      limit: int.tryParse(data['limit']?.toString() ?? '') ?? limit,
+      total:
+          int.tryParse(data['total']?.toString() ?? '') ?? transactions.length,
+    );
   }
 
   Future<List<int>> downloadNotificationAudio(String notificationId) {

@@ -88,16 +88,18 @@ On a VPS that already has host Nginx or Cloudflare Tunnel, set
 ## GitHub Deploy
 
 The repository includes `.github/workflows/deploy-opshub.yml`. On every push to
-`main`, it builds an Android APK and a Windows ZIP with:
+`main`, it builds an Android APK, a portable Windows ZIP, and a Windows installer
+EXE with:
 
 - `API_BASE_URL=https://opshub.hoanghochoi.com/api`
 - `--build-name <utc-date>.<github-run-number>`
 - `--build-number 100000+<github-run-number>`
 
-Then it uploads both client artifacts to `/srv/opshub/downloads/`, updates the
-backend generic `APP_*`, `APP_ANDROID_APP_*`, and `APP_WINDOWS_APP_*` env
-values, runs Prisma migrations, rebuilds the Docker stack, and keeps only the
-five newest release folders plus the newest client downloads.
+Then it uploads the client artifacts to `/srv/opshub/downloads/`, points Windows
+update metadata at the installer EXE, updates the backend generic `APP_*`,
+`APP_ANDROID_APP_*`, and `APP_WINDOWS_APP_*` env values, runs Prisma migrations,
+rebuilds the Docker stack, and keeps only the five newest release folders plus
+the newest client downloads.
 
 Required GitHub repository secrets:
 

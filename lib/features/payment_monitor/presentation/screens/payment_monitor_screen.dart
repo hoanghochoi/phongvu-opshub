@@ -128,6 +128,8 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                       ).format(monitor.lastCheckedAt!),
               ),
               const SizedBox(height: 16),
+              _TransactionFilters(monitor: monitor),
+              const SizedBox(height: 16),
               Text(
                 'Giao dịch gần đây',
                 style: TextStyle(
@@ -155,6 +157,9 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
   }
 
   Widget _buildTransactionTile(MapPaymentTransaction transaction) {
+    final displayTime = _toVietnamTime(
+      transaction.paidAt ?? transaction.firstSeenAt,
+    );
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 10),
@@ -170,8 +175,8 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
         ),
         subtitle: Text(
           [
-            if (transaction.paidAt != null)
-              DateFormat('HH:mm:ss dd/MM').format(transaction.paidAt!),
+            if (displayTime != null)
+              DateFormat('HH:mm:ss dd/MM').format(displayTime),
             if (transaction.content.isNotEmpty) transaction.content,
           ].join(' - '),
           maxLines: 2,
@@ -179,6 +184,106 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
         ),
       ),
     );
+  }
+
+  DateTime? _toVietnamTime(DateTime? value) {
+    if (value == null) return null;
+    return value.toUtc().add(const Duration(hours: 7));
+  }
+}
+
+class _TransactionFilters extends StatelessWidget {
+  final PaymentMonitorProvider monitor;
+
+  const _TransactionFilters({required this.monitor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickDate(context),
+                    icon: const Icon(Icons.calendar_month_rounded),
+                    label: Text(
+                      DateFormat('dd/MM/yyyy').format(monitor.selectedDate),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 116,
+                  child: DropdownButtonFormField<int>(
+                    initialValue: monitor.pageSize,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [10, 20, 50, 100]
+                        .map(
+                          (value) => DropdownMenuItem(
+                            value: value,
+                            child: Text('$value dòng'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      context.read<PaymentMonitorProvider>().setPageSize(value);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                IconButton(
+                  onPressed: monitor.canGoPreviousPage
+                      ? () => context
+                            .read<PaymentMonitorProvider>()
+                            .previousPage()
+                      : null,
+                  icon: const Icon(Icons.chevron_left_rounded),
+                ),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      'Trang ${monitor.pageIndex + 1} - ${monitor.totalTransactions} giao dịch',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: monitor.canGoNextPage
+                      ? () => context.read<PaymentMonitorProvider>().nextPage()
+                      : null,
+                  icon: const Icon(Icons.chevron_right_rounded),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickDate(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: monitor.selectedDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+    );
+    if (picked == null || !context.mounted) return;
+    context.read<PaymentMonitorProvider>().setSelectedDate(picked);
   }
 }
 

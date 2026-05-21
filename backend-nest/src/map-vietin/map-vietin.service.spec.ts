@@ -22,6 +22,7 @@ describe('MapVietinService', () => {
       },
       mapVietinTransaction: {
         findMany: jest.fn(),
+        count: jest.fn(),
         findUnique: jest.fn(),
         upsert: jest.fn(),
       },
@@ -223,14 +224,18 @@ describe('MapVietinService', () => {
         firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
       },
     ]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(1);
 
     await expect(
       service.listStoredTransactions(
         { role: 'STAFF', storeId: 'store-uuid-1' },
-        {},
+        { date: '2026-05-21', page: 0, limit: 10 },
       ),
     ).resolves.toMatchObject({
       storeId: 'CP01',
+      page: 0,
+      limit: 10,
+      total: 1,
       list: [
         {
           id: 'stored-1',
@@ -242,8 +247,14 @@ describe('MapVietinService', () => {
 
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { storeCode: 'CP01' },
-        take: 50,
+        where: expect.objectContaining({ storeCode: 'CP01' }),
+        skip: 0,
+        take: 10,
+      }),
+    );
+    expect(prisma.mapVietinTransaction.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ storeCode: 'CP01' }),
       }),
     );
   });

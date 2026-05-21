@@ -26,6 +26,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   DateTime? _lastCheckedAt;
+  DateTime _selectedDate = _todayInVietnam();
+  int _pageIndex = 0;
+  int _pageSize = 10;
+  int _totalTransactions = 0;
 
   PaymentMonitorProvider(this._repository, this._speaker);
 
@@ -34,6 +38,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   DateTime? get lastCheckedAt => _lastCheckedAt;
   String? get storeOverride => _storeOverride;
+  DateTime get selectedDate => _selectedDate;
+  int get pageIndex => _pageIndex;
+  int get pageSize => _pageSize;
+  int get totalTransactions => _totalTransactions;
+  bool get canGoPreviousPage => _pageIndex > 0;
+  bool get canGoNextPage => (_pageIndex + 1) * _pageSize < _totalTransactions;
   List<MapPaymentTransaction> get latestTransactions =>
       List.unmodifiable(_latestTransactions);
 
@@ -50,7 +60,35 @@ class PaymentMonitorProvider extends ChangeNotifier {
     final normalized = value.trim().toUpperCase();
     if (_storeOverride == normalized) return;
     _storeOverride = normalized.isEmpty ? null : normalized;
+    _pageIndex = 0;
     _restart();
+  }
+
+  void setSelectedDate(DateTime value) {
+    final normalized = DateTime(value.year, value.month, value.day);
+    if (_isSameDate(_selectedDate, normalized)) return;
+    _selectedDate = normalized;
+    _pageIndex = 0;
+    _poll();
+  }
+
+  void setPageSize(int value) {
+    if (_pageSize == value) return;
+    _pageSize = value;
+    _pageIndex = 0;
+    _poll();
+  }
+
+  void nextPage() {
+    if (!canGoNextPage) return;
+    _pageIndex += 1;
+    _poll();
+  }
+
+  void previousPage() {
+    if (!canGoPreviousPage) return;
+    _pageIndex -= 1;
+    _poll();
   }
 
   bool get _canMonitorOnThisDevice =>
@@ -113,9 +151,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
     try {
       final clientId = await _ensureClientId();
-      final transactions = await _repository.fetchStoredTransactions(
+      final transactionPage = await _repository.fetchStoredTransactions(
         storeId: _requestStoreId,
-        limit: 50,
+        date: _formatDateForApi(_selectedDate),
+        page: _pageIndex,
+        limit: _pageSize,
       );
       final notifications = await _repository.fetchReadyNotifications(
         clientId: clientId,
@@ -125,9 +165,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
       await _playReadyNotifications(notifications, clientId);
 
       _lastCheckedAt = DateTime.now();
+      _pageIndex = transactionPage.page;
+      _pageSize = transactionPage.limit;
+      _totalTransactions = transactionPage.total;
       _latestTransactions
         ..clear()
-        ..addAll(transactions.take(10));
+        ..addAll(transactionPage.transactions);
     } catch (error) {
       _errorMessage = error.toString();
     } finally {
@@ -209,5 +252,18 @@ class PaymentMonitorProvider extends ChangeNotifier {
         );
       }
     }
+  }
+
+  static DateTime _todayInVietnam() {
+    final now = DateTime.now().toUtc().add(const Duration(hours: 7));
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  static bool _isSameDate(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  static String _formatDateForApi(DateTime date) {
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${date.year}-${two(date.month)}-${two(date.day)}';
   }
 }

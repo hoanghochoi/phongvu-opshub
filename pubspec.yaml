@@ -110,7 +110,7 @@ flutter:
     - assets/icon/
     - assets/images/
     - data/email_domain.txt
-    - data/ting ting.mp3
+    - data/ting_ting.mp3
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
