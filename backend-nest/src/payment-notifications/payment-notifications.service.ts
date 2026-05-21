@@ -15,6 +15,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import {
   CreateAppLogDto,
+  ListPaymentNotificationsQueryDto,
   PaymentNotificationAckDto,
 } from './payment-notifications.dto';
 import { vietnameseAmountWords } from './vietnamese-amount-words';
@@ -35,7 +36,8 @@ type StoredTransaction = {
 export class PaymentNotificationsService {
   private readonly logger = new Logger(PaymentNotificationsService.name);
   private readonly audioDir = resolve(
-    process.env.PAYMENT_AUDIO_DIR || join(process.cwd(), 'storage', 'payment-audio'),
+    process.env.PAYMENT_AUDIO_DIR ||
+      join(process.cwd(), 'storage', 'payment-audio'),
   );
 
   constructor(
@@ -79,6 +81,55 @@ export class PaymentNotificationsService {
     return notification;
   }
 
+  async listReadyForClient(user: any, query: ListPaymentNotificationsQueryDto) {
+    const clientId = query.clientId?.trim();
+    if (!clientId) {
+      throw new ForbiddenException('Thiáº¿u mÃ£ thiáº¿t bá»‹');
+    }
+    const storeCode = await this.resolveNotificationStore(
+      user,
+      query.storeCode,
+    );
+    const limit = Math.min(Math.max(Number(query.limit) || 10, 1), 20);
+    const candidates = await this.prisma.paymentNotification.findMany({
+      where: {
+        storeCode,
+        audioStatus: 'READY',
+        audioPath: { not: null },
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: limit * 3,
+    });
+
+    const ready: Array<Record<string, unknown>> = [];
+    for (const notification of candidates) {
+      const played = await this.prisma.paymentNotificationDeliveryLog.findFirst(
+        {
+          where: {
+            notificationId: notification.id,
+            clientId,
+            event: 'PLAYED',
+          },
+          select: { id: true },
+        },
+      );
+      if (played) continue;
+      ready.push({
+        notificationId: notification.id,
+        transactionId: notification.transactionId,
+        storeCode: notification.storeCode,
+        amount: notification.amount,
+        audioStatus: notification.audioStatus,
+        audioUrl: `/payment-notifications/${notification.id}/audio`,
+        createdAt: notification.createdAt.toISOString(),
+      });
+      if (ready.length >= limit) break;
+    }
+
+    return { list: ready };
+  }
+
   async getAudioForUser(user: any, notificationId: string) {
     const notification = await this.prisma.paymentNotification.findUnique({
       where: { id: notificationId },
@@ -96,7 +147,11 @@ export class PaymentNotificationsService {
     };
   }
 
-  async acknowledge(user: any, notificationId: string, input: PaymentNotificationAckDto) {
+  async acknowledge(
+    user: any,
+    notificationId: string,
+    input: PaymentNotificationAckDto,
+  ) {
     const notification = await this.prisma.paymentNotification.findUnique({
       where: { id: notificationId },
     });
@@ -175,18 +230,24 @@ export class PaymentNotificationsService {
   private async generateAudio(notificationId: string, text: string) {
     const serviceUrl = process.env.TTS_SERVICE_URL?.trim();
     if (!serviceUrl) {
-      return this.markAudioFailed(notificationId, 'TTS_SERVICE_URL is not configured');
+      return this.markAudioFailed(
+        notificationId,
+        'TTS_SERVICE_URL is not configured',
+      );
     }
 
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), this.ttsTimeoutMs());
-      const response = await fetch(`${serviceUrl.replace(/\/$/, '')}/synthesize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, format: 'mp3' }),
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timeout));
+      const response = await fetch(
+        `${serviceUrl.replace(/\/$/, '')}/synthesize`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, format: 'mp3' }),
+          signal: controller.signal,
+        },
+      ).finally(() => clearTimeout(timeout));
 
       if (!response.ok) {
         return this.markAudioFailed(
@@ -198,7 +259,10 @@ export class PaymentNotificationsService {
       const mimeType = response.headers.get('content-type') || 'audio/mpeg';
       const extension = mimeType.includes('wav') ? 'wav' : 'mp3';
       await mkdir(this.audioDir, { recursive: true });
-      const audioPath = join(this.audioDir, `${notificationId}-${randomUUID()}.${extension}`);
+      const audioPath = join(
+        this.audioDir,
+        `${notificationId}-${randomUUID()}.${extension}`,
+      );
       const buffer = Buffer.from(await response.arrayBuffer());
       await writeFile(audioPath, buffer);
 
@@ -277,6 +341,23 @@ export class PaymentNotificationsService {
     }
   }
 
+  private async resolveNotificationStore(user: any, requested?: string) {
+    const normalized = requested?.trim().toUpperCase();
+    if (user?.role === SUPER_ADMIN_ROLE) {
+      if (!normalized) {
+        throw new ForbiddenException('SUPER_ADMIN cáº§n chá»n showroom');
+      }
+      return normalized;
+    }
+    const userStoreCode = await this.userStoreCode(user);
+    if (!userStoreCode || (normalized && normalized !== userStoreCode)) {
+      throw new ForbiddenException(
+        'KhÃ´ng cÃ³ quyá»n truy cáº­p showroom nÃ y',
+      );
+    }
+    return userStoreCode;
+  }
+
   private async resolveAllowedLogStore(user: any, requested?: string) {
     const normalized = requested?.trim().toUpperCase();
     if (user?.role === SUPER_ADMIN_ROLE) return normalized || null;
@@ -297,11 +378,17 @@ export class PaymentNotificationsService {
   }
 
   private audioRetentionDays() {
-    return this.readPositiveInt('PAYMENT_AUDIO_RETENTION_DAYS', DEFAULT_AUDIO_RETENTION_DAYS);
+    return this.readPositiveInt(
+      'PAYMENT_AUDIO_RETENTION_DAYS',
+      DEFAULT_AUDIO_RETENTION_DAYS,
+    );
   }
 
   private logRetentionDays() {
-    return this.readPositiveInt('APP_LOG_RETENTION_DAYS', DEFAULT_LOG_RETENTION_DAYS);
+    return this.readPositiveInt(
+      'APP_LOG_RETENTION_DAYS',
+      DEFAULT_LOG_RETENTION_DAYS,
+    );
   }
 
   private transactionRetentionDays() {
@@ -317,7 +404,9 @@ export class PaymentNotificationsService {
 
   private readPositiveInt(key: string, fallback: number) {
     const parsed = Number(process.env[key]);
-    return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : fallback;
+    return Number.isFinite(parsed) && parsed > 0
+      ? Math.trunc(parsed)
+      : fallback;
   }
 
   private daysFromNow(days: number) {

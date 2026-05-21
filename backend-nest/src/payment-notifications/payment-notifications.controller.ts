@@ -5,6 +5,7 @@ import {
   Header,
   Param,
   Post,
+  Query,
   Request,
   Res,
   UseGuards,
@@ -13,6 +14,7 @@ import { AuthGuard } from '@nestjs/passport';
 import type { Response } from 'express';
 import {
   CreateAppLogDto,
+  ListPaymentNotificationsQueryDto,
   PaymentNotificationAckDto,
 } from './payment-notifications.dto';
 import { PaymentNotificationsService } from './payment-notifications.service';
@@ -21,6 +23,14 @@ import { PaymentNotificationsService } from './payment-notifications.service';
 @UseGuards(AuthGuard('jwt'))
 export class PaymentNotificationsController {
   constructor(private readonly service: PaymentNotificationsService) {}
+
+  @Get('payment-notifications/ready')
+  listReady(
+    @Request() req: any,
+    @Query() query: ListPaymentNotificationsQueryDto,
+  ) {
+    return this.service.listReadyForClient(req.user, query);
+  }
 
   @Get('payment-notifications/:id/audio')
   @Header('Cache-Control', 'private, max-age=300')

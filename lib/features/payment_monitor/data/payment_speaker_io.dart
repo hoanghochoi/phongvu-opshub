@@ -22,14 +22,14 @@ class PaymentSpeaker {
     if (!Platform.isWindows) return;
     await _playTingTing();
     if (audioBytes == null || audioBytes.isEmpty) {
-      await _speakWithWindowsSapi(amount);
-      return;
+      throw StateError('Server audio is empty');
     }
 
     try {
       final directory = await getTemporaryDirectory();
+      final extension = _audioExtension(audioBytes);
       final file = File(
-        '${directory.path}${Platform.pathSeparator}opshub-payment-${DateTime.now().microsecondsSinceEpoch}.mp3',
+        '${directory.path}${Platform.pathSeparator}opshub-payment-${DateTime.now().microsecondsSinceEpoch}.$extension',
       );
       await file.writeAsBytes(audioBytes, flush: true);
       final player = AudioPlayer();
@@ -45,12 +45,23 @@ class PaymentSpeaker {
     } catch (error, stackTrace) {
       await AppLogger.instance.error(
         _source,
-        'Server audio playback failed, falling back to local speaker',
+        'Server audio playback failed',
         error: error,
         stackTrace: stackTrace,
       );
-      await _speakWithWindowsSapi(amount);
+      rethrow;
     }
+  }
+
+  String _audioExtension(List<int> audioBytes) {
+    if (audioBytes.length >= 4 &&
+        audioBytes[0] == 0x52 &&
+        audioBytes[1] == 0x49 &&
+        audioBytes[2] == 0x46 &&
+        audioBytes[3] == 0x46) {
+      return 'wav';
+    }
+    return 'mp3';
   }
 
   Future<void> _playTingTing() async {
