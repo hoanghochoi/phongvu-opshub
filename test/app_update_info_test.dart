@@ -5,6 +5,7 @@ void main() {
   group('AppUpdateInfo', () {
     test('does not require update when current build is already latest', () {
       const info = AppUpdateInfo(
+        platform: 'android',
         latestVersion: '2026.05.20.7',
         latestBuild: 100007,
         minSupportedBuild: 100007,
@@ -19,6 +20,7 @@ void main() {
 
     test('requires update when force update is enabled and build is old', () {
       const info = AppUpdateInfo(
+        platform: 'android',
         latestVersion: '2026.05.20.7',
         latestBuild: 100007,
         minSupportedBuild: 100000,
@@ -31,18 +33,22 @@ void main() {
       expect(info.requiresUpdate(100006), isTrue);
     });
 
-    test('requires update when current build is below minimum supported build', () {
-      const info = AppUpdateInfo(
-        latestVersion: '2026.05.20.7',
-        latestBuild: 100007,
-        minSupportedBuild: 100005,
-        updateUrl: 'https://opshub.hoanghochoi.com/downloads/app.apk',
-        releaseNotes: 'GitHub 5652baf',
-        forceUpdate: false,
-      );
+    test(
+      'requires update when current build is below minimum supported build',
+      () {
+        const info = AppUpdateInfo(
+          platform: 'android',
+          latestVersion: '2026.05.20.7',
+          latestBuild: 100007,
+          minSupportedBuild: 100005,
+          updateUrl: 'https://opshub.hoanghochoi.com/downloads/app.apk',
+          releaseNotes: 'GitHub 5652baf',
+          forceUpdate: false,
+        );
 
-      expect(info.hasUpdate(100004), isTrue);
-      expect(info.requiresUpdate(100004), isTrue);
-    });
+        expect(info.hasUpdate(100004), isTrue);
+        expect(info.requiresUpdate(100004), isTrue);
+      },
+    );
   });
 }

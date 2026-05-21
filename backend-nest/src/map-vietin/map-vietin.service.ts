@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
@@ -11,6 +12,7 @@ import { Prisma } from '@prisma/client';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { decryptSecret } from '../common/secret-cipher';
+import { PaymentNotificationsService } from '../payment-notifications/payment-notifications.service';
 import {
   ListStoredMapVietinTransactionsDto,
   SearchMapVietinTransactionsDto,
@@ -127,7 +129,11 @@ export class MapVietinService {
     'debitAccountNo',
   ];
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional()
+    private paymentNotifications?: PaymentNotificationsService,
+  ) {}
 
   async searchTransactions(admin: any, input: SearchMapVietinTransactionsDto) {
     const store = await this.resolveStore(admin, input.storeId);
@@ -361,7 +367,7 @@ export class MapVietinService {
         where: { transactionKey: normalized.transactionKey },
       });
       if (!existing) created += 1;
-      await this.prisma.mapVietinTransaction.upsert({
+      const stored = await this.prisma.mapVietinTransaction.upsert({
         where: { transactionKey: normalized.transactionKey },
         create: normalized,
         update: {
@@ -375,6 +381,15 @@ export class MapVietinService {
           rawData: normalized.rawData,
         },
       });
+      if (!existing && stored?.id && this.paymentNotifications) {
+        void this.paymentNotifications
+          .createForTransaction(stored)
+          .catch((error) => {
+            this.logger.warn(
+              `Payment notification failed for ${stored.id}: ${this.safeError(error)}`,
+            );
+          });
+      }
     }
     return created;
   }

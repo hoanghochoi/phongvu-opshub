@@ -209,6 +209,8 @@ describe('AuthService', () => {
       email: 'staff@phongvu-shop.vn',
       sub: 'user-1',
       role: 'ADMIN',
+      storeUuid: 'store-1',
+      storeCode: 'CP01',
     });
   });
 

@@ -16,24 +16,40 @@ env:
   OPSHUB_ENV_FILE: /srv/opshub/env
 
 jobs:
-  deploy:
+  prepare:
     runs-on: ubuntu-latest
-
+    outputs:
+      version_name: ${{ steps.version.outputs.version_name }}
+      windows_build_name: ${{ steps.version.outputs.windows_build_name }}
+      version_code: ${{ steps.version.outputs.version_code }}
+      apk_name: ${{ steps.version.outputs.apk_name }}
+      windows_zip_name: ${{ steps.version.outputs.windows_zip_name }}
+      release_notes: ${{ steps.version.outputs.release_notes }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
       - name: Compute release version
         id: version
         shell: bash
         run: |
           set -euo pipefail
           version_name="$(date -u +%Y.%m.%d).${GITHUB_RUN_NUMBER}"
+          windows_build_name="$(date -u +%Y).$(date -u +%-m).$(date -u +%-d)"
           version_code="$((100000 + GITHUB_RUN_NUMBER))"
           apk_name="phongvu-opshub-v${version_name}+${version_code}.apk"
+          windows_zip_name="phongvu-opshub-windows-v${version_name}+${version_code}.zip"
+          release_notes="GitHub ${GITHUB_SHA::7}"
           echo "version_name=${version_name}" >> "$GITHUB_OUTPUT"
+          echo "windows_build_name=${windows_build_name}" >> "$GITHUB_OUTPUT"
           echo "version_code=${version_code}" >> "$GITHUB_OUTPUT"
           echo "apk_name=${apk_name}" >> "$GITHUB_OUTPUT"
+          echo "windows_zip_name=${windows_zip_name}" >> "$GITHUB_OUTPUT"
+          echo "release_notes=${release_notes}" >> "$GITHUB_OUTPUT"
+
+  build_android:
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -54,6 +70,7 @@ jobs:
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
 
       - name: Build release APK
+        shell: bash
         env:
           ANDROID_KEYSTORE_PATH: upload-keystore.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -69,9 +86,76 @@ jobs:
           done
           flutter pub get
           flutter build apk --release \
-            --build-name "${{ steps.version.outputs.version_name }}" \
-            --build-number "${{ steps.version.outputs.version_code }}" \
+            --build-name "${{ needs.prepare.outputs.version_name }}" \
+            --build-number "${{ needs.prepare.outputs.version_code }}" \
             --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+  build_windows:
+    runs-on: windows-latest
+    needs: prepare
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build Windows release
+        shell: pwsh
+        run: |
+          flutter pub get
+          flutter build windows --release `
+            --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
+            --build-number "${{ needs.prepare.outputs.version_code }}" `
+            --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}"
+
+      - name: Zip Windows release
+        shell: pwsh
+        run: |
+          $zipPath = Join-Path "build\windows\x64\runner" "${{ needs.prepare.outputs.windows_zip_name }}"
+          Compress-Archive `
+            -Path "build\windows\x64\runner\Release\*" `
+            -DestinationPath $zipPath `
+            -Force
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: build/windows/x64/runner/${{ needs.prepare.outputs.windows_zip_name }}
+          if-no-files-found: error
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - build_android
+      - build_windows
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: dist/android
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-zip
+          path: dist/windows
 
       - name: Configure SSH
         shell: bash
@@ -95,7 +179,7 @@ jobs:
             echo "  IdentitiesOnly yes"
           } >> ~/.ssh/config
 
-      - name: Upload app bundle and APK
+      - name: Upload app bundle and client artifacts
         shell: bash
         run: |
           set -euo pipefail
@@ -105,24 +189,29 @@ jobs:
             --exclude '.git/' \
             --exclude '.dart_tool/' \
             --exclude 'build/' \
+            --exclude 'dist/' \
             ./ "opshub-vps:${remote_release_dir}/"
-          scp "build/app/outputs/flutter-apk/app-release.apk" \
-            "opshub-vps:/srv/opshub/downloads/${{ steps.version.outputs.apk_name }}"
+          scp "dist/android/app-release.apk" \
+            "opshub-vps:/srv/opshub/downloads/${{ needs.prepare.outputs.apk_name }}"
+          scp "dist/windows/${{ needs.prepare.outputs.windows_zip_name }}" \
+            "opshub-vps:/srv/opshub/downloads/${{ needs.prepare.outputs.windows_zip_name }}"
 
       - name: Deploy backend and publish version metadata
         shell: bash
         run: |
           set -euo pipefail
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
-          update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ steps.version.outputs.apk_name }}"
+          android_update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.apk_name }}"
+          windows_update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.windows_zip_name }}"
           ssh opshub-vps \
             "REMOTE_RELEASE_DIR='$remote_release_dir' \
              CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
              OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
-             APP_VERSION='${{ steps.version.outputs.version_name }}' \
-             APP_BUILD_NUMBER='${{ steps.version.outputs.version_code }}' \
-             APP_UPDATE_URL='$update_url' \
-             APP_RELEASE_NOTES='GitHub ${GITHUB_SHA::7}' \
+             APP_VERSION='${{ needs.prepare.outputs.version_name }}' \
+             APP_BUILD_NUMBER='${{ needs.prepare.outputs.version_code }}' \
+             ANDROID_UPDATE_URL='$android_update_url' \
+             WINDOWS_UPDATE_URL='$windows_update_url' \
+             APP_RELEASE_NOTES='${{ needs.prepare.outputs.release_notes }}' \
              bash -s" <<'REMOTE'
           set -euo pipefail
 
@@ -145,9 +234,23 @@ jobs:
           upsert_env APP_VERSION "$APP_VERSION"
           upsert_env APP_BUILD_NUMBER "$APP_BUILD_NUMBER"
           upsert_env APP_MIN_SUPPORTED_BUILD "$APP_BUILD_NUMBER"
-          upsert_env APP_UPDATE_URL "$APP_UPDATE_URL"
+          upsert_env APP_UPDATE_URL "$ANDROID_UPDATE_URL"
           upsert_env APP_RELEASE_NOTES "$APP_RELEASE_NOTES"
           upsert_env APP_FORCE_UPDATE true
+
+          upsert_env APP_ANDROID_APP_VERSION "$APP_VERSION"
+          upsert_env APP_ANDROID_APP_BUILD_NUMBER "$APP_BUILD_NUMBER"
+          upsert_env APP_ANDROID_APP_MIN_SUPPORTED_BUILD "$APP_BUILD_NUMBER"
+          upsert_env APP_ANDROID_APP_UPDATE_URL "$ANDROID_UPDATE_URL"
+          upsert_env APP_ANDROID_APP_RELEASE_NOTES "$APP_RELEASE_NOTES"
+          upsert_env APP_ANDROID_APP_FORCE_UPDATE true
+
+          upsert_env APP_WINDOWS_APP_VERSION "$APP_VERSION"
+          upsert_env APP_WINDOWS_APP_BUILD_NUMBER "$APP_BUILD_NUMBER"
+          upsert_env APP_WINDOWS_APP_MIN_SUPPORTED_BUILD "$APP_BUILD_NUMBER"
+          upsert_env APP_WINDOWS_APP_UPDATE_URL "$WINDOWS_UPDATE_URL"
+          upsert_env APP_WINDOWS_APP_RELEASE_NOTES "$APP_RELEASE_NOTES"
+          upsert_env APP_WINDOWS_APP_FORCE_UPDATE true
 
           ln -sfn "$REMOTE_RELEASE_DIR" "${CURRENT_DIR}.next"
           mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
@@ -161,7 +264,7 @@ jobs:
           OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
             -f deploy/home-server/docker-compose.home.yml \
-            up -d --build --force-recreate api caddy
+            up -d --build --force-recreate api realtime caddy
 
           docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
@@ -180,14 +283,14 @@ jobs:
             rm -rf "$dir"
           done
 
-          mapfile -t apk_files < <(find /srv/opshub/downloads -maxdepth 1 -type f -name 'phongvu-opshub-v*.apk' -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
+          mapfile -t client_files < <(find /srv/opshub/downloads -maxdepth 1 -type f \( -name 'phongvu-opshub-v*.apk' -o -name 'phongvu-opshub-windows-v*.zip' \) -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
           kept=0
-          for apk in "${apk_files[@]}"; do
-            if [ "$kept" -lt 5 ]; then
+          for file in "${client_files[@]}"; do
+            if [ "$kept" -lt 10 ]; then
               kept=$((kept + 1))
               continue
             fi
-            rm -f "$apk"
+            rm -f "$file"
           done
           REMOTE
 
@@ -208,11 +311,22 @@ jobs:
           }
 
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/health"
-          version_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version")"
+          android_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android")"
+          windows_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows")"
           node -e "
-            const data = JSON.parse(process.argv[1]);
-            const expectedBuild = Number(process.argv[2]);
-            if (data.latestBuild !== expectedBuild) {
-              throw new Error(\`Expected latestBuild \${expectedBuild}, got \${data.latestBuild}\`);
+            const android = JSON.parse(process.argv[1]);
+            const windows = JSON.parse(process.argv[2]);
+            const expectedBuild = Number(process.argv[3]);
+            if (android.latestBuild !== expectedBuild) {
+              throw new Error(\`Android latestBuild expected \${expectedBuild}, got \${android.latestBuild}\`);
             }
-          " "$version_json" "${{ steps.version.outputs.version_code }}"
+            if (windows.latestBuild !== expectedBuild) {
+              throw new Error(\`Windows latestBuild expected \${expectedBuild}, got \${windows.latestBuild}\`);
+            }
+            if (!String(android.updateUrl || '').endsWith('.apk')) {
+              throw new Error('Android updateUrl is not an APK');
+            }
+            if (!String(windows.updateUrl || '').endsWith('.zip')) {
+              throw new Error('Windows updateUrl is not a ZIP');
+            }
+          " "$android_json" "$windows_json" "${{ needs.prepare.outputs.version_code }}"

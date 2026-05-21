@@ -174,7 +174,13 @@ export class AuthService {
     storeId?: string | null;
     store?: { storeId?: string | null; storeName?: string | null } | null;
   }) {
-    const jwtPayload = { email: user.email, sub: user.id, role: user.role };
+    const jwtPayload = {
+      email: user.email,
+      sub: user.id,
+      role: user.role,
+      storeUuid: user.storeId ?? null,
+      storeCode: user.store?.storeId ?? null,
+    };
     return {
       login: true,
       access_token: this.jwtService.sign(jwtPayload),

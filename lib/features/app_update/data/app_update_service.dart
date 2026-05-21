@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../core/constants/api_constants.dart';
@@ -14,7 +15,10 @@ class AppUpdateService {
   Future<AppUpdateCheckResult?> checkForUpdate() async {
     final packageInfo = await PackageInfo.fromPlatform();
     final currentBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
-    final response = await _apiClient.get(ApiConstants.appVersionEndpoint);
+    final response = await _apiClient.get(
+      ApiConstants.appVersionEndpoint,
+      queryParameters: {'platform': _platformName},
+    );
     final payload = jsonDecode(response.body) as Map<String, dynamic>;
     final info = AppUpdateInfo.fromJson(payload);
 
@@ -27,6 +31,15 @@ class AppUpdateService {
       currentBuild: currentBuild,
       updateInfo: info,
     );
+  }
+
+  String get _platformName {
+    if (kIsWeb) return 'web';
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => 'android',
+      TargetPlatform.windows => 'windows',
+      _ => defaultTargetPlatform.name,
+    };
   }
 }
 

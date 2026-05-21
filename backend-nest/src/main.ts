@@ -1,8 +1,9 @@
 import 'dotenv/config';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { json, urlencoded } from 'express';
 import helmet from 'helmet';
+import { randomUUID } from 'crypto';
 import { AppModule } from './app.module';
 import {
   getPort,
@@ -14,8 +15,27 @@ import {
 async function bootstrap() {
   validateRuntimeEnv();
   const app = await NestFactory.create(AppModule);
+  const requestLogger = new Logger('HttpRequest');
 
   app.use(helmet());
+  app.use((req: any, res: any, next: () => void) => {
+    const requestId = req.headers['x-request-id']?.toString() || randomUUID();
+    const startedAt = Date.now();
+    req.requestId = requestId;
+    res.setHeader('x-request-id', requestId);
+    res.on('finish', () => {
+      requestLogger.log(
+        JSON.stringify({
+          requestId,
+          method: req.method,
+          path: req.originalUrl || req.url,
+          statusCode: res.statusCode,
+          durationMs: Date.now() - startedAt,
+        }),
+      );
+    });
+    next();
+  });
   app.use(json({ limit: getRequestBodyLimit() }));
   app.use(urlencoded({ extended: true, limit: getRequestBodyLimit() }));
   app.enableCors({
