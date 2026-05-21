@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/network/api_client.dart';
 import '../../domain/map_payment_transaction.dart';
+import '../../domain/payment_notification.dart';
 
 class PaymentMonitorRepository {
   final ApiClient _apiClient;
@@ -38,6 +39,33 @@ class PaymentMonitorRepository {
     return _apiClient.getBytes(
       ApiConstants.paymentNotificationAudioEndpoint(notificationId),
     );
+  }
+
+  Future<List<PaymentNotification>> fetchReadyNotifications({
+    required String clientId,
+    String? storeId,
+    int limit = 10,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConstants.paymentNotificationsReadyEndpoint,
+      queryParameters: {
+        'clientId': clientId,
+        if (storeId != null && storeId.trim().isNotEmpty)
+          'storeCode': storeId.trim().toUpperCase(),
+        'limit': limit.toString(),
+      },
+    );
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final rows = data['list'] is List ? data['list'] as List : const [];
+    return rows
+        .whereType<Map>()
+        .map(
+          (row) => PaymentNotification.fromJson(
+            row.map((key, value) => MapEntry(key.toString(), value)),
+          ),
+        )
+        .where((notification) => notification.isValid)
+        .toList();
   }
 
   Future<void> acknowledgeNotification({

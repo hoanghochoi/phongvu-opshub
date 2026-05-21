@@ -1,13 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 
-import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
-import '../../../../core/network/api_client.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../data/payment_speaker.dart';
 import '../../data/repositories/payment_monitor_repository.dart';
@@ -19,19 +15,15 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   final PaymentMonitorRepository _repository;
   final PaymentSpeaker _speaker;
-  final Set<String> _seenTransactionIds = {};
   final Set<String> _seenNotificationIds = {};
   final List<MapPaymentTransaction> _latestTransactions = [];
 
   Timer? _timer;
-  WebSocketChannel? _channel;
-  StreamSubscription<dynamic>? _channelSubscription;
   User? _user;
   String? _storeOverride;
   String? _clientId;
   bool _isActive = false;
   bool _isLoading = false;
-  bool _hasSeeded = false;
   String? _errorMessage;
   DateTime? _lastCheckedAt;
 
@@ -84,12 +76,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
     if (_isActive) return;
     _isActive = true;
-    _hasSeeded = false;
-    _seenTransactionIds.clear();
     _seenNotificationIds.clear();
     _latestTransactions.clear();
     _poll();
-    unawaited(_connectRealtime());
     _timer = Timer.periodic(_pollInterval, (_) => _poll());
     notifyListeners();
   }
@@ -102,7 +91,6 @@ class PaymentMonitorProvider extends ChangeNotifier {
   void _stop() {
     _timer?.cancel();
     _timer = null;
-    unawaited(_closeRealtime());
     if (!_isActive &&
         !_isLoading &&
         _latestTransactions.isEmpty &&
@@ -111,8 +99,6 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
     _isActive = false;
     _isLoading = false;
-    _hasSeeded = false;
-    _seenTransactionIds.clear();
     _seenNotificationIds.clear();
     _latestTransactions.clear();
     _errorMessage = null;
@@ -126,37 +112,17 @@ class PaymentMonitorProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final clientId = await _ensureClientId();
       final transactions = await _repository.fetchStoredTransactions(
         storeId: _requestStoreId,
         limit: 50,
       );
-      final sorted = [...transactions]
-        ..sort((a, b) {
-          final aTime =
-              a.firstSeenAt ??
-              a.paidAt ??
-              DateTime.fromMillisecondsSinceEpoch(0);
-          final bTime =
-              b.firstSeenAt ??
-              b.paidAt ??
-              DateTime.fromMillisecondsSinceEpoch(0);
-          return aTime.compareTo(bTime);
-        });
-
-      final newTransactions = <MapPaymentTransaction>[];
-      for (final transaction in sorted) {
-        if (_seenTransactionIds.add(transaction.id) && _hasSeeded) {
-          newTransactions.add(transaction);
-        }
-      }
-      _hasSeeded = true;
-      if (newTransactions.isNotEmpty) {
-        await AppLogger.instance.info(
-          'PaymentMonitor',
-          'Stored transaction poll observed new rows; realtime handles audio',
-          context: {'count': newTransactions.length},
-        );
-      }
+      final notifications = await _repository.fetchReadyNotifications(
+        clientId: clientId,
+        storeId: _requestStoreId,
+        limit: 10,
+      );
+      await _playReadyNotifications(notifications, clientId);
 
       _lastCheckedAt = DateTime.now();
       _latestTransactions
@@ -166,9 +132,6 @@ class PaymentMonitorProvider extends ChangeNotifier {
       _errorMessage = error.toString();
     } finally {
       _isLoading = false;
-      if (_isActive && _channel == null) {
-        unawaited(_connectRealtime());
-      }
       notifyListeners();
     }
   }
@@ -176,103 +139,38 @@ class PaymentMonitorProvider extends ChangeNotifier {
   @override
   void dispose() {
     _timer?.cancel();
-    unawaited(_closeRealtime());
     super.dispose();
   }
 
-  Future<void> _connectRealtime() async {
-    if (_channel != null || !_hasMonitorScope) return;
-    final token = ApiClient().authToken;
-    if (token == null || token.isEmpty) return;
-    final clientId = await _ensureClientId();
-    final baseUri = Uri.parse(
-      ApiConstants.realtimeWsUrl(storeId: _requestStoreId),
-    );
-    final url = baseUri.replace(
-      queryParameters: {...baseUri.queryParameters, 'access_token': token},
-    );
-
-    try {
-      final channel = WebSocketChannel.connect(url);
-      _channel = channel;
-      _channelSubscription = channel.stream.listen(
-        (message) => unawaited(_handleRealtimeMessage(message, clientId)),
-        onError: (Object error, StackTrace stackTrace) {
-          unawaited(
-            AppLogger.instance.error(
-              'PaymentMonitor',
-              'Realtime socket error',
-              error: error,
-              stackTrace: stackTrace,
-              upload: true,
-            ),
-          );
-          unawaited(_closeRealtime());
-        },
-        onDone: () {
-          unawaited(
-            AppLogger.instance.warn('PaymentMonitor', 'Realtime socket closed'),
-          );
-          unawaited(_closeRealtime());
-        },
-      );
-      await AppLogger.instance.info(
-        'PaymentMonitor',
-        'Realtime socket connected',
-        context: {'storeId': _requestStoreId ?? _user?.storeId},
-      );
-    } catch (error, stackTrace) {
-      await AppLogger.instance.error(
-        'PaymentMonitor',
-        'Realtime socket connect failed',
-        error: error,
-        stackTrace: stackTrace,
-        upload: true,
-      );
+  Future<String> _ensureClientId() async {
+    if (_clientId != null) return _clientId!;
+    final prefs = await SharedPreferences.getInstance();
+    var value = prefs.getString('payment_monitor_client_id');
+    if (value == null || value.isEmpty) {
+      value = 'pc-${DateTime.now().microsecondsSinceEpoch}';
+      await prefs.setString('payment_monitor_client_id', value);
     }
+    _clientId = value;
+    await AppLogger.instance.initialize(clientId: value);
+    return value;
   }
 
-  Future<void> _closeRealtime() async {
-    final subscription = _channelSubscription;
-    _channelSubscription = null;
-    await subscription?.cancel();
-    final channel = _channel;
-    _channel = null;
-    await channel?.sink.close();
-  }
-
-  Future<void> _handleRealtimeMessage(dynamic message, String clientId) async {
-    try {
-      final decoded = jsonDecode(message.toString());
-      if (decoded is! Map<String, dynamic>) return;
-      if (decoded['type'] != 'PAYMENT_NOTIFICATION') return;
-      final payload = decoded['payload'];
-      if (payload is! Map) return;
-      final notification = PaymentNotification.fromJson(
-        payload.map((key, value) => MapEntry(key.toString(), value)),
-      );
-      if (!notification.isValid) return;
-      if (!_seenNotificationIds.add(notification.notificationId)) return;
-
-      await _repository.acknowledgeNotification(
-        notificationId: notification.notificationId,
-        clientId: clientId,
-        event: 'DELIVERED',
-      );
-
+  Future<void> _playReadyNotifications(
+    List<PaymentNotification> notifications,
+    String clientId,
+  ) async {
+    for (final notification in notifications) {
+      if (!_seenNotificationIds.add(notification.notificationId)) continue;
       try {
         if (notification.audioStatus != 'READY') {
           throw StateError(
             'Server audio is not ready: ${notification.audioStatus}',
           );
         }
-        final audioBytes = notification.audioStatus == 'READY'
-            ? await _repository.downloadNotificationAudio(
-                notification.notificationId,
-              )
-            : null;
-        if (notification.audioStatus == 'READY' &&
-            (audioBytes == null || audioBytes.isEmpty)) {
+        final audioBytes = await _repository.downloadNotificationAudio(
+          notification.notificationId,
+        );
+        if (audioBytes.isEmpty) {
           throw StateError('Server audio is empty');
         }
         await _speaker.playServerAudio(
@@ -283,6 +181,16 @@ class PaymentMonitorProvider extends ChangeNotifier {
           notificationId: notification.notificationId,
           clientId: clientId,
           event: 'PLAYED',
+        );
+        await AppLogger.instance.info(
+          'PaymentMonitor',
+          'Payment notification audio played',
+          context: {
+            'notificationId': notification.notificationId,
+            'transactionId': notification.transactionId,
+            'storeCode': notification.storeCode,
+            'amount': notification.amount,
+          },
         );
       } catch (error, stackTrace) {
         await AppLogger.instance.error(
@@ -299,28 +207,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           event: 'FAILED',
           error: error.toString(),
         );
-        await _speaker.speakAmount(notification.amount);
       }
-    } catch (error, stackTrace) {
-      await AppLogger.instance.error(
-        'PaymentMonitor',
-        'Realtime message handling failed',
-        error: error,
-        stackTrace: stackTrace,
-      );
     }
-  }
-
-  Future<String> _ensureClientId() async {
-    if (_clientId != null) return _clientId!;
-    final prefs = await SharedPreferences.getInstance();
-    var value = prefs.getString('payment_monitor_client_id');
-    if (value == null || value.isEmpty) {
-      value = 'pc-${DateTime.now().microsecondsSinceEpoch}';
-      await prefs.setString('payment_monitor_client_id', value);
-    }
-    _clientId = value;
-    await AppLogger.instance.initialize(clientId: value);
-    return value;
   }
 }

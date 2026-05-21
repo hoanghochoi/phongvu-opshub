@@ -32,6 +32,8 @@ class ApiConstants {
       '/payment-notifications/$id/audio';
   static String paymentNotificationAckEndpoint(String id) =>
       '/payment-notifications/$id/ack';
+  static const String paymentNotificationsReadyEndpoint =
+      '/payment-notifications/ready';
   static const String appLogsEndpoint = '/app-logs';
   static String realtimeWsUrl({String? storeId}) {
     final base = Uri.parse(baseUrl);

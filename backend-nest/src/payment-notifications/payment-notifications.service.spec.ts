@@ -20,6 +20,7 @@ describe('PaymentNotificationsService', () => {
       paymentNotificationDeliveryLog: {
         create: jest.fn(),
         deleteMany: jest.fn(),
+        findFirst: jest.fn(),
       },
       appLog: {
         create: jest.fn(),
@@ -134,6 +135,53 @@ describe('PaymentNotificationsService', () => {
         clientId: 'pc-1',
         event: 'PLAYED',
       }),
+    });
+  });
+
+  it('lists ready audio notifications not yet played by this client', async () => {
+    const createdAt = new Date('2026-05-21T10:00:00.000Z');
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+    prisma.paymentNotification.findMany.mockResolvedValue([
+      {
+        id: 'note-played',
+        transactionId: 'txn-played',
+        storeCode: 'CP01',
+        amount: 1000,
+        audioStatus: 'READY',
+        audioPath: 'played.wav',
+        createdAt,
+      },
+      {
+        id: 'note-ready',
+        transactionId: 'txn-ready',
+        storeCode: 'CP01',
+        amount: 2000,
+        audioStatus: 'READY',
+        audioPath: 'ready.wav',
+        createdAt,
+      },
+    ]);
+    prisma.paymentNotificationDeliveryLog.findFirst
+      .mockResolvedValueOnce({ id: 'played-log' })
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      service.listReadyForClient(
+        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        { clientId: 'pc-1' },
+      ),
+    ).resolves.toEqual({
+      list: [
+        {
+          notificationId: 'note-ready',
+          transactionId: 'txn-ready',
+          storeCode: 'CP01',
+          amount: 2000,
+          audioStatus: 'READY',
+          audioUrl: '/payment-notifications/note-ready/audio',
+          createdAt: createdAt.toISOString(),
+        },
+      ],
     });
   });
 

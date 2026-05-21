@@ -1,4 +1,26 @@
-import { IsIn, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsIn,
+  IsObject,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+
+export class ListPaymentNotificationsQueryDto {
+  @IsString()
+  @MaxLength(120)
+  clientId!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  storeCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4)
+  limit?: string;
+}
 
 export class PaymentNotificationAckDto {
   @IsString()
