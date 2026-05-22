@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/logging/app_logger.dart';
 import '../../../core/network/api_client.dart';
 import '../data/app_update_service.dart';
 
@@ -31,6 +32,11 @@ class _AppUpdateGateState extends State<AppUpdateGate> {
       if (!mounted || result == null) return;
       await _showUpdateDialog(result);
     } catch (error) {
+      await AppLogger.instance.error(
+        'AppUpdate',
+        'Update check failed',
+        error: error,
+      );
       if (kDebugMode) {
         debugPrint('[AppUpdateGate] Update check skipped: $error');
       }
@@ -90,6 +96,11 @@ class _AppUpdateGateState extends State<AppUpdateGate> {
   Future<void> _openUpdateUrl(String updateUrl) async {
     final uri = Uri.tryParse(updateUrl);
     if (uri == null) return;
+    await AppLogger.instance.info(
+      'AppUpdate',
+      'Opening update URL',
+      context: {'urlHost': uri.host, 'path': uri.path},
+    );
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 

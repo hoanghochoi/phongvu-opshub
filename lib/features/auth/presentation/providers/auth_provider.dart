@@ -5,6 +5,7 @@ import '../../domain/entities/user.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/logging/app_logger.dart';
 
 class AuthProvider extends ChangeNotifier {
   static const _secureStorage = FlutterSecureStorage();
@@ -148,6 +149,11 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> login({required String email, required String password}) async {
     if (kDebugMode) debugPrint('[AuthProvider] Starting password login...');
+    await AppLogger.instance.info(
+      'Auth',
+      'Login started',
+      context: {'email': email},
+    );
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -163,6 +169,16 @@ class AuthProvider extends ChangeNotifier {
         await _saveSession(_user!, token: token);
       }
 
+      await AppLogger.instance.info(
+        'Auth',
+        'Login succeeded',
+        context: {
+          'email': user.email,
+          'role': user.role,
+          'storeId': user.storeId,
+        },
+      );
+
       _isLoading = false;
       notifyListeners();
       return true;
@@ -170,12 +186,24 @@ class AuthProvider extends ChangeNotifier {
       if (kDebugMode) {
         debugPrint('[AuthProvider] Login failed: ${e.message}');
       }
+      await AppLogger.instance.warn(
+        'Auth',
+        'Login failed',
+        context: {'email': email, 'message': e.message},
+      );
       _errorMessage = e.message;
       _isLoading = false;
       notifyListeners();
       return false;
     } catch (e) {
       if (kDebugMode) debugPrint('[AuthProvider] Login error: $e');
+      await AppLogger.instance.error(
+        'Auth',
+        'Login crashed',
+        error: e,
+        upload: true,
+        context: {'email': email},
+      );
       _errorMessage = 'Đăng nhập thất bại: $e';
       _isLoading = false;
       notifyListeners();
@@ -191,6 +219,11 @@ class AuthProvider extends ChangeNotifier {
     required String verificationCode,
   }) async {
     if (kDebugMode) debugPrint('[AuthProvider] Starting registration...');
+    await AppLogger.instance.info(
+      'Auth',
+      'Registration started',
+      context: {'email': email},
+    );
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -206,6 +239,11 @@ class AuthProvider extends ChangeNotifier {
       _user = user;
 
       await _saveSession(_user!, token: token);
+      await AppLogger.instance.info(
+        'Auth',
+        'Registration succeeded',
+        context: {'email': user.email, 'role': user.role},
+      );
 
       _isLoading = false;
       notifyListeners();
@@ -214,12 +252,24 @@ class AuthProvider extends ChangeNotifier {
       if (kDebugMode) {
         debugPrint('[AuthProvider] Registration failed: ${e.message}');
       }
+      await AppLogger.instance.warn(
+        'Auth',
+        'Registration failed',
+        context: {'email': email, 'message': e.message},
+      );
       _errorMessage = e.message;
       _isLoading = false;
       notifyListeners();
       return false;
     } catch (e) {
       if (kDebugMode) debugPrint('[AuthProvider] Registration error: $e');
+      await AppLogger.instance.error(
+        'Auth',
+        'Registration crashed',
+        error: e,
+        upload: true,
+        context: {'email': email},
+      );
       _errorMessage = 'Dang ky that bai: $e';
       _isLoading = false;
       notifyListeners();
@@ -228,21 +278,43 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> sendRegistrationVerificationCode({required String email}) async {
+    await AppLogger.instance.info(
+      'Auth',
+      'Verification code request started',
+      context: {'email': email},
+    );
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
       await _repository.sendRegistrationVerificationCode(email: email);
+      await AppLogger.instance.info(
+        'Auth',
+        'Verification code request succeeded',
+        context: {'email': email},
+      );
       _isLoading = false;
       notifyListeners();
       return true;
     } on ApiException catch (e) {
+      await AppLogger.instance.warn(
+        'Auth',
+        'Verification code request failed',
+        context: {'email': email, 'message': e.message},
+      );
       _errorMessage = e.message;
       _isLoading = false;
       notifyListeners();
       return false;
     } catch (e) {
+      await AppLogger.instance.error(
+        'Auth',
+        'Verification code request crashed',
+        error: e,
+        upload: true,
+        context: {'email': email},
+      );
       _errorMessage = 'Không gửi được mã xác thực: $e';
       _isLoading = false;
       notifyListeners();
@@ -251,10 +323,16 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final email = _user?.email;
     await _clearSession();
     _user = null;
     _errorMessage = null;
     _isLoading = false;
+    await AppLogger.instance.info(
+      'Auth',
+      'Logout completed',
+      context: {'email': email},
+    );
     notifyListeners();
   }
 
@@ -265,6 +343,11 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> selectStore(String storeId) async {
     if (_user == null) return false;
+    await AppLogger.instance.info(
+      'Auth',
+      'Store selection started',
+      context: {'email': _user!.email, 'storeId': storeId},
+    );
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -272,10 +355,20 @@ class AuthProvider extends ChangeNotifier {
     try {
       _user = await _repository.selectStore(storeId, _user!.email);
       await _saveSession(_user!);
+      await AppLogger.instance.info(
+        'Auth',
+        'Store selection succeeded',
+        context: {'email': _user!.email, 'storeId': _user!.storeId},
+      );
       _isLoading = false;
       notifyListeners();
       return true;
     } on ApiException catch (e) {
+      await AppLogger.instance.warn(
+        'Auth',
+        'Store selection failed',
+        context: {'storeId': storeId, 'message': e.message},
+      );
       _errorMessage = e.message;
       _isLoading = false;
       notifyListeners();
@@ -288,6 +381,11 @@ class AuthProvider extends ChangeNotifier {
     String? lastName,
   }) async {
     if (_user == null) return false;
+    await AppLogger.instance.info(
+      'Auth',
+      'Profile update started',
+      context: {'email': _user!.email},
+    );
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -299,10 +397,20 @@ class AuthProvider extends ChangeNotifier {
         lastName: lastName,
       );
       await _saveSession(_user!);
+      await AppLogger.instance.info(
+        'Auth',
+        'Profile update succeeded',
+        context: {'email': _user!.email},
+      );
       _isLoading = false;
       notifyListeners();
       return true;
     } on ApiException catch (e) {
+      await AppLogger.instance.warn(
+        'Auth',
+        'Profile update failed',
+        context: {'email': _user?.email, 'message': e.message},
+      );
       _errorMessage = e.message;
       _isLoading = false;
       notifyListeners();
@@ -312,6 +420,11 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> uploadAvatar(String path) async {
     if (_user == null) return false;
+    await AppLogger.instance.info(
+      'Auth',
+      'Avatar upload started',
+      context: {'email': _user!.email},
+    );
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -319,10 +432,20 @@ class AuthProvider extends ChangeNotifier {
     try {
       _user = await _repository.uploadAvatar(email: _user!.email, path: path);
       await _saveSession(_user!);
+      await AppLogger.instance.info(
+        'Auth',
+        'Avatar upload succeeded',
+        context: {'email': _user!.email},
+      );
       _isLoading = false;
       notifyListeners();
       return true;
     } on ApiException catch (e) {
+      await AppLogger.instance.warn(
+        'Auth',
+        'Avatar upload failed',
+        context: {'email': _user?.email, 'message': e.message},
+      );
       _errorMessage = e.message;
       _isLoading = false;
       notifyListeners();

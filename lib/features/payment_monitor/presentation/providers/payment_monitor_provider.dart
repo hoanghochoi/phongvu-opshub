@@ -251,23 +251,97 @@ class PaymentMonitorProvider extends ChangeNotifier {
     List<PaymentNotification> notifications,
     String clientId,
   ) async {
+    if (notifications.isEmpty) return;
+    final storeCode = _requestStoreId ?? _user?.storeId;
+    await AppLogger.instance.info(
+      'PaymentMonitor',
+      'Payment notification play loop started',
+      context: {
+        'count': notifications.length,
+        'clientId': clientId,
+        'storeCode': storeCode,
+        'notificationIds': notifications
+            .map((notification) => notification.notificationId)
+            .toList(),
+      },
+    );
+    await AppLogger.instance.uploadLog(
+      'info',
+      'PaymentMonitor',
+      'Payment notification play loop started',
+      context: {'count': notifications.length},
+      storeCode: storeCode,
+    );
+
     for (final notification in notifications) {
-      if (!_seenNotificationIds.add(notification.notificationId)) continue;
+      if (!_seenNotificationIds.add(notification.notificationId)) {
+        await AppLogger.instance.warn(
+          'PaymentMonitor',
+          'Payment notification skipped as duplicate',
+          context: {
+            'notificationId': notification.notificationId,
+            'transactionId': notification.transactionId,
+            'storeCode': notification.storeCode,
+          },
+        );
+        continue;
+      }
       try {
         if (notification.audioStatus != 'READY') {
           throw StateError(
             'Server audio is not ready: ${notification.audioStatus}',
           );
         }
+        await AppLogger.instance.info(
+          'PaymentMonitor',
+          'Downloading payment notification audio',
+          context: {
+            'notificationId': notification.notificationId,
+            'transactionId': notification.transactionId,
+            'storeCode': notification.storeCode,
+            'amount': notification.amount,
+          },
+        );
         final audioBytes = await _repository.downloadNotificationAudio(
           notification.notificationId,
         );
         if (audioBytes.isEmpty) {
           throw StateError('Server audio is empty');
         }
+        await AppLogger.instance.info(
+          'PaymentMonitor',
+          'Payment notification audio downloaded',
+          context: {
+            'notificationId': notification.notificationId,
+            'bytes': audioBytes.length,
+          },
+        );
+        await AppLogger.instance.uploadLog(
+          'info',
+          'PaymentMonitor',
+          'Payment notification audio downloaded',
+          context: {
+            'notificationId': notification.notificationId,
+            'bytes': audioBytes.length,
+          },
+          storeCode: notification.storeCode,
+        );
+        await AppLogger.instance.info(
+          'PaymentMonitor',
+          'Calling payment speaker',
+          context: {
+            'notificationId': notification.notificationId,
+            'amount': notification.amount,
+          },
+        );
         await _speaker.playServerAudio(
           amount: notification.amount,
           audioBytes: audioBytes,
+        );
+        await AppLogger.instance.info(
+          'PaymentMonitor',
+          'Acknowledging payment notification played',
+          context: {'notificationId': notification.notificationId},
         );
         await _repository.acknowledgeNotification(
           notificationId: notification.notificationId,
@@ -283,6 +357,17 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'storeCode': notification.storeCode,
             'amount': notification.amount,
           },
+        );
+        await AppLogger.instance.uploadLog(
+          'info',
+          'PaymentMonitor',
+          'Payment notification audio played',
+          context: {
+            'notificationId': notification.notificationId,
+            'transactionId': notification.transactionId,
+            'amount': notification.amount,
+          },
+          storeCode: notification.storeCode,
         );
         await Future<void>.delayed(const Duration(milliseconds: 250));
       } catch (error, stackTrace) {

@@ -1,7 +1,8 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import '../../../../core/network/api_client.dart';
+
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/logging/app_logger.dart';
+import '../../../../core/network/api_client.dart';
 
 class FifoLogItem {
   final String id;
@@ -52,7 +53,6 @@ class FifoLogRepository {
 
   FifoLogRepository(this._apiClient);
 
-  /// Get user's own FIFO check logs
   Future<List<FifoLogItem>> getMyLogs({
     String type = 'FIFO_CHECK',
     int limit = 10,
@@ -62,17 +62,27 @@ class FifoLogRepository {
         '${ApiConstants.fifoLogMyEndpoint}?type=$type&limit=$limit',
       );
 
-      if (kDebugMode) debugPrint('📥 [FifoLogRepo] My logs response: ${response.statusCode}');
-
       final List<dynamic> jsonList = jsonDecode(response.body);
-      return jsonList.map((j) => FifoLogItem.fromJson(j as Map<String, dynamic>)).toList();
-    } catch (e) {
-      if (kDebugMode) debugPrint('❌ [FifoLogRepo] Error loading my logs: $e');
+      final logs = jsonList
+          .map((j) => FifoLogItem.fromJson(j as Map<String, dynamic>))
+          .toList();
+      await AppLogger.instance.info(
+        'FIFO',
+        'My FIFO logs loaded',
+        context: {'type': type, 'limit': limit, 'count': logs.length},
+      );
+      return logs;
+    } catch (error) {
+      await AppLogger.instance.error(
+        'FIFO',
+        'My FIFO logs load failed',
+        error: error,
+        context: {'type': type, 'limit': limit},
+      );
       return [];
     }
   }
 
-  /// Admin: Get all users' FIFO logs with pagination + search + filter
   Future<Map<String, dynamic>> getAdminLogs({
     String? type,
     int page = 1,
@@ -93,12 +103,21 @@ class FifoLogRepository {
         '${ApiConstants.fifoLogAdminEndpoint}?$queryString',
       );
 
-      if (kDebugMode) debugPrint('📥 [FifoLogRepo] Admin logs response: ${response.statusCode}');
-
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       final data = (json['data'] as List<dynamic>)
           .map((j) => FifoLogItem.fromJson(j as Map<String, dynamic>))
           .toList();
+      await AppLogger.instance.info(
+        'FIFO',
+        'Admin FIFO logs loaded',
+        context: {
+          'type': type,
+          'page': page,
+          'limit': limit,
+          'count': data.length,
+          'total': json['total'] ?? 0,
+        },
+      );
 
       return {
         'data': data,
@@ -106,8 +125,13 @@ class FifoLogRepository {
         'page': json['page'] ?? 1,
         'limit': json['limit'] ?? 20,
       };
-    } catch (e) {
-      if (kDebugMode) debugPrint('❌ [FifoLogRepo] Error loading admin logs: $e');
+    } catch (error) {
+      await AppLogger.instance.error(
+        'FIFO',
+        'Admin FIFO logs load failed',
+        error: error,
+        context: {'type': type, 'page': page, 'limit': limit},
+      );
       return {'data': <FifoLogItem>[], 'total': 0, 'page': 1, 'limit': 20};
     }
   }
