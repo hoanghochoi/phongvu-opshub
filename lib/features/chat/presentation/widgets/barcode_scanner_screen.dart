@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class BarcodeScannerScreen extends StatefulWidget {
@@ -20,14 +21,28 @@ class BarcodeScannerScreen extends StatefulWidget {
 }
 
 class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
-  final MobileScannerController _controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
-  );
+  MobileScannerController? _controller;
+  final _manualController = TextEditingController();
   bool _isTorchOn = false;
+  bool get _supportsCameraScanner =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
+  @override
+  void initState() {
+    super.initState();
+    if (_supportsCameraScanner) {
+      _controller = MobileScannerController(
+        detectionSpeed: DetectionSpeed.noDuplicates,
+      );
+    }
+  }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
+    _manualController.dispose();
     super.dispose();
   }
 
@@ -62,14 +77,66 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   }
 
   void _toggleTorch() {
+    final controller = _controller;
+    if (controller == null) return;
     setState(() {
       _isTorchOn = !_isTorchOn;
     });
-    _controller.toggleTorch();
+    controller.toggleTorch();
+  }
+
+  void _submitManualCode() {
+    final rawCode = _manualController.text.trim();
+    if (rawCode.isEmpty) return;
+    final code = widget.parsePhongVuSku ? _parseSku(rawCode) : rawCode;
+    if (code == null || code.isEmpty) return;
+    Navigator.of(context).pop(code);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_supportsCameraScanner) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.title)),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Icon(Icons.keyboard_alt_outlined, size: 56),
+              const SizedBox(height: 16),
+              const Text(
+                'Camera scanner is not supported on this device. Enter the code manually.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _manualController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Code',
+                  border: OutlineInputBorder(),
+                ),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submitManualCode(),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _submitManualCode,
+                icon: const Icon(Icons.check_rounded),
+                label: const Text('Use code'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final controller = _controller;
+    if (controller == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
@@ -80,14 +147,14 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.flip_camera_ios),
-            onPressed: () => _controller.switchCamera(),
+            onPressed: () => controller.switchCamera(),
           ),
         ],
       ),
       body: Stack(
         children: [
           // Camera scanner
-          MobileScanner(controller: _controller, onDetect: _onDetect),
+          MobileScanner(controller: controller, onDetect: _onDetect),
           // Overlay với hướng dẫn
           Align(
             alignment: Alignment.bottomCenter,
