@@ -12,6 +12,7 @@ import '../../domain/payment_notification.dart';
 
 class PaymentMonitorProvider extends ChangeNotifier {
   static const _pollInterval = Duration(seconds: 5);
+  static const _startupNotificationLookback = Duration(minutes: 15);
 
   final PaymentMonitorRepository _repository;
   final PaymentSpeaker _speaker;
@@ -116,7 +117,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
     if (_isActive) return;
     _isActive = true;
-    _notificationCheckpointAt = DateTime.now().toUtc();
+    _notificationCheckpointAt = DateTime.now()
+        .toUtc()
+        .subtract(_startupNotificationLookback);
     _loggedMonitorStarted = false;
     _seenNotificationIds.clear();
     _latestTransactions.clear();
