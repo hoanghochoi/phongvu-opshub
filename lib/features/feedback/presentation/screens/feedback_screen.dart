@@ -7,6 +7,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 
 class FeedbackScreen extends StatefulWidget {
@@ -38,8 +39,18 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         setState(() {
           _images.addAll(images.map((xFile) => File(xFile.path)));
         });
+        await AppLogger.instance.info(
+          'Feedback',
+          'Feedback images picked',
+          context: {'pickedCount': images.length, 'totalCount': _images.length},
+        );
       }
     } catch (e) {
+      await AppLogger.instance.error(
+        'Feedback',
+        'Pick images failed',
+        error: e,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -58,8 +69,14 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         setState(() {
           _images.add(File(image.path));
         });
+        await AppLogger.instance.info(
+          'Feedback',
+          'Feedback photo captured',
+          context: {'totalCount': _images.length},
+        );
       }
     } catch (e) {
+      await AppLogger.instance.error('Feedback', 'Take photo failed', error: e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -119,6 +136,16 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     try {
       final authProvider = context.read<AuthProvider>();
       final userEmail = authProvider.user?.email ?? '';
+      await AppLogger.instance.info(
+        'Feedback',
+        'Feedback submit started',
+        context: {
+          'userEmail': userEmail,
+          'functionLength': _functionController.text.trim().length,
+          'descriptionLength': _descriptionController.text.trim().length,
+          'imageCount': _images.length,
+        },
+      );
 
       final files = <http.MultipartFile>[];
       for (var i = 0; i < _images.length; i++) {
@@ -145,6 +172,12 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
 
       if (mounted) {
         if (response.statusCode == 200 || response.statusCode == 201) {
+          await AppLogger.instance.info(
+            'Feedback',
+            'Feedback submit succeeded',
+            context: {'userEmail': userEmail, 'imageCount': _images.length},
+          );
+          // ignore: use_build_context_synchronously
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Gửi phản hồi thành công! Cảm ơn bạn đã đóng góp.'),
@@ -156,8 +189,15 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           setState(() {
             _images.clear();
           });
+          // ignore: use_build_context_synchronously
           Navigator.of(context).pop();
         } else {
+          await AppLogger.instance.warn(
+            'Feedback',
+            'Feedback submit returned non-success',
+            context: {'statusCode': response.statusCode},
+          );
+          // ignore: use_build_context_synchronously
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Lỗi: ${response.statusCode}'),
@@ -167,6 +207,13 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         }
       }
     } catch (e) {
+      await AppLogger.instance.error(
+        'Feedback',
+        'Feedback submit failed',
+        error: e,
+        upload: true,
+        context: {'imageCount': _images.length},
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),

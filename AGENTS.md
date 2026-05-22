@@ -28,6 +28,21 @@ before acting. Never claim done before verification.
 - Protect existing user work. Do not revert unrelated changes.
 - Before pushing code, re-check the exact diff and run the relevant validation.
 
+## Feature Logging Requirement
+
+- Every new or changed feature must include useful debug logs through
+  `AppLogger`, not only `debugPrint`.
+- Log start, success, failure, and important branch decisions for user-facing
+  flows. Include enough context to debug later: feature/source, user/store/client
+  scope when available, ids, counts, status, duration, and sanitized errors.
+- Never log passwords, tokens, authorization headers, app passwords, raw secrets,
+  or full sensitive payloads. Prefer counts, ids, lengths, and redacted summaries.
+- Local logs must keep working on Windows in
+  `%APPDATA%\com.example\phongvu_opshub\logs\opshub.log`; critical errors should
+  also upload through `/app-logs` when authentication is available.
+- Before marking a feature done, verify that the new/changed flow has logs that
+  would let an engineer identify where it failed.
+
 ## Source Of Truth
 
 Read in this order:

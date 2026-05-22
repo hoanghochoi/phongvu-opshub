@@ -9,6 +9,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../chat/presentation/widgets/barcode_scanner_screen.dart';
@@ -88,6 +89,15 @@ class _VietQrScreenState extends State<VietQrScreen> {
     });
 
     try {
+      await AppLogger.instance.info(
+        'VietQR',
+        'Create QR started',
+        context: {
+          'storeCode': _storeCodeController.text.trim(),
+          'hasAmount': _amountValue != null,
+          'hasOrderCode': _orderCodeController.text.trim().isNotEmpty,
+        },
+      );
       final transfer = await _repository.createTransferQr(
         amount: _amountValue,
         orderCode: _orderCodeController.text.trim(),
@@ -96,9 +106,26 @@ class _VietQrScreenState extends State<VietQrScreen> {
 
       if (mounted) {
         setState(() => _transfer = transfer);
+        await AppLogger.instance.info(
+          'VietQR',
+          'Create QR succeeded',
+          context: {
+            'paymentId': transfer.id,
+            'storeCode': _storeCodeController.text.trim(),
+            'amount': transfer.amount,
+            'hasTransferContent': transfer.transferContent.trim().isNotEmpty,
+          },
+        );
         _startPaymentPolling(transfer);
       }
     } catch (e) {
+      await AppLogger.instance.error(
+        'VietQR',
+        'Create QR failed',
+        error: e,
+        upload: true,
+        context: {'storeCode': _storeCodeController.text.trim()},
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -171,6 +198,16 @@ class _VietQrScreenState extends State<VietQrScreen> {
   void _startPaymentPolling(VietQrTransfer transfer) {
     _stopPaymentPolling();
     if (!_canAutoConfirm(transfer)) return;
+    unawaited(
+      AppLogger.instance.info(
+        'VietQR',
+        'Payment polling started',
+        context: {
+          'paymentId': transfer.id,
+          'storeCode': _storeCodeController.text.trim(),
+        },
+      ),
+    );
     _paymentPollAttempts = 0;
     _hasShownPaymentReceived = false;
     _checkPayment();
@@ -181,6 +218,15 @@ class _VietQrScreenState extends State<VietQrScreen> {
   }
 
   void _stopPaymentPolling() {
+    if (_paymentPollingTimer != null) {
+      unawaited(
+        AppLogger.instance.info(
+          'VietQR',
+          'Payment polling stopped',
+          context: {'attempts': _paymentPollAttempts},
+        ),
+      );
+    }
     _paymentPollingTimer?.cancel();
     _paymentPollingTimer = null;
   }
@@ -220,11 +266,23 @@ class _VietQrScreenState extends State<VietQrScreen> {
       final confirmation = await _repository.confirmPayment(transfer.id);
       if (!mounted) return;
       setState(() => _paymentConfirmation = confirmation);
+      await AppLogger.instance.info(
+        'VietQR',
+        'Payment confirmation checked',
+        context: {
+          'paymentId': transfer.id,
+          'attempt': _paymentPollAttempts,
+          'confirmed': confirmation.confirmed,
+          'reason': confirmation.reason,
+          'matchedAmount': confirmation.matchedAmount,
+        },
+      );
       if (_shouldStopAutoCheck(confirmation)) {
         _stopPaymentPolling();
       }
       if (confirmation.confirmed && !_hasShownPaymentReceived) {
         _hasShownPaymentReceived = true;
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Đã nhận thanh toán'),
@@ -232,11 +290,19 @@ class _VietQrScreenState extends State<VietQrScreen> {
           ),
         );
       } else if (showFeedback) {
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_confirmationMessage(confirmation))),
         );
       }
     } catch (e) {
+      await AppLogger.instance.error(
+        'VietQR',
+        'Payment confirmation check failed',
+        error: e,
+        upload: showFeedback,
+        context: {'paymentId': transfer.id, 'attempt': _paymentPollAttempts},
+      );
       if (mounted) {
         if (showFeedback) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -272,7 +338,17 @@ class _VietQrScreenState extends State<VietQrScreen> {
         text: scannedCode,
         selection: TextSelection.collapsed(offset: scannedCode.length),
       );
+      await AppLogger.instance.info(
+        'VietQR',
+        'Order code scanned',
+        context: {'codeLength': scannedCode.length},
+      );
     } catch (e) {
+      await AppLogger.instance.error(
+        'VietQR',
+        'Order code scan failed',
+        error: e,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -300,12 +376,23 @@ class _VietQrScreenState extends State<VietQrScreen> {
         'fileName': fileName,
         'bytes': bytes,
       });
+      await AppLogger.instance.info(
+        'VietQR',
+        'QR image saved',
+        context: {'paymentId': transfer.id, 'fileName': fileName},
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Đã lưu ảnh QR vào thư viện ảnh')),
         );
       }
     } catch (e) {
+      await AppLogger.instance.error(
+        'VietQR',
+        'QR image save failed',
+        error: e,
+        context: {'paymentId': transfer.id},
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

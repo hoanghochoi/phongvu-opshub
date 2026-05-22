@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/repositories/sort_repository.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../chat/domain/entities/sku_item.dart';
 import '../../../chat/domain/entities/sku_group.dart';
 
@@ -108,14 +109,31 @@ class SortProvider extends ChangeNotifier {
         user: _currentUser!,
         sortedSKUs: sortedSKUs,
       );
+      await AppLogger.instance.info(
+        'Sort',
+        'Sort completion report sent',
+        context: {'user': _currentUser, 'skuCount': sortedSKUs.length},
+      );
       debugPrint('Sort report sent successfully');
     } catch (e) {
+      await AppLogger.instance.error(
+        'Sort',
+        'Sort completion report failed',
+        error: e,
+        upload: true,
+        context: {'user': _currentUser, 'skuCount': sortedSKUs.length},
+      );
       debugPrint('Error sending sort report: $e');
     }
   }
 
   Future<void> sendSortRequest(String text, String user) async {
     try {
+      await AppLogger.instance.info(
+        'Sort',
+        'Sort request started',
+        context: {'user': user, 'queryLength': text.length},
+      );
       // Set loading state
       _isLoading = true;
       _error = null;
@@ -131,8 +149,22 @@ class SortProvider extends ChangeNotifier {
       _skuItems = _parseSKUItems(result);
       _skuGroups = _groupSKUItems(_skuItems!);
       _error = null;
+      await AppLogger.instance.info(
+        'Sort',
+        'Sort request succeeded',
+        context: {
+          'user': user,
+          'itemCount': _skuItems?.length ?? 0,
+          'groupCount': _skuGroups?.length ?? 0,
+        },
+      );
     } on ApiException catch (e) {
       _error = e.message;
+      await AppLogger.instance.warn(
+        'Sort',
+        'Sort request failed',
+        context: {'user': user, 'message': e.message},
+      );
       _response = null;
       _skuItems = null;
       _skuGroups = null;

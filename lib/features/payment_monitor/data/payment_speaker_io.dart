@@ -21,12 +21,21 @@ class PaymentSpeaker {
     required List<int>? audioBytes,
   }) async {
     if (!Platform.isWindows) return;
-    await _playTingTing();
-    if (audioBytes == null || audioBytes.isEmpty) {
-      throw StateError('Server audio is empty');
-    }
-
     try {
+      await AppLogger.instance.info(
+        _source,
+        'Preparing server payment audio playback',
+        context: {
+          'amount': amount,
+          'hasAudioBytes': audioBytes != null && audioBytes.isNotEmpty,
+          'bytes': audioBytes?.length ?? 0,
+        },
+      );
+      await _playTingTing();
+      if (audioBytes == null || audioBytes.isEmpty) {
+        throw StateError('Server audio is empty');
+      }
+
       final directory = await getTemporaryDirectory();
       final extension = _audioExtension(audioBytes);
       final file = File(
@@ -78,6 +87,11 @@ class PaymentSpeaker {
   Future<void> _playTingTing() async {
     final player = AudioPlayer();
     try {
+      await AppLogger.instance.info(
+        _source,
+        'Loading payment sound cue',
+        context: {'asset': 'data/ting_ting.mp3'},
+      );
       final asset = await rootBundle.load('data/ting_ting.mp3');
       await AppLogger.instance.info(
         _source,

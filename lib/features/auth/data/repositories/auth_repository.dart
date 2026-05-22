@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../admin/domain/admin_role_definition.dart';
 import '../../domain/entities/store_branch.dart';
 import '../../domain/entities/user.dart';
@@ -193,9 +194,15 @@ class AuthRepository {
           : null,
     );
     final data = jsonDecode(response.body) as List<dynamic>;
-    return data
+    final stores = data
         .map((item) => StoreBranch.fromJson(item as Map<String, dynamic>))
         .toList();
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin stores loaded',
+      context: {'query': query, 'count': stores.length},
+    );
+    return stores;
   }
 
   Future<StoreBranch> createAdminStore(Map<String, dynamic> body) async {
@@ -203,9 +210,15 @@ class AuthRepository {
       ApiConstants.adminStoresEndpoint,
       body: body,
     );
-    return StoreBranch.fromJson(
+    final store = StoreBranch.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
     );
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin store created',
+      context: {'storeId': store.storeId},
+    );
+    return store;
   }
 
   Future<StoreBranch> updateAdminStore(
@@ -216,13 +229,24 @@ class AuthRepository {
       '${ApiConstants.adminStoresEndpoint}/$storeId',
       body: body,
     );
-    return StoreBranch.fromJson(
+    final store = StoreBranch.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
     );
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin store updated',
+      context: {'storeId': store.storeId},
+    );
+    return store;
   }
 
   Future<void> deleteAdminStore(String storeId) async {
     await _apiClient.delete('${ApiConstants.adminStoresEndpoint}/$storeId');
+    await AppLogger.instance.warn(
+      'Admin',
+      'Admin store deleted',
+      context: {'storeId': storeId},
+    );
   }
 
   Future<User> selectStore(String storeId, String email) async {
@@ -275,9 +299,15 @@ class AuthRepository {
           : null,
     );
     final data = jsonDecode(response.body) as List<dynamic>;
-    return data
+    final users = data
         .map((item) => User.fromJson(item as Map<String, dynamic>))
         .toList();
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin users loaded',
+      context: {'query': query, 'count': users.length},
+    );
+    return users;
   }
 
   Future<User> createAdminUser(Map<String, dynamic> body) async {
@@ -285,7 +315,19 @@ class AuthRepository {
       ApiConstants.adminUsersEndpoint,
       body: body,
     );
-    return User.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    final user = User.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin user created',
+      context: {
+        'email': user.email,
+        'role': user.role,
+        'storeId': user.storeId,
+      },
+    );
+    return user;
   }
 
   Future<User> updateAdminUser(String id, Map<String, dynamic> body) async {
@@ -293,17 +335,35 @@ class AuthRepository {
       '${ApiConstants.adminUsersEndpoint}/$id',
       body: body,
     );
-    return User.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    final user = User.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin user updated',
+      context: {
+        'email': user.email,
+        'role': user.role,
+        'storeId': user.storeId,
+      },
+    );
+    return user;
   }
 
   Future<List<AdminRoleDefinition>> listAdminRoles() async {
     final response = await _apiClient.get(ApiConstants.adminRolesEndpoint);
     final data = jsonDecode(response.body) as List<dynamic>;
-    return data
+    final roles = data
         .map(
           (item) => AdminRoleDefinition.fromJson(item as Map<String, dynamic>),
         )
         .toList();
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin roles loaded',
+      context: {'count': roles.length},
+    );
+    return roles;
   }
 
   Future<AdminRoleDefinition> createAdminRole(AdminRoleDefinition role) async {
@@ -311,9 +371,15 @@ class AuthRepository {
       ApiConstants.adminRolesEndpoint,
       body: role.toJson(),
     );
-    return AdminRoleDefinition.fromJson(
+    final created = AdminRoleDefinition.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
     );
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin role created',
+      context: {'role': created.value},
+    );
+    return created;
   }
 
   Future<AdminRoleDefinition> updateAdminRole(
@@ -324,12 +390,23 @@ class AuthRepository {
       '${ApiConstants.adminRolesEndpoint}/$code',
       body: role.toJson(),
     );
-    return AdminRoleDefinition.fromJson(
+    final updated = AdminRoleDefinition.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
     );
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin role updated',
+      context: {'role': updated.value},
+    );
+    return updated;
   }
 
   Future<void> deleteAdminRole(String code) async {
     await _apiClient.delete('${ApiConstants.adminRolesEndpoint}/$code');
+    await AppLogger.instance.warn(
+      'Admin',
+      'Admin role deleted',
+      context: {'role': code},
+    );
   }
 }
