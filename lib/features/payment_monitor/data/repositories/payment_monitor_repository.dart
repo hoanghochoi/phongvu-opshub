@@ -69,6 +69,7 @@ class PaymentMonitorRepository {
   Future<List<PaymentNotification>> fetchReadyNotifications({
     required String clientId,
     String? storeId,
+    DateTime? afterCreatedAt,
     int limit = 10,
   }) async {
     final response = await _apiClient.get(
@@ -77,6 +78,8 @@ class PaymentMonitorRepository {
         'clientId': clientId,
         if (storeId != null && storeId.trim().isNotEmpty)
           'storeCode': storeId.trim().toUpperCase(),
+        if (afterCreatedAt != null)
+          'afterCreatedAt': afterCreatedAt.toUtc().toIso8601String(),
         'limit': limit.toString(),
       },
     );
