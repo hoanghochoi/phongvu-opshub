@@ -5,16 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/logging/app_logger.dart';
-import 'vietnamese_amount_words.dart';
 
 class PaymentSpeaker {
   static const _source = 'PaymentSpeaker';
-
-  Future<void> speakAmount(int amount) async {
-    if (!Platform.isWindows) return;
-    await _playTingTing();
-    await _speakWithWindowsSapi(amount);
-  }
 
   Future<void> playServerAudio({
     required int amount,
@@ -103,37 +96,5 @@ class PaymentSpeaker {
     } finally {
       await player.dispose();
     }
-  }
-
-  Future<void> _speakWithWindowsSapi(int amount) async {
-    final speechText = 'Đã nhận ${vietnameseAmountWords(amount)} đồng';
-    final script = r'''
-& {
-[CmdletBinding()]
-param([string]$text)
-Add-Type -AssemblyName System.Speech
-$speaker = New-Object System.Speech.Synthesis.SpeechSynthesizer
-$speaker.Rate = 0
-$speaker.Volume = 100
-$voice = $speaker.GetInstalledVoices() |
-  Where-Object {
-    $_.VoiceInfo.Culture.Name -like 'vi-*' -or
-    $_.VoiceInfo.Name -match 'Vietnam|Vietnamese|An'
-  } |
-  Select-Object -First 1
-if ($null -ne $voice) {
-  $speaker.SelectVoice($voice.VoiceInfo.Name)
-}
-$speaker.Speak($text)
-}
-''';
-    await Process.run('powershell.exe', [
-      '-NoProfile',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-Command',
-      script,
-      speechText,
-    ], runInShell: false);
   }
 }
