@@ -31,6 +31,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   int _pageIndex = 0;
   int _pageSize = 10;
   int _totalTransactions = 0;
+  bool _loggedMonitorStarted = false;
 
   PaymentMonitorProvider(this._repository, this._speaker);
 
@@ -116,6 +117,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     if (_isActive) return;
     _isActive = true;
     _notificationCheckpointAt = DateTime.now().toUtc();
+    _loggedMonitorStarted = false;
     _seenNotificationIds.clear();
     _latestTransactions.clear();
     _poll();
@@ -140,6 +142,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _isActive = false;
     _isLoading = false;
     _notificationCheckpointAt = null;
+    _loggedMonitorStarted = false;
     _seenNotificationIds.clear();
     _latestTransactions.clear();
     _errorMessage = null;
@@ -154,6 +157,17 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
     try {
       final clientId = await _ensureClientId();
+      if (!_loggedMonitorStarted) {
+        _loggedMonitorStarted = true;
+        await AppLogger.instance.info(
+          'PaymentMonitor',
+          'Payment monitor started',
+          context: {
+            'storeId': _requestStoreId ?? _user?.storeId,
+            'checkpointAt': _notificationCheckpointAt?.toIso8601String(),
+          },
+        );
+      }
       final transactionPage = await _repository.fetchStoredTransactions(
         storeId: _requestStoreId,
         date: _formatDateForApi(_selectedDate),
@@ -166,6 +180,25 @@ class PaymentMonitorProvider extends ChangeNotifier {
         afterCreatedAt: _notificationCheckpointAt,
         limit: 3,
       );
+      if (notifications.isNotEmpty) {
+        await AppLogger.instance.info(
+          'PaymentMonitor',
+          'Payment notifications fetched',
+          context: {
+            'count': notifications.length,
+            'notificationIds': notifications
+                .map((notification) => notification.notificationId)
+                .toList(),
+          },
+        );
+        await AppLogger.instance.uploadLog(
+          'info',
+          'PaymentMonitor',
+          'Payment notifications fetched',
+          context: {'count': notifications.length},
+          storeCode: _requestStoreId,
+        );
+      }
       await _playReadyNotifications(notifications, clientId);
 
       _lastCheckedAt = DateTime.now();
@@ -177,6 +210,18 @@ class PaymentMonitorProvider extends ChangeNotifier {
         ..addAll(transactionPage.transactions);
     } catch (error) {
       _errorMessage = error.toString();
+      await AppLogger.instance.error(
+        'PaymentMonitor',
+        'Payment monitor poll failed',
+        error: error,
+        upload: true,
+        context: {
+          'storeId': _requestStoreId ?? _user?.storeId,
+          'date': _formatDateForApi(_selectedDate),
+          'page': _pageIndex,
+          'limit': _pageSize,
+        },
+      );
     } finally {
       _isLoading = false;
       notifyListeners();
