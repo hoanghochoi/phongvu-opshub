@@ -138,6 +138,25 @@ describe('PaymentNotificationsService', () => {
     });
   });
 
+  it('filters ready notifications after the requested createdAt checkpoint', async () => {
+    const checkpoint = new Date('2026-05-21T10:00:00.000Z');
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+    prisma.paymentNotification.findMany.mockResolvedValue([]);
+
+    await service.listReadyForClient(
+      { role: 'MANAGER', storeId: 'store-uuid-1' },
+      { clientId: 'pc-1', afterCreatedAt: checkpoint.toISOString() },
+    );
+
+    expect(prisma.paymentNotification.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          createdAt: { gt: checkpoint },
+        }),
+      }),
+    );
+  });
+
   it('lists ready audio notifications not yet played by this client', async () => {
     const createdAt = new Date('2026-05-21T10:00:00.000Z');
     prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });

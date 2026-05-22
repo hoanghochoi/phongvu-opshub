@@ -22,6 +22,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   User? _user;
   String? _storeOverride;
   String? _clientId;
+  DateTime? _notificationCheckpointAt;
   bool _isActive = false;
   bool _isLoading = false;
   String? _errorMessage;
@@ -114,6 +115,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
     if (_isActive) return;
     _isActive = true;
+    _notificationCheckpointAt = DateTime.now().toUtc();
     _seenNotificationIds.clear();
     _latestTransactions.clear();
     _poll();
@@ -137,6 +139,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
     _isActive = false;
     _isLoading = false;
+    _notificationCheckpointAt = null;
     _seenNotificationIds.clear();
     _latestTransactions.clear();
     _errorMessage = null;
@@ -160,7 +163,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
       final notifications = await _repository.fetchReadyNotifications(
         clientId: clientId,
         storeId: _requestStoreId,
-        limit: 10,
+        afterCreatedAt: _notificationCheckpointAt,
+        limit: 3,
       );
       await _playReadyNotifications(notifications, clientId);
 
@@ -235,6 +239,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'amount': notification.amount,
           },
         );
+        await Future<void>.delayed(const Duration(milliseconds: 250));
       } catch (error, stackTrace) {
         await AppLogger.instance.error(
           'PaymentMonitor',

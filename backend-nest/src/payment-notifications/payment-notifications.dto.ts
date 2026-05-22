@@ -20,6 +20,11 @@ export class ListPaymentNotificationsQueryDto {
   @IsString()
   @MaxLength(4)
   limit?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  afterCreatedAt?: string;
 }
 
 export class PaymentNotificationAckDto {

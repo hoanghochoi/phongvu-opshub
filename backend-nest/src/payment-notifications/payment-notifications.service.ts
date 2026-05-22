@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -91,12 +92,16 @@ export class PaymentNotificationsService {
       query.storeCode,
     );
     const limit = Math.min(Math.max(Number(query.limit) || 10, 1), 20);
+    const afterCreatedAt = query.afterCreatedAt
+      ? this.parseDate(query.afterCreatedAt, 'afterCreatedAt')
+      : null;
     const candidates = await this.prisma.paymentNotification.findMany({
       where: {
         storeCode,
         audioStatus: 'READY',
         audioPath: { not: null },
         expiresAt: { gt: new Date() },
+        ...(afterCreatedAt ? { createdAt: { gt: afterCreatedAt } } : {}),
       },
       orderBy: { createdAt: 'asc' },
       take: limit * 3,
@@ -415,6 +420,14 @@ export class PaymentNotificationsService {
 
   private daysAgo(days: number) {
     return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  }
+
+  private parseDate(value: string, field: string) {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException(`${field} khong hop le`);
+    }
+    return parsed;
   }
 
   private scrubJson(value: unknown): unknown {
