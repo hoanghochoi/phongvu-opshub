@@ -12,9 +12,6 @@ import '../features/admin/presentation/screens/admin_menu_screen.dart';
 import '../features/admin/presentation/screens/role_admin_screen.dart';
 import '../features/admin/presentation/screens/store_admin_screen.dart';
 import '../features/admin/presentation/screens/user_admin_screen.dart';
-import '../features/chat/data/repositories/chat_repository.dart';
-import '../features/chat/presentation/providers/chat_provider.dart';
-import '../features/chat/presentation/screens/chat_screen.dart';
 import '../features/warranty/data/repositories/warranty_repository.dart';
 import '../features/warranty/presentation/providers/warranty_provider.dart';
 import '../features/warranty/presentation/screens/warranty_screen.dart';
@@ -26,6 +23,9 @@ import '../features/payment_monitor/data/repositories/payment_monitor_repository
 import '../features/payment_monitor/presentation/providers/payment_monitor_provider.dart';
 import '../features/payment_monitor/presentation/screens/payment_monitor_screen.dart';
 import '../features/vietqr/presentation/screens/vietqr_screen.dart';
+import '../features/fifo/data/repositories/fifo_repository.dart';
+import '../features/fifo/presentation/providers/fifo_provider.dart';
+import '../features/fifo/presentation/screens/fifo_check_screen.dart';
 import '../features/fifo/presentation/screens/fifo_menu_screen.dart';
 import '../features/fifo/presentation/screens/fifo_history_screen.dart';
 import '../features/sort/data/repositories/sort_repository.dart';
@@ -45,7 +45,7 @@ class App extends StatelessWidget {
           create: (_) => AuthProvider(AuthRepository(ApiClient())),
         ),
         ChangeNotifierProvider(
-          create: (_) => ChatProvider(ChatRepository(ApiClient())),
+          create: (_) => FifoProvider(FifoRepository(ApiClient())),
         ),
         ChangeNotifierProvider(
           create: (_) => WarrantyProvider(WarrantyRepository(ApiClient())),
@@ -109,7 +109,8 @@ class App extends StatelessWidget {
           '/admin/roles': (context) => const RoleAdminScreen(),
           '/admin/stores': (context) => const StoreAdminScreen(),
           '/fifo-menu': (context) => const FifoMenuScreen(),
-          '/chat': (context) => const ChatScreen(),
+          '/fifo-check': (context) => const FifoCheckScreen(),
+          '/chat': (context) => const FifoCheckScreen(),
           '/warranty-main': (context) => const WarrantyMainScreen(),
           '/warranty': (context) => const WarrantyScreen(),
           '/check-warranty': (context) => const CheckWarrantyScreen(),

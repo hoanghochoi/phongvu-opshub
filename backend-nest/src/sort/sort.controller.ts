@@ -1,14 +1,26 @@
-import { Controller, Post, Body, UseGuards, Req, Logger } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Req,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { SortService } from './sort.service';
 import { AuthGuard } from '@nestjs/passport';
 import { FifoCheckDto, SortCompletionReportDto, SortTextDto } from './sort.dto';
+import { FifoService } from '../fifo/fifo.service';
 
 @Controller('sort')
 @UseGuards(AuthGuard('jwt'))
 export class SortController {
   private readonly logger = new Logger(SortController.name);
 
-  constructor(private readonly sortService: SortService) {}
+  constructor(
+    private readonly sortService: SortService,
+    @Optional() private readonly fifoService?: FifoService,
+  ) {}
 
   // POST /sort — body: { text: "SKU_OR_BIN" }
   // User email is extracted from JWT token, not from body
@@ -16,6 +28,9 @@ export class SortController {
   async sort(@Req() req: any, @Body() body: SortTextDto) {
     const userEmail = req.user?.email || '';
     this.logger.log(`[SORT] text="${body.text}" user="${userEmail}"`);
+    if (this.fifoService) {
+      return this.fifoService.sort(req.user, { text: body.text });
+    }
     const items = await this.sortService.sort(body.text, userEmail);
     return items;
   }
@@ -28,6 +43,12 @@ export class SortController {
     this.logger.log(
       `[FIFO-CHECK] text="${body.text}" qty=${body.qty} user="${userEmail}"`,
     );
+    if (this.fifoService) {
+      return this.fifoService.check(req.user, {
+        text: body.text,
+        includeExported: false,
+      });
+    }
     const result = await this.sortService.fifoCheck(
       body.text,
       body.qty,

@@ -7,6 +7,10 @@ describe('SortController', () => {
     fifoCheck: jest.Mock;
     completionReport: jest.Mock;
   };
+  let fifoService: {
+    sort: jest.Mock;
+    check: jest.Mock;
+  };
 
   beforeEach(() => {
     sortService = {
@@ -14,11 +18,15 @@ describe('SortController', () => {
       fifoCheck: jest.fn(),
       completionReport: jest.fn(),
     };
-    controller = new SortController(sortService as any);
+    fifoService = {
+      sort: jest.fn(),
+      check: jest.fn(),
+    };
+    controller = new SortController(sortService as any, fifoService as any);
   });
 
   it('sorts using the authenticated user email', async () => {
-    sortService.sort.mockResolvedValue([{ sku: 'SKU1' }]);
+    fifoService.sort.mockResolvedValue([{ sku: 'SKU1' }]);
 
     await expect(
       controller.sort(
@@ -26,11 +34,15 @@ describe('SortController', () => {
         { text: 'SKU1' },
       ),
     ).resolves.toEqual([{ sku: 'SKU1' }]);
-    expect(sortService.sort).toHaveBeenCalledWith('SKU1', 'staff@phongvu-shop.vn');
+    expect(fifoService.sort).toHaveBeenCalledWith(
+      { email: 'staff@phongvu-shop.vn' },
+      { text: 'SKU1' },
+    );
+    expect(sortService.sort).not.toHaveBeenCalled();
   });
 
   it('runs FIFO check with optional quantity', async () => {
-    sortService.fifoCheck.mockResolvedValue([{ sku: 'SKU1' }]);
+    fifoService.check.mockResolvedValue([{ sku: 'SKU1' }]);
 
     await expect(
       controller.fifoCheck(
@@ -38,11 +50,11 @@ describe('SortController', () => {
         { text: 'SKU1', qty: 2 },
       ),
     ).resolves.toEqual([{ sku: 'SKU1' }]);
-    expect(sortService.fifoCheck).toHaveBeenCalledWith(
-      'SKU1',
-      2,
-      'staff@phongvu-shop.vn',
+    expect(fifoService.check).toHaveBeenCalledWith(
+      { email: 'staff@phongvu-shop.vn' },
+      { text: 'SKU1', includeExported: false },
     );
+    expect(sortService.fifoCheck).not.toHaveBeenCalled();
   });
 
   it('normalizes missing completion report items to an empty list', async () => {

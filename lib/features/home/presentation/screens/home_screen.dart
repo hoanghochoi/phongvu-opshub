@@ -9,9 +9,7 @@ import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 class HomeScreen extends StatefulWidget {
-  final Function(int)? onTabChange;
-
-  const HomeScreen({super.key, this.onTabChange});
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -114,7 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
         title: 'BH / SC',
         description: 'Ảnh bảo hành',
         color: const Color(0xFF16A34A),
-        onTap: widget.onTabChange != null ? () => widget.onTabChange!(2) : null,
+        onTap: () => Navigator.of(context).pushNamed('/warranty-main'),
       ),
       AppFeatureAction(
         icon: Icons.qr_code_2_rounded,
