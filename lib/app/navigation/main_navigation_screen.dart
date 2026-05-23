@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
-import '../../features/chat/presentation/screens/chat_screen.dart';
+import '../../features/fifo/presentation/screens/fifo_check_screen.dart';
 import '../../features/warranty/presentation/screens/warranty_main_screen.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 
@@ -50,9 +50,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     super.initState();
     _currentIndex = widget.initialIndex;
     _screens = [
-      ChatScreen(key: const ValueKey('screen_chat'), onBackToHome: _backToHome),
-      HomeScreen(key: const ValueKey('screen_home'), onTabChange: _onItemTapped),
-      WarrantyMainScreen(key: const ValueKey('screen_warranty'), onBackToHome: _backToHome),
+      FifoCheckScreen(
+        key: const ValueKey('screen_fifo'),
+        onBackToHome: _backToHome,
+      ),
+      HomeScreen(key: const ValueKey('screen_home')),
+      WarrantyMainScreen(
+        key: const ValueKey('screen_warranty'),
+        onBackToHome: _backToHome,
+      ),
     ];
   }
 
@@ -66,7 +72,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     // Refresh user data when Home button is tapped (throttled: max once per 5 min)
     if (index == 1) {
       final now = DateTime.now();
-      if (_lastRefresh == null || now.difference(_lastRefresh!) > const Duration(minutes: 5)) {
+      if (_lastRefresh == null ||
+          now.difference(_lastRefresh!) > const Duration(minutes: 5)) {
         _lastRefresh = now;
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         authProvider.refreshUserData();
@@ -87,7 +94,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
     // On home screen, check double back to exit
     final now = DateTime.now();
-    if (_lastBackPress != null && now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
+    if (_lastBackPress != null &&
+        now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
       return true; // Allow exit
     }
 
@@ -118,122 +126,141 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         }
       },
       child: Scaffold(
-        body: IndexedStack(
-          index: _currentIndex,
-          children: _screens,
-        ),
+        body: IndexedStack(index: _currentIndex, children: _screens),
         bottomNavigationBar: RepaintBoundary(
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: _navBarShadow,
             ),
-          child: SafeArea(
-            child: SizedBox(
-              height: 60,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  // FIFO button (left)
-                  Expanded(
-                    child: GestureDetector(
-                      key: const ValueKey('nav_chat'),
-                      onTap: () => _onItemTapped(0),
-                      behavior: HitTestBehavior.opaque,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            _currentIndex == 0 ? Icons.chat_bubble : Icons.chat_bubble_outline,
-                            color: _currentIndex == 0 ? const Color(0xFF0D1B6F) : Colors.grey,
-                            size: 24,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Chat',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: _currentIndex == 0 ? FontWeight.bold : FontWeight.normal,
-                              color: _currentIndex == 0 ? const Color(0xFF0D1B6F) : Colors.grey,
+            child: SafeArea(
+              child: SizedBox(
+                height: 60,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    // FIFO button (left)
+                    Expanded(
+                      child: GestureDetector(
+                        key: const ValueKey('nav_fifo'),
+                        onTap: () => _onItemTapped(0),
+                        behavior: HitTestBehavior.opaque,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _currentIndex == 0
+                                  ? Icons.inventory_2
+                                  : Icons.inventory_2_outlined,
+                              color: _currentIndex == 0
+                                  ? const Color(0xFF0D1B6F)
+                                  : Colors.grey,
+                              size: 24,
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 2),
+                            Text(
+                              'FIFO',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: _currentIndex == 0
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: _currentIndex == 0
+                                    ? const Color(0xFF0D1B6F)
+                                    : Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  // Home button (center)
-                  Expanded(
-                    child: GestureDetector(
-                      key: const ValueKey('nav_home'),
-                      onTap: () => _onItemTapped(1),
-                      behavior: HitTestBehavior.opaque,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: _currentIndex == 1
-                                  ? _activeGradient
-                                  : null,
-                              color: _currentIndex == 1 ? null : Colors.white,
-                              boxShadow: _homeShadow,
+                    // Home button (center)
+                    Expanded(
+                      child: GestureDetector(
+                        key: const ValueKey('nav_home'),
+                        onTap: () => _onItemTapped(1),
+                        behavior: HitTestBehavior.opaque,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: _currentIndex == 1
+                                    ? _activeGradient
+                                    : null,
+                                color: _currentIndex == 1 ? null : Colors.white,
+                                boxShadow: _homeShadow,
+                              ),
+                              child: Icon(
+                                Icons.home_rounded,
+                                size: 22,
+                                color: _currentIndex == 1
+                                    ? Colors.white
+                                    : const Color(0xFF0D1B6F),
+                              ),
                             ),
-                            child: Icon(
-                              Icons.home_rounded,
-                              size: 22,
-                              color: _currentIndex == 1 ? Colors.white : const Color(0xFF0D1B6F),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Home',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: _currentIndex == 1
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: _currentIndex == 1
+                                    ? const Color(0xFF0D1B6F)
+                                    : Colors.grey,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Home',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: _currentIndex == 1 ? FontWeight.bold : FontWeight.normal,
-                              color: _currentIndex == 1 ? const Color(0xFF0D1B6F) : Colors.grey,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  // Warranty button (right)
-                  Expanded(
-                    child: GestureDetector(
-                      key: const ValueKey('nav_warranty'),
-                      onTap: () => _onItemTapped(2),
-                      behavior: HitTestBehavior.opaque,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            _currentIndex == 2 ? Icons.headset_mic : Icons.headset_mic_outlined,
-                            color: _currentIndex == 2 ? const Color(0xFF0D1B6F) : Colors.grey,
-                            size: 24,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Bảo hành',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: _currentIndex == 2 ? FontWeight.bold : FontWeight.normal,
-                              color: _currentIndex == 2 ? const Color(0xFF0D1B6F) : Colors.grey,
+                    // Warranty button (right)
+                    Expanded(
+                      child: GestureDetector(
+                        key: const ValueKey('nav_warranty'),
+                        onTap: () => _onItemTapped(2),
+                        behavior: HitTestBehavior.opaque,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _currentIndex == 2
+                                  ? Icons.headset_mic
+                                  : Icons.headset_mic_outlined,
+                              color: _currentIndex == 2
+                                  ? const Color(0xFF0D1B6F)
+                                  : Colors.grey,
+                              size: 24,
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 2),
+                            Text(
+                              'Bảo hành',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: _currentIndex == 2
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: _currentIndex == 2
+                                    ? const Color(0xFF0D1B6F)
+                                    : Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
           ),
         ),
       ),

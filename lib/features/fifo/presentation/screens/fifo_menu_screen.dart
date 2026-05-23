@@ -18,7 +18,7 @@ class FifoMenuScreen extends StatelessWidget {
         title: 'Kiểm tra FIFO',
         description: 'Tra cứu thứ tự FIFO',
         color: const Color(0xFF2563EB),
-        onTap: () => Navigator.of(context).pushNamed('/chat'),
+        onTap: () => Navigator.of(context).pushNamed('/fifo-check'),
       ),
       AppFeatureAction(
         icon: Icons.swap_vert_rounded,

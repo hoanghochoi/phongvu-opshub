@@ -73,10 +73,10 @@ class ChatRepository {
       // Parse qty to int (default 1)
       final qtyInt = int.tryParse(qty) ?? 1;
 
-      // Send to backend /sort/fifo-check with text, qty, and user
+      // Send to backend /sort/fifo-check. Backend reads the user from JWT.
       final response = await _apiClient.post(
-        ApiConstants.fifoCheckEndpoint,
-        body: {'text': sku, 'qty': qtyInt, 'user': userEmail},
+        ApiConstants.legacyFifoCheckEndpoint,
+        body: {'text': sku, 'qty': qtyInt},
       );
 
       if (kDebugMode) {
