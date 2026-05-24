@@ -54,6 +54,7 @@ class ApiConstants {
   // FIFO endpoints
   static const String fifoCheckEndpoint = '/fifo/check';
   static const String fifoExportEndpoint = '/fifo/export';
+  static const String fifoInventoryImportEndpoint = '/fifo/inventory/import';
   static const String legacyFifoCheckEndpoint = '/sort/fifo-check';
 
   // Sort endpoint

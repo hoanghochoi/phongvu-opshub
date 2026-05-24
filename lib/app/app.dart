@@ -9,6 +9,7 @@ import '../features/auth/presentation/screens/register_screen.dart';
 import '../features/auth/presentation/screens/store_selection_screen.dart';
 import '../features/app_update/presentation/app_update_gate.dart';
 import '../features/admin/presentation/screens/admin_menu_screen.dart';
+import '../features/admin/presentation/screens/inventory_import_screen.dart';
 import '../features/admin/presentation/screens/role_admin_screen.dart';
 import '../features/admin/presentation/screens/store_admin_screen.dart';
 import '../features/admin/presentation/screens/user_admin_screen.dart';
@@ -107,6 +108,7 @@ class App extends StatelessWidget {
           '/profile': (context) => const ProfileScreen(),
           '/admin': (context) => const AdminMenuScreen(),
           '/admin/users': (context) => const UserAdminScreen(),
+          '/admin/inventory-import': (context) => const InventoryImportScreen(),
           '/admin/roles': (context) => const RoleAdminScreen(),
           '/admin/stores': (context) => const StoreAdminScreen(),
           '/fifo-menu': (context) => const FifoMenuScreen(),

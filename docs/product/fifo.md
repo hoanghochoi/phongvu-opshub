@@ -25,6 +25,10 @@ history where permitted.
   hidden by default and visible only when the user enables the exported toggle.
 - FIFO sorting also reads from the price_watchdog inventory and is scoped by
   the signed-in user's SR. Sort queries try exact SKU first, then BIN.
+- Admin and super admin users can manually import an Excel inventory export
+  with the physical serial inventory format. Manual imports upsert into the
+  same price_watchdog inventory table, preserve `exported`, and deactivate
+  rows missing from the uploaded file for the SR codes present in that file.
 - Serial checks return correct FIFO, wrong FIFO, exported, or not-found states.
 - Marking an item exported sets `exported=true`; users can show exported items
   and unmark an item when it was exported by mistake.

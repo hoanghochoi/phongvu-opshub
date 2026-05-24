@@ -14,6 +14,7 @@ class AdminMenuScreen extends StatelessWidget {
       (auth) => auth.user?.role,
     );
     final isSuperAdmin = role == 'SUPER_ADMIN';
+    final canImportInventory = role == 'ADMIN' || role == 'SUPER_ADMIN';
     final actions = [
       AppFeatureAction(
         icon: Icons.people_alt_outlined,
@@ -37,6 +38,15 @@ class AdminMenuScreen extends StatelessWidget {
         color: const Color(0xFF059669),
         onTap: () => Navigator.of(context).pushNamed('/admin/stores'),
       ),
+      if (canImportInventory)
+        AppFeatureAction(
+          icon: Icons.upload_file_outlined,
+          title: 'Cập nhật tồn kho',
+          description: 'Import Excel cho FIFO',
+          color: const Color(0xFFDC2626),
+          onTap: () =>
+              Navigator.of(context).pushNamed('/admin/inventory-import'),
+        ),
     ];
 
     return Scaffold(
