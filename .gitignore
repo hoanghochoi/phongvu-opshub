@@ -84,6 +84,13 @@ backend-go/tmp/
 backend-go/bin/
 uploads/
 app_images/
+tmp/
+
+# Harness durable layer
+harness.db
+harness.db-wal
+harness.db-shm
+scripts/bin/harness-cli
 
 # Bỏ qua tệp hệ thống Windows bị lỗi
 nul

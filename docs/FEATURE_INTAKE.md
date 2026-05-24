@@ -1,6 +1,34 @@
 # Feature Intake
 
-Every implementation prompt enters this gate before code changes.
+Every implementation prompt enters this gate before code changes. A new project
+spec also enters through this gate before it becomes product docs, stories, or
+implementation work.
+
+The human does not need to classify risk. The harness does.
+
+## Intake Flow
+
+```text
+User prompt
+    |
+    v
+Classify input type
+    |
+    v
+Restate as work item
+    |
+    v
+Find affected product docs and stories
+    |
+    v
+Run risk checklist
+    |
+    v
+Choose lane: tiny, normal, or high-risk
+    |
+    v
+Record durable intake/proof when useful
+```
 
 ## Input Types
 
@@ -8,6 +36,8 @@ Every implementation prompt enters this gate before code changes.
 | --- | --- | --- |
 | Change request | Changing accepted app behavior | Story packet or direct patch |
 | Bug fix | Restoring intended behavior | Direct patch or story if risky |
+| New spec | Turning a user-provided project spec into harness-ready docs | Product docs, candidate epics, decisions |
+| Spec slice | Implementing selected behavior from an accepted spec | Story packet |
 | New initiative | Adding a larger product area | Product doc plus story packets |
 | Maintenance | Dependency, infra, performance, security, or tooling work | Story, validation report, or decision |
 | Documentation | Clarifying existing truth | Direct docs patch |
@@ -52,3 +82,9 @@ Docs: docs/product/fifo.md
 Story: docs/stories/US-XXX-name.md
 Validation: Flutter tests plus NestJS unit tests.
 ```
+
+When the durable harness DB is initialized, record normal/high-risk work with
+`scripts/harness intake ...` and update proof with `scripts/harness story ...`
+instead of editing structured status by hand. Markdown product docs and story
+packets remain the readable contract; the DB stores queryable operational
+records.
