@@ -29,6 +29,11 @@ history where permitted.
   with the physical serial inventory format. Manual imports upsert into the
   same OpsHub FIFO inventory table, preserve `exported`, and deactivate
   rows missing from the uploaded file for the SR codes present in that file.
+- FIFO order uses the original import date when available. Manual import stores
+  the file's SR-local import date in `manual_import_date`, while `import_date`
+  keeps this priority: BigQuery original date, existing DB date, then file date.
+  If the item has no original/DB import date, the file date becomes the active
+  FIFO date because direct-to-SR stock may start FIFO at that SR receipt date.
 - Serial checks return correct FIFO, wrong FIFO, exported, or not-found states.
 - Marking an item exported sets `exported=true`; users can show exported items
   and unmark an item when it was exported by mistake.

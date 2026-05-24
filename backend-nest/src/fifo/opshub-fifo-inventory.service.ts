@@ -67,7 +67,7 @@ export type ManualInventoryItem = {
   binName: string | null;
   zone: string | null;
   binType: string | null;
-  importDate: Date | null;
+  manualImportDate: Date | null;
   count: number;
   stockType: string | null;
   purchaseStatus: string | null;
@@ -274,7 +274,7 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
 
     const values: unknown[] = [];
     const placeholders = items.map((item, index) => {
-      const base = index * 23;
+      const base = index * 24;
       values.push(
         item.id,
         item.srCode,
@@ -295,17 +295,18 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
         item.binName,
         item.zone,
         item.binType,
-        item.importDate,
+        item.manualImportDate,
+        item.manualImportDate,
         item.count,
         item.stockType,
         item.purchaseStatus,
       );
-      return `(${Array.from({ length: 23 }, (_, offset) => `$${base + offset + 1}`).join(', ')}, 'manual', now(), true, now())`;
+      return `(${Array.from({ length: 24 }, (_, offset) => `$${base + offset + 1}`).join(', ')}, 'manual', now(), true, now())`;
     });
 
     await client.query(
       `
-      INSERT INTO ${config.table} (
+      INSERT INTO ${config.table} AS target (
         ${config.columns.id},
         ${config.columns.srCode},
         sr_name,
@@ -325,6 +326,7 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
         bin_name,
         ${config.columns.zone},
         bin_type,
+        manual_import_date,
         ${config.columns.importDate},
         ${config.columns.count},
         stock_type,
@@ -354,7 +356,8 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
         bin_name = EXCLUDED.bin_name,
         ${config.columns.zone} = EXCLUDED.${config.columns.zone},
         bin_type = EXCLUDED.bin_type,
-        ${config.columns.importDate} = EXCLUDED.${config.columns.importDate},
+        manual_import_date = EXCLUDED.manual_import_date,
+        ${config.columns.importDate} = COALESCE(target.bigquery_import_date, target.${config.columns.importDate}, EXCLUDED.manual_import_date),
         ${config.columns.count} = EXCLUDED.${config.columns.count},
         stock_type = EXCLUDED.stock_type,
         purchase_status = EXCLUDED.purchase_status,
@@ -453,6 +456,8 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
         bin_name text,
         ${config.columns.zone} text,
         bin_type text,
+        bigquery_import_date timestamptz,
+        manual_import_date timestamptz,
         ${config.columns.importDate} timestamptz,
         ${config.columns.count} integer NOT NULL DEFAULT 1,
         stock_type text,
@@ -506,6 +511,12 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
     );
     await pool.query(
       `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS bin_type text`,
+    );
+    await pool.query(
+      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS bigquery_import_date timestamptz`,
+    );
+    await pool.query(
+      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS manual_import_date timestamptz`,
     );
     await pool.query(
       `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS stock_type text`,
