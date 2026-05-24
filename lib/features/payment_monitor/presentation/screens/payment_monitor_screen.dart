@@ -72,6 +72,14 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                               ),
                             ),
                           ),
+                          Switch.adaptive(
+                            value: monitor.isEnabled,
+                            onChanged: monitor.canMonitorOnThisDevice
+                                ? (value) => context
+                                      .read<PaymentMonitorProvider>()
+                                      .setEnabled(value)
+                                : null,
+                          ),
                           if (monitor.isLoading)
                             const SizedBox.square(
                               dimension: 20,

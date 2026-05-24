@@ -13,6 +13,7 @@ import '../../domain/payment_notification.dart';
 class PaymentMonitorProvider extends ChangeNotifier {
   static const _pollInterval = Duration(seconds: 5);
   static const _startupNotificationLookback = Duration(minutes: 15);
+  static const _enabledPreferenceKey = 'payment_monitor_enabled';
 
   final PaymentMonitorRepository _repository;
   final PaymentSpeaker _speaker;
@@ -33,10 +34,15 @@ class PaymentMonitorProvider extends ChangeNotifier {
   int _pageSize = 10;
   int _totalTransactions = 0;
   bool _loggedMonitorStarted = false;
+  bool _isEnabled = true;
+  bool _isEnabledPreferenceLoaded = false;
 
-  PaymentMonitorProvider(this._repository, this._speaker);
+  PaymentMonitorProvider(this._repository, this._speaker) {
+    _loadEnabledPreference();
+  }
 
   bool get isActive => _isActive;
+  bool get isEnabled => _isEnabled;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   DateTime? get lastCheckedAt => _lastCheckedAt;
@@ -47,16 +53,50 @@ class PaymentMonitorProvider extends ChangeNotifier {
   int get totalTransactions => _totalTransactions;
   bool get canGoPreviousPage => _pageIndex > 0;
   bool get canGoNextPage => (_pageIndex + 1) * _pageSize < _totalTransactions;
+  bool get canMonitorOnThisDevice => _canMonitorOnThisDevice;
+  bool get hasMonitorScope => _hasMonitorScope;
   List<MapPaymentTransaction> get latestTransactions =>
       List.unmodifiable(_latestTransactions);
 
   void syncAuth(User? user, {required bool isInitialized}) {
     _user = user;
+    if (!_isEnabledPreferenceLoaded) return;
     if (!isInitialized || user == null || !_canMonitorOnThisDevice) {
-      _stop();
+      _stop(reason: 'auth_or_device_unavailable');
+      return;
+    }
+    if (!_isEnabled) {
+      _stop(reason: 'disabled');
       return;
     }
     _reconcile();
+  }
+
+  Future<void> setEnabled(bool value) async {
+    if (_isEnabled == value) return;
+    _isEnabled = value;
+    _isEnabledPreferenceLoaded = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_enabledPreferenceKey, value);
+    await AppLogger.instance.info(
+      'PaymentMonitor',
+      value
+          ? 'Payment background notifications enabled'
+          : 'Payment background notifications disabled',
+      context: {
+        'storeId': _requestStoreId ?? _user?.storeId,
+        'hasScope': _hasMonitorScope,
+      },
+    );
+
+    if (value) {
+      _reconcile();
+    } else {
+      _stop(reason: 'user_disabled');
+    }
   }
 
   void setStoreOverride(String value) {
@@ -94,6 +134,30 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _poll();
   }
 
+  Future<void> _loadEnabledPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final enabled = prefs.getBool(_enabledPreferenceKey);
+      _isEnabled = enabled ?? true;
+      _isEnabledPreferenceLoaded = true;
+      if (_isEnabled) {
+        _reconcile();
+      } else {
+        _stop(reason: 'saved_preference_disabled');
+      }
+      notifyListeners();
+    } catch (error, stackTrace) {
+      await AppLogger.instance.warn(
+        'PaymentMonitor',
+        'Payment monitor preference load failed',
+        context: {
+          'error': error.toString(),
+          'stackTrace': stackTrace.toString(),
+        },
+      );
+    }
+  }
+
   bool get _canMonitorOnThisDevice =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
@@ -111,15 +175,19 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   void _reconcile() {
+    if (!_isEnabled || !_canMonitorOnThisDevice) {
+      _stop(reason: !_isEnabled ? 'disabled' : 'unsupported_device');
+      return;
+    }
     if (!_hasMonitorScope) {
-      _stop();
+      _stop(reason: 'missing_scope');
       return;
     }
     if (_isActive) return;
     _isActive = true;
-    _notificationCheckpointAt = DateTime.now()
-        .toUtc()
-        .subtract(_startupNotificationLookback);
+    _notificationCheckpointAt = DateTime.now().toUtc().subtract(
+      _startupNotificationLookback,
+    );
     _loggedMonitorStarted = false;
     _seenNotificationIds.clear();
     _latestTransactions.clear();
@@ -129,11 +197,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   void _restart() {
-    _stop();
+    _stop(reason: 'restart');
     _reconcile();
   }
 
-  void _stop() {
+  void _stop({required String reason}) {
     _timer?.cancel();
     _timer = null;
     if (!_isActive &&
@@ -149,11 +217,16 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _seenNotificationIds.clear();
     _latestTransactions.clear();
     _errorMessage = null;
+    AppLogger.instance.info(
+      'PaymentMonitor',
+      'Payment monitor stopped',
+      context: {'reason': reason, 'storeId': _requestStoreId ?? _user?.storeId},
+    );
     notifyListeners();
   }
 
   Future<void> _poll() async {
-    if (_isLoading || !_hasMonitorScope) return;
+    if (_isLoading || !_isEnabled || !_hasMonitorScope) return;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();

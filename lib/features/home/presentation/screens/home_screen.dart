@@ -7,6 +7,7 @@ import '../../../../app/theme/app_theme.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../payment_monitor/presentation/providers/payment_monitor_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -73,6 +74,11 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (!kIsWeb &&
+                      defaultTargetPlatform == TargetPlatform.windows) ...[
+                    const _PaymentMonitorQuickToggle(),
+                    const SizedBox(height: 16),
+                  ],
                   AppFeatureSection(actions: actions),
                   const SizedBox(height: 20),
                   Center(
@@ -297,6 +303,50 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Text('Đóng'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PaymentMonitorQuickToggle extends StatelessWidget {
+  const _PaymentMonitorQuickToggle();
+
+  @override
+  Widget build(BuildContext context) {
+    final monitor = context.watch<PaymentMonitorProvider>();
+    final canToggle = monitor.canMonitorOnThisDevice && monitor.hasMonitorScope;
+    final enabled = monitor.isEnabled;
+    final statusText = !enabled
+        ? 'Đang tắt'
+        : monitor.isActive
+        ? 'Đang chạy nền'
+        : canToggle
+        ? 'Đang khởi động'
+        : 'Cần gán showroom';
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: SwitchListTile.adaptive(
+        value: enabled && canToggle,
+        onChanged: canToggle
+            ? (value) =>
+                  context.read<PaymentMonitorProvider>().setEnabled(value)
+            : null,
+        secondary: Icon(
+          enabled && monitor.isActive
+              ? Icons.volume_up_rounded
+              : Icons.volume_off_rounded,
+          color: enabled && monitor.isActive
+              ? const Color(0xFF16A34A)
+              : const Color(0xFF6B7280),
+        ),
+        title: const Text(
+          'Đọc thông báo tiền vào',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        subtitle: Text(statusText),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       ),
     );
   }
