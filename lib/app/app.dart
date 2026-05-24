@@ -54,6 +54,7 @@ class App extends StatelessWidget {
           create: (_) => SortProvider(SortRepository(ApiClient())),
         ),
         ChangeNotifierProxyProvider<AuthProvider, PaymentMonitorProvider>(
+          lazy: false,
           create: (_) => PaymentMonitorProvider(
             PaymentMonitorRepository(ApiClient()),
             PaymentSpeaker(),
