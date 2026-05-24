@@ -11,6 +11,7 @@ describe('FifoService', () => {
     findBySerial: jest.Mock;
     findOldestActiveForSku: jest.Mock;
     setExported: jest.Mock;
+    importManualInventory: jest.Mock;
   };
   let fifoLogService: { createLog: jest.Mock };
 
@@ -29,6 +30,7 @@ describe('FifoService', () => {
       findBySerial: jest.fn(),
       findOldestActiveForSku: jest.fn(),
       setExported: jest.fn(),
+      importManualInventory: jest.fn(),
     };
     fifoLogService = { createLog: jest.fn() };
     service = new FifoService(
@@ -153,6 +155,39 @@ describe('FifoService', () => {
     ]);
     expect(inventory.findBySku).toHaveBeenCalledWith('CP01', 'BIN-A', false);
     expect(inventory.findByBin).toHaveBeenCalledWith('CP01', 'BIN-A', false);
+  });
+
+  it('allows ADMIN users to import manual inventory', async () => {
+    inventory.importManualInventory.mockResolvedValue({
+      importedRows: 2,
+      deactivatedRows: 1,
+      srCodes: ['CP62'],
+    });
+
+    await expect(
+      service.importManualInventory(
+        { ...user, role: 'ADMIN' },
+        [item({ id: 'CP62:S1', srCode: 'CP62' }) as any],
+        { fileName: 'inventory.xlsx', totalRows: 2, skippedRows: 0 },
+      ),
+    ).resolves.toMatchObject({
+      importedRows: 2,
+      deactivatedRows: 1,
+      skippedRows: 0,
+      totalRows: 2,
+      srCodes: ['CP62'],
+    });
+  });
+
+  it('blocks non-admin users from importing manual inventory', async () => {
+    await expect(
+      service.importManualInventory(
+        { ...user, role: 'MANAGER' },
+        [item({ id: 'CP62:S1', srCode: 'CP62' }) as any],
+        { fileName: 'inventory.xlsx', totalRows: 1, skippedRows: 0 },
+      ),
+    ).rejects.toThrow('Chỉ ADMIN trở lên');
+    expect(inventory.importManualInventory).not.toHaveBeenCalled();
   });
 });
 

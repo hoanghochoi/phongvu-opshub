@@ -9,6 +9,7 @@ import { FifoLogService } from '../fifo-log/fifo-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   FifoInventoryItem,
+  ManualInventoryImportResult,
   PriceWatchdogInventoryService,
 } from './price-watchdog-inventory.service';
 
@@ -195,6 +196,40 @@ export class FifoService {
     return result;
   }
 
+  async importManualInventory(
+    user: any,
+    items: Parameters<
+      PriceWatchdogInventoryService['importManualInventory']
+    >[0],
+    meta: { fileName?: string; totalRows: number; skippedRows: number },
+  ): Promise<
+    ManualInventoryImportResult & { skippedRows: number; totalRows: number }
+  > {
+    this.assertInventoryImportAdmin(user);
+    const result = await this.inventory.importManualInventory(items);
+    await this.log(
+      user,
+      meta.fileName || 'manual-inventory-upload',
+      result.srCodes.join(','),
+      `Manual inventory import: ${result.importedRows} row(s)`,
+      {
+        action: 'FIFO_MANUAL_INVENTORY_IMPORT',
+        fileName: meta.fileName,
+        totalRows: meta.totalRows,
+        importedRows: result.importedRows,
+        skippedRows: meta.skippedRows,
+        deactivatedRows: result.deactivatedRows,
+        srCodes: result.srCodes,
+      },
+      FifoLogType.FIFO_SORT,
+    );
+    return {
+      ...result,
+      skippedRows: meta.skippedRows,
+      totalRows: meta.totalRows,
+    };
+  }
+
   private async resolveSrCode(user: any) {
     if (!user?.storeId) {
       throw new ForbiddenException('User chưa được gán SR/showroom');
@@ -222,6 +257,12 @@ export class FifoService {
     const text = String(value || '').trim();
     if (!text) throw new BadRequestException('Missing inventory id');
     return text;
+  }
+
+  private assertInventoryImportAdmin(user: any) {
+    if (user?.role !== 'ADMIN' && user?.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Chỉ ADMIN trở lên được cập nhật tồn kho');
+    }
   }
 
   private formatItem(item: FifoInventoryItem, index: number): FifoItemResponse {
