@@ -53,7 +53,10 @@ Read in this order:
 4. `docs/stories/` for story packets and active backlog.
 5. `docs/TEST_MATRIX.md` for required proof and known gaps.
 6. `docs/decisions/` for durable tradeoffs.
-7. Runtime code under `lib/`, `backend-nest/`, `backend-go/`, and `deploy/`.
+7. `scripts/harness query matrix` for the structured durable-layer view when
+   `harness.db` has been initialized. On Windows PowerShell, run it as
+   `bash scripts/harness query matrix`.
+8. Runtime code under `lib/`, `backend-nest/`, `backend-go/`, and `deploy/`.
 
 ## Project Surfaces
 
@@ -75,6 +78,9 @@ Every implementation request goes through intake first:
 3. Check risk flags in `docs/FEATURE_INTAKE.md`.
 4. Choose lane: tiny, normal, or high-risk.
 5. Decide the minimum validation proof before editing code.
+6. When the durable harness DB is available, record meaningful intakes,
+   story/proof updates, decisions, backlog items, or traces through
+   `scripts/harness` instead of hand-editing structured operational records.
 
 ## Validation Ladder
 

@@ -22,6 +22,24 @@ Every meaningful task can produce two kinds of output:
 2. Harness delta: story evidence, test matrix rows, decisions, templates, or
    clearer agent instructions.
 
+## Durable Layer
+
+OpsHub keeps the readable harness in markdown and records structured operational
+state in `harness.db` through `scripts/harness`.
+
+Use the durable layer for:
+
+- Intake records and risk lanes.
+- Story/proof status that backs the test matrix.
+- Decisions and optional verification commands.
+- Harness backlog items.
+- Agent traces: actions, files, errors, outcome, and friction.
+
+The database is local runtime state and is not committed. Initialize it with
+`scripts/harness init`, refresh it from existing markdown with
+`scripts/harness import brownfield`, and inspect it with
+`scripts/harness query matrix`.
+
 ## When To Create Story Packets
 
 Create or update a story packet when work changes behavior, API contracts, data
@@ -46,4 +64,5 @@ If proof is missing or blocked, report:
 
 If a task exposes repeated confusion, missing proof, unclear ownership, or a
 manual checklist worth preserving, update this harness directly or add a note to
-`docs/HARNESS_BACKLOG.md`.
+`docs/HARNESS_BACKLOG.md`. If `harness.db` exists, also record the item through
+`scripts/harness backlog add` so it is queryable later.
