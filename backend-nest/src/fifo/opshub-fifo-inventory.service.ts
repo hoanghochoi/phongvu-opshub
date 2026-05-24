@@ -80,8 +80,8 @@ export type ManualInventoryImportResult = {
 };
 
 @Injectable()
-export class PriceWatchdogInventoryService implements OnModuleDestroy {
-  private readonly logger = new Logger(PriceWatchdogInventoryService.name);
+export class OpshubFifoInventoryService implements OnModuleDestroy {
+  private readonly logger = new Logger(OpshubFifoInventoryService.name);
   private pool?: pg.Pool;
   private schemaReady?: Promise<void>;
 
@@ -267,7 +267,7 @@ export class PriceWatchdogInventoryService implements OnModuleDestroy {
 
   private async upsertManualInventoryChunk(
     client: pg.PoolClient,
-    config: ReturnType<PriceWatchdogInventoryService['getConfig']>,
+    config: ReturnType<OpshubFifoInventoryService['getConfig']>,
     items: ManualInventoryItem[],
   ) {
     if (items.length === 0) return;
@@ -385,10 +385,12 @@ export class PriceWatchdogInventoryService implements OnModuleDestroy {
   private getPool() {
     if (this.pool) return this.pool;
 
-    const connectionString = process.env.PRICE_WATCHDOG_DATABASE_URL?.trim();
+    const connectionString =
+      process.env.OPSHUB_FIFO_DATABASE_URL?.trim() ||
+      process.env.DATABASE_URL?.trim();
     if (!connectionString) {
       throw new InternalServerErrorException(
-        'PRICE_WATCHDOG_DATABASE_URL is not configured',
+        'DATABASE_URL is not configured for FIFO inventory',
       );
     }
 
@@ -398,8 +400,8 @@ export class PriceWatchdogInventoryService implements OnModuleDestroy {
 
   private getConfig() {
     const table = this.identifier(
-      process.env.PRICE_WATCHDOG_INVENTORY_TABLE || 'inventory',
-      'PRICE_WATCHDOG_INVENTORY_TABLE',
+      process.env.OPSHUB_FIFO_INVENTORY_TABLE || 'fifo_inventory',
+      'OPSHUB_FIFO_INVENTORY_TABLE',
     );
     const columns: InventoryColumns = {
       id: this.column('ID_COLUMN', DEFAULT_COLUMNS.id),
@@ -418,7 +420,7 @@ export class PriceWatchdogInventoryService implements OnModuleDestroy {
   }
 
   private async ensureSchema(
-    config: ReturnType<PriceWatchdogInventoryService['getConfig']>,
+    config: ReturnType<OpshubFifoInventoryService['getConfig']>,
   ) {
     if (!this.schemaReady) {
       this.schemaReady = this.createSchema(config);
@@ -427,7 +429,7 @@ export class PriceWatchdogInventoryService implements OnModuleDestroy {
   }
 
   private async createSchema(
-    config: ReturnType<PriceWatchdogInventoryService['getConfig']>,
+    config: ReturnType<OpshubFifoInventoryService['getConfig']>,
   ) {
     const pool = this.getPool();
     await pool.query(`
@@ -524,20 +526,20 @@ export class PriceWatchdogInventoryService implements OnModuleDestroy {
       `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now()`,
     );
     await pool.query(
-      `CREATE INDEX IF NOT EXISTS inventory_sr_sku_active_exported_import_date_idx ON ${config.table} (${config.columns.srCode}, ${config.columns.sku}, ${config.columns.active}, ${config.columns.exported}, ${config.columns.importDate})`,
+      `CREATE INDEX IF NOT EXISTS fifo_inventory_sr_sku_active_exported_import_date_idx ON ${config.table} (${config.columns.srCode}, ${config.columns.sku}, ${config.columns.active}, ${config.columns.exported}, ${config.columns.importDate})`,
     );
     await pool.query(
-      `CREATE INDEX IF NOT EXISTS inventory_sr_serial_active_idx ON ${config.table} (${config.columns.srCode}, ${config.columns.serialNumber}, ${config.columns.active})`,
+      `CREATE INDEX IF NOT EXISTS fifo_inventory_sr_serial_active_idx ON ${config.table} (${config.columns.srCode}, ${config.columns.serialNumber}, ${config.columns.active})`,
     );
     await pool.query(
-      `CREATE INDEX IF NOT EXISTS inventory_sr_bin_active_idx ON ${config.table} (${config.columns.srCode}, ${config.columns.bin}, ${config.columns.active})`,
+      `CREATE INDEX IF NOT EXISTS fifo_inventory_sr_bin_active_idx ON ${config.table} (${config.columns.srCode}, ${config.columns.bin}, ${config.columns.active})`,
     );
   }
 
   private column(suffix: string, fallback: string) {
     return this.identifier(
-      process.env[`PRICE_WATCHDOG_INVENTORY_${suffix}`] || fallback,
-      `PRICE_WATCHDOG_INVENTORY_${suffix}`,
+      process.env[`OPSHUB_FIFO_INVENTORY_${suffix}`] || fallback,
+      `OPSHUB_FIFO_INVENTORY_${suffix}`,
     );
   }
 
