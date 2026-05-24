@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS fifo_inventory (
   bin_name text,
   zone text,
   bin_type text,
+  bigquery_import_date timestamptz,
+  manual_import_date timestamptz,
   import_date timestamptz,
   count integer NOT NULL DEFAULT 1,
   stock_type text,

@@ -111,7 +111,7 @@ export class ManualInventoryParserService {
       binName: this.get(row, headerMap, 'Tên Bin') || null,
       zone: this.get(row, headerMap, 'Zone') || null,
       binType: null,
-      importDate: this.parseImportDate(
+      manualImportDate: this.parseImportDate(
         this.get(row, headerMap, 'Ngày nhập kho'),
       ),
       count: this.parseCount(this.get(row, headerMap, 'Số lượng')),

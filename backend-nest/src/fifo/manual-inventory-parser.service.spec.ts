@@ -85,7 +85,7 @@ describe('ManualInventoryParserService', () => {
         },
       ],
     });
-    expect(result.items[0].importDate?.toISOString()).toBe(
+    expect(result.items[0].manualImportDate?.toISOString()).toBe(
       '2026-04-01T00:00:00.000Z',
     );
   });
