@@ -1,7 +1,7 @@
--- Run this on the price_watchdog database, or let OpsHub create it lazily
+-- Run this on the OpsHub database, or let OpsHub create it lazily
 -- before the first FIFO lookup/import.
 
-CREATE TABLE IF NOT EXISTS inventory (
+CREATE TABLE IF NOT EXISTS fifo_inventory (
   id text PRIMARY KEY,
   sr_code text NOT NULL,
   sr_name text,
@@ -33,11 +33,11 @@ CREATE TABLE IF NOT EXISTS inventory (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS inventory_sr_sku_active_exported_import_date_idx
-  ON inventory (sr_code, sku, active, exported, import_date);
+CREATE INDEX IF NOT EXISTS fifo_inventory_sr_sku_active_exported_import_date_idx
+  ON fifo_inventory (sr_code, sku, active, exported, import_date);
 
-CREATE INDEX IF NOT EXISTS inventory_sr_serial_active_idx
-  ON inventory (sr_code, serial_number, active);
+CREATE INDEX IF NOT EXISTS fifo_inventory_sr_serial_active_idx
+  ON fifo_inventory (sr_code, serial_number, active);
 
-CREATE INDEX IF NOT EXISTS inventory_sr_bin_active_idx
-  ON inventory (sr_code, bin, active);
+CREATE INDEX IF NOT EXISTS fifo_inventory_sr_bin_active_idx
+  ON fifo_inventory (sr_code, bin, active);

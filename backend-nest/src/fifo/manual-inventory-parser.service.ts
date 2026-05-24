@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as XLSX from 'xlsx';
-import { ManualInventoryItem } from './price-watchdog-inventory.service';
+import { ManualInventoryItem } from './opshub-fifo-inventory.service';
 
 type Row = Array<string | number | boolean | Date | null | undefined>;
 

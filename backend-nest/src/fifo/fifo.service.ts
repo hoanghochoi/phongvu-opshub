@@ -10,8 +10,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   FifoInventoryItem,
   ManualInventoryImportResult,
-  PriceWatchdogInventoryService,
-} from './price-watchdog-inventory.service';
+  OpshubFifoInventoryService,
+} from './opshub-fifo-inventory.service';
 
 export type FifoCheckResult =
   | {
@@ -49,7 +49,7 @@ type FifoItemResponse = {
 export class FifoService {
   constructor(
     private prisma: PrismaService,
-    private inventory: PriceWatchdogInventoryService,
+    private inventory: OpshubFifoInventoryService,
     private fifoLogService: FifoLogService,
   ) {}
 
@@ -198,9 +198,7 @@ export class FifoService {
 
   async importManualInventory(
     user: any,
-    items: Parameters<
-      PriceWatchdogInventoryService['importManualInventory']
-    >[0],
+    items: Parameters<OpshubFifoInventoryService['importManualInventory']>[0],
     meta: { fileName?: string; totalRows: number; skippedRows: number },
   ): Promise<
     ManualInventoryImportResult & { skippedRows: number; totalRows: number }

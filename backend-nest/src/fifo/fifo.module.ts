@@ -4,7 +4,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { FifoController } from './fifo.controller';
 import { FifoService } from './fifo.service';
 import { ManualInventoryParserService } from './manual-inventory-parser.service';
-import { PriceWatchdogInventoryService } from './price-watchdog-inventory.service';
+import { OpshubFifoInventoryService } from './opshub-fifo-inventory.service';
 
 @Module({
   imports: [PrismaModule, FifoLogModule],
@@ -12,7 +12,7 @@ import { PriceWatchdogInventoryService } from './price-watchdog-inventory.servic
   providers: [
     FifoService,
     ManualInventoryParserService,
-    PriceWatchdogInventoryService,
+    OpshubFifoInventoryService,
   ],
   exports: [FifoService],
 })

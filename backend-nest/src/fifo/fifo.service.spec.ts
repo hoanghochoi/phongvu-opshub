@@ -125,7 +125,7 @@ describe('FifoService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('sorts from price_watchdog by SKU first and logs FIFO_SORT', async () => {
+  it('sorts from OpsHub FIFO inventory by SKU first and logs FIFO_SORT', async () => {
     inventory.findBySku.mockResolvedValue([
       item({ id: 'sku-item', serialNumber: 'S1' }),
     ]);
@@ -144,7 +144,7 @@ describe('FifoService', () => {
     );
   });
 
-  it('falls back to price_watchdog BIN sort when SKU is empty', async () => {
+  it('falls back to OpsHub FIFO inventory BIN sort when SKU is empty', async () => {
     inventory.findBySku.mockResolvedValue([]);
     inventory.findByBin.mockResolvedValue([
       item({ id: 'bin-item', bin: 'BIN-A' }),
