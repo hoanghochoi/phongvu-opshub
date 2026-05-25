@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
@@ -40,10 +41,7 @@ class FifoMenuScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'FIFO', showBack: true),
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
-        child: AppFeatureSection(actions: actions),
-      ),
+      body: AppResponsiveContent(child: AppFeatureSection(actions: actions)),
     );
   }
 }

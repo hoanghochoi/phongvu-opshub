@@ -35,6 +35,19 @@ void main() {
     });
   });
 
+  group('Validators.isValidWarrantyReceiptNumber', () {
+    test('accepts CP receipt and ST numeric repair codes', () {
+      expect(Validators.isValidWarrantyReceiptNumber('CP01-J12345678'), isTrue);
+      expect(Validators.isValidWarrantyReceiptNumber('st-123456'), isTrue);
+    });
+
+    test('rejects malformed warranty receipt numbers', () {
+      expect(Validators.isValidWarrantyReceiptNumber('ST-ABC123'), isFalse);
+      expect(Validators.isValidWarrantyReceiptNumber('ST-12345'), isFalse);
+      expect(Validators.isValidWarrantyReceiptNumber('CP1-J12345678'), isFalse);
+    });
+  });
+
   group('EmailDomainPolicy', () {
     test('parses allowed Phong Vu email domains from file contents', () {
       expect(EmailDomainPolicy.parse('phongvu-shop.vn\nphongvu-mna.vn\t\n'), [

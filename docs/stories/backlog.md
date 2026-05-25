@@ -10,3 +10,4 @@ implementation starts.
 | Add warranty upload smoke checklist | Warranty | Camera, picker, upload, image URL, realtime update |
 | Add FIFO history authorization story | FIFO/Auth | Clarify who can view admin history |
 | Add local validation script | Platform | One command for Flutter, NestJS, and Go checks |
+| Fix FIFO Windows render blocker and define desktop layout contract | UX/UI | Follow up from `docs/ux-ui-audit-2026-05-25.md`; first address FIFO infinite-width search button, then standardize PC spacing/grid |

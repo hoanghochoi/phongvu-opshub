@@ -78,13 +78,23 @@ class _AppUpdateGateState extends State<AppUpdateGate> {
               if (!isRequired)
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Để sau'),
+                  child: const Text(
+                    'Để sau',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                  ),
                 ),
               FilledButton(
                 onPressed: updateInfo.updateUrl.isEmpty
                     ? null
                     : () => _openUpdateUrl(updateInfo.updateUrl),
-                child: const Text('Cập nhật'),
+                child: const Text(
+                  'Cập nhật',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
               ),
             ],
           ),

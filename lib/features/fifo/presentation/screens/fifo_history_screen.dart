@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -43,7 +45,9 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
       if (!_tabController.indexIsChanging) {
         if (_tabController.index == 0 && _checkLogs.isEmpty && !_checkLoading) {
           _loadCheckLogs();
-        } else if (_tabController.index == 1 && _sortLogs.isEmpty && !_sortLoading) {
+        } else if (_tabController.index == 1 &&
+            _sortLogs.isEmpty &&
+            !_sortLoading) {
           _loadSortLogs();
         }
       }
@@ -74,6 +78,7 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
         if (mounted) _loadCheckLogs();
       }
     }
+
     authProvider.addListener(listener);
   }
 
@@ -162,183 +167,220 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Lịch sử FIFO', showBack: true),
-      body: Column(
-        children: [
-          // Search + Filter bar
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                // Search field
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Tìm theo Serial / SKU / BIN...',
-                    hintStyle: TextStyle(fontSize: 14, color: Colors.grey[400]),
-                    prefixIcon: Icon(Icons.search, color: Colors.grey[500], size: 20),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear, size: 18),
-                            onPressed: _clearSearch,
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: const Color(0xFFF5F7FB),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
-                    ),
-                    isDense: true,
+      body: AppResponsiveContent(
+        padding: EdgeInsets.zero,
+        child: Column(
+          children: [
+            // Search + Filter bar
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
-                  onSubmitted: (_) => _onSearch(),
-                  textInputAction: TextInputAction.search,
-                ),
-                const SizedBox(height: 8),
-                // User filter
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _userFilterController,
-                        decoration: InputDecoration(
-                          hintText: 'Lọc theo email user...',
-                          hintStyle: TextStyle(fontSize: 13, color: Colors.grey[400]),
-                          prefixIcon: Icon(Icons.person_outline, color: Colors.grey[500], size: 18),
-                          filled: true,
-                          fillColor: const Color(0xFFF5F7FB),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
-                          isDense: true,
-                        ),
-                        onSubmitted: (_) => _onSearch(),
-                        textInputAction: TextInputAction.search,
-                        style: const TextStyle(fontSize: 13),
+                ],
+              ),
+              child: Column(
+                children: [
+                  // Search field
+                  TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Tìm theo Serial / SKU / BIN...',
+                      hintStyle: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[400],
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Material(
-                      color: const Color(0xFF0277BD),
-                      borderRadius: BorderRadius.circular(10),
-                      child: InkWell(
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: Colors.grey[500],
+                        size: 20,
+                      ),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: _clearSearch,
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: const Color(0xFFF5F7FB),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        onTap: _onSearch,
-                        child: const Padding(
-                          padding: EdgeInsets.all(10),
-                          child: Icon(Icons.search, color: Colors.white, size: 20),
+                        borderSide: BorderSide.none,
+                      ),
+                      isDense: true,
+                    ),
+                    onSubmitted: (_) => _onSearch(),
+                    textInputAction: TextInputAction.search,
+                  ),
+                  const SizedBox(height: AppLayoutTokens.formFieldGap),
+                  // User filter
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _userFilterController,
+                          decoration: InputDecoration(
+                            hintText: 'Lọc theo email user...',
+                            hintStyle: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[400],
+                            ),
+                            prefixIcon: Icon(
+                              Icons.person_outline,
+                              color: Colors.grey[500],
+                              size: 18,
+                            ),
+                            filled: true,
+                            fillColor: const Color(0xFFF5F7FB),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none,
+                            ),
+                            isDense: true,
+                          ),
+                          onSubmitted: (_) => _onSearch(),
+                          textInputAction: TextInputAction.search,
+                          style: const TextStyle(fontSize: 13),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                // Result count
-                Row(
-                  children: [
-                    Text(
-                      'Tổng: ${_tabController.index == 0 ? _checkTotal : _sortTotal} bản ghi',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                    ),
-                    if (_searchQuery != null || _filterUser != null) ...[
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: _clearSearch,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.filter_alt_off, size: 12, color: Colors.orange[700]),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Xóa bộ lọc',
-                                style: TextStyle(fontSize: 11, color: Colors.orange[700]),
-                              ),
-                            ],
+                      const SizedBox(width: AppLayoutTokens.formInlineGap),
+                      Material(
+                        color: const Color(0xFF0277BD),
+                        borderRadius: BorderRadius.circular(10),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: _onSearch,
+                          child: const Padding(
+                            padding: EdgeInsets.all(10),
+                            child: Icon(
+                              Icons.search,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                           ),
                         ),
                       ),
                     ],
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Tabs
-          Container(
-            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: TabBar(
-              controller: _tabController,
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.grey[700],
-              indicator: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0277BD), Color(0xFF29B6F6)],
-                ),
+                  ),
+                  const SizedBox(height: AppLayoutTokens.formInlineGap),
+                  // Result count
+                  Row(
+                    children: [
+                      Text(
+                        'Tổng: ${_tabController.index == 0 ? _checkTotal : _sortTotal} bản ghi',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                      ),
+                      if (_searchQuery != null || _filterUser != null) ...[
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: _clearSearch,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.filter_alt_off,
+                                  size: 12,
+                                  color: Colors.orange[700],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Xóa bộ lọc',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.orange[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
               ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerHeight: 0,
-              tabs: const [
-                Tab(text: 'Kiểm tra FIFO'),
-                Tab(text: 'Sắp xếp FIFO'),
-              ],
             ),
-          ),
-          const SizedBox(height: 8),
 
-          // Tab content
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildLogList(
-                  _checkLogs,
-                  _checkLoading,
-                  _checkLogs.length < _checkTotal,
-                  () => _loadCheckLogs(loadMore: true),
-                  () => _loadCheckLogs(),
+            // Tabs
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: TabBar(
+                controller: _tabController,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.grey[700],
+                indicator: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF0277BD), Color(0xFF29B6F6)],
+                  ),
                 ),
-                _buildLogList(
-                  _sortLogs,
-                  _sortLoading,
-                  _sortLogs.length < _sortTotal,
-                  () => _loadSortLogs(loadMore: true),
-                  () => _loadSortLogs(),
-                ),
-              ],
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerHeight: 0,
+                tabs: const [
+                  Tab(text: 'Kiểm tra FIFO'),
+                  Tab(text: 'Sắp xếp FIFO'),
+                ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+
+            // Tab content
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildLogList(
+                    _checkLogs,
+                    _checkLoading,
+                    _checkLogs.length < _checkTotal,
+                    () => _loadCheckLogs(loadMore: true),
+                    () => _loadCheckLogs(),
+                  ),
+                  _buildLogList(
+                    _sortLogs,
+                    _sortLoading,
+                    _sortLogs.length < _sortTotal,
+                    () => _loadSortLogs(loadMore: true),
+                    () => _loadSortLogs(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -351,7 +393,7 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
     VoidCallback onRefresh,
   ) {
     if (loading && logs.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppStatePanel.loading(title: 'Äang táº£i lá»‹ch sá»­ FIFO');
     }
 
     if (logs.isEmpty) {
@@ -371,7 +413,12 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
             ElevatedButton.icon(
               onPressed: onRefresh,
               icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Tải lại'),
+              label: const Text(
+                'Tải lại',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0277BD),
                 foregroundColor: Colors.white,
@@ -397,7 +444,12 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
                     : TextButton.icon(
                         onPressed: onLoadMore,
                         icon: const Icon(Icons.expand_more),
-                        label: const Text('Xem thêm'),
+                        label: const Text(
+                          'Xem thêm',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
+                        ),
                       ),
               ),
             );
@@ -417,12 +469,13 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
         : log.createdAt;
 
     final isCorrect = log.result?.contains('Đúng') ?? false;
-    final isWrong = log.result?.contains('Sai') ?? log.result?.contains('Chưa') ?? false;
+    final isWrong =
+        log.result?.contains('Sai') ?? log.result?.contains('Chưa') ?? false;
     final resultColor = isCorrect
         ? Colors.green
         : isWrong
-            ? Colors.red
-            : Colors.grey[700];
+        ? Colors.red
+        : Colors.grey[700];
 
     final isExpanded = _expandedIds.contains(log.id);
     final items = _parseResultJson(log.resultJson);
@@ -447,7 +500,10 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: isExpanded
-              ? Border.all(color: const Color(0xFF0277BD).withValues(alpha: 0.3), width: 1.5)
+              ? Border.all(
+                  color: const Color(0xFF0277BD).withValues(alpha: 0.3),
+                  width: 1.5,
+                )
               : null,
           boxShadow: [
             BoxShadow(
@@ -467,7 +523,9 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
                 children: [
                   CircleAvatar(
                     radius: 16,
-                    backgroundColor: const Color(0xFF0277BD).withValues(alpha: 0.15),
+                    backgroundColor: const Color(
+                      0xFF0277BD,
+                    ).withValues(alpha: 0.15),
                     child: Text(
                       (log.userName ?? log.userEmail ?? '?')[0].toUpperCase(),
                       style: const TextStyle(
@@ -492,7 +550,10 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
                         if (log.storeName != null)
                           Text(
                             '${log.storeId ?? ''} - ${log.storeName}',
-                            style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                            ),
                           ),
                       ],
                     ),
@@ -508,7 +569,10 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.grey[100],
                       borderRadius: BorderRadius.circular(6),
@@ -535,7 +599,10 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
                   ),
                   if (hasItems) ...[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF0277BD).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
@@ -551,7 +618,9 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
                     ),
                     const SizedBox(width: 4),
                     Icon(
-                      isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                      isExpanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
                       size: 20,
                       color: Colors.grey[500],
                     ),
@@ -564,9 +633,14 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
-                        color: (resultColor ?? Colors.grey).withValues(alpha: 0.1),
+                        color: (resultColor ?? Colors.grey).withValues(
+                          alpha: 0.1,
+                        ),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -614,9 +688,7 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
   List<Map<String, dynamic>> _parseResultJson(dynamic resultJson) {
     if (resultJson == null) return [];
     if (resultJson is List) {
-      return resultJson
-          .whereType<Map<String, dynamic>>()
-          .toList();
+      return resultJson.whereType<Map<String, dynamic>>().toList();
     }
     return [];
   }
@@ -668,14 +740,21 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
               ),
               if (fifo == 'yes')
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.green.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: const Text(
                     'FIFO ✓',
-                    style: TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.green,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
             ],
@@ -686,10 +765,8 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
             spacing: 12,
             runSpacing: 4,
             children: [
-              if (serial.isNotEmpty)
-                _infoChip(Icons.qr_code, serial),
-              if (bin.isNotEmpty)
-                _infoChip(Icons.inventory_2_outlined, bin),
+              if (serial.isNotEmpty) _infoChip(Icons.qr_code, serial),
+              if (bin.isNotEmpty) _infoChip(Icons.inventory_2_outlined, bin),
               if (importDate.isNotEmpty)
                 _infoChip(Icons.calendar_today, importDate),
             ],
@@ -707,7 +784,11 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
         const SizedBox(width: 3),
         Text(
           text,
-          style: TextStyle(fontSize: 11, color: Colors.grey[700], fontFamily: 'monospace'),
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey[700],
+            fontFamily: 'monospace',
+          ),
         ),
       ],
     );

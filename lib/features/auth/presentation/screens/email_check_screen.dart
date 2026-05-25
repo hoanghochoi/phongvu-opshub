@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/utils/email_domain_policy.dart';
 import '../../../../core/utils/validators.dart';
@@ -47,38 +48,37 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
         child: SafeArea(
           child: Consumer<AuthProvider>(
             builder: (context, authProvider, _) {
-              return Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _LogoHeader(),
-                      const SizedBox(height: 40),
-                      _LoginCard(
-                        formKey: _formKey,
-                        emailController: _emailController,
-                        passwordController: _passwordController,
-                        allowedDomains: _allowedDomains,
-                        obscurePassword: _obscurePassword,
-                        isLoading: authProvider.isLoading,
-                        onTogglePassword: () {
-                          setState(() => _obscurePassword = !_obscurePassword);
-                        },
-                        onSubmit: () => _handleLogin(context),
-                        onRegister: () =>
-                            Navigator.of(context).pushNamed('/register'),
+              return AppResponsiveScrollView(
+                maxWidth: AppLayoutTokens.authMaxWidth,
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _LogoHeader(),
+                    const SizedBox(height: 24),
+                    _LoginCard(
+                      formKey: _formKey,
+                      emailController: _emailController,
+                      passwordController: _passwordController,
+                      allowedDomains: _allowedDomains,
+                      obscurePassword: _obscurePassword,
+                      isLoading: authProvider.isLoading,
+                      onTogglePassword: () {
+                        setState(() => _obscurePassword = !_obscurePassword);
+                      },
+                      onSubmit: () => _handleLogin(context),
+                      onRegister: () =>
+                          Navigator.of(context).pushNamed('/register'),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      '© 2025 PhongVu OpsHub',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.35),
+                        fontSize: 12,
                       ),
-                      const SizedBox(height: 40),
-                      Text(
-                        '© 2025 PhongVu OpsHub',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.35),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               );
             },
@@ -132,10 +132,10 @@ class _LogoHeader extends StatelessWidget {
     return Column(
       children: [
         Container(
-          width: 120,
-          height: 120,
+          width: 88,
+          height: 88,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
                 color: Colors.white.withValues(alpha: 0.15),
@@ -145,22 +145,21 @@ class _LogoHeader extends StatelessWidget {
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(18),
             child: Image.asset(
               'assets/images/logo.png',
-              height: 120,
+              height: 88,
               fit: BoxFit.contain,
             ),
           ),
         ),
-        const SizedBox(height: 28),
+        const SizedBox(height: 18),
         const Text(
           'PhongVu OpsHub',
           style: TextStyle(
-            fontSize: 32,
+            fontSize: 26,
             fontWeight: FontWeight.bold,
             color: Colors.white,
-            letterSpacing: 1.2,
           ),
           textAlign: TextAlign.center,
         ),
@@ -172,7 +171,6 @@ class _LogoHeader extends StatelessWidget {
             color: Colors.white.withValues(alpha: 0.7),
             fontSize: 15,
             fontStyle: FontStyle.italic,
-            letterSpacing: 0.5,
           ),
         ),
       ],
@@ -207,10 +205,10 @@ class _LoginCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.2),
           width: 1,
@@ -270,7 +268,7 @@ class _LoginCard extends StatelessWidget {
                 return null;
               },
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: AppLayoutTokens.formFieldGap),
             TextFormField(
               controller: passwordController,
               enabled: !isLoading,
@@ -295,7 +293,7 @@ class _LoginCard extends StatelessWidget {
                 return Validators.getPasswordError(password);
               },
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppLayoutTokens.formSectionGap),
             SizedBox(
               width: double.infinity,
               height: 54,
@@ -311,14 +309,21 @@ class _LoginCard extends StatelessWidget {
                         ),
                       )
                     : const Icon(Icons.login_rounded),
-                label: Text(isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'),
+                label: Text(
+                  isLoading ? 'Đang đăng nhập...' : 'Đăng nhập',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.grey[800],
                   disabledBackgroundColor: Colors.white.withValues(alpha: 0.7),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(
+                      AppLayoutTokens.cardRadius,
+                    ),
                   ),
                   textStyle: const TextStyle(
                     fontSize: 15,
@@ -327,11 +332,16 @@ class _LoginCard extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
             TextButton.icon(
               onPressed: isLoading ? null : onRegister,
               icon: const Icon(Icons.person_add_alt_1_rounded),
-              label: const Text('Đăng ký'),
+              label: const Text(
+                'Đăng ký',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+              ),
               style: TextButton.styleFrom(foregroundColor: Colors.white),
             ),
           ],
@@ -352,9 +362,11 @@ class _LoginCard extends StatelessWidget {
       filled: true,
       fillColor: Colors.white,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
         borderSide: BorderSide.none,
       ),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       errorMaxLines: 4,
     );
   }

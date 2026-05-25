@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../domain/entities/fifo_check_result.dart';
 import '../../domain/entities/fifo_inventory_item.dart';
@@ -67,81 +69,101 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
       body: SafeArea(
         child: Consumer<FifoProvider>(
           builder: (context, provider, _) {
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          AppIconAction(
-                            onPressed: provider.isLoading ? null : _scan,
-                            icon: Icons.qr_code_scanner_rounded,
-                            tooltip: 'Quét mã',
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: _controller,
-                              focusNode: _focusNode,
-                              enabled: !provider.isLoading,
-                              textCapitalization: TextCapitalization.characters,
-                              decoration: const InputDecoration(
-                                hintText: 'Nhập SKU hoặc serial',
-                                border: OutlineInputBorder(),
-                                prefixIcon: Icon(Icons.inventory_2_outlined),
-                              ),
-                              onSubmitted: (_) => _search(),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            height: AppButtonMetrics.height,
-                            child: ElevatedButton.icon(
-                              onPressed: provider.isLoading ? null : _search,
-                              icon: const Icon(Icons.search_rounded),
-                              label: const Text('Tìm'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        value: provider.includeExported,
-                        onChanged: provider.isLoading
-                            ? null
-                            : provider.setIncludeExported,
-                        title: const Text('Hiển thị đã xuất kho'),
-                        secondary: const Icon(Icons.inventory_outlined),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Stack(
-                    children: [
-                      _ResultBody(
-                        result: provider.result,
-                        exportingIds: provider.exportingIds,
-                        onExportChanged: (item, exported) async {
-                          await provider.setExported(item, exported);
-                          _showErrorIfNeeded();
-                        },
-                      ),
-                      if (provider.isLoading)
-                        const Positioned.fill(
-                          child: ColoredBox(
-                            color: Color(0x66FFFFFF),
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
+            return AppResponsiveContent(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: AppLayoutTokens.actionBarMaxWidth,
                         ),
-                    ],
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                AppIconAction(
+                                  onPressed: provider.isLoading ? null : _scan,
+                                  icon: Icons.qr_code_scanner_rounded,
+                                  tooltip: 'Quét mã',
+                                ),
+                                const SizedBox(
+                                  width: AppLayoutTokens.formInlineGap,
+                                ),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _controller,
+                                    focusNode: _focusNode,
+                                    enabled: !provider.isLoading,
+                                    textCapitalization:
+                                        TextCapitalization.characters,
+                                    decoration: InputDecoration(
+                                      hintText: 'Nhập SKU hoặc serial',
+                                      border: const OutlineInputBorder(),
+                                      prefixIcon: const Icon(
+                                        Icons.inventory_2_outlined,
+                                      ),
+                                      suffixIcon: AppIconAction(
+                                        onPressed: provider.isLoading
+                                            ? null
+                                            : _search,
+                                        icon: Icons.search_rounded,
+                                        tooltip: 'Tìm',
+                                        filled: true,
+                                      ),
+                                    ),
+                                    onSubmitted: (_) => _search(),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(
+                              height: AppLayoutTokens.formInlineGap,
+                            ),
+                            SwitchListTile.adaptive(
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                              value: provider.includeExported,
+                              onChanged: provider.isLoading
+                                  ? null
+                                  : provider.setIncludeExported,
+                              title: const Text('Hiển thị đã xuất kho'),
+                              secondary: const Icon(Icons.inventory_outlined),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        _ResultBody(
+                          result: provider.result,
+                          exportingIds: provider.exportingIds,
+                          onExportChanged: (item, exported) async {
+                            await provider.setExported(item, exported);
+                            _showErrorIfNeeded();
+                          },
+                        ),
+                        if (provider.isLoading)
+                          const Positioned.fill(
+                            child: ColoredBox(
+                              color: Color(0x66FFFFFF),
+                              child: AppStatePanel.loading(
+                                title: 'Äang kiá»ƒm tra FIFO',
+                                compact: true,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             );
           },
         ),
@@ -433,6 +455,9 @@ class _FifoItemCard extends StatelessWidget {
                             item.exported
                                 ? 'Bỏ đánh dấu xuất kho'
                                 : 'Đã xuất kho',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
                           ),
                         ),
                         if (isBusy)
@@ -475,6 +500,9 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        softWrap: false,
         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
       ),
     );
@@ -504,7 +532,9 @@ class _InfoChip extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 180),
             child: Text(
               value.isEmpty ? 'N/A' : value,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              softWrap: false,
               style: const TextStyle(fontSize: 12),
             ),
           ),

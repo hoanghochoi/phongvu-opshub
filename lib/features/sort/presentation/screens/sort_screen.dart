@@ -6,6 +6,8 @@ import '../../../chat/presentation/widgets/barcode_scanner_screen.dart';
 import '../widgets/sort_sku_group_widget.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 
 class SortScreen extends StatefulWidget {
   const SortScreen({super.key});
@@ -104,8 +106,8 @@ class _SortScreenState extends State<SortScreen> {
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Sắp xếp FIFO', showBack: true),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
+        child: AppResponsiveContent(
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -196,7 +198,13 @@ class _SortScreenState extends State<SortScreen> {
                       ),
                     );
                   }
-                  return const Spacer();
+                  return const Expanded(
+                    child: AppStatePanel(
+                      icon: Icons.inventory_2_outlined,
+                      title: 'Chua co ket qua sap xep',
+                      message: 'Nhap SKU hoac BIN de xem vi tri hang hoa.',
+                    ),
+                  );
                 },
               ),
 
@@ -223,7 +231,7 @@ class _SortScreenState extends State<SortScreen> {
                         ),
                         onSubmitted: (_) => _sendSortRequest(),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppLayoutTokens.formFieldGap),
 
                       // Buttons
                       Row(
@@ -236,7 +244,7 @@ class _SortScreenState extends State<SortScreen> {
                               label: 'Quét mã',
                             ),
                           ),
-                          const SizedBox(width: 16),
+                          const SizedBox(width: AppLayoutTokens.formInlineGap),
 
                           // Send button
                           Expanded(

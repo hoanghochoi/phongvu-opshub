@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/payment_monitor_provider.dart';
@@ -35,8 +37,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Theo dõi tiền vào', showBack: true),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+        child: AppResponsiveScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -93,7 +94,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                         style: TextStyle(color: Colors.grey[700], height: 1.35),
                       ),
                       if (requiresStoreInput) ...[
-                        const SizedBox(height: 14),
+                        const SizedBox(height: AppLayoutTokens.formFieldGap),
                         TextField(
                           controller: _storeController,
                           decoration: const InputDecoration(
@@ -104,7 +105,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                           textCapitalization: TextCapitalization.characters,
                           onSubmitted: (_) => _applyStoreOverride(context),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: AppLayoutTokens.formInlineGap),
                         AppSecondaryButton(
                           onPressed: () => _applyStoreOverride(context),
                           icon: Icons.check_rounded,
@@ -222,10 +223,13 @@ class _TransactionFilters extends StatelessWidget {
                     icon: const Icon(Icons.calendar_month_rounded),
                     label: Text(
                       DateFormat('dd/MM/yyyy').format(monitor.selectedDate),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppLayoutTokens.formInlineGap),
                 SizedBox(
                   width: 116,
                   child: DropdownButtonFormField<int>(
@@ -238,7 +242,12 @@ class _TransactionFilters extends StatelessWidget {
                         .map(
                           (value) => DropdownMenuItem(
                             value: value,
-                            child: Text('$value dòng'),
+                            child: Text(
+                              '$value dòng',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              softWrap: false,
+                            ),
                           ),
                         )
                         .toList(),
@@ -250,7 +259,7 @@ class _TransactionFilters extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
             Row(
               children: [
                 IconButton(
@@ -265,6 +274,9 @@ class _TransactionFilters extends StatelessWidget {
                   child: Center(
                     child: Text(
                       'Trang ${monitor.pageIndex + 1} - ${monitor.totalTransactions} giao dịch',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
@@ -310,32 +322,11 @@ class _StatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: color.withValues(alpha: 0.08),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(color: color, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(message),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+    return AppStatusBanner(
+      icon: icon,
+      title: title,
+      message: message,
+      tone: color == Colors.red ? AppStateTone.error : AppStateTone.info,
     );
   }
 }

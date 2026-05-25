@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
@@ -235,8 +236,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       appBar: const GradientHeader(title: 'Phản hồi', showBack: true),
       body: Form(
         key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
+        child: AppResponsiveScrollView(
+          maxWidth: AppLayoutTokens.formMaxWidth,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -268,7 +269,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   context,
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
               TextFormField(
                 controller: _functionController,
                 decoration: const InputDecoration(
@@ -283,7 +284,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: AppLayoutTokens.formSectionGap),
 
               // Description field
               Text(
@@ -292,7 +293,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   context,
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
               TextFormField(
                 controller: _descriptionController,
                 decoration: const InputDecoration(
@@ -308,7 +309,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: AppLayoutTokens.formSectionGap),
 
               // Images section
               Row(
@@ -323,11 +324,16 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   TextButton.icon(
                     onPressed: _isSubmitting ? null : _showImageSourceDialog,
                     icon: const Icon(Icons.add_photo_alternate),
-                    label: const Text('Thêm ảnh'),
+                    label: const Text(
+                      'Thêm ảnh',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
 
               // Images grid
               if (_images.isEmpty)

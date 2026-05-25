@@ -47,7 +47,9 @@ class Validators {
   static List<String> getPasswordRequirements(String password) {
     return [
       password.length >= 8 ? '✓ Ít nhất 8 ký tự' : '✗ Ít nhất 8 ký tự',
-      password.contains(RegExp(r'[A-Z]')) ? '✓ Ít nhất 1 chữ HOA' : '✗ Ít nhất 1 chữ HOA',
+      password.contains(RegExp(r'[A-Z]'))
+          ? '✓ Ít nhất 1 chữ HOA'
+          : '✗ Ít nhất 1 chữ HOA',
       password.contains(RegExp(r'[0-9]')) ? '✓ Ít nhất 1 số' : '✗ Ít nhất 1 số',
       password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))
           ? '✓ Ít nhất 1 ký tự đặc biệt'
@@ -62,7 +64,7 @@ class Validators {
   static bool isValidMessage(String message) {
     final trimmed = message.trim().toUpperCase();
     return messagePatternWithQty.hasMatch(trimmed) ||
-           messagePatternSkuOnly.hasMatch(trimmed);
+        messagePatternSkuOnly.hasMatch(trimmed);
   }
 
   static Map<String, String> parseMessage(String message) {
@@ -71,18 +73,20 @@ class Validators {
 
     if (parts.length == 1) {
       // Chỉ có SKU, mặc định qty = 1
-      return {
-        'sku': parts[0],
-        'qty': '1',
-      };
+      return {'sku': parts[0], 'qty': '1'};
     } else if (parts.length == 2) {
       // Có cả SKU và QTY
-      return {
-        'sku': parts[0],
-        'qty': parts[1],
-      };
+      return {'sku': parts[0], 'qty': parts[1]};
     } else {
-      throw const FormatException('Message phải có định dạng: SKU hoặc SKU SỐ_LƯỢNG');
+      throw const FormatException(
+        'Message phải có định dạng: SKU hoặc SKU SỐ_LƯỢNG',
+      );
     }
+  }
+
+  static bool isValidWarrantyReceiptNumber(String value) {
+    final normalized = value.trim().toUpperCase();
+    return RegExp(r'^CP\d{2}-J\d{8}$').hasMatch(normalized) ||
+        RegExp(r'^ST-\d{6}$').hasMatch(normalized);
   }
 }

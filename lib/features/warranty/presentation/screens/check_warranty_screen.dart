@@ -8,6 +8,8 @@ import '../../../chat/presentation/widgets/barcode_scanner_screen.dart'
     show BarcodeScannerScreen;
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 
 class CheckWarrantyScreen extends StatefulWidget {
   const CheckWarrantyScreen({super.key});
@@ -127,126 +129,142 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Xem lại biên nhận', showBack: true),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Search bar
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      focusNode: _searchFocusNode,
-                      textCapitalization: TextCapitalization.characters,
-                      decoration: InputDecoration(
-                        hintText: 'Tìm kiếm biên nhận',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: _isSearchMode
-                            ? AppIconAction(
-                                icon: Icons.clear,
-                                onPressed: _clearSearch,
-                                tooltip: 'Xóa tìm kiếm',
-                              )
-                            : AppIconAction(
-                                icon: Icons.qr_code_scanner,
-                                onPressed: _scanBarcode,
-                                tooltip: 'Quét mã',
+        child: AppResponsiveContent(
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: [
+              // Search bar
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: AppLayoutTokens.actionBarMaxWidth,
+                    ),
+                    child: Row(
+                      children: [
+                        AppIconAction(
+                          icon: Icons.qr_code_scanner,
+                          onPressed: _scanBarcode,
+                          tooltip: 'Quét mã',
+                        ),
+                        const SizedBox(width: AppLayoutTokens.formInlineGap),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            textCapitalization: TextCapitalization.characters,
+                            decoration: InputDecoration(
+                              hintText: 'Tìm kiếm biên nhận',
+                              prefixIcon: const Icon(Icons.search),
+                              suffixIcon: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_isSearchMode)
+                                    AppIconAction(
+                                      icon: Icons.clear,
+                                      onPressed: _clearSearch,
+                                      tooltip: 'Xóa tìm kiếm',
+                                    ),
+                                  AppIconAction(
+                                    onPressed: _searchReceipt,
+                                    icon: Icons.search_rounded,
+                                    tooltip: 'Tìm',
+                                    filled: true,
+                                  ),
+                                ],
                               ),
-                        border: const OutlineInputBorder(),
-                      ),
-                      onSubmitted: (_) => _searchReceipt(),
+                              border: const OutlineInputBorder(),
+                            ),
+                            onSubmitted: (_) => _searchReceipt(),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 84,
-                    height: AppButtonMetrics.height,
-                    child: ElevatedButton(
-                      onPressed: _searchReceipt,
-                      child: const Text('Tìm'),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
 
-            // Receipt list
-            Expanded(
-              child: Consumer<WarrantyProvider>(
-                builder: (context, warrantyProvider, _) {
-                  if (warrantyProvider.isLoading) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+              // Receipt list
+              Expanded(
+                child: Consumer<WarrantyProvider>(
+                  builder: (context, warrantyProvider, _) {
+                    if (warrantyProvider.isLoading) {
+                      return const AppStatePanel.loading(
+                        title: 'Äang táº£i biÃªn nháº­n',
+                      );
+                    }
 
-                  if (warrantyProvider.errorMessage != null) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.error_outline,
-                            size: 64,
-                            color: Colors.red,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            warrantyProvider.errorMessage!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.red),
-                          ),
-                          const SizedBox(height: 16),
-                          AppSecondaryButton(
-                            onPressed: _loadAllReceipts,
-                            icon: Icons.refresh_rounded,
-                            label: 'Thử lại',
-                          ),
-                        ],
+                    if (warrantyProvider.errorMessage != null) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 64,
+                              color: Colors.red,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              warrantyProvider.errorMessage!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                            const SizedBox(height: 16),
+                            AppSecondaryButton(
+                              onPressed: _loadAllReceipts,
+                              icon: Icons.refresh_rounded,
+                              label: 'Thử lại',
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    if (warrantyProvider.receipts.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.receipt_long_outlined,
+                              size: 64,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _isSearchMode
+                                  ? 'Không tìm thấy biên nhận'
+                                  : 'Chưa có biên nhận nào',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return RefreshIndicator(
+                      onRefresh: _loadAllReceipts,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: warrantyProvider.receipts.length,
+                        itemBuilder: (context, index) {
+                          final receipt = warrantyProvider.receipts[index];
+                          return _ReceiptCard(
+                            receipt: receipt,
+                            onTap: () => _viewReceiptDetails(receipt),
+                          );
+                        },
                       ),
                     );
-                  }
-
-                  if (warrantyProvider.receipts.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.receipt_long_outlined,
-                            size: 64,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _isSearchMode
-                                ? 'Không tìm thấy biên nhận'
-                                : 'Chưa có biên nhận nào',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(color: Colors.grey[600]),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return RefreshIndicator(
-                    onRefresh: _loadAllReceipts,
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: warrantyProvider.receipts.length,
-                      itemBuilder: (context, index) {
-                        final receipt = warrantyProvider.receipts[index];
-                        return _ReceiptCard(
-                          receipt: receipt,
-                          onTap: () => _viewReceiptDetails(receipt),
-                        );
-                      },
-                    ),
-                  );
-                },
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -339,6 +357,9 @@ class _ReceiptCard extends StatelessWidget {
                     // Receipt number
                     Text(
                       receiptNumber,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -357,6 +378,9 @@ class _ReceiptCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           'Người lưu: ',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[700],
@@ -366,11 +390,13 @@ class _ReceiptCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             user,
+                            maxLines: 1,
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey[600],
                             ),
                             overflow: TextOverflow.ellipsis,
+                            softWrap: false,
                           ),
                         ),
                       ],
@@ -388,6 +414,9 @@ class _ReceiptCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           'Ngày lưu: ',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[700],
@@ -396,6 +425,9 @@ class _ReceiptCard extends StatelessWidget {
                         ),
                         Text(
                           formattedDate,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[600],

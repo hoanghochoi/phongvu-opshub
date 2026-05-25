@@ -32,7 +32,7 @@ val hasReleaseSigning = listOf(
 android {
     namespace = "com.example.phongvu_opshub"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -72,6 +72,12 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
         }
     }
 }

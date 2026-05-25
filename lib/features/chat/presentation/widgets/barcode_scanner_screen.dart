@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../../../../app/widgets/app_layout.dart';
+
 class BarcodeScannerScreen extends StatefulWidget {
   final String title;
   final String instruction;
@@ -98,18 +100,16 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     if (!_supportsCameraScanner) {
       return Scaffold(
         appBar: AppBar(title: Text(widget.title)),
-        body: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
+        body: AppResponsiveContent(
+          maxWidth: AppLayoutTokens.formMaxWidth,
+          child: AppFormColumn(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Icon(Icons.keyboard_alt_outlined, size: 56),
-              const SizedBox(height: 16),
               const Text(
                 'Camera scanner is not supported on this device. Enter the code manually.',
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 16),
               TextField(
                 controller: _manualController,
                 autofocus: true,
@@ -120,11 +120,15 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _submitManualCode(),
               ),
-              const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: _submitManualCode,
                 icon: const Icon(Icons.check_rounded),
-                label: const Text('Use code'),
+                label: const Text(
+                  'Use code',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
               ),
             ],
           ),

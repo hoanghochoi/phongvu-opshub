@@ -9,6 +9,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -423,9 +424,9 @@ class _VietQrScreenState extends State<VietQrScreen> {
           padding: EdgeInsets.only(
             bottom: MediaQuery.viewInsetsOf(context).bottom,
           ),
-          child: SingleChildScrollView(
+          child: AppResponsiveScrollView(
+            maxWidth: AppLayoutTokens.formMaxWidth,
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.all(16),
             child: transfer == null
                 ? Form(key: _formKey, child: _buildInputCard())
                 : _buildResultView(transfer),
@@ -474,7 +475,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: AppLayoutTokens.formFieldGap),
             TextFormField(
               controller: _orderCodeController,
               decoration: InputDecoration(
@@ -490,7 +491,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
               ),
               textCapitalization: TextCapitalization.characters,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: AppLayoutTokens.formFieldGap),
             TextFormField(
               controller: _storeCodeController,
               decoration: const InputDecoration(
@@ -506,7 +507,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: AppLayoutTokens.formFieldGap),
             TextFormField(
               controller: _previewContentController,
               decoration: const InputDecoration(
@@ -517,7 +518,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
               ),
               readOnly: true,
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: AppLayoutTokens.formSectionGap),
             AppPrimaryButton(
               onPressed: _createQr,
               icon: Icons.qr_code_2_rounded,
@@ -612,7 +613,12 @@ class _VietQrScreenState extends State<VietQrScreen> {
         TextButton.icon(
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back_rounded),
-          label: const Text('Quay lại'),
+          label: const Text(
+            'Quay lại',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+          ),
         ),
       ],
     );
