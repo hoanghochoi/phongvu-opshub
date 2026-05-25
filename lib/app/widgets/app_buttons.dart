@@ -46,7 +46,12 @@ class AppPrimaryButton extends StatelessWidget {
                 ),
               )
             : Icon(icon),
-        label: Text(isLoading ? loadingLabel ?? label : label),
+        label: Text(
+          isLoading ? loadingLabel ?? label : label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+        ),
         style: FilledButton.styleFrom(
           backgroundColor: AppTheme.primaryBlue,
           foregroundColor: Colors.white,
@@ -82,7 +87,12 @@ class AppSecondaryButton extends StatelessWidget {
       child: OutlinedButton.icon(
         onPressed: onPressed,
         icon: Icon(icon),
-        label: Text(label),
+        label: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+        ),
         style: OutlinedButton.styleFrom(
           foregroundColor: AppTheme.primaryBlue,
           side: const BorderSide(color: AppTheme.primaryBlue),

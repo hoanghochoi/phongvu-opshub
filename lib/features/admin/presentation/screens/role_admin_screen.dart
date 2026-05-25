@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -55,11 +56,21 @@ class _RoleAdminScreenState extends State<RoleAdminScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Hủy'),
+            child: const Text(
+              'Hủy',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Xóa'),
+            child: const Text(
+              'Xóa',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
           ),
         ],
       ),
@@ -93,23 +104,28 @@ class _RoleAdminScreenState extends State<RoleAdminScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: _roles.length,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  final role = _roles[index];
-                  return _RoleCard(
-                    role: role,
-                    onEdit: canManageRoles ? () => _openEditor(role) : null,
-                    onDelete: canManageRoles && !role.isSystem
-                        ? () => _deleteRole(role)
-                        : null,
-                  );
-                },
+          : AppResponsiveContent(
+              padding: EdgeInsets.zero,
+              child: RefreshIndicator(
+                onRefresh: _load,
+                child: ListView.separated(
+                  padding: AppLayoutTokens.pagePaddingFor(
+                    MediaQuery.sizeOf(context).width,
+                  ),
+                  itemCount: _roles.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: AppLayoutTokens.cardGap),
+                  itemBuilder: (context, index) {
+                    final role = _roles[index];
+                    return _RoleCard(
+                      role: role,
+                      onEdit: canManageRoles ? () => _openEditor(role) : null,
+                      onDelete: canManageRoles && !role.isSystem
+                          ? () => _deleteRole(role)
+                          : null,
+                    );
+                  },
+                ),
               ),
             ),
     );
@@ -269,7 +285,7 @@ class _RoleEditorDialogState extends State<_RoleEditorDialog> {
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
-          child: Column(
+          child: AppFormColumn(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
@@ -294,11 +310,21 @@ class _RoleEditorDialogState extends State<_RoleEditorDialog> {
       actions: [
         TextButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Hủy'),
+          child: const Text(
+            'Hủy',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+          ),
         ),
         FilledButton(
           onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Đang lưu...' : 'Lưu'),
+          child: Text(
+            _saving ? 'Đang lưu...' : 'Lưu',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+          ),
         ),
       ],
     );

@@ -147,6 +147,9 @@ class SortSKUGroupWidget extends StatelessWidget {
                     children: [
                       Text(
                         'SKU: ${group.sku}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
@@ -157,6 +160,9 @@ class SortSKUGroupWidget extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           group.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
                           style: TextStyle(
                             fontSize: 13,
                             color: headerColor?.withValues(alpha: 0.8),
@@ -177,6 +183,9 @@ class SortSKUGroupWidget extends StatelessWidget {
                   ),
                   child: Text(
                     '${group.checkedItems}/${group.totalItems}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: headerColor,
@@ -246,6 +255,9 @@ class SortSKUGroupWidget extends StatelessWidget {
                       children: [
                         Text(
                           'Serial: ',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.grey[700],
@@ -255,6 +267,9 @@ class SortSKUGroupWidget extends StatelessWidget {
                         Expanded(
                           child: Text(
                             item.serial,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -276,6 +291,9 @@ class SortSKUGroupWidget extends StatelessWidget {
                       children: [
                         Text(
                           'Mã BIN: ',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.grey[700],
@@ -285,6 +303,9 @@ class SortSKUGroupWidget extends StatelessWidget {
                         Expanded(
                           child: Text(
                             item.bin,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -302,12 +323,18 @@ class SortSKUGroupWidget extends StatelessWidget {
                 if (item.zone.isNotEmpty)
                   Text(
                     'Zone: ${item.zone}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
                     style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                   ),
                 if (item.date.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
                     'Ngày nhập: ${item.date}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
                     style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                   ),
                 ],

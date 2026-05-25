@@ -157,11 +157,11 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icon/app_icon.png"
+  image_path: "assets/icon/variants/9router_copilot_v2/source/app_icon_padded.png"
 
   # Tùy chọn cho Android adaptive icon
-  adaptive_icon_foreground: "assets/icon/app_icon.png"
-  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/variants/9router_copilot_v2/source/app_icon_foreground.png"
+  adaptive_icon_background: "#081B5A"
 
   # Tùy chọn cho iOS
   remove_alpha_ios: true
@@ -169,5 +169,17 @@ flutter_launcher_icons:
   # Tùy chọn cho Windows
   windows:
     generate: true
-    image_path: "assets/icon/app_icon.png"
+    image_path: "assets/icon/variants/9router_copilot_v2/source/app_icon_padded.png"
     icon_size: 256
+
+  # Web favicon and PWA icons
+  web:
+    generate: true
+    image_path: "assets/icon/variants/9router_copilot_v2/source/app_icon_favicon.png"
+    background_color: "#081B5A"
+    theme_color: "#1428D4"
+
+  # macOS AppIcon set
+  macos:
+    generate: true
+    image_path: "assets/icon/variants/9router_copilot_v2/source/app_icon_padded.png"

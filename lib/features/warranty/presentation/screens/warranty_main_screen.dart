@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 
 class WarrantyMainScreen extends StatelessWidget {
@@ -32,10 +33,7 @@ class WarrantyMainScreen extends StatelessWidget {
         title: 'Bảo hành / Sửa chữa',
         showBack: onBackToHome == null,
       ),
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
-        child: AppFeatureSection(actions: actions),
-      ),
+      body: AppResponsiveContent(child: AppFeatureSection(actions: actions)),
     );
   }
 }

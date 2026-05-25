@@ -4,15 +4,13 @@ import '../providers/chat_provider.dart';
 import '../widgets/message_list.dart';
 import '../widgets/message_input.dart';
 import '../widgets/loading_indicator.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 
 class ChatScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
 
-  const ChatScreen({
-    super.key,
-    this.onBackToHome,
-  });
+  const ChatScreen({super.key, this.onBackToHome});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -42,14 +40,15 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Stack(
         children: [
-          Column(
-            children: [
-              Expanded(
-                child: const MessageList(),
-              ),
-              const MessageInput(),
-              SizedBox(height: keyboardHeight),
-            ],
+          AppResponsiveContent(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                Expanded(child: const MessageList()),
+                const MessageInput(),
+                SizedBox(height: keyboardHeight),
+              ],
+            ),
           ),
           Consumer<ChatProvider>(
             builder: (context, provider, child) {

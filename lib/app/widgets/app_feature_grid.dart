@@ -67,12 +67,12 @@ class AppFeatureGrid extends StatelessWidget {
         final width = constraints.maxWidth;
         final crossAxisCount = width < 300
             ? 1
-            : width >= 720
+            : width >= 980
             ? 4
-            : width >= 520
+            : width >= 680
             ? 3
             : 2;
-        final spacing = width >= 520 ? 14.0 : 12.0;
+        final spacing = width >= 680 ? 14.0 : 12.0;
         final tileHeight = width < 340 ? 124.0 : 118.0;
 
         return GridView.builder(

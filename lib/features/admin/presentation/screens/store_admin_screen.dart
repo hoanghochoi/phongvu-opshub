@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/store_branch.dart';
@@ -66,11 +67,21 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Hủy'),
+            child: const Text(
+              'Hủy',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Xóa'),
+            child: const Text(
+              'Xóa',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
           ),
         ],
       ),
@@ -116,8 +127,7 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
               ]
             : null,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      body: AppResponsiveContent(
         child: Column(
           children: [
             TextField(
@@ -134,7 +144,7 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
               ),
               onSubmitted: (_) => _load(),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppLayoutTokens.formFieldGap),
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
@@ -375,7 +385,7 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
-          child: Column(
+          child: AppFormColumn(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
@@ -409,7 +419,7 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
                 decoration: const InputDecoration(labelText: 'BIN ngân hàng'),
                 keyboardType: TextInputType.number,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
               TextField(
                 controller: _mapUsernameController,
                 decoration: const InputDecoration(
@@ -433,11 +443,21 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
       actions: [
         TextButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Hủy'),
+          child: const Text(
+            'Hủy',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+          ),
         ),
         FilledButton(
           onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Đang lưu...' : 'Lưu'),
+          child: Text(
+            _saving ? 'Đang lưu...' : 'Lưu',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+          ),
         ),
       ],
     );

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_theme.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../payment_monitor/presentation/providers/payment_monitor_provider.dart';
@@ -69,8 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+            child: AppResponsiveScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -300,7 +300,12 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Đóng'),
+            child: const Text(
+              'Đóng',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
           ),
         ],
       ),

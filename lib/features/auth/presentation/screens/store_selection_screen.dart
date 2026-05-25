@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/network/api_client.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../domain/entities/store_branch.dart';
@@ -78,11 +79,21 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Xem lại'),
+            child: const Text(
+              'Xem lại',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Xác nhận'),
+            child: const Text(
+              'Xác nhận',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
           ),
         ],
       ),
@@ -107,8 +118,8 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Chọn chi nhánh'),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      body: AppResponsiveContent(
+        maxWidth: AppLayoutTokens.formMaxWidth,
         child: Column(
           children: [
             const Card(
@@ -117,7 +128,7 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
                 child: Row(
                   children: [
                     Icon(Icons.lock_outline),
-                    SizedBox(width: 10),
+                    SizedBox(width: AppLayoutTokens.formInlineGap),
                     Expanded(
                       child: Text(
                         'Chọn chi nhánh lần đầu đăng nhập. Sau khi xác nhận, chi nhánh sẽ bị khóa.',
@@ -127,7 +138,7 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppLayoutTokens.formFieldGap),
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -141,14 +152,14 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
               ),
               onSubmitted: (_) => _loadStores(),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppLayoutTokens.formFieldGap),
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : ListView.separated(
                       itemCount: _stores.length,
                       separatorBuilder: (context, index) =>
-                          const SizedBox(height: 8),
+                          const SizedBox(height: AppLayoutTokens.cardGap),
                       itemBuilder: (context, index) {
                         final store = _stores[index];
                         return ListTile(
@@ -169,13 +180,18 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
                       },
                     ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppLayoutTokens.formSectionGap),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: _selected == null ? null : _confirm,
                 icon: const Icon(Icons.check_circle_outline),
-                label: const Text('Xác nhận chi nhánh'),
+                label: const Text(
+                  'Xác nhận chi nhánh',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
               ),
             ),
           ],

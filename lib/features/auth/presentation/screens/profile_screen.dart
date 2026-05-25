@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../providers/auth_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -76,72 +77,77 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Thông tin cá nhân', showBack: true),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Center(
-            child: Stack(
-              alignment: Alignment.bottomRight,
-              children: [
-                CircleAvatar(
-                  radius: 48,
-                  backgroundImage:
-                      avatarUrl != null && avatarUrl.startsWith('http')
-                      ? NetworkImage(avatarUrl)
-                      : null,
-                  child: avatarUrl == null
-                      ? Text((user?.name ?? '?')[0].toUpperCase())
-                      : null,
-                ),
-                AppIconAction(
-                  onPressed: _pickAvatar,
-                  icon: Icons.camera_alt_outlined,
-                  tooltip: 'Cập nhật avatar',
-                  filled: true,
-                ),
-              ],
+      body: AppResponsiveScrollView(
+        maxWidth: AppLayoutTokens.formMaxWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  CircleAvatar(
+                    radius: 48,
+                    backgroundImage:
+                        avatarUrl != null && avatarUrl.startsWith('http')
+                        ? NetworkImage(avatarUrl)
+                        : null,
+                    child: avatarUrl == null
+                        ? Text((user?.name ?? '?')[0].toUpperCase())
+                        : null,
+                  ),
+                  AppIconAction(
+                    onPressed: _pickAvatar,
+                    icon: Icons.camera_alt_outlined,
+                    tooltip: 'Cập nhật avatar',
+                    filled: true,
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _firstNameController,
-            decoration: const InputDecoration(
-              labelText: 'Tên',
-              prefixIcon: Icon(Icons.person_outline),
-              border: OutlineInputBorder(),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _firstNameController,
+              decoration: const InputDecoration(
+                labelText: 'Tên',
+                prefixIcon: Icon(Icons.person_outline),
+                border: OutlineInputBorder(),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _lastNameController,
-            decoration: const InputDecoration(
-              labelText: 'Họ',
-              prefixIcon: Icon(Icons.badge_outlined),
-              border: OutlineInputBorder(),
+            const SizedBox(height: AppLayoutTokens.formFieldGap),
+            TextField(
+              controller: _lastNameController,
+              decoration: const InputDecoration(
+                labelText: 'Họ',
+                prefixIcon: Icon(Icons.badge_outlined),
+                border: OutlineInputBorder(),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.email_outlined),
-            title: Text(user?.email ?? ''),
-            subtitle: Text(user?.role ?? ''),
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.store_outlined),
-            title: Text(user?.storeInfo ?? ''),
-            subtitle: const Text('Chi nhánh đã chọn sẽ không tự thay đổi được'),
-          ),
-          const SizedBox(height: 16),
-          AppPrimaryButton(
-            onPressed: _save,
-            icon: Icons.save_outlined,
-            label: 'Lưu',
-            isLoading: context.watch<AuthProvider>().isLoading,
-            loadingLabel: 'Đang lưu...',
-          ),
-        ],
+            const SizedBox(height: AppLayoutTokens.formFieldGap),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.email_outlined),
+              title: Text(user?.email ?? ''),
+              subtitle: Text(user?.role ?? ''),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.store_outlined),
+              title: Text(user?.storeInfo ?? ''),
+              subtitle: const Text(
+                'Chi nhánh đã chọn sẽ không tự thay đổi được',
+              ),
+            ),
+            const SizedBox(height: AppLayoutTokens.formSectionGap),
+            AppPrimaryButton(
+              onPressed: _save,
+              icon: Icons.save_outlined,
+              label: 'Lưu',
+              isLoading: context.watch<AuthProvider>().isLoading,
+              loadingLabel: 'Đang lưu...',
+            ),
+          ],
+        ),
       ),
     );
   }

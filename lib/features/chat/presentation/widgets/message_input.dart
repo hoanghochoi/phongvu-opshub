@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/chat_provider.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import 'barcode_scanner_screen.dart';
@@ -128,7 +129,7 @@ class _MessageInputState extends State<MessageInput> {
                 icon: Icons.qr_code_scanner,
                 tooltip: 'Quét mã',
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
               Expanded(
                 child: TextField(
                   controller: _controller,
@@ -141,7 +142,7 @@ class _MessageInputState extends State<MessageInput> {
                   onSubmitted: (_) => _sendMessage(),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
               AppIconAction(
                 onPressed: isLoading ? null : _sendMessage,
                 icon: Icons.send,

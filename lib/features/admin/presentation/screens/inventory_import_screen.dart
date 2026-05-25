@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
@@ -99,20 +100,23 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Cập nhật tồn kho', showBack: true),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _UploadPanel(
-            fileName: _fileName,
-            isUploading: _isUploading,
-            onPickFile: _pickFile,
-            onUpload: _filePath == null ? null : _upload,
-          ),
-          if (result != null) ...[
-            const SizedBox(height: 16),
-            _ResultPanel(result: result),
+      body: AppResponsiveScrollView(
+        maxWidth: AppLayoutTokens.formMaxWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _UploadPanel(
+              fileName: _fileName,
+              isUploading: _isUploading,
+              onPickFile: _pickFile,
+              onUpload: _filePath == null ? null : _upload,
+            ),
+            if (result != null) ...[
+              const SizedBox(height: AppLayoutTokens.sectionGap),
+              _ResultPanel(result: result),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -147,7 +151,7 @@ class _UploadPanel extends StatelessWidget {
                   Icons.table_chart_outlined,
                   color: Color(0xFF2563EB),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: AppLayoutTokens.formInlineGap),
                 Expanded(
                   child: Text(
                     fileName ?? 'Chưa chọn file Excel',
@@ -158,17 +162,22 @@ class _UploadPanel extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: AppLayoutTokens.formFieldGap),
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: isUploading ? null : onPickFile,
                     icon: const Icon(Icons.folder_open_outlined),
-                    label: const Text('Chọn file'),
+                    label: const Text(
+                      'Chọn file',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppLayoutTokens.formInlineGap),
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: isUploading ? null : onUpload,
@@ -178,7 +187,12 @@ class _UploadPanel extends StatelessWidget {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.upload_file_outlined),
-                    label: Text(isUploading ? 'Đang cập nhật' : 'Cập nhật'),
+                    label: Text(
+                      isUploading ? 'Đang cập nhật' : 'Cập nhật',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                    ),
                   ),
                 ),
               ],
@@ -206,7 +220,7 @@ class _ResultPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Kết quả', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppLayoutTokens.cardGap),
             _ResultRow(label: 'Dòng hợp lệ', value: '${result.importedRows}'),
             _ResultRow(label: 'Dòng bỏ qua', value: '${result.skippedRows}'),
             _ResultRow(
@@ -233,7 +247,15 @@ class _ResultRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          SizedBox(width: 130, child: Text(label)),
+          SizedBox(
+            width: 130,
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
+          ),
           Expanded(
             child: Text(
               value.isEmpty ? '-' : value,

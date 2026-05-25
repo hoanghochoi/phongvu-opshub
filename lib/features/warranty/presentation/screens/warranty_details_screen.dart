@@ -10,14 +10,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/warranty_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 
 class WarrantyDetailsScreen extends StatefulWidget {
   final String receiptNumber;
 
-  const WarrantyDetailsScreen({
-    super.key,
-    required this.receiptNumber,
-  });
+  const WarrantyDetailsScreen({super.key, required this.receiptNumber});
 
   @override
   State<WarrantyDetailsScreen> createState() => _WarrantyDetailsScreenState();
@@ -115,7 +113,8 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
         }
       }
 
-      final fileName = '${widget.receiptNumber}_${index + 1}_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final fileName =
+          '${widget.receiptNumber}_${index + 1}_${DateTime.now().millisecondsSinceEpoch}.$extension';
       final filePath = '${directory.path}/$fileName';
 
       // Write file with original quality (no compression)
@@ -155,9 +154,7 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
                 color: Colors.orange,
               ),
               const SizedBox(width: 12),
-              const Expanded(
-                child: Text('Cần cấp quyền lưu ảnh'),
-              ),
+              const Expanded(child: Text('Cần cấp quyền lưu ảnh')),
             ],
           ),
           content: SingleChildScrollView(
@@ -174,20 +171,22 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
                 const SizedBox(height: 16),
                 const Text(
                   'Hướng dẫn cấp quyền:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 const SizedBox(height: 8),
                 _buildPermissionStep(
                   '1',
-                  isPermanentlyDenied ? 'Vào Cài đặt điện thoại' : 'Chọn "Cho phép" khi ứng dụng yêu cầu',
+                  isPermanentlyDenied
+                      ? 'Vào Cài đặt điện thoại'
+                      : 'Chọn "Cho phép" khi ứng dụng yêu cầu',
                 ),
                 if (isPermanentlyDenied) ...[
                   _buildPermissionStep('2', 'Tìm và chọn "PhongVu OpsHub"'),
                   _buildPermissionStep('3', 'Chọn "Quyền" hoặc "Permissions"'),
-                  _buildPermissionStep('4', 'Bật quyền "Ảnh và video" hoặc "Photos and videos"'),
+                  _buildPermissionStep(
+                    '4',
+                    'Bật quyền "Ảnh và video" hoặc "Photos and videos"',
+                  ),
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -203,7 +202,11 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.phone_android, size: 16, color: Colors.blue[700]),
+                            Icon(
+                              Icons.phone_android,
+                              size: 16,
+                              color: Colors.blue[700],
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               'Tùy theo hãng điện thoại:',
@@ -216,10 +219,22 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        _buildPhoneGuide('Samsung', 'Cài đặt → Ứng dụng → PhongVu OpsHub → Quyền'),
-                        _buildPhoneGuide('Xiaomi/Redmi', 'Cài đặt → Ứng dụng → Quản lý ứng dụng → PhongVu OpsHub → Quyền ứng dụng'),
-                        _buildPhoneGuide('Oppo/Realme', 'Cài đặt → Quyền riêng tư → Trình quản lý quyền → PhongVu OpsHub'),
-                        _buildPhoneGuide('Vivo', 'Cài đặt → Ứng dụng và thông báo → Quản lý ứng dụng → PhongVu OpsHub → Quyền'),
+                        _buildPhoneGuide(
+                          'Samsung',
+                          'Cài đặt → Ứng dụng → PhongVu OpsHub → Quyền',
+                        ),
+                        _buildPhoneGuide(
+                          'Xiaomi/Redmi',
+                          'Cài đặt → Ứng dụng → Quản lý ứng dụng → PhongVu OpsHub → Quyền ứng dụng',
+                        ),
+                        _buildPhoneGuide(
+                          'Oppo/Realme',
+                          'Cài đặt → Quyền riêng tư → Trình quản lý quyền → PhongVu OpsHub',
+                        ),
+                        _buildPhoneGuide(
+                          'Vivo',
+                          'Cài đặt → Ứng dụng và thông báo → Quản lý ứng dụng → PhongVu OpsHub → Quyền',
+                        ),
                       ],
                     ),
                   ),
@@ -234,11 +249,21 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
                   Navigator.of(context).pop();
                   openAppSettings();
                 },
-                child: const Text('Mở Cài đặt'),
+                child: const Text(
+                  'Mở Cài đặt',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
               ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text(isPermanentlyDenied ? 'Đóng' : 'OK'),
+              child: Text(
+                isPermanentlyDenied ? 'Đóng' : 'OK',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+              ),
             ),
           ],
         );
@@ -271,12 +296,7 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 13),
-            ),
-          ),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
         ],
       ),
     );
@@ -380,8 +400,8 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
         child: Consumer<WarrantyProvider>(
           builder: (context, warrantyProvider, _) {
             if (warrantyProvider.isLoading) {
-              return const Center(
-                child: CircularProgressIndicator(),
+              return const AppStatePanel.loading(
+                title: 'Dang tai chi tiet bien nhan',
               );
             }
 
@@ -404,7 +424,12 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: _loadDetails,
-                      child: const Text('Thử lại'),
+                      child: const Text(
+                        'Thử lại',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                      ),
                     ),
                   ],
                 ),
@@ -413,9 +438,7 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
 
             final details = warrantyProvider.currentDetails;
             if (details == null) {
-              return const Center(
-                child: Text('Không có dữ liệu'),
-              );
+              return const Center(child: Text('Không có dữ liệu'));
             }
 
             // Extract images
@@ -456,9 +479,8 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
                         children: [
                           Text(
                             'Thông tin biên nhận',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 16),
                           _InfoRow(
@@ -484,27 +506,29 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
                     Text(
                       'Hình ảnh (${images.length})',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 12),
 
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 1,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 1,
+                          ),
                       itemCount: images.length,
                       itemBuilder: (context, index) {
                         return _ImageCard(
                           imageSource: images[index],
                           index: index,
                           onTap: () => _viewImage(images[index], index),
-                          onDownload: () => _downloadImage(images[index], index),
+                          onDownload: () =>
+                              _downloadImage(images[index], index),
                         );
                       },
                     ),
@@ -529,10 +553,7 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _InfoRow({
-    required this.label,
-    required this.value,
-  });
+  const _InfoRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -554,9 +575,7 @@ class _InfoRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -599,9 +618,8 @@ class _ImageCard extends StatelessWidget {
                     memCacheHeight: 800,
                     maxWidthDiskCache: 1000,
                     maxHeightDiskCache: 1000,
-                    placeholder: (context, url) => const Center(
-                      child: CircularProgressIndicator(),
-                    ),
+                    placeholder: (context, url) =>
+                        const Center(child: CircularProgressIndicator()),
                     errorWidget: (context, url, error) {
                       return Container(
                         color: Colors.grey[300],
@@ -616,9 +634,7 @@ class _ImageCard extends StatelessWidget {
                             const SizedBox(height: 8),
                             Text(
                               'Lỗi ảnh ${index + 1}',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                              ),
+                              style: TextStyle(color: Colors.grey[600]),
                             ),
                           ],
                         ),
@@ -642,9 +658,7 @@ class _ImageCard extends StatelessWidget {
                             const SizedBox(height: 8),
                             Text(
                               'Lỗi ảnh ${index + 1}',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                              ),
+                              style: TextStyle(color: Colors.grey[600]),
                             ),
                           ],
                         ),
@@ -655,10 +669,7 @@ class _ImageCard extends StatelessWidget {
               top: 8,
               right: 8,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(12),
@@ -717,19 +728,14 @@ class _ImageViewScreen extends StatelessWidget {
           child: _isUrl(imageSource)
               ? CachedNetworkImage(
                   imageUrl: imageSource,
-                  placeholder: (context, url) => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
+                  placeholder: (context, url) =>
+                      const Center(child: CircularProgressIndicator()),
                   errorWidget: (context, url, error) {
                     return const Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
-                            Icons.broken_image,
-                            size: 64,
-                            color: Colors.red,
-                          ),
+                          Icon(Icons.broken_image, size: 64, color: Colors.red),
                           SizedBox(height: 16),
                           Text('Không thể hiển thị ảnh'),
                         ],
@@ -744,11 +750,7 @@ class _ImageViewScreen extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
-                            Icons.broken_image,
-                            size: 64,
-                            color: Colors.red,
-                          ),
+                          Icon(Icons.broken_image, size: 64, color: Colors.red),
                           SizedBox(height: 16),
                           Text('Không thể hiển thị ảnh'),
                         ],

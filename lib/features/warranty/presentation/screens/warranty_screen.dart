@@ -8,6 +8,8 @@ import '../../../chat/presentation/widgets/barcode_scanner_screen.dart'
     show BarcodeScannerScreen;
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_layout.dart';
+import '../../../../core/utils/validators.dart';
 
 class WarrantyScreen extends StatefulWidget {
   const WarrantyScreen({super.key});
@@ -44,9 +46,8 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
       if (value.isEmpty) {
         _receiptError = null;
       } else {
-        final receiptRegex = RegExp(r'^CP\d{2}-J\d{8}$', caseSensitive: false);
-        if (!receiptRegex.hasMatch(value.trim().toUpperCase())) {
-          _receiptError = 'Sai định dạng. Ví dụ: CP01-J12345678';
+        if (!Validators.isValidWarrantyReceiptNumber(value)) {
+          _receiptError = 'Sai định dạng. Ví dụ: CP01-J12345678 hoặc ST-123456';
         } else {
           _receiptError = null;
         }
@@ -90,6 +91,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
       );
       if (result != null && mounted) {
         _receiptController.text = result;
+        _validateReceipt(result);
       }
     } catch (e) {
       if (mounted) {
@@ -186,7 +188,12 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Xác nhận'),
+                child: const Text(
+                  'Xác nhận',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
               ),
             ],
           ),
@@ -211,7 +218,12 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Xác nhận'),
+                child: const Text(
+                  'Xác nhận',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
               ),
             ],
           ),
@@ -226,8 +238,8 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Lưu hình ảnh BH/SC', showBack: true),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+        child: AppResponsiveScrollView(
+          maxWidth: AppLayoutTokens.formMaxWidth,
           child: Form(
             key: _formKey,
             child: Column(
@@ -240,8 +252,8 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
                   textCapitalization: TextCapitalization.characters,
                   onChanged: _validateReceipt,
                   decoration: InputDecoration(
-                    labelText: 'Số biên nhận',
-                    hintText: 'CPxx-Jxxxxxxxx',
+                    labelText: 'Số biên nhận / mã sửa chữa',
+                    hintText: 'CPxx-Jxxxxxxxx hoặc ST-123456',
                     prefixIcon: const Icon(Icons.receipt_long),
                     border: const OutlineInputBorder(),
                     errorText: _receiptError,
@@ -268,7 +280,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
 
                 // Add image button
                 AppSecondaryButton(
@@ -276,7 +288,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
                   icon: Icons.add_photo_alternate,
                   label: 'Thêm hình ảnh',
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppLayoutTokens.formFieldGap),
 
                 // Images grid
                 if (_images.isNotEmpty)
