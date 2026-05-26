@@ -320,29 +320,28 @@ class _PaymentMonitorQuickToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final monitor = context.watch<PaymentMonitorProvider>();
     final canToggle = monitor.canMonitorOnThisDevice && monitor.hasMonitorScope;
-    final enabled = monitor.isEnabled;
-    final statusText = !enabled
-        ? 'Đang tắt'
-        : monitor.isActive
-        ? 'Đang chạy nền'
+    final speakerEnabled = monitor.isSpeakerEnabled;
+    final statusText = monitor.isActive
+        ? speakerEnabled
+              ? 'Sync đang chạy, loa đang bật'
+              : 'Sync đang chạy, loa đang tắt'
         : canToggle
-        ? 'Đang khởi động'
+        ? 'Sync đang khởi động'
         : 'Cần gán showroom';
 
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: SwitchListTile.adaptive(
-        value: enabled && canToggle,
+        value: speakerEnabled && canToggle,
         onChanged: canToggle
-            ? (value) =>
-                  context.read<PaymentMonitorProvider>().setEnabled(value)
+            ? (value) => context
+                  .read<PaymentMonitorProvider>()
+                  .setSpeakerEnabled(value)
             : null,
         secondary: Icon(
-          enabled && monitor.isActive
-              ? Icons.volume_up_rounded
-              : Icons.volume_off_rounded,
-          color: enabled && monitor.isActive
+          speakerEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+          color: speakerEnabled
               ? const Color(0xFF16A34A)
               : const Color(0xFF6B7280),
         ),

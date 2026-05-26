@@ -53,6 +53,9 @@ a customer to scan and pay manually.
 - While the app is running, the PC polls OpsHub every 5 seconds. Each newly
   observed successful incoming transaction is announced through the Windows
   speech engine as `Đã nhận <amount> đồng`.
+- Turning off `Đọc thông báo tiền vào` mutes only the speaker path. The PC keeps
+  polling/syncing transactions every 5 seconds, and muted notifications are
+  recorded as `SILENCED` so they are not played later as backlog.
 - QR payment confirmation checks stored MAP transactions first. If a matching
   stored transaction exists, the QR screen moves to the paid state and the PC
   monitor also announces that transaction. If no stored match exists yet, the

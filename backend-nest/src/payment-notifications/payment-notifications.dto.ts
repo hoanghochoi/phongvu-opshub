@@ -32,7 +32,7 @@ export class PaymentNotificationAckDto {
   @MaxLength(120)
   clientId!: string;
 
-  @IsIn(['DELIVERED', 'PLAYED', 'FAILED'])
+  @IsIn(['DELIVERED', 'PLAYED', 'FAILED', 'SILENCED'])
   event!: string;
 
   @IsOptional()

@@ -157,7 +157,7 @@ describe('PaymentNotificationsService', () => {
     );
   });
 
-  it('lists ready audio notifications not yet played by this client', async () => {
+  it('lists ready audio notifications not yet played or silenced by this client', async () => {
     const createdAt = new Date('2026-05-21T10:00:00.000Z');
     prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
     prisma.paymentNotification.findMany.mockResolvedValue([
@@ -202,6 +202,16 @@ describe('PaymentNotificationsService', () => {
         },
       ],
     });
+    expect(
+      prisma.paymentNotificationDeliveryLog.findFirst,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clientId: 'pc-1',
+          event: { in: ['PLAYED', 'SILENCED'] },
+        }),
+      }),
+    );
   });
 
   it('returns not found when notification audio is unavailable', async () => {

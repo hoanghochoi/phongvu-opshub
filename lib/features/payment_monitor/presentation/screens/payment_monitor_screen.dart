@@ -54,19 +54,19 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                       Row(
                         children: [
                           Icon(
-                            monitor.isActive
+                            monitor.isSpeakerEnabled
                                 ? Icons.volume_up_rounded
                                 : Icons.volume_off_rounded,
-                            color: monitor.isActive
+                            color: monitor.isSpeakerEnabled
                                 ? Colors.green
                                 : const Color(0xFF6B7280),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              monitor.isActive
-                                  ? 'Đang chạy nền'
-                                  : 'Chưa có phạm vi theo dõi',
+                              monitor.isSpeakerEnabled
+                                  ? 'Đang đọc thông báo tiền vào'
+                                  : 'Đã tắt âm thanh thông báo',
                               style: const TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w800,
@@ -74,18 +74,19 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                             ),
                           ),
                           Switch.adaptive(
-                            value: monitor.isEnabled,
+                            value: monitor.isSpeakerEnabled,
                             onChanged: monitor.canMonitorOnThisDevice
                                 ? (value) => context
                                       .read<PaymentMonitorProvider>()
-                                      .setEnabled(value)
+                                      .setSpeakerEnabled(value)
                                 : null,
                           ),
-                          if (monitor.isLoading)
-                            const SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(child: _SyncStatusPill(monitor: monitor)),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -198,6 +199,61 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
   DateTime? _toVietnamTime(DateTime? value) {
     if (value == null) return null;
     return value.toUtc().add(const Duration(hours: 7));
+  }
+}
+
+class _SyncStatusPill extends StatelessWidget {
+  final PaymentMonitorProvider monitor;
+
+  const _SyncStatusPill({required this.monitor});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = monitor.isActive
+        ? const Color(0xFF16A34A)
+        : const Color(0xFF6B7280);
+    final label = monitor.isLoading
+        ? 'Đang sync giao dịch'
+        : monitor.isActive
+        ? 'Sync giao dịch đang chạy'
+        : monitor.hasMonitorScope
+        ? 'Sync giao dịch đang khởi động'
+        : 'Cần gán showroom để sync';
+
+    return SizedBox(
+      height: 36,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.24)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox.square(
+                dimension: 16,
+                child: monitor.isLoading
+                    ? CircularProgressIndicator(strokeWidth: 2, color: color)
+                    : Icon(Icons.sync_rounded, size: 16, color: color),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: TextStyle(color: color, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
