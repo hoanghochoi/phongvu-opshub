@@ -521,7 +521,8 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
     });
 
     const updateColumns = UPSERT_COLUMNS.filter(
-      (column) => column !== 'id' && column !== 'opshub_item_key',
+      (column) =>
+        column !== 'id' && column !== 'opshub_item_key' && column !== 'exported',
     );
     const updates = updateColumns
       .map((column) => `${config.columns[column]} = EXCLUDED.${config.columns[column]}`)

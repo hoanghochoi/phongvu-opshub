@@ -92,6 +92,7 @@ describe('OpshubFifoInventoryService', () => {
       .join('\n');
     expect(sql).toContain('INSERT INTO "fifo_inventory" AS target');
     expect(sql).toContain('"Date_import_company"');
+    expect(sql.match(/"exported" =/g)).toHaveLength(1);
     expect(sql).toContain('"opshub_source" = \'bigquery\'');
     expect(sql).toContain('AND NOT ("opshub_item_key"::text = ANY');
   });
