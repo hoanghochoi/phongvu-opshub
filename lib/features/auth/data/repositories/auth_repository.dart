@@ -4,6 +4,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../../admin/domain/admin_personnel_definition.dart';
 import '../../../admin/domain/admin_role_definition.dart';
 import '../../domain/entities/store_branch.dart';
 import '../../domain/entities/user.dart';
@@ -329,6 +330,7 @@ class AuthRepository {
         'email': user.email,
         'role': user.role,
         'storeId': user.storeId,
+        'personnelCode': user.personnelCode,
       },
     );
     return user;
@@ -349,9 +351,46 @@ class AuthRepository {
         'email': user.email,
         'role': user.role,
         'storeId': user.storeId,
+        'personnelCode': user.personnelCode,
       },
     );
     return user;
+  }
+
+  Future<List<AdminPersonnelDefinition>> listAdminDepartments() async {
+    final response = await _apiClient.get(
+      ApiConstants.adminDepartmentsEndpoint,
+    );
+    final data = jsonDecode(response.body) as List<dynamic>;
+    final departments = data
+        .map(
+          (item) =>
+              AdminPersonnelDefinition.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin departments loaded',
+      context: {'count': departments.length},
+    );
+    return departments;
+  }
+
+  Future<List<AdminPersonnelDefinition>> listAdminJobRoles() async {
+    final response = await _apiClient.get(ApiConstants.adminJobRolesEndpoint);
+    final data = jsonDecode(response.body) as List<dynamic>;
+    final jobRoles = data
+        .map(
+          (item) =>
+              AdminPersonnelDefinition.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin job roles loaded',
+      context: {'count': jobRoles.length},
+    );
+    return jobRoles;
   }
 
   Future<List<AdminRoleDefinition>> listAdminRoles() async {

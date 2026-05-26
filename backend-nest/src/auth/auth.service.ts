@@ -16,6 +16,15 @@ import {
 } from './email-domain-policy';
 
 const PASSWORD_SALT_ROUNDS = 12;
+const STORE_SCOPE = 'STORE';
+const NATIONAL_SCOPE = 'NATIONAL';
+const WORK_SCOPE_TYPES = new Set([
+  STORE_SCOPE,
+  'MULTI_STORE',
+  'REGION',
+  NATIONAL_SCOPE,
+  'ONLINE',
+]);
 
 @Injectable()
 export class AuthService {
@@ -133,6 +142,10 @@ export class AuthService {
       storeName: user.store?.storeName ?? null,
       role: user.role,
       status: user.status,
+      departmentCode: user.departmentCode ?? null,
+      jobRoleCode: user.jobRoleCode ?? null,
+      workScopeType: this.effectiveWorkScope(user),
+      personnelCode: this.personnelCodeFor(user),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
       mustSelectStore: this.mustSelectStore(user),
@@ -169,6 +182,9 @@ export class AuthService {
     avatarUrl?: string | null;
     role: string;
     status: string;
+    departmentCode?: string | null;
+    jobRoleCode?: string | null;
+    workScopeType?: string | null;
     profileCompletedAt?: Date | null;
     branchLockedAt?: Date | null;
     storeId?: string | null;
@@ -193,6 +209,10 @@ export class AuthService {
       storeName: user.store?.storeName ?? null,
       role: user.role,
       status: user.status,
+      departmentCode: user.departmentCode ?? null,
+      jobRoleCode: user.jobRoleCode ?? null,
+      workScopeType: this.effectiveWorkScope(user),
+      personnelCode: this.personnelCodeFor(user),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
       mustSelectStore: this.mustSelectStore(user),
@@ -201,10 +221,47 @@ export class AuthService {
 
   private mustSelectStore(user: {
     role: string;
+    workScopeType?: string | null;
     storeId?: string | null;
     store?: { storeId?: string | null } | null;
   }) {
     const hasStore = Boolean(user.storeId || user.store?.storeId);
-    return user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN' && !hasStore;
+    return this.effectiveWorkScope(user) === STORE_SCOPE && !hasStore;
+  }
+
+  private effectiveWorkScope(user: {
+    role: string;
+    workScopeType?: string | null;
+    storeId?: string | null;
+    store?: { storeId?: string | null } | null;
+  }) {
+    const scope = String(user.workScopeType || '')
+      .trim()
+      .toUpperCase();
+    if (WORK_SCOPE_TYPES.has(scope)) return scope;
+    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
+      return NATIONAL_SCOPE;
+    }
+    return STORE_SCOPE;
+  }
+
+  private personnelCodeFor(user: {
+    role: string;
+    jobRoleCode?: string | null;
+    workScopeType?: string | null;
+    storeId?: string | null;
+    store?: { storeId?: string | null } | null;
+  }) {
+    const jobRoleCode = String(user.jobRoleCode || '')
+      .trim()
+      .toUpperCase();
+    if (!jobRoleCode) return null;
+    const scope = this.effectiveWorkScope(user);
+    if (scope === STORE_SCOPE) {
+      const storeCode = user.store?.storeId || user.storeId;
+      return storeCode ? `${jobRoleCode}_${storeCode}` : `${jobRoleCode}_STORE`;
+    }
+    if (scope === 'ONLINE') return jobRoleCode;
+    return `${jobRoleCode}_${scope}`;
   }
 }

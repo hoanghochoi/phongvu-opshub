@@ -82,6 +82,16 @@ export class UserController {
     return this.userService.adminListRoles(req.user);
   }
 
+  @Get('admin/departments')
+  listDepartments(@Request() req: any) {
+    return this.userService.adminListDepartments(req.user);
+  }
+
+  @Get('admin/job-roles')
+  listJobRoles(@Request() req: any) {
+    return this.userService.adminListJobRoles(req.user);
+  }
+
   @Post('admin/roles')
   createRole(@Request() req: any, @Body() body: AdminRoleDto) {
     return this.userService.adminCreateRole(req.user, body);

@@ -22,8 +22,17 @@ describe('UserService admin store management', () => {
         upsert: jest.fn(),
         findUnique: jest.fn(),
       },
+      departmentDefinition: {
+        upsert: jest.fn(),
+        findUnique: jest.fn(),
+      },
+      jobRoleDefinition: {
+        upsert: jest.fn(),
+        findUnique: jest.fn(),
+      },
       user: {
         findUnique: jest.fn(),
+        create: jest.fn(),
         update: jest.fn(),
       },
     };
@@ -124,6 +133,78 @@ describe('UserService admin store management', () => {
       service.adminUpdateUser(manager, 'user-1', { role: 'MANAGER' }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('returns predictable personnel codes by job role and work scope', async () => {
+    const store = { id: 'store-62', storeId: 'CP62', storeName: 'CP62' };
+    prisma.store.findUnique.mockResolvedValue(store);
+    prisma.roleDefinition.findUnique.mockResolvedValue({ code: 'STAFF' });
+    prisma.departmentDefinition.findUnique.mockImplementation(
+      async ({ where }: any) => ({ code: where.code }),
+    );
+    prisma.jobRoleDefinition.findUnique.mockImplementation(
+      async ({ where }: any) => ({ code: where.code }),
+    );
+    prisma.user.create.mockImplementation(async ({ data }: any) => ({
+      id: `user-${data.jobRoleCode}`,
+      email: data.email,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      role: data.role,
+      status: data.status,
+      departmentCode: data.departmentCode,
+      jobRoleCode: data.jobRoleCode,
+      workScopeType: data.workScopeType,
+      storeId: data.storeId,
+      store: data.storeId ? store : null,
+    }));
+
+    await expect(
+      service.adminCreateUser(superAdmin, {
+        email: 'sale@phongvu.vn',
+        firstName: 'Sale',
+        role: 'STAFF',
+        storeId: 'CP62',
+        departmentCode: 'SALES',
+        jobRoleCode: 'SALE',
+        workScopeType: 'STORE',
+      }),
+    ).resolves.toMatchObject({ personnelCode: 'SALE_CP62' });
+
+    await expect(
+      service.adminCreateUser(superAdmin, {
+        email: 'manager@phongvu.vn',
+        firstName: 'Manager',
+        role: 'STAFF',
+        storeId: 'CP62',
+        departmentCode: 'MANAGEMENT',
+        jobRoleCode: 'MANAGER',
+        workScopeType: 'STORE',
+      }),
+    ).resolves.toMatchObject({ personnelCode: 'MANAGER_CP62' });
+
+    await expect(
+      service.adminCreateUser(superAdmin, {
+        email: 'warehouse@phongvu.vn',
+        firstName: 'Warehouse',
+        role: 'STAFF',
+        storeId: 'CP62',
+        departmentCode: 'WAREHOUSE',
+        jobRoleCode: 'WAREHOUSE',
+        workScopeType: 'STORE',
+      }),
+    ).resolves.toMatchObject({ personnelCode: 'WAREHOUSE_CP62' });
+
+    await expect(
+      service.adminCreateUser(superAdmin, {
+        email: 'online@phongvu.vn',
+        firstName: 'Online',
+        role: 'STAFF',
+        departmentCode: 'SALES',
+        jobRoleCode: 'SALE_ONLINE',
+        workScopeType: 'ONLINE',
+      }),
+    ).resolves.toMatchObject({ personnelCode: 'SALE_ONLINE' });
   });
 
   it('blocks branch admin from mutating stores', async () => {

@@ -276,6 +276,28 @@ describe('AuthService', () => {
     });
   });
 
+  it('uses work scope when deciding branch selection and personnel code', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      storeId: null,
+      firstName: 'Sale',
+      role: 'STAFF',
+      status: 'yes',
+      departmentCode: 'SALES',
+      jobRoleCode: 'SALE_ONLINE',
+      workScopeType: 'ONLINE',
+      store: null,
+    });
+
+    await expect(
+      service.getUserData('online@phongvu-shop.vn'),
+    ).resolves.toMatchObject({
+      jobRoleCode: 'SALE_ONLINE',
+      workScopeType: 'ONLINE',
+      personnelCode: 'SALE_ONLINE',
+      mustSelectStore: false,
+    });
+  });
+
   it('throws when user profile is missing', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
 

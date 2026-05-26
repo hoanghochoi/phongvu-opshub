@@ -44,3 +44,21 @@ basic administration for privileged roles.
 - Store administration can keep a VietinBank MAP username plus an encrypted MAP
   password for later transaction reconciliation. The API returns whether a MAP
   password exists, but never returns the password itself.
+
+## Personnel Role Foundation
+
+- System access role remains separate from operational personnel assignment.
+  `User.role` continues to control app/admin permissions.
+- Admin user management can assign department, job role, and work scope for
+  future task assignment.
+- Default departments are management, sales, cashier, technical, warehouse,
+  back office, and executive.
+- Default job roles include manager, sale, sale online, cashier, technician,
+  warehouse, area manager, regional manager, back office, BOD, and CEO.
+- Work scope values are `STORE`, `MULTI_STORE`, `REGION`, `NATIONAL`, and
+  `ONLINE`.
+- The API returns a generated `personnelCode` for debugging and future task
+  routing. Store-scoped staff use codes such as `SALE_CP62`, `MANAGER_CP62`,
+  and `WAREHOUSE_CP62`; online sales keeps `SALE_ONLINE`.
+- Task assignment itself is not implemented in this slice. This slice only
+  prepares the data model, API contract, and admin UI needed for it.

@@ -19,6 +19,20 @@ const ADMIN_ROLE = 'ADMIN';
 const MANAGER_ROLE = 'MANAGER';
 const STAFF_ROLE = 'STAFF';
 
+const STORE_SCOPE = 'STORE';
+const MULTI_STORE_SCOPE = 'MULTI_STORE';
+const REGION_SCOPE = 'REGION';
+const NATIONAL_SCOPE = 'NATIONAL';
+const ONLINE_SCOPE = 'ONLINE';
+
+const WORK_SCOPE_TYPES = new Set([
+  STORE_SCOPE,
+  MULTI_STORE_SCOPE,
+  REGION_SCOPE,
+  NATIONAL_SCOPE,
+  ONLINE_SCOPE,
+]);
+
 const DEFAULT_ROLE_DEFINITIONS = [
   {
     code: SUPER_ADMIN_ROLE,
@@ -39,6 +53,113 @@ const DEFAULT_ROLE_DEFINITIONS = [
     code: STAFF_ROLE,
     displayName: 'Staff',
     description: 'Quyen thao tac hang ngay',
+  },
+];
+
+const DEFAULT_DEPARTMENT_DEFINITIONS = [
+  {
+    code: 'MANAGEMENT',
+    displayName: 'Management',
+    description: 'Quan ly van hanh showroom va bo phan',
+  },
+  {
+    code: 'SALES',
+    displayName: 'Sales',
+    description: 'Tu van va ban hang',
+  },
+  {
+    code: 'CASHIER',
+    displayName: 'Cashier',
+    description: 'Thu ngan va thanh toan tai quay',
+  },
+  {
+    code: 'TECHNICAL',
+    displayName: 'Technical',
+    description: 'Ky thuat va ho tro san pham',
+  },
+  {
+    code: 'WAREHOUSE',
+    displayName: 'Warehouse',
+    description: 'Kho va dieu phoi hang hoa',
+  },
+  {
+    code: 'BACK_OFFICE',
+    displayName: 'Back Office',
+    description: 'Khoi van phong ho tro van hanh',
+  },
+  {
+    code: 'EXECUTIVE',
+    displayName: 'Executive',
+    description: 'Ban dieu hanh va lanh dao',
+  },
+];
+
+const DEFAULT_JOB_ROLE_DEFINITIONS = [
+  {
+    code: 'MANAGER',
+    displayName: 'Manager',
+    description: 'Quan ly SR hoac bo phan',
+    departmentCode: 'MANAGEMENT',
+  },
+  {
+    code: 'SALE',
+    displayName: 'Sales Staff',
+    description: 'Nhan vien ban hang tai SR',
+    departmentCode: 'SALES',
+  },
+  {
+    code: 'SALE_ONLINE',
+    displayName: 'Online Sales',
+    description: 'Nhan vien sale online',
+    departmentCode: 'SALES',
+  },
+  {
+    code: 'CASHIER',
+    displayName: 'Cashier Staff',
+    description: 'Nhan vien thu ngan',
+    departmentCode: 'CASHIER',
+  },
+  {
+    code: 'TECHNICIAN',
+    displayName: 'Technician',
+    description: 'Nhan vien ky thuat',
+    departmentCode: 'TECHNICAL',
+  },
+  {
+    code: 'WAREHOUSE',
+    displayName: 'Warehouse Staff',
+    description: 'Nhan vien kho',
+    departmentCode: 'WAREHOUSE',
+  },
+  {
+    code: 'AREA_MANAGER',
+    displayName: 'Area Manager',
+    description: 'Quan ly khu vuc',
+    departmentCode: 'MANAGEMENT',
+  },
+  {
+    code: 'REGIONAL_MANAGER',
+    displayName: 'Regional Manager',
+    description: 'Quan ly vung/mien',
+    departmentCode: 'MANAGEMENT',
+  },
+  {
+    code: 'BACK_OFFICE',
+    displayName: 'Back Office Staff',
+    description: 'Nhan su back office',
+    departmentCode: 'BACK_OFFICE',
+  },
+  {
+    code: 'BOD',
+    displayName: 'BOD',
+    description: 'Thanh vien ban dieu hanh',
+    departmentCode: 'EXECUTIVE',
+  },
+  {
+    code: 'CEO',
+    displayName: 'CEO',
+    description: 'Tong giam doc',
+    departmentCode: 'EXECUTIVE',
   },
 ];
 
@@ -66,6 +187,7 @@ export class UserService implements OnModuleInit {
 
   async onModuleInit() {
     await this.seedDefaultRoles();
+    await this.seedDefaultPersonnelCatalog();
 
     if (getDataSyncSource() !== 'bigquery') {
       this.logger.log('DATA_SYNC_SOURCE=local, skipping BigQuery user sync');
@@ -168,6 +290,7 @@ export class UserService implements OnModuleInit {
             role,
             status,
             storeId: storeUuid,
+            workScopeType: this.defaultWorkScopeForRole(role),
           },
           create: {
             email,
@@ -177,6 +300,7 @@ export class UserService implements OnModuleInit {
             role,
             status,
             storeId: storeUuid,
+            workScopeType: this.defaultWorkScopeForRole(role),
           },
         });
 
@@ -322,6 +446,10 @@ export class UserService implements OnModuleInit {
     const role = await this.resolveAssignableRole(body.role || STAFF_ROLE);
     this.assertRoleEditable(admin, role);
     const storeUuid = await this.resolveStoreForAdmin(admin, body.storeId);
+    const personnel = await this.resolvePersonnelAssignment(body, {
+      role,
+      storeUuid,
+    });
 
     const user = await this.prisma.user.create({
       data: {
@@ -333,11 +461,15 @@ export class UserService implements OnModuleInit {
         status:
           String(body.status || 'yes').toLowerCase() === 'no' ? 'no' : 'yes',
         storeId: storeUuid,
+        ...personnel,
         branchLockedAt: storeUuid ? new Date() : null,
         profileCompletedAt: storeUuid ? new Date() : null,
       },
       include: { store: true },
     });
+    this.logger.log(
+      `Admin user created: email=${email} role=${role} scope=${personnel.workScopeType} personnelCode=${this.personnelCodeFor(user) ?? 'none'}`,
+    );
     return this.toUserDto(user);
   }
 
@@ -361,6 +493,11 @@ export class UserService implements OnModuleInit {
       body.storeId !== undefined
         ? await this.resolveStoreForAdmin(admin, body.storeId)
         : current.storeId;
+    const personnel = await this.resolvePersonnelAssignment(body, {
+      current,
+      role,
+      storeUuid,
+    });
 
     const updated = await this.prisma.user.update({
       where: { id: userId },
@@ -378,6 +515,7 @@ export class UserService implements OnModuleInit {
               ? 'no'
               : 'yes',
         storeId: storeUuid,
+        ...personnel,
         branchLockedAt: storeUuid
           ? (current.branchLockedAt ?? new Date())
           : null,
@@ -387,6 +525,9 @@ export class UserService implements OnModuleInit {
       },
       include: { store: true },
     });
+    this.logger.log(
+      `Admin user updated: id=${userId} role=${role} scope=${personnel.workScopeType} personnelCode=${this.personnelCodeFor(updated) ?? 'none'}`,
+    );
     return this.toUserDto(updated);
   }
 
@@ -458,6 +599,10 @@ export class UserService implements OnModuleInit {
       storeName: user.store?.storeName ?? null,
       role: user.role,
       status: user.status,
+      departmentCode: user.departmentCode ?? null,
+      jobRoleCode: user.jobRoleCode ?? null,
+      workScopeType: this.effectiveWorkScope(user),
+      personnelCode: this.personnelCodeFor(user),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
       mustSelectStore: this.mustSelectStore(user),
@@ -466,19 +611,34 @@ export class UserService implements OnModuleInit {
 
   private mustSelectStore(user: {
     role: string;
+    workScopeType?: string | null;
     storeId?: string | null;
     store?: { storeId?: string | null } | null;
   }) {
     const hasStore = Boolean(user.storeId || user.store?.storeId);
-    return (
-      user.role !== SUPER_ADMIN_ROLE && user.role !== ADMIN_ROLE && !hasStore
-    );
+    return this.effectiveWorkScope(user) === STORE_SCOPE && !hasStore;
   }
 
   async adminListRoles(admin: any) {
     this.assertAdmin(admin);
     await this.seedDefaultRoles();
     return this.prisma.roleDefinition.findMany({
+      orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
+    });
+  }
+
+  async adminListDepartments(admin: any) {
+    this.assertAdmin(admin);
+    await this.seedDefaultPersonnelCatalog();
+    return this.prisma.departmentDefinition.findMany({
+      orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
+    });
+  }
+
+  async adminListJobRoles(admin: any) {
+    this.assertAdmin(admin);
+    await this.seedDefaultPersonnelCatalog();
+    return this.prisma.jobRoleDefinition.findMany({
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
     });
   }
@@ -679,6 +839,168 @@ export class UserService implements OnModuleInit {
         }),
       ),
     );
+  }
+
+  private async seedDefaultPersonnelCatalog() {
+    await Promise.all(
+      DEFAULT_DEPARTMENT_DEFINITIONS.map((department) =>
+        this.prisma.departmentDefinition.upsert({
+          where: { code: department.code },
+          update: {
+            displayName: department.displayName,
+            description: department.description,
+            isSystem: true,
+          },
+          create: { ...department, isSystem: true },
+        }),
+      ),
+    );
+
+    await Promise.all(
+      DEFAULT_JOB_ROLE_DEFINITIONS.map((jobRole) =>
+        this.prisma.jobRoleDefinition.upsert({
+          where: { code: jobRole.code },
+          update: {
+            displayName: jobRole.displayName,
+            description: jobRole.description,
+            departmentCode: jobRole.departmentCode,
+            isSystem: true,
+          },
+          create: { ...jobRole, isSystem: true },
+        }),
+      ),
+    );
+
+    this.logger.log(
+      `Personnel catalog seeded: departments=${DEFAULT_DEPARTMENT_DEFINITIONS.length}, jobRoles=${DEFAULT_JOB_ROLE_DEFINITIONS.length}`,
+    );
+  }
+
+  private async resolvePersonnelAssignment(
+    body: any,
+    options: { current?: any; role: string; storeUuid?: string | null },
+  ) {
+    const departmentCode = await this.resolveDepartmentCode(
+      body.departmentCode,
+      options.current?.departmentCode ?? null,
+    );
+    const jobRoleCode = await this.resolveJobRoleCode(
+      body.jobRoleCode,
+      options.current?.jobRoleCode ?? null,
+    );
+    const workScopeType = this.resolveWorkScopeType(
+      body.workScopeType,
+      options.current?.workScopeType,
+      options.role,
+    );
+
+    return { departmentCode, jobRoleCode, workScopeType };
+  }
+
+  private async resolveDepartmentCode(input: unknown, current?: string | null) {
+    if (input === undefined) return current ?? null;
+    const code = this.normalizePersonnelCode(
+      input,
+      'Ma phong ban khong hop le',
+    );
+    if (!code) return null;
+    const department = await this.prisma.departmentDefinition.findUnique({
+      where: { code },
+    });
+    if (!department) {
+      this.logger.warn(`Personnel validation failed: department=${code}`);
+      throw new BadRequestException('Phong ban khong ton tai');
+    }
+    return department.code;
+  }
+
+  private async resolveJobRoleCode(input: unknown, current?: string | null) {
+    if (input === undefined) return current ?? null;
+    const code = this.normalizePersonnelCode(
+      input,
+      'Ma chuc danh khong hop le',
+    );
+    if (!code) return null;
+    const jobRole = await this.prisma.jobRoleDefinition.findUnique({
+      where: { code },
+    });
+    if (!jobRole) {
+      this.logger.warn(`Personnel validation failed: jobRole=${code}`);
+      throw new BadRequestException('Chuc danh khong ton tai');
+    }
+    return jobRole.code;
+  }
+
+  private resolveWorkScopeType(
+    input: unknown,
+    current: string | null | undefined,
+    role: string,
+  ) {
+    if (input === undefined) {
+      return current || this.defaultWorkScopeForRole(role);
+    }
+
+    const scope = String(input || '')
+      .trim()
+      .toUpperCase();
+    if (!scope) return this.defaultWorkScopeForRole(role);
+    if (!WORK_SCOPE_TYPES.has(scope)) {
+      this.logger.warn(`Personnel validation failed: workScopeType=${scope}`);
+      throw new BadRequestException('Pham vi lam viec khong hop le');
+    }
+    return scope;
+  }
+
+  private normalizePersonnelCode(input: unknown, message: string) {
+    const code = String(input || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]/g, '_');
+    if (!code) return null;
+    if (!/^[A-Z][A-Z0-9_]{1,39}$/.test(code)) {
+      throw new BadRequestException(message);
+    }
+    return code;
+  }
+
+  private defaultWorkScopeForRole(role: string) {
+    if (role === SUPER_ADMIN_ROLE || role === ADMIN_ROLE) {
+      return NATIONAL_SCOPE;
+    }
+    return STORE_SCOPE;
+  }
+
+  private effectiveWorkScope(user: {
+    role: string;
+    workScopeType?: string | null;
+    storeId?: string | null;
+    store?: { storeId?: string | null } | null;
+  }) {
+    const scope = String(user.workScopeType || '')
+      .trim()
+      .toUpperCase();
+    if (WORK_SCOPE_TYPES.has(scope)) return scope;
+    return this.defaultWorkScopeForRole(user.role);
+  }
+
+  private personnelCodeFor(user: {
+    role: string;
+    jobRoleCode?: string | null;
+    workScopeType?: string | null;
+    storeId?: string | null;
+    store?: { storeId?: string | null } | null;
+  }) {
+    const jobRoleCode = String(user.jobRoleCode || '')
+      .trim()
+      .toUpperCase();
+    if (!jobRoleCode) return null;
+    const scope = this.effectiveWorkScope(user);
+    if (scope === STORE_SCOPE) {
+      const storeCode = user.store?.storeId || user.storeId;
+      return storeCode ? `${jobRoleCode}_${storeCode}` : `${jobRoleCode}_STORE`;
+    }
+    if (scope === ONLINE_SCOPE) return jobRoleCode;
+    return `${jobRoleCode}_${scope}`;
   }
 
   private normalizeRoleCode(roleStr: string, strict = false) {

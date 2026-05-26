@@ -9,6 +9,7 @@ import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../domain/admin_personnel_definition.dart';
 import '../../domain/admin_role_definition.dart';
 
 class UserAdminScreen extends StatefulWidget {
@@ -24,6 +25,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   List<User> _users = [];
   List<StoreBranch> _stores = [];
   List<AdminRoleDefinition> _roles = AdminRoles.definitions;
+  List<AdminPersonnelDefinition> _departments = [];
+  List<AdminPersonnelDefinition> _jobRoles = [];
   bool _loading = true;
 
   @override
@@ -45,12 +48,16 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         _repository.listUsers(query: _searchController.text),
         _repository.listAdminStores(),
         _repository.listAdminRoles(),
+        _repository.listAdminDepartments(),
+        _repository.listAdminJobRoles(),
       ]);
       if (!mounted) return;
       setState(() {
         _users = results[0] as List<User>;
         _stores = results[1] as List<StoreBranch>;
         _roles = results[2] as List<AdminRoleDefinition>;
+        _departments = results[3] as List<AdminPersonnelDefinition>;
+        _jobRoles = results[4] as List<AdminPersonnelDefinition>;
       });
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -66,6 +73,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         repository: _repository,
         stores: _stores,
         roles: _roles,
+        departments: _departments,
+        jobRoles: _jobRoles,
         user: user,
         canEditRole: canEditRole,
       ),
@@ -76,6 +85,25 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   String _roleTitle(String? value) {
     for (final role in _roles) {
       if (role.value == value) return role.title;
+    }
+    return value?.isNotEmpty == true ? value! : 'Chưa gán';
+  }
+
+  String _personnelTitle(User user) {
+    final code = user.personnelCode;
+    if (code?.isNotEmpty == true) return code!;
+    final jobRole = _definitionTitle(_jobRoles, user.jobRoleCode);
+    final scope = AdminWorkScopes.titleOf(user.workScopeType);
+    if (jobRole != 'Chưa gán') return '$jobRole • $scope';
+    return scope;
+  }
+
+  String _definitionTitle(
+    List<AdminPersonnelDefinition> definitions,
+    String? value,
+  ) {
+    for (final definition in definitions) {
+      if (definition.code == value) return definition.title;
     }
     return value?.isNotEmpty == true ? value! : 'Chưa gán';
   }
@@ -134,8 +162,9 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                           ),
                           title: Text(user.email),
                           subtitle: Text(
-                            '${_roleTitle(user.role)} • ${user.storeInfo}',
+                            '${_roleTitle(user.role)} • ${user.storeInfo}\n${_personnelTitle(user)}',
                           ),
+                          isThreeLine: true,
                           trailing: AppIconAction(
                             onPressed: () => _openEditor(user),
                             icon: Icons.edit_outlined,
@@ -156,6 +185,8 @@ class _UserEditorDialog extends StatefulWidget {
   final AuthRepository repository;
   final List<StoreBranch> stores;
   final List<AdminRoleDefinition> roles;
+  final List<AdminPersonnelDefinition> departments;
+  final List<AdminPersonnelDefinition> jobRoles;
   final User? user;
   final bool canEditRole;
 
@@ -163,6 +194,8 @@ class _UserEditorDialog extends StatefulWidget {
     required this.repository,
     required this.stores,
     required this.roles,
+    required this.departments,
+    required this.jobRoles,
     required this.canEditRole,
     this.user,
   });
@@ -178,6 +211,9 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   String _role = 'STAFF';
   String _status = 'yes';
   String? _storeId;
+  String? _departmentCode;
+  String? _jobRoleCode;
+  String _workScopeType = 'STORE';
   bool _saving = false;
 
   @override
@@ -190,6 +226,9 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     _role = user?.role ?? 'STAFF';
     _status = user?.status ?? 'yes';
     _storeId = user?.storeId;
+    _departmentCode = user?.departmentCode;
+    _jobRoleCode = user?.jobRoleCode;
+    _workScopeType = user?.workScopeType ?? _defaultScopeForRole(_role);
   }
 
   @override
@@ -209,6 +248,9 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
         'lastName': _lastNameController.text.trim(),
         'status': _status,
         'storeId': _storeId,
+        'departmentCode': _departmentCode,
+        'jobRoleCode': _jobRoleCode,
+        'workScopeType': _workScopeType,
         if (widget.canEditRole) 'role': _role,
       };
       final user = widget.user;
@@ -228,6 +270,30 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       if (role.value == value) return role.title;
     }
     return value;
+  }
+
+  String _defaultScopeForRole(String role) {
+    return role == 'SUPER_ADMIN' || role == 'ADMIN' ? 'NATIONAL' : 'STORE';
+  }
+
+  void _setRole(String value) {
+    setState(() {
+      _role = value;
+      if (widget.user?.workScopeType == null) {
+        _workScopeType = _defaultScopeForRole(value);
+      }
+    });
+  }
+
+  String _previewPersonnelCode(String? jobRoleCode, String scope) {
+    if (jobRoleCode == null || jobRoleCode.isEmpty) return 'Chưa gán';
+    if (scope == 'STORE') {
+      return _storeId?.isNotEmpty == true
+          ? '${jobRoleCode}_$_storeId'
+          : '${jobRoleCode}_STORE';
+    }
+    if (scope == 'ONLINE') return jobRoleCode;
+    return '${jobRoleCode}_$scope';
   }
 
   @override
@@ -256,7 +322,9 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
               if (widget.canEditRole)
                 DropdownButtonFormField<String>(
                   initialValue: _role,
-                  decoration: const InputDecoration(labelText: 'Quyền'),
+                  decoration: const InputDecoration(
+                    labelText: 'Quyền hệ thống',
+                  ),
                   items: widget.roles
                       .map(
                         (role) => DropdownMenuItem(
@@ -265,15 +333,75 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                         ),
                       )
                       .toList(),
-                  onChanged: (value) =>
-                      setState(() => _role = value ?? 'STAFF'),
+                  onChanged: (value) => _setRole(value ?? 'STAFF'),
                 )
               else
                 TextFormField(
                   initialValue: _roleTitle(_role),
                   enabled: false,
-                  decoration: const InputDecoration(labelText: 'Quyền'),
+                  decoration: const InputDecoration(
+                    labelText: 'Quyền hệ thống',
+                  ),
                 ),
+              DropdownButtonFormField<String?>(
+                initialValue: _departmentCode,
+                decoration: const InputDecoration(labelText: 'Phòng ban'),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Chưa gán'),
+                  ),
+                  ...widget.departments.map(
+                    (department) => DropdownMenuItem<String?>(
+                      value: department.code,
+                      child: Text(department.title),
+                    ),
+                  ),
+                ],
+                onChanged: (value) => setState(() => _departmentCode = value),
+              ),
+              DropdownButtonFormField<String?>(
+                initialValue: _jobRoleCode,
+                decoration: const InputDecoration(labelText: 'Chức danh'),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Chưa gán'),
+                  ),
+                  ...widget.jobRoles.map(
+                    (jobRole) => DropdownMenuItem<String?>(
+                      value: jobRole.code,
+                      child: Text(jobRole.title),
+                    ),
+                  ),
+                ],
+                onChanged: (value) => setState(() => _jobRoleCode = value),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: _workScopeType,
+                decoration: const InputDecoration(labelText: 'Phạm vi'),
+                items: AdminWorkScopes.definitions
+                    .map(
+                      (scope) => DropdownMenuItem(
+                        value: scope.value,
+                        child: Text(scope.title),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) =>
+                    setState(() => _workScopeType = value ?? 'STORE'),
+              ),
+              TextFormField(
+                key: ValueKey(
+                  '${widget.user?.personnelCode}|$_jobRoleCode|$_workScopeType|$_storeId',
+                ),
+                initialValue: _previewPersonnelCode(
+                  _jobRoleCode,
+                  _workScopeType,
+                ),
+                enabled: false,
+                decoration: const InputDecoration(labelText: 'Mã nhân sự'),
+              ),
               DropdownButtonFormField<String>(
                 initialValue: _status,
                 decoration: const InputDecoration(labelText: 'Trạng thái'),

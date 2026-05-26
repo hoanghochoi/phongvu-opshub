@@ -40,10 +40,13 @@ class AuthProvider extends ChangeNotifier {
       final storeName = prefs.getString('user_storeName');
       final role = prefs.getString('user_role');
       final status = prefs.getString('user_status');
+      final departmentCode = prefs.getString('user_departmentCode');
+      final jobRoleCode = prefs.getString('user_jobRoleCode');
+      final workScopeType = prefs.getString('user_workScopeType');
+      final personnelCode = prefs.getString('user_personnelCode');
       final token = await _readSavedToken(prefs);
 
       if (email != null) {
-        final canSkipStoreSelection = role == 'ADMIN' || role == 'SUPER_ADMIN';
         _user = User(
           email: email,
           name: name,
@@ -53,7 +56,17 @@ class AuthProvider extends ChangeNotifier {
           storeName: storeName,
           role: role,
           status: status,
-          mustSelectStore: !canSkipStoreSelection && storeId == null,
+          departmentCode: departmentCode,
+          jobRoleCode: jobRoleCode,
+          workScopeType: workScopeType,
+          personnelCode: personnelCode,
+          mustSelectStore:
+              (workScopeType ??
+                      (role == 'ADMIN' || role == 'SUPER_ADMIN'
+                          ? 'NATIONAL'
+                          : 'STORE')) ==
+                  'STORE' &&
+              storeId == null,
         );
 
         // Restore JWT token to ApiClient for authenticated API calls
@@ -106,6 +119,22 @@ class AuthProvider extends ChangeNotifier {
       if (user.status != null) {
         await prefs.setString('user_status', user.status!);
       }
+      await _saveOptionalString(
+        prefs,
+        'user_departmentCode',
+        user.departmentCode,
+      );
+      await _saveOptionalString(prefs, 'user_jobRoleCode', user.jobRoleCode);
+      await _saveOptionalString(
+        prefs,
+        'user_workScopeType',
+        user.workScopeType,
+      );
+      await _saveOptionalString(
+        prefs,
+        'user_personnelCode',
+        user.personnelCode,
+      );
       if (token != null) {
         await _secureStorage.write(key: _jwtTokenKey, value: token);
         await prefs.remove(_jwtTokenKey);
@@ -127,11 +156,27 @@ class AuthProvider extends ChangeNotifier {
       await prefs.remove('user_storeName');
       await prefs.remove('user_role');
       await prefs.remove('user_status');
+      await prefs.remove('user_departmentCode');
+      await prefs.remove('user_jobRoleCode');
+      await prefs.remove('user_workScopeType');
+      await prefs.remove('user_personnelCode');
       await prefs.remove(_jwtTokenKey);
       await _secureStorage.delete(key: _jwtTokenKey);
       ApiClient().setAuthToken(null);
     } catch (e) {
       if (kDebugMode) debugPrint('❌ [AuthProvider] Error clearing session: $e');
+    }
+  }
+
+  Future<void> _saveOptionalString(
+    SharedPreferences prefs,
+    String key,
+    String? value,
+  ) async {
+    if (value != null && value.trim().isNotEmpty) {
+      await prefs.setString(key, value);
+    } else {
+      await prefs.remove(key);
     }
   }
 
