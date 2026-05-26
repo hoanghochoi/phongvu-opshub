@@ -13,7 +13,7 @@ import '../../domain/payment_notification.dart';
 class PaymentMonitorProvider extends ChangeNotifier {
   static const _pollInterval = Duration(seconds: 5);
   static const _startupNotificationLookback = Duration(minutes: 15);
-  static const _enabledPreferenceKey = 'payment_monitor_enabled';
+  static const _speakerEnabledPreferenceKey = 'payment_monitor_enabled';
 
   final PaymentMonitorRepository _repository;
   final PaymentSpeaker _speaker;
@@ -34,15 +34,15 @@ class PaymentMonitorProvider extends ChangeNotifier {
   int _pageSize = 10;
   int _totalTransactions = 0;
   bool _loggedMonitorStarted = false;
-  bool _isEnabled = true;
-  bool _isEnabledPreferenceLoaded = false;
+  bool _isSpeakerEnabled = true;
+  bool _isSpeakerPreferenceLoaded = false;
 
   PaymentMonitorProvider(this._repository, this._speaker) {
     _loadEnabledPreference();
   }
 
   bool get isActive => _isActive;
-  bool get isEnabled => _isEnabled;
+  bool get isSpeakerEnabled => _isSpeakerEnabled;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   DateTime? get lastCheckedAt => _lastCheckedAt;
@@ -60,43 +60,36 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   void syncAuth(User? user, {required bool isInitialized}) {
     _user = user;
-    if (!_isEnabledPreferenceLoaded) return;
+    if (!_isSpeakerPreferenceLoaded) return;
     if (!isInitialized || user == null || !_canMonitorOnThisDevice) {
       _stop(reason: 'auth_or_device_unavailable');
-      return;
-    }
-    if (!_isEnabled) {
-      _stop(reason: 'disabled');
       return;
     }
     _reconcile();
   }
 
-  Future<void> setEnabled(bool value) async {
-    if (_isEnabled == value) return;
-    _isEnabled = value;
-    _isEnabledPreferenceLoaded = true;
+  Future<void> setSpeakerEnabled(bool value) async {
+    if (_isSpeakerEnabled == value) return;
+    _isSpeakerEnabled = value;
+    _isSpeakerPreferenceLoaded = true;
     _errorMessage = null;
     notifyListeners();
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_enabledPreferenceKey, value);
+    await prefs.setBool(_speakerEnabledPreferenceKey, value);
     await AppLogger.instance.info(
       'PaymentMonitor',
       value
-          ? 'Payment background notifications enabled'
-          : 'Payment background notifications disabled',
+          ? 'Payment notification speaker enabled'
+          : 'Payment notification speaker muted',
       context: {
         'storeId': _requestStoreId ?? _user?.storeId,
         'hasScope': _hasMonitorScope,
+        'syncActive': _isActive,
       },
     );
 
-    if (value) {
-      _reconcile();
-    } else {
-      _stop(reason: 'user_disabled');
-    }
+    _reconcile();
   }
 
   void setStoreOverride(String value) {
@@ -137,14 +130,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
   Future<void> _loadEnabledPreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final enabled = prefs.getBool(_enabledPreferenceKey);
-      _isEnabled = enabled ?? true;
-      _isEnabledPreferenceLoaded = true;
-      if (_isEnabled) {
-        _reconcile();
-      } else {
-        _stop(reason: 'saved_preference_disabled');
-      }
+      final enabled = prefs.getBool(_speakerEnabledPreferenceKey);
+      _isSpeakerEnabled = enabled ?? true;
+      _isSpeakerPreferenceLoaded = true;
+      _reconcile();
       notifyListeners();
     } catch (error, stackTrace) {
       await AppLogger.instance.warn(
@@ -175,8 +164,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   void _reconcile() {
-    if (!_isEnabled || !_canMonitorOnThisDevice) {
-      _stop(reason: !_isEnabled ? 'disabled' : 'unsupported_device');
+    if (!_canMonitorOnThisDevice) {
+      _stop(reason: 'unsupported_device');
       return;
     }
     if (!_hasMonitorScope) {
@@ -226,7 +215,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   Future<void> _poll() async {
-    if (_isLoading || !_isEnabled || !_hasMonitorScope) return;
+    if (_isLoading || !_canMonitorOnThisDevice || !_hasMonitorScope) return;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -275,7 +264,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           storeCode: _requestStoreId,
         );
       }
-      await _playReadyNotifications(notifications, clientId);
+      await _handleReadyNotifications(notifications, clientId);
 
       _lastCheckedAt = DateTime.now();
       _pageIndex = transactionPage.page;
@@ -323,11 +312,50 @@ class PaymentMonitorProvider extends ChangeNotifier {
     return value;
   }
 
-  Future<void> _playReadyNotifications(
+  Future<void> _handleReadyNotifications(
     List<PaymentNotification> notifications,
     String clientId,
   ) async {
     if (notifications.isEmpty) return;
+    if (!_isSpeakerEnabled) {
+      await _silenceReadyNotifications(notifications, clientId);
+      return;
+    }
+    await _playReadyNotifications(notifications, clientId);
+  }
+
+  Future<void> _silenceReadyNotifications(
+    List<PaymentNotification> notifications,
+    String clientId,
+  ) async {
+    final storeCode = _requestStoreId ?? _user?.storeId;
+    await AppLogger.instance.info(
+      'PaymentMonitor',
+      'Payment notifications silenced while transaction sync remains active',
+      context: {
+        'count': notifications.length,
+        'clientId': clientId,
+        'storeCode': storeCode,
+        'notificationIds': notifications
+            .map((notification) => notification.notificationId)
+            .toList(),
+      },
+    );
+
+    for (final notification in notifications) {
+      if (!_seenNotificationIds.add(notification.notificationId)) continue;
+      await _repository.acknowledgeNotification(
+        notificationId: notification.notificationId,
+        clientId: clientId,
+        event: 'SILENCED',
+      );
+    }
+  }
+
+  Future<void> _playReadyNotifications(
+    List<PaymentNotification> notifications,
+    String clientId,
+  ) async {
     final storeCode = _requestStoreId ?? _user?.storeId;
     await AppLogger.instance.info(
       'PaymentMonitor',
