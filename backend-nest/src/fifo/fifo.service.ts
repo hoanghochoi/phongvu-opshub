@@ -8,6 +8,7 @@ import { FifoLogType } from '@prisma/client';
 import { FifoLogService } from '../fifo-log/fifo-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  DISPLAY_RESERVED_BIN_TYPE,
   FifoInventoryItem,
   ManualInventoryImportResult,
   OpshubFifoInventoryService,
@@ -25,8 +26,10 @@ export type FifoCheckResult =
       mode: 'serial';
       query: string;
       srCode: string;
-      status: 'correct' | 'wrong' | 'exported' | 'not_found';
+      status: 'correct' | 'wrong' | 'display_reserved' | 'exported' | 'not_found';
       message: string;
+      fifoDateDeltaDays?: number | null;
+      fifoToleranceDays?: number;
       item?: FifoItemResponse;
       suggestedItem?: FifoItemResponse;
     };
@@ -92,7 +95,20 @@ export class FifoService {
         query: text,
         srCode,
         status: 'not_found',
-        message: `Không tìm thấy serial/SKU trong SR ${srCode}`,
+        message: 'Không tìm thấy',
+      };
+      await this.log(user, text, srCode, result.message, result);
+      return result;
+    }
+
+    if (item.binType === DISPLAY_RESERVED_BIN_TYPE) {
+      const result: FifoCheckResult = {
+        mode: 'serial',
+        query: text,
+        srCode,
+        status: 'display_reserved',
+        message: 'Hàng trưng bày chỉ định',
+        item: this.formatItem(item, 0),
       };
       await this.log(user, text, srCode, result.message, result);
       return result;
@@ -104,7 +120,7 @@ export class FifoService {
         query: text,
         srCode,
         status: 'exported',
-        message: 'Serial này đã được đánh dấu xuất kho',
+        message: 'Đã xuất kho',
         item: this.formatItem(item, 0),
       };
       await this.log(user, text, srCode, result.message, result);
@@ -115,15 +131,22 @@ export class FifoService {
       srCode,
       item.sku,
     );
-    const isCorrect = oldest?.id === item.id;
+    const toleranceDays = this.getFifoDateToleranceDays();
+    const deltaDays = oldest
+      ? this.diffCalendarDays(item.importDate, oldest.importDate)
+      : null;
+    const isCorrect =
+      !oldest ||
+      oldest.id === item.id ||
+      (deltaDays !== null && deltaDays <= toleranceDays);
     const result: FifoCheckResult = {
       mode: 'serial',
       query: text,
       srCode,
       status: isCorrect ? 'correct' : 'wrong',
-      message: isCorrect
-        ? 'Đúng FIFO'
-        : 'Sai FIFO - cần lấy sản phẩm cũ hơn trước',
+      message: isCorrect ? 'Đúng FIFO' : 'Sai FIFO',
+      fifoDateDeltaDays: deltaDays,
+      fifoToleranceDays: toleranceDays,
       item: this.formatItem(item, 0),
       ...(isCorrect || !oldest
         ? {}
@@ -255,6 +278,27 @@ export class FifoService {
     const text = String(value || '').trim();
     if (!text) throw new BadRequestException('Missing inventory id');
     return text;
+  }
+
+  private getFifoDateToleranceDays() {
+    const raw = process.env.FIFO_DATE_TOLERANCE_DAYS?.trim() || '20';
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 20;
+  }
+
+  private diffCalendarDays(current: Date | null, oldest: Date | null) {
+    if (!current || !oldest) return null;
+    const currentUtc = Date.UTC(
+      current.getUTCFullYear(),
+      current.getUTCMonth(),
+      current.getUTCDate(),
+    );
+    const oldestUtc = Date.UTC(
+      oldest.getUTCFullYear(),
+      oldest.getUTCMonth(),
+      oldest.getUTCDate(),
+    );
+    return Math.abs(Math.round((currentUtc - oldestUtc) / 86_400_000));
   }
 
   private assertInventoryImportAdmin(user: any) {

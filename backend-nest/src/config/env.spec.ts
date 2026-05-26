@@ -35,13 +35,44 @@ describe('env validation', () => {
     ).toThrow('Invalid REDIS_PORT value: 70000');
   });
 
-  it('requires complete BigQuery config when any BigQuery value is set', () => {
+  it('requires complete FIFO BigQuery config when any FIFO BigQuery value is set', () => {
     expect(() =>
       validateRuntimeEnv({
         ...baseEnv,
         BIGQUERY_PROJECT_ID: 'project-id',
       }),
-    ).toThrow('Incomplete BigQuery configuration');
+    ).toThrow('Incomplete FIFO BigQuery configuration');
+  });
+
+  it('allows FIFO BigQuery config without enabling legacy data sync', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        BIGQUERY_PROJECT_ID: 'project-id',
+        BIGQUERY_FIFO_DATASET_ID: 'fifo_dataset',
+        BIGQUERY_FIFO_TABLE_ID: 'fifo_table',
+      }),
+    ).not.toThrow();
+  });
+
+  it('allows FIFO BigQuery config from price watchdog env names', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        PRICE_WATCHDOG_BIGQUERY_PROJECT_ID: 'project-id',
+        PRICE_WATCHDOG_BIGQUERY_DATASET: 'Inventory',
+        PRICE_WATCHDOG_BIGQUERY_TABLE: 'inv_seri_1',
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects invalid FIFO date tolerance values', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        FIFO_DATE_TOLERANCE_DAYS: 'twenty',
+      }),
+    ).toThrow('Invalid FIFO_DATE_TOLERANCE_DAYS value: twenty');
   });
 
   it('allows production local data sync without BigQuery config', () => {

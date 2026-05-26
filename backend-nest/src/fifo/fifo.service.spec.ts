@@ -21,6 +21,7 @@ describe('FifoService', () => {
   };
 
   beforeEach(() => {
+    delete process.env.FIFO_DATE_TOLERANCE_DAYS;
     prisma = {
       store: { findUnique: jest.fn().mockResolvedValue({ storeId: 'CP01' }) },
     };
@@ -67,25 +68,82 @@ describe('FifoService', () => {
     expect(inventory.findBySku).toHaveBeenCalledWith('CP01', 'SKU1', true);
   });
 
-  it('checks serial FIFO against oldest active item in the same SR', async () => {
+  it('returns correct for the oldest serial', async () => {
+    inventory.findBySku.mockResolvedValue([]);
+    inventory.findBySerial.mockResolvedValue(item({ id: 'oldest' }));
+    inventory.findOldestActiveForSku.mockResolvedValue(item({ id: 'oldest' }));
+
+    await expect(service.check(user, { text: 'S1' })).resolves.toMatchObject({
+      mode: 'serial',
+      status: 'correct',
+      message: 'Đúng FIFO',
+      fifoDateDeltaDays: 0,
+      fifoToleranceDays: 20,
+    });
+  });
+
+  it('returns correct when serial is within the 20 day FIFO tolerance', async () => {
     inventory.findBySku.mockResolvedValue([]);
     inventory.findBySerial.mockResolvedValue(
-      item({ id: 'newer', serialNumber: 'S2' }),
+      item({ id: 'newer', serialNumber: 'S2', importDate: date('2026-03-21') }),
     );
     inventory.findOldestActiveForSku.mockResolvedValue(
-      item({ id: 'oldest', serialNumber: 'S1' }),
+      item({ id: 'oldest', serialNumber: 'S1', importDate: date('2026-03-01') }),
+    );
+
+    await expect(service.check(user, { text: 'S2' })).resolves.toMatchObject({
+      mode: 'serial',
+      status: 'correct',
+      message: 'Đúng FIFO',
+      fifoDateDeltaDays: 20,
+    });
+  });
+
+  it('returns wrong and suggests the oldest item when serial is beyond tolerance', async () => {
+    inventory.findBySku.mockResolvedValue([]);
+    inventory.findBySerial.mockResolvedValue(
+      item({ id: 'newer', serialNumber: 'S2', importDate: date('2026-03-22') }),
+    );
+    inventory.findOldestActiveForSku.mockResolvedValue(
+      item({ id: 'oldest', serialNumber: 'S1', importDate: date('2026-03-01') }),
     );
 
     await expect(service.check(user, { text: 'S2' })).resolves.toMatchObject({
       mode: 'serial',
       status: 'wrong',
+      message: 'Sai FIFO',
+      fifoDateDeltaDays: 21,
       suggestedItem: { id: 'oldest', serial_number: 'S1' },
     });
-    expect(inventory.findBySerial).toHaveBeenCalledWith('CP01', 'S2', true);
-    expect(inventory.findOldestActiveForSku).toHaveBeenCalledWith(
-      'CP01',
-      'SKU1',
+  });
+
+  it('does not use tolerance when a FIFO date is missing', async () => {
+    inventory.findBySku.mockResolvedValue([]);
+    inventory.findBySerial.mockResolvedValue(
+      item({ id: 'newer', serialNumber: 'S2', importDate: null }),
     );
+    inventory.findOldestActiveForSku.mockResolvedValue(
+      item({ id: 'oldest', serialNumber: 'S1', importDate: date('2026-03-01') }),
+    );
+
+    await expect(service.check(user, { text: 'S2' })).resolves.toMatchObject({
+      status: 'wrong',
+      fifoDateDeltaDays: null,
+    });
+  });
+
+  it('returns display_reserved for display-reserved serials', async () => {
+    inventory.findBySku.mockResolvedValue([]);
+    inventory.findBySerial.mockResolvedValue(
+      item({ id: 'display', binType: 'Hàng trưng bày chỉ định' }),
+    );
+
+    await expect(service.check(user, { text: 'S1' })).resolves.toMatchObject({
+      mode: 'serial',
+      status: 'display_reserved',
+      message: 'Hàng trưng bày chỉ định',
+    });
+    expect(inventory.findOldestActiveForSku).not.toHaveBeenCalled();
   });
 
   it('returns exported status for an exported serial so it can be unmarked', async () => {
@@ -160,19 +218,19 @@ describe('FifoService', () => {
   it('allows ADMIN users to import manual inventory', async () => {
     inventory.importManualInventory.mockResolvedValue({
       importedRows: 2,
-      deactivatedRows: 1,
+      deactivatedRows: 0,
       srCodes: ['CP62'],
     });
 
     await expect(
       service.importManualInventory(
         { ...user, role: 'ADMIN' },
-        [item({ id: 'CP62:S1', srCode: 'CP62' }) as any],
+        [canonicalItem({ itemKey: 'CP62:S1', branchId: 'CP62' })],
         { fileName: 'inventory.xlsx', totalRows: 2, skippedRows: 0 },
       ),
     ).resolves.toMatchObject({
       importedRows: 2,
-      deactivatedRows: 1,
+      deactivatedRows: 0,
       skippedRows: 0,
       totalRows: 2,
       srCodes: ['CP62'],
@@ -183,7 +241,7 @@ describe('FifoService', () => {
     await expect(
       service.importManualInventory(
         { ...user, role: 'MANAGER' },
-        [item({ id: 'CP62:S1', srCode: 'CP62' }) as any],
+        [canonicalItem({ itemKey: 'CP62:S1', branchId: 'CP62' })],
         { fileName: 'inventory.xlsx', totalRows: 1, skippedRows: 0 },
       ),
     ).rejects.toThrow('Chỉ ADMIN trở lên');
@@ -204,8 +262,50 @@ function itemBase() {
     serialNumber: 'S1',
     bin: 'BIN-A',
     zone: 'Z1',
-    importDate: new Date('2026-04-01T00:00:00.000Z'),
+    binType: 'Hàng bán mới tại kho',
+    importDate: date('2026-03-01'),
+    dateImportCompany: date('2026-03-01'),
+    dateImportSite: date('2026-03-01'),
     count: 1,
     exported: false,
+    source: 'bigquery',
   };
+}
+
+function canonicalItem(overrides: Record<string, unknown> = {}) {
+  return {
+    itemKey: 'CP62:S1',
+    serial: 'S1',
+    sku: 'SKU1',
+    skuName: 'Product 1',
+    branchId: 'CP62',
+    branchName: 'Branch 62',
+    brand: null,
+    categoryId: null,
+    categoryName: null,
+    subCategoryId: null,
+    subCategoryName: null,
+    subcatIdLowestLevel: null,
+    subcatNameLowestLevel: null,
+    location: 'BIN-A',
+    binType: 'Hàng bán mới tại kho',
+    binZone: 'Z1',
+    dateImportCompany: null,
+    dateImportSite: date('2026-03-01'),
+    agingCompany: null,
+    badStockCompany: null,
+    agingSite: null,
+    stockDaySite: null,
+    badStockSite: null,
+    stockDayCompany: null,
+    purchaseStatus: null,
+    inventory: 1,
+    inventoryAmount: null,
+    manualPayload: null,
+    ...overrides,
+  } as any;
+}
+
+function date(value: string) {
+  return new Date(`${value}T00:00:00.000Z`);
 }

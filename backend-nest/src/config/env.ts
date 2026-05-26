@@ -106,6 +106,7 @@ export function validateRuntimeEnv(env: EnvMap = process.env): void {
   getPort(env);
   getDataSyncSource(env);
   validateRedisPort(env);
+  validateFifoDateTolerance(env);
   validateAllowedOrigins(env);
   validateBigQueryEnv(env);
   validateProductionPlaceholders(env);
@@ -119,20 +120,72 @@ function validateRedisPort(env: EnvMap): void {
   }
 }
 
-function validateBigQueryEnv(env: EnvMap): void {
-  const configured = BIGQUERY_RUNTIME_KEYS.filter((key) =>
-    getEnvValue(env, key),
-  );
-  const usesBigQuery = getDataSyncSource(env) === 'bigquery';
+function validateFifoDateTolerance(env: EnvMap): void {
+  const raw = getEnvValue(env, 'FIFO_DATE_TOLERANCE_DAYS');
+  if (!raw) return;
+  const days = Number(raw);
+  if (!Number.isInteger(days) || days < 0 || days > 365) {
+    throw new Error(`Invalid FIFO_DATE_TOLERANCE_DAYS value: ${raw}`);
+  }
+}
 
-  if (configured.length === 0 && !usesBigQuery) {
+function validateBigQueryEnv(env: EnvMap): void {
+  const usesLegacyBigQuery = getDataSyncSource(env) === 'bigquery';
+
+  if (usesLegacyBigQuery) {
+    const missing = BIGQUERY_RUNTIME_KEYS.filter(
+      (key) => !getEnvValue(env, key),
+    );
+    if (missing.length > 0) {
+      throw new Error(
+        `Incomplete BigQuery configuration. Missing: ${missing.join(', ')}`,
+      );
+    }
+  }
+
+  const fifoConfigured = [
+    'BIGQUERY_PROJECT_ID',
+    'BIGQUERY_DATASET_ID',
+    'BIGQUERY_TABLE_ID',
+    'BIGQUERY_FIFO_DATASET_ID',
+    'BIGQUERY_FIFO_TABLE_ID',
+    'PRICE_WATCHDOG_BIGQUERY_PROJECT_ID',
+    'PRICE_WATCHDOG_BIGQUERY_DATASET',
+    'PRICE_WATCHDOG_BIGQUERY_TABLE',
+  ].some((key) => getEnvValue(env, key));
+  if (!fifoConfigured) {
     return;
   }
 
-  const missing = BIGQUERY_RUNTIME_KEYS.filter((key) => !getEnvValue(env, key));
+  const missing: string[] = [];
+  if (
+    !getEnvValue(env, 'BIGQUERY_PROJECT_ID') &&
+    !getEnvValue(env, 'PRICE_WATCHDOG_BIGQUERY_PROJECT_ID')
+  ) {
+    missing.push('BIGQUERY_PROJECT_ID or PRICE_WATCHDOG_BIGQUERY_PROJECT_ID');
+  }
+  if (
+    !getEnvValue(env, 'BIGQUERY_FIFO_DATASET_ID') &&
+    !getEnvValue(env, 'BIGQUERY_DATASET_ID') &&
+    !getEnvValue(env, 'PRICE_WATCHDOG_BIGQUERY_DATASET')
+  ) {
+    missing.push(
+      'BIGQUERY_FIFO_DATASET_ID or BIGQUERY_DATASET_ID or PRICE_WATCHDOG_BIGQUERY_DATASET',
+    );
+  }
+  if (
+    !getEnvValue(env, 'BIGQUERY_FIFO_TABLE_ID') &&
+    !getEnvValue(env, 'BIGQUERY_TABLE_ID') &&
+    !getEnvValue(env, 'PRICE_WATCHDOG_BIGQUERY_TABLE')
+  ) {
+    missing.push(
+      'BIGQUERY_FIFO_TABLE_ID or BIGQUERY_TABLE_ID or PRICE_WATCHDOG_BIGQUERY_TABLE',
+    );
+  }
+
   if (missing.length > 0) {
     throw new Error(
-      `Incomplete BigQuery configuration. Missing: ${missing.join(', ')}`,
+      `Incomplete FIFO BigQuery configuration. Missing: ${missing.join(', ')}`,
     );
   }
 }

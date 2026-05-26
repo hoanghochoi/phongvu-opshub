@@ -292,6 +292,7 @@ class _SerialResult extends StatelessWidget {
       'correct' => Colors.green,
       'wrong' => Colors.red,
       'exported' => Colors.grey,
+      'display_reserved' => Colors.orange,
       _ => Colors.orange,
     };
 
@@ -331,7 +332,7 @@ class _SerialResult extends StatelessWidget {
             onExportChanged: onExportChanged,
           ),
         ],
-        if (result.suggestedItem != null) ...[
+        if (_shouldShowSuggestedItem(result)) ...[
           const SizedBox(height: 16),
           Text(
             'Sản phẩm cần lấy trước',
@@ -352,10 +353,16 @@ class _SerialResult extends StatelessWidget {
     );
   }
 
+  bool _shouldShowSuggestedItem(FifoCheckResult result) {
+    return const bool.fromEnvironment('FIFO_SHOW_SUGGESTED_ITEM') &&
+        result.suggestedItem != null;
+  }
+
   IconData _statusIcon(String? status) {
     return switch (status) {
       'correct' => Icons.check_circle_rounded,
       'wrong' => Icons.error_rounded,
+      'display_reserved' => Icons.storefront_rounded,
       'exported' => Icons.inventory_2_rounded,
       _ => Icons.search_off_rounded,
     };
