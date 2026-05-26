@@ -51,8 +51,8 @@ a customer to scan and pay manually.
   showroom scope. It seeds currently visible server transactions silently so old
   rows are not announced again.
 - While the app is running, the PC polls OpsHub every 5 seconds. Each newly
-  observed successful incoming transaction is announced through the Windows
-  speech engine as `Đã nhận <amount> đồng`.
+  observed successful incoming transaction is announced through generated audio
+  as `Phong Vũ đã nhận: <amount> đồng`.
 - Turning off `Đọc thông báo tiền vào` mutes only the speaker path. The PC keeps
   polling/syncing transactions every 5 seconds, and muted notifications are
   recorded as `SILENCED` so they are not played later as backlog.
@@ -64,8 +64,9 @@ a customer to scan and pay manually.
   the backend to their assigned showroom.
 - New incoming transaction audio is delivered through backend-generated payment
   notifications. The backend stores notification/audit rows, optionally calls a
-  server-side TTS service, publishes a scoped realtime event, and serves audio
-  only through JWT-protected endpoints. The Windows app plays
+  server-side TTS service with VieNEU voice id `custom:suong-vo` (`Suong Vo`)
+  at speed `0.98` and pitch `1.00`, publishes a scoped realtime event, and
+  serves audio only through JWT-protected endpoints. The Windows app plays
   `data/ting ting.mp3` before the generated audio, then falls back to local
   Windows speech if the server audio is unavailable.
 - Payment notification audio is cleaned after 7 days, delivery/app logs after

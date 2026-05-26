@@ -49,7 +49,7 @@ describe('PaymentNotificationsService', () => {
       storeCode: 'CP01',
       transactionId: 'txn-1',
       amount: 1250000,
-      text: 'Đã nhận một triệu hai trăm năm mươi nghìn đồng',
+      text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng',
       audioStatus: 'PENDING',
       audioError: null,
     });
@@ -58,7 +58,7 @@ describe('PaymentNotificationsService', () => {
       storeCode: 'CP01',
       transactionId: 'txn-1',
       amount: 1250000,
-      text: 'Đã nhận một triệu hai trăm năm mươi nghìn đồng',
+      text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng',
       audioStatus: 'FAILED',
       audioError: 'TTS_SERVICE_URL is not configured',
     });
@@ -76,7 +76,7 @@ describe('PaymentNotificationsService', () => {
           storeCode: 'CP01',
           transactionId: 'txn-1',
           amount: 1250000,
-          text: 'Đã nhận một triệu hai trăm năm mươi nghìn đồng',
+          text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng',
         }),
       }),
     );
@@ -90,6 +90,55 @@ describe('PaymentNotificationsService', () => {
         audioUrl: null,
       }),
     );
+  });
+
+  it('sends Phong Vu payment text with the Suong Vo VieNEU voice settings', async () => {
+    process.env.TTS_SERVICE_URL = 'http://vieneu-tts:8000';
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 500,
+    } as Response);
+    prisma.paymentNotification.findUnique.mockResolvedValue(null);
+    prisma.paymentNotification.create.mockResolvedValue({
+      id: 'note-voice',
+      storeCode: 'CP01',
+      transactionId: 'txn-voice',
+      amount: 28756321,
+      text: 'Phong Vũ đã nhận: hai mươi tám triệu bảy trăm năm mươi sáu nghìn ba trăm hai mươi mốt đồng',
+      audioStatus: 'PENDING',
+      audioError: null,
+    });
+    prisma.paymentNotification.update.mockResolvedValue({
+      id: 'note-voice',
+      storeCode: 'CP01',
+      transactionId: 'txn-voice',
+      amount: 28756321,
+      audioStatus: 'FAILED',
+      audioError: 'TTS returned HTTP 500',
+    });
+    prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({});
+
+    await service.createForTransaction({
+      id: 'txn-voice',
+      storeCode: 'CP01',
+      amount: 28756321,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://vieneu-tts:8000/synthesize',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    const [, request] = fetchMock.mock.calls[0];
+    expect(JSON.parse(String((request as RequestInit).body))).toEqual({
+      text: 'Phong Vũ đã nhận: hai mươi tám triệu bảy trăm năm mươi sáu nghìn ba trăm hai mươi mốt đồng',
+      format: 'mp3',
+      voice_id: 'custom:suong-vo',
+      speed: 0.98,
+      pitch: 1.0,
+    });
   });
 
   it('blocks audio access outside the signed-in user store', async () => {

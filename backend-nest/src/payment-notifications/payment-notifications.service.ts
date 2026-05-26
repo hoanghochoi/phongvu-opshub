@@ -26,6 +26,9 @@ const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 const DEFAULT_AUDIO_RETENTION_DAYS = 7;
 const DEFAULT_LOG_RETENTION_DAYS = 30;
 const DEFAULT_TRANSACTION_RETENTION_DAYS = 90;
+const DEFAULT_TTS_VOICE_ID = 'custom:suong-vo';
+const DEFAULT_TTS_SPEED = 0.98;
+const DEFAULT_TTS_PITCH = 1.0;
 
 type StoredTransaction = {
   id: string;
@@ -56,7 +59,7 @@ export class PaymentNotificationsService {
     });
     if (existing) return existing;
 
-    const text = `Đã nhận ${vietnameseAmountWords(transaction.amount)} đồng`;
+    const text = `Phong Vũ đã nhận: ${vietnameseAmountWords(transaction.amount)} đồng`;
     const expiresAt = this.daysFromNow(this.audioRetentionDays());
     let notification = await this.prisma.paymentNotification.create({
       data: {
@@ -249,7 +252,13 @@ export class PaymentNotificationsService {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, format: 'mp3' }),
+          body: JSON.stringify({
+            text,
+            format: 'mp3',
+            voice_id: this.ttsVoiceId(),
+            speed: this.ttsSpeed(),
+            pitch: this.ttsPitch(),
+          }),
           signal: controller.signal,
         },
       ).finally(() => clearTimeout(timeout));
@@ -407,11 +416,28 @@ export class PaymentNotificationsService {
     return this.readPositiveInt('TTS_TIMEOUT_MS', 20_000);
   }
 
+  private ttsVoiceId() {
+    return process.env.TTS_VOICE_ID?.trim() || DEFAULT_TTS_VOICE_ID;
+  }
+
+  private ttsSpeed() {
+    return this.readPositiveNumber('TTS_SPEED', DEFAULT_TTS_SPEED);
+  }
+
+  private ttsPitch() {
+    return this.readPositiveNumber('TTS_PITCH', DEFAULT_TTS_PITCH);
+  }
+
   private readPositiveInt(key: string, fallback: number) {
     const parsed = Number(process.env[key]);
     return Number.isFinite(parsed) && parsed > 0
       ? Math.trunc(parsed)
       : fallback;
+  }
+
+  private readPositiveNumber(key: string, fallback: number) {
+    const parsed = Number(process.env[key]);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   }
 
   private daysFromNow(days: number) {
