@@ -84,6 +84,7 @@ backend-go/tmp/
 backend-go/bin/
 uploads/
 app_images/
+exports/
 tmp/
 
 # Harness durable layer
