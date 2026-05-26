@@ -73,7 +73,7 @@ class AdminRoles {
     AdminRoleDefinition(
       value: 'ADMIN',
       title: 'Admin',
-      description: 'Quản lý user theo phạm vi',
+      description: 'Quản lý người dùng theo phạm vi',
       icon: Icons.admin_panel_settings_outlined,
       color: Color(0xFF2563EB),
     ),

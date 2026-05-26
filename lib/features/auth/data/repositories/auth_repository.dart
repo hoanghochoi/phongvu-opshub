@@ -26,7 +26,7 @@ class AuthRepository {
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException('Dang nhap that bai: $e');
+      throw ApiException('Không đăng nhập được. Vui lòng thử lại sau ít phút.');
     }
   }
 
@@ -53,7 +53,9 @@ class AuthRepository {
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException('Dang ky that bai: $e');
+      throw ApiException(
+        'Không tạo được tài khoản. Vui lòng thử lại sau ít phút.',
+      );
     }
   }
 
@@ -66,7 +68,7 @@ class AuthRepository {
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException('Không gửi được mã xác thực: $e');
+      throw ApiException('Không gửi được mã xác thực. Vui lòng thử lại.');
     }
   }
 
@@ -88,7 +90,7 @@ class AuthRepository {
 
     throw ApiException(
       _messageFromResponse(response.body) ??
-          'Request thất bại: ${response.statusCode}',
+          'Chưa thực hiện được. Vui lòng kiểm tra lại thông tin và thử lại.',
       response.statusCode,
     );
   }
@@ -119,7 +121,7 @@ class AuthRepository {
     } else if (jsonResponse is Map<String, dynamic>) {
       return jsonResponse;
     }
-    throw ApiException('Response format khong hop le');
+    throw ApiException('Dữ liệu trả về chưa hợp lệ. Vui lòng thử lại.');
   }
 
   (User, String?) _userAndTokenFromResponse(Map<String, dynamic> responseData) {
@@ -128,7 +130,7 @@ class AuthRepository {
 
     if (!loginSuccess) {
       final message =
-          responseData['message']?.toString() ?? 'Dang nhap that bai';
+          responseData['message']?.toString() ?? 'Đăng nhập không thành công';
       throw ApiException(message);
     }
 
@@ -169,7 +171,9 @@ class AuthRepository {
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException('Khong the lay thong tin user: $e');
+      throw ApiException(
+        'Không tải được thông tin tài khoản. Vui lòng thử lại.',
+      );
     }
   }
 

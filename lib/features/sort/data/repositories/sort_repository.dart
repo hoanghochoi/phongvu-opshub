@@ -64,7 +64,7 @@ class SortRepository {
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException('Gửi yêu cầu sắp xếp thất bại: $e');
+      throw ApiException('Chưa xử lý được yêu cầu sắp xếp. Vui lòng thử lại.');
     }
   }
 
@@ -84,7 +84,7 @@ class SortRepository {
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException('Gửi báo cáo sắp xếp thất bại: $e');
+      throw ApiException('Chưa lưu được kết quả sắp xếp. Vui lòng thử lại.');
     }
   }
 }

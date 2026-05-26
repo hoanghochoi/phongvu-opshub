@@ -41,7 +41,7 @@ class Validators {
 
     if (errors.isEmpty) return null;
 
-    return 'Password thiếu:\n${errors.join('\n')}';
+    return 'Mật khẩu cần có thêm:\n${errors.join('\n')}';
   }
 
   static List<String> getPasswordRequirements(String password) {

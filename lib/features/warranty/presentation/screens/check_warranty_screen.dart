@@ -85,7 +85,7 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi khi quét mã: $e'),
+            content: Text('Chưa quét được mã. Vui lòng thử lại.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -192,7 +192,7 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
                   builder: (context, warrantyProvider, _) {
                     if (warrantyProvider.isLoading) {
                       return const AppStatePanel.loading(
-                        title: 'Äang táº£i biÃªn nháº­n',
+                        title: 'Đang tải biên nhận',
                       );
                     }
 
@@ -279,7 +279,7 @@ class _ReceiptCard extends StatelessWidget {
 
   String _formatDate(String? dateString) {
     if (dateString == null || dateString.isEmpty) {
-      return 'N/A';
+      return 'Chưa có';
     }
 
     try {
@@ -319,8 +319,8 @@ class _ReceiptCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final receiptNumber = receipt['receipt']?.toString() ?? 'N/A';
-    final user = receipt['user']?.toString() ?? 'N/A';
+    final receiptNumber = receipt['receipt']?.toString() ?? 'Chưa có';
+    final user = receipt['user']?.toString() ?? 'Chưa có';
     final dateString = receipt['date']?.toString();
     final formattedDate = _formatDate(dateString);
 

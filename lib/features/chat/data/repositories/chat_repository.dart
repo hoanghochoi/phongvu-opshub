@@ -183,7 +183,7 @@ class ChatRepository {
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException('Gửi tin nhắn thất bại: $e');
+      throw ApiException('Chưa gửi được yêu cầu. Vui lòng thử lại.');
     }
   }
 }

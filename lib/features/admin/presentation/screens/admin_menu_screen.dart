@@ -19,23 +19,23 @@ class AdminMenuScreen extends StatelessWidget {
     final actions = [
       AppFeatureAction(
         icon: Icons.people_alt_outlined,
-        title: 'Quản lý user',
-        description: 'Tài khoản & chi nhánh',
+        title: 'Quản lý người dùng',
+        description: 'Tài khoản và chi nhánh',
         color: const Color(0xFF2563EB),
         onTap: () => Navigator.of(context).pushNamed('/admin/users'),
       ),
       if (isSuperAdmin)
         AppFeatureAction(
           icon: Icons.admin_panel_settings_outlined,
-          title: 'Quản lý role',
-          description: 'Quyền & phạm vi',
+          title: 'Quản lý vai trò',
+          description: 'Quyền và phạm vi',
           color: const Color(0xFF7C3AED),
           onTap: () => Navigator.of(context).pushNamed('/admin/roles'),
         ),
       AppFeatureAction(
         icon: Icons.store_mall_directory_outlined,
-        title: 'Quản lý store',
-        description: 'Chi nhánh, tài khoản CK & MAP',
+        title: 'Quản lý showroom',
+        description: 'Chi nhánh, tài khoản chuyển khoản',
         color: const Color(0xFF059669),
         onTap: () => Navigator.of(context).pushNamed('/admin/stores'),
       ),

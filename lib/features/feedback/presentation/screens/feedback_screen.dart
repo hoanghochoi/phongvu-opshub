@@ -55,7 +55,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi khi chọn ảnh: $e'),
+            content: Text('Chưa chọn được ảnh. Vui lòng thử lại.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -81,7 +81,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi khi chụp ảnh: $e'),
+            content: Text('Chưa chụp được ảnh. Vui lòng thử lại.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -201,7 +201,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           // ignore: use_build_context_synchronously
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Lỗi: ${response.statusCode}'),
+              content: Text('Chưa gửi được phản hồi. Vui lòng thử lại.'),
               backgroundColor: Colors.red,
             ),
           );
@@ -217,7 +217,10 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Chưa gửi được phản hồi. Vui lòng thử lại.'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {

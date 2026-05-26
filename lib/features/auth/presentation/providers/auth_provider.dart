@@ -204,7 +204,7 @@ class AuthProvider extends ChangeNotifier {
         upload: true,
         context: {'email': email},
       );
-      _errorMessage = 'Đăng nhập thất bại: $e';
+      _errorMessage = 'Không đăng nhập được. Vui lòng thử lại sau ít phút.';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -270,7 +270,7 @@ class AuthProvider extends ChangeNotifier {
         upload: true,
         context: {'email': email},
       );
-      _errorMessage = 'Dang ky that bai: $e';
+      _errorMessage = 'Chưa đăng ký được tài khoản. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -315,7 +315,7 @@ class AuthProvider extends ChangeNotifier {
         upload: true,
         context: {'email': email},
       );
-      _errorMessage = 'Không gửi được mã xác thực: $e';
+      _errorMessage = 'Chưa gửi được mã xác thực. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
       return false;

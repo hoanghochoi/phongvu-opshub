@@ -9,7 +9,9 @@ class ApiException implements Exception {
 }
 
 class NetworkException extends ApiException {
-  NetworkException([super.message = 'Không có kết nối. Kiểm tra mạng của bạn.']);
+  NetworkException([
+    super.message = 'Không có kết nối. Kiểm tra mạng của bạn.',
+  ]);
 }
 
 class TimeoutException extends ApiException {
@@ -17,9 +19,14 @@ class TimeoutException extends ApiException {
 }
 
 class ServerException extends ApiException {
-  ServerException([super.message = 'Lỗi server. Vui lòng thử lại sau.', super.statusCode]);
+  ServerException([
+    super.message = 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
+    super.statusCode,
+  ]);
 }
 
 class ParseException extends ApiException {
-  ParseException([super.message = 'Lỗi xử lý dữ liệu.']);
+  ParseException([
+    super.message = 'Chưa xử lý được dữ liệu. Vui lòng thử lại.',
+  ]);
 }

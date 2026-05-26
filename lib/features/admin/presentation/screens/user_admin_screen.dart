@@ -73,18 +73,25 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     if (updated == true) await _load();
   }
 
+  String _roleTitle(String? value) {
+    for (final role in _roles) {
+      if (role.value == value) return role.title;
+    }
+    return value?.isNotEmpty == true ? value! : 'Chưa gán';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: GradientHeader(
-        title: 'Quản trị user',
+        title: 'Quản lý người dùng',
         showBack: true,
         actions: [
           IconButton(
             onPressed: () => _openEditor(),
             icon: const Icon(Icons.person_add_alt_1_outlined),
-            tooltip: 'Thêm user',
+            tooltip: 'Thêm người dùng',
           ),
         ],
       ),
@@ -127,12 +134,12 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                           ),
                           title: Text(user.email),
                           subtitle: Text(
-                            '${user.role ?? ''} • ${user.storeInfo}',
+                            '${_roleTitle(user.role)} • ${user.storeInfo}',
                           ),
                           trailing: AppIconAction(
                             onPressed: () => _openEditor(user),
                             icon: Icons.edit_outlined,
-                            tooltip: 'Sửa user',
+                            tooltip: 'Sửa người dùng',
                           ),
                         );
                       },
@@ -216,10 +223,17 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     }
   }
 
+  String _roleTitle(String value) {
+    for (final role in widget.roles) {
+      if (role.value == value) return role.title;
+    }
+    return value;
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.user == null ? 'Thêm user' : 'Sửa user'),
+      title: Text(widget.user == null ? 'Thêm người dùng' : 'Sửa người dùng'),
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
@@ -244,10 +258,11 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                   initialValue: _role,
                   decoration: const InputDecoration(labelText: 'Quyền'),
                   items: widget.roles
-                      .map((role) => role.value)
                       .map(
-                        (role) =>
-                            DropdownMenuItem(value: role, child: Text(role)),
+                        (role) => DropdownMenuItem(
+                          value: role.value,
+                          child: Text(role.title),
+                        ),
                       )
                       .toList(),
                   onChanged: (value) =>
@@ -255,7 +270,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                 )
               else
                 TextFormField(
-                  initialValue: _role,
+                  initialValue: _roleTitle(_role),
                   enabled: false,
                   decoration: const InputDecoration(labelText: 'Quyền'),
                 ),

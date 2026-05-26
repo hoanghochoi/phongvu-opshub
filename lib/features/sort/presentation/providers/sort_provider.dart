@@ -169,7 +169,7 @@ class SortProvider extends ChangeNotifier {
       _skuItems = null;
       _skuGroups = null;
     } catch (e) {
-      _error = 'Lỗi không xác định: $e';
+      _error = 'Chưa xử lý được yêu cầu sắp xếp. Vui lòng thử lại.';
       _response = null;
       _skuItems = null;
       _skuGroups = null;

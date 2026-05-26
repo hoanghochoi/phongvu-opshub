@@ -54,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
               >(
                 selector: (_, auth) => (
                   userName: auth.user?.name ?? auth.user?.email ?? '',
-                  storeInfo: auth.user?.storeInfo ?? '#N/A',
+                  storeInfo: auth.user?.storeInfo ?? 'Chưa chọn showroom',
                 ),
                 builder: (context, data, _) {
                   return _CompactHomeHeader(
@@ -102,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
         AppFeatureAction(
           icon: Icons.admin_panel_settings_outlined,
           title: 'Quản trị',
-          description: 'Users & role',
+          description: 'Tài khoản & vai trò',
           color: const Color(0xFF4B5563),
           onTap: () => Navigator.of(context).pushNamed('/admin'),
         ),
@@ -131,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
         AppFeatureAction(
           icon: Icons.volume_up_rounded,
           title: 'Tiền vào',
-          description: 'Theo dõi MAP',
+          description: 'Cập nhật giao dịch',
           color: const Color(0xFF7C3AED),
           onTap: () => Navigator.of(context).pushNamed('/payment-monitor'),
         ),
@@ -323,11 +323,11 @@ class _PaymentMonitorQuickToggle extends StatelessWidget {
     final speakerEnabled = monitor.isSpeakerEnabled;
     final statusText = monitor.isActive
         ? speakerEnabled
-              ? 'Sync đang chạy, loa đang bật'
-              : 'Sync đang chạy, loa đang tắt'
+              ? 'Đang cập nhật, có đọc loa'
+              : 'Đang cập nhật, đã tắt loa'
         : canToggle
-        ? 'Sync đang khởi động'
-        : 'Cần gán showroom';
+        ? 'Đang chuẩn bị cập nhật'
+        : 'Chọn showroom để dùng';
 
     return Card(
       elevation: 0,
@@ -346,7 +346,7 @@ class _PaymentMonitorQuickToggle extends StatelessWidget {
               : const Color(0xFF6B7280),
         ),
         title: const Text(
-          'Đọc thông báo tiền vào',
+          'Đọc loa tiền vào',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         subtitle: Text(statusText),

@@ -69,7 +69,7 @@ class WarrantyProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = 'Lỗi không xác định: $e';
+      _errorMessage = 'Chưa lưu được biên nhận. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -107,7 +107,7 @@ class WarrantyProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = 'Lỗi không xác định: $e';
+      _errorMessage = 'Chưa tải được danh sách biên nhận. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -151,7 +151,7 @@ class WarrantyProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = 'Lỗi không xác định: $e';
+      _errorMessage = 'Chưa tìm được biên nhận. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -196,7 +196,7 @@ class WarrantyProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = 'Lỗi không xác định: $e';
+      _errorMessage = 'Chưa mở được chi tiết biên nhận. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
       return false;

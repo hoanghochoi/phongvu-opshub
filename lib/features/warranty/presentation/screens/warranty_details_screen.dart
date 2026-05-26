@@ -76,7 +76,7 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
         // Download from URL
         final response = await http.get(Uri.parse(imageSource));
         if (response.statusCode != 200) {
-          throw Exception('Không thể tải ảnh từ server');
+          throw Exception('Không tải được ảnh');
         }
         bytes = response.bodyBytes;
       } else {
@@ -134,7 +134,7 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi khi tải ảnh: $e'),
+            content: Text('Chưa tải được ảnh. Vui lòng thử lại.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -341,7 +341,7 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
 
   String _formatDate(String? dateString) {
     if (dateString == null || dateString.isEmpty) {
-      return 'N/A';
+      return 'Chưa có';
     }
 
     try {
@@ -401,7 +401,7 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
           builder: (context, warrantyProvider, _) {
             if (warrantyProvider.isLoading) {
               return const AppStatePanel.loading(
-                title: 'Dang tai chi tiet bien nhan',
+                title: 'Đang tải chi tiết biên nhận',
               );
             }
 
@@ -485,11 +485,11 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
                           const SizedBox(height: 16),
                           _InfoRow(
                             label: 'Biên nhận:',
-                            value: details['receipt']?.toString() ?? 'N/A',
+                            value: details['receipt']?.toString() ?? 'Chưa có',
                           ),
                           _InfoRow(
                             label: 'Người lưu:',
-                            value: details['user']?.toString() ?? 'N/A',
+                            value: details['user']?.toString() ?? 'Chưa có',
                           ),
                           _InfoRow(
                             label: 'Ngày lưu:',
@@ -633,7 +633,7 @@ class _ImageCard extends StatelessWidget {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Lỗi ảnh ${index + 1}',
+                              'Ảnh ${index + 1} chưa tải được',
                               style: TextStyle(color: Colors.grey[600]),
                             ),
                           ],
@@ -657,7 +657,7 @@ class _ImageCard extends StatelessWidget {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Lỗi ảnh ${index + 1}',
+                              'Ảnh ${index + 1} chưa tải được',
                               style: TextStyle(color: Colors.grey[600]),
                             ),
                           ],
@@ -737,7 +737,7 @@ class _ImageViewScreen extends StatelessWidget {
                         children: [
                           Icon(Icons.broken_image, size: 64, color: Colors.red),
                           SizedBox(height: 16),
-                          Text('Không thể hiển thị ảnh'),
+                          Text('Chưa hiển thị được ảnh'),
                         ],
                       ),
                     );
@@ -752,7 +752,7 @@ class _ImageViewScreen extends StatelessWidget {
                         children: [
                           Icon(Icons.broken_image, size: 64, color: Colors.red),
                           SizedBox(height: 16),
-                          Text('Không thể hiển thị ảnh'),
+                          Text('Chưa hiển thị được ảnh'),
                         ],
                       ),
                     );

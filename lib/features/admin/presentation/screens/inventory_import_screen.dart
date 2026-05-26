@@ -87,7 +87,9 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Cập nhật tồn kho thất bại: $error')),
+        const SnackBar(
+          content: Text('Chưa cập nhật được tồn kho. Vui lòng thử lại.'),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isUploading = false);

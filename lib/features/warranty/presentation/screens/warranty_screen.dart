@@ -76,7 +76,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi khi chọn ảnh: $e'),
+            content: Text('Chưa thêm được ảnh. Vui lòng thử lại.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -97,7 +97,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi khi quét mã: $e'),
+            content: Text('Chưa quét được mã. Vui lòng thử lại.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -159,7 +159,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
     if (userEmail.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Không tìm thấy thông tin người dùng'),
+          content: Text('Bạn cần đăng nhập lại để lưu biên nhận.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -183,8 +183,8 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
           barrierDismissible: false,
           builder: (context) => AlertDialog(
             icon: const Icon(Icons.check_circle, color: Colors.green, size: 64),
-            title: const Text('Thành công'),
-            content: const Text('Lưu biên nhận thành công!'),
+            title: const Text('Đã lưu biên nhận'),
+            content: const Text('Ảnh đã được lưu vào biên nhận này.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
@@ -211,9 +211,10 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
           barrierDismissible: false,
           builder: (context) => AlertDialog(
             icon: const Icon(Icons.error, color: Colors.red, size: 64),
-            title: const Text('Thất bại'),
+            title: const Text('Chưa lưu được biên nhận'),
             content: Text(
-              warrantyProvider.errorMessage ?? 'Lưu không thành công',
+              warrantyProvider.errorMessage ??
+                  'Vui lòng kiểm tra lại và thử lại.',
             ),
             actions: [
               TextButton(

@@ -39,9 +39,9 @@ class _SortScreenState extends State<SortScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Lỗi quét mã: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chưa quét được mã. Vui lòng thử lại.')),
+        );
       }
     }
   }
@@ -72,7 +72,7 @@ class _SortScreenState extends State<SortScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            '⚠️ Chức năng Sắp xếp chỉ hỗ trợ SKU hoặc BIN.\nĐể kiểm tra serial, vui lòng dùng Kiểm tra FIFO.',
+            'Sắp xếp chỉ hỗ trợ SKU hoặc BIN.\nNếu cần kiểm tra serial, vui lòng dùng Kiểm tra FIFO.',
           ),
           duration: Duration(seconds: 3),
           backgroundColor: Colors.orange,
@@ -201,8 +201,8 @@ class _SortScreenState extends State<SortScreen> {
                   return const Expanded(
                     child: AppStatePanel(
                       icon: Icons.inventory_2_outlined,
-                      title: 'Chua co ket qua sap xep',
-                      message: 'Nhap SKU hoac BIN de xem vi tri hang hoa.',
+                      title: 'Chưa có kết quả sắp xếp',
+                      message: 'Nhập SKU hoặc BIN để xem vị trí hàng hóa.',
                     ),
                   );
                 },

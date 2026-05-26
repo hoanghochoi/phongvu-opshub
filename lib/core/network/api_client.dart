@@ -29,6 +29,30 @@ class ApiClient {
     if (_authToken != null) 'Authorization': 'Bearer $_authToken',
   };
 
+  String _messageForStatus(int statusCode) {
+    if (statusCode == 401 || statusCode == 403) {
+      return 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.';
+    }
+    if (statusCode == 404) return 'Không tìm thấy dữ liệu phù hợp.';
+    if (statusCode >= 500) {
+      return 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.';
+    }
+    return 'Chưa thực hiện được. Vui lòng kiểm tra lại thông tin và thử lại.';
+  }
+
+  ApiException _exceptionForStatus(int statusCode) {
+    final message = _messageForStatus(statusCode);
+    if (statusCode >= 500) return ServerException(message, statusCode);
+    return ApiException(message, statusCode);
+  }
+
+  ApiException _unexpectedException(Object error) {
+    if (error.toString().contains('TimeoutException')) {
+      return TimeoutException();
+    }
+    return ApiException('Có lỗi xảy ra. Vui lòng thử lại sau ít phút.');
+  }
+
   Future<http.Response> get(
     String endpoint, {
     Map<String, String>? queryParameters,
@@ -50,26 +74,14 @@ class ApiClient {
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return response;
-      } else if (response.statusCode >= 500) {
-        throw ServerException(
-          'Lỗi server: ${response.statusCode}',
-          response.statusCode,
-        );
-      } else {
-        throw ApiException(
-          'Request thất bại: ${response.statusCode}',
-          response.statusCode,
-        );
       }
+      throw _exceptionForStatus(response.statusCode);
     } on SocketException {
       throw NetworkException();
     } on ApiException {
       rethrow;
     } catch (e) {
-      if (e.toString().contains('TimeoutException')) {
-        throw TimeoutException();
-      }
-      throw ApiException('Lỗi không xác định: $e');
+      throw _unexpectedException(e);
     }
   }
 
@@ -87,19 +99,13 @@ class ApiClient {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return response.bodyBytes;
       }
-      throw ApiException(
-        'Request tháº¥t báº¡i: ${response.statusCode}',
-        response.statusCode,
-      );
+      throw _exceptionForStatus(response.statusCode);
     } on SocketException {
       throw NetworkException();
     } on ApiException {
       rethrow;
     } catch (e) {
-      if (e.toString().contains('TimeoutException')) {
-        throw TimeoutException();
-      }
-      throw ApiException('Lá»—i khÃ´ng xÃ¡c Ä‘á»‹nh: $e');
+      throw _unexpectedException(e);
     }
   }
 
@@ -125,30 +131,13 @@ class ApiClient {
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return response;
-      } else if (response.statusCode == 401 || response.statusCode == 403) {
+      }
+      if (response.statusCode == 401 || response.statusCode == 403) {
         if (kDebugMode) {
           debugPrint('🔒 [ApiClient] Auth error ${response.statusCode}');
         }
-        throw ApiException(
-          'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.',
-          response.statusCode,
-        );
-      } else if (response.statusCode >= 400 && response.statusCode < 500) {
-        throw ApiException(
-          'Request thất bại: ${response.statusCode}',
-          response.statusCode,
-        );
-      } else if (response.statusCode >= 500) {
-        throw ServerException(
-          'Lỗi server: ${response.statusCode}',
-          response.statusCode,
-        );
-      } else {
-        throw ApiException(
-          'Request thất bại: ${response.statusCode}',
-          response.statusCode,
-        );
       }
+      throw _exceptionForStatus(response.statusCode);
     } on SocketException catch (e) {
       if (kDebugMode) debugPrint('❌ SocketException: $e');
       throw NetworkException();
@@ -156,10 +145,7 @@ class ApiClient {
       rethrow;
     } catch (e) {
       if (kDebugMode) debugPrint('❌ Exception: ${e.runtimeType} - $e');
-      if (e.toString().contains('TimeoutException')) {
-        throw TimeoutException();
-      }
-      throw ApiException('Lỗi không xác định: $e');
+      throw _unexpectedException(e);
     }
   }
 
@@ -176,30 +162,14 @@ class ApiClient {
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return response;
-      } else if (response.statusCode == 401 || response.statusCode == 403) {
-        throw ApiException(
-          'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.',
-          response.statusCode,
-        );
-      } else if (response.statusCode >= 500) {
-        throw ServerException(
-          'Lỗi server: ${response.statusCode}',
-          response.statusCode,
-        );
       }
-      throw ApiException(
-        'Request thất bại: ${response.statusCode}',
-        response.statusCode,
-      );
+      throw _exceptionForStatus(response.statusCode);
     } on SocketException {
       throw NetworkException();
     } on ApiException {
       rethrow;
     } catch (e) {
-      if (e.toString().contains('TimeoutException')) {
-        throw TimeoutException();
-      }
-      throw ApiException('Lỗi không xác định: $e');
+      throw _unexpectedException(e);
     }
   }
 
@@ -212,30 +182,14 @@ class ApiClient {
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return response;
-      } else if (response.statusCode == 401 || response.statusCode == 403) {
-        throw ApiException(
-          'PhiÃªn Ä‘Äƒng nháº­p háº¿t háº¡n. Vui lÃ²ng Ä‘Äƒng nháº­p láº¡i.',
-          response.statusCode,
-        );
-      } else if (response.statusCode >= 500) {
-        throw ServerException(
-          'Lá»—i server: ${response.statusCode}',
-          response.statusCode,
-        );
       }
-      throw ApiException(
-        'Request tháº¥t báº¡i: ${response.statusCode}',
-        response.statusCode,
-      );
+      throw _exceptionForStatus(response.statusCode);
     } on SocketException {
       throw NetworkException();
     } on ApiException {
       rethrow;
     } catch (e) {
-      if (e.toString().contains('TimeoutException')) {
-        throw TimeoutException();
-      }
-      throw ApiException('Lá»—i khÃ´ng xÃ¡c Ä‘á»‹nh: $e');
+      throw _unexpectedException(e);
     }
   }
 
@@ -282,22 +236,8 @@ class ApiClient {
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return response;
-      } else if (response.statusCode >= 400 && response.statusCode < 500) {
-        throw ApiException(
-          'Request thất bại: ${response.statusCode}',
-          response.statusCode,
-        );
-      } else if (response.statusCode >= 500) {
-        throw ServerException(
-          'Lỗi server: ${response.statusCode}',
-          response.statusCode,
-        );
-      } else {
-        throw ApiException(
-          'Request thất bại: ${response.statusCode}',
-          response.statusCode,
-        );
       }
+      throw _exceptionForStatus(response.statusCode);
     } on SocketException catch (e) {
       if (kDebugMode) debugPrint('❌ SocketException: $e');
       throw NetworkException();
@@ -305,10 +245,7 @@ class ApiClient {
       rethrow;
     } catch (e) {
       if (kDebugMode) debugPrint('❌ Exception: ${e.runtimeType} - $e');
-      if (e.toString().contains('TimeoutException')) {
-        throw TimeoutException();
-      }
-      throw ApiException('Lỗi không xác định: $e');
+      throw _unexpectedException(e);
     }
   }
 

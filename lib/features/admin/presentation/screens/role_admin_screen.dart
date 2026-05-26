@@ -51,8 +51,8 @@ class _RoleAdminScreenState extends State<RoleAdminScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Xóa role'),
-        content: Text('Xóa role ${role.value}?'),
+        title: const Text('Xóa vai trò'),
+        content: Text('Xóa vai trò ${role.value}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -90,14 +90,14 @@ class _RoleAdminScreenState extends State<RoleAdminScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: GradientHeader(
-        title: 'Quản lý role',
+        title: 'Quản lý vai trò',
         showBack: true,
         actions: canManageRoles
             ? [
                 IconButton(
                   onPressed: () => _openEditor(),
                   icon: const Icon(Icons.add_moderator_outlined),
-                  tooltip: 'Thêm role',
+                  tooltip: 'Thêm vai trò',
                 ),
               ]
             : null,
@@ -205,13 +205,13 @@ class _RoleCard extends StatelessWidget {
             AppIconAction(
               onPressed: onEdit,
               icon: Icons.edit_outlined,
-              tooltip: 'Sửa role',
+              tooltip: 'Sửa vai trò',
             ),
             const SizedBox(width: 8),
             AppIconAction(
               onPressed: onDelete,
               icon: Icons.delete_outline,
-              tooltip: role.isSystem ? 'Role hệ thống' : 'Xóa role',
+              tooltip: role.isSystem ? 'Vai trò hệ thống' : 'Xóa vai trò',
             ),
           ],
         ),
@@ -281,7 +281,7 @@ class _RoleEditorDialogState extends State<_RoleEditorDialog> {
     final isSystem = widget.role?.isSystem == true;
 
     return AlertDialog(
-      title: Text(widget.role == null ? 'Thêm role' : 'Sửa role'),
+      title: Text(widget.role == null ? 'Thêm vai trò' : 'Sửa vai trò'),
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
@@ -291,7 +291,7 @@ class _RoleEditorDialogState extends State<_RoleEditorDialog> {
               TextField(
                 controller: _codeController,
                 enabled: !isSystem,
-                decoration: const InputDecoration(labelText: 'Mã role'),
+                decoration: const InputDecoration(labelText: 'Mã vai trò'),
                 textCapitalization: TextCapitalization.characters,
               ),
               TextField(
