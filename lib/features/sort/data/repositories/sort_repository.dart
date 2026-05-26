@@ -14,7 +14,7 @@ class SortRepository {
   // Each item has: sku, sku_name, serial_number, bin, zone, import_date, count, fifo
   Future<String> sendSortRequest(String text, String user) async {
     try {
-      final request = SortRequest(text: text, user: user);
+      final request = SortRequest(text: text);
 
       final response = await _apiClient.post(
         ApiConstants.sortEndpoint,

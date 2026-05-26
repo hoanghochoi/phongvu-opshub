@@ -213,50 +213,37 @@ class _SortScreenState extends State<SortScreen> {
                 builder: (context, provider, child) {
                   final isLoading = provider.isLoading;
 
-                  return Column(
+                  return Row(
                     children: [
-                      // Input field
-                      TextField(
-                        controller: _controller,
-                        focusNode: _focusNode,
-                        enabled: !isLoading,
-                        decoration: InputDecoration(
-                          hintText: 'Nhập SKU hoặc BIN',
-                          prefixIcon: const Icon(Icons.inventory_2_outlined),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          enabled: !isLoading,
+                          decoration: InputDecoration(
+                            hintText: 'Nhập SKU hoặc BIN',
+                            prefixIcon: const Icon(Icons.inventory_2_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
                           ),
-                          filled: true,
-                          fillColor: Colors.grey[50],
+                          onSubmitted: (_) => _sendSortRequest(),
                         ),
-                        onSubmitted: (_) => _sendSortRequest(),
                       ),
-                      const SizedBox(height: AppLayoutTokens.formFieldGap),
-
-                      // Buttons
-                      Row(
-                        children: [
-                          // Scan button
-                          Expanded(
-                            child: AppSecondaryButton(
-                              onPressed: isLoading ? null : _scanBarcode,
-                              icon: Icons.qr_code_scanner,
-                              label: 'Quét mã',
-                            ),
-                          ),
-                          const SizedBox(width: AppLayoutTokens.formInlineGap),
-
-                          // Send button
-                          Expanded(
-                            child: AppPrimaryButton(
-                              onPressed: _sendSortRequest,
-                              icon: Icons.send,
-                              label: 'Gửi',
-                              isLoading: isLoading,
-                              loadingLabel: 'Đang gửi...',
-                            ),
-                          ),
-                        ],
+                      const SizedBox(width: AppLayoutTokens.formInlineGap),
+                      AppIconAction(
+                        onPressed: isLoading ? null : _scanBarcode,
+                        icon: Icons.qr_code_scanner_rounded,
+                        tooltip: 'Quét mã',
+                      ),
+                      const SizedBox(width: AppLayoutTokens.formInlineGap),
+                      AppIconAction(
+                        onPressed: isLoading ? null : _sendSortRequest,
+                        icon: Icons.send_rounded,
+                        tooltip: 'Gửi',
+                        filled: true,
                       ),
                     ],
                   );

@@ -73,71 +73,6 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
               padding: EdgeInsets.zero,
               child: Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Align(
-                      alignment: Alignment.topLeft,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          maxWidth: AppLayoutTokens.actionBarMaxWidth,
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                AppIconAction(
-                                  onPressed: provider.isLoading ? null : _scan,
-                                  icon: Icons.qr_code_scanner_rounded,
-                                  tooltip: 'Quét mã',
-                                ),
-                                const SizedBox(
-                                  width: AppLayoutTokens.formInlineGap,
-                                ),
-                                Expanded(
-                                  child: TextField(
-                                    controller: _controller,
-                                    focusNode: _focusNode,
-                                    enabled: !provider.isLoading,
-                                    textCapitalization:
-                                        TextCapitalization.characters,
-                                    decoration: InputDecoration(
-                                      hintText: 'Nhập SKU hoặc serial',
-                                      border: const OutlineInputBorder(),
-                                      prefixIcon: const Icon(
-                                        Icons.inventory_2_outlined,
-                                      ),
-                                      suffixIcon: AppIconAction(
-                                        onPressed: provider.isLoading
-                                            ? null
-                                            : _search,
-                                        icon: Icons.search_rounded,
-                                        tooltip: 'Tìm',
-                                        filled: true,
-                                      ),
-                                    ),
-                                    onSubmitted: (_) => _search(),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(
-                              height: AppLayoutTokens.formInlineGap,
-                            ),
-                            SwitchListTile.adaptive(
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
-                              value: provider.includeExported,
-                              onChanged: provider.isLoading
-                                  ? null
-                                  : provider.setIncludeExported,
-                              title: const Text('Hiển thị đã xuất kho'),
-                              secondary: const Icon(Icons.inventory_outlined),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
                   Expanded(
                     child: Stack(
                       children: [
@@ -162,10 +97,100 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
                       ],
                     ),
                   ),
+                  _FifoInputBar(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    isLoading: provider.isLoading,
+                    includeExported: provider.includeExported,
+                    onIncludeExportedChanged: provider.setIncludeExported,
+                    onScan: _scan,
+                    onSearch: _search,
+                  ),
                 ],
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _FifoInputBar extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool isLoading;
+  final bool includeExported;
+  final ValueChanged<bool> onIncludeExportedChanged;
+  final VoidCallback onScan;
+  final VoidCallback onSearch;
+
+  const _FifoInputBar({
+    required this.controller,
+    required this.focusNode,
+    required this.isLoading,
+    required this.includeExported,
+    required this.onIncludeExportedChanged,
+    required this.onScan,
+    required this.onSearch,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppLayoutTokens.actionBarMaxWidth,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  value: includeExported,
+                  onChanged: isLoading ? null : onIncludeExportedChanged,
+                  title: const Text('Hiển thị đã xuất kho'),
+                  secondary: const Icon(Icons.inventory_outlined),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        enabled: !isLoading,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: const InputDecoration(
+                          hintText: 'Nhập SKU hoặc serial',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.inventory_2_outlined),
+                        ),
+                        onSubmitted: (_) => onSearch(),
+                      ),
+                    ),
+                    const SizedBox(width: AppLayoutTokens.formInlineGap),
+                    AppIconAction(
+                      onPressed: isLoading ? null : onScan,
+                      icon: Icons.qr_code_scanner_rounded,
+                      tooltip: 'Quét mã',
+                    ),
+                    const SizedBox(width: AppLayoutTokens.formInlineGap),
+                    AppIconAction(
+                      onPressed: isLoading ? null : onSearch,
+                      icon: Icons.search_rounded,
+                      tooltip: 'Tìm',
+                      filled: true,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -486,9 +511,9 @@ class _FifoItemCard extends StatelessWidget {
   }
 
   Color _fifoColor(int rank, int total) {
-    if (total <= 1) return Colors.red;
+    if (total <= 1) return Colors.green;
     final t = rank / (total - 1);
-    return Color.lerp(Colors.red, Colors.green, t) ?? Colors.green;
+    return Color.lerp(Colors.green, Colors.red, t) ?? Colors.red;
   }
 }
 
