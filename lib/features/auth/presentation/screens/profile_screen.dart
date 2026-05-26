@@ -128,8 +128,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.email_outlined),
               title: Text(user?.email ?? ''),
-              subtitle: Text(user?.role ?? ''),
+              subtitle: Text('Quyền hệ thống: ${user?.role ?? ''}'),
             ),
+            if (user?.personnelCode != null || user?.workScopeType != null)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.badge_outlined),
+                title: Text(user?.personnelCode ?? 'Chưa gán mã nhân sự'),
+                subtitle: Text(
+                  'Phòng ban: ${user?.departmentCode ?? 'Chưa gán'} • Chức danh: ${user?.jobRoleCode ?? 'Chưa gán'} • Phạm vi: ${user?.workScopeType ?? 'Chưa gán'}',
+                ),
+              ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.store_outlined),

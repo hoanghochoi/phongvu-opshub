@@ -8,6 +8,10 @@ class User {
   final String? storeName;
   final String? role;
   final String? status;
+  final String? departmentCode;
+  final String? jobRoleCode;
+  final String? workScopeType;
+  final String? personnelCode;
   final bool mustSelectStore;
 
   const User({
@@ -20,6 +24,10 @@ class User {
     this.storeName,
     this.role,
     this.status,
+    this.departmentCode,
+    this.jobRoleCode,
+    this.workScopeType,
+    this.personnelCode,
     this.mustSelectStore = false,
   });
 
@@ -34,6 +42,10 @@ class User {
       storeName: json['storeName']?.toString(),
       role: json['role']?.toString(),
       status: json['status']?.toString(),
+      departmentCode: json['departmentCode']?.toString(),
+      jobRoleCode: json['jobRoleCode']?.toString(),
+      workScopeType: json['workScopeType']?.toString(),
+      personnelCode: json['personnelCode']?.toString(),
       mustSelectStore:
           json['mustSelectStore'] == true || json['mustSelectStore'] == 'true',
     );
@@ -43,8 +55,11 @@ class User {
       role == 'ADMIN' || role == 'SUPER_ADMIN' || role == 'MANAGER';
 
   bool get needsStoreSelection =>
-      role != 'SUPER_ADMIN' &&
-      role != 'ADMIN' &&
+      (workScopeType ??
+              (role == 'SUPER_ADMIN' || role == 'ADMIN'
+                  ? 'NATIONAL'
+                  : 'STORE')) ==
+          'STORE' &&
       (mustSelectStore || storeId == null);
 
   String get storeInfo {
@@ -71,6 +86,10 @@ class User {
         other.storeName == storeName &&
         other.role == role &&
         other.status == status &&
+        other.departmentCode == departmentCode &&
+        other.jobRoleCode == jobRoleCode &&
+        other.workScopeType == workScopeType &&
+        other.personnelCode == personnelCode &&
         other.mustSelectStore == mustSelectStore;
   }
 
@@ -84,9 +103,13 @@ class User {
       storeName.hashCode ^
       role.hashCode ^
       status.hashCode ^
+      departmentCode.hashCode ^
+      jobRoleCode.hashCode ^
+      workScopeType.hashCode ^
+      personnelCode.hashCode ^
       mustSelectStore.hashCode;
 
   @override
   String toString() =>
-      'User(email: $email, name: $name, storeId: $storeId, storeName: $storeName, role: $role)';
+      'User(email: $email, name: $name, storeId: $storeId, storeName: $storeName, role: $role, personnelCode: $personnelCode)';
 }

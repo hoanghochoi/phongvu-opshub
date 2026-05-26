@@ -37,6 +37,21 @@ export class AdminUserDto extends UpdateProfileDto {
   @IsString()
   @MaxLength(40)
   storeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  departmentCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  jobRoleCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  workScopeType?: string;
 }
 
 export class AdminRoleDto {

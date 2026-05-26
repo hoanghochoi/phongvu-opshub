@@ -156,11 +156,22 @@ model User {
   storeId String?
   store   Store?  @relation(fields: [storeId], references: [id])
 
+  // Personnel assignment (separate from system access role)
+  departmentCode String?
+  department     DepartmentDefinition? @relation(fields: [departmentCode], references: [code])
+  jobRoleCode    String?
+  jobRole        JobRoleDefinition?    @relation(fields: [jobRoleCode], references: [code])
+  workScopeType  String?
+
   warrantiesCreated Warranty[]            @relation("CreatedBy")
   warrantiesHandled Warranty[]            @relation("HandledBy")
   feedbacks         Feedback[]
   fifoLogs          FifoLog[]
   vietQrPayments    VietQrPaymentIntent[]
+
+  @@index([departmentCode])
+  @@index([jobRoleCode])
+  @@index([workScopeType])
 }
 
 model RoleDefinition {
@@ -171,6 +182,33 @@ model RoleDefinition {
   isSystem    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model DepartmentDefinition {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  displayName String
+  description String?
+  isSystem    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users User[]
+}
+
+model JobRoleDefinition {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  displayName    String
+  description    String?
+  departmentCode String?
+  isSystem       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  users User[]
+
+  @@index([departmentCode])
 }
 
 model EmailVerificationCode {

@@ -23,6 +23,8 @@ class ApiConstants {
   static const String avatarEndpoint = '/users/me/avatar';
   static const String adminUsersEndpoint = '/admin/users';
   static const String adminRolesEndpoint = '/admin/roles';
+  static const String adminDepartmentsEndpoint = '/admin/departments';
+  static const String adminJobRolesEndpoint = '/admin/job-roles';
   static const String adminStoresEndpoint = '/admin/stores';
   static const String adminMapVietinTransactionsEndpoint =
       '/admin/map-vietin/transactions/search';
