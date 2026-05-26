@@ -4,7 +4,8 @@ Target layout:
 
 - SSD runtime: containers, Postgres data, Redis data, upload images under `/srv/opshub`.
 - TrueNAS backup: mount an SMB/NFS dataset at `/mnt/truenas/opshub-backups`.
-- Local DB mode: `DATA_SYNC_SOURCE=local`; BigQuery sync is disabled.
+- FIFO BigQuery cache can run while `DATA_SYNC_SOURCE=local`; legacy inventory
+  and user BigQuery sync remain disabled unless explicitly configured.
 
 ## Checklist
 
@@ -61,7 +62,13 @@ Add that backup command to cron after the first manual restore test succeeds.
 
 ## Local Data
 
-Inventory and user/store data now live in Postgres. With `DATA_SYNC_SOURCE=local`, the NestJS startup and cron jobs skip BigQuery. Use direct Postgres import, Prisma Studio, or a future admin import screen to maintain local data.
+Legacy inventory and user/store data now live in Postgres. With
+`DATA_SYNC_SOURCE=local`, the legacy NestJS inventory/user cron jobs skip
+BigQuery. FIFO inventory is separate: configure `BIGQUERY_PROJECT_ID`,
+`BIGQUERY_FIFO_DATASET_ID`, `BIGQUERY_FIFO_TABLE_ID`, and `BIGQUERY_KEY_FILE`
+to refresh `fifo_inventory` from BigQuery every day at 08:00
+Asia/Ho_Chi_Minh. Admin manual FIFO inventory import remains supplemental and
+does not replace/deactivate BigQuery rows.
 
 CSV import from the running API container:
 

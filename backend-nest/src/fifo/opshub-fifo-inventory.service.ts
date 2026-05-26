@@ -4,7 +4,11 @@ import {
   Logger,
   OnModuleDestroy,
 } from '@nestjs/common';
+import { BigQuery } from '@google-cloud/bigquery';
+import { Cron } from '@nestjs/schedule';
 import pg from 'pg';
+
+export const DISPLAY_RESERVED_BIN_TYPE = 'Hàng trưng bày chỉ định';
 
 export type FifoInventoryItem = {
   id: string;
@@ -14,70 +18,189 @@ export type FifoInventoryItem = {
   serialNumber: string | null;
   bin: string | null;
   zone: string | null;
+  binType: string | null;
   importDate: Date | null;
+  dateImportCompany: Date | null;
+  dateImportSite: Date | null;
   count: number;
   exported: boolean;
+  source: string | null;
 };
 
-type InventoryColumns = {
-  id: string;
-  srCode: string;
+export type CanonicalInventoryItem = {
+  itemKey: string;
+  serial: string | null;
   sku: string;
   skuName: string;
-  serialNumber: string;
-  bin: string;
-  zone: string;
-  importDate: string;
-  count: string;
-  exported: string;
-  active: string;
-};
-
-const DEFAULT_COLUMNS: InventoryColumns = {
-  id: 'id',
-  srCode: 'sr_code',
-  sku: 'sku',
-  skuName: 'sku_name',
-  serialNumber: 'serial_number',
-  bin: 'bin',
-  zone: 'zone',
-  importDate: 'import_date',
-  count: 'count',
-  exported: 'exported',
-  active: 'active',
-};
-
-export type ManualInventoryItem = {
-  id: string;
-  srCode: string;
-  srName: string | null;
-  sku: string;
-  skuName: string;
-  serialNumber: string | null;
-  serialType: string | null;
-  serialTypeChangedAt: Date | null;
+  branchId: string;
+  branchName: string | null;
   brand: string | null;
   categoryId: string | null;
   categoryName: string | null;
-  subcategoryId: string | null;
-  subcategoryName: string | null;
-  partNumber: string | null;
-  unit: string | null;
-  bin: string | null;
-  binName: string | null;
-  zone: string | null;
+  subCategoryId: string | null;
+  subCategoryName: string | null;
+  subcatIdLowestLevel: string | null;
+  subcatNameLowestLevel: string | null;
+  location: string | null;
   binType: string | null;
-  manualImportDate: Date | null;
-  count: number;
-  stockType: string | null;
+  binZone: string | null;
+  dateImportCompany: Date | null;
+  dateImportSite: Date | null;
+  agingCompany: number | null;
+  badStockCompany: string | null;
+  agingSite: number | null;
+  stockDaySite: number | null;
+  badStockSite: string | null;
+  stockDayCompany: number | null;
   purchaseStatus: string | null;
+  inventory: number;
+  inventoryAmount: number | null;
+  manualPayload?: Record<string, unknown> | null;
 };
+
+export type ManualInventoryItem = CanonicalInventoryItem;
+export type BigQueryInventoryItem = CanonicalInventoryItem;
 
 export type ManualInventoryImportResult = {
   importedRows: number;
   deactivatedRows: number;
   srCodes: string[];
 };
+
+export type BigQueryInventorySyncResult = {
+  importedRows: number;
+  deactivatedRows: number;
+  skippedRows: number;
+  srCodes: string[];
+};
+
+type FifoTableConfig = {
+  table: string;
+  columns: Record<string, string>;
+};
+
+const TABLE_COLUMNS = [
+  ['id', 'text'],
+  ['Serial', 'text'],
+  ['SKU', 'text'],
+  ['SKU_name', 'text'],
+  ['Branch_ID', 'text'],
+  ['Branch_name', 'text'],
+  ['Brand', 'text'],
+  ['Category_ID', 'text'],
+  ['Category_name', 'text'],
+  ['SubCategory_ID', 'text'],
+  ['SubCategory_name', 'text'],
+  ['Subcat_ID_lowest_level', 'text'],
+  ['Subcat_name_lowest_level', 'text'],
+  ['Location', 'text'],
+  ['BIN_type', 'text'],
+  ['BIN_zone', 'text'],
+  ['Date_import_company', 'date'],
+  ['Aging_company', 'integer'],
+  ['Bad_stock_company', 'text'],
+  ['Date_import_site', 'date'],
+  ['Aging_site', 'integer'],
+  ['Stock_day_site', 'integer'],
+  ['Bad_stock_site', 'text'],
+  ['Stock_day_company', 'integer'],
+  ['Purchase_status', 'text'],
+  ['Inventory', 'double precision'],
+  ['Inventory_amount', 'double precision'],
+  ['opshub_item_key', 'text'],
+  ['opshub_source', 'text'],
+  ['opshub_active', 'boolean'],
+  ['opshub_exported', 'boolean'],
+  ['opshub_synced_at', 'timestamptz'],
+  ['opshub_manual_payload', 'jsonb'],
+  ['opshub_created_at', 'timestamptz'],
+  ['opshub_updated_at', 'timestamptz'],
+  ['sr_code', 'text'],
+  ['sku', 'text'],
+  ['sku_name', 'text'],
+  ['serial_number', 'text'],
+  ['bin', 'text'],
+  ['zone', 'text'],
+  ['import_date', 'date'],
+  ['count', 'integer'],
+  ['source', 'text'],
+  ['active', 'boolean'],
+  ['exported', 'boolean'],
+] as const;
+
+const UPSERT_COLUMNS = [
+  'id',
+  'opshub_item_key',
+  'Serial',
+  'SKU',
+  'SKU_name',
+  'Branch_ID',
+  'Branch_name',
+  'Brand',
+  'Category_ID',
+  'Category_name',
+  'SubCategory_ID',
+  'SubCategory_name',
+  'Subcat_ID_lowest_level',
+  'Subcat_name_lowest_level',
+  'Location',
+  'BIN_type',
+  'BIN_zone',
+  'Date_import_company',
+  'Aging_company',
+  'Bad_stock_company',
+  'Date_import_site',
+  'Aging_site',
+  'Stock_day_site',
+  'Bad_stock_site',
+  'Stock_day_company',
+  'Purchase_status',
+  'Inventory',
+  'Inventory_amount',
+  'opshub_source',
+  'opshub_active',
+  'opshub_manual_payload',
+  'sr_code',
+  'sku',
+  'sku_name',
+  'serial_number',
+  'bin',
+  'zone',
+  'import_date',
+  'count',
+  'source',
+  'active',
+  'exported',
+] as const;
+
+const BIGQUERY_SELECT_COLUMNS = [
+  'Serial',
+  'SKU',
+  'SKU_name',
+  'Branch_ID',
+  'Branch_name',
+  'Brand',
+  'Category_ID',
+  'Category_name',
+  'SubCategory_ID',
+  'SubCategory_name',
+  'Subcat_ID_lowest_level',
+  'Subcat_name_lowest_level',
+  'Location',
+  'BIN_type',
+  'BIN_zone',
+  'Date_import_company',
+  'Aging_company',
+  'Bad_stock_company',
+  'Date_import_site',
+  'Aging_site',
+  'Stock_day_site',
+  'Bad_stock_site',
+  'Stock_day_company',
+  'Purchase_status',
+  'Inventory',
+  'Inventory_amount',
+] as const;
 
 @Injectable()
 export class OpshubFifoInventoryService implements OnModuleDestroy {
@@ -89,25 +212,67 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
     await this.pool?.end();
   }
 
+  @Cron('0 8 * * *', { timeZone: 'Asia/Ho_Chi_Minh' })
+  async syncFromBigQuery(): Promise<BigQueryInventorySyncResult> {
+    const startedAt = Date.now();
+    const bigQuery = this.createBigQueryClient();
+    if (!bigQuery) {
+      this.logger.warn(
+        'FIFO BigQuery sync skipped: BIGQUERY_PROJECT_ID / dataset / table is not configured',
+      );
+      return { importedRows: 0, deactivatedRows: 0, skippedRows: 0, srCodes: [] };
+    }
+
+    const { client, tablePath } = bigQuery;
+    this.logger.log(`FIFO BigQuery sync started: table=${tablePath}`);
+
+    try {
+      const [rows] = await client.query({
+        query: `SELECT ${BIGQUERY_SELECT_COLUMNS.map((column) => `\`${column}\``).join(', ')} FROM \`${tablePath}\``,
+      });
+      const mapped = this.mapBigQueryRows(rows as Array<Record<string, unknown>>);
+      if (mapped.items.length === 0) {
+        this.logger.warn(
+          `FIFO BigQuery sync skipped deactivation because no valid rows were mapped: fetched=${rows.length} skipped=${mapped.skippedRows}`,
+        );
+        return {
+          importedRows: 0,
+          deactivatedRows: 0,
+          skippedRows: mapped.skippedRows,
+          srCodes: [],
+        };
+      }
+
+      const result = await this.importBigQueryInventory(mapped.items);
+      this.logger.log(
+        `FIFO BigQuery sync succeeded: fetched=${rows.length} imported=${result.importedRows} deactivated=${result.deactivatedRows} skipped=${mapped.skippedRows} sr=${result.srCodes.join(',')} durationMs=${Date.now() - startedAt}`,
+      );
+      return { ...result, skippedRows: mapped.skippedRows };
+    } catch (error) {
+      this.logger.error(
+        `FIFO BigQuery sync failed: table=${tablePath} durationMs=${Date.now() - startedAt} error=${errorMessage(error)}`,
+      );
+      throw error;
+    }
+  }
+
   async findBySku(
     srCode: string,
     sku: string,
     includeExported: boolean,
   ): Promise<FifoInventoryItem[]> {
     const config = this.getConfig();
-    const rows = await this.queryItems(
+    return this.queryItems(
       `
       SELECT ${this.selectList(config.columns)}
       FROM ${config.table}
-      WHERE UPPER(${config.columns.srCode}) = UPPER($1)
-        AND UPPER(${config.columns.sku}) = UPPER($2)
-        AND COALESCE(${config.columns.active}, true) = true
-        ${includeExported ? '' : `AND COALESCE(${config.columns.exported}, false) = false`}
-      ORDER BY ${config.columns.importDate} ASC NULLS LAST, ${config.columns.id} ASC
+      WHERE UPPER(${config.columns.Branch_ID}) = UPPER($1)
+        AND UPPER(${config.columns.SKU}) = UPPER($2)
+        ${this.activeFifoWhere(config, includeExported)}
+      ${this.fifoOrderBy(config)}
       `,
       [srCode, sku],
     );
-    return rows;
   }
 
   async findBySerial(
@@ -120,11 +285,12 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
       `
       SELECT ${this.selectList(config.columns)}
       FROM ${config.table}
-      WHERE UPPER(${config.columns.srCode}) = UPPER($1)
-        AND UPPER(${config.columns.serialNumber}) = UPPER($2)
-        AND COALESCE(${config.columns.active}, true) = true
-        ${includeExported ? '' : `AND COALESCE(${config.columns.exported}, false) = false`}
-      ORDER BY ${config.columns.importDate} ASC NULLS LAST, ${config.columns.id} ASC
+      WHERE UPPER(${config.columns.Branch_ID}) = UPPER($1)
+        AND UPPER(${config.columns.Serial}) = UPPER($2)
+        AND COALESCE(${config.columns.opshub_active}, true) = true
+        AND COALESCE(${config.columns.Inventory}, 0) > 0
+        ${includeExported ? '' : `AND COALESCE(${config.columns.opshub_exported}, false) = false`}
+      ${this.fifoOrderBy(config)}
       LIMIT 1
       `,
       [srCode, serial],
@@ -138,19 +304,20 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
     includeExported: boolean,
   ): Promise<FifoInventoryItem[]> {
     const config = this.getConfig();
-    const rows = await this.queryItems(
+    return this.queryItems(
       `
       SELECT ${this.selectList(config.columns)}
       FROM ${config.table}
-      WHERE UPPER(${config.columns.srCode}) = UPPER($1)
-        AND UPPER(${config.columns.bin}) LIKE UPPER($2)
-        AND COALESCE(${config.columns.active}, true) = true
-        ${includeExported ? '' : `AND COALESCE(${config.columns.exported}, false) = false`}
-      ORDER BY ${config.columns.sku} ASC, ${config.columns.importDate} ASC NULLS LAST, ${config.columns.id} ASC
+      WHERE UPPER(${config.columns.Branch_ID}) = UPPER($1)
+        AND (
+          UPPER(${config.columns.Location}) LIKE UPPER($2)
+          OR UPPER(${config.columns.BIN_zone}) LIKE UPPER($2)
+        )
+        ${this.activeFifoWhere(config, includeExported)}
+      ORDER BY ${config.columns.SKU} ASC, COALESCE(${config.columns.Date_import_company}, ${config.columns.Date_import_site}) ASC NULLS LAST, ${config.columns.Serial} ASC NULLS LAST, ${config.columns.opshub_item_key} ASC
       `,
       [srCode, `%${bin}%`],
     );
-    return rows;
   }
 
   async findOldestActiveForSku(
@@ -162,11 +329,10 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
       `
       SELECT ${this.selectList(config.columns)}
       FROM ${config.table}
-      WHERE UPPER(${config.columns.srCode}) = UPPER($1)
-        AND UPPER(${config.columns.sku}) = UPPER($2)
-        AND COALESCE(${config.columns.active}, true) = true
-        AND COALESCE(${config.columns.exported}, false) = false
-      ORDER BY ${config.columns.importDate} ASC NULLS LAST, ${config.columns.id} ASC
+      WHERE UPPER(${config.columns.Branch_ID}) = UPPER($1)
+        AND UPPER(${config.columns.SKU}) = UPPER($2)
+        ${this.activeFifoWhere(config, false)}
+      ${this.fifoOrderBy(config)}
       LIMIT 1
       `,
       [srCode, sku],
@@ -183,9 +349,10 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
     const rows = await this.queryItems(
       `
       UPDATE ${config.table}
-      SET ${config.columns.exported} = $3
-      WHERE ${config.columns.id}::text = $1
-        AND UPPER(${config.columns.srCode}) = UPPER($2)
+      SET ${config.columns.opshub_exported} = $3,
+          ${config.columns.opshub_updated_at} = now()
+      WHERE ${config.columns.opshub_item_key}::text = $1
+        AND UPPER(${config.columns.Branch_ID}) = UPPER($2)
       RETURNING ${this.selectList(config.columns)}
       `,
       [inventoryId, srCode, exported],
@@ -196,49 +363,68 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
   async importManualInventory(
     items: ManualInventoryItem[],
   ): Promise<ManualInventoryImportResult> {
+    const result = await this.importInventoryItems(items, 'manual', false);
+    this.logger.log(
+      `Manual inventory import succeeded: imported=${result.importedRows} deactivated=0 sr=${result.srCodes.join(',')}`,
+    );
+    return result;
+  }
+
+  async importBigQueryInventory(
+    items: BigQueryInventoryItem[],
+  ): Promise<Omit<BigQueryInventorySyncResult, 'skippedRows'>> {
+    return this.importInventoryItems(items, 'bigquery', true);
+  }
+
+  private async importInventoryItems(
+    items: CanonicalInventoryItem[],
+    source: 'manual' | 'bigquery',
+    deactivateMissingBigQueryRows: boolean,
+  ): Promise<Omit<BigQueryInventorySyncResult, 'skippedRows'>> {
     const config = this.getConfig();
     await this.ensureSchema(config);
 
-    const srCodes = Array.from(
-      new Set(items.map((item) => item.srCode)),
-    ).sort();
-    const importedIds = Array.from(new Set(items.map((item) => item.id)));
+    const srCodes = Array.from(new Set(items.map((item) => item.branchId))).sort();
+    const importedIds = Array.from(new Set(items.map((item) => item.itemKey)));
     const client = await this.getPool().connect();
 
     try {
       await client.query('BEGIN');
       for (let index = 0; index < items.length; index += 500) {
-        await this.upsertManualInventoryChunk(
+        await this.upsertInventoryChunk(
           client,
           config,
           items.slice(index, index + 500),
+          source,
         );
       }
 
       let deactivatedRows = 0;
-      for (const srCode of srCodes) {
-        const result = await client.query(
-          `
-          UPDATE ${config.table}
-          SET ${config.columns.active} = false,
-              updated_at = now()
-          WHERE UPPER(${config.columns.srCode}) = UPPER($1)
-            AND NOT (${config.columns.id}::text = ANY($2::text[]))
-            AND COALESCE(${config.columns.active}, true) = true
-          `,
-          [srCode, importedIds],
-        );
-        deactivatedRows += result.rowCount ?? 0;
+      if (deactivateMissingBigQueryRows) {
+        for (const srCode of srCodes) {
+          const result = await client.query(
+            `
+            UPDATE ${config.table}
+            SET ${config.columns.opshub_active} = false,
+                ${config.columns.opshub_updated_at} = now()
+            WHERE UPPER(${config.columns.Branch_ID}) = UPPER($1)
+              AND ${config.columns.opshub_source} = 'bigquery'
+              AND NOT (${config.columns.opshub_item_key}::text = ANY($2::text[]))
+              AND COALESCE(${config.columns.opshub_active}, true) = true
+            `,
+            [srCode, importedIds],
+          );
+          deactivatedRows += result.rowCount ?? 0;
+        }
       }
 
       await client.query('COMMIT');
-      this.logger.log(
-        `Manual inventory import succeeded: imported=${items.length} deactivated=${deactivatedRows} sr=${srCodes.join(',')}`,
-      );
       return { importedRows: items.length, deactivatedRows, srCodes };
     } catch (error) {
       await client.query('ROLLBACK');
-      this.logger.error('Manual inventory import failed', error);
+      this.logger.error(
+        `FIFO ${source} inventory import failed: error=${errorMessage(error)}`,
+      );
       throw error;
     } finally {
       client.release();
@@ -259,130 +445,182 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
       serialNumber: row.serialNumber ? String(row.serialNumber) : null,
       bin: row.bin ? String(row.bin) : null,
       zone: row.zone ? String(row.zone) : null,
+      binType: row.binType ? String(row.binType) : null,
       importDate: row.importDate ? new Date(String(row.importDate)) : null,
+      dateImportCompany: row.dateImportCompany
+        ? new Date(String(row.dateImportCompany))
+        : null,
+      dateImportSite: row.dateImportSite
+        ? new Date(String(row.dateImportSite))
+        : null,
       count: Number(row.count ?? 1),
       exported: Boolean(row.exported),
+      source: row.source ? String(row.source) : null,
     }));
   }
 
-  private async upsertManualInventoryChunk(
+  private async upsertInventoryChunk(
     client: pg.PoolClient,
-    config: ReturnType<OpshubFifoInventoryService['getConfig']>,
-    items: ManualInventoryItem[],
+    config: FifoTableConfig,
+    items: CanonicalInventoryItem[],
+    source: 'manual' | 'bigquery',
   ) {
     if (items.length === 0) return;
 
     const values: unknown[] = [];
     const placeholders = items.map((item, index) => {
-      const base = index * 24;
+      const base = index * UPSERT_COLUMNS.length;
       values.push(
-        item.id,
-        item.srCode,
-        item.srName,
+        item.itemKey,
+        item.itemKey,
+        item.serial,
         item.sku,
         item.skuName,
-        item.serialNumber,
-        item.serialType,
-        item.serialTypeChangedAt,
+        item.branchId,
+        item.branchName,
         item.brand,
         item.categoryId,
         item.categoryName,
-        item.subcategoryId,
-        item.subcategoryName,
-        item.partNumber,
-        item.unit,
-        item.bin,
-        item.binName,
-        item.zone,
+        item.subCategoryId,
+        item.subCategoryName,
+        item.subcatIdLowestLevel,
+        item.subcatNameLowestLevel,
+        item.location,
         item.binType,
-        item.manualImportDate,
-        item.manualImportDate,
-        item.count,
-        item.stockType,
+        item.binZone,
+        item.dateImportCompany,
+        item.agingCompany,
+        item.badStockCompany,
+        item.dateImportSite,
+        item.agingSite,
+        item.stockDaySite,
+        item.badStockSite,
+        item.stockDayCompany,
         item.purchaseStatus,
+        item.inventory,
+        item.inventoryAmount,
+        source,
+        item.inventory > 0,
+        item.manualPayload ? JSON.stringify(item.manualPayload) : null,
+        item.branchId,
+        item.sku,
+        item.skuName,
+        item.serial,
+        item.location,
+        item.binZone,
+        item.dateImportCompany ?? item.dateImportSite,
+        Math.max(1, Math.round(item.inventory)),
+        source,
+        item.inventory > 0,
+        false,
       );
-      return `(${Array.from({ length: 24 }, (_, offset) => `$${base + offset + 1}`).join(', ')}, 'manual', now(), true, now())`;
+      return `(${Array.from(
+        { length: UPSERT_COLUMNS.length },
+        (_, offset) => `$${base + offset + 1}`,
+      ).join(', ')}, false, now(), now(), now())`;
     });
+
+    const updateColumns = UPSERT_COLUMNS.filter(
+      (column) => column !== 'id' && column !== 'opshub_item_key',
+    );
+    const updates = updateColumns
+      .map((column) => `${config.columns[column]} = EXCLUDED.${config.columns[column]}`)
+      .concat([
+        `${config.columns.opshub_exported} = COALESCE(target.${config.columns.opshub_exported}, false)`,
+        `${config.columns.exported} = COALESCE(target.${config.columns.exported}, false)`,
+        `${config.columns.opshub_synced_at} = now()`,
+        `${config.columns.opshub_updated_at} = now()`,
+      ]);
 
     await client.query(
       `
       INSERT INTO ${config.table} AS target (
-        ${config.columns.id},
-        ${config.columns.srCode},
-        sr_name,
-        ${config.columns.sku},
-        ${config.columns.skuName},
-        ${config.columns.serialNumber},
-        serial_type,
-        serial_type_changed_at,
-        brand,
-        category_id,
-        category_name,
-        subcategory_id,
-        subcategory_name,
-        part_number,
-        unit,
-        ${config.columns.bin},
-        bin_name,
-        ${config.columns.zone},
-        bin_type,
-        manual_import_date,
-        ${config.columns.importDate},
-        ${config.columns.count},
-        stock_type,
-        purchase_status,
-        source,
-        source_updated_at,
-        ${config.columns.active},
-        updated_at
+        ${UPSERT_COLUMNS.map((column) => config.columns[column]).join(', ')},
+        ${config.columns.opshub_exported},
+        ${config.columns.opshub_synced_at},
+        ${config.columns.opshub_created_at},
+        ${config.columns.opshub_updated_at}
       )
       VALUES ${placeholders.join(', ')}
-      ON CONFLICT (${config.columns.id}) DO UPDATE SET
-        ${config.columns.srCode} = EXCLUDED.${config.columns.srCode},
-        sr_name = EXCLUDED.sr_name,
-        ${config.columns.sku} = EXCLUDED.${config.columns.sku},
-        ${config.columns.skuName} = EXCLUDED.${config.columns.skuName},
-        ${config.columns.serialNumber} = EXCLUDED.${config.columns.serialNumber},
-        serial_type = EXCLUDED.serial_type,
-        serial_type_changed_at = EXCLUDED.serial_type_changed_at,
-        brand = EXCLUDED.brand,
-        category_id = EXCLUDED.category_id,
-        category_name = EXCLUDED.category_name,
-        subcategory_id = EXCLUDED.subcategory_id,
-        subcategory_name = EXCLUDED.subcategory_name,
-        part_number = EXCLUDED.part_number,
-        unit = EXCLUDED.unit,
-        ${config.columns.bin} = EXCLUDED.${config.columns.bin},
-        bin_name = EXCLUDED.bin_name,
-        ${config.columns.zone} = EXCLUDED.${config.columns.zone},
-        bin_type = EXCLUDED.bin_type,
-        manual_import_date = EXCLUDED.manual_import_date,
-        ${config.columns.importDate} = COALESCE(target.bigquery_import_date, target.${config.columns.importDate}, EXCLUDED.manual_import_date),
-        ${config.columns.count} = EXCLUDED.${config.columns.count},
-        stock_type = EXCLUDED.stock_type,
-        purchase_status = EXCLUDED.purchase_status,
-        source = EXCLUDED.source,
-        source_updated_at = EXCLUDED.source_updated_at,
-        ${config.columns.active} = true,
-        updated_at = now()
+      ON CONFLICT (${config.columns.opshub_item_key}) DO UPDATE SET
+        ${updates.join(',\n        ')}
       `,
       values,
     );
   }
 
-  private selectList(columns: InventoryColumns) {
+  private createBigQueryClient() {
+    const projectId = firstEnvValue([
+      'BIGQUERY_PROJECT_ID',
+      'PRICE_WATCHDOG_BIGQUERY_PROJECT_ID',
+    ]);
+    const datasetId =
+      firstEnvValue(['BIGQUERY_FIFO_DATASET_ID', 'BIGQUERY_DATASET_ID']) ||
+      firstEnvValue(['PRICE_WATCHDOG_BIGQUERY_DATASET']);
+    const tableId =
+      firstEnvValue(['BIGQUERY_FIFO_TABLE_ID', 'BIGQUERY_TABLE_ID']) ||
+      firstEnvValue(['PRICE_WATCHDOG_BIGQUERY_TABLE']);
+    if (!projectId || !datasetId || !tableId) return null;
+
+    const keyFilename = firstEnvValue([
+      'BIGQUERY_KEY_FILE',
+      'GOOGLE_APPLICATION_CREDENTIALS',
+    ]);
+    return {
+      client: new BigQuery({
+        projectId,
+        ...(keyFilename ? { keyFilename } : {}),
+      }),
+      tablePath: `${projectId}.${datasetId}.${tableId}`,
+    };
+  }
+
+  private mapBigQueryRows(rows: Array<Record<string, unknown>>) {
+    const byId = new Map<string, BigQueryInventoryItem>();
+    let skippedRows = 0;
+
+    rows.forEach((row, index) => {
+      const item = rowToCanonicalItem(row, index + 1, 'bigquery');
+      if (!item) {
+        skippedRows += 1;
+        return;
+      }
+      byId.set(item.itemKey, item);
+    });
+
+    return { items: Array.from(byId.values()), skippedRows };
+  }
+
+  private selectList(columns: Record<string, string>) {
     return [
-      `${columns.id}::text AS "id"`,
-      `${columns.srCode}::text AS "srCode"`,
-      `${columns.sku}::text AS "sku"`,
-      `${columns.skuName}::text AS "skuName"`,
-      `${columns.serialNumber}::text AS "serialNumber"`,
-      `${columns.bin}::text AS "bin"`,
-      `${columns.zone}::text AS "zone"`,
-      `${columns.importDate} AS "importDate"`,
-      `${columns.count}::integer AS "count"`,
-      `COALESCE(${columns.exported}, false) AS "exported"`,
+      `${columns.opshub_item_key}::text AS "id"`,
+      `${columns.Branch_ID}::text AS "srCode"`,
+      `${columns.SKU}::text AS "sku"`,
+      `${columns.SKU_name}::text AS "skuName"`,
+      `${columns.Serial}::text AS "serialNumber"`,
+      `${columns.Location}::text AS "bin"`,
+      `${columns.BIN_zone}::text AS "zone"`,
+      `${columns.BIN_type}::text AS "binType"`,
+      `${columns.Date_import_company} AS "dateImportCompany"`,
+      `${columns.Date_import_site} AS "dateImportSite"`,
+      `COALESCE(${columns.Date_import_company}, ${columns.Date_import_site}) AS "importDate"`,
+      `COALESCE(${columns.Inventory}, 0)::integer AS "count"`,
+      `COALESCE(${columns.opshub_exported}, false) AS "exported"`,
+      `${columns.opshub_source}::text AS "source"`,
     ].join(', ');
+  }
+
+  private activeFifoWhere(config: FifoTableConfig, includeExported: boolean) {
+    return `
+        AND COALESCE(${config.columns.opshub_active}, true) = true
+        AND COALESCE(${config.columns.Inventory}, 0) > 0
+        AND COALESCE(${config.columns.BIN_type}, '') <> '${DISPLAY_RESERVED_BIN_TYPE.replace(/'/g, "''")}'
+        ${includeExported ? '' : `AND COALESCE(${config.columns.opshub_exported}, false) = false`}
+    `;
+  }
+
+  private fifoOrderBy(config: FifoTableConfig) {
+    return `ORDER BY COALESCE(${config.columns.Date_import_company}, ${config.columns.Date_import_site}) ASC NULLS LAST, ${config.columns.Serial} ASC NULLS LAST, ${config.columns.opshub_item_key} ASC`;
   }
 
   private getPool() {
@@ -401,156 +639,84 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
     return this.pool;
   }
 
-  private getConfig() {
+  private getConfig(): FifoTableConfig {
     const table = this.identifier(
       process.env.OPSHUB_FIFO_INVENTORY_TABLE || 'fifo_inventory',
       'OPSHUB_FIFO_INVENTORY_TABLE',
     );
-    const columns: InventoryColumns = {
-      id: this.column('ID_COLUMN', DEFAULT_COLUMNS.id),
-      srCode: this.column('SR_COLUMN', DEFAULT_COLUMNS.srCode),
-      sku: this.column('SKU_COLUMN', DEFAULT_COLUMNS.sku),
-      skuName: this.column('SKU_NAME_COLUMN', DEFAULT_COLUMNS.skuName),
-      serialNumber: this.column('SERIAL_COLUMN', DEFAULT_COLUMNS.serialNumber),
-      bin: this.column('BIN_COLUMN', DEFAULT_COLUMNS.bin),
-      zone: this.column('ZONE_COLUMN', DEFAULT_COLUMNS.zone),
-      importDate: this.column('IMPORT_DATE_COLUMN', DEFAULT_COLUMNS.importDate),
-      count: this.column('COUNT_COLUMN', DEFAULT_COLUMNS.count),
-      exported: this.column('EXPORTED_COLUMN', DEFAULT_COLUMNS.exported),
-      active: this.column('ACTIVE_COLUMN', DEFAULT_COLUMNS.active),
-    };
+    const columns = Object.fromEntries(
+      TABLE_COLUMNS.map(([column]) => [column, this.identifier(column, column)]),
+    );
     return { table, columns };
   }
 
-  private async ensureSchema(
-    config: ReturnType<OpshubFifoInventoryService['getConfig']>,
-  ) {
+  private async ensureSchema(config: FifoTableConfig) {
     if (!this.schemaReady) {
       this.schemaReady = this.createSchema(config);
     }
     return this.schemaReady;
   }
 
-  private async createSchema(
-    config: ReturnType<OpshubFifoInventoryService['getConfig']>,
-  ) {
+  private async createSchema(config: FifoTableConfig) {
     const pool = this.getPool();
     await pool.query(`
       CREATE TABLE IF NOT EXISTS ${config.table} (
         ${config.columns.id} text PRIMARY KEY,
-        ${config.columns.srCode} text NOT NULL,
-        sr_name text,
-        ${config.columns.sku} text NOT NULL,
-        ${config.columns.skuName} text NOT NULL DEFAULT '',
-        ${config.columns.serialNumber} text,
-        serial_type text,
-        serial_type_changed_at timestamptz,
-        brand text,
-        category_id text,
-        category_name text,
-        subcategory_id text,
-        subcategory_name text,
-        part_number text,
-        unit text,
-        ${config.columns.bin} text,
-        bin_name text,
-        ${config.columns.zone} text,
-        bin_type text,
-        bigquery_import_date timestamptz,
-        manual_import_date timestamptz,
-        ${config.columns.importDate} timestamptz,
-        ${config.columns.count} integer NOT NULL DEFAULT 1,
-        stock_type text,
-        purchase_status text,
-        source text NOT NULL DEFAULT 'manual',
-        source_updated_at timestamptz,
-        ${config.columns.exported} boolean NOT NULL DEFAULT false,
-        ${config.columns.active} boolean NOT NULL DEFAULT true,
-        created_at timestamptz NOT NULL DEFAULT now(),
-        updated_at timestamptz NOT NULL DEFAULT now()
+        ${config.columns.opshub_item_key} text UNIQUE,
+        ${config.columns.Serial} text,
+        ${config.columns.SKU} text,
+        ${config.columns.SKU_name} text,
+        ${config.columns.Branch_ID} text,
+        ${config.columns.Branch_name} text,
+        ${config.columns.Brand} text,
+        ${config.columns.Category_ID} text,
+        ${config.columns.Category_name} text,
+        ${config.columns.SubCategory_ID} text,
+        ${config.columns.SubCategory_name} text,
+        ${config.columns.Subcat_ID_lowest_level} text,
+        ${config.columns.Subcat_name_lowest_level} text,
+        ${config.columns.Location} text,
+        ${config.columns.BIN_type} text,
+        ${config.columns.BIN_zone} text,
+        ${config.columns.Date_import_company} date,
+        ${config.columns.Aging_company} integer,
+        ${config.columns.Bad_stock_company} text,
+        ${config.columns.Date_import_site} date,
+        ${config.columns.Aging_site} integer,
+        ${config.columns.Stock_day_site} integer,
+        ${config.columns.Bad_stock_site} text,
+        ${config.columns.Stock_day_company} integer,
+        ${config.columns.Purchase_status} text,
+        ${config.columns.Inventory} double precision NOT NULL DEFAULT 0,
+        ${config.columns.Inventory_amount} double precision,
+        ${config.columns.opshub_source} text NOT NULL DEFAULT 'manual',
+        ${config.columns.opshub_active} boolean NOT NULL DEFAULT true,
+        ${config.columns.opshub_exported} boolean NOT NULL DEFAULT false,
+        ${config.columns.opshub_synced_at} timestamptz,
+        ${config.columns.opshub_manual_payload} jsonb,
+        ${config.columns.opshub_created_at} timestamptz NOT NULL DEFAULT now(),
+        ${config.columns.opshub_updated_at} timestamptz NOT NULL DEFAULT now()
       )
     `);
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS ${config.columns.exported} boolean NOT NULL DEFAULT false`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS ${config.columns.active} boolean NOT NULL DEFAULT true`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS sr_name text`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS serial_type text`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS serial_type_changed_at timestamptz`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS brand text`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS category_id text`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS category_name text`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS subcategory_id text`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS subcategory_name text`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS part_number text`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS unit text`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS bin_name text`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS bin_type text`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS bigquery_import_date timestamptz`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS manual_import_date timestamptz`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS stock_type text`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS purchase_status text`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'manual'`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS source_updated_at timestamptz`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now()`,
-    );
-    await pool.query(
-      `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now()`,
-    );
-    await pool.query(
-      `CREATE INDEX IF NOT EXISTS fifo_inventory_sr_sku_active_exported_import_date_idx ON ${config.table} (${config.columns.srCode}, ${config.columns.sku}, ${config.columns.active}, ${config.columns.exported}, ${config.columns.importDate})`,
-    );
-    await pool.query(
-      `CREATE INDEX IF NOT EXISTS fifo_inventory_sr_serial_active_idx ON ${config.table} (${config.columns.srCode}, ${config.columns.serialNumber}, ${config.columns.active})`,
-    );
-    await pool.query(
-      `CREATE INDEX IF NOT EXISTS fifo_inventory_sr_bin_active_idx ON ${config.table} (${config.columns.srCode}, ${config.columns.bin}, ${config.columns.active})`,
-    );
-  }
 
-  private column(suffix: string, fallback: string) {
-    return this.identifier(
-      process.env[`OPSHUB_FIFO_INVENTORY_${suffix}`] || fallback,
-      `OPSHUB_FIFO_INVENTORY_${suffix}`,
+    for (const [column, type] of TABLE_COLUMNS) {
+      const defaultClause = column === 'Inventory' ? ' NOT NULL DEFAULT 0' : '';
+      await pool.query(
+        `ALTER TABLE ${config.table} ADD COLUMN IF NOT EXISTS ${config.columns[column]} ${type}${defaultClause}`,
+      );
+    }
+
+    await pool.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS fifo_inventory_opshub_item_key_uidx ON ${config.table} (${config.columns.opshub_item_key})`,
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS fifo_inventory_branch_sku_active_fifo_date_idx ON ${config.table} (${config.columns.Branch_ID}, ${config.columns.SKU}, ${config.columns.opshub_active}, ${config.columns.opshub_exported}, ${config.columns.Date_import_company}, ${config.columns.Date_import_site})`,
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS fifo_inventory_branch_serial_active_idx ON ${config.table} (${config.columns.Branch_ID}, ${config.columns.Serial}, ${config.columns.opshub_active})`,
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS fifo_inventory_branch_location_active_idx ON ${config.table} (${config.columns.Branch_ID}, ${config.columns.Location}, ${config.columns.opshub_active})`,
     );
   }
 
@@ -567,4 +733,161 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
     }
     return parts.map((part) => `"${part}"`).join('.');
   }
+}
+
+export function rowToCanonicalItem(
+  row: Record<string, unknown>,
+  rowNumber: number,
+  source: 'manual' | 'bigquery',
+): CanonicalInventoryItem | null {
+  const sku = readText(row, ['SKU', 'Mã sản phẩm']);
+  const branchId = readText(row, ['Branch_ID', 'Mã chi nhánh']).toUpperCase();
+  if (!sku || !branchId) return null;
+
+  const serial = readText(row, ['Serial', 'Số Serial']) || null;
+  const location = readText(row, ['Location', 'Mã Bin']) || null;
+  const binZone = readText(row, ['BIN_zone', 'Zone']) || null;
+  const itemKey = serial
+    ? `${branchId}:${serial.toUpperCase()}`
+    : `${branchId}:${sku}:${location || binZone || 'NO_LOCATION'}:${rowNumber}`;
+
+  return {
+    itemKey,
+    serial,
+    sku,
+    skuName: readText(row, ['SKU_name', 'Tên sản phẩm']),
+    branchId,
+    branchName: readText(row, ['Branch_name', 'Tên chi nhánh']) || null,
+    brand: readText(row, ['Brand', 'Thương hiệu']) || null,
+    categoryId: readText(row, ['Category_ID', 'Mã ngành hàng']) || null,
+    categoryName: readText(row, ['Category_name', 'Tên ngành hàng']) || null,
+    subCategoryId: readText(row, ['SubCategory_ID', 'Mã nhóm sản phẩm']) || null,
+    subCategoryName:
+      readText(row, ['SubCategory_name', 'Tên nhóm sản phẩm']) || null,
+    subcatIdLowestLevel: readText(row, ['Subcat_ID_lowest_level']) || null,
+    subcatNameLowestLevel:
+      readText(row, ['Subcat_name_lowest_level']) || null,
+    location,
+    binType: normalizeBinType(readText(row, ['BIN_type', 'Loại hàng'])) || null,
+    binZone,
+    dateImportCompany: parseInventoryDate(readRaw(row, ['Date_import_company'])),
+    dateImportSite: parseInventoryDate(
+      readRaw(row, ['Date_import_site', 'Ngày nhập kho']),
+    ),
+    agingCompany: parseNullableInteger(readRaw(row, ['Aging_company'])),
+    badStockCompany: readText(row, ['Bad_stock_company']) || null,
+    agingSite: parseNullableInteger(readRaw(row, ['Aging_site'])),
+    stockDaySite: parseNullableInteger(readRaw(row, ['Stock_day_site'])),
+    badStockSite: readText(row, ['Bad_stock_site']) || null,
+    stockDayCompany: parseNullableInteger(readRaw(row, ['Stock_day_company'])),
+    purchaseStatus: readText(row, ['Purchase_status']) || null,
+    inventory: parseInventoryNumber(readRaw(row, ['Inventory', 'Số lượng']), 1),
+    inventoryAmount: parseNullableNumber(readRaw(row, ['Inventory_amount'])),
+    manualPayload: source === 'manual' ? buildManualPayload(row) : null,
+  };
+}
+
+function buildManualPayload(row: Record<string, unknown>) {
+  return {
+    part_number: readText(row, ['Part number']) || null,
+    unit: readText(row, ['ĐVT']) || null,
+    serial_type: readText(row, ['Loại Serial']) || null,
+    serial_type_changed_at:
+      readText(row, ['Ngày đánh dấu chuyển loại Serial']) || null,
+    bin_name: readText(row, ['Tên Bin']) || null,
+    product_volume: readText(row, ['Tổng thể tích sản phẩm']) || null,
+    bin_volume: readText(row, ['Thể tích Bin']) || null,
+  };
+}
+
+function readRaw(row: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    if (row[key] !== undefined && row[key] !== null) return row[key];
+  }
+  return undefined;
+}
+
+function readText(row: Record<string, unknown>, keys: string[]) {
+  const value = readRaw(row, keys);
+  if (value === undefined || value === null) return '';
+  if (value instanceof Date) return value.toISOString().trim();
+  if (typeof value === 'object' && 'value' in value) {
+    return String((value as { value?: unknown }).value ?? '').trim();
+  }
+  return String(value).trim();
+}
+
+function normalizeBinType(value: string) {
+  const text = value.trim();
+  if (!text) return '';
+  if (text === 'Hàng bán') return 'Hàng bán mới tại kho';
+  return text;
+}
+
+function parseInventoryNumber(value: unknown, fallback: number) {
+  const parsed = parseNullableNumber(value);
+  return parsed === null ? fallback : parsed;
+}
+
+function parseNullableNumber(value: unknown) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'object' && 'value' in value) {
+    return parseNullableNumber((value as { value?: unknown }).value);
+  }
+  const count = Number(String(value).trim().replace(',', '.'));
+  return Number.isFinite(count) ? count : null;
+}
+
+function parseNullableInteger(value: unknown) {
+  const parsed = parseNullableNumber(value);
+  return parsed === null ? null : Math.round(parsed);
+}
+
+function parseInventoryDate(value: unknown) {
+  if (value === undefined || value === null || value === '') return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === 'object' && 'value' in value) {
+    return parseInventoryDate((value as { value?: unknown }).value);
+  }
+
+  const text = String(value).trim();
+  if (!text) return null;
+  const formulaNumber = /^=\s*([0-9]+(?:\.[0-9]+)?)/.exec(text);
+  if (formulaNumber) return excelSerialToDate(Number(formulaNumber[1]));
+
+  const numeric = Number(text);
+  if (Number.isFinite(numeric) && numeric > 20_000 && numeric < 80_000) {
+    return excelSerialToDate(numeric);
+  }
+
+  const ddmmyyyy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/.exec(text);
+  if (ddmmyyyy) {
+    const day = Number(ddmmyyyy[1]);
+    const month = Number(ddmmyyyy[2]) - 1;
+    const year =
+      ddmmyyyy[3].length === 2
+        ? 2000 + Number(ddmmyyyy[3])
+        : Number(ddmmyyyy[3]);
+    return new Date(Date.UTC(year, month, day));
+  }
+
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function excelSerialToDate(serial: number) {
+  const epoch = Date.UTC(1899, 11, 30);
+  return new Date(epoch + Math.floor(serial) * 86_400_000);
+}
+
+function firstEnvValue(keys: string[]) {
+  for (const key of keys) {
+    const value = process.env[key]?.trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
