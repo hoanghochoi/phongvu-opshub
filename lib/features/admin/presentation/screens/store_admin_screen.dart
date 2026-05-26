@@ -43,7 +43,9 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
       if (!mounted) return;
       setState(() => _stores = stores);
     } catch (error) {
-      if (mounted) _showMessage('Không tải được store: $error');
+      if (mounted) {
+        _showMessage('Chưa tải được danh sách showroom. Vui lòng thử lại.');
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -62,8 +64,8 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Xóa store'),
-        content: Text('Xóa store ${store.displayName}?'),
+        title: const Text('Xóa showroom'),
+        content: Text('Xóa showroom ${store.displayName}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -93,7 +95,7 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
       await _load();
       if (mounted) _showMessage('Đã xóa ${store.storeId}');
     } catch (error) {
-      if (mounted) _showMessage('Không xóa được store: $error');
+      if (mounted) _showMessage('Chưa xóa được showroom. Vui lòng thử lại.');
     }
   }
 
@@ -115,14 +117,14 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: GradientHeader(
-        title: 'Quản lý store',
+        title: 'Quản lý showroom',
         showBack: true,
         actions: canCreateStores
             ? [
                 IconButton(
                   onPressed: () => _openEditor(),
                   icon: const Icon(Icons.add_business_outlined),
-                  tooltip: 'Thêm store',
+                  tooltip: 'Thêm showroom',
                 ),
               ]
             : null,
@@ -196,7 +198,7 @@ class _StoreCard extends StatelessWidget {
     ].whereType<String>().join(' • ');
     final mapAccount = [
       if ((store.mapVietinUsername ?? '').isNotEmpty)
-        'MAP: ${store.mapVietinUsername}',
+        'Tài khoản tiền vào: ${store.mapVietinUsername}',
       if (store.hasMapVietinPassword) 'đã lưu mật khẩu',
     ].join(' • ');
 
@@ -251,7 +253,9 @@ class _StoreCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        account.isEmpty ? '${store.userCount} user' : account,
+                        account.isEmpty
+                            ? '${store.userCount} người dùng'
+                            : account,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -281,15 +285,15 @@ class _StoreCard extends StatelessWidget {
             AppIconAction(
               onPressed: onEdit,
               icon: Icons.edit_outlined,
-              tooltip: 'Sửa store',
+              tooltip: 'Sửa showroom',
             ),
             const SizedBox(width: 8),
             AppIconAction(
               onPressed: onDelete,
               icon: Icons.delete_outline,
               tooltip: store.userCount == 0
-                  ? 'Xóa store'
-                  : 'Store đang có user',
+                  ? 'Xóa showroom'
+                  : 'Showroom đang có người dùng',
             ),
           ],
         ),
@@ -369,9 +373,11 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Không lưu được store: $error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Chưa lưu được showroom. Vui lòng thử lại.'),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -381,7 +387,7 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.store == null ? 'Thêm store' : 'Sửa store'),
+      title: Text(widget.store == null ? 'Thêm showroom' : 'Sửa showroom'),
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
@@ -390,12 +396,12 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
             children: [
               TextField(
                 controller: _storeIdController,
-                decoration: const InputDecoration(labelText: 'Mã store'),
+                decoration: const InputDecoration(labelText: 'Mã showroom'),
                 textCapitalization: TextCapitalization.characters,
               ),
               TextField(
                 controller: _storeNameController,
-                decoration: const InputDecoration(labelText: 'Tên store'),
+                decoration: const InputDecoration(labelText: 'Tên showroom'),
               ),
               TextField(
                 controller: _accountNumberController,
@@ -423,13 +429,13 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
               TextField(
                 controller: _mapUsernameController,
                 decoration: const InputDecoration(
-                  labelText: 'Tài khoản VietinBank MAP',
+                  labelText: 'Tài khoản nhận tiền VietinBank',
                 ),
               ),
               TextField(
                 controller: _mapPasswordController,
                 decoration: InputDecoration(
-                  labelText: 'Mật khẩu VietinBank MAP',
+                  labelText: 'Mật khẩu tài khoản nhận tiền',
                   helperText: widget.store?.hasMapVietinPassword == true
                       ? 'Để trống nếu muốn giữ mật khẩu hiện tại'
                       : null,

@@ -140,7 +140,7 @@ class ChatProvider extends ChangeNotifier {
         context: {'userEmail': userEmail, 'message': error.message},
       );
     } catch (error, stackTrace) {
-      _error = 'Loi khong xac dinh: $error';
+      _error = 'Chưa kiểm tra được FIFO. Vui lòng thử lại.';
       await AppLogger.instance.error(
         'FIFO',
         'FIFO check crashed',

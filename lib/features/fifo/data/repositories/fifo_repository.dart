@@ -28,7 +28,7 @@ class FifoRepository {
     } on ApiException {
       rethrow;
     } catch (error) {
-      throw ApiException('Kiểm tra FIFO thất bại: $error');
+      throw ApiException('Chưa kiểm tra được FIFO. Vui lòng thử lại.');
     }
   }
 
@@ -50,7 +50,9 @@ class FifoRepository {
     } on ApiException {
       rethrow;
     } catch (error) {
-      throw ApiException('Cập nhật xuất kho thất bại: $error');
+      throw ApiException(
+        'Chưa cập nhật được trạng thái xuất kho. Vui lòng thử lại.',
+      );
     }
   }
 }

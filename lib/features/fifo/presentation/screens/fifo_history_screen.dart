@@ -229,7 +229,7 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
                         child: TextField(
                           controller: _userFilterController,
                           decoration: InputDecoration(
-                            hintText: 'Lọc theo email user...',
+                            hintText: 'Lọc theo email người dùng...',
                             hintStyle: TextStyle(
                               fontSize: 13,
                               color: Colors.grey[400],
@@ -393,7 +393,7 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
     VoidCallback onRefresh,
   ) {
     if (loading && logs.isEmpty) {
-      return const AppStatePanel.loading(title: 'Äang táº£i lá»‹ch sá»­ FIFO');
+      return const AppStatePanel.loading(title: 'Đang tải lịch sử FIFO');
     }
 
     if (logs.isEmpty) {
@@ -541,7 +541,7 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          log.userName ?? log.userEmail ?? 'Unknown',
+                          log.userName ?? log.userEmail ?? 'Chưa rõ',
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,

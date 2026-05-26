@@ -130,7 +130,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Không tạo được VietQR: $e'),
+            content: Text('Chưa tạo được mã QR. Vui lòng thử lại.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -308,7 +308,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
         if (showFeedback) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Không xác nhận được thanh toán: $e'),
+              content: Text('Chưa kiểm tra được thanh toán. Vui lòng thử lại.'),
               backgroundColor: Colors.red,
             ),
           );
@@ -353,7 +353,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Không quét được mã đơn: $e'),
+            content: Text('Chưa quét được mã đơn. Vui lòng thử lại.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -397,7 +397,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Không lưu được ảnh QR: $e'),
+            content: Text('Chưa lưu được ảnh QR. Vui lòng thử lại.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -894,12 +894,12 @@ class _PaymentWaitingCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Đang tự kiểm tra MAP',
+                    'Đang chờ tiền vào',
                     style: TextStyle(color: color, fontWeight: FontWeight.w800),
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Màn hình sẽ đổi sang đã nhận khi MAP có giao dịch khớp.',
+                    'Màn hình sẽ tự đổi trạng thái khi tìm thấy giao dịch khớp.',
                   ),
                 ],
               ),

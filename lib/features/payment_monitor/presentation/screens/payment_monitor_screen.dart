@@ -65,8 +65,8 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                           Expanded(
                             child: Text(
                               monitor.isSpeakerEnabled
-                                  ? 'Đang đọc thông báo tiền vào'
-                                  : 'Đã tắt âm thanh thông báo',
+                                  ? 'Đang đọc loa khi có tiền vào'
+                                  : 'Đã tắt đọc loa',
                               style: const TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w800,
@@ -91,7 +91,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'OpsHub PC tự lấy giao dịch MAP đã lưu trên server mỗi 5 giây và đọc mọi giao dịch tiền vào mới, kể cả giao dịch không tạo từ QR trong app.',
+                        'Máy này tự cập nhật giao dịch tiền vào mỗi 5 giây. Khi bật đọc loa, giao dịch mới sẽ được đọc thành tiếng; khi tắt, danh sách vẫn cập nhật bình thường.',
                         style: TextStyle(color: Colors.grey[700], height: 1.35),
                       ),
                       if (requiresStoreInput) ...[
@@ -99,7 +99,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                         TextField(
                           controller: _storeController,
                           decoration: const InputDecoration(
-                            labelText: 'Mã showroom cần theo dõi',
+                            labelText: 'Mã showroom cần xem',
                             prefixIcon: Icon(Icons.store_outlined),
                             border: OutlineInputBorder(),
                           ),
@@ -110,7 +110,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                         AppSecondaryButton(
                           onPressed: () => _applyStoreOverride(context),
                           icon: Icons.check_rounded,
-                          label: 'Theo dõi showroom này',
+                          label: 'Xem showroom này',
                         ),
                       ],
                     ],
@@ -122,7 +122,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                 _StatusCard(
                   icon: Icons.error_outline_rounded,
                   color: Colors.red,
-                  title: 'Không kiểm tra được giao dịch',
+                  title: 'Chưa cập nhật được giao dịch',
                   message: monitor.errorMessage!,
                 ),
               ],
@@ -130,9 +130,9 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
               _StatusCard(
                 icon: Icons.schedule_rounded,
                 color: const Color(0xFF2563EB),
-                title: 'Lần kiểm tra gần nhất',
+                title: 'Cập nhật gần nhất',
                 message: monitor.lastCheckedAt == null
-                    ? 'Chưa kiểm tra'
+                    ? 'Chưa có lần cập nhật nào'
                     : DateFormat(
                         'HH:mm:ss dd/MM/yyyy',
                       ).format(monitor.lastCheckedAt!),
@@ -141,7 +141,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
               _TransactionFilters(monitor: monitor),
               const SizedBox(height: 16),
               Text(
-                'Giao dịch gần đây',
+                'Giao dịch tiền vào',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -213,12 +213,12 @@ class _SyncStatusPill extends StatelessWidget {
         ? const Color(0xFF16A34A)
         : const Color(0xFF6B7280);
     final label = monitor.isLoading
-        ? 'Đang sync giao dịch'
+        ? 'Đang cập nhật giao dịch'
         : monitor.isActive
-        ? 'Sync giao dịch đang chạy'
+        ? 'Giao dịch tự cập nhật'
         : monitor.hasMonitorScope
-        ? 'Sync giao dịch đang khởi động'
-        : 'Cần gán showroom để sync';
+        ? 'Đang chuẩn bị cập nhật'
+        : 'Chọn showroom để cập nhật';
 
     return SizedBox(
       height: 36,
@@ -397,7 +397,7 @@ class _EmptyTransactions extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: const Padding(
         padding: EdgeInsets.all(18),
-        child: Center(child: Text('Chưa có giao dịch trong phiên theo dõi')),
+        child: Center(child: Text('Chưa có giao dịch trong ngày đã chọn')),
       ),
     );
   }

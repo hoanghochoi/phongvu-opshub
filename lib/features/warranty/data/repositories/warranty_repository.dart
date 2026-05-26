@@ -24,7 +24,7 @@ class WarrantyRepository {
       for (int i = 0; i < images.length; i++) {
         final file = images[i];
         final multipartFile = await http.MultipartFile.fromPath(
-          'images',   // New backend uses 'images' (FilesInterceptor)
+          'images', // New backend uses 'images' (FilesInterceptor)
           file.path,
           filename: 'image_$i.jpg',
         );
@@ -33,15 +33,16 @@ class WarrantyRepository {
 
       final response = await _apiClient.postMultipart(
         ApiConstants.saveWarrantyEndpoint,
-        fields: {
-          'user': userEmail,
-          'receipt': receiptNumber,
-        },
+        fields: {'user': userEmail, 'receipt': receiptNumber},
         files: multipartFiles,
         timeout: ApiConstants.uploadTimeout,
       );
 
-      if (kDebugMode) debugPrint('📥 [WarrantyRepository.saveWarranty] Response: ${response.statusCode}');
+      if (kDebugMode) {
+        debugPrint(
+          '📥 [WarrantyRepository.saveWarranty] Response: ${response.statusCode}',
+        );
+      }
 
       final dynamic jsonResponse = jsonDecode(response.body);
       Map<String, dynamic> responseData;
@@ -51,14 +52,14 @@ class WarrantyRepository {
       } else if (jsonResponse is Map<String, dynamic>) {
         responseData = jsonResponse;
       } else {
-        throw ApiException('Response format không hợp lệ');
+        throw ApiException('Dữ liệu biên nhận chưa hợp lệ. Vui lòng thử lại.');
       }
 
       return responseData;
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException('Lỗi khi lưu biên nhận: $e');
+      throw ApiException('Chưa lưu được biên nhận. Vui lòng thử lại.');
     }
   }
 
@@ -69,7 +70,11 @@ class WarrantyRepository {
         ApiConstants.showAllWarrantyEndpoint,
       );
 
-      if (kDebugMode) debugPrint('📥 [WarrantyRepository.showAllWarranty] Response: ${response.statusCode}');
+      if (kDebugMode) {
+        debugPrint(
+          '📥 [WarrantyRepository.showAllWarranty] Response: ${response.statusCode}',
+        );
+      }
 
       final dynamic jsonResponse = jsonDecode(response.body);
 
@@ -85,7 +90,9 @@ class WarrantyRepository {
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException('Lỗi khi lấy danh sách biên nhận: $e');
+      throw ApiException(
+        'Chưa tải được danh sách biên nhận. Vui lòng thử lại.',
+      );
     }
   }
 
@@ -99,7 +106,11 @@ class WarrantyRepository {
         '${ApiConstants.searchWarrantyEndpoint}?receipt=${Uri.encodeComponent(receiptNumber)}',
       );
 
-      if (kDebugMode) debugPrint('📥 [WarrantyRepository.searchWarranty] Response: ${response.statusCode}');
+      if (kDebugMode) {
+        debugPrint(
+          '📥 [WarrantyRepository.searchWarranty] Response: ${response.statusCode}',
+        );
+      }
 
       final dynamic jsonResponse = jsonDecode(response.body);
 
@@ -115,7 +126,7 @@ class WarrantyRepository {
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException('Lỗi khi tìm kiếm biên nhận: $e');
+      throw ApiException('Chưa tìm được biên nhận. Vui lòng thử lại.');
     }
   }
 
@@ -129,7 +140,11 @@ class WarrantyRepository {
         '${ApiConstants.getWarrantyEndpoint}?receipt=${Uri.encodeComponent(receiptNumber)}',
       );
 
-      if (kDebugMode) debugPrint('📥 [WarrantyRepository.getWarrantyDetails] Response: ${response.statusCode}');
+      if (kDebugMode) {
+        debugPrint(
+          '📥 [WarrantyRepository.getWarrantyDetails] Response: ${response.statusCode}',
+        );
+      }
 
       final dynamic jsonResponse = jsonDecode(response.body);
 
@@ -139,11 +154,11 @@ class WarrantyRepository {
         return jsonResponse;
       }
 
-      throw ApiException('Không tìm thấy biên nhận');
+      throw ApiException('Không tìm thấy biên nhận.');
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException('Lỗi khi lấy chi tiết biên nhận: $e');
+      throw ApiException('Chưa mở được chi tiết biên nhận. Vui lòng thử lại.');
     }
   }
 }

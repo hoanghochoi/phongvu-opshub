@@ -76,7 +76,7 @@ class FifoProvider extends ChangeNotifier {
         context: {'message': error.message, 'statusCode': error.statusCode},
       );
     } catch (error, stackTrace) {
-      _error = 'Lỗi không xác định: $error';
+      _error = 'Chưa kiểm tra được FIFO. Vui lòng thử lại.';
       await AppLogger.instance.error(
         'FIFO',
         'FIFO check crashed',
@@ -126,7 +126,7 @@ class FifoProvider extends ChangeNotifier {
         context: {'message': error.message, 'statusCode': error.statusCode},
       );
     } catch (error, stackTrace) {
-      _error = 'Lỗi không xác định: $error';
+      _error = 'Chưa cập nhật được trạng thái xuất kho. Vui lòng thử lại.';
       await AppLogger.instance.error(
         'FIFO',
         'FIFO export update crashed',

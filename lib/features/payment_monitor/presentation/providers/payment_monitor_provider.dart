@@ -274,7 +274,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         ..clear()
         ..addAll(transactionPage.transactions);
     } catch (error) {
-      _errorMessage = error.toString();
+      _errorMessage = _friendlyPollError(error);
       await AppLogger.instance.error(
         'PaymentMonitor',
         'Payment monitor poll failed',
@@ -504,5 +504,19 @@ class PaymentMonitorProvider extends ChangeNotifier {
   static String _formatDateForApi(DateTime date) {
     String two(int value) => value.toString().padLeft(2, '0');
     return '${date.year}-${two(date.month)}-${two(date.day)}';
+  }
+
+  static String _friendlyPollError(Object error) {
+    final text = error.toString().toLowerCase();
+    if (text.contains('network') || text.contains('socket')) {
+      return 'Không kết nối được. Vui lòng kiểm tra mạng rồi thử lại.';
+    }
+    if (text.contains('timeout')) {
+      return 'Kết nối hơi lâu. Vui lòng thử lại sau ít phút.';
+    }
+    if (text.contains('401') || text.contains('403')) {
+      return 'Tài khoản chưa có quyền xem giao dịch của showroom này.';
+    }
+    return 'Chưa cập nhật được giao dịch. Vui lòng thử lại sau ít phút.';
   }
 }

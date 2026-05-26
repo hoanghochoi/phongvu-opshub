@@ -154,7 +154,7 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
                             child: ColoredBox(
                               color: Color(0x66FFFFFF),
                               child: AppStatePanel.loading(
-                                title: 'Äang kiá»ƒm tra FIFO',
+                                title: 'Đang kiểm tra FIFO',
                                 compact: true,
                               ),
                             ),
@@ -538,7 +538,7 @@ class _InfoChip extends StatelessWidget {
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 180),
             child: Text(
-              value.isEmpty ? 'N/A' : value,
+              value.isEmpty ? 'Chưa có' : value,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               softWrap: false,

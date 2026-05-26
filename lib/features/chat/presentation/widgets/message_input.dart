@@ -65,7 +65,7 @@ class _MessageInputState extends State<MessageInput> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi quét mã: $e'),
+            content: Text('Chưa quét được mã. Vui lòng thử lại.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -82,7 +82,7 @@ class _MessageInputState extends State<MessageInput> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Format không đúng. Nhập: SKU, SKU SỐ_LƯỢNG, hoặc SERIAL\nVí dụ: ABC123 hoặc ABC123 10',
+            'Nội dung chưa đúng. Nhập SKU, SKU + số lượng, hoặc serial.\nVí dụ: ABC123 hoặc ABC123 10',
           ),
           backgroundColor: Colors.orange,
         ),
