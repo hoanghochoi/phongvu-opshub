@@ -62,6 +62,36 @@ void main() {
 
     provider.dispose();
   });
+
+  test('requests stored transactions with the selected date range', () async {
+    final repository = _FakePaymentMonitorRepository(notifications: const []);
+    final speaker = _FakePaymentSpeaker();
+    final provider = PaymentMonitorProvider(repository, speaker);
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(
+      const User(
+        id: 'user-1',
+        email: 'staff@example.com',
+        role: 'MANAGER',
+        storeId: 'store-uuid-1',
+      ),
+      isInitialized: true,
+    );
+    await _waitUntil(() => repository.transactionFetchCount > 0);
+
+    repository.requestedStartDates.clear();
+    repository.requestedEndDates.clear();
+    provider.setDateRange(DateTime(2026, 5, 23), DateTime(2026, 5, 27));
+    await _waitUntil(
+      () => repository.requestedStartDates.contains('2026-05-23'),
+    );
+
+    expect(repository.requestedStartDates, contains('2026-05-23'));
+    expect(repository.requestedEndDates, contains('2026-05-27'));
+
+    provider.dispose();
+  });
 }
 
 Future<void> _waitUntil(bool Function() condition) async {
@@ -74,6 +104,8 @@ Future<void> _waitUntil(bool Function() condition) async {
 class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<PaymentNotification> notifications;
   final List<String> ackEvents = [];
+  final List<String?> requestedStartDates = [];
+  final List<String?> requestedEndDates = [];
   int transactionFetchCount = 0;
 
   _FakePaymentMonitorRepository({required this.notifications})
@@ -83,10 +115,14 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   Future<StoredPaymentTransactionsPage> fetchStoredTransactions({
     String? storeId,
     String? date,
+    String? startDate,
+    String? endDate,
     int page = 0,
     int limit = 10,
   }) async {
     transactionFetchCount += 1;
+    requestedStartDates.add(startDate);
+    requestedEndDates.add(endDate);
     return StoredPaymentTransactionsPage(
       transactions: const [],
       page: page,

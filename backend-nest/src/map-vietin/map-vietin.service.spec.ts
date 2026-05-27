@@ -258,6 +258,43 @@ describe('MapVietinService', () => {
       }),
     );
   });
+
+  it('lists stored transactions across a Vietnam-local date range', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(0);
+
+    await expect(
+      service.listStoredTransactions(
+        { role: 'STAFF', storeId: 'store-uuid-1' },
+        {
+          startDate: '2026-05-23',
+          endDate: '2026-05-27',
+          page: 0,
+          limit: 10,
+        },
+      ),
+    ).resolves.toMatchObject({
+      storeId: 'CP01',
+      page: 0,
+      limit: 10,
+      total: 0,
+      list: [],
+    });
+
+    const where = prisma.mapVietinTransaction.findMany.mock.calls[0][0].where;
+    expect(where.OR[0].paidAt).toEqual({
+      gte: new Date('2026-05-22T17:00:00.000Z'),
+      lt: new Date('2026-05-27T17:00:00.000Z'),
+    });
+    expect(where.OR[1].firstSeenAt).toEqual({
+      gte: new Date('2026-05-22T17:00:00.000Z'),
+      lt: new Date('2026-05-27T17:00:00.000Z'),
+    });
+  });
 });
 
 function jsonResponse(body: unknown) {

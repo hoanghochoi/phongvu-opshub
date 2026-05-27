@@ -27,6 +27,8 @@ class PaymentMonitorRepository {
   Future<StoredPaymentTransactionsPage> fetchStoredTransactions({
     String? storeId,
     String? date,
+    String? startDate,
+    String? endDate,
     int page = 0,
     int limit = 10,
   }) async {
@@ -36,6 +38,10 @@ class PaymentMonitorRepository {
         if (storeId != null && storeId.trim().isNotEmpty)
           'storeId': storeId.trim().toUpperCase(),
         if (date != null && date.trim().isNotEmpty) 'date': date.trim(),
+        if (startDate != null && startDate.trim().isNotEmpty)
+          'startDate': startDate.trim(),
+        if (endDate != null && endDate.trim().isNotEmpty)
+          'endDate': endDate.trim(),
         'page': page.toString(),
         'limit': limit.toString(),
       },
