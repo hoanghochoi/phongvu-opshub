@@ -73,11 +73,12 @@ a customer to scan and pay manually.
   the backend to their assigned showroom.
 - New incoming transaction audio is delivered through backend-generated payment
   notifications. The backend stores notification/audit rows, optionally calls a
-  server-side TTS service with VieNEU voice id `custom:suong-vo` (`Suong Vo`)
-  at speed `0.98` and pitch `1.00`, publishes a scoped realtime event, and
-  serves audio only through JWT-protected endpoints. The Windows app plays
-  `data/ting ting.mp3` before the generated audio, then falls back to local
-  Windows speech if the server audio is unavailable.
+  server-side TTS service, publishes a scoped realtime event, and serves audio
+  only through JWT-protected endpoints. Production uses Piper `vi-vais1000`
+  through `TTS_VOICE_ID=piper:vi-vais1000`; the sidecar still accepts the
+  legacy `custom:suong-vo` voice id for rollback-friendly deploys. The Windows
+  app plays `data/ting ting.mp3` before the generated audio, then falls back to
+  local Windows speech if the server audio is unavailable.
 - Payment notification audio is cleaned after 7 days, delivery/app logs after
   30 days, and stored MAP transactions after 90 days by default.
 

@@ -213,39 +213,48 @@ class _SortScreenState extends State<SortScreen> {
                 builder: (context, provider, child) {
                   final isLoading = provider.isLoading;
 
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          enabled: !isLoading,
-                          decoration: InputDecoration(
-                            hintText: 'Nhập SKU hoặc BIN',
-                            prefixIcon: const Icon(Icons.inventory_2_outlined),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: AppLayoutTokens.actionBarMaxWidth,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _controller,
+                              focusNode: _focusNode,
+                              enabled: !isLoading,
+                              decoration: InputDecoration(
+                                hintText: 'Nhập SKU hoặc BIN',
+                                prefixIcon: const Icon(
+                                  Icons.inventory_2_outlined,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey[50],
+                              ),
+                              onSubmitted: (_) => _sendSortRequest(),
                             ),
-                            filled: true,
-                            fillColor: Colors.grey[50],
                           ),
-                          onSubmitted: (_) => _sendSortRequest(),
-                        ),
+                          const SizedBox(width: AppLayoutTokens.formInlineGap),
+                          AppIconAction(
+                            onPressed: isLoading ? null : _scanBarcode,
+                            icon: Icons.qr_code_scanner_rounded,
+                            tooltip: 'Quét mã',
+                          ),
+                          const SizedBox(width: AppLayoutTokens.formInlineGap),
+                          AppIconAction(
+                            onPressed: isLoading ? null : _sendSortRequest,
+                            icon: Icons.send_rounded,
+                            tooltip: 'Gửi',
+                            filled: true,
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: AppLayoutTokens.formInlineGap),
-                      AppIconAction(
-                        onPressed: isLoading ? null : _scanBarcode,
-                        icon: Icons.qr_code_scanner_rounded,
-                        tooltip: 'Quét mã',
-                      ),
-                      const SizedBox(width: AppLayoutTokens.formInlineGap),
-                      AppIconAction(
-                        onPressed: isLoading ? null : _sendSortRequest,
-                        icon: Icons.send_rounded,
-                        tooltip: 'Gửi',
-                        filled: true,
-                      ),
-                    ],
+                    ),
                   );
                 },
               ),

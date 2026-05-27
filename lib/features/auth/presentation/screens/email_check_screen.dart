@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_logo.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/utils/email_domain_policy.dart';
 import '../../../../core/utils/validators.dart';
@@ -132,10 +133,8 @@ class _LogoHeader extends StatelessWidget {
     return Column(
       children: [
         Container(
-          width: 88,
-          height: 88,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
                 color: Colors.white.withValues(alpha: 0.15),
@@ -144,14 +143,7 @@ class _LogoHeader extends StatelessWidget {
               ),
             ],
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: Image.asset(
-              'assets/images/logo.png',
-              height: 88,
-              fit: BoxFit.contain,
-            ),
-          ),
+          child: const AppLogo(size: 88, borderRadius: 28),
         ),
         const SizedBox(height: 18),
         const Text(

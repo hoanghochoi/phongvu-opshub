@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_logo.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../payment_monitor/presentation/providers/payment_monitor_provider.dart';
@@ -155,19 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.all(24.0),
               child: Row(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.hub_rounded,
-                      size: 28,
-                      color: AppTheme.primaryBlue,
-                    ),
-                  ),
+                  const AppLogo(size: 48, borderRadius: 16),
                   const SizedBox(width: 12),
                   const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

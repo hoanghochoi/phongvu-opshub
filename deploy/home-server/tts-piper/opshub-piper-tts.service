@@ -1,0 +1,20 @@
+[Unit]
+Description=OpsHub Piper TTS sidecar
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/opshub-piper-tts
+Environment=PIPER_MODEL_DIR=/opt/opshub-piper-tts/models/vi-vais1000
+Environment=PIPER_TMP_DIR=/tmp/opshub-piper-tts
+Environment=PIPER_VOICE_ID=piper:vi-vais1000
+ExecStart=/opt/opshub-piper-tts/.venv/bin/uvicorn app:app --host 172.20.0.1 --port 18081 --workers 1
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=false
+
+[Install]
+WantedBy=multi-user.target
