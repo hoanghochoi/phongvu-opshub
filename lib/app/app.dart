@@ -23,6 +23,7 @@ import '../features/payment_monitor/data/payment_speaker.dart';
 import '../features/payment_monitor/data/repositories/payment_monitor_repository.dart';
 import '../features/payment_monitor/presentation/providers/payment_monitor_provider.dart';
 import '../features/payment_monitor/presentation/screens/payment_monitor_screen.dart';
+import '../features/settings/presentation/screens/settings_screen.dart';
 import '../features/vietqr/presentation/screens/vietqr_screen.dart';
 import '../features/fifo/data/repositories/fifo_repository.dart';
 import '../features/fifo/presentation/providers/fifo_provider.dart';
@@ -118,6 +119,7 @@ class App extends StatelessWidget {
           '/warranty': (context) => const WarrantyScreen(),
           '/check-warranty': (context) => const CheckWarrantyScreen(),
           '/feedback': (context) => const FeedbackScreen(),
+          '/settings': (context) => const SettingsScreen(),
           '/payment-monitor': (context) => const PaymentMonitorScreen(),
           '/vietqr': (context) => const VietQrScreen(),
           '/sort': (context) => const SortScreen(),
