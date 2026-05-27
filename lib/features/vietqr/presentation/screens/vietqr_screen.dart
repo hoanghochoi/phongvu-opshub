@@ -10,6 +10,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_logo.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -26,7 +27,7 @@ class VietQrScreen extends StatefulWidget {
 
 class _VietQrScreenState extends State<VietQrScreen> {
   static const _mediaChannel = MethodChannel('phongvu_opshub/media');
-  static const _logoAsset = 'assets/images/vietqr_logo.jpg';
+  static const _logoAsset = AppLogo.imageAsset;
   static const _paymentPollInterval = Duration(seconds: 10);
   static const _paymentPollMaxAttempts = 36;
 

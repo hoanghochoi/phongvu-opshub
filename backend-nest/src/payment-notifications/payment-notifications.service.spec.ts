@@ -92,8 +92,8 @@ describe('PaymentNotificationsService', () => {
     );
   });
 
-  it('sends Phong Vu payment text with the Suong Vo VieNEU voice settings', async () => {
-    process.env.TTS_SERVICE_URL = 'http://vieneu-tts:8000';
+  it('sends Phong Vu payment text with the default Piper voice settings', async () => {
+    process.env.TTS_SERVICE_URL = 'http://piper-tts:8000';
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: false,
       status: 500,
@@ -125,7 +125,7 @@ describe('PaymentNotificationsService', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://vieneu-tts:8000/synthesize',
+      'http://piper-tts:8000/synthesize',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,7 +135,7 @@ describe('PaymentNotificationsService', () => {
     expect(JSON.parse(String((request as RequestInit).body))).toEqual({
       text: 'Phong Vũ đã nhận: hai mươi tám triệu bảy trăm năm mươi sáu nghìn ba trăm hai mươi mốt đồng',
       format: 'mp3',
-      voice_id: 'custom:suong-vo',
+      voice_id: 'piper:vi-vais1000',
       speed: 0.98,
       pitch: 1.0,
     });
