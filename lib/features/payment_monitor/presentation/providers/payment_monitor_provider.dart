@@ -29,7 +29,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   DateTime? _lastCheckedAt;
-  DateTime _selectedDate = _todayInVietnam();
+  DateTime _rangeStartDate = _todayInVietnam();
+  DateTime _rangeEndDate = _todayInVietnam();
   int _pageIndex = 0;
   int _pageSize = 10;
   int _totalTransactions = 0;
@@ -47,7 +48,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   DateTime? get lastCheckedAt => _lastCheckedAt;
   String? get storeOverride => _storeOverride;
-  DateTime get selectedDate => _selectedDate;
+  DateTime get selectedDate => _rangeStartDate;
+  DateTime get rangeStartDate => _rangeStartDate;
+  DateTime get rangeEndDate => _rangeEndDate;
   int get pageIndex => _pageIndex;
   int get pageSize => _pageSize;
   int get totalTransactions => _totalTransactions;
@@ -101,10 +104,35 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   void setSelectedDate(DateTime value) {
-    final normalized = DateTime(value.year, value.month, value.day);
-    if (_isSameDate(_selectedDate, normalized)) return;
-    _selectedDate = normalized;
+    setDateRange(value, value);
+  }
+
+  void setDateRange(DateTime start, DateTime end) {
+    var normalizedStart = _normalizeVietnamDate(start);
+    var normalizedEnd = _normalizeVietnamDate(end);
+    if (normalizedEnd.isBefore(normalizedStart)) {
+      final swap = normalizedStart;
+      normalizedStart = normalizedEnd;
+      normalizedEnd = swap;
+    }
+    if (_isSameDate(_rangeStartDate, normalizedStart) &&
+        _isSameDate(_rangeEndDate, normalizedEnd)) {
+      return;
+    }
+    _rangeStartDate = normalizedStart;
+    _rangeEndDate = normalizedEnd;
     _pageIndex = 0;
+    unawaited(
+      AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment monitor date range changed',
+        context: {
+          'storeId': _requestStoreId ?? _user?.storeId,
+          'startDate': _formatDateForApi(_rangeStartDate),
+          'endDate': _formatDateForApi(_rangeEndDate),
+        },
+      ),
+    );
     _poll();
   }
 
@@ -112,18 +140,30 @@ class PaymentMonitorProvider extends ChangeNotifier {
     if (_pageSize == value) return;
     _pageSize = value;
     _pageIndex = 0;
+    unawaited(
+      AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment monitor page size changed',
+        context: {
+          'storeId': _requestStoreId ?? _user?.storeId,
+          'limit': _pageSize,
+        },
+      ),
+    );
     _poll();
   }
 
   void nextPage() {
     if (!canGoNextPage) return;
     _pageIndex += 1;
+    unawaited(_logPageChanged('next'));
     _poll();
   }
 
   void previousPage() {
     if (!canGoPreviousPage) return;
     _pageIndex -= 1;
+    unawaited(_logPageChanged('previous'));
     _poll();
   }
 
@@ -235,7 +275,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
       }
       final transactionPage = await _repository.fetchStoredTransactions(
         storeId: _requestStoreId,
-        date: _formatDateForApi(_selectedDate),
+        startDate: _formatDateForApi(_rangeStartDate),
+        endDate: _formatDateForApi(_rangeEndDate),
         page: _pageIndex,
         limit: _pageSize,
       );
@@ -282,7 +323,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
         upload: true,
         context: {
           'storeId': _requestStoreId ?? _user?.storeId,
-          'date': _formatDateForApi(_selectedDate),
+          'startDate': _formatDateForApi(_rangeStartDate),
+          'endDate': _formatDateForApi(_rangeEndDate),
           'page': _pageIndex,
           'limit': _pageSize,
         },
@@ -496,6 +538,25 @@ class PaymentMonitorProvider extends ChangeNotifier {
   static DateTime _todayInVietnam() {
     final now = DateTime.now().toUtc().add(const Duration(hours: 7));
     return DateTime(now.year, now.month, now.day);
+  }
+
+  static DateTime _normalizeVietnamDate(DateTime value) {
+    return DateTime(value.year, value.month, value.day);
+  }
+
+  Future<void> _logPageChanged(String direction) {
+    return AppLogger.instance.info(
+      'PaymentMonitor',
+      'Payment monitor page changed',
+      context: {
+        'storeId': _requestStoreId ?? _user?.storeId,
+        'direction': direction,
+        'page': _pageIndex,
+        'limit': _pageSize,
+        'startDate': _formatDateForApi(_rangeStartDate),
+        'endDate': _formatDateForApi(_rangeEndDate),
+      },
+    );
   }
 
   static bool _isSameDate(DateTime a, DateTime b) =>

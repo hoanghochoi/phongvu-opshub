@@ -95,6 +95,16 @@ export class ListStoredMapVietinTransactionsDto {
   date?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  endDate?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)

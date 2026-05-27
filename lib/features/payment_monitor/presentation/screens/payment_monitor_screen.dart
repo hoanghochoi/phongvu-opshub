@@ -83,16 +83,19 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(child: _SyncStatusPill(monitor: monitor)),
-                        ],
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: _SyncStatusPill(monitor: monitor),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       Text(
                         'Máy này tự cập nhật giao dịch tiền vào mỗi 5 giây. Khi bật đọc loa, giao dịch mới sẽ được đọc thành tiếng; khi tắt, danh sách vẫn cập nhật bình thường.',
-                        style: TextStyle(color: Colors.grey[700], height: 1.35),
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                          height: 1.25,
+                          fontSize: 13,
+                        ),
                       ),
                       if (requiresStoreInput) ...[
                         const SizedBox(height: AppLayoutTokens.formFieldGap),
@@ -126,18 +129,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                   message: monitor.errorMessage!,
                 ),
               ],
-              const SizedBox(height: 16),
-              _StatusCard(
-                icon: Icons.schedule_rounded,
-                color: const Color(0xFF2563EB),
-                title: 'Cập nhật gần nhất',
-                message: monitor.lastCheckedAt == null
-                    ? 'Chưa có lần cập nhật nào'
-                    : DateFormat(
-                        'HH:mm:ss dd/MM/yyyy',
-                      ).format(monitor.lastCheckedAt!),
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               _TransactionFilters(monitor: monitor),
               const SizedBox(height: 16),
               Text(
@@ -212,13 +204,21 @@ class _SyncStatusPill extends StatelessWidget {
     final color = monitor.isActive
         ? const Color(0xFF16A34A)
         : const Color(0xFF6B7280);
-    final label = monitor.isLoading
+    final baseLabel = monitor.isLoading
         ? 'Đang cập nhật giao dịch'
         : monitor.isActive
         ? 'Giao dịch tự cập nhật'
         : monitor.hasMonitorScope
         ? 'Đang chuẩn bị cập nhật'
         : 'Chọn showroom để cập nhật';
+
+    final lastCheckedAt = monitor.lastCheckedAt;
+    final lastCheckedText = lastCheckedAt == null
+        ? 'chưa cập nhật'
+        : DateFormat('HH:mm:ss dd/MM/yyyy').format(lastCheckedAt);
+    final label = monitor.isActive || monitor.isLoading
+        ? '$baseLabel • $lastCheckedText'
+        : baseLabel;
 
     return SizedBox(
       height: 36,
@@ -240,13 +240,17 @@ class _SyncStatusPill extends StatelessWidget {
                     : Icon(Icons.sync_rounded, size: 16, color: color),
               ),
               const SizedBox(width: 8),
-              Expanded(
+              Flexible(
                 child: Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   softWrap: false,
-                  style: TextStyle(color: color, fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ],
@@ -278,7 +282,7 @@ class _TransactionFilters extends StatelessWidget {
                     onPressed: () => _pickDate(context),
                     icon: const Icon(Icons.calendar_month_rounded),
                     label: Text(
-                      DateFormat('dd/MM/yyyy').format(monitor.selectedDate),
+                      _formatRangeLabel(monitor),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       softWrap: false,
@@ -352,14 +356,37 @@ class _TransactionFilters extends StatelessWidget {
   }
 
   Future<void> _pickDate(BuildContext context) async {
-    final picked = await showDatePicker(
+    final picked = await showDateRangePicker(
       context: context,
-      initialDate: monitor.selectedDate,
+      initialDateRange: DateTimeRange(
+        start: monitor.rangeStartDate,
+        end: monitor.rangeEndDate,
+      ),
       firstDate: DateTime(2024),
       lastDate: DateTime.now().add(const Duration(days: 1)),
+      helpText: 'Chọn khoảng ngày',
+      cancelText: 'Hủy',
+      confirmText: 'Áp dụng',
     );
     if (picked == null || !context.mounted) return;
-    context.read<PaymentMonitorProvider>().setSelectedDate(picked);
+    context.read<PaymentMonitorProvider>().setDateRange(
+      picked.start,
+      picked.end,
+    );
+  }
+
+  String _formatRangeLabel(PaymentMonitorProvider monitor) {
+    final start = monitor.rangeStartDate;
+    final end = monitor.rangeEndDate;
+    if (start.year == end.year &&
+        start.month == end.month &&
+        start.day == end.day) {
+      return DateFormat('dd/MM/yyyy').format(start);
+    }
+    if (start.year == end.year && start.month == end.month) {
+      return '${DateFormat('dd').format(start)} - ${DateFormat('dd/MM/yyyy').format(end)}';
+    }
+    return '${DateFormat('dd/MM/yyyy').format(start)} - ${DateFormat('dd/MM/yyyy').format(end)}';
   }
 }
 
@@ -397,7 +424,9 @@ class _EmptyTransactions extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: const Padding(
         padding: EdgeInsets.all(18),
-        child: Center(child: Text('Chưa có giao dịch trong ngày đã chọn')),
+        child: Center(
+          child: Text('Chưa có giao dịch trong khoảng ngày đã chọn'),
+        ),
       ),
     );
   }

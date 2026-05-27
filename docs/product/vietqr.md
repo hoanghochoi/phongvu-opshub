@@ -47,6 +47,8 @@ a customer to scan and pay manually.
 - The monitor is independent from OpsHub-created QR/payment intents. It reads
   all successful incoming VietinBank MAP transactions stored for the selected
   showroom, not only transfers that match an OpsHub QR.
+- The monitor transaction list can be filtered by a Vietnam-local date range,
+  for example 23-27/05, and remains paginated by the selected row count.
 - The Windows app starts the monitor after sign-in when the account has a
   showroom scope. It seeds currently visible server transactions silently so old
   rows are not announced again.

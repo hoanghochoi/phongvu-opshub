@@ -148,9 +148,7 @@ export class MapVietinService {
     const afterFirstSeenAt = input.afterFirstSeenAt
       ? this.parseDate(input.afterFirstSeenAt, 'afterFirstSeenAt')
       : null;
-    const localDateRange = input.date
-      ? this.parseVietnamDateRange(input.date)
-      : null;
+    const localDateRange = this.resolveStoredTransactionDateRange(input);
     const limit = input.limit ?? 10;
     const page = input.page ?? 0;
     const where: Prisma.MapVietinTransactionWhereInput = {
@@ -574,18 +572,44 @@ export class MapVietinService {
     return parsed;
   }
 
-  private parseVietnamDateRange(value: string) {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-    if (!match) {
+  private resolveStoredTransactionDateRange(
+    input: ListStoredMapVietinTransactionsDto,
+  ) {
+    if (input.startDate || input.endDate) {
+      return this.parseVietnamDateRange(
+        input.startDate || input.endDate,
+        input.endDate || input.startDate,
+      );
+    }
+    if (input.date) return this.parseVietnamDateRange(input.date, input.date);
+    return null;
+  }
+
+  private parseVietnamDateRange(startValue?: string, endValue?: string) {
+    const startMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(
+      String(startValue || ''),
+    );
+    const endMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(
+      String(endValue || startValue || ''),
+    );
+    if (!startMatch || !endMatch) {
       throw new BadRequestException('date khÃ´ng há»£p lá»‡');
     }
-    const year = Number(match[1]);
-    const month = Number(match[2]);
-    const day = Number(match[3]);
+    const year = Number(startMatch[1]);
+    const month = Number(startMatch[2]);
+    const day = Number(startMatch[3]);
+    const endYear = Number(endMatch[1]);
+    const endMonth = Number(endMatch[2]);
+    const endDay = Number(endMatch[3]);
     const start = new Date(Date.UTC(year, month - 1, day, -7, 0, 0, 0));
-    const end = new Date(Date.UTC(year, month - 1, day + 1, -7, 0, 0, 0));
+    const end = new Date(
+      Date.UTC(endYear, endMonth - 1, endDay + 1, -7, 0, 0, 0),
+    );
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       throw new BadRequestException('date khÃ´ng há»£p lá»‡');
+    }
+    if (end <= start) {
+      throw new BadRequestException('endDate pháº£i sau startDate');
     }
     return { start, end };
   }
