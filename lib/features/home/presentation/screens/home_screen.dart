@@ -220,6 +220,17 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.settings_outlined, color: Colors.white),
+              title: const Text(
+                'Cài đặt',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pushNamed('/settings');
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.info_outline, color: Colors.white),
               title: const Text(
                 'Thông tin ứng dụng',

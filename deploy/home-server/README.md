@@ -102,6 +102,13 @@ EXE with:
 - `--build-name <utc-date>.<github-run-number>`
 - `--build-number 100000+<github-run-number>`
 
+The Windows installer bundles the Microsoft Visual C++ Redistributable x64 and
+runs it as an elevated prerequisite when the target PC is missing the required
+runtime files, has an older runtime, or has a partial install. The portable ZIP is
+kept for internal/manual use and does not install prerequisites by itself. The
+latest Microsoft Visual C++ v14 Redistributable supports Windows 10/11 and
+Windows Server 2016+; older Windows versions remain an unsupported install risk.
+
 Then it uploads the client artifacts to `/srv/opshub/downloads/`, points Windows
 update metadata at the installer EXE, updates the backend generic `APP_*`,
 `APP_ANDROID_APP_*`, and `APP_WINDOWS_APP_*` env values, runs Prisma migrations,

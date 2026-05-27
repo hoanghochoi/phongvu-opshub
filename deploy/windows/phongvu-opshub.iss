@@ -12,6 +12,9 @@
 #ifndef OutputBaseFilename
 #define OutputBaseFilename "phongvu-opshub-windows-setup"
 #endif
+#ifndef VcRedistPath
+#error VcRedistPath must point to vc_redist.x64.exe
+#endif
 
 [Setup]
 AppId={{D3F4B8F6-1F61-4C7E-9E9E-938AF6F38F8F}
@@ -44,10 +47,134 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#VcRedistPath}"; DestDir: "{tmp}"; DestName: "vc_redist.x64.exe"; Flags: dontcopy
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\phongvu_opshub.exe"
 Name: "{userdesktop}\{#AppName}"; Filename: "{app}\phongvu_opshub.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\phongvu_opshub.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\phongvu_opshub.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent; Check: ShouldLaunchApp
+
+[Code]
+var
+  VcRedistNeedsRestart: Boolean;
+
+function VcRuntimeDllsPresent(): Boolean;
+begin
+  Result :=
+    FileExists(ExpandConstant('{sys}\msvcp140.dll')) and
+    FileExists(ExpandConstant('{sys}\vcruntime140.dll')) and
+    FileExists(ExpandConstant('{sys}\vcruntime140_1.dll'));
+
+  if not Result then
+    Log('Visual C++ runtime DLL check failed; msvcp140.dll, vcruntime140.dll, or vcruntime140_1.dll is missing.');
+end;
+
+function VcRuntimeRegistryCurrent(): Boolean;
+var
+  Installed: Cardinal;
+  Major: Cardinal;
+  Minor: Cardinal;
+begin
+  Result := False;
+
+  if not RegQueryDWordValue(HKLM64, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', 'Installed', Installed) then
+  begin
+    Log('Visual C++ Redistributable x64 registry value Installed is missing.');
+    Exit;
+  end;
+
+  if Installed <> 1 then
+  begin
+    Log(Format('Visual C++ Redistributable x64 registry value Installed is %d.', [Installed]));
+    Exit;
+  end;
+
+  if not RegQueryDWordValue(HKLM64, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', 'Major', Major) then
+  begin
+    Log('Visual C++ Redistributable x64 registry value Major is missing.');
+    Exit;
+  end;
+
+  if not RegQueryDWordValue(HKLM64, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', 'Minor', Minor) then
+  begin
+    Log('Visual C++ Redistributable x64 registry value Minor is missing.');
+    Exit;
+  end;
+
+  Result := (Major > 14) or ((Major = 14) and (Minor >= 20));
+  if Result then
+    Log(Format('Visual C++ Redistributable x64 registry version is current enough: %d.%d.', [Major, Minor]))
+  else
+    Log(Format('Visual C++ Redistributable x64 registry version is too old: %d.%d.', [Major, Minor]));
+end;
+
+function NeedsVcRedist(): Boolean;
+begin
+  Result := (not VcRuntimeRegistryCurrent()) or (not VcRuntimeDllsPresent());
+
+  if Result then
+    Log('Bundled Visual C++ Redistributable x64 will be installed because the prerequisite is missing, old, or incomplete.')
+  else
+    Log('Visual C++ Redistributable x64 prerequisite is already satisfied.');
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+  VcRedistExe: String;
+  VcRedistLog: String;
+begin
+  Result := '';
+  VcRedistNeedsRestart := False;
+
+  if not NeedsVcRedist() then
+    Exit;
+
+  ExtractTemporaryFile('vc_redist.x64.exe');
+  VcRedistExe := ExpandConstant('{tmp}\vc_redist.x64.exe');
+  VcRedistLog := ExpandConstant('{tmp}\vc_redist_x64.log');
+
+  Log('Starting bundled Visual C++ Redistributable x64 installer.');
+  if not ShellExec('runas', VcRedistExe, '/install /quiet /norestart /log "' + VcRedistLog + '"', '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if ResultCode = 1223 then
+      Result := 'PhongVu OpsHub requires Microsoft Visual C++ Redistributable x64. Administrator permission was cancelled, so setup cannot continue.'
+    else
+      Result := 'PhongVu OpsHub could not start Microsoft Visual C++ Redistributable x64 setup. Windows error code: ' + IntToStr(ResultCode) + '.';
+    Exit;
+  end;
+
+  case ResultCode of
+    0:
+      begin
+        if NeedsVcRedist() then
+          Result := 'Microsoft Visual C++ Redistributable x64 setup finished, but required runtime files are still missing. Please restart Windows and run setup again.'
+        else
+          Log('Microsoft Visual C++ Redistributable x64 installed successfully.');
+      end;
+    3010, 1641:
+      begin
+        VcRedistNeedsRestart := True;
+        NeedsRestart := True;
+        Log(Format('Microsoft Visual C++ Redistributable x64 installed and requested a restart. Exit code: %d.', [ResultCode]));
+      end;
+    1638:
+      begin
+        if NeedsVcRedist() then
+          Result := 'Microsoft Visual C++ Redistributable x64 setup reported another version is installed, but required runtime files are still missing. Please install the latest Microsoft Visual C++ Redistributable x64 manually, then rerun setup.'
+        else
+          Log('Microsoft Visual C++ Redistributable x64 setup reported another version is installed; runtime check is satisfied.');
+      end;
+  else
+    Result := 'Microsoft Visual C++ Redistributable x64 setup failed with exit code ' + IntToStr(ResultCode) + '. Please restart Windows and run setup again as administrator.';
+  end;
+end;
+
+function ShouldLaunchApp(): Boolean;
+begin
+  Result := not VcRedistNeedsRestart;
+  if not Result then
+    Log('Skipping postinstall app launch because Microsoft Visual C++ Redistributable x64 requested a restart.');
+end;

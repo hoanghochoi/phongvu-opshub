@@ -21,6 +21,7 @@ Go realtime service.
 - VietQR: manual bank-transfer QR generation for customer self-scan.
 - Profile/Admin: personal profile, first-login branch selection, and user
   administration.
+- Settings: client-side preferences such as Windows startup behavior.
 - Platform: NestJS API, Go realtime service, PostgreSQL, Redis, BigQuery.
 
 ## Non-Goals

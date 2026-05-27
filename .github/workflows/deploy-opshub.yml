@@ -138,6 +138,27 @@ jobs:
         shell: pwsh
         run: choco install innosetup --no-progress -y
 
+      - name: Download Visual C++ Redistributable
+        shell: pwsh
+        run: |
+          $prereqDir = New-Item -ItemType Directory -Force -Path "build\windows\prereqs"
+          $vcRedistPath = Join-Path $prereqDir.FullName "vc_redist.x64.exe"
+          Invoke-WebRequest `
+            -Uri "https://aka.ms/vc14/vc_redist.x64.exe" `
+            -OutFile $vcRedistPath
+
+          $vcRedist = Get-Item $vcRedistPath
+          if ($vcRedist.Length -lt 1000000) {
+            throw "Downloaded Visual C++ Redistributable is unexpectedly small: $($vcRedist.Length) bytes"
+          }
+
+          $signature = Get-AuthenticodeSignature $vcRedistPath
+          if ($signature.Status -ne "Valid") {
+            throw "Visual C++ Redistributable signature is not valid: $($signature.Status)"
+          }
+
+          "VC_REDIST_X64_PATH=$($vcRedist.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       - name: Build Windows installer
         shell: pwsh
         run: |
@@ -150,6 +171,7 @@ jobs:
           & $iscc `
             "/DAppVersion=${{ needs.prepare.outputs.version_name }}" `
             "/DSourceDir=$releaseDir" `
+            "/DVcRedistPath=${env:VC_REDIST_X64_PATH}" `
             "/DOutputDir=$outputDir" `
             "/DOutputBaseFilename=${{ needs.prepare.outputs.windows_installer_basename }}" `
             "deploy\windows\phongvu-opshub.iss"
