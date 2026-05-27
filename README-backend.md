@@ -66,6 +66,14 @@ Expected responses:
 - Keep `data/email_domain.txt` current with accepted Phong Vu email domains, or
   set `EMAIL_DOMAIN_FILE` to an equivalent file path.
 - Set all `BIGQUERY_*` values and place the service-account JSON outside git.
+- For MAP payment sync, prefer `MAP_VIETIN_GLOBAL_USERNAME` and
+  `MAP_VIETIN_GLOBAL_PASSWORD` so one backend account can read all showroom
+  transactions. The sync maps MAP `virtualAccount` values to
+  `Store.transferAccountNumber`; unmapped rows are quarantined and do not play
+  payment audio. Per-store MAP credentials remain a fallback when the global
+  account is not configured or `MAP_VIETIN_GLOBAL_SYNC_ENABLED=false`. The
+  global MAP session is cached for `MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS`
+  seconds, defaulting to 600, and refreshes automatically after MAP auth errors.
 - Set `UPLOAD_BASE_DIR` to a persistent VPS directory, for example `/data/app_images`.
 - Set `IMAGE_BASE_URL` to the public image domain that serves `UPLOAD_BASE_DIR`.
 - Keep placeholder values out of production; the Nest API validates env values on startup.

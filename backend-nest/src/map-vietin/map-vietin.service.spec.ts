@@ -7,6 +7,7 @@ describe('MapVietinService', () => {
   const manager = { role: 'MANAGER', storeId: 'store-uuid-1' };
   let prisma: any;
   let fetchMock: jest.Mock;
+  let paymentNotifications: { createForTransaction: jest.Mock };
   let service: MapVietinService;
 
   beforeEach(() => {
@@ -26,13 +27,22 @@ describe('MapVietinService', () => {
         findUnique: jest.fn(),
         upsert: jest.fn(),
       },
+      mapVietinUnmappedTransaction: {
+        upsert: jest.fn(),
+      },
       mapVietinSyncState: {
         upsert: jest.fn(),
       },
     };
+    delete process.env.MAP_VIETIN_GLOBAL_USERNAME;
+    delete process.env.MAP_VIETIN_GLOBAL_PASSWORD;
+    delete process.env.MAP_VIETIN_GLOBAL_SYNC_ENABLED;
+    delete process.env.MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES;
+    delete process.env.MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS;
+    paymentNotifications = { createForTransaction: jest.fn() };
     fetchMock = jest.fn();
     global.fetch = fetchMock as any;
-    service = new MapVietinService(prisma);
+    service = new MapVietinService(prisma, paymentNotifications as any);
   });
 
   afterEach(() => {
@@ -204,6 +214,345 @@ describe('MapVietinService', () => {
     });
   });
 
+  it('syncs global MAP transactions by virtual account and creates notifications', async () => {
+    process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
+    process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: ' 18-PV ICU ' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'access-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            list: [
+              {
+                txnNo: 'TXN-001',
+                txnAmount: '1,250,000',
+                txnDate: '21/05/2026 10:00:00',
+                txnDesc: 'Khach chuyen tien',
+                status: '00',
+                virtualAccount: '18pv-icu',
+              },
+            ],
+            pageIndex: 0,
+            pageSize: 100,
+            total: 1,
+          },
+        }),
+      );
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({
+      id: 'stored-1',
+      storeCode: 'CP01',
+      amount: 1250000,
+    });
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+    paymentNotifications.createForTransaction.mockResolvedValue({});
+
+    await expect(service.syncConfiguredStores()).resolves.toBeUndefined();
+
+    const loginBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(loginBody.username).toBe('global-user');
+    expect(loginBody.password).not.toBe('global-pass');
+    expect(prisma.store.findMany).toHaveBeenCalledWith({
+      where: { transferAccountNumber: { not: null } },
+      select: { storeId: true, transferAccountNumber: true },
+    });
+    expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          storeCode: 'CP01',
+          transactionNumber: 'TXN-001',
+          amount: 1250000,
+        }),
+      }),
+    );
+    expect(paymentNotifications.createForTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'stored-1', storeCode: 'CP01' }),
+    );
+    expect(prisma.mapVietinUnmappedTransaction.upsert).not.toHaveBeenCalled();
+  });
+
+  it('reuses cached global MAP session across sync loops', async () => {
+    process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
+    process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';
+    process.env.MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS = '600';
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: '18PVICU' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'access-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: { list: [globalTransaction('TXN-001')], total: 1 },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: { list: [globalTransaction('TXN-002')], total: 1 },
+        }),
+      );
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({});
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(service.syncGlobalTransactions()).resolves.toEqual({
+      created: 1,
+      quarantined: 0,
+    });
+    await expect(service.syncGlobalTransactions()).resolves.toEqual({
+      created: 1,
+      quarantined: 0,
+    });
+
+    const loginCalls = fetchMock.mock.calls.filter((call) =>
+      String(call[0]).endsWith('/login'),
+    );
+    expect(loginCalls).toHaveLength(1);
+    expect(fetchMock.mock.calls[2][1].headers).toEqual(
+      expect.objectContaining({ Authorization: 'Bearer access-token' }),
+    );
+  });
+
+  it('refreshes cached global MAP session after an auth rejection', async () => {
+    process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
+    process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: '18PVICU' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'old-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: { list: [globalTransaction('TXN-001')], total: 1 },
+        }),
+      )
+      .mockResolvedValueOnce(httpResponse(401, { message: 'Unauthorized' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'new-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: { list: [globalTransaction('TXN-002')], total: 1 },
+        }),
+      );
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({});
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(service.syncGlobalTransactions()).resolves.toEqual({
+      created: 1,
+      quarantined: 0,
+    });
+    await expect(service.syncGlobalTransactions()).resolves.toEqual({
+      created: 1,
+      quarantined: 0,
+    });
+
+    const loginCalls = fetchMock.mock.calls.filter((call) =>
+      String(call[0]).endsWith('/login'),
+    );
+    expect(loginCalls).toHaveLength(2);
+    expect(fetchMock.mock.calls[2][1].headers).toEqual(
+      expect.objectContaining({ Authorization: 'Bearer old-token' }),
+    );
+    expect(fetchMock.mock.calls[4][1].headers).toEqual(
+      expect.objectContaining({ Authorization: 'Bearer new-token' }),
+    );
+  });
+
+  it('paginates global MAP sync results', async () => {
+    process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
+    process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: '18PVICU' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'access-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            list: [globalTransaction('TXN-001')],
+            pageIndex: 0,
+            pageSize: 100,
+            total: 101,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            list: [globalTransaction('TXN-002')],
+            pageIndex: 1,
+            pageSize: 100,
+            total: 101,
+          },
+        }),
+      );
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({});
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(service.syncGlobalTransactions()).resolves.toEqual({
+      created: 2,
+      quarantined: 0,
+    });
+
+    expect(fetchMock.mock.calls[1][0]).toContain('page=0&size=100');
+    expect(fetchMock.mock.calls[2][0]).toContain('page=1&size=100');
+    expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it('quarantines global transactions when virtual account has no store match', async () => {
+    process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
+    process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: '111' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'access-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            list: [globalTransaction('TXN-001', '222')],
+            pageIndex: 0,
+            pageSize: 100,
+            total: 1,
+          },
+        }),
+      );
+    prisma.mapVietinUnmappedTransaction.upsert.mockResolvedValue({});
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(service.syncGlobalTransactions()).resolves.toEqual({
+      created: 0,
+      quarantined: 1,
+    });
+
+    expect(prisma.mapVietinTransaction.upsert).not.toHaveBeenCalled();
+    expect(paymentNotifications.createForTransaction).not.toHaveBeenCalled();
+    expect(prisma.mapVietinUnmappedTransaction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          virtualAccount: '222',
+          reason: 'UNMAPPED_ACCOUNT',
+          transactionNumber: 'TXN-001',
+        }),
+      }),
+    );
+  });
+
+  it('quarantines global transactions when virtual account maps to multiple stores', async () => {
+    process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
+    process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: '18PVICU' },
+      { storeId: 'CP02', transferAccountNumber: '18-PV ICU' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'access-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            list: [globalTransaction('TXN-001')],
+            pageIndex: 0,
+            pageSize: 100,
+            total: 1,
+          },
+        }),
+      );
+    prisma.mapVietinUnmappedTransaction.upsert.mockResolvedValue({});
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(service.syncGlobalTransactions()).resolves.toEqual({
+      created: 0,
+      quarantined: 1,
+    });
+
+    expect(prisma.mapVietinTransaction.upsert).not.toHaveBeenCalled();
+    expect(prisma.mapVietinUnmappedTransaction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ reason: 'AMBIGUOUS_ACCOUNT' }),
+      }),
+    );
+  });
+
+  it('falls back to per-store sync when global credentials are missing', async () => {
+    prisma.store.findMany.mockResolvedValue([
+      {
+        storeId: 'CP01',
+        mapVietinUsername: 'map-user',
+        mapVietinPasswordCipher: encryptSecret('map-pass'),
+      },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'access-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: { list: [globalTransaction('TXN-001')], total: 1 },
+        }),
+      );
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({});
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(service.syncConfiguredStores()).resolves.toBeUndefined();
+
+    expect(prisma.store.findMany).toHaveBeenCalledWith({
+      where: {
+        mapVietinUsername: { not: null },
+        mapVietinPasswordCipher: { not: null },
+      },
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).username).toBe(
+      'map-user',
+    );
+    expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ storeCode: 'CP01' }),
+      }),
+    );
+  });
+
   it('lists stored transactions for the signed-in user store', async () => {
     prisma.store.findUnique.mockResolvedValue({
       id: 'store-uuid-1',
@@ -300,6 +649,26 @@ describe('MapVietinService', () => {
 function jsonResponse(body: unknown) {
   return {
     ok: true,
+    status: 200,
     text: jest.fn().mockResolvedValue(JSON.stringify(body)),
+  };
+}
+
+function httpResponse(status: number, body: unknown) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: jest.fn().mockResolvedValue(JSON.stringify(body)),
+  };
+}
+
+function globalTransaction(txnNo: string, virtualAccount = '18PVICU') {
+  return {
+    txnNo,
+    txnAmount: '1,250,000',
+    txnDate: '21/05/2026 10:00:00',
+    txnDesc: 'Khach chuyen tien',
+    status: '00',
+    virtualAccount,
   };
 }
