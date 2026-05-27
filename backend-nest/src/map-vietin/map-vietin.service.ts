@@ -27,6 +27,9 @@ const MAP_NO_AUTH_BASE_URL =
   'https://map.vietinbank.vn/vtb/public/map/api/ma/no-auth';
 const MAP_TRANSACTION_BASE_URL =
   'https://map.vietinbank.vn/vtb/public/map/api/rpt-txnmng/api';
+const GLOBAL_SYNC_STATE_CODE = '__GLOBAL__';
+const DEFAULT_GLOBAL_SYNC_MAX_PAGES = 10;
+const DEFAULT_GLOBAL_SESSION_TTL_SECONDS = 10 * 60;
 
 type MapLoginResponse = {
   error_code?: string;
@@ -53,10 +56,30 @@ type MapSearchResponse = {
 
 type MapTransactionRow = Record<string, unknown>;
 
+type MapSession = {
+  accessToken: string;
+  merchantId: string;
+};
+
+type StoreAccountRow = {
+  storeId: string;
+  transferAccountNumber?: string | null;
+};
+
+type UnmappedReason =
+  | 'MISSING_VIRTUAL_ACCOUNT'
+  | 'UNMAPPED_ACCOUNT'
+  | 'AMBIGUOUS_ACCOUNT';
+
 @Injectable()
 export class MapVietinService {
   private readonly logger = new Logger(MapVietinService.name);
   private syncInProgress = false;
+  private globalSessionCache?: {
+    username: string;
+    session: MapSession;
+    expiresAt: number;
+  };
   private readonly amountKeys = [
     'amount',
     'txnAmount',
@@ -127,6 +150,17 @@ export class MapVietinService {
     'fromAccountNo',
     'debitAccount',
     'debitAccountNo',
+  ];
+  private readonly virtualAccountKeys = [
+    'virtualAccount',
+    'virtualAcct',
+    'virtualAccountNo',
+    'creditAccount',
+    'creditAccountNo',
+    'receiveAccount',
+    'receiveAccountNo',
+    'beneficiaryAccount',
+    'beneficiaryAccountNo',
   ];
 
   constructor(
@@ -199,17 +233,126 @@ export class MapVietinService {
     if (this.syncInProgress) return;
     this.syncInProgress = true;
     try {
-      const stores = await this.prisma.store.findMany({
-        where: {
-          mapVietinUsername: { not: null },
-          mapVietinPasswordCipher: { not: null },
-        },
-      });
-      for (const store of stores) {
-        await this.syncStoreTransactions(store);
+      if (this.shouldUseGlobalSync()) {
+        await this.syncGlobalTransactions();
+      } else {
+        await this.syncPerStoreTransactions();
       }
     } finally {
       this.syncInProgress = false;
+    }
+  }
+
+  private async syncPerStoreTransactions() {
+    const stores = await this.prisma.store.findMany({
+      where: {
+        mapVietinUsername: { not: null },
+        mapVietinPasswordCipher: { not: null },
+      },
+    });
+    for (const store of stores) {
+      await this.syncStoreTransactions(store);
+    }
+  }
+
+  async syncGlobalTransactions() {
+    const now = new Date();
+    try {
+      const username = this.globalUsername();
+      const password = this.globalPassword();
+      if (!username || !password) {
+        throw new BadRequestException(
+          'Global MAP credential is not configured',
+        );
+      }
+
+      const today = this.formatMapDate(now);
+      let session = await this.getGlobalSession(username, password);
+      const storeAccountIndex = await this.loadStoreAccountIndex();
+      let created = 0;
+      let quarantined = 0;
+      let page = 0;
+      const size = 100;
+      const maxPages = this.globalSyncMaxPages();
+
+      this.logger.log('Global MAP sync started');
+      while (page < maxPages) {
+        const input = {
+          startDate: today,
+          endDate: today,
+          page,
+          size,
+        };
+        let result: Awaited<
+          ReturnType<typeof this.searchTransactionsWithSession>
+        >;
+        try {
+          result = await this.searchTransactionsWithSession(
+            GLOBAL_SYNC_STATE_CODE,
+            session,
+            input,
+          );
+        } catch (error) {
+          if (!this.isProviderAuthError(error)) throw error;
+          this.logger.warn(
+            'Global MAP session was rejected; refreshing token and retrying current page',
+          );
+          session = await this.getGlobalSession(username, password, true);
+          result = await this.searchTransactionsWithSession(
+            GLOBAL_SYNC_STATE_CODE,
+            session,
+            input,
+          );
+        }
+        const persisted = await this.persistGlobalTransactions(
+          result.list,
+          storeAccountIndex,
+        );
+        created += persisted.created;
+        quarantined += persisted.quarantined;
+
+        const listLength = result.list.length;
+        const total = result.total ?? 0;
+        if (listLength === 0 || (page + 1) * size >= total) break;
+        page += 1;
+      }
+
+      await this.prisma.mapVietinSyncState.upsert({
+        where: { storeCode: GLOBAL_SYNC_STATE_CODE },
+        create: {
+          storeCode: GLOBAL_SYNC_STATE_CODE,
+          lastSyncedAt: now,
+          lastSuccessAt: now,
+          lastError: null,
+        },
+        update: {
+          lastSyncedAt: now,
+          lastSuccessAt: now,
+          lastError: null,
+        },
+      });
+      if (created > 0 || quarantined > 0) {
+        this.logger.log(
+          `Global MAP sync stored ${created} transactions and quarantined ${quarantined}`,
+        );
+      }
+      return { created, quarantined };
+    } catch (error) {
+      const message = this.safeError(error).slice(0, 500);
+      this.logger.warn(`Global MAP sync failed: ${message}`);
+      await this.prisma.mapVietinSyncState.upsert({
+        where: { storeCode: GLOBAL_SYNC_STATE_CODE },
+        create: {
+          storeCode: GLOBAL_SYNC_STATE_CODE,
+          lastSyncedAt: now,
+          lastError: message,
+        },
+        update: {
+          lastSyncedAt: now,
+          lastError: message,
+        },
+      });
+      return { created: 0, quarantined: 0 };
     }
   }
 
@@ -301,6 +444,14 @@ export class MapVietinService {
       password,
       store.storeId,
     );
+    return this.searchTransactionsWithSession(store.storeId, session, input);
+  }
+
+  private async searchTransactionsWithSession(
+    storeId: string,
+    session: MapSession,
+    input: SearchMapVietinTransactionsDto,
+  ) {
     const request = this.buildSearchRequest(input);
     const page = input.page ?? 0;
     const size = input.size ?? 20;
@@ -316,12 +467,39 @@ export class MapVietinService {
     );
 
     return {
-      storeId: store.storeId,
+      storeId,
       pageIndex: response.data?.pageIndex ?? page,
       pageSize: response.data?.pageSize ?? size,
       total: response.data?.total ?? 0,
       list: response.data?.list ?? [],
     };
+  }
+
+  private async getGlobalSession(
+    username: string,
+    password: string,
+    forceRefresh = false,
+  ) {
+    const now = Date.now();
+    if (
+      !forceRefresh &&
+      this.globalSessionCache?.username === username &&
+      this.globalSessionCache.expiresAt > now
+    ) {
+      return this.globalSessionCache.session;
+    }
+
+    const session = await this.login(
+      username,
+      password,
+      GLOBAL_SYNC_STATE_CODE,
+    );
+    this.globalSessionCache = {
+      username,
+      session,
+      expiresAt: now + this.globalSessionTtlSeconds() * 1000,
+    };
+    return session;
   }
 
   private async resolveStore(admin: any, storeCode?: string) {
@@ -421,6 +599,136 @@ export class MapVietinService {
       }
     }
     return created;
+  }
+
+  private async persistGlobalTransactions(
+    rows: unknown[],
+    storeAccountIndex: Map<string, string[]>,
+  ) {
+    let created = 0;
+    let quarantined = 0;
+    for (const raw of rows) {
+      if (!raw || typeof raw !== 'object') continue;
+      const row = raw as MapTransactionRow;
+      const amount = this.readAmount(row);
+      if (!amount || amount <= 0) continue;
+      if (!this.isSuccessfulTransaction(row)) continue;
+
+      const virtualAccount = this.readFirstText(row, this.virtualAccountKeys);
+      const accountKey = this.normalizeAccountNumber(virtualAccount);
+      const storeCodes = accountKey
+        ? storeAccountIndex.get(accountKey) || []
+        : [];
+
+      if (!accountKey) {
+        await this.quarantineGlobalTransaction(
+          row,
+          'MISSING_VIRTUAL_ACCOUNT',
+          virtualAccount,
+        );
+        quarantined += 1;
+        continue;
+      }
+      if (storeCodes.length === 0) {
+        await this.quarantineGlobalTransaction(
+          row,
+          'UNMAPPED_ACCOUNT',
+          virtualAccount,
+        );
+        quarantined += 1;
+        continue;
+      }
+      if (storeCodes.length > 1) {
+        await this.quarantineGlobalTransaction(
+          row,
+          'AMBIGUOUS_ACCOUNT',
+          virtualAccount,
+        );
+        quarantined += 1;
+        continue;
+      }
+
+      created += await this.persistTransactions(storeCodes[0], [row]);
+    }
+    return { created, quarantined };
+  }
+
+  private async quarantineGlobalTransaction(
+    row: MapTransactionRow,
+    reason: UnmappedReason,
+    virtualAccount: string,
+  ) {
+    const amount = this.readAmount(row);
+    const content = this.readFirstText(row, this.contentKeys);
+    const transactionNumber = this.readFirstText(
+      row,
+      this.transactionNumberKeys,
+    );
+    const paidAt = this.readTransactionTime(row);
+    const status = this.readFirstText(row, this.statusKeys);
+    const payerName = this.readFirstText(row, this.payerNameKeys);
+    const payerAccount = this.readFirstText(row, this.payerAccountKeys);
+    const fallback = [
+      virtualAccount,
+      transactionNumber,
+      amount ?? '',
+      paidAt?.toISOString() ?? '',
+      content,
+    ].join('|');
+    const hash = createHash('sha256')
+      .update(`${reason}|${fallback}`)
+      .digest('hex');
+    const unmappedKey = `${reason}:${hash}`;
+
+    await this.prisma.mapVietinUnmappedTransaction.upsert({
+      where: { unmappedKey },
+      create: {
+        unmappedKey,
+        virtualAccount: virtualAccount || null,
+        reason,
+        transactionNumber: transactionNumber || null,
+        amount,
+        content,
+        status: status || null,
+        paidAt,
+        payerName: payerName || null,
+        payerAccount: payerAccount || null,
+        rawData: this.scrubJson(row) as Prisma.InputJsonObject,
+      },
+      update: {
+        virtualAccount: virtualAccount || null,
+        reason,
+        transactionNumber: transactionNumber || null,
+        amount,
+        content,
+        status: status || null,
+        paidAt,
+        payerName: payerName || null,
+        payerAccount: payerAccount || null,
+        rawData: this.scrubJson(row) as Prisma.InputJsonObject,
+      },
+    });
+    this.logger.warn(
+      `Global MAP transaction quarantined: ${reason} virtualAccount=${this.maskAccount(virtualAccount)}`,
+    );
+  }
+
+  private async loadStoreAccountIndex() {
+    const stores = (await this.prisma.store.findMany({
+      where: { transferAccountNumber: { not: null } },
+      select: { storeId: true, transferAccountNumber: true },
+    })) as StoreAccountRow[];
+    const index = new Map<string, string[]>();
+    for (const store of stores) {
+      const accountKey = this.normalizeAccountNumber(
+        store.transferAccountNumber || '',
+      );
+      if (!accountKey) continue;
+      const storeCodes = index.get(accountKey) || [];
+      if (!storeCodes.includes(store.storeId)) storeCodes.push(store.storeId);
+      index.set(accountKey, storeCodes);
+    }
+    return index;
   }
 
   private normalizeTransaction(storeCode: string, row: MapTransactionRow) {
@@ -562,6 +870,40 @@ export class MapVietinService {
       .replace(/[^A-Z0-9]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  private normalizeAccountNumber(value: string) {
+    return String(value || '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .trim();
+  }
+
+  private scrubJson(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map((item) => this.scrubJson(item));
+    if (!value || typeof value !== 'object') return value;
+    const output: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      const normalizedKey = key.toLowerCase();
+      if (
+        normalizedKey.includes('password') ||
+        normalizedKey.includes('token') ||
+        normalizedKey.includes('authorization') ||
+        normalizedKey.includes('secret')
+      ) {
+        output[key] = '[REDACTED]';
+      } else {
+        output[key] = this.scrubJson(item);
+      }
+    }
+    return output;
+  }
+
+  private maskAccount(value: string) {
+    const normalized = this.normalizeAccountNumber(value);
+    if (!normalized) return 'missing';
+    if (normalized.length <= 4) return '****';
+    return `****${normalized.slice(-4)}`;
   }
 
   private parseDate(value: string, fieldName: string) {
@@ -804,6 +1146,49 @@ export class MapVietinService {
     return (
       process.env.MAP_VIETIN_TRANSACTION_BASE_URL || MAP_TRANSACTION_BASE_URL
     );
+  }
+
+  private shouldUseGlobalSync() {
+    if (process.env.MAP_VIETIN_GLOBAL_SYNC_ENABLED === 'false') return false;
+    const hasCredentials = Boolean(
+      this.globalUsername() && this.globalPassword(),
+    );
+    if (
+      process.env.MAP_VIETIN_GLOBAL_SYNC_ENABLED === 'true' &&
+      !hasCredentials
+    ) {
+      this.logger.warn(
+        'Global MAP sync is enabled but MAP_VIETIN_GLOBAL_USERNAME or MAP_VIETIN_GLOBAL_PASSWORD is missing; falling back to per-store sync',
+      );
+    }
+    return hasCredentials;
+  }
+
+  private globalUsername() {
+    return String(process.env.MAP_VIETIN_GLOBAL_USERNAME || '').trim();
+  }
+
+  private globalPassword() {
+    return String(process.env.MAP_VIETIN_GLOBAL_PASSWORD || '').trim();
+  }
+
+  private globalSyncMaxPages() {
+    const parsed = Number(process.env.MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES);
+    return Number.isFinite(parsed) && parsed > 0
+      ? Math.trunc(parsed)
+      : DEFAULT_GLOBAL_SYNC_MAX_PAGES;
+  }
+
+  private globalSessionTtlSeconds() {
+    const parsed = Number(process.env.MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS);
+    return Number.isFinite(parsed) && parsed > 0
+      ? Math.trunc(parsed)
+      : DEFAULT_GLOBAL_SESSION_TTL_SECONDS;
+  }
+
+  private isProviderAuthError(error: unknown) {
+    const message = this.safeError(error);
+    return message.includes('401') || message.includes('403');
   }
 
   private safeError(error: unknown) {

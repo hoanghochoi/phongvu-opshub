@@ -75,6 +75,27 @@ model MapVietinTransaction {
   @@index([storeCode, firstSeenAt])
 }
 
+model MapVietinUnmappedTransaction {
+  id                String   @id @default(uuid())
+  unmappedKey       String   @unique
+  virtualAccount    String?
+  reason            String
+  transactionNumber String?
+  amount            Int?
+  content           String
+  status            String?
+  paidAt            DateTime?
+  payerName         String?
+  payerAccount      String?
+  rawData           Json
+  firstSeenAt       DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([reason, firstSeenAt])
+  @@index([virtualAccount, firstSeenAt])
+}
+
 model MapVietinSyncState {
   id            String   @id @default(uuid())
   storeCode     String   @unique

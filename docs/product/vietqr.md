@@ -44,6 +44,13 @@ a customer to scan and pay manually.
 - The NestJS API is the source of truth for MAP transactions. It polls
   configured showroom MAP accounts in the background, stores successful incoming
   transactions in Postgres, and exposes the stored list to scoped clients.
+- When a global MAP account is configured, the backend uses that account as the
+  primary payment sync source, maps each MAP `virtualAccount` to
+  `Store.transferAccountNumber`, and stores the transaction under the matched
+  showroom. Per-showroom MAP credentials remain a fallback when global sync is
+  disabled or not configured.
+- Successful global MAP rows that cannot be mapped to exactly one showroom are
+  quarantined for debug and do not create payment notifications or play audio.
 - The monitor is independent from OpsHub-created QR/payment intents. It reads
   all successful incoming VietinBank MAP transactions stored for the selected
   showroom, not only transfers that match an OpsHub QR.
@@ -112,6 +119,11 @@ The backend encrypts the password and exposes only `hasMapVietinPassword`.
 Optional MAP endpoint overrides are available through:
 
 - `MAP_VIETIN_CREDENTIAL_SECRET`
+- `MAP_VIETIN_GLOBAL_USERNAME`
+- `MAP_VIETIN_GLOBAL_PASSWORD`
+- `MAP_VIETIN_GLOBAL_SYNC_ENABLED`
+- `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES`
+- `MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS`
 - `MAP_VIETIN_CLIENT_ID`
 - `MAP_VIETIN_SIGNATURE_KEY`
 - `MAP_VIETIN_NO_AUTH_BASE_URL`
