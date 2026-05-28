@@ -117,6 +117,16 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                   ),
                 ),
               ),
+              if (monitor.speakerError != null) ...[
+                const SizedBox(height: 12),
+                _SpeakerErrorCard(
+                  error: monitor.speakerError!,
+                  amountText:
+                      '${_currencyFormatter.format(monitor.speakerError!.amount)} VND',
+                  onRestart: () =>
+                      context.read<PaymentMonitorProvider>().restartApp(),
+                ),
+              ],
               if (monitor.errorMessage != null) ...[
                 const SizedBox(height: 12),
                 _StatusCard(
@@ -199,9 +209,7 @@ class _SyncStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = monitor.isActive
-        ? AppColors.success
-        : AppColors.neutral500;
+    final color = monitor.isActive ? AppColors.success : AppColors.neutral500;
     final baseLabel = monitor.isLoading
         ? 'Đang cập nhật giao dịch'
         : monitor.isActive
@@ -278,7 +286,10 @@ class _TransactionFilters extends StatelessWidget {
                     initialValue: monitor.pageSize,
                     decoration: const InputDecoration(
                       isDense: true,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 10,
+                      ),
                       border: OutlineInputBorder(),
                     ),
                     items: const [10, 20, 50, 100]
@@ -411,6 +422,80 @@ class _StatusCard extends StatelessWidget {
       title: title,
       message: message,
       tone: color == Colors.red ? AppStateTone.error : AppStateTone.info,
+    );
+  }
+}
+
+class _SpeakerErrorCard extends StatelessWidget {
+  final PaymentSpeakerError error;
+  final String amountText;
+  final VoidCallback onRestart;
+
+  const _SpeakerErrorCard({
+    required this.error,
+    required this.amountText,
+    required this.onRestart,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      color: AppColors.error.withValues(alpha: 0.08),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.volume_off_rounded, color: AppColors.error),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Loa đọc tiền vào đang lỗi',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                        style: TextStyle(
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$amountText - ${error.message}',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                width: 220,
+                child: AppSecondaryButton(
+                  onPressed: onRestart,
+                  icon: Icons.restart_alt_rounded,
+                  label: 'Khởi động lại app',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

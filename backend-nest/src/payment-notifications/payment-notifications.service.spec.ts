@@ -206,7 +206,7 @@ describe('PaymentNotificationsService', () => {
     );
   });
 
-  it('lists ready audio notifications not yet played or silenced by this client', async () => {
+  it('lists ready audio notifications not yet terminal for this client', async () => {
     const createdAt = new Date('2026-05-21T10:00:00.000Z');
     prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
     prisma.paymentNotification.findMany.mockResolvedValue([
@@ -217,6 +217,15 @@ describe('PaymentNotificationsService', () => {
         amount: 1000,
         audioStatus: 'READY',
         audioPath: 'played.wav',
+        createdAt,
+      },
+      {
+        id: 'note-failed',
+        transactionId: 'txn-failed',
+        storeCode: 'CP01',
+        amount: 1500,
+        audioStatus: 'READY',
+        audioPath: 'failed-on-client.wav',
         createdAt,
       },
       {
@@ -231,6 +240,7 @@ describe('PaymentNotificationsService', () => {
     ]);
     prisma.paymentNotificationDeliveryLog.findFirst
       .mockResolvedValueOnce({ id: 'played-log' })
+      .mockResolvedValueOnce({ id: 'failed-log' })
       .mockResolvedValueOnce(null);
 
     await expect(
@@ -257,10 +267,58 @@ describe('PaymentNotificationsService', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           clientId: 'pc-1',
-          event: { in: ['PLAYED', 'SILENCED'] },
+          event: { in: ['PLAYED', 'SILENCED', 'FAILED'] },
         }),
       }),
     );
+  });
+
+  it('does not let an old failed notification hide a newer ready notification', async () => {
+    const older = new Date('2026-05-21T10:00:00.000Z');
+    const newer = new Date('2026-05-21T10:05:00.000Z');
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP67' });
+    prisma.paymentNotification.findMany.mockResolvedValue([
+      {
+        id: 'note-old-failed',
+        transactionId: 'txn-old-failed',
+        storeCode: 'CP67',
+        amount: 295000,
+        audioStatus: 'READY',
+        audioPath: 'old-failed.wav',
+        createdAt: older,
+      },
+      {
+        id: 'note-new-ready',
+        transactionId: 'txn-new-ready',
+        storeCode: 'CP67',
+        amount: 3835000,
+        audioStatus: 'READY',
+        audioPath: 'new-ready.wav',
+        createdAt: newer,
+      },
+    ]);
+    prisma.paymentNotificationDeliveryLog.findFirst
+      .mockResolvedValueOnce({ id: 'failed-log' })
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      service.listReadyForClient(
+        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        { clientId: 'pc-1779876132645257' },
+      ),
+    ).resolves.toEqual({
+      list: [
+        {
+          notificationId: 'note-new-ready',
+          transactionId: 'txn-new-ready',
+          storeCode: 'CP67',
+          amount: 3835000,
+          audioStatus: 'READY',
+          audioUrl: '/payment-notifications/note-new-ready/audio',
+          createdAt: newer.toISOString(),
+        },
+      ],
+    });
   });
 
   it('returns not found when notification audio is unavailable', async () => {

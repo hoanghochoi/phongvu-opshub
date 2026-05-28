@@ -117,7 +117,7 @@ export class PaymentNotificationsService {
           where: {
             notificationId: notification.id,
             clientId,
-            event: { in: ['PLAYED', 'SILENCED'] },
+            event: { in: ['PLAYED', 'SILENCED', 'FAILED'] },
           },
           select: { id: true },
         },
