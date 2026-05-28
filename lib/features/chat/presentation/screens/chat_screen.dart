@@ -32,7 +32,6 @@ class _ChatScreenState extends State<ChatScreen> {
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       resizeToAvoidBottomInset: false,
       appBar: GradientHeader(
         title: 'Kiểm tra FIFO',

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_logo.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -45,7 +46,7 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(gradient: GradientHeader.gradient),
+        decoration: BoxDecoration(gradient: GradientHeader.getGradient(context)),
         child: SafeArea(
           child: Consumer<AuthProvider>(
             builder: (context, authProvider, _) {
@@ -68,8 +69,7 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
                         setState(() => _obscurePassword = !_obscurePassword);
                       },
                       onSubmit: () => _handleLogin(context),
-                      onRegister: () =>
-                          Navigator.of(context).pushNamed('/register'),
+                      onRegister: () => context.push('/register'),
                     ),
                     const SizedBox(height: 24),
                     Text(
@@ -104,7 +104,7 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
       final route = authProvider.user?.needsStoreSelection == true
           ? '/select-store'
           : '/home';
-      Navigator.of(context).pushReplacementNamed(route);
+      context.go(route);
     } else if (authProvider.errorMessage != null) {
       final message = authProvider.errorMessage!;
       if (message.contains('chưa tồn tại') ||
@@ -114,9 +114,7 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
         );
         await Future<void>.delayed(const Duration(milliseconds: 600));
         if (context.mounted) {
-          Navigator.of(
-            context,
-          ).pushNamed('/register', arguments: _emailController.text.trim());
+          context.push('/register', extra: _emailController.text.trim());
         }
         return;
       }

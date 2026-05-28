@@ -115,7 +115,6 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
         role == 'SUPER_ADMIN' || role == 'MANAGER' || role == 'ADMIN';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: GradientHeader(
         title: 'Quản lý showroom',
         showBack: true,
@@ -203,13 +202,13 @@ class _StoreCard extends StatelessWidget {
     ].join(' • ');
 
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -242,10 +241,10 @@ class _StoreCard extends StatelessWidget {
                     store.displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF111827),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 16,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -258,8 +257,8 @@ class _StoreCard extends StatelessWidget {
                             : account,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF6B7280),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 13,
                           height: 1.25,
                         ),
@@ -269,8 +268,10 @@ class _StoreCard extends StatelessWidget {
                           mapAccount,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF0F766E),
+                          style: TextStyle(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.teal[300]!
+                                : const Color(0xFF0F766E),
                             fontSize: 12,
                             height: 1.25,
                             fontWeight: FontWeight.w600,

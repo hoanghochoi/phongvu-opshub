@@ -75,7 +75,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final avatarUrl = user?.avatarUrl;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Thông tin cá nhân', showBack: true),
       body: AppResponsiveScrollView(
         maxWidth: AppLayoutTokens.formMaxWidth,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import '../../../../app/theme/app_colors.dart';
 import '../../domain/entities/message.dart';
 import 'sku_bubble.dart';
 
@@ -42,8 +43,8 @@ class MessageBubble extends StatelessWidget {
       if (match.start > lastIndex) {
         spans.add(TextSpan(
           text: content.substring(lastIndex, match.start),
-          style: const TextStyle(
-            color: Colors.black87,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 14,
           ),
         ));
@@ -52,8 +53,8 @@ class MessageBubble extends StatelessWidget {
       // Add label (Serial: or BIN:)
       spans.add(TextSpan(
         text: '${match.group(1)!}: ',
-        style: const TextStyle(
-          color: Colors.black87,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface,
           fontSize: 14,
           fontWeight: FontWeight.bold,
         ),
@@ -79,8 +80,8 @@ class MessageBubble extends StatelessWidget {
     if (lastIndex < content.length) {
       spans.add(TextSpan(
         text: content.substring(lastIndex),
-        style: const TextStyle(
-          color: Colors.black87,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface,
           fontSize: 14,
         ),
       ));
@@ -193,17 +194,29 @@ class MessageBubble extends StatelessWidget {
                   margin: const EdgeInsets.only(bottom: 8),
                   decoration: BoxDecoration(
                     color: message.content.contains('✅')
-                        ? Colors.green[50]
+                        ? (Theme.of(context).brightness == Brightness.dark
+                            ? Colors.green.withValues(alpha: 0.15)
+                            : Colors.green[50])
                         : message.content.contains('❌')
-                            ? Colors.red[50]
-                            : Colors.grey[200],
+                            ? (Theme.of(context).brightness == Brightness.dark
+                                ? Colors.red.withValues(alpha: 0.15)
+                                : Colors.red[50])
+                            : (Theme.of(context).brightness == Brightness.dark
+                                ? AppColors.darkNeutral100
+                                : Colors.grey[200]),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: message.content.contains('✅')
-                          ? Colors.green[300]!
+                          ? (Theme.of(context).brightness == Brightness.dark
+                              ? Colors.green[700]!
+                              : Colors.green[300]!)
                           : message.content.contains('❌')
-                              ? Colors.red[300]!
-                              : Colors.grey[400]!,
+                              ? (Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.red[700]!
+                                  : Colors.red[300]!)
+                              : (Theme.of(context).brightness == Brightness.dark
+                                  ? AppColors.neutral700
+                                  : Colors.grey[400]!),
                     ),
                   ),
                   child: Text(
@@ -212,10 +225,14 @@ class MessageBubble extends StatelessWidget {
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: message.content.contains('✅')
-                          ? Colors.green[800]
+                          ? (Theme.of(context).brightness == Brightness.dark
+                              ? Colors.green[300]
+                              : Colors.green[800])
                           : message.content.contains('❌')
-                              ? Colors.red[800]
-                              : Colors.black87,
+                              ? (Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.red[300]
+                                  : Colors.red[800])
+                              : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -233,16 +250,29 @@ class MessageBubble extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.amber[50],
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.amber.withValues(alpha: 0.15)
+                        : Colors.amber[50],
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.amber[400]!, width: 1.5),
+                    border: Border.all(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.amber[700]!
+                          : Colors.amber[400]!,
+                      width: 1.5,
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.lightbulb_outline, color: Colors.amber[700], size: 18),
+                          Icon(
+                            Icons.lightbulb_outline,
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.amber[300]
+                                : Colors.amber[700],
+                            size: 18,
+                          ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
@@ -250,7 +280,9 @@ class MessageBubble extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.amber[900],
+                                color: Theme.of(context).brightness == Brightness.dark
+                                    ? Colors.amber[300]
+                                    : Colors.amber[900],
                               ),
                             ),
                           ),
@@ -271,8 +303,8 @@ class MessageBubble extends StatelessWidget {
                 padding: const EdgeInsets.only(left: 12),
                 child: Text(
                   timeFormat.format(message.timestamp),
-                  style: const TextStyle(
-                    color: Colors.black54,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 10,
                   ),
                 ),
@@ -292,7 +324,9 @@ class MessageBubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: message.isUser
               ? Theme.of(context).colorScheme.primary
-              : Colors.grey[300],
+              : (Theme.of(context).brightness == Brightness.dark
+                  ? AppColors.darkNeutral100
+                  : Colors.grey[300]!),
           borderRadius: BorderRadius.circular(12),
         ),
         constraints: BoxConstraints(
@@ -314,7 +348,9 @@ class MessageBubble extends StatelessWidget {
                 Text(
                   timeFormat.format(message.timestamp),
                   style: TextStyle(
-                    color: message.isUser ? Colors.white70 : Colors.black54,
+                    color: message.isUser
+                        ? Colors.white70
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 10,
                   ),
                 ),
@@ -324,12 +360,12 @@ class MessageBubble extends StatelessWidget {
                   InkWell(
                     onTap: () => _copyToClipboard(context, message.content),
                     borderRadius: BorderRadius.circular(4),
-                    child: const Padding(
-                      padding: EdgeInsets.all(2),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
                       child: Icon(
                         Icons.copy,
                         size: 12,
-                        color: Colors.black54,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),

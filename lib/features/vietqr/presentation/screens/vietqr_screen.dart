@@ -11,12 +11,18 @@ import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_logo.dart';
+import '../../../../app/widgets/info_row.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../chat/presentation/widgets/barcode_scanner_screen.dart';
 import '../../data/repositories/vietqr_repository.dart';
 import '../../domain/entities/vietqr_transfer.dart';
+import '../widgets/qr_with_logo.dart';
+import '../widgets/payment_waiting_card.dart';
+import '../widgets/payment_success_panel.dart';
+import '../widgets/payment_confirmation_card.dart';
+import 'package:go_router/go_router.dart';
 
 class VietQrScreen extends StatefulWidget {
   const VietQrScreen({super.key});
@@ -415,8 +421,6 @@ class _VietQrScreenState extends State<VietQrScreen> {
     final transfer = _transfer;
 
     return Scaffold(
-      resizeToAvoidBottomInset: false,
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Tạo VietQR', showBack: true),
       body: SafeArea(
         child: AnimatedPadding(
@@ -439,8 +443,6 @@ class _VietQrScreenState extends State<VietQrScreen> {
 
   Widget _buildInputCard() {
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -541,36 +543,43 @@ class _VietQrScreenState extends State<VietQrScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (confirmed && _paymentConfirmation != null)
-          _PaymentSuccessPanel(
+          PaymentSuccessPanel(
             confirmation: _paymentConfirmation!,
             amountFormatter: _currencyFormatter,
           )
         else
           Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _QrWithLogo(size: 280, transfer: transfer),
+                  QrWithLogo(size: 280, transfer: transfer),
                   const SizedBox(height: 20),
-                  _InfoRow(label: 'Ngân hàng', value: transfer.bankName),
-                  _InfoRow(
+                  AppInfoRow(
+                    label: 'Ngân hàng',
+                    value: transfer.bankName,
+                    labelWidth: 118,
+                  ),
+                  AppInfoRow(
                     label: 'Số tài khoản',
                     value: transfer.accountNumber,
+                    labelWidth: 118,
                   ),
-                  _InfoRow(label: 'Chủ tài khoản', value: transfer.accountName),
-                  _InfoRow(
+                  AppInfoRow(
+                    label: 'Chủ tài khoản',
+                    value: transfer.accountName,
+                    labelWidth: 118,
+                  ),
+                  AppInfoRow(
                     label: 'Số tiền',
                     value: _amountLabel(transfer.amount),
+                    labelWidth: 118,
                   ),
-                  _InfoRow(
+                  AppInfoRow(
                     label: 'Nội dung',
                     value: _contentLabel(transfer.transferContent),
+                    labelWidth: 118,
                   ),
                 ],
               ),
@@ -578,13 +587,13 @@ class _VietQrScreenState extends State<VietQrScreen> {
           ),
         const SizedBox(height: 16),
         if (_paymentConfirmation != null && !confirmed) ...[
-          _PaymentConfirmationCard(
+          PaymentConfirmationCard(
             confirmation: _paymentConfirmation!,
             amountFormatter: _currencyFormatter,
           ),
           const SizedBox(height: 16),
         ] else if (canAutoConfirm) ...[
-          _PaymentWaitingCard(isChecking: _isCheckingPayment),
+          PaymentWaitingCard(isChecking: _isCheckingPayment),
           const SizedBox(height: 16),
         ],
         if (!confirmed) ...[
@@ -612,7 +621,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
         ),
         const SizedBox(height: 10),
         TextButton.icon(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.pop(),
           icon: const Icon(Icons.arrow_back_rounded),
           label: const Text(
             'Quay lại',
@@ -649,7 +658,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
     final titleStyle = const TextStyle(
       color: Color(0xFF1238C8),
       fontSize: 58,
-      fontWeight: FontWeight.w800,
+      fontWeight: FontWeight.w700,
     );
     final labelStyle = TextStyle(color: Colors.grey[700], fontSize: 32);
     const valueStyle = TextStyle(
@@ -789,275 +798,5 @@ class _VietQrScreenState extends State<VietQrScreen> {
       ellipsis: '...',
     )..layout(maxWidth: maxWidth);
     painter.paint(canvas, Offset(x, y));
-  }
-}
-
-class _QrWithLogo extends StatelessWidget {
-  final double size;
-  final VietQrTransfer transfer;
-
-  const _QrWithLogo({required this.size, required this.transfer});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            QrImageView(
-              data: transfer.qrPayload,
-              version: QrVersions.auto,
-              errorCorrectionLevel: QrErrorCorrectLevel.H,
-              size: size,
-              backgroundColor: Colors.white,
-            ),
-            Container(
-              width: size * 0.24,
-              height: size * 0.24,
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(7),
-                child: Image.asset(
-                  _VietQrScreenState._logoAsset,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _InfoRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 118,
-            child: Text(label, style: TextStyle(color: Colors.grey[700])),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PaymentWaitingCard extends StatelessWidget {
-  final bool isChecking;
-
-  const _PaymentWaitingCard({required this.isChecking});
-
-  @override
-  Widget build(BuildContext context) {
-    const color = Color(0xFF1565C0);
-
-    return Card(
-      elevation: 0,
-      color: color.withValues(alpha: 0.08),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            SizedBox.square(
-              dimension: 24,
-              child: isChecking
-                  ? const CircularProgressIndicator(strokeWidth: 2.4)
-                  : const Icon(Icons.sync_rounded, color: color),
-            ),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Đang chờ tiền vào',
-                    style: TextStyle(color: color, fontWeight: FontWeight.w800),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Màn hình sẽ tự đổi trạng thái khi tìm thấy giao dịch khớp.',
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PaymentSuccessPanel extends StatelessWidget {
-  final VietQrPaymentConfirmation confirmation;
-  final NumberFormat amountFormatter;
-
-  const _PaymentSuccessPanel({
-    required this.confirmation,
-    required this.amountFormatter,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final payer = _payerLabel();
-
-    return Card(
-      elevation: 0,
-      color: Colors.green.withValues(alpha: 0.08),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Icon(
-              Icons.check_circle_rounded,
-              color: Colors.green,
-              size: 92,
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Đã nhận thanh toán',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.green,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 18),
-            if (payer.isNotEmpty) _InfoRow(label: 'Người chuyển', value: payer),
-            if (confirmation.matchedAmount != null)
-              _InfoRow(
-                label: 'Đã nhận',
-                value:
-                    '${amountFormatter.format(confirmation.matchedAmount)} VND',
-              ),
-            if (confirmation.matchedTransactionContent != null)
-              _InfoRow(
-                label: 'Nội dung',
-                value: confirmation.matchedTransactionContent!,
-              ),
-            if (confirmation.matchedTransactionNumber != null)
-              _InfoRow(
-                label: 'Mã GD',
-                value: confirmation.matchedTransactionNumber!,
-              ),
-            if (confirmation.matchedTranTime != null)
-              _InfoRow(
-                label: 'Thời gian',
-                value: DateFormat(
-                  'HH:mm dd/MM/yyyy',
-                ).format(confirmation.matchedTranTime!.toLocal()),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _payerLabel() {
-    final parts = [
-      confirmation.matchedPayerName,
-      confirmation.matchedPayerAccount,
-    ].where((value) => value != null && value.trim().isNotEmpty).cast<String>();
-    return parts.join(' - ');
-  }
-}
-
-class _PaymentConfirmationCard extends StatelessWidget {
-  final VietQrPaymentConfirmation confirmation;
-  final NumberFormat amountFormatter;
-
-  const _PaymentConfirmationCard({
-    required this.confirmation,
-    required this.amountFormatter,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final confirmed = confirmation.confirmed;
-    final color = confirmed ? Colors.green : Colors.orange;
-    final title = confirmed
-        ? 'Đã xác nhận thanh toán'
-        : _statusTitle(confirmation.reason);
-
-    return Card(
-      elevation: 0,
-      color: color.withValues(alpha: 0.08),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              confirmed ? Icons.check_circle_rounded : Icons.info_rounded,
-              color: color,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(color: color, fontWeight: FontWeight.w800),
-                  ),
-                  if (confirmation.matchedAmount != null) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      'Số tiền: ${amountFormatter.format(confirmation.matchedAmount)} VND',
-                    ),
-                  ],
-                  if (confirmation.matchedTransactionNumber != null &&
-                      confirmation.matchedTransactionNumber!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text('Mã GD: ${confirmation.matchedTransactionNumber}'),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _statusTitle(String reason) {
-    switch (reason) {
-      case 'NO_MATCH':
-        return 'Chưa thấy giao dịch khớp';
-      case 'MULTIPLE_MATCHES':
-        return 'Cần kiểm tra thủ công';
-      case 'MISSING_MATCH_FIELDS':
-        return 'Thiếu dữ liệu để tự xác nhận';
-      default:
-        return 'Chưa xác nhận được';
-    }
   }
 }

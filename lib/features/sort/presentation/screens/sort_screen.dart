@@ -103,7 +103,6 @@ class _SortScreenState extends State<SortScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Sắp xếp FIFO', showBack: true),
       body: SafeArea(
         child: AppResponsiveContent(

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../../../../app/theme/app_theme.dart';
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/theme_provider.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/gradient_header.dart';
 import '../../data/startup_settings_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -88,16 +91,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
-      appBar: AppBar(
-        title: const Text('Cài đặt'),
-        backgroundColor: AppTheme.primaryBlue,
-        foregroundColor: Colors.white,
-      ),
+      appBar: const GradientHeader(title: 'Cài đặt', showBack: true),
       body: AppResponsiveScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            _SettingsSection(
+              title: 'Giao diện',
+              child: _buildThemeSelector(context),
+            ),
+            const SizedBox(height: 16),
             _SettingsSection(
               title: 'Windows',
               child: _buildStartupTile(context),
@@ -115,10 +118,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final isEnabled = snapshot?.isEnabled ?? false;
 
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-      ),
       child: SwitchListTile.adaptive(
         value: isEnabled,
         onChanged: canToggle ? _setStartupEnabled : null,
@@ -129,7 +128,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         title: const Text(
           'Khởi động cùng Windows',
-          style: TextStyle(fontWeight: FontWeight.w800),
+          style: TextStyle(fontWeight: FontWeight.w700),
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4),
@@ -151,6 +150,133 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ? 'OpsHub sẽ tự mở khi đăng nhập Windows'
         : 'OpsHub không tự mở khi đăng nhập Windows';
   }
+
+  Widget _buildThemeSelector(BuildContext context) {
+    final currentMode = context.watch<ThemeProvider>().mode;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.palette_outlined,
+                  color: colorScheme.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Chế độ hiển thị',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? AppColors.darkNeutral50
+                    : Colors.grey[200],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  _buildThemeOption(
+                    context,
+                    mode: ThemeMode.light,
+                    icon: Icons.light_mode_outlined,
+                    activeIcon: Icons.light_mode,
+                    label: 'Sáng',
+                    isActive: currentMode == ThemeMode.light,
+                  ),
+                  _buildThemeOption(
+                    context,
+                    mode: ThemeMode.dark,
+                    icon: Icons.dark_mode_outlined,
+                    activeIcon: Icons.dark_mode,
+                    label: 'Tối',
+                    isActive: currentMode == ThemeMode.dark,
+                  ),
+                  _buildThemeOption(
+                    context,
+                    mode: ThemeMode.system,
+                    icon: Icons.settings_brightness_outlined,
+                    activeIcon: Icons.settings_brightness,
+                    label: 'Hệ thống',
+                    isActive: currentMode == ThemeMode.system,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeOption(
+    BuildContext context, {
+    required ThemeMode mode,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+    required bool isActive,
+  }) {
+    final themeProvider = context.read<ThemeProvider>();
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Expanded(
+      child: InkWell(
+        onTap: () => themeProvider.setMode(mode),
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isActive ? colorScheme.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: isActive
+                ? [
+                    BoxShadow(
+                      color: colorScheme.primary.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    )
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isActive ? activeIcon : icon,
+                color: isActive ? Colors.white : colorScheme.onSurfaceVariant,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                  color: isActive ? Colors.white : colorScheme.onSurfaceVariant,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _SettingsSection extends StatelessWidget {
@@ -169,8 +295,7 @@ class _SettingsSection extends StatelessWidget {
           child: Text(
             title,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF111827),
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
@@ -204,10 +329,10 @@ class _StartupSettingIcon extends StatelessWidget {
     return Icon(
       isEnabled ? Icons.rocket_launch_rounded : Icons.power_settings_new,
       color: !isSupported
-          ? const Color(0xFF9CA3AF)
+          ? AppColors.neutral300
           : isEnabled
-          ? const Color(0xFF16A34A)
-          : const Color(0xFF6B7280),
+          ? AppColors.success
+          : AppColors.neutral500,
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 
 import 'app_buttons.dart';
 import 'app_layout.dart';
@@ -30,24 +31,24 @@ class AppStatePanel extends StatelessWidget {
   const AppStatePanel.empty({
     super.key,
     required this.title,
+    this.icon = Icons.inbox_rounded,
     this.message,
     this.actionLabel,
     this.actionIcon,
     this.onAction,
     this.compact = false,
-  }) : icon = Icons.inbox_rounded,
-       tone = AppStateTone.neutral;
+  }) : tone = AppStateTone.neutral;
 
   const AppStatePanel.error({
     super.key,
     required this.title,
+    this.icon = Icons.error_outline_rounded,
     this.message,
     this.actionLabel,
     this.actionIcon,
     this.onAction,
     this.compact = false,
-  }) : icon = Icons.error_outline_rounded,
-       tone = AppStateTone.error;
+  }) : tone = AppStateTone.error;
 
   const AppStatePanel.loading({
     super.key,
@@ -64,8 +65,8 @@ class AppStatePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = _toneColor(tone);
     final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-      fontWeight: FontWeight.w800,
-      color: tone == AppStateTone.neutral ? const Color(0xFF374151) : color,
+      fontWeight: FontWeight.w700,
+      color: tone == AppStateTone.neutral ? AppColors.neutral700 : color,
     );
     final messageText = message;
 
@@ -111,7 +112,7 @@ class AppStatePanel extends StatelessWidget {
                   messageText,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF6B7280),
+                    color: AppColors.neutral500,
                     height: 1.35,
                   ),
                 ),
@@ -136,11 +137,11 @@ class AppStatePanel extends StatelessWidget {
 
   Color _toneColor(AppStateTone tone) {
     return switch (tone) {
-      AppStateTone.info => const Color(0xFF2563EB),
-      AppStateTone.success => const Color(0xFF16A34A),
-      AppStateTone.warning => const Color(0xFFD97706),
-      AppStateTone.error => const Color(0xFFDC2626),
-      AppStateTone.neutral => const Color(0xFF6B7280),
+      AppStateTone.info => AppColors.info,
+      AppStateTone.success => AppColors.success,
+      AppStateTone.warning => AppColors.warning,
+      AppStateTone.error => AppColors.error,
+      AppStateTone.neutral => AppColors.neutral500,
     };
   }
 }
@@ -184,7 +185,7 @@ class AppStatusBanner extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     softWrap: false,
-                    style: TextStyle(color: color, fontWeight: FontWeight.w800),
+                    style: TextStyle(color: color, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 4),
                   Text(message),
@@ -199,11 +200,11 @@ class AppStatusBanner extends StatelessWidget {
 
   Color _toneColor(AppStateTone tone) {
     return switch (tone) {
-      AppStateTone.info => const Color(0xFF2563EB),
-      AppStateTone.success => const Color(0xFF16A34A),
-      AppStateTone.warning => const Color(0xFFD97706),
-      AppStateTone.error => const Color(0xFFDC2626),
-      AppStateTone.neutral => const Color(0xFF6B7280),
+      AppStateTone.info => AppColors.info,
+      AppStateTone.success => AppColors.success,
+      AppStateTone.warning => AppColors.warning,
+      AppStateTone.error => AppColors.error,
+      AppStateTone.neutral => AppColors.neutral500,
     };
   }
 }

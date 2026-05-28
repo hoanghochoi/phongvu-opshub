@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -34,7 +36,6 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
     final requiresStoreInput = user?.role == 'SUPER_ADMIN';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Theo dõi tiền vào', showBack: true),
       body: SafeArea(
         child: AppResponsiveScrollView(
@@ -42,10 +43,6 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -58,8 +55,8 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                                 ? Icons.volume_up_rounded
                                 : Icons.volume_off_rounded,
                             color: monitor.isSpeakerEnabled
-                                ? Colors.green
-                                : const Color(0xFF6B7280),
+                                ? AppColors.success
+                                : AppColors.neutral500,
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -69,7 +66,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                                   : 'Đã tắt đọc loa',
                               style: const TextStyle(
                                 fontSize: 17,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
@@ -92,7 +89,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                       Text(
                         'Máy này tự cập nhật giao dịch tiền vào mỗi 5 giây. Khi bật đọc loa, giao dịch mới sẽ được đọc thành tiếng; khi tắt, danh sách vẫn cập nhật bình thường.',
                         style: TextStyle(
-                          color: Colors.grey[700],
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           height: 1.25,
                           fontSize: 13,
                         ),
@@ -124,7 +121,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                 const SizedBox(height: 12),
                 _StatusCard(
                   icon: Icons.error_outline_rounded,
-                  color: Colors.red,
+                  color: AppColors.error,
                   title: 'Chưa cập nhật được giao dịch',
                   message: monitor.errorMessage!,
                 ),
@@ -136,8 +133,8 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                 'Giao dịch tiền vào',
                 style: TextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.grey[850],
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 10),
@@ -162,18 +159,19 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
     final displayTime = _toVietnamTime(
       transaction.paidAt ?? transaction.firstSeenAt,
     );
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Card(
-      elevation: 0,
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: ListTile(
-        leading: const CircleAvatar(
-          backgroundColor: Color(0xFFE8F5E9),
-          child: Icon(Icons.payments_rounded, color: Colors.green),
+        leading: CircleAvatar(
+          backgroundColor: isDark
+              ? Colors.green.withValues(alpha: 0.15)
+              : const Color(0xFFE8F5E9),
+          child: const Icon(Icons.payments_rounded, color: Colors.green),
         ),
         title: Text(
           '${_currencyFormatter.format(transaction.amount)} VND',
-          style: const TextStyle(fontWeight: FontWeight.w900),
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         subtitle: Text(
           [
@@ -202,8 +200,8 @@ class _SyncStatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = monitor.isActive
-        ? const Color(0xFF16A34A)
-        : const Color(0xFF6B7280);
+        ? AppColors.success
+        : AppColors.neutral500;
     final baseLabel = monitor.isLoading
         ? 'Đang cập nhật giao dịch'
         : monitor.isActive
@@ -220,43 +218,11 @@ class _SyncStatusPill extends StatelessWidget {
         ? '$baseLabel • $lastCheckedText'
         : baseLabel;
 
-    return SizedBox(
-      height: 36,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha: 0.24)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox.square(
-                dimension: 16,
-                child: monitor.isLoading
-                    ? CircularProgressIndicator(strokeWidth: 2, color: color)
-                    : Icon(Icons.sync_rounded, size: 16, color: color),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: false,
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return AppStatusPill(
+      icon: Icons.sync_rounded,
+      label: label,
+      color: color,
+      isLoading: monitor.isLoading,
     );
   }
 }
@@ -269,33 +235,50 @@ class _TransactionFilters extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
+            // ── Date pickers + page size ──
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _pickDate(context),
-                    icon: const Icon(Icons.calendar_month_rounded),
-                    label: Text(
-                      _formatRangeLabel(monitor),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                    ),
+                  child: _DateDropdown(
+                    label: 'Từ ngày',
+                    date: monitor.rangeStartDate,
+                    firstDate: DateTime(2024),
+                    lastDate: monitor.rangeEndDate,
+                    onPicked: (date) {
+                      context.read<PaymentMonitorProvider>().setDateRange(
+                        date,
+                        monitor.rangeEndDate,
+                      );
+                    },
                   ),
                 ),
-                const SizedBox(width: AppLayoutTokens.formInlineGap),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _DateDropdown(
+                    label: 'Đến ngày',
+                    date: monitor.rangeEndDate,
+                    firstDate: monitor.rangeStartDate,
+                    lastDate: DateTime.now().add(const Duration(days: 1)),
+                    onPicked: (date) {
+                      context.read<PaymentMonitorProvider>().setDateRange(
+                        monitor.rangeStartDate,
+                        date,
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
                 SizedBox(
-                  width: 116,
+                  width: 130,
                   child: DropdownButtonFormField<int>(
                     initialValue: monitor.pageSize,
                     decoration: const InputDecoration(
                       isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
                       border: OutlineInputBorder(),
                     ),
                     items: const [10, 20, 50, 100]
@@ -320,6 +303,7 @@ class _TransactionFilters extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppLayoutTokens.formInlineGap),
+            // ── Pagination ──
             Row(
               children: [
                 IconButton(
@@ -354,39 +338,56 @@ class _TransactionFilters extends StatelessWidget {
       ),
     );
   }
+}
 
-  Future<void> _pickDate(BuildContext context) async {
-    final picked = await showDateRangePicker(
-      context: context,
-      initialDateRange: DateTimeRange(
-        start: monitor.rangeStartDate,
-        end: monitor.rangeEndDate,
+/// A single date dropdown: displays the date in dd/MM/yyyy format,
+/// tapping it opens [showDatePicker].
+class _DateDropdown extends StatelessWidget {
+  final String label;
+  final DateTime date;
+  final DateTime firstDate;
+  final DateTime lastDate;
+  final ValueChanged<DateTime> onPicked;
+
+  const _DateDropdown({
+    required this.label,
+    required this.date,
+    required this.firstDate,
+    required this.lastDate,
+    required this.onPicked,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: date,
+          firstDate: firstDate,
+          lastDate: lastDate,
+          helpText: label,
+          cancelText: 'Hủy',
+          confirmText: 'Chọn',
+        );
+        if (picked != null) onPicked(picked);
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          isDense: true,
+          border: const OutlineInputBorder(),
+          suffixIcon: const Icon(Icons.calendar_month_rounded, size: 20),
+        ),
+        child: Text(
+          DateFormat('dd/MM/yyyy').format(date),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+        ),
       ),
-      firstDate: DateTime(2024),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
-      helpText: 'Chọn khoảng ngày',
-      cancelText: 'Hủy',
-      confirmText: 'Áp dụng',
     );
-    if (picked == null || !context.mounted) return;
-    context.read<PaymentMonitorProvider>().setDateRange(
-      picked.start,
-      picked.end,
-    );
-  }
-
-  String _formatRangeLabel(PaymentMonitorProvider monitor) {
-    final start = monitor.rangeStartDate;
-    final end = monitor.rangeEndDate;
-    if (start.year == end.year &&
-        start.month == end.month &&
-        start.day == end.day) {
-      return DateFormat('dd/MM/yyyy').format(start);
-    }
-    if (start.year == end.year && start.month == end.month) {
-      return '${DateFormat('dd').format(start)} - ${DateFormat('dd/MM/yyyy').format(end)}';
-    }
-    return '${DateFormat('dd/MM/yyyy').format(start)} - ${DateFormat('dd/MM/yyyy').format(end)}';
   }
 }
 
@@ -419,15 +420,9 @@ class _EmptyTransactions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: const Padding(
-        padding: EdgeInsets.all(18),
-        child: Center(
-          child: Text('Chưa có giao dịch trong khoảng ngày đã chọn'),
-        ),
-      ),
+    return const AppStatePanel.empty(
+      title: 'Chưa có giao dịch trong khoảng ngày đã chọn',
+      icon: Icons.receipt_long_outlined,
     );
   }
 }

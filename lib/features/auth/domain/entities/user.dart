@@ -62,6 +62,13 @@ class User {
           'STORE' &&
       (mustSelectStore || storeId == null);
 
+  bool get belongsToCp62 {
+    final values = [storeId, storeName, personnelCode, workScopeType];
+    return values.any((value) => value?.toUpperCase().contains('CP62') == true);
+  }
+
+  bool get canUseCp62RestrictedFlows => role == 'SUPER_ADMIN' || belongsToCp62;
+
   String get storeInfo {
     if (storeId != null && storeName != null) {
       return '$storeId - $storeName';

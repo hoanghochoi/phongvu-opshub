@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -16,22 +17,22 @@ class WarrantyMainScreen extends StatelessWidget {
         title: 'Lưu hình ảnh',
         description: 'Ghi nhận BH/SC',
         color: const Color(0xFF16A34A),
-        onTap: () => Navigator.of(context).pushNamed('/warranty'),
+        onTap: () => context.push('/warranty'),
       ),
       AppFeatureAction(
         icon: Icons.search_rounded,
         title: 'Xem lại hình ảnh',
         description: 'Tìm theo biên nhận',
         color: const Color(0xFF0F766E),
-        onTap: () => Navigator.of(context).pushNamed('/check-warranty'),
+        onTap: () => context.push('/check-warranty'),
       ),
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: GradientHeader(
         title: 'Bảo hành / Sửa chữa',
-        showBack: onBackToHome == null,
+        showBack: true,
+        onBack: onBackToHome,
       ),
       body: AppResponsiveContent(child: AppFeatureSection(actions: actions)),
     );

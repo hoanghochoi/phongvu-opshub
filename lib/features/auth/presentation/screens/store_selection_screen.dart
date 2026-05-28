@@ -116,7 +116,6 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Chọn chi nhánh'),
       body: AppResponsiveContent(
         maxWidth: AppLayoutTokens.formMaxWidth,
