@@ -72,8 +72,10 @@ Expected responses:
   `Store.transferAccountNumber`; unmapped rows are quarantined and do not play
   payment audio. Per-store MAP credentials remain a fallback when the global
   account is not configured or `MAP_VIETIN_GLOBAL_SYNC_ENABLED=false`. The
-  global MAP session is cached for `MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS`
-  seconds, defaulting to 600, and refreshes automatically after MAP auth errors.
+  global MAP sync runs from 08:00 to before 22:00 Vietnam time, reads 100 rows
+  per page, and defaults to `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES=2`. The global
+  MAP session is cached for `MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS` seconds,
+  defaulting to 600, and refreshes automatically after MAP auth errors.
 - Set `UPLOAD_BASE_DIR` to a persistent VPS directory, for example `/data/app_images`.
 - Set `IMAGE_BASE_URL` to the public image domain that serves `UPLOAD_BASE_DIR`.
 - For payment notification audio, run the Piper sidecar from

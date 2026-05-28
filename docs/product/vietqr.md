@@ -48,7 +48,9 @@ a customer to scan and pay manually.
   primary payment sync source, maps each MAP `virtualAccount` to
   `Store.transferAccountNumber`, and stores the transaction under the matched
   showroom. Per-showroom MAP credentials remain a fallback when global sync is
-  disabled or not configured.
+  disabled or not configured. Global sync reads 100 MAP rows per page and
+  defaults to 2 pages per sync loop. Background MAP sync runs only from
+  08:00 to before 22:00 Vietnam time each day.
 - Successful global MAP rows that cannot be mapped to exactly one showroom are
   quarantined for debug and do not create payment notifications or play audio.
 - The monitor is independent from OpsHub-created QR/payment intents. It reads
@@ -123,7 +125,7 @@ Optional MAP endpoint overrides are available through:
 - `MAP_VIETIN_GLOBAL_USERNAME`
 - `MAP_VIETIN_GLOBAL_PASSWORD`
 - `MAP_VIETIN_GLOBAL_SYNC_ENABLED`
-- `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES`
+- `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES` (default `2`)
 - `MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS`
 - `MAP_VIETIN_CLIENT_ID`
 - `MAP_VIETIN_SIGNATURE_KEY`
