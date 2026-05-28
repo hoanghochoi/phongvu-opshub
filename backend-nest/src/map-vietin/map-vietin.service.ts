@@ -28,8 +28,12 @@ const MAP_NO_AUTH_BASE_URL =
 const MAP_TRANSACTION_BASE_URL =
   'https://map.vietinbank.vn/vtb/public/map/api/rpt-txnmng/api';
 const GLOBAL_SYNC_STATE_CODE = '__GLOBAL__';
-const DEFAULT_GLOBAL_SYNC_MAX_PAGES = 10;
+const MAP_SYNC_PAGE_SIZE = 100;
+const MAP_SYNC_START_HOUR_VN = 8;
+const MAP_SYNC_END_HOUR_VN = 22;
+const DEFAULT_GLOBAL_SYNC_MAX_PAGES = 2;
 const DEFAULT_GLOBAL_SESSION_TTL_SECONDS = 10 * 60;
+const VIETNAM_UTC_OFFSET_HOURS = 7;
 
 type MapLoginResponse = {
   error_code?: string;
@@ -75,6 +79,7 @@ type UnmappedReason =
 export class MapVietinService {
   private readonly logger = new Logger(MapVietinService.name);
   private syncInProgress = false;
+  private lastSyncWindowOpen?: boolean;
   private globalSessionCache?: {
     username: string;
     session: MapSession;
@@ -230,6 +235,19 @@ export class MapVietinService {
   @Interval(5000)
   async syncConfiguredStores() {
     if (process.env.MAP_VIETIN_SYNC_ENABLED === 'false') return;
+    if (!this.isWithinMapSyncWindow()) {
+      if (this.lastSyncWindowOpen !== false) {
+        this.logger.log(
+          `MAP sync skipped outside active window ${MAP_SYNC_START_HOUR_VN}:00-${MAP_SYNC_END_HOUR_VN}:00 Vietnam time`,
+        );
+      }
+      this.lastSyncWindowOpen = false;
+      return;
+    }
+    if (this.lastSyncWindowOpen === false) {
+      this.logger.log('MAP sync active window resumed');
+    }
+    this.lastSyncWindowOpen = true;
     if (this.syncInProgress) return;
     this.syncInProgress = true;
     try {
@@ -272,7 +290,7 @@ export class MapVietinService {
       let created = 0;
       let quarantined = 0;
       let page = 0;
-      const size = 100;
+      const size = MAP_SYNC_PAGE_SIZE;
       const maxPages = this.globalSyncMaxPages();
 
       this.logger.log('Global MAP sync started');
@@ -368,7 +386,7 @@ export class MapVietinService {
         startDate: today,
         endDate: today,
         page: 0,
-        size: 100,
+        size: MAP_SYNC_PAGE_SIZE,
       });
       const created = await this.persistTransactions(
         store.storeId,
@@ -1078,6 +1096,15 @@ export class MapVietinService {
       String(value.getMonth() + 1).padStart(2, '0'),
       value.getFullYear(),
     ].join('/');
+  }
+
+  private isWithinMapSyncWindow(value = new Date(Date.now())) {
+    const vietnamHour =
+      (value.getUTCHours() + VIETNAM_UTC_OFFSET_HOURS) % 24;
+    return (
+      vietnamHour >= MAP_SYNC_START_HOUR_VN &&
+      vietnamHour < MAP_SYNC_END_HOUR_VN
+    );
   }
 
   private async postJson<T>(

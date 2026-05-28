@@ -7,6 +7,16 @@ Target layout:
 - FIFO BigQuery cache can run while `DATA_SYNC_SOURCE=local`; legacy inventory
   and user BigQuery sync remain disabled unless explicitly configured.
 
+## Live OpsHub Source Of Truth
+
+- Production host alias from the developer machine: `ssh hoang-n8n`.
+- Runtime env file: `/srv/opshub/env`.
+- Current deployed release symlink: `/home/ubuntu/phongvu-opshub/current`.
+- Compose file for runtime checks: `/home/ubuntu/phongvu-opshub/current/deploy/home-server/docker-compose.home.yml`.
+- MAP global sync reads `100` rows per MAP page and defaults to
+  `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES=2`, for at most `200` rows per sync loop.
+  Background MAP sync runs only from `08:00` to before `22:00` Vietnam time.
+
 ## Checklist
 
 1. Create folders on the home server:
