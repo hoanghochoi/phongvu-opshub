@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/platform/app_restart_service.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/payment_speaker.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/repositories/payment_monitor_repository.dart';
@@ -54,7 +55,8 @@ void main() {
     await _waitUntil(
       () =>
           repository.transactionFetchCount > 0 &&
-          repository.ackEvents.contains('SILENCED'),
+          repository.ackEvents.contains('SILENCED') &&
+          !provider.isLoading,
     );
 
     expect(provider.isActive, isTrue);
@@ -81,7 +83,9 @@ void main() {
       ),
       isInitialized: true,
     );
-    await _waitUntil(() => repository.transactionFetchCount > 0);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
 
     repository.requestedStartDates.clear();
     repository.requestedEndDates.clear();
@@ -95,21 +99,115 @@ void main() {
 
     provider.dispose();
   });
+
+  test('retries payment audio once before acknowledging played', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: [_readyNotification()],
+    );
+    final speaker = _FakePaymentSpeaker(failuresBeforeSuccess: 1);
+    final provider = PaymentMonitorProvider(repository, speaker);
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(
+      const User(
+        id: 'user-1',
+        email: 'staff@example.com',
+        role: 'MANAGER',
+        storeId: 'store-uuid-1',
+      ),
+      isInitialized: true,
+    );
+    await _waitUntil(
+      () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
+    );
+
+    expect(repository.downloadCount, 2);
+    expect(speaker.playCount, 2);
+    expect(repository.ackEvents, contains('PLAYED'));
+    expect(repository.ackEvents, isNot(contains('FAILED')));
+    expect(provider.speakerError, isNull);
+
+    provider.dispose();
+  });
+
+  test(
+    'final payment audio failure shows speaker error and acks failed',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: [_readyNotification()],
+      );
+      final speaker = _FakePaymentSpeaker(failuresBeforeSuccess: 99);
+      final provider = PaymentMonitorProvider(repository, speaker);
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(
+        const User(
+          id: 'user-1',
+          email: 'staff@example.com',
+          role: 'MANAGER',
+          storeId: 'store-uuid-1',
+        ),
+        isInitialized: true,
+      );
+      await _waitUntil(
+        () => repository.ackEvents.contains('FAILED') && !provider.isLoading,
+      );
+
+      expect(repository.downloadCount, 2);
+      expect(speaker.playCount, 2);
+      expect(repository.ackEvents, contains('FAILED'));
+      expect(repository.ackErrors.single, contains('speaker failed'));
+      expect(provider.speakerError, isNotNull);
+      expect(provider.speakerError!.notificationId, 'note-1');
+      expect(provider.speakerError!.amount, 1250000);
+
+      provider.dispose();
+    },
+  );
+
+  test('restartApp delegates to restart service', () async {
+    final restartService = _FakeAppRestartService();
+    final provider = PaymentMonitorProvider(
+      _FakePaymentMonitorRepository(notifications: const []),
+      _FakePaymentSpeaker(),
+      restartService,
+    );
+
+    await provider.restartApp();
+
+    expect(restartService.restartCount, 1);
+
+    provider.dispose();
+  });
 }
 
 Future<void> _waitUntil(bool Function() condition) async {
-  for (var i = 0; i < 20; i += 1) {
+  for (var i = 0; i < 100; i += 1) {
     if (condition()) return;
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+    await Future<void>.delayed(const Duration(milliseconds: 25));
   }
+}
+
+PaymentNotification _readyNotification() {
+  return PaymentNotification.fromJson({
+    'notificationId': 'note-1',
+    'transactionId': 'txn-1',
+    'storeCode': 'CP01',
+    'amount': 1250000,
+    'audioStatus': 'READY',
+    'audioUrl': '/payment-notifications/note-1/audio',
+    'createdAt': '2026-05-21T10:00:00.000Z',
+  });
 }
 
 class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<PaymentNotification> notifications;
   final List<String> ackEvents = [];
+  final List<String> ackErrors = [];
   final List<String?> requestedStartDates = [];
   final List<String?> requestedEndDates = [];
   int transactionFetchCount = 0;
+  int downloadCount = 0;
 
   _FakePaymentMonitorRepository({required this.notifications})
     : super(ApiClient());
@@ -146,7 +244,8 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
 
   @override
   Future<List<int>> downloadNotificationAudio(String notificationId) async {
-    throw StateError('Audio should not download while speaker is muted');
+    downloadCount += 1;
+    return const [0x52, 0x49, 0x46, 0x46, 0x00];
   }
 
   @override
@@ -157,11 +256,15 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     String? error,
   }) async {
     ackEvents.add(event);
+    if (error != null) ackErrors.add(error);
   }
 }
 
 class _FakePaymentSpeaker extends PaymentSpeaker {
+  final int failuresBeforeSuccess;
   int playCount = 0;
+
+  _FakePaymentSpeaker({this.failuresBeforeSuccess = 0});
 
   @override
   Future<void> playServerAudio({
@@ -169,5 +272,17 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
     required List<int>? audioBytes,
   }) async {
     playCount += 1;
+    if (playCount <= failuresBeforeSuccess) {
+      throw StateError('speaker failed $playCount');
+    }
+  }
+}
+
+class _FakeAppRestartService extends AppRestartService {
+  int restartCount = 0;
+
+  @override
+  Future<void> restart() async {
+    restartCount += 1;
   }
 }
