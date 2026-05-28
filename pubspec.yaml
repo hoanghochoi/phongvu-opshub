@@ -37,6 +37,13 @@ dependencies:
   # Version managerment
   package_info_plus: ^8.0.0
 
+  # Routing
+  go_router: ^14.0.1
+
+  # Internationalization
+  flutter_localizations:
+    sdk: flutter
+
   # HTTP Client
   http: ^1.2.0
 
@@ -102,6 +109,7 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  generate: true
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

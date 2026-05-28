@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/payment_speaker.dart';
@@ -14,10 +15,12 @@ void main() {
   setUp(() {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     SharedPreferences.setMockInitialValues({});
+    AppLogger.instance.setUploadsEnabledForTesting(false);
   });
 
   tearDown(() {
     debugDefaultTargetPlatformOverride = null;
+    AppLogger.instance.setUploadsEnabledForTesting(true);
   });
 
   test('keeps transaction sync running when speaker is muted', () async {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
+import '../../../../core/utils/date_formatter.dart';
 import '../providers/warranty_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import 'warranty_details_screen.dart';
@@ -126,7 +126,6 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Xem lại biên nhận', showBack: true),
       body: SafeArea(
         child: AppResponsiveContent(
@@ -277,52 +276,12 @@ class _ReceiptCard extends StatelessWidget {
 
   const _ReceiptCard({required this.receipt, required this.onTap});
 
-  String _formatDate(String? dateString) {
-    if (dateString == null || dateString.isEmpty) {
-      return 'Chưa có';
-    }
-
-    try {
-      // Try to parse different date formats
-      DateTime? dateTime;
-
-      // Try ISO format first (yyyy-MM-dd or yyyy-MM-ddTHH:mm:ss)
-      try {
-        dateTime = DateTime.parse(dateString);
-      } catch (e) {
-        // Try dd/MM/yyyy format
-        try {
-          final parts = dateString.split('/');
-          if (parts.length == 3) {
-            dateTime = DateTime(
-              int.parse(parts[2]), // year
-              int.parse(parts[1]), // month
-              int.parse(parts[0]), // day
-            );
-          }
-        } catch (e) {
-          // If all parsing fails, return original string
-          return dateString;
-        }
-      }
-
-      if (dateTime != null) {
-        // Format as dd/MM/yyyy
-        return DateFormat('dd/MM/yyyy').format(dateTime);
-      }
-
-      return dateString;
-    } catch (e) {
-      return dateString;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final receiptNumber = receipt['receipt']?.toString() ?? 'Chưa có';
     final user = receipt['user']?.toString() ?? 'Chưa có';
     final dateString = receipt['date']?.toString();
-    final formattedDate = _formatDate(dateString);
+    final formattedDate = DateFormatter.format(dateString);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -373,7 +332,7 @@ class _ReceiptCard extends StatelessWidget {
                         Icon(
                           Icons.person_outline,
                           size: 14,
-                          color: Colors.grey[600],
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -383,7 +342,7 @@ class _ReceiptCard extends StatelessWidget {
                           softWrap: false,
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey[700],
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -393,7 +352,7 @@ class _ReceiptCard extends StatelessWidget {
                             maxLines: 1,
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey[600],
+                              color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
                             ),
                             overflow: TextOverflow.ellipsis,
                             softWrap: false,
@@ -409,7 +368,7 @@ class _ReceiptCard extends StatelessWidget {
                         Icon(
                           Icons.calendar_today_outlined,
                           size: 14,
-                          color: Colors.grey[600],
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -419,7 +378,7 @@ class _ReceiptCard extends StatelessWidget {
                           softWrap: false,
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey[700],
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -430,7 +389,7 @@ class _ReceiptCard extends StatelessWidget {
                           softWrap: false,
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey[600],
+                            color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
                           ),
                         ),
                       ],

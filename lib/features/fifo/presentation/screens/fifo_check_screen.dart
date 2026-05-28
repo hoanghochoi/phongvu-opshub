@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -54,17 +56,17 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
     if (error == null || !mounted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(error), backgroundColor: Colors.red));
+    ).showSnackBar(SnackBar(content: Text(error), backgroundColor: AppColors.error));
     provider.clearError();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: GradientHeader(
         title: 'Kiểm tra FIFO',
-        showBack: widget.onBackToHome == null,
+        showBack: true,
+        onBack: widget.onBackToHome,
       ),
       body: SafeArea(
         child: Consumer<FifoProvider>(
@@ -213,7 +215,10 @@ class _ResultBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final current = result;
     if (current == null) {
-      return const _EmptyState();
+      return const AppStatePanel.empty(
+        title: 'Nhập SKU hoặc serial để kiểm tra FIFO',
+        icon: Icons.inventory_2_outlined,
+      );
     }
     if (current.isSkuMode) {
       return _SkuResultList(
@@ -230,27 +235,7 @@ class _ResultBody extends StatelessWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 12),
-          Text(
-            'Nhập SKU hoặc serial để kiểm tra FIFO',
-            style: TextStyle(color: Colors.grey[700], fontSize: 16),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-}
+// _EmptyState removed — now uses AppStatePanel.empty()
 
 class _SkuResultList extends StatelessWidget {
   final FifoCheckResult result;
@@ -415,7 +400,6 @@ class _FifoItemCard extends StatelessWidget {
     final color = item.exported ? Colors.grey : _fifoColor(rank, total);
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -450,9 +434,9 @@ class _FifoItemCard extends StatelessWidget {
                           ),
                         ),
                         if (item.exported)
-                          const _StatusChip(label: 'Đã xuất')
+                          const AppStatusChip(label: 'Đã xuất')
                         else if (item.isFifo)
-                          const _StatusChip(label: 'FIFO'),
+                          const AppStatusChip(label: 'FIFO'),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -460,16 +444,16 @@ class _FifoItemCard extends StatelessWidget {
                       spacing: 8,
                       runSpacing: 6,
                       children: [
-                        _InfoChip(Icons.qr_code_rounded, item.serialNumber),
-                        _InfoChip(Icons.inventory_2_outlined, item.sku),
-                        _InfoChip(
+                        AppInfoChip(Icons.qr_code_rounded, item.serialNumber),
+                        AppInfoChip(Icons.inventory_2_outlined, item.sku),
+                        AppInfoChip(
                           Icons.calendar_today_outlined,
                           item.importDate,
                         ),
                         if (item.bin.isNotEmpty)
-                          _InfoChip(Icons.location_on_outlined, item.bin),
+                          AppInfoChip(Icons.location_on_outlined, item.bin),
                         if (item.zone.isNotEmpty)
-                          _InfoChip(Icons.map_outlined, item.zone),
+                          AppInfoChip(Icons.map_outlined, item.zone),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -514,64 +498,5 @@ class _FifoItemCard extends StatelessWidget {
     if (total <= 1) return Colors.green;
     final t = rank / (total - 1);
     return Color.lerp(Colors.green, Colors.red, t) ?? Colors.red;
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  final String label;
-
-  const _StatusChip({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        softWrap: false,
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-      ),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String value;
-
-  const _InfoChip(this.icon, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: Colors.grey[700]),
-          const SizedBox(width: 4),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 180),
-            child: Text(
-              value.isEmpty ? 'Chưa có' : value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

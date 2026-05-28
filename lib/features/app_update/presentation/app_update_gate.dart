@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../app/navigation/app_router.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../core/network/api_client.dart';
 import '../data/app_update_service.dart';
@@ -45,10 +46,12 @@ class _AppUpdateGateState extends State<AppUpdateGate> {
 
   Future<void> _showUpdateDialog(AppUpdateCheckResult result) async {
     final updateInfo = result.updateInfo;
-    final isRequired = result.isRequired;
+    final isRequired = kDebugMode ? false : result.isRequired;
+    final navContext = AppRouter.navigatorKey.currentContext;
+    if (navContext == null) return;
 
     await showDialog<void>(
-      context: context,
+      context: navContext,
       barrierDismissible: !isRequired,
       builder: (dialogContext) {
         return PopScope(

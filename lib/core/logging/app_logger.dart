@@ -16,6 +16,12 @@ class AppLogger {
   final ApiClient _apiClient = ApiClient();
   File? _logFile;
   String? _clientId;
+  bool _uploadsEnabled = true;
+
+  @visibleForTesting
+  void setUploadsEnabledForTesting(bool enabled) {
+    _uploadsEnabled = enabled;
+  }
 
   Future<void> initialize({String? clientId}) async {
     _clientId = clientId;
@@ -77,6 +83,7 @@ class AppLogger {
     Map<String, Object?>? context,
     String? storeCode,
   }) async {
+    if (!_uploadsEnabled) return;
     try {
       await _apiClient.post(
         ApiConstants.appLogsEndpoint,

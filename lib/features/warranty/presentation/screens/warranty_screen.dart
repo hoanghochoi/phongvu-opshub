@@ -236,7 +236,6 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Lưu hình ảnh BH/SC', showBack: true),
       body: SafeArea(
         child: AppResponsiveScrollView(

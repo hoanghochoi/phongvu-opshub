@@ -1,0 +1,185 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../features/auth/presentation/providers/auth_provider.dart';
+import '../../features/auth/presentation/screens/email_check_screen.dart';
+import '../../features/auth/presentation/screens/profile_screen.dart';
+import '../../features/auth/presentation/screens/register_screen.dart';
+import '../../features/auth/presentation/screens/store_selection_screen.dart';
+import '../../features/admin/presentation/screens/admin_menu_screen.dart';
+import '../../features/admin/presentation/screens/inventory_import_screen.dart';
+import '../../features/admin/presentation/screens/role_admin_screen.dart';
+import '../../features/admin/presentation/screens/store_admin_screen.dart';
+import '../../features/admin/presentation/screens/user_admin_screen.dart';
+import '../../features/warranty/presentation/screens/warranty_screen.dart';
+import '../../features/warranty/presentation/screens/warranty_main_screen.dart';
+import '../../features/warranty/presentation/screens/check_warranty_screen.dart';
+import '../../features/feedback/presentation/screens/feedback_screen.dart';
+import '../../features/payment_monitor/presentation/screens/payment_monitor_screen.dart';
+import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../features/vietqr/presentation/screens/vietqr_screen.dart';
+import '../../features/fifo/presentation/screens/fifo_check_screen.dart';
+import '../../features/fifo/presentation/screens/fifo_menu_screen.dart';
+import '../../features/fifo/presentation/screens/fifo_history_screen.dart';
+import '../../features/sort/presentation/screens/sort_screen.dart';
+import 'main_navigation_screen.dart';
+
+class AppRouter {
+  AppRouter._();
+
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
+  static const Set<String> _cp62OnlyRoutes = {
+    '/fifo-menu',
+    '/fifo-check',
+    '/fifo-history',
+    '/sort',
+    '/warranty-main',
+    '/warranty',
+    '/check-warranty',
+  };
+
+  static GoRouter createRouter(AuthProvider authProvider) {
+    return GoRouter(
+      navigatorKey: navigatorKey,
+      initialLocation: '/home',
+      refreshListenable: authProvider,
+      debugLogDiagnostics: true,
+      redirect: (context, state) {
+        final location = state.matchedLocation;
+        if (!authProvider.isInitialized) {
+          return location == '/loading' ? null : '/loading';
+        }
+
+        final isAuthenticated = authProvider.isAuthenticated;
+        final needsStore = authProvider.user?.needsStoreSelection ?? false;
+
+        final isLoading = location == '/loading';
+        final isLoggingIn = location == '/login';
+        final isRegistering = location == '/register';
+
+        if (!isAuthenticated) {
+          if (isLoggingIn || isRegistering) return null;
+          return '/login';
+        }
+
+        if (needsStore) {
+          if (location == '/select-store') return null;
+          return '/select-store';
+        }
+
+        if (_cp62OnlyRoutes.contains(location) &&
+            authProvider.user?.canUseCp62RestrictedFlows != true) {
+          return '/home';
+        }
+
+        if (isLoading ||
+            isLoggingIn ||
+            isRegistering ||
+            location == '/select-store') {
+          return '/home';
+        }
+
+        return null;
+      },
+      routes: [
+        GoRoute(
+          path: '/loading',
+          builder: (context, state) =>
+              const Scaffold(body: Center(child: CircularProgressIndicator())),
+        ),
+        GoRoute(
+          path: '/login',
+          builder: (context, state) => const EmailCheckScreen(),
+        ),
+        GoRoute(
+          path: '/register',
+          builder: (context, state) {
+            final email = state.extra as String?;
+            return RegisterScreen(initialEmail: email);
+          },
+        ),
+        GoRoute(
+          path: '/select-store',
+          builder: (context, state) => const StoreSelectionScreen(),
+        ),
+        GoRoute(
+          path: '/home',
+          builder: (context, state) {
+            final extra = state.extra;
+            final initialIndex = extra is int ? extra : 1;
+            return MainNavigationScreen(initialIndex: initialIndex);
+          },
+        ),
+        GoRoute(
+          path: '/profile',
+          builder: (context, state) => const ProfileScreen(),
+        ),
+        GoRoute(
+          path: '/admin',
+          builder: (context, state) => const AdminMenuScreen(),
+        ),
+        GoRoute(
+          path: '/admin/users',
+          builder: (context, state) => const UserAdminScreen(),
+        ),
+        GoRoute(
+          path: '/admin/roles',
+          builder: (context, state) => const RoleAdminScreen(),
+        ),
+        GoRoute(
+          path: '/admin/stores',
+          builder: (context, state) => const StoreAdminScreen(),
+        ),
+        GoRoute(
+          path: '/admin/inventory-import',
+          builder: (context, state) => const InventoryImportScreen(),
+        ),
+        GoRoute(
+          path: '/fifo-menu',
+          builder: (context, state) => const FifoMenuScreen(),
+        ),
+        GoRoute(
+          path: '/fifo-check',
+          builder: (context, state) =>
+              FifoCheckScreen(onBackToHome: () => context.go('/home')),
+        ),
+        GoRoute(
+          path: '/fifo-history',
+          builder: (context, state) => const FifoHistoryScreen(),
+        ),
+        GoRoute(path: '/sort', builder: (context, state) => const SortScreen()),
+        GoRoute(
+          path: '/warranty-main',
+          builder: (context, state) =>
+              WarrantyMainScreen(onBackToHome: () => context.go('/home')),
+        ),
+        GoRoute(
+          path: '/warranty',
+          builder: (context, state) => const WarrantyScreen(),
+        ),
+        GoRoute(
+          path: '/check-warranty',
+          builder: (context, state) => const CheckWarrantyScreen(),
+        ),
+        GoRoute(
+          path: '/vietqr',
+          builder: (context, state) => const VietQrScreen(),
+        ),
+        GoRoute(
+          path: '/payment-monitor',
+          builder: (context, state) => const PaymentMonitorScreen(),
+        ),
+        GoRoute(
+          path: '/feedback',
+          builder: (context, state) => const FeedbackScreen(),
+        ),
+        GoRoute(
+          path: '/settings',
+          builder: (context, state) => const SettingsScreen(),
+        ),
+      ],
+    );
+  }
+}

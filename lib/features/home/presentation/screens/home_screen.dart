@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
@@ -40,10 +42,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final isAdmin = context.select<AuthProvider, bool>(
       (auth) => auth.user?.isAdmin == true,
     );
-    final actions = _buildHomeActions(context, isAdmin);
+    final canUseCp62Flows = context.select<AuthProvider, bool>(
+      (auth) => auth.user?.canUseCp62RestrictedFlows == true,
+    );
+    final actions = _buildHomeActions(context, isAdmin, canUseCp62Flows);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       drawer: _buildDrawer(context),
       body: Column(
         children: [
@@ -62,8 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     userName: data.userName,
                     storeInfo: data.storeInfo,
                     onMenu: () => Scaffold.of(scaffoldContext).openDrawer(),
-                    onProfile: () =>
-                        Navigator.of(context).pushNamed('/profile'),
+                    onProfile: () => context.push('/profile'),
                     onLogout: () => _logout(context),
                   );
                 },
@@ -97,36 +100,42 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  List<AppFeatureAction> _buildHomeActions(BuildContext context, bool isAdmin) {
+  List<AppFeatureAction> _buildHomeActions(
+    BuildContext context,
+    bool isAdmin,
+    bool canUseCp62Flows,
+  ) {
     return [
       if (isAdmin)
         AppFeatureAction(
           icon: Icons.admin_panel_settings_outlined,
           title: 'Quản trị',
           description: 'Tài khoản & vai trò',
-          color: const Color(0xFF4B5563),
-          onTap: () => Navigator.of(context).pushNamed('/admin'),
+          color: AppColors.neutral600,
+          onTap: () => context.push('/admin'),
         ),
-      AppFeatureAction(
-        icon: Icons.qr_code_scanner_rounded,
-        title: 'FIFO',
-        description: 'Kiểm tra & sắp xếp',
-        color: const Color(0xFF2563EB),
-        onTap: () => Navigator.of(context).pushNamed('/fifo-menu'),
-      ),
-      AppFeatureAction(
-        icon: Icons.camera_alt_rounded,
-        title: 'BH / SC',
-        description: 'Ảnh bảo hành',
-        color: const Color(0xFF16A34A),
-        onTap: () => Navigator.of(context).pushNamed('/warranty-main'),
-      ),
+      if (canUseCp62Flows) ...[
+        AppFeatureAction(
+          icon: Icons.qr_code_scanner_rounded,
+          title: 'FIFO',
+          description: 'Kiểm tra & sắp xếp',
+          color: AppColors.info,
+          onTap: () => context.push('/fifo-menu'),
+        ),
+        AppFeatureAction(
+          icon: Icons.camera_alt_rounded,
+          title: 'BH / SC',
+          description: 'Ảnh bảo hành',
+          color: AppColors.success,
+          onTap: () => context.push('/warranty-main'),
+        ),
+      ],
       AppFeatureAction(
         icon: Icons.qr_code_2_rounded,
         title: 'VietQR',
         description: 'Tạo mã chuyển khoản',
         color: const Color(0xFF0F766E),
-        onTap: () => Navigator.of(context).pushNamed('/vietqr'),
+        onTap: () => context.push('/vietqr'),
       ),
       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows)
         AppFeatureAction(
@@ -134,7 +143,7 @@ class _HomeScreenState extends State<HomeScreen> {
           title: 'Tiền vào',
           description: 'Cập nhật giao dịch',
           color: const Color(0xFF7C3AED),
-          onTap: () => Navigator.of(context).pushNamed('/payment-monitor'),
+          onTap: () => context.push('/payment-monitor'),
         ),
     ];
   }
@@ -142,13 +151,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _logout(BuildContext context) async {
     await context.read<AuthProvider>().logout();
     if (context.mounted) {
-      Navigator.of(context).pushReplacementNamed('/login');
+      context.go('/login');
     }
   }
 
   Widget _buildDrawer(BuildContext context) {
     return Drawer(
-      backgroundColor: const Color(0xFF0D1B6F),
+      backgroundColor: AppColors.gradientStart,
       child: SafeArea(
         child: Column(
           children: [
@@ -187,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).pushNamed('/profile');
+                context.push('/profile');
               },
             ),
             if (context.watch<AuthProvider>().user?.isAdmin == true)
@@ -202,7 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.of(context).pushNamed('/admin');
+                  context.push('/admin');
                 },
               ),
             ListTile(
@@ -216,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).pushNamed('/feedback');
+                context.push('/feedback');
               },
             ),
             ListTile(
@@ -227,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).pushNamed('/settings');
+                context.push('/settings');
               },
             ),
             ListTile(
@@ -330,8 +339,6 @@ class _PaymentMonitorQuickToggle extends StatelessWidget {
         : 'Chọn showroom để dùng';
 
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: SwitchListTile.adaptive(
         value: speakerEnabled && canToggle,
         onChanged: canToggle
@@ -341,13 +348,11 @@ class _PaymentMonitorQuickToggle extends StatelessWidget {
             : null,
         secondary: Icon(
           speakerEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-          color: speakerEnabled
-              ? const Color(0xFF16A34A)
-              : const Color(0xFF6B7280),
+          color: speakerEnabled ? AppColors.success : AppColors.neutral500,
         ),
         title: const Text(
           'Đọc loa tiền vào',
-          style: TextStyle(fontWeight: FontWeight.w800),
+          style: TextStyle(fontWeight: FontWeight.w700),
         ),
         subtitle: Text(statusText),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -376,9 +381,9 @@ class _CompactHomeHeader extends StatelessWidget {
     final initials = userName.isNotEmpty ? userName[0].toUpperCase() : '?';
 
     return Container(
-      decoration: const BoxDecoration(
-        gradient: GradientHeader.gradient,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        gradient: GradientHeader.getGradient(context),
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(18),
           bottomRight: Radius.circular(18),
         ),
@@ -405,7 +410,7 @@ class _CompactHomeHeader extends StatelessWidget {
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -438,7 +443,7 @@ class _CompactHomeHeader extends StatelessWidget {
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -455,7 +460,7 @@ class _CompactHomeHeader extends StatelessWidget {
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 4),

@@ -100,7 +100,6 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
   Widget build(BuildContext context) {
     final result = _result;
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Cập nhật tồn kho', showBack: true),
       body: AppResponsiveScrollView(
         maxWidth: AppLayoutTokens.formMaxWidth,

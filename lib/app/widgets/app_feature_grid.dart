@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 
 class AppFeatureAction {
   final IconData icon;
@@ -37,14 +38,14 @@ class AppFeatureSection extends StatelessWidget {
               title,
               style: TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Colors.grey[850],
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const Spacer(),
             Text(
               '${actions.length} mục',
-              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              style: TextStyle(fontSize: 12, color: AppColors.neutral500),
             ),
           ],
         ),
@@ -100,60 +101,66 @@ class AppFeatureTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: action.onTap,
+    return Semantics(
+      button: true,
+      enabled: action.onTap != null,
+      label: 'Chức năng ${action.title}',
+      hint: action.description,
+      child: Material(
+        color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: action.color.withValues(alpha: 0.11),
-                  borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: action.onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Theme.of(context).dividerColor),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
-                child: Icon(action.icon, color: action.color, size: 20),
-              ),
-              const Spacer(),
-              Text(
-                action.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF111827),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: action.color.withValues(alpha: 0.11),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(action.icon, color: action.color, size: 20),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                action.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF6B7280),
-                  fontSize: 12,
-                  height: 1.2,
+                const Spacer(),
+                Text(
+                  action.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  action.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                    height: 1.2,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

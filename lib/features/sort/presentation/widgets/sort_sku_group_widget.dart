@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../../app/theme/app_colors.dart';
+import '../../../../core/utils/date_formatter.dart';
 import '../../../chat/domain/entities/sku_group.dart';
 import '../../../chat/domain/entities/sku_item.dart';
 
@@ -33,52 +35,14 @@ class SortSKUGroupWidget extends StatelessWidget {
     }
   }
 
-  // Parse date string theo nhiều format
-  DateTime? _parseDate(String dateStr) {
-    try {
-      // Thử format DD/MM/YYYY hoặc DD-MM-YYYY
-      if (dateStr.contains('/') || dateStr.contains('-')) {
-        final separator = dateStr.contains('/') ? '/' : '-';
-        final parts = dateStr.split(separator);
-        if (parts.length == 3) {
-          // Kiểm tra xem là DD/MM/YYYY hay YYYY-MM-DD
-          if (parts[0].length == 4) {
-            // YYYY-MM-DD
-            return DateTime(
-              int.parse(parts[0]), // year
-              int.parse(parts[1]), // month
-              int.parse(parts[2]), // day
-            );
-          } else {
-            // DD/MM/YYYY
-            return DateTime(
-              int.parse(parts[2]), // year
-              int.parse(parts[1]), // month
-              int.parse(parts[0]), // day
-            );
-          }
-        }
-      }
-
-      // Thử format timestamp (milliseconds)
-      final timestamp = int.tryParse(dateStr);
-      if (timestamp != null) {
-        return DateTime.fromMillisecondsSinceEpoch(timestamp);
-      }
-
-      return null;
-    } catch (e) {
-      return null;
-    }
-  }
 
   // Tính màu cho từng item dựa vào ngày nhập kho
   Color _getItemBackgroundColor(SKUItem item) {
     if (item.isChecked) return Colors.green[50]!;
-    if (item.date.isEmpty) return Colors.grey[50]!;
+    if (item.date.isEmpty) return AppColors.neutral50;
 
-    final itemDate = _parseDate(item.date);
-    if (itemDate == null) return Colors.grey[50]!;
+    final itemDate = DateFormatter.tryParse(item.date);
+    if (itemDate == null) return AppColors.neutral50;
 
     final daysDiff = DateTime.now().difference(itemDate).inDays;
     final ratio = (daysDiff / 60).clamp(0.0, 1.0);
@@ -90,10 +54,10 @@ class SortSKUGroupWidget extends StatelessWidget {
   // Tính màu border cho item
   Color _getItemBorderColor(SKUItem item) {
     if (item.isChecked) return Colors.green[400]!;
-    if (item.date.isEmpty) return Colors.grey[300]!;
+    if (item.date.isEmpty) return AppColors.neutral200;
 
-    final itemDate = _parseDate(item.date);
-    if (itemDate == null) return Colors.grey[300]!;
+    final itemDate = DateFormatter.tryParse(item.date);
+    if (itemDate == null) return AppColors.neutral200;
 
     final daysDiff = DateTime.now().difference(itemDate).inDays;
     final ratio = (daysDiff / 60).clamp(0.0, 1.0);
@@ -113,7 +77,6 @@ class SortSKUGroupWidget extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -260,7 +223,7 @@ class SortSKUGroupWidget extends StatelessWidget {
                           softWrap: false,
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.grey[700],
+                            color: AppColors.neutral700,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -278,7 +241,7 @@ class SortSKUGroupWidget extends StatelessWidget {
                             ),
                           ),
                         ),
-                        Icon(Icons.copy, size: 14, color: Colors.grey[400]),
+                        Icon(Icons.copy, size: 14, color: AppColors.neutral300),
                       ],
                     ),
                   ),
@@ -296,7 +259,7 @@ class SortSKUGroupWidget extends StatelessWidget {
                           softWrap: false,
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.grey[700],
+                            color: AppColors.neutral700,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -314,7 +277,7 @@ class SortSKUGroupWidget extends StatelessWidget {
                             ),
                           ),
                         ),
-                        Icon(Icons.copy, size: 14, color: Colors.grey[400]),
+                        Icon(Icons.copy, size: 14, color: AppColors.neutral300),
                       ],
                     ),
                   ),
@@ -326,7 +289,7 @@ class SortSKUGroupWidget extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     softWrap: false,
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    style: TextStyle(fontSize: 13, color: AppColors.neutral600),
                   ),
                 if (item.date.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -335,7 +298,7 @@ class SortSKUGroupWidget extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     softWrap: false,
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    style: TextStyle(fontSize: 13, color: AppColors.neutral600),
                   ),
                 ],
               ],

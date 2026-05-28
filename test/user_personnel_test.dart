@@ -19,6 +19,8 @@ void main() {
     expect(user.workScopeType, 'STORE');
     expect(user.personnelCode, 'SALE_CP62');
     expect(user.needsStoreSelection, isFalse);
+    expect(user.belongsToCp62, isTrue);
+    expect(user.canUseCp62RestrictedFlows, isTrue);
   });
 
   test('User does not require store selection for online personnel scope', () {
@@ -32,5 +34,29 @@ void main() {
     });
 
     expect(user.needsStoreSelection, isFalse);
+    expect(user.belongsToCp62, isFalse);
+    expect(user.canUseCp62RestrictedFlows, isFalse);
+  });
+
+  test('User treats CP62 store name as CP62 scope', () {
+    final user = User.fromJson({
+      'email': 'staff@phongvu.vn',
+      'role': 'STAFF',
+      'storeName': 'Showroom CP62',
+    });
+
+    expect(user.belongsToCp62, isTrue);
+    expect(user.canUseCp62RestrictedFlows, isTrue);
+  });
+
+  test('User allows super admin through CP62 restricted flows', () {
+    final user = User.fromJson({
+      'email': 'super@phongvu.vn',
+      'role': 'SUPER_ADMIN',
+      'personnelCode': 'OPS_NATIONAL',
+    });
+
+    expect(user.belongsToCp62, isFalse);
+    expect(user.canUseCp62RestrictedFlows, isTrue);
   });
 }

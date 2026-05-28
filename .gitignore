@@ -12,6 +12,8 @@
 .swiftpm/
 artifacts/
 migrate_working_dir/
+.neuralmemory/
+.trash/
 
 # IntelliJ related
 *.iml

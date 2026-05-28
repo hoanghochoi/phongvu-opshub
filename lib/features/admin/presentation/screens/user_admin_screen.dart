@@ -111,7 +111,6 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: GradientHeader(
         title: 'Quản lý người dùng',
         showBack: true,

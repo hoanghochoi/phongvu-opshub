@@ -394,7 +394,6 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: GradientHeader(title: widget.receiptNumber, showBack: true),
       body: SafeArea(
         child: Consumer<WarrantyProvider>(
@@ -567,7 +566,7 @@ class _InfoRow extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                color: Colors.grey[600],
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -709,7 +708,6 @@ class _ImageViewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: GradientHeader(
         title: title,
         showBack: true,

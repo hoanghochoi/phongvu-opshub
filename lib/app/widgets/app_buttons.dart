@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 
 class AppButtonMetrics {
@@ -122,7 +123,7 @@ class AppIconAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = filled ? Colors.white : AppTheme.primaryBlue;
+    final foreground = filled ? AppColors.surface : AppTheme.primaryBlue;
     final background = filled
         ? AppTheme.primaryBlue
         : AppTheme.primaryBlue.withValues(alpha: 0.10);
@@ -136,8 +137,8 @@ class AppIconAction extends StatelessWidget {
         color: foreground,
         style: IconButton.styleFrom(
           backgroundColor: background,
-          disabledBackgroundColor: Colors.grey.shade200,
-          disabledForegroundColor: Colors.grey.shade500,
+          disabledBackgroundColor: AppColors.neutral200,
+          disabledForegroundColor: AppColors.neutral500,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),

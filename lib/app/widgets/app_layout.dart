@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../theme/app_radius.dart';
+
 class AppLayoutTokens {
   AppLayoutTokens._();
 
@@ -16,7 +18,9 @@ class AppLayoutTokens {
   static const double formFieldGap = 18;
   static const double formSectionGap = 24;
   static const double formInlineGap = 12;
-  static const double cardRadius = 8;
+  static const double cardRadius = AppRadius.sm;
+  static const double cardPadding = 16;
+  static const double cardMarginBottom = 10;
 
   static EdgeInsets pagePaddingFor(double width) {
     if (width >= desktopBreakpoint) {

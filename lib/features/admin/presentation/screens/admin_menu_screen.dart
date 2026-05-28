@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
@@ -22,7 +23,7 @@ class AdminMenuScreen extends StatelessWidget {
         title: 'Quản lý người dùng',
         description: 'Tài khoản và chi nhánh',
         color: const Color(0xFF2563EB),
-        onTap: () => Navigator.of(context).pushNamed('/admin/users'),
+        onTap: () => context.push('/admin/users'),
       ),
       if (isSuperAdmin)
         AppFeatureAction(
@@ -30,14 +31,14 @@ class AdminMenuScreen extends StatelessWidget {
           title: 'Quản lý vai trò',
           description: 'Quyền và phạm vi',
           color: const Color(0xFF7C3AED),
-          onTap: () => Navigator.of(context).pushNamed('/admin/roles'),
+          onTap: () => context.push('/admin/roles'),
         ),
       AppFeatureAction(
         icon: Icons.store_mall_directory_outlined,
         title: 'Quản lý showroom',
         description: 'Chi nhánh, tài khoản chuyển khoản',
         color: const Color(0xFF059669),
-        onTap: () => Navigator.of(context).pushNamed('/admin/stores'),
+        onTap: () => context.push('/admin/stores'),
       ),
       if (canImportInventory)
         AppFeatureAction(
@@ -45,13 +46,11 @@ class AdminMenuScreen extends StatelessWidget {
           title: 'Cập nhật tồn kho',
           description: 'Import Excel cho FIFO',
           color: const Color(0xFFDC2626),
-          onTap: () =>
-              Navigator.of(context).pushNamed('/admin/inventory-import'),
+          onTap: () => context.push('/admin/inventory-import'),
         ),
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Quản trị', showBack: true),
       body: AppResponsiveContent(child: AppFeatureSection(actions: actions)),
     );

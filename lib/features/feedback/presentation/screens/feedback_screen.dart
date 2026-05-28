@@ -235,7 +235,6 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: const GradientHeader(title: 'Phản hồi', showBack: true),
       body: Form(
         key: _formKey,

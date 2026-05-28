@@ -88,7 +88,6 @@ class _RoleAdminScreenState extends State<RoleAdminScreen> {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
       appBar: GradientHeader(
         title: 'Quản lý vai trò',
         showBack: true,
@@ -146,13 +145,13 @@ class _RoleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -181,8 +180,8 @@ class _RoleCard extends StatelessWidget {
                     role.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF111827),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
                     ),
@@ -192,8 +191,8 @@ class _RoleCard extends StatelessWidget {
                     role.description.isEmpty ? role.value : role.description,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF6B7280),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 13,
                       height: 1.25,
                     ),

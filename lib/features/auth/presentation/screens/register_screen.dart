@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/utils/email_domain_policy.dart';
@@ -7,7 +8,8 @@ import '../../../../core/utils/validators.dart';
 import '../providers/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  final String? initialEmail;
+  const RegisterScreen({super.key, this.initialEmail});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -25,28 +27,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isSendingCode = false;
-  bool _loadedRouteEmail = false;
 
   @override
   void initState() {
     super.initState();
     _loadDomains();
+    if (widget.initialEmail != null && widget.initialEmail!.trim().isNotEmpty) {
+      _emailController.text = widget.initialEmail!.trim();
+    }
   }
 
   Future<void> _loadDomains() async {
     final domains = await EmailDomainPolicy.loadAllowedDomains();
     if (mounted) setState(() => _allowedDomains = domains);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_loadedRouteEmail) return;
-    _loadedRouteEmail = true;
-    final routeEmail = ModalRoute.of(context)?.settings.arguments;
-    if (routeEmail is String && routeEmail.trim().isNotEmpty) {
-      _emailController.text = routeEmail.trim();
-    }
   }
 
   @override
@@ -66,7 +59,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(gradient: GradientHeader.gradient),
+        decoration: BoxDecoration(gradient: GradientHeader.getGradient(context)),
         child: SafeArea(
           child: Consumer<AuthProvider>(
             builder: (context, authProvider, _) {
@@ -380,7 +373,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final route = authProvider.user?.needsStoreSelection == true
           ? '/select-store'
           : '/home';
-      Navigator.of(context).pushNamedAndRemoveUntil(route, (route) => false);
+      context.go(route);
     } else if (authProvider.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

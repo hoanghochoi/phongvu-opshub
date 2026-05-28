@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../../app/theme/app_colors.dart';
 import '../../domain/entities/sku_item.dart';
 
 class SKUBubble extends StatefulWidget {
@@ -37,14 +38,23 @@ class _SKUBubbleState extends State<SKUBubble> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+    final primary = Theme.of(context).colorScheme.primary;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: widget.skuItem.isChecked ? Colors.green[50] : Colors.grey[50],
+        color: widget.skuItem.isChecked
+            ? (isDark ? Colors.green.withValues(alpha: 0.15) : Colors.green[50])
+            : (isDark ? AppColors.darkCard : Colors.grey[50]),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: widget.skuItem.isChecked ? Colors.green[400]! : Colors.grey[300]!,
+          color: widget.skuItem.isChecked
+              ? (isDark ? Colors.green[700]! : Colors.green[400]!)
+              : (isDark ? AppColors.neutral700 : Colors.grey[300]!),
           width: widget.skuItem.isChecked ? 2 : 1,
         ),
       ),
@@ -62,7 +72,7 @@ class _SKUBubbleState extends State<SKUBubble> {
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
-                        color: Colors.grey[700],
+                        color: onSurfaceVariant,
                       ),
                     ),
                     Flexible(
@@ -71,9 +81,9 @@ class _SKUBubbleState extends State<SKUBubble> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
-                          color: Theme.of(context).colorScheme.primary,
+                          color: primary,
                         ),
-                          ),
+                      ),
                     ),
                   ],
                 ),
@@ -88,7 +98,7 @@ class _SKUBubbleState extends State<SKUBubble> {
                     widget.skuItem.isChecked
                         ? Icons.check_circle
                         : Icons.check_circle_outline,
-                    color: widget.skuItem.isChecked ? Colors.green : Colors.grey,
+                    color: widget.skuItem.isChecked ? Colors.green : onSurfaceVariant,
                     size: 28,
                   ),
                 ),
@@ -103,7 +113,7 @@ class _SKUBubbleState extends State<SKUBubble> {
               'Tên: ${widget.skuItem.name}',
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.grey[800],
+                color: onSurface,
               ),
             ),
             const SizedBox(height: 6),
@@ -119,7 +129,7 @@ class _SKUBubbleState extends State<SKUBubble> {
                     'Serial: ',
                     style: TextStyle(
                       fontSize: 13,
-                      color: Colors.grey[700],
+                      color: onSurfaceVariant,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -128,13 +138,13 @@ class _SKUBubbleState extends State<SKUBubble> {
                       widget.skuItem.serial,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Theme.of(context).colorScheme.primary,
+                        color: primary,
                         fontWeight: FontWeight.w600,
                         decoration: TextDecoration.underline,
                       ),
                     ),
                   ),
-                  Icon(Icons.copy, size: 14, color: Colors.grey[400]),
+                  Icon(Icons.copy, size: 14, color: onSurfaceVariant.withValues(alpha: 0.5)),
                 ],
               ),
             ),
@@ -151,7 +161,7 @@ class _SKUBubbleState extends State<SKUBubble> {
                     'Mã BIN: ',
                     style: TextStyle(
                       fontSize: 13,
-                      color: Colors.grey[700],
+                      color: onSurfaceVariant,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -160,13 +170,13 @@ class _SKUBubbleState extends State<SKUBubble> {
                       widget.skuItem.bin,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Theme.of(context).colorScheme.primary,
+                        color: primary,
                         fontWeight: FontWeight.w600,
                         decoration: TextDecoration.underline,
                       ),
                     ),
                   ),
-                  Icon(Icons.copy, size: 14, color: Colors.grey[400]),
+                  Icon(Icons.copy, size: 14, color: onSurfaceVariant.withValues(alpha: 0.5)),
                 ],
               ),
             ),
@@ -179,7 +189,7 @@ class _SKUBubbleState extends State<SKUBubble> {
               'Zone: ${widget.skuItem.zone}',
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.grey[600],
+                color: onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 6),
@@ -191,7 +201,7 @@ class _SKUBubbleState extends State<SKUBubble> {
               'Ngày nhập: ${widget.skuItem.date}',
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.grey[600],
+                color: onSurfaceVariant,
               ),
             ),
         ],
