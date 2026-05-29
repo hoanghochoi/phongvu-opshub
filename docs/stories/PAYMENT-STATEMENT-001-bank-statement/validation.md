@@ -20,8 +20,12 @@
   passed 23 tests.
 - 2026-05-29: `npm run build` passed.
 - 2026-05-29: `flutter analyze --no-pub` passed with no issues.
-- 2026-05-29: `flutter test --no-pub --reporter expanded` passed all 33
+- 2026-05-29: `flutter test --no-pub --reporter expanded` passed all 34
   tests, including bank statement model/provider coverage.
+- 2026-05-29: `npx prisma migrate deploy` applied the backfill migration on
+  local Postgres; a seeded old MAP transaction was backfilled to
+  `orders=[26052911111111,26053022222222]` with `orderSource=AUTO` while
+  duplicate, invalid-date, and overlong numeric strings were ignored.
 
 ## Unverified Risk
 
