@@ -84,6 +84,47 @@ a customer to scan and pay manually.
 - Payment notification audio is cleaned after 7 days, delivery/app logs after
   30 days, and stored MAP transactions after 90 days by default.
 
+## Bank Statement Reconciliation
+
+- The Windows PC app exposes a `Sao ke` home action for MANAGER and
+  SUPER_ADMIN users. The NestJS API enforces the same role gate on statement
+  list, export, inline order update, and order-history endpoints.
+- MAP sync extracts every valid order code from the transfer content. A valid
+  order is an independent 14-digit number whose first 6 digits are a real
+  `yymmdd` date. Duplicates are removed while preserving first-seen order; no
+  match is stored as an empty order list.
+- Sync does not overwrite a transaction whose order source is `MANUAL`, even
+  when the manual value is cleared back to an empty list.
+- Statement search does not auto-load transactions. Users must choose at least
+  one effective filter, then run Search.
+- Primary filters are mutually exclusive: showroom, order code, amount, and
+  transfer content. Order status and date range can be used alone or combined
+  with one primary filter.
+- Showroom filtering follows V1 scope: national users can search all or
+  multiple showrooms; showroom-scoped users can search only their own showroom.
+  Order, amount, and content filters are allowed across the user's statement
+  scope.
+- Order filter is an exact match against any stored order in the transaction.
+  Amount filter is exact integer amount. Content filter is case-insensitive
+  contains matching.
+- `Da co don hang` means the stored order list is not empty. `Chua co don hang`
+  means the order list is empty.
+- Statement rows show transaction details beside a compact order area. Users can
+  edit orders inline, enter multiple orders separated by whitespace, comma, or
+  semicolon, save/cancel in place, and see a short per-row success or failure
+  message.
+- Manual order edits write an audit row with old orders, new orders, editor id,
+  editor email, source, and timestamp. The history icon opens these audit rows;
+  automatic MAP extraction is not shown as a manual edit.
+- CSV export returns UTF-8 with BOM. Selected transaction ids take precedence;
+  if nothing is selected, export includes every row matching the current
+  filter/date/status, not just the visible page.
+- `Sao ke` keeps header, filters, selection bar, and export controls fixed while
+  only the transaction list scrolls. The page allows selecting and copying text.
+- `Sao ke` and `Tien vao` cards use a green border when the transaction has at
+  least one stored order and a red border when the order list is empty. `Tien
+  vao` uses the order list only for the border and does not display order codes.
+
 ## Payment Confirmation Research
 
 Bank-web confirmation is possible only as a separate reconciliation feature

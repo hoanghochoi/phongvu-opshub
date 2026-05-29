@@ -68,5 +68,12 @@ void main() {
         isFalse,
       );
     });
+
+    test('uses fallback domains before asset load finishes', () {
+      expect(
+        EmailDomainPolicy.isAllowedEmail('staff@phongvu-office.vn', const []),
+        isTrue,
+      );
+    });
   });
 }

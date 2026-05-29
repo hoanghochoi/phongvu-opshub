@@ -18,7 +18,9 @@ Go realtime service.
 - Sort: SKU grouping and sorting workflow.
 - Warranty: image capture/upload and repair status updates.
 - Feedback: staff feedback submission.
-- VietQR: manual bank-transfer QR generation for customer self-scan.
+- VietQR/MAP payments: manual bank-transfer QR generation, incoming payment
+  monitor, and bank statement reconciliation for MAP transactions that may not
+  include an order code in the transfer content.
 - Profile/Admin: personal profile, first-login branch selection, and user
   administration.
 - Settings: client-side preferences such as Windows startup behavior.

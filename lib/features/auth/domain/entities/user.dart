@@ -69,6 +69,11 @@ class User {
 
   bool get canUseCp62RestrictedFlows => role == 'SUPER_ADMIN' || belongsToCp62;
 
+  bool get hasNationalWorkScope =>
+      role == 'SUPER_ADMIN' || workScopeType?.toUpperCase() == 'NATIONAL';
+
+  bool get canUseBankStatements => role == 'SUPER_ADMIN' || role == 'MANAGER';
+
   String get storeInfo {
     if (storeId != null && storeName != null) {
       return '$storeId - $storeName';

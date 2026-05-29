@@ -1,5 +1,7 @@
 import { Type } from 'class-transformer';
 import {
+  IsArray,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -116,4 +118,74 @@ export class ListStoredMapVietinTransactionsDto {
   @Min(1)
   @Max(100)
   limit?: number;
+}
+
+export class ListMapVietinStatementsDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(400)
+  storeIds?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  allStores?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  order?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  amount?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  content?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['ALL', 'HAS_ORDER', 'MISSING_ORDER'])
+  orderStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  endDate?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+}
+
+export class ExportMapVietinStatementsDto extends ListMapVietinStatementsDto {
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(80, { each: true })
+  transactionIds?: string[];
+}
+
+export class UpdateMapVietinStatementOrdersDto {
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(80, { each: true })
+  orders!: string[];
 }

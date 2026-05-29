@@ -30,6 +30,14 @@ class ApiConstants {
       '/admin/map-vietin/transactions/search';
   static const String adminMapVietinStoredTransactionsEndpoint =
       '/admin/map-vietin/transactions';
+  static const String adminMapVietinStatementsEndpoint =
+      '/admin/map-vietin/statements';
+  static const String adminMapVietinStatementsExportEndpoint =
+      '/admin/map-vietin/statements/export';
+  static String adminMapVietinStatementOrdersEndpoint(String id) =>
+      '/admin/map-vietin/statements/$id/orders';
+  static String adminMapVietinStatementOrderHistoryEndpoint(String id) =>
+      '/admin/map-vietin/statements/$id/order-history';
   static String paymentNotificationAudioEndpoint(String id) =>
       '/payment-notifications/$id/audio';
   static String paymentNotificationAckEndpoint(String id) =>

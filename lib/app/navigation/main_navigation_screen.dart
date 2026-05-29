@@ -160,11 +160,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       },
       child: Scaffold(
         body: IndexedStack(index: selectedIndex, children: screens),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: selectedIndex,
-          onDestinationSelected: _onItemTapped,
-          destinations: destinations,
-        ),
+        bottomNavigationBar: destinations.length < 2
+            ? null
+            : NavigationBar(
+                selectedIndex: selectedIndex,
+                onDestinationSelected: _onItemTapped,
+                destinations: destinations,
+              ),
       ),
     );
   }

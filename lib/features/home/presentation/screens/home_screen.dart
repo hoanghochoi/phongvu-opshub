@@ -45,7 +45,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final canUseCp62Flows = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseCp62RestrictedFlows == true,
     );
-    final actions = _buildHomeActions(context, isAdmin, canUseCp62Flows);
+    final canUseBankStatements = context.select<AuthProvider, bool>(
+      (auth) => auth.user?.canUseBankStatements == true,
+    );
+    final actions = _buildHomeActions(
+      context,
+      isAdmin,
+      canUseCp62Flows,
+      canUseBankStatements,
+    );
 
     return Scaffold(
       drawer: _buildDrawer(context),
@@ -104,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
     BuildContext context,
     bool isAdmin,
     bool canUseCp62Flows,
+    bool canUseBankStatements,
   ) {
     return [
       if (isAdmin)
@@ -137,6 +146,14 @@ class _HomeScreenState extends State<HomeScreen> {
         color: const Color(0xFF0F766E),
         onTap: () => context.push('/vietqr'),
       ),
+      if (canUseBankStatements)
+        AppFeatureAction(
+          icon: Icons.fact_check_outlined,
+          title: 'Sao kê',
+          description: 'Rà soát mã đơn',
+          color: const Color(0xFF2563EB),
+          onTap: () => context.push('/bank-statement'),
+        ),
       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows)
         AppFeatureAction(
           icon: Icons.volume_up_rounded,

@@ -36,7 +36,8 @@ class EmailDomainPolicy {
   static bool isAllowedEmail(String email, List<String> domains) {
     final parts = email.trim().toLowerCase().split('@');
     if (parts.length != 2) return false;
-    return domains.contains(parts.last);
+    final effectiveDomains = domains.isEmpty ? _fallbackDomains : domains;
+    return effectiveDomains.contains(parts.last);
   }
 
   static const promptText = 'Dùng email thuộc Phong Vũ và mật khẩu OpsHub';

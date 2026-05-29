@@ -38,7 +38,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
     return Scaffold(
       appBar: const GradientHeader(title: 'Theo dõi tiền vào', showBack: true),
       body: SafeArea(
-        child: AppResponsiveScrollView(
+        child: AppResponsiveContent(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -148,10 +148,16 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              if (monitor.latestTransactions.isEmpty)
-                const _EmptyTransactions()
-              else
-                ...monitor.latestTransactions.map(_buildTransactionTile),
+              Expanded(
+                child: monitor.latestTransactions.isEmpty
+                    ? const _EmptyTransactions()
+                    : ListView.builder(
+                        itemCount: monitor.latestTransactions.length,
+                        itemBuilder: (context, index) => _buildTransactionTile(
+                          monitor.latestTransactions[index],
+                        ),
+                      ),
+              ),
             ],
           ),
         ),
@@ -170,8 +176,18 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
       transaction.paidAt ?? transaction.firstSeenAt,
     );
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = transaction.hasOrders
+        ? AppColors.success
+        : AppColors.error;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+        side: BorderSide(
+          color: borderColor.withValues(alpha: 0.65),
+          width: 1.2,
+        ),
+      ),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: isDark
