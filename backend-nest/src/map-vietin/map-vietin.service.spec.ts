@@ -26,6 +26,11 @@ describe('MapVietinService', () => {
         count: jest.fn(),
         findUnique: jest.fn(),
         upsert: jest.fn(),
+        update: jest.fn(),
+      },
+      mapVietinTransactionOrderAudit: {
+        create: jest.fn(),
+        findMany: jest.fn(),
       },
       mapVietinUnmappedTransaction: {
         upsert: jest.fn(),
@@ -187,7 +192,7 @@ describe('MapVietinService', () => {
                 txnNo: 'TXN-001',
                 txnAmount: '1,250,000',
                 txnDate: '21/05/2026 10:00:00',
-                txnDesc: 'Khach chuyen tien',
+                txnDesc: 'Khach chuyen tien 26052112345678 va 26052287654321',
                 status: '00',
               },
               {
@@ -213,7 +218,9 @@ describe('MapVietinService', () => {
       storeCode: 'CP01',
       transactionNumber: 'TXN-001',
       amount: 1250000,
-      content: 'Khach chuyen tien',
+      content: 'Khach chuyen tien 26052112345678 va 26052287654321',
+      orders: ['26052112345678', '26052287654321'],
+      orderSource: 'AUTO',
     });
   });
 
@@ -732,6 +739,182 @@ describe('MapVietinService', () => {
       gte: new Date('2026-05-22T17:00:00.000Z'),
       lt: new Date('2026-05-27T17:00:00.000Z'),
     });
+  });
+
+  it('extracts all valid unique order codes from transfer content', () => {
+    expect(
+      service.extractOrderCodesFromContent(
+        'DH 26052912345678, 26053087654321; invalid 26023011111111 repeat 26052912345678 long 1260529123456789',
+      ),
+    ).toEqual(['26052912345678', '26053087654321']);
+  });
+
+  it('does not overwrite manually edited orders during sync', async () => {
+    const store = {
+      storeId: 'CP01',
+      mapVietinUsername: 'map-user',
+      mapVietinPasswordCipher: encryptSecret('map-pass'),
+    };
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'access-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            list: [
+              {
+                txnNo: 'TXN-001',
+                txnAmount: '1,250,000',
+                txnDate: '21/05/2026 10:00:00',
+                txnDesc: 'Auto sees 26052112345678',
+                status: '00',
+              },
+            ],
+          },
+        }),
+      );
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue({
+      id: 'stored-1',
+      orderSource: 'MANUAL',
+      orders: ['26052099999999'],
+    });
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({});
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(service.syncStoreTransactions(store)).resolves.toBe(0);
+
+    expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.not.objectContaining({ orders: expect.anything() }),
+      }),
+    );
+  });
+
+  it('lists statements with exact order and status filters inside store scope', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(0);
+
+    await expect(
+      service.listStatements(
+        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        {
+          order: '26052912345678',
+          orderStatus: 'HAS_ORDER',
+          startDate: '2026-05-29',
+          endDate: '2026-05-29',
+          page: 0,
+          limit: 20,
+        },
+      ),
+    ).resolves.toMatchObject({ total: 0, list: [] });
+
+    const where = prisma.mapVietinTransaction.findMany.mock.calls[0][0].where;
+    expect(JSON.stringify(where)).toContain('CP01');
+    expect(JSON.stringify(where)).toContain('26052912345678');
+    expect(JSON.stringify(where)).toContain('isEmpty');
+  });
+
+  it('rejects combined primary statement filters', async () => {
+    await expect(
+      service.listStatements(
+        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        { order: '26052912345678', amount: '1250000' },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('updates statement orders and records audit history', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue({
+      id: 'stored-1',
+      storeCode: 'CP01',
+      orders: ['26052112345678'],
+    });
+    prisma.mapVietinTransaction.update.mockResolvedValue({
+      id: 'stored-1',
+      storeCode: 'CP01',
+      transactionKey: 'CP01:key',
+      transactionNumber: 'TXN-001',
+      amount: 1250000,
+      content: 'Manual fix',
+      orders: ['26052287654321'],
+      orderSource: 'MANUAL',
+      orderUpdatedAt: new Date('2026-05-21T03:00:00.000Z'),
+      orderUpdatedByUserId: 'user-1',
+      orderUpdatedByEmail: 'manager@example.com',
+      status: '00',
+      paidAt: null,
+      payerName: null,
+      payerAccount: null,
+      firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+    });
+    prisma.mapVietinTransactionOrderAudit.create.mockResolvedValue({});
+
+    await expect(
+      service.updateStatementOrders(
+        {
+          id: 'user-1',
+          email: 'manager@example.com',
+          role: 'MANAGER',
+          storeId: 'store-uuid-1',
+        },
+        'stored-1',
+        { orders: ['26052287654321'] },
+      ),
+    ).resolves.toMatchObject({ orders: ['26052287654321'] });
+
+    expect(prisma.mapVietinTransactionOrderAudit.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          oldOrders: ['26052112345678'],
+          newOrders: ['26052287654321'],
+          changedByEmail: 'manager@example.com',
+        }),
+      }),
+    );
+  });
+
+  it('exports selected statement rows as UTF-8 CSV', async () => {
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      {
+        storeCode: 'CP01',
+        transactionNumber: 'TXN-001',
+        amount: 1250000,
+        content: 'Khach chuyen tien',
+        orders: ['26052912345678'],
+        status: '00',
+        paidAt: new Date('2026-05-21T03:00:00.000Z'),
+        payerName: null,
+        payerAccount: null,
+        firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+        orderSource: 'AUTO',
+      },
+    ]);
+
+    const csv = await service.exportStatementsCsv(
+      { role: 'SUPER_ADMIN' },
+      { transactionIds: ['stored-1'] },
+    );
+
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
+    expect(csv).toContain('Ma showroom');
+    expect(csv).toContain('26052912345678');
+    expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: { in: ['stored-1'] } }),
+      }),
+    );
   });
 });
 

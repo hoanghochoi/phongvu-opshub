@@ -56,23 +56,48 @@ model VietQrPaymentIntent {
 }
 
 model MapVietinTransaction {
-  id                String   @id @default(uuid())
-  storeCode         String
-  transactionKey    String   @unique
-  transactionNumber String?
-  amount            Int
-  content           String
-  status            String?
-  paidAt            DateTime?
-  payerName         String?
-  payerAccount      String?
-  rawData           Json
-  firstSeenAt       DateTime @default(now())
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                   String    @id @default(uuid())
+  storeCode            String
+  transactionKey       String    @unique
+  transactionNumber    String?
+  amount               Int
+  content              String
+  orders               String[]  @default([])
+  orderSource          String?
+  orderUpdatedAt       DateTime?
+  orderUpdatedByUserId String?
+  orderUpdatedByEmail  String?
+  status               String?
+  paidAt               DateTime?
+  payerName            String?
+  payerAccount         String?
+  rawData              Json
+  firstSeenAt          DateTime  @default(now())
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  orderAudits MapVietinTransactionOrderAudit[]
 
   @@index([storeCode, paidAt])
   @@index([storeCode, firstSeenAt])
+  @@index([amount])
+  @@index([orders], type: Gin)
+}
+
+model MapVietinTransactionOrderAudit {
+  id              String               @id @default(uuid())
+  transactionId   String
+  transaction     MapVietinTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  storeCode       String
+  oldOrders       String[]             @default([])
+  newOrders       String[]             @default([])
+  changedByUserId String?
+  changedByEmail  String?
+  source          String               @default("MANUAL")
+  createdAt       DateTime             @default(now())
+
+  @@index([transactionId, createdAt])
+  @@index([storeCode, createdAt])
 }
 
 model MapVietinUnmappedTransaction {

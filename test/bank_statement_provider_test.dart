@@ -1,0 +1,250 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/core/logging/app_logger.dart';
+import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
+import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
+import 'package:phongvu_opshub/features/bank_statement/data/bank_statement_repository.dart';
+import 'package:phongvu_opshub/features/bank_statement/domain/bank_statement_transaction.dart';
+import 'package:phongvu_opshub/features/bank_statement/presentation/providers/bank_statement_provider.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    AppLogger.instance.setUploadsEnabledForTesting(false);
+  });
+
+  tearDown(() {
+    AppLogger.instance.setUploadsEnabledForTesting(true);
+  });
+
+  group('BankStatementTransaction', () {
+    test('parses order list and history rows', () {
+      final transaction = BankStatementTransaction.fromJson({
+        'id': 'tx-1',
+        'storeId': 'CP01',
+        'transactionKey': 'key-1',
+        'transactionNumber': 'MAP-001',
+        'amount': '1,250,000',
+        'content': 'PAY 26052912345678 26052987654321',
+        'orders': ['26052912345678', '26052987654321'],
+        'orderSource': 'AUTO',
+        'orderUpdatedAt': '2026-05-29T03:00:00.000Z',
+        'orderUpdatedByEmail': 'manager@example.com',
+        'status': '00',
+        'paidAt': '2026-05-29T02:00:00.000Z',
+        'firstSeenAt': '2026-05-29T02:00:05.000Z',
+      });
+      final history = BankStatementOrderHistoryEntry.fromJson({
+        'id': 'audit-1',
+        'oldOrders': '26052912345678',
+        'newOrders': ['26052987654321'],
+        'changedByEmail': 'manager@example.com',
+        'createdAt': '2026-05-29T03:01:00.000Z',
+      });
+
+      expect(transaction.amount, 1250000);
+      expect(transaction.hasOrders, isTrue);
+      expect(transaction.orders, ['26052912345678', '26052987654321']);
+      expect(history.oldOrders, ['26052912345678']);
+      expect(history.newOrders, ['26052987654321']);
+      expect(history.changedByEmail, 'manager@example.com');
+    });
+  });
+
+  group('BankStatementProvider', () {
+    test('loads stores but does not auto-load transactions', () async {
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+
+      await provider.initialize(_nationalManager);
+
+      expect(provider.stores.map((store) => store.storeId), ['CP01', 'CP02']);
+      expect(provider.hasSearched, isFalse);
+      expect(repository.fetchStatementsCount, 0);
+
+      provider.dispose();
+    });
+
+    test('keeps primary filters mutually exclusive', () async {
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+      await provider.initialize(_nationalManager);
+
+      provider.setStoreSelection(allStores: true, ids: const {});
+      expect(provider.allStores, isTrue);
+      provider.setAmount('1250000');
+
+      expect(provider.allStores, isFalse);
+      expect(provider.selectedStoreIds, isEmpty);
+      expect(provider.amount, '1250000');
+
+      provider.setContent('customer transfer');
+      expect(provider.amount, isNull);
+      expect(provider.content, 'customer transfer');
+
+      provider.dispose();
+    });
+
+    test(
+      'searches on demand, ticks current page, and updates orders inline',
+      () async {
+        final repository = _FakeBankStatementRepository();
+        final provider = BankStatementProvider(repository);
+        await provider.initialize(_nationalManager);
+
+        provider.setOrder('26052912345678');
+        await provider.search();
+        provider.toggleAllVisible(true);
+        await provider.updateOrders(
+          'tx-1',
+          '26052987654321, 26052987654321 26052900000000',
+        );
+
+        expect(repository.fetchStatementsCount, 1);
+        expect(repository.lastQuery?.order, '26052912345678');
+        expect(provider.hasSearched, isTrue);
+        expect(provider.selectedIds, {'tx-1', 'tx-2'});
+        expect(repository.lastUpdatedOrders, [
+          '26052987654321',
+          '26052900000000',
+        ]);
+        expect(provider.transactions.first.orders, [
+          '26052987654321',
+          '26052900000000',
+        ]);
+
+        provider.dispose();
+      },
+    );
+
+    test('rejects invalid inline order dates before calling API', () async {
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+      await provider.initialize(_nationalManager);
+      provider.setOrder('26052912345678');
+      await provider.search();
+
+      await provider.updateOrders('tx-1', '26023012345678');
+
+      expect(repository.updateOrdersCount, 0);
+      expect(provider.transactions.first.orders, ['26052912345678']);
+
+      provider.dispose();
+    });
+  });
+
+  test('export body sends selected ids when present', () {
+    final query = BankStatementQuery(
+      allStores: false,
+      storeIds: const ['CP01'],
+      order: null,
+      amount: null,
+      content: null,
+      orderStatus: 'HAS_ORDER',
+      startDate: DateTime(2026, 5, 29),
+      endDate: DateTime(2026, 5, 30),
+      page: 0,
+      limit: 50,
+    );
+
+    expect(query.toExportBody(transactionIds: const ['tx-1']), {
+      'storeIds': 'CP01',
+      'orderStatus': 'HAS_ORDER',
+      'startDate': '2026-05-29',
+      'endDate': '2026-05-30',
+      'page': '0',
+      'limit': '50',
+      'transactionIds': ['tx-1'],
+    });
+  });
+}
+
+const _nationalManager = User(
+  id: 'user-1',
+  email: 'manager@example.com',
+  role: 'MANAGER',
+  workScopeType: 'NATIONAL',
+);
+
+class _FakeBankStatementRepository extends BankStatementRepository {
+  int fetchStatementsCount = 0;
+  int updateOrdersCount = 0;
+  BankStatementQuery? lastQuery;
+  List<String> lastUpdatedOrders = const [];
+
+  final List<BankStatementTransaction> _rows = [
+    _transaction('tx-1', ['26052912345678']),
+    _transaction('tx-2', const []),
+  ];
+
+  _FakeBankStatementRepository() : super(ApiClient());
+
+  @override
+  Future<List<StoreBranch>> fetchStores() async {
+    return const [
+      StoreBranch(id: 'store-1', storeId: 'CP01', storeName: 'Showroom 1'),
+      StoreBranch(id: 'store-2', storeId: 'CP02', storeName: 'Showroom 2'),
+    ];
+  }
+
+  @override
+  Future<BankStatementPage> fetchStatements(BankStatementQuery query) async {
+    fetchStatementsCount += 1;
+    lastQuery = query;
+    return BankStatementPage(
+      transactions: List.of(_rows),
+      page: query.page,
+      limit: query.limit,
+      total: _rows.length,
+    );
+  }
+
+  @override
+  Future<BankStatementTransaction> updateOrders(
+    String transactionId,
+    List<String> orders,
+  ) async {
+    updateOrdersCount += 1;
+    lastUpdatedOrders = List.of(orders);
+    final index = _rows.indexWhere((row) => row.id == transactionId);
+    final updated = _rows[index].copyWith(orders: orders);
+    _rows[index] = updated;
+    return updated;
+  }
+
+  @override
+  Future<List<BankStatementOrderHistoryEntry>> fetchOrderHistory(
+    String transactionId,
+  ) async {
+    return const [];
+  }
+
+  @override
+  Future<String> exportCsv(
+    BankStatementQuery query, {
+    List<String> transactionIds = const [],
+  }) async {
+    return 'csv';
+  }
+}
+
+BankStatementTransaction _transaction(String id, List<String> orders) {
+  return BankStatementTransaction(
+    id: id,
+    storeId: 'CP01',
+    transactionKey: 'key-$id',
+    transactionNumber: 'MAP-$id',
+    amount: 1250000,
+    content: 'Customer transfer',
+    orders: orders,
+    orderSource: orders.isEmpty ? null : 'AUTO',
+    orderUpdatedAt: null,
+    orderUpdatedByEmail: null,
+    status: '00',
+    paidAt: DateTime.utc(2026, 5, 29, 2),
+    firstSeenAt: DateTime.utc(2026, 5, 29, 2, 0, 5),
+    payerName: null,
+    payerAccount: null,
+  );
+}

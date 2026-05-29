@@ -1,0 +1,826 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
+import '../../../../app/widgets/gradient_header.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../domain/bank_statement_transaction.dart';
+import '../providers/bank_statement_provider.dart';
+
+class BankStatementScreen extends StatefulWidget {
+  const BankStatementScreen({super.key});
+
+  @override
+  State<BankStatementScreen> createState() => _BankStatementScreenState();
+}
+
+class _BankStatementScreenState extends State<BankStatementScreen> {
+  final _orderController = TextEditingController();
+  final _amountController = TextEditingController();
+  final _contentController = TextEditingController();
+  final _orderFocus = FocusNode();
+  final _amountFocus = FocusNode();
+  final _contentFocus = FocusNode();
+  final _money = NumberFormat.decimalPattern('vi_VN');
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = context.read<AuthProvider>().user;
+      context.read<BankStatementProvider>().initialize(user);
+    });
+  }
+
+  @override
+  void dispose() {
+    _orderController.dispose();
+    _amountController.dispose();
+    _contentController.dispose();
+    _orderFocus.dispose();
+    _amountFocus.dispose();
+    _contentFocus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<BankStatementProvider>();
+    _syncControllers(provider);
+
+    return Scaffold(
+      appBar: const GradientHeader(title: 'Sao kê', showBack: true),
+      body: SafeArea(
+        child: SelectionArea(
+          child: AppResponsiveContent(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _FilterPanel(
+                  provider: provider,
+                  orderController: _orderController,
+                  amountController: _amountController,
+                  contentController: _contentController,
+                  orderFocus: _orderFocus,
+                  amountFocus: _amountFocus,
+                  contentFocus: _contentFocus,
+                ),
+                if (provider.errorMessage != null) ...[
+                  const SizedBox(height: 10),
+                  AppStatusBanner(
+                    icon: Icons.error_outline_rounded,
+                    title: 'Chưa tải được sao kê',
+                    message: provider.errorMessage!,
+                    tone: AppStateTone.error,
+                  ),
+                ],
+                if (provider.exportMessage != null) ...[
+                  const SizedBox(height: 10),
+                  AppStatusBanner(
+                    icon: Icons.download_done_rounded,
+                    title: 'Export CSV',
+                    message: provider.exportMessage!,
+                    tone: AppStateTone.info,
+                  ),
+                ],
+                const SizedBox(height: 12),
+                _StatementToolbar(provider: provider),
+                const SizedBox(height: 10),
+                Expanded(child: _buildList(provider)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildList(BankStatementProvider provider) {
+    if (provider.isLoading && provider.transactions.isEmpty) {
+      return const AppStatePanel.loading(title: 'Đang tải sao kê');
+    }
+    if (!provider.hasSearched) {
+      return const AppStatePanel.empty(
+        title: 'Chọn filter rồi bấm Search để tải giao dịch',
+        icon: Icons.manage_search_rounded,
+      );
+    }
+    if (provider.transactions.isEmpty) {
+      return const AppStatePanel.empty(
+        title: 'Không có giao dịch khớp filter',
+        icon: Icons.receipt_long_outlined,
+      );
+    }
+    return ListView.builder(
+      itemCount: provider.transactions.length,
+      itemBuilder: (context, index) {
+        return _StatementCard(
+          transaction: provider.transactions[index],
+          money: _money,
+        );
+      },
+    );
+  }
+
+  void _syncControllers(BankStatementProvider provider) {
+    void sync(TextEditingController controller, FocusNode focus, String value) {
+      if (!focus.hasFocus && controller.text != value) {
+        controller.text = value;
+      }
+    }
+
+    sync(_orderController, _orderFocus, provider.order ?? '');
+    sync(_amountController, _amountFocus, provider.amount ?? '');
+    sync(_contentController, _contentFocus, provider.content ?? '');
+  }
+}
+
+class _FilterPanel extends StatelessWidget {
+  final BankStatementProvider provider;
+  final TextEditingController orderController;
+  final TextEditingController amountController;
+  final TextEditingController contentController;
+  final FocusNode orderFocus;
+  final FocusNode amountFocus;
+  final FocusNode contentFocus;
+
+  const _FilterPanel({
+    required this.provider,
+    required this.orderController,
+    required this.amountController,
+    required this.contentController,
+    required this.orderFocus,
+    required this.amountFocus,
+    required this.contentFocus,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(child: _StoreFilterButton(provider: provider)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: orderController,
+                    focusNode: orderFocus,
+                    decoration: const InputDecoration(
+                      labelText: 'Mã đơn hàng',
+                      prefixIcon: Icon(Icons.tag_rounded),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: provider.setOrder,
+                    onSubmitted: (_) => provider.search(),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: amountController,
+                    focusNode: amountFocus,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Số tiền',
+                      prefixIcon: Icon(Icons.payments_outlined),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: provider.setAmount,
+                    onSubmitted: (_) => provider.search(),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: contentController,
+                    focusNode: contentFocus,
+                    decoration: const InputDecoration(
+                      labelText: 'Nội dung chuyển khoản',
+                      prefixIcon: Icon(Icons.notes_rounded),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: provider.setContent,
+                    onSubmitted: (_) => provider.search(),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: provider.orderStatus,
+                    decoration: const InputDecoration(
+                      labelText: 'Trạng thái',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'ALL',
+                        child: Text('Tất cả giao dịch'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'HAS_ORDER',
+                        child: Text('Đã có đơn hàng'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'MISSING_ORDER',
+                        child: Text('Chưa có đơn hàng'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) provider.setOrderStatus(value);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _DateField(
+                    label: 'Từ ngày',
+                    value: provider.startDate,
+                    onPicked: (date) =>
+                        provider.setDateRange(date, provider.endDate),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _DateField(
+                    label: 'Đến ngày',
+                    value: provider.endDate,
+                    onPicked: (date) =>
+                        provider.setDateRange(provider.startDate, date),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 150,
+                  child: DropdownButtonFormField<int>(
+                    initialValue: provider.limit,
+                    decoration: const InputDecoration(
+                      labelText: 'Số dòng',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [10, 20, 50, 100]
+                        .map(
+                          (value) => DropdownMenuItem(
+                            value: value,
+                            child: Text('$value dòng'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) provider.setLimit(value);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 140,
+                  child: AppPrimaryButton(
+                    onPressed: provider.canSearch ? provider.search : null,
+                    icon: Icons.search_rounded,
+                    label: 'Search',
+                    isLoading: provider.isLoading,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StoreFilterButton extends StatelessWidget {
+  final BankStatementProvider provider;
+
+  const _StoreFilterButton({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = provider.allStores
+        ? 'Tất cả SR'
+        : provider.selectedStoreIds.isEmpty
+        ? 'Mã showroom'
+        : provider.selectedStoreIds.join(', ');
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+      onTap: () => _openStoreDialog(context),
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Mã showroom',
+          prefixIcon: Icon(Icons.store_outlined),
+          border: OutlineInputBorder(),
+          suffixIcon: Icon(Icons.arrow_drop_down_rounded),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openStoreDialog(BuildContext context) async {
+    var allStores = provider.allStores;
+    final selected = provider.selectedStoreIds.toSet();
+    await showDialog<void>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Chọn showroom'),
+            content: SizedBox(
+              width: 420,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (provider.canUseAllStores)
+                      CheckboxListTile(
+                        value: allStores,
+                        onChanged: (value) {
+                          setState(() {
+                            allStores = value == true;
+                            if (allStores) selected.clear();
+                          });
+                        },
+                        title: const Text('Tất cả SR'),
+                      ),
+                    ...provider.stores.map(
+                      (store) => CheckboxListTile(
+                        value: selected.contains(store.storeId),
+                        onChanged: allStores
+                            ? null
+                            : (value) {
+                                setState(() {
+                                  if (value == true) {
+                                    selected.add(store.storeId);
+                                  } else {
+                                    selected.remove(store.storeId);
+                                  }
+                                });
+                              },
+                        title: Text(store.displayName),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Hủy'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  provider.setStoreSelection(
+                    allStores: allStores,
+                    ids: selected,
+                  );
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Áp dụng'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DateField extends StatelessWidget {
+  final String label;
+  final DateTime? value;
+  final ValueChanged<DateTime?> onPicked;
+
+  const _DateField({
+    required this.label,
+    required this.value,
+    required this.onPicked,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+      onTap: () async {
+        final now = DateTime.now();
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: value ?? now,
+          firstDate: DateTime(2024),
+          lastDate: now.add(const Duration(days: 1)),
+          helpText: label,
+          cancelText: 'Hủy',
+          confirmText: 'Chọn',
+        );
+        onPicked(picked);
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+          suffixIcon: value == null
+              ? const Icon(Icons.calendar_month_rounded)
+              : IconButton(
+                  tooltip: 'Xóa ngày',
+                  onPressed: () => onPicked(null),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+        ),
+        child: Text(
+          value == null ? 'Chưa chọn' : DateFormat('dd/MM/yyyy').format(value!),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+        ),
+      ),
+    );
+  }
+}
+
+class _StatementToolbar extends StatelessWidget {
+  final BankStatementProvider provider;
+
+  const _StatementToolbar({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Checkbox(
+          value: provider.allVisibleSelected,
+          onChanged: provider.transactions.isEmpty
+              ? null
+              : (value) => provider.toggleAllVisible(value == true),
+        ),
+        Text(
+          '${provider.selectedIds.length} chọn / ${provider.total} giao dịch',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        const Spacer(),
+        IconButton(
+          tooltip: 'Trang trước',
+          onPressed: provider.canGoPrevious ? provider.previousPage : null,
+          icon: const Icon(Icons.chevron_left_rounded),
+        ),
+        Text('Trang ${provider.page + 1}'),
+        IconButton(
+          tooltip: 'Trang sau',
+          onPressed: provider.canGoNext ? provider.nextPage : null,
+          icon: const Icon(Icons.chevron_right_rounded),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 150,
+          child: AppSecondaryButton(
+            onPressed: provider.canSearch && !provider.isExporting
+                ? provider.exportCsv
+                : null,
+            icon: Icons.download_rounded,
+            label: provider.isExporting ? 'Đang export' : 'Export CSV',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatementCard extends StatefulWidget {
+  final BankStatementTransaction transaction;
+  final NumberFormat money;
+
+  const _StatementCard({required this.transaction, required this.money});
+
+  @override
+  State<_StatementCard> createState() => _StatementCardState();
+}
+
+class _StatementCardState extends State<_StatementCard> {
+  late final TextEditingController _controller;
+  bool _editing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: widget.transaction.orders.join(' '),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _StatementCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_editing &&
+        oldWidget.transaction.orders != widget.transaction.orders) {
+      _controller.text = widget.transaction.orders.join(' ');
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<BankStatementProvider>();
+    final tx = widget.transaction;
+    final borderColor = tx.hasOrders ? AppColors.success : AppColors.error;
+    final message = provider.rowMessage(tx.id);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+        side: BorderSide(
+          color: borderColor.withValues(alpha: 0.65),
+          width: 1.3,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Checkbox(
+              value: provider.selectedIds.contains(tx.id),
+              onChanged: (value) =>
+                  provider.toggleSelected(tx.id, value == true),
+            ),
+            Expanded(
+              child: _TransactionDetails(tx: tx, money: widget.money),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 260,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _OrderEditor(
+                    transaction: tx,
+                    controller: _controller,
+                    editing: _editing,
+                    onEdit: () => setState(() => _editing = true),
+                    onCancel: () {
+                      _controller.text = tx.orders.join(' ');
+                      setState(() => _editing = false);
+                    },
+                    onSave: () async {
+                      await provider.updateOrders(tx.id, _controller.text);
+                      if (mounted) setState(() => _editing = false);
+                    },
+                    onHistory: () => _showHistory(context, provider, tx),
+                  ),
+                  AnimatedOpacity(
+                    opacity: message == null ? 0 : 1,
+                    duration: const Duration(milliseconds: 250),
+                    child: message == null
+                        ? const SizedBox(height: 26)
+                        : Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              message.text,
+                              style: TextStyle(
+                                color: message.success
+                                    ? AppColors.success
+                                    : AppColors.error,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showHistory(
+    BuildContext context,
+    BankStatementProvider provider,
+    BankStatementTransaction transaction,
+  ) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Lịch sử đơn hàng ${transaction.transactionNumber}'),
+        content: SizedBox(
+          width: 520,
+          child: FutureBuilder<List<BankStatementOrderHistoryEntry>>(
+            future: provider.fetchHistory(transaction.id),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const SizedBox(
+                  height: 120,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasError) {
+                return const Text('Chưa tải được lịch sử chỉnh sửa.');
+              }
+              final rows = snapshot.data ?? const [];
+              if (rows.isEmpty) {
+                return const Text('Chưa có chỉnh sửa thủ công.');
+              }
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: rows
+                    .map(
+                      (row) => ListTile(
+                        leading: const Icon(Icons.history_rounded),
+                        title: Text(row.changedByEmail ?? 'Không rõ người sửa'),
+                        subtitle: Text(
+                          '${_ordersText(row.oldOrders)} → ${_ordersText(row.newOrders)}\n${row.createdAt == null ? '' : DateFormat('HH:mm:ss dd/MM/yyyy').format(row.createdAt!.toLocal())}',
+                        ),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _ordersText(List<String> orders) =>
+      orders.isEmpty ? 'NULL' : orders.join(', ');
+}
+
+class _TransactionDetails extends StatelessWidget {
+  final BankStatementTransaction tx;
+  final NumberFormat money;
+
+  const _TransactionDetails({required this.tx, required this.money});
+
+  @override
+  Widget build(BuildContext context) {
+    final time = tx.paidAt ?? tx.firstSeenAt;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            AppStatusChip(label: tx.storeId, color: AppColors.info),
+            AppStatusChip(
+              label: '${money.format(tx.amount)} VND',
+              color: AppColors.success,
+            ),
+            if (tx.status?.isNotEmpty == true)
+              AppStatusChip(label: tx.status!, color: AppColors.neutral600),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          tx.content.isEmpty ? 'Không có nội dung chuyển khoản' : tx.content,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          [
+            if (tx.transactionNumber.isNotEmpty) 'GD: ${tx.transactionNumber}',
+            if (time != null)
+              DateFormat('HH:mm:ss dd/MM/yyyy').format(time.toLocal()),
+            if ((tx.payerName ?? '').isNotEmpty) tx.payerName!,
+          ].join(' • '),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OrderEditor extends StatelessWidget {
+  final BankStatementTransaction transaction;
+  final TextEditingController controller;
+  final bool editing;
+  final VoidCallback onEdit;
+  final VoidCallback onCancel;
+  final Future<void> Function() onSave;
+  final VoidCallback onHistory;
+
+  const _OrderEditor({
+    required this.transaction,
+    required this.controller,
+    required this.editing,
+    required this.onEdit,
+    required this.onCancel,
+    required this.onSave,
+    required this.onHistory,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Đơn hàng',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Lịch sử chỉnh sửa',
+                  onPressed: onHistory,
+                  icon: const Icon(Icons.history_rounded),
+                ),
+                IconButton(
+                  tooltip: editing ? 'Lưu mã đơn' : 'Sửa mã đơn',
+                  onPressed: editing ? onSave : onEdit,
+                  icon: Icon(
+                    editing ? Icons.check_rounded : Icons.edit_rounded,
+                  ),
+                ),
+                if (editing)
+                  IconButton(
+                    tooltip: 'Hủy sửa',
+                    onPressed: onCancel,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+              ],
+            ),
+            if (editing)
+              TextField(
+                controller: controller,
+                autofocus: true,
+                minLines: 1,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  hintText:
+                      'Nhập mã, cách nhau bằng dấu phẩy hoặc khoảng trắng',
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: (_) => onSave(),
+              )
+            else if (transaction.orders.isEmpty)
+              Text(
+                'NULL',
+                style: TextStyle(
+                  color: AppColors.error,
+                  fontWeight: FontWeight.w800,
+                ),
+              )
+            else
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: transaction.orders
+                    .map(
+                      (order) =>
+                          AppStatusChip(label: order, color: AppColors.success),
+                    )
+                    .toList(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}

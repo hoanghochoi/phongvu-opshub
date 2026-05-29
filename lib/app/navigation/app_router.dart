@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../../core/network/api_client.dart';
+import '../../features/bank_statement/data/bank_statement_repository.dart';
+import '../../features/bank_statement/presentation/providers/bank_statement_provider.dart';
+import '../../features/bank_statement/presentation/screens/bank_statement_screen.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/email_check_screen.dart';
 import '../../features/auth/presentation/screens/profile_screen.dart';
@@ -71,6 +76,11 @@ class AppRouter {
 
         if (_cp62OnlyRoutes.contains(location) &&
             authProvider.user?.canUseCp62RestrictedFlows != true) {
+          return '/home';
+        }
+
+        if (location == '/bank-statement' &&
+            authProvider.user?.canUseBankStatements != true) {
           return '/home';
         }
 
@@ -170,6 +180,14 @@ class AppRouter {
         GoRoute(
           path: '/payment-monitor',
           builder: (context, state) => const PaymentMonitorScreen(),
+        ),
+        GoRoute(
+          path: '/bank-statement',
+          builder: (context, state) => ChangeNotifierProvider(
+            create: (_) =>
+                BankStatementProvider(BankStatementRepository(ApiClient())),
+            child: const BankStatementScreen(),
+          ),
         ),
         GoRoute(
           path: '/feedback',

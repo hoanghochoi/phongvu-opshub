@@ -14,8 +14,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { decryptSecret } from '../common/secret-cipher';
 import { PaymentNotificationsService } from '../payment-notifications/payment-notifications.service';
 import {
+  ExportMapVietinStatementsDto,
   ListStoredMapVietinTransactionsDto,
+  ListMapVietinStatementsDto,
   SearchMapVietinTransactionsDto,
+  UpdateMapVietinStatementOrdersDto,
 } from './map-vietin.dto';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
@@ -34,6 +37,11 @@ const MAP_SYNC_END_HOUR_VN = 22;
 const DEFAULT_GLOBAL_SYNC_MAX_PAGES = 2;
 const DEFAULT_GLOBAL_SESSION_TTL_SECONDS = 10 * 60;
 const VIETNAM_UTC_OFFSET_HOURS = 7;
+const ORDER_SOURCE_AUTO = 'AUTO';
+const ORDER_SOURCE_MANUAL = 'MANUAL';
+const STATEMENT_ORDER_STATUS_ALL = 'ALL';
+const STATEMENT_ORDER_STATUS_HAS_ORDER = 'HAS_ORDER';
+const STATEMENT_ORDER_STATUS_MISSING_ORDER = 'MISSING_ORDER';
 
 type MapLoginResponse = {
   error_code?: string;
@@ -229,6 +237,132 @@ export class MapVietinService {
       limit,
       total,
       list: rows.map((row) => this.toStoredTransactionDto(row)),
+    };
+  }
+
+  async listStatements(user: any, input: ListMapVietinStatementsDto) {
+    const query = await this.buildStatementQuery(user, input, {
+      requireFilter: true,
+    });
+    const [rows, total] = await Promise.all([
+      this.prisma.mapVietinTransaction.findMany({
+        where: query.where,
+        orderBy: [{ paidAt: 'desc' }, { firstSeenAt: 'desc' }],
+        skip: query.page * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.mapVietinTransaction.count({ where: query.where }),
+    ]);
+
+    this.logger.log(
+      `Statement search succeeded: user=${this.safeUserLabel(user)} total=${total} page=${query.page} limit=${query.limit} filters=${query.filterSummary}`,
+    );
+
+    return {
+      page: query.page,
+      limit: query.limit,
+      total,
+      list: rows.map((row) => this.toStoredTransactionDto(row)),
+    };
+  }
+
+  async exportStatementsCsv(user: any, input: ExportMapVietinStatementsDto) {
+    this.assertCanUseStatements(user);
+    const selectedIds = this.normalizeTransactionIds(input.transactionIds);
+    const where = selectedIds.length
+      ? await this.buildSelectedStatementWhere(user, selectedIds)
+      : (
+          await this.buildStatementQuery(user, input, {
+            requireFilter: true,
+          })
+        ).where;
+    const rows = await this.prisma.mapVietinTransaction.findMany({
+      where,
+      orderBy: [{ paidAt: 'desc' }, { firstSeenAt: 'desc' }],
+    });
+    this.logger.log(
+      `Statement export succeeded: user=${this.safeUserLabel(user)} mode=${selectedIds.length ? 'selected' : 'filter'} count=${rows.length}`,
+    );
+    return this.toStatementsCsv(rows);
+  }
+
+  async updateStatementOrders(
+    user: any,
+    transactionId: string,
+    input: UpdateMapVietinStatementOrdersDto,
+  ) {
+    this.assertCanUseStatements(user);
+    const id = String(transactionId || '').trim();
+    if (!id) throw new BadRequestException('transactionId khong hop le');
+    const orders = this.normalizeOrderCodes(input.orders || []);
+    const existing = await this.prisma.mapVietinTransaction.findUnique({
+      where: { id },
+    });
+    if (!existing) throw new BadRequestException('Giao dich khong hop le');
+    await this.assertCanReadStatementStore(user, existing.storeCode);
+
+    const oldOrders = this.normalizeOrderCodes(existing.orders || []);
+    const changed = !this.sameOrderList(oldOrders, orders);
+    const now = new Date();
+    const updated = await this.prisma.mapVietinTransaction.update({
+      where: { id },
+      data: {
+        orders,
+        orderSource: ORDER_SOURCE_MANUAL,
+        orderUpdatedAt: now,
+        orderUpdatedByUserId: user.id || null,
+        orderUpdatedByEmail: this.safeUserEmail(user),
+      },
+    });
+
+    if (changed) {
+      await this.prisma.mapVietinTransactionOrderAudit.create({
+        data: {
+          transactionId: id,
+          storeCode: existing.storeCode,
+          oldOrders,
+          newOrders: orders,
+          changedByUserId: user.id || null,
+          changedByEmail: this.safeUserEmail(user),
+          source: ORDER_SOURCE_MANUAL,
+        },
+      });
+    }
+
+    this.logger.log(
+      `Statement orders updated: user=${this.safeUserLabel(user)} transaction=${id} store=${existing.storeCode} oldCount=${oldOrders.length} newCount=${orders.length} changed=${changed}`,
+    );
+    return this.toStoredTransactionDto(updated);
+  }
+
+  async listStatementOrderHistory(user: any, transactionId: string) {
+    this.assertCanUseStatements(user);
+    const id = String(transactionId || '').trim();
+    if (!id) throw new BadRequestException('transactionId khong hop le');
+    const transaction = await this.prisma.mapVietinTransaction.findUnique({
+      where: { id },
+    });
+    if (!transaction) throw new BadRequestException('Giao dich khong hop le');
+    await this.assertCanReadStatementStore(user, transaction.storeCode);
+    const rows = await this.prisma.mapVietinTransactionOrderAudit.findMany({
+      where: { transactionId: id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    this.logger.log(
+      `Statement order history fetched: user=${this.safeUserLabel(user)} transaction=${id} count=${rows.length}`,
+    );
+    return {
+      transactionId: id,
+      list: rows.map((row) => ({
+        id: row.id,
+        oldOrders: row.oldOrders || [],
+        newOrders: row.newOrders || [],
+        changedByUserId: row.changedByUserId,
+        changedByEmail: row.changedByEmail,
+        source: row.source,
+        createdAt: row.createdAt,
+      })),
     };
   }
 
@@ -520,6 +654,271 @@ export class MapVietinService {
     return session;
   }
 
+  private async buildStatementQuery(
+    user: any,
+    input: ListMapVietinStatementsDto,
+    options: { requireFilter: boolean },
+  ) {
+    this.assertCanUseStatements(user);
+    const filters = (() => {
+      try {
+        return this.normalizeStatementFilters(input);
+      } catch (error) {
+        this.logger.warn(
+          `Statement search validation failed: user=${this.safeUserLabel(user)} error=${this.safeError(error).slice(0, 180)}`,
+        );
+        throw error;
+      }
+    })();
+    if (options.requireFilter && !filters.hasEffectiveFilter) {
+      this.logger.warn(
+        `Statement search rejected without filter: user=${this.safeUserLabel(user)}`,
+      );
+      throw new BadRequestException('Vui long chon filter truoc khi search');
+    }
+    const scopeWhere = await this.buildStatementScopeWhere(user, filters);
+    const filterWhere = this.buildStatementFilterWhere(filters);
+    return {
+      where: this.andWhere(scopeWhere, filterWhere),
+      page: input.page ?? 0,
+      limit: input.limit ?? 20,
+      filterSummary: filters.summary,
+    };
+  }
+
+  private async buildSelectedStatementWhere(user: any, ids: string[]) {
+    const scopeWhere = await this.buildStatementScopeWhere(user, {
+      requestedAllStores: false,
+      storeIds: [],
+    });
+    return this.andWhere(scopeWhere, { id: { in: ids } });
+  }
+
+  private normalizeStatementFilters(input: ListMapVietinStatementsDto) {
+    const storeIds = this.parseStoreCodes(input.storeIds);
+    const requestedAllStores = this.parseBoolean(input.allStores);
+    if (requestedAllStores && storeIds.length > 0) {
+      throw new BadRequestException('Chi chon tat ca hoac danh sach showroom');
+    }
+
+    const orderText = this.cleanText(input.order);
+    const order = orderText ? this.normalizeSingleOrderCode(orderText) : null;
+    const amount = this.normalizeStatementAmount(input.amount);
+    const content = this.cleanText(input.content);
+    const orderStatus = input.orderStatus || STATEMENT_ORDER_STATUS_ALL;
+    const dateRange = this.resolveStoredTransactionDateRange(input);
+    const primaryCount = [
+      requestedAllStores || storeIds.length > 0,
+      Boolean(order),
+      amount !== null,
+      Boolean(content),
+    ].filter(Boolean).length;
+    if (primaryCount > 1) {
+      throw new BadRequestException(
+        'Chi duoc dung doc lap mot trong cac filter chinh',
+      );
+    }
+    const hasEffectiveFilter =
+      primaryCount > 0 ||
+      Boolean(dateRange) ||
+      orderStatus === STATEMENT_ORDER_STATUS_HAS_ORDER ||
+      orderStatus === STATEMENT_ORDER_STATUS_MISSING_ORDER;
+
+    return {
+      requestedAllStores,
+      storeIds,
+      order,
+      amount,
+      content,
+      orderStatus,
+      dateRange,
+      hasEffectiveFilter,
+      summary: [
+        requestedAllStores ? 'allStores' : '',
+        storeIds.length ? `stores:${storeIds.length}` : '',
+        order ? 'order' : '',
+        amount !== null ? 'amount' : '',
+        content ? 'content' : '',
+        orderStatus !== STATEMENT_ORDER_STATUS_ALL ? orderStatus : '',
+        dateRange ? 'dateRange' : '',
+      ]
+        .filter(Boolean)
+        .join('|'),
+    };
+  }
+
+  private async buildStatementScopeWhere(
+    user: any,
+    filters: { requestedAllStores?: boolean; storeIds?: string[] },
+  ): Promise<Prisma.MapVietinTransactionWhereInput> {
+    const requestedAllStores = filters.requestedAllStores === true;
+    const storeIds = filters.storeIds || [];
+    if (this.hasNationalStatementScope(user)) {
+      if (requestedAllStores || storeIds.length === 0) return {};
+      return { storeCode: { in: storeIds } };
+    }
+
+    const store = await this.resolveUserStore(user);
+    if (requestedAllStores) {
+      throw new ForbiddenException('Khong co quyen xem tat ca showroom');
+    }
+    if (
+      storeIds.length > 0 &&
+      (storeIds.length > 1 || storeIds[0] !== store.storeId)
+    ) {
+      throw new ForbiddenException('Chi duoc xem giao dich showroom cua minh');
+    }
+    return { storeCode: store.storeId };
+  }
+
+  private buildStatementFilterWhere(filters: {
+    order?: string | null;
+    amount?: number | null;
+    content?: string;
+    orderStatus?: string;
+    dateRange?: { start: Date; end: Date } | null;
+  }): Prisma.MapVietinTransactionWhereInput {
+    const parts: Prisma.MapVietinTransactionWhereInput[] = [];
+    if (filters.order) parts.push({ orders: { has: filters.order } });
+    if (filters.amount !== null && filters.amount !== undefined) {
+      parts.push({ amount: filters.amount });
+    }
+    if (filters.content) {
+      parts.push({
+        content: {
+          contains: filters.content,
+          mode: Prisma.QueryMode.insensitive,
+        },
+      });
+    }
+    if (filters.orderStatus === STATEMENT_ORDER_STATUS_HAS_ORDER) {
+      parts.push({ orders: { isEmpty: false } });
+    } else if (filters.orderStatus === STATEMENT_ORDER_STATUS_MISSING_ORDER) {
+      parts.push({ orders: { isEmpty: true } });
+    }
+    if (filters.dateRange) {
+      parts.push({
+        OR: [
+          {
+            paidAt: {
+              gte: filters.dateRange.start,
+              lt: filters.dateRange.end,
+            },
+          },
+          {
+            paidAt: null,
+            firstSeenAt: {
+              gte: filters.dateRange.start,
+              lt: filters.dateRange.end,
+            },
+          },
+        ],
+      });
+    }
+    return this.andWhere(...parts);
+  }
+
+  private andWhere(
+    ...parts: Prisma.MapVietinTransactionWhereInput[]
+  ): Prisma.MapVietinTransactionWhereInput {
+    const compact = parts.filter((part) => Object.keys(part).length > 0);
+    if (compact.length === 0) return {};
+    if (compact.length === 1) return compact[0];
+    return { AND: compact };
+  }
+
+  private async assertCanReadStatementStore(user: any, storeCode: string) {
+    this.assertCanUseStatements(user);
+    if (this.hasNationalStatementScope(user)) return;
+    const store = await this.resolveUserStore(user);
+    if (store.storeId !== storeCode) {
+      throw new ForbiddenException('Chi duoc xem giao dich showroom cua minh');
+    }
+  }
+
+  private async resolveUserStore(user: any) {
+    if (!user.storeId) {
+      throw new ForbiddenException('Tai khoan chua duoc gan showroom');
+    }
+    const store = await this.prisma.store.findUnique({
+      where: { id: user.storeId },
+    });
+    if (!store) throw new BadRequestException('Showroom khong hop le');
+    return store;
+  }
+
+  private hasNationalStatementScope(user: any) {
+    return (
+      user.role === SUPER_ADMIN_ROLE ||
+      String(user.workScopeType || '')
+        .trim()
+        .toUpperCase() === 'NATIONAL'
+    );
+  }
+
+  private assertCanUseStatements(user: any) {
+    if (![SUPER_ADMIN_ROLE, MANAGER_ROLE].includes(String(user.role || ''))) {
+      throw new ForbiddenException('Khong co quyen xem sao ke');
+    }
+  }
+
+  private parseStoreCodes(value?: string) {
+    return Array.from(
+      new Set(
+        String(value || '')
+          .split(',')
+          .map((item) => item.trim().toUpperCase())
+          .filter(Boolean)
+          .filter((item) => /^[A-Z0-9_-]{1,40}$/.test(item)),
+      ),
+    );
+  }
+
+  private parseBoolean(value?: string) {
+    return ['true', '1', 'yes', 'y'].includes(
+      String(value || '')
+        .trim()
+        .toLowerCase(),
+    );
+  }
+
+  private normalizeStatementAmount(value?: string) {
+    const text = this.cleanText(value);
+    if (!text) return null;
+    if (!/^[0-9.,\s]+$/.test(text)) {
+      throw new BadRequestException('So tien khong hop le');
+    }
+    const normalized = text.replace(/[^0-9]/g, '');
+    if (!normalized || normalized.length > 12) {
+      throw new BadRequestException('So tien khong hop le');
+    }
+    return Number(normalized);
+  }
+
+  private normalizeSingleOrderCode(value: string) {
+    const orders = this.normalizeOrderCodes([value]);
+    if (orders.length !== 1) {
+      throw new BadRequestException('Ma don hang khong hop le');
+    }
+    return orders[0];
+  }
+
+  private normalizeTransactionIds(values?: string[]) {
+    const output: string[] = [];
+    const seen = new Set<string>();
+    for (const raw of values || []) {
+      const value = String(raw || '').trim();
+      if (!value) continue;
+      if (!/^[A-Za-z0-9_-]{1,80}$/.test(value)) {
+        throw new BadRequestException('transactionIds khong hop le');
+      }
+      if (seen.has(value)) continue;
+      seen.add(value);
+      output.push(value);
+    }
+    return output;
+  }
+
   private async resolveStore(admin: any, storeCode?: string) {
     this.assertCanSearch(admin);
     const normalizedStoreCode = String(storeCode || '')
@@ -583,15 +982,26 @@ export class MapVietinService {
 
   private async persistTransactions(storeCode: string, rows: unknown[]) {
     let created = 0;
+    let withOrders = 0;
+    let withoutOrders = 0;
+    let manualProtected = 0;
     for (const raw of rows) {
       if (!raw || typeof raw !== 'object') continue;
       const row = raw as MapTransactionRow;
       const normalized = this.normalizeTransaction(storeCode, row);
       if (!normalized) continue;
+      if (normalized.orders.length > 0) {
+        withOrders += 1;
+      } else {
+        withoutOrders += 1;
+      }
       const existing = await this.prisma.mapVietinTransaction.findUnique({
         where: { transactionKey: normalized.transactionKey },
       });
       if (!existing) created += 1;
+      const preservesManualOrders =
+        existing?.orderSource === ORDER_SOURCE_MANUAL;
+      if (preservesManualOrders) manualProtected += 1;
       const stored = await this.prisma.mapVietinTransaction.upsert({
         where: { transactionKey: normalized.transactionKey },
         create: normalized,
@@ -599,6 +1009,12 @@ export class MapVietinService {
           transactionNumber: normalized.transactionNumber,
           amount: normalized.amount,
           content: normalized.content,
+          ...(preservesManualOrders
+            ? {}
+            : {
+                orders: normalized.orders,
+                orderSource: ORDER_SOURCE_AUTO,
+              }),
           status: normalized.status,
           paidAt: normalized.paidAt,
           payerName: normalized.payerName,
@@ -615,6 +1031,11 @@ export class MapVietinService {
             );
           });
       }
+    }
+    if (created > 0) {
+      this.logger.log(
+        `MAP sync order extraction: store=${storeCode} created=${created} withOrders=${withOrders} withoutOrders=${withoutOrders} manualProtected=${manualProtected}`,
+      );
     }
     return created;
   }
@@ -762,6 +1183,7 @@ export class MapVietinService {
     const status = this.readFirstText(row, this.statusKeys);
     const payerName = this.readFirstText(row, this.payerNameKeys);
     const payerAccount = this.readFirstText(row, this.payerAccountKeys);
+    const orders = this.extractOrderCodesFromContent(content);
     const fallback = [
       transactionNumber,
       amount,
@@ -778,12 +1200,67 @@ export class MapVietinService {
       transactionNumber: transactionNumber || null,
       amount,
       content,
+      orders,
+      orderSource: ORDER_SOURCE_AUTO,
       status: status || null,
       paidAt,
       payerName: payerName || null,
       payerAccount: payerAccount || null,
       rawData: row as Prisma.InputJsonObject,
     };
+  }
+
+  extractOrderCodesFromContent(content: string) {
+    const output: string[] = [];
+    const seen = new Set<string>();
+    const pattern = /(^|\D)(\d{14})(?=\D|$)/g;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(content || '')) !== null) {
+      const code = match[2];
+      if (!this.isValidOrderCode(code) || seen.has(code)) continue;
+      seen.add(code);
+      output.push(code);
+    }
+    return output;
+  }
+
+  private normalizeOrderCodes(values: Array<string | null | undefined>) {
+    const output: string[] = [];
+    const seen = new Set<string>();
+    for (const value of values) {
+      const tokens = String(value || '')
+        .split(/[\s,;]+/)
+        .map((token) => token.trim())
+        .filter(Boolean);
+      for (const token of tokens) {
+        if (!this.isValidOrderCode(token)) {
+          throw new BadRequestException('Ma don hang khong hop le');
+        }
+        if (seen.has(token)) continue;
+        seen.add(token);
+        output.push(token);
+      }
+    }
+    return output;
+  }
+
+  private isValidOrderCode(value: string) {
+    if (!/^\d{14}$/.test(value)) return false;
+    const year = 2000 + Number(value.slice(0, 2));
+    const month = Number(value.slice(2, 4));
+    const day = Number(value.slice(4, 6));
+    if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return (
+      parsed.getUTCFullYear() === year &&
+      parsed.getUTCMonth() === month - 1 &&
+      parsed.getUTCDate() === day
+    );
+  }
+
+  private sameOrderList(left: string[], right: string[]) {
+    if (left.length !== right.length) return false;
+    return left.every((value, index) => value === right[index]);
   }
 
   private toStoredTransactionDto(row: {
@@ -793,6 +1270,11 @@ export class MapVietinService {
     transactionNumber: string | null;
     amount: number;
     content: string;
+    orders?: string[] | null;
+    orderSource?: string | null;
+    orderUpdatedAt?: Date | null;
+    orderUpdatedByUserId?: string | null;
+    orderUpdatedByEmail?: string | null;
     status: string | null;
     paidAt: Date | null;
     payerName: string | null;
@@ -806,6 +1288,11 @@ export class MapVietinService {
       transactionNumber: row.transactionNumber,
       amount: row.amount,
       content: row.content,
+      orders: row.orders || [],
+      orderSource: row.orderSource || null,
+      orderUpdatedAt: row.orderUpdatedAt || null,
+      orderUpdatedByUserId: row.orderUpdatedByUserId || null,
+      orderUpdatedByEmail: row.orderUpdatedByEmail || null,
       status: row.status,
       paidAt: row.paidAt,
       payerName: row.payerName,
@@ -1099,8 +1586,7 @@ export class MapVietinService {
   }
 
   private isWithinMapSyncWindow(value = new Date(Date.now())) {
-    const vietnamHour =
-      (value.getUTCHours() + VIETNAM_UTC_OFFSET_HOURS) % 24;
+    const vietnamHour = (value.getUTCHours() + VIETNAM_UTC_OFFSET_HOURS) % 24;
     return (
       vietnamHour >= MAP_SYNC_START_HOUR_VN &&
       vietnamHour < MAP_SYNC_END_HOUR_VN
@@ -1211,6 +1697,71 @@ export class MapVietinService {
     return Number.isFinite(parsed) && parsed > 0
       ? Math.trunc(parsed)
       : DEFAULT_GLOBAL_SESSION_TTL_SECONDS;
+  }
+
+  private toStatementsCsv(rows: Array<Record<string, any>>) {
+    const headers = [
+      'Ma showroom',
+      'Ma giao dich',
+      'So tien',
+      'Noi dung chuyen khoan',
+      'Ma don hang',
+      'Trang thai',
+      'Ngay giao dich',
+      'Nguoi chuyen',
+      'Tai khoan chuyen',
+      'Lan dau thay',
+      'Nguon order',
+      'Nguoi sua order',
+      'Thoi gian sua order',
+    ];
+    const lines = [headers.map((value) => this.csvCell(value)).join(',')];
+    for (const row of rows) {
+      lines.push(
+        [
+          row.storeCode,
+          row.transactionNumber,
+          row.amount,
+          row.content,
+          (row.orders || []).join(' | '),
+          row.status,
+          this.csvDate(row.paidAt),
+          row.payerName,
+          row.payerAccount,
+          this.csvDate(row.firstSeenAt),
+          row.orderSource,
+          row.orderUpdatedByEmail,
+          this.csvDate(row.orderUpdatedAt),
+        ]
+          .map((value) => this.csvCell(value))
+          .join(','),
+      );
+    }
+    return `\ufeff${lines.join('\r\n')}`;
+  }
+
+  private csvCell(value: unknown) {
+    const text = value === null || value === undefined ? '' : String(value);
+    if (!/[",\r\n]/.test(text)) return text;
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  private csvDate(value: unknown) {
+    if (!value) return '';
+    const date = value instanceof Date ? value : new Date(String(value));
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString();
+  }
+
+  private safeUserLabel(user: any) {
+    return this.safeUserEmail(user) || user.id || 'unknown';
+  }
+
+  private safeUserEmail(user: any) {
+    const email = String(user?.email || '')
+      .trim()
+      .toLowerCase();
+    return email || null;
   }
 
   private isProviderAuthError(error: unknown) {

@@ -3,6 +3,7 @@ class MapPaymentTransaction {
   final int amount;
   final String content;
   final String transactionNumber;
+  final List<String> orders;
   final DateTime? paidAt;
   final DateTime? firstSeenAt;
   final bool successful;
@@ -12,6 +13,7 @@ class MapPaymentTransaction {
     required this.amount,
     required this.content,
     required this.transactionNumber,
+    required this.orders,
     required this.paidAt,
     required this.firstSeenAt,
     required this.successful,
@@ -43,6 +45,7 @@ class MapPaymentTransaction {
     ]);
     final paidAt = _readDate(json);
     final firstSeenAt = _readDate(json, keys: const ['firstSeenAt']);
+    final orders = _readOrders(json['orders']);
     final fallbackId = [
       transactionNumber,
       amount?.toString() ?? '',
@@ -55,6 +58,7 @@ class MapPaymentTransaction {
       amount: amount ?? 0,
       content: content,
       transactionNumber: transactionNumber,
+      orders: orders,
       paidAt: paidAt,
       firstSeenAt: firstSeenAt,
       successful: _readSuccessful(json),
@@ -62,6 +66,7 @@ class MapPaymentTransaction {
   }
 
   bool get isValidIncoming => amount > 0 && successful;
+  bool get hasOrders => orders.isNotEmpty;
 
   static int? _readAmount(Map<String, dynamic> json) {
     for (final key in const [
@@ -160,5 +165,20 @@ class MapPaymentTransaction {
       if (value.isNotEmpty) return value;
     }
     return '';
+  }
+
+  static List<String> _readOrders(Object? value) {
+    if (value is List) {
+      return value
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false);
+    }
+    final text = value?.toString().trim() ?? '';
+    if (text.isEmpty) return const [];
+    return text
+        .split(RegExp(r'[\s,;]+'))
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
   }
 }
