@@ -84,6 +84,11 @@ class AppRouter {
           return '/home';
         }
 
+        if (location == '/payment-monitor' &&
+            Theme.of(context).platform == TargetPlatform.android) {
+          return '/home';
+        }
+
         if (isLoading ||
             isLoggingIn ||
             isRegistering ||

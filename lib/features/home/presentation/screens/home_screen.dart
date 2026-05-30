@@ -96,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Center(
                     child: Text(
                       _version.isNotEmpty ? 'v$_version' : '',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                      style: const TextStyle(fontSize: 12, color: AppColors.neutral400),
                     ),
                   ),
                 ],
@@ -310,7 +310,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 4),
             Text(
               _version.isNotEmpty ? 'Version $_version' : '',
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
+              style: const TextStyle(fontSize: 14, color: AppColors.neutral500),
             ),
             const SizedBox(height: 16),
             Text(
@@ -318,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontStyle: FontStyle.italic,
-                color: Colors.grey[600],
+                color: AppColors.neutral600,
               ),
             ),
           ],
