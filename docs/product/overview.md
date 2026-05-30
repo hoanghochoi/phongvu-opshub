@@ -24,6 +24,9 @@ Go realtime service.
 - Profile/Admin: personal profile, first-login branch selection, and user
   administration.
 - Settings: client-side preferences such as Windows startup behavior.
+- Client diagnostics: authenticated clients upload a sanitized previous-day
+  activity summary once per day for operational debugging. The upload uses the
+  existing app-log pipeline and does not include the raw log file.
 - Platform: NestJS API, Go realtime service, PostgreSQL, Redis, BigQuery.
 
 ## Non-Goals

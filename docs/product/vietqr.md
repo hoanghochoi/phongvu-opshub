@@ -63,7 +63,8 @@ a customer to scan and pay manually.
   rows are not announced again.
 - While the app is running, the PC polls OpsHub every 5 seconds. Each newly
   observed successful incoming transaction is announced through generated audio
-  as `Phong Vũ đã nhận: <amount> đồng`.
+  as `Phong Vũ đã nhận: <amount> đồng.`. Piper audio uses speed `0.90` by
+  default so the final word has more room to finish.
 - Turning off `Đọc thông báo tiền vào` mutes only the speaker path. The PC keeps
   polling/syncing transactions every 5 seconds, and muted notifications are
   recorded as `SILENCED` so they are not played later as backlog.

@@ -27,7 +27,7 @@ const DEFAULT_AUDIO_RETENTION_DAYS = 7;
 const DEFAULT_LOG_RETENTION_DAYS = 30;
 const DEFAULT_TRANSACTION_RETENTION_DAYS = 90;
 const DEFAULT_TTS_VOICE_ID = 'piper:vi-vais1000';
-const DEFAULT_TTS_SPEED = 0.98;
+const DEFAULT_TTS_SPEED = 0.9;
 const DEFAULT_TTS_PITCH = 1.0;
 
 type StoredTransaction = {
@@ -59,7 +59,7 @@ export class PaymentNotificationsService {
     });
     if (existing) return existing;
 
-    const text = `Phong Vũ đã nhận: ${vietnameseAmountWords(transaction.amount)} đồng`;
+    const text = `Phong Vũ đã nhận: ${vietnameseAmountWords(transaction.amount)} đồng.`;
     const expiresAt = this.daysFromNow(this.audioRetentionDays());
     let notification = await this.prisma.paymentNotification.create({
       data: {

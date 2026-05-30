@@ -49,7 +49,7 @@ describe('PaymentNotificationsService', () => {
       storeCode: 'CP01',
       transactionId: 'txn-1',
       amount: 1250000,
-      text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng',
+      text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng.',
       audioStatus: 'PENDING',
       audioError: null,
     });
@@ -58,7 +58,7 @@ describe('PaymentNotificationsService', () => {
       storeCode: 'CP01',
       transactionId: 'txn-1',
       amount: 1250000,
-      text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng',
+      text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng.',
       audioStatus: 'FAILED',
       audioError: 'TTS_SERVICE_URL is not configured',
     });
@@ -76,7 +76,7 @@ describe('PaymentNotificationsService', () => {
           storeCode: 'CP01',
           transactionId: 'txn-1',
           amount: 1250000,
-          text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng',
+          text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng.',
         }),
       }),
     );
@@ -104,7 +104,7 @@ describe('PaymentNotificationsService', () => {
       storeCode: 'CP01',
       transactionId: 'txn-voice',
       amount: 28756321,
-      text: 'Phong Vũ đã nhận: hai mươi tám triệu bảy trăm năm mươi sáu nghìn ba trăm hai mươi mốt đồng',
+      text: 'Phong Vũ đã nhận: hai mươi tám triệu bảy trăm năm mươi sáu nghìn ba trăm hai mươi mốt đồng.',
       audioStatus: 'PENDING',
       audioError: null,
     });
@@ -133,10 +133,10 @@ describe('PaymentNotificationsService', () => {
     );
     const [, request] = fetchMock.mock.calls[0];
     expect(JSON.parse(String((request as RequestInit).body))).toEqual({
-      text: 'Phong Vũ đã nhận: hai mươi tám triệu bảy trăm năm mươi sáu nghìn ba trăm hai mươi mốt đồng',
+      text: 'Phong Vũ đã nhận: hai mươi tám triệu bảy trăm năm mươi sáu nghìn ba trăm hai mươi mốt đồng.',
       format: 'mp3',
       voice_id: 'piper:vi-vais1000',
-      speed: 0.98,
+      speed: 0.9,
       pitch: 1.0,
     });
   });
