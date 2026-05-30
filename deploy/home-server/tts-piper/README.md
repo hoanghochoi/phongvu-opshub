@@ -43,7 +43,7 @@ Smoke test without touching VieNeu:
 curl -fsS http://172.20.0.1:18081/health
 curl -fsS -X POST http://172.20.0.1:18081/synthesize \
   -H 'Content-Type: application/json' \
-  --data '{"text":"Phong Vu da nhan: mot trieu dong","format":"mp3","voice_id":"custom:suong-vo","speed":0.98,"pitch":1.0}' \
+  --data '{"text":"Phong Vu da nhan: mot trieu dong.","format":"mp3","voice_id":"custom:suong-vo","speed":0.90,"pitch":1.0}' \
   -D /tmp/piper.headers -o /tmp/piper-payment.wav
 file /tmp/piper-payment.wav
 ```
@@ -54,6 +54,7 @@ Switch OpsHub after the smoke test passes:
 # In /srv/opshub/env
 TTS_SERVICE_URL=http://172.20.0.1:18081
 TTS_VOICE_ID=piper:vi-vais1000
+TTS_SPEED=0.90
 
 cd /home/ubuntu/phongvu-opshub/current
 OPSHUB_ENV_FILE=/srv/opshub/env docker compose --env-file /srv/opshub/env \

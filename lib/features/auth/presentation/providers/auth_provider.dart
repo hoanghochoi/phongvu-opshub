@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -72,6 +74,7 @@ class AuthProvider extends ChangeNotifier {
         // Restore JWT token to ApiClient for authenticated API calls
         if (token != null) {
           ApiClient().setAuthToken(token);
+          _queueDailyActivityLogUpload();
           if (kDebugMode) debugPrint('✅ [AuthProvider] Restored JWT token');
         }
 
@@ -192,6 +195,16 @@ class AuthProvider extends ChangeNotifier {
     return legacyToken;
   }
 
+  void _queueDailyActivityLogUpload() {
+    final currentUser = _user;
+    if (currentUser == null || currentUser.needsStoreSelection) return;
+    unawaited(
+      AppLogger.instance.uploadDailyActivityLogIfDue(
+        storeCode: currentUser.storeId,
+      ),
+    );
+  }
+
   Future<bool> login({required String email, required String password}) async {
     if (kDebugMode) debugPrint('[AuthProvider] Starting password login...');
     await AppLogger.instance.info(
@@ -223,6 +236,7 @@ class AuthProvider extends ChangeNotifier {
           'storeId': user.storeId,
         },
       );
+      _queueDailyActivityLogUpload();
 
       _isLoading = false;
       notifyListeners();
@@ -289,6 +303,7 @@ class AuthProvider extends ChangeNotifier {
         'Registration succeeded',
         context: {'email': user.email, 'role': user.role},
       );
+      _queueDailyActivityLogUpload();
 
       _isLoading = false;
       notifyListeners();
@@ -405,6 +420,7 @@ class AuthProvider extends ChangeNotifier {
         'Store selection succeeded',
         context: {'email': _user!.email, 'storeId': _user!.storeId},
       );
+      _queueDailyActivityLogUpload();
       _isLoading = false;
       notifyListeners();
       return true;
