@@ -299,18 +299,18 @@ class _SerialResult extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = switch (result.status) {
-      'correct' => Colors.green,
-      'wrong' => Colors.red,
-      'exported' => Colors.grey,
-      'display_reserved' => Colors.orange,
-      _ => Colors.orange,
+      'correct' => AppColors.success,
+      'wrong' => AppColors.error,
+      'exported' => AppColors.neutral500,
+      'display_reserved' => AppColors.warning,
+      _ => AppColors.warning,
     };
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       children: [
         Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
           decoration: BoxDecoration(
             color: statusColor.withValues(alpha: 0.1),
             border: Border.all(color: statusColor.withValues(alpha: 0.5)),
@@ -397,7 +397,7 @@ class _FifoItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = item.exported ? Colors.grey : _fifoColor(rank, total);
+    final color = item.exported ? AppColors.neutral500 : _fifoColor(rank, total);
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: IntrinsicHeight(
@@ -495,8 +495,8 @@ class _FifoItemCard extends StatelessWidget {
   }
 
   Color _fifoColor(int rank, int total) {
-    if (total <= 1) return Colors.green;
+    if (total <= 1) return AppColors.success;
     final t = rank / (total - 1);
-    return Color.lerp(Colors.green, Colors.red, t) ?? Colors.red;
+    return Color.lerp(AppColors.success, AppColors.error, t) ?? AppColors.error;
   }
 }

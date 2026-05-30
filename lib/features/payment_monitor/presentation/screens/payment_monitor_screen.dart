@@ -149,14 +149,27 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
               ),
               const SizedBox(height: 10),
               Expanded(
-                child: monitor.latestTransactions.isEmpty
-                    ? const _EmptyTransactions()
-                    : ListView.builder(
-                        itemCount: monitor.latestTransactions.length,
-                        itemBuilder: (context, index) => _buildTransactionTile(
-                          monitor.latestTransactions[index],
+                child: Stack(
+                  children: [
+                    monitor.latestTransactions.isEmpty
+                        ? const _EmptyTransactions()
+                        : ListView.builder(
+                            itemCount: monitor.latestTransactions.length,
+                            itemBuilder: (context, index) => _buildTransactionTile(
+                              monitor.latestTransactions[index],
+                            ),
+                          ),
+                    if (monitor.isLoading)
+                      Positioned.fill(
+                        child: Container(
+                          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
                         ),
                       ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -191,9 +204,9 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: isDark
-              ? Colors.green.withValues(alpha: 0.15)
-              : const Color(0xFFE8F5E9),
-          child: const Icon(Icons.payments_rounded, color: Colors.green),
+              ? AppColors.success.withValues(alpha: 0.15)
+              : AppColors.success.withValues(alpha: 0.08),
+          child: const Icon(Icons.payments_rounded, color: AppColors.success),
         ),
         title: Text(
           '${_currencyFormatter.format(transaction.amount)} VND',
@@ -258,50 +271,55 @@ class _TransactionFilters extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            // ── Date pickers + page size ──
-            Row(
-              children: [
-                Expanded(
-                  child: _DateDropdown(
-                    label: 'Từ ngày',
-                    date: monitor.rangeStartDate,
-                    firstDate: DateTime(2024),
-                    lastDate: monitor.rangeEndDate,
-                    onPicked: (date) {
-                      context.read<PaymentMonitorProvider>().setDateRange(
-                        date,
-                        monitor.rangeEndDate,
-                      );
-                    },
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+
+        if (isMobile) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _DateDropdown(
+                          label: 'Từ ngày',
+                          date: monitor.rangeStartDate,
+                          firstDate: DateTime(2024),
+                          lastDate: monitor.rangeEndDate,
+                          onPicked: (date) {
+                            context.read<PaymentMonitorProvider>().setDateRange(
+                              date,
+                              monitor.rangeEndDate,
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _DateDropdown(
+                          label: 'Đến ngày',
+                          date: monitor.rangeEndDate,
+                          firstDate: monitor.rangeStartDate,
+                          lastDate: DateTime.now().add(const Duration(days: 1)),
+                          onPicked: (date) {
+                            context.read<PaymentMonitorProvider>().setDateRange(
+                              monitor.rangeStartDate,
+                              date,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _DateDropdown(
-                    label: 'Đến ngày',
-                    date: monitor.rangeEndDate,
-                    firstDate: monitor.rangeStartDate,
-                    lastDate: DateTime.now().add(const Duration(days: 1)),
-                    onPicked: (date) {
-                      context.read<PaymentMonitorProvider>().setDateRange(
-                        monitor.rangeStartDate,
-                        date,
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 130,
-                  child: DropdownButtonFormField<int>(
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<int>(
                     initialValue: monitor.pageSize,
                     decoration: const InputDecoration(
                       isDense: true,
+                      labelText: 'Số dòng hiển thị',
                       contentPadding: EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 10,
@@ -326,43 +344,147 @@ class _TransactionFilters extends StatelessWidget {
                       context.read<PaymentMonitorProvider>().setPageSize(value);
                     },
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
-            // ── Pagination ──
-            Row(
-              children: [
-                IconButton(
-                  onPressed: monitor.canGoPreviousPage
-                      ? () => context
-                            .read<PaymentMonitorProvider>()
-                            .previousPage()
-                      : null,
-                  icon: const Icon(Icons.chevron_left_rounded),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      'Trang ${monitor.pageIndex + 1} - ${monitor.totalTransactions} giao dịch',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
+                  const SizedBox(height: AppLayoutTokens.formInlineGap),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: monitor.canGoPreviousPage
+                            ? () => context
+                                  .read<PaymentMonitorProvider>()
+                                  .previousPage()
+                            : null,
+                        icon: const Icon(Icons.chevron_left_rounded),
+                      ),
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            'Trang ${monitor.pageIndex + 1} - ${monitor.totalTransactions} GD',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: monitor.canGoNextPage
+                            ? () => context.read<PaymentMonitorProvider>().nextPage()
+                            : null,
+                        icon: const Icon(Icons.chevron_right_rounded),
+                      ),
+                    ],
                   ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _DateDropdown(
+                        label: 'Từ ngày',
+                        date: monitor.rangeStartDate,
+                        firstDate: DateTime(2024),
+                        lastDate: monitor.rangeEndDate,
+                        onPicked: (date) {
+                          context.read<PaymentMonitorProvider>().setDateRange(
+                            date,
+                            monitor.rangeEndDate,
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _DateDropdown(
+                        label: 'Đến ngày',
+                        date: monitor.rangeEndDate,
+                        firstDate: monitor.rangeStartDate,
+                        lastDate: DateTime.now().add(const Duration(days: 1)),
+                        onPicked: (date) {
+                          context.read<PaymentMonitorProvider>().setDateRange(
+                            monitor.rangeStartDate,
+                            date,
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 130,
+                      child: DropdownButtonFormField<int>(
+                        initialValue: monitor.pageSize,
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [10, 20, 50, 100]
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(
+                                  '$value dòng',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  softWrap: false,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          context.read<PaymentMonitorProvider>().setPageSize(value);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  onPressed: monitor.canGoNextPage
-                      ? () => context.read<PaymentMonitorProvider>().nextPage()
-                      : null,
-                  icon: const Icon(Icons.chevron_right_rounded),
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: monitor.canGoPreviousPage
+                          ? () => context
+                                .read<PaymentMonitorProvider>()
+                                .previousPage()
+                          : null,
+                      icon: const Icon(Icons.chevron_left_rounded),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          'Trang ${monitor.pageIndex + 1} - ${monitor.totalTransactions} giao dịch',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: monitor.canGoNextPage
+                          ? () => context.read<PaymentMonitorProvider>().nextPage()
+                          : null,
+                      icon: const Icon(Icons.chevron_right_rounded),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -404,6 +526,7 @@ class _DateDropdown extends StatelessWidget {
         decoration: InputDecoration(
           labelText: label,
           isDense: true,
+          constraints: const BoxConstraints(minHeight: 52),
           border: const OutlineInputBorder(),
           suffixIcon: const Icon(Icons.calendar_month_rounded, size: 20),
         ),
@@ -500,8 +623,8 @@ class _SpeakerErrorCard extends StatelessWidget {
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerLeft,
-              child: SizedBox(
-                width: 220,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 220),
                 child: AppSecondaryButton(
                   onPressed: onRestart,
                   icon: Icons.restart_alt_rounded,

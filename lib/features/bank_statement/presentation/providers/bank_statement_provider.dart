@@ -145,7 +145,8 @@ class BankStatementProvider extends ChangeNotifier {
   }
 
   void setAmount(String value) {
-    _amount = _clean(value);
+    final cleanValue = value.replaceAll(RegExp(r'[^0-9]'), '');
+    _amount = _clean(cleanValue);
     if ((_amount ?? '').isNotEmpty) {
       _allStores = false;
       _selectedStoreIds.clear();
