@@ -88,7 +88,7 @@ export class PaymentNotificationsService {
   async listReadyForClient(user: any, query: ListPaymentNotificationsQueryDto) {
     const clientId = query.clientId?.trim();
     if (!clientId) {
-      throw new ForbiddenException('Thiáº¿u mÃ£ thiáº¿t bá»‹');
+      throw new ForbiddenException('Thiếu mã thiết bị');
     }
     const storeCode = await this.resolveNotificationStore(
       user,
@@ -359,15 +359,13 @@ export class PaymentNotificationsService {
     const normalized = requested?.trim().toUpperCase();
     if (user?.role === SUPER_ADMIN_ROLE) {
       if (!normalized) {
-        throw new ForbiddenException('SUPER_ADMIN cáº§n chá»n showroom');
+        throw new ForbiddenException('SUPER_ADMIN cần chọn showroom');
       }
       return normalized;
     }
     const userStoreCode = await this.userStoreCode(user);
     if (!userStoreCode || (normalized && normalized !== userStoreCode)) {
-      throw new ForbiddenException(
-        'KhÃ´ng cÃ³ quyá»n truy cáº­p showroom nÃ y',
-      );
+      throw new ForbiddenException('Không có quyền truy cập showroom này');
     }
     return userStoreCode;
   }
@@ -451,7 +449,7 @@ export class PaymentNotificationsService {
   private parseDate(value: string, field: string) {
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) {
-      throw new BadRequestException(`${field} khong hop le`);
+      throw new BadRequestException(`${field} không hợp lệ`);
     }
     return parsed;
   }

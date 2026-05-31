@@ -1,6 +1,6 @@
 # Product Overview
 
-PhongVu OpsHub is an internal operations app for Phong Vu staff. It supports
+PhongVu OpsHub is an internal operations app for Phong Vũ staff. It supports
 daily store and warehouse workflows through a Flutter app backed by NestJS and a
 Go realtime service.
 
@@ -12,7 +12,7 @@ Go realtime service.
 
 ## Current Domains
 
-- Auth: email/password registration and sign-in, JWT sessions, allowed Phong Vu
+- Auth: email/password registration and sign-in, JWT sessions, allowed Phong Vũ
   staff email domains.
 - FIFO: FIFO check, FIFO sorting, and history.
 - Sort: SKU grouping and sorting workflow.

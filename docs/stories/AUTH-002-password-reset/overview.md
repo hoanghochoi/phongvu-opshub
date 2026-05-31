@@ -10,7 +10,7 @@ Allow staff to recover access safely without exposing account existence and allo
 - Authenticated users can change their own password only after entering the
   current password.
 - Forgot-password requests send a reset email when the email belongs to an
-  existing Phong Vu account, while returning a generic success response for all
+  existing Phong Vũ account, while returning a generic success response for all
   allowed-domain requests.
 - `SUPER_ADMIN` can send a reset link from user management; other roles are
   rejected by the backend.

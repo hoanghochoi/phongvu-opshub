@@ -94,7 +94,7 @@ class AuthRepository {
       rethrow;
     } catch (e) {
       throw ApiException(
-        'Không gửi được email đổi mật khẩu. Vui long thu lai.',
+        'Không gửi được email đổi mật khẩu. Vui lòng thử lại.',
       );
     }
   }
@@ -113,7 +113,7 @@ class AuthRepository {
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException('Không đổi được mật khẩu. Vui long thu lai.');
+      throw ApiException('Không đổi được mật khẩu. Vui lòng thử lại.');
     }
   }
 

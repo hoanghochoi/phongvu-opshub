@@ -108,7 +108,7 @@ a customer to scan and pay manually.
 - Order filter is an exact match against any stored order in the transaction.
   Amount filter is exact integer amount. Content filter is case-insensitive
   contains matching.
-- `Da co don hang` means the stored order list is not empty. `Chua co don hang`
+- `Đã có đơn hàng` means the stored order list is not empty. `Chưa có đơn hàng`
   means the order list is empty.
 - Statement rows show transaction details beside a compact order area. Users can
   edit orders inline, enter multiple orders separated by whitespace, comma, or

@@ -38,22 +38,22 @@ const DEFAULT_ROLE_DEFINITIONS = [
   {
     code: SUPER_ADMIN_ROLE,
     displayName: 'Super Admin',
-    description: 'Toan quyen he thong',
+    description: 'Toàn quyền hệ thống',
   },
   {
     code: ADMIN_ROLE,
     displayName: 'Admin',
-    description: 'Quan ly user theo pham vi',
+    description: 'Quản lý người dùng theo phạm vi',
   },
   {
     code: MANAGER_ROLE,
     displayName: 'Manager',
-    description: 'Nhom quyen quan ly van hanh',
+    description: 'Nhóm quyền quản lý vận hành',
   },
   {
     code: STAFF_ROLE,
     displayName: 'Staff',
-    description: 'Quyen thao tac hang ngay',
+    description: 'Quyền thao tác hằng ngày',
   },
 ];
 
@@ -61,37 +61,37 @@ const DEFAULT_DEPARTMENT_DEFINITIONS = [
   {
     code: 'MANAGEMENT',
     displayName: 'Management',
-    description: 'Quan ly van hanh showroom va bo phan',
+    description: 'Quản lý vận hành showroom và bộ phận',
   },
   {
     code: 'SALES',
     displayName: 'Sales',
-    description: 'Tu van va ban hang',
+    description: 'Tư vấn và bán hàng',
   },
   {
     code: 'CASHIER',
     displayName: 'Cashier',
-    description: 'Thu ngan va thanh toan tai quay',
+    description: 'Thu ngân và thanh toán tại quầy',
   },
   {
     code: 'TECHNICAL',
     displayName: 'Technical',
-    description: 'Ky thuat va ho tro san pham',
+    description: 'Kỹ thuật và hỗ trợ sản phẩm',
   },
   {
     code: 'WAREHOUSE',
     displayName: 'Warehouse',
-    description: 'Kho va dieu phoi hang hoa',
+    description: 'Kho và điều phối hàng hóa',
   },
   {
     code: 'BACK_OFFICE',
     displayName: 'Back Office',
-    description: 'Khoi van phong ho tro van hanh',
+    description: 'Khối văn phòng hỗ trợ vận hành',
   },
   {
     code: 'EXECUTIVE',
     displayName: 'Executive',
-    description: 'Ban dieu hanh va lanh dao',
+    description: 'Ban điều hành và lãnh đạo',
   },
 ];
 
@@ -99,67 +99,67 @@ const DEFAULT_JOB_ROLE_DEFINITIONS = [
   {
     code: 'MANAGER',
     displayName: 'Manager',
-    description: 'Quan ly SR hoac bo phan',
+    description: 'Quản lý SR hoặc bộ phận',
     departmentCode: 'MANAGEMENT',
   },
   {
     code: 'SALE',
     displayName: 'Sales Staff',
-    description: 'Nhan vien ban hang tai SR',
+    description: 'Nhân viên bán hàng tại SR',
     departmentCode: 'SALES',
   },
   {
     code: 'SALE_ONLINE',
     displayName: 'Online Sales',
-    description: 'Nhan vien sale online',
+    description: 'Nhân viên sale online',
     departmentCode: 'SALES',
   },
   {
     code: 'CASHIER',
     displayName: 'Cashier Staff',
-    description: 'Nhan vien thu ngan',
+    description: 'Nhân viên thu ngân',
     departmentCode: 'CASHIER',
   },
   {
     code: 'TECHNICIAN',
     displayName: 'Technician',
-    description: 'Nhan vien ky thuat',
+    description: 'Nhân viên kỹ thuật',
     departmentCode: 'TECHNICAL',
   },
   {
     code: 'WAREHOUSE',
     displayName: 'Warehouse Staff',
-    description: 'Nhan vien kho',
+    description: 'Nhân viên kho',
     departmentCode: 'WAREHOUSE',
   },
   {
     code: 'AREA_MANAGER',
     displayName: 'Area Manager',
-    description: 'Quan ly khu vuc',
+    description: 'Quản lý khu vực',
     departmentCode: 'MANAGEMENT',
   },
   {
     code: 'REGIONAL_MANAGER',
     displayName: 'Regional Manager',
-    description: 'Quan ly vung/mien',
+    description: 'Quản lý vùng/miền',
     departmentCode: 'MANAGEMENT',
   },
   {
     code: 'BACK_OFFICE',
     displayName: 'Back Office Staff',
-    description: 'Nhan su back office',
+    description: 'Nhân sự back office',
     departmentCode: 'BACK_OFFICE',
   },
   {
     code: 'BOD',
     displayName: 'BOD',
-    description: 'Thanh vien ban dieu hanh',
+    description: 'Thành viên ban điều hành',
     departmentCode: 'EXECUTIVE',
   },
   {
     code: 'CEO',
     displayName: 'CEO',
-    description: 'Tong giam doc',
+    description: 'Tổng giám đốc',
     departmentCode: 'EXECUTIVE',
   },
 ];
@@ -570,7 +570,7 @@ export class UserService implements OnModuleInit {
 
   private assertSuperAdmin(user: any) {
     if (user.role !== SUPER_ADMIN_ROLE) {
-      throw new ForbiddenException('Chi SUPER_ADMIN duoc quan ly role');
+      throw new ForbiddenException('Chỉ SUPER_ADMIN được quản lý role');
     }
   }
 
@@ -663,7 +663,7 @@ export class UserService implements OnModuleInit {
       where: { code },
     });
     if (existing) {
-      throw new BadRequestException('Role da ton tai');
+      throw new BadRequestException('Role đã tồn tại');
     }
     return this.prisma.roleDefinition.create({
       data: {
@@ -681,13 +681,13 @@ export class UserService implements OnModuleInit {
     const current = await this.prisma.roleDefinition.findUnique({
       where: { code },
     });
-    if (!current) throw new NotFoundException('Khong tim thay role');
+    if (!current) throw new NotFoundException('Không tìm thấy role');
 
     const nextCode = body.code
       ? this.normalizeRoleCode(body.code, true)
       : current.code;
     if (current.isSystem && nextCode !== current.code) {
-      throw new BadRequestException('Khong duoc doi ma role he thong');
+      throw new BadRequestException('Không được đổi mã role hệ thống');
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -723,16 +723,16 @@ export class UserService implements OnModuleInit {
     const role = await this.prisma.roleDefinition.findUnique({
       where: { code },
     });
-    if (!role) throw new NotFoundException('Khong tim thay role');
+    if (!role) throw new NotFoundException('Không tìm thấy role');
     if (role.isSystem) {
-      throw new BadRequestException('Khong duoc xoa role he thong');
+      throw new BadRequestException('Không được xóa role hệ thống');
     }
 
     const assignedUsers = await this.prisma.user.count({
       where: { role: code },
     });
     if (assignedUsers > 0) {
-      throw new BadRequestException('Role dang duoc gan cho user');
+      throw new BadRequestException('Role đang được gán cho người dùng');
     }
 
     await this.prisma.roleDefinition.delete({ where: { code } });
@@ -914,7 +914,7 @@ export class UserService implements OnModuleInit {
     if (input === undefined) return current ?? null;
     const code = this.normalizePersonnelCode(
       input,
-      'Ma phong ban khong hop le',
+      'Mã phòng ban không hợp lệ',
     );
     if (!code) return null;
     const department = await this.prisma.departmentDefinition.findUnique({
@@ -922,7 +922,7 @@ export class UserService implements OnModuleInit {
     });
     if (!department) {
       this.logger.warn(`Personnel validation failed: department=${code}`);
-      throw new BadRequestException('Phong ban khong ton tai');
+      throw new BadRequestException('Phòng ban không tồn tại');
     }
     return department.code;
   }
@@ -931,7 +931,7 @@ export class UserService implements OnModuleInit {
     if (input === undefined) return current ?? null;
     const code = this.normalizePersonnelCode(
       input,
-      'Ma chuc danh khong hop le',
+      'Mã chức danh không hợp lệ',
     );
     if (!code) return null;
     const jobRole = await this.prisma.jobRoleDefinition.findUnique({
@@ -939,7 +939,7 @@ export class UserService implements OnModuleInit {
     });
     if (!jobRole) {
       this.logger.warn(`Personnel validation failed: jobRole=${code}`);
-      throw new BadRequestException('Chuc danh khong ton tai');
+      throw new BadRequestException('Chức danh không tồn tại');
     }
     return jobRole.code;
   }
@@ -959,7 +959,7 @@ export class UserService implements OnModuleInit {
     if (!scope) return this.defaultWorkScopeForRole(role);
     if (!WORK_SCOPE_TYPES.has(scope)) {
       this.logger.warn(`Personnel validation failed: workScopeType=${scope}`);
-      throw new BadRequestException('Pham vi lam viec khong hop le');
+      throw new BadRequestException('Phạm vi làm việc không hợp lệ');
     }
     return scope;
   }
@@ -1025,7 +1025,7 @@ export class UserService implements OnModuleInit {
     if (!/^[A-Z][A-Z0-9_]{1,39}$/.test(code)) {
       if (strict) {
         throw new BadRequestException(
-          'Ma role phai bat dau bang chu, toi da 40 ky tu',
+          'Mã role phải bắt đầu bằng chữ, tối đa 40 ký tự',
         );
       }
       return STAFF_ROLE;
@@ -1063,7 +1063,7 @@ export class UserService implements OnModuleInit {
       where: { code },
     });
     if (!role) {
-      throw new BadRequestException('Role khong ton tai');
+      throw new BadRequestException('Role không tồn tại');
     }
     return role.code;
   }

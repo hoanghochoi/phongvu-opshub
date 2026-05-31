@@ -23,7 +23,7 @@ export class OpshubMailService {
     const secure = process.env.SMTP_SECURE === 'true';
 
     if (!host || !user || !pass || !from) {
-      throw new InternalServerErrorException('Chua cau hinh gui email OpsHub.');
+      throw new InternalServerErrorException('Chưa cấu hình gửi email OpsHub.');
     }
 
     const transporter = nodemailer.createTransport({
@@ -43,7 +43,7 @@ export class OpshubMailService {
       });
     } catch (error) {
       this.logger.error(`Failed to send OpsHub email to ${input.to}`, error);
-      throw new InternalServerErrorException('Khong gui duoc email OpsHub.');
+      throw new InternalServerErrorException('Không gửi được email OpsHub.');
     }
   }
 }
