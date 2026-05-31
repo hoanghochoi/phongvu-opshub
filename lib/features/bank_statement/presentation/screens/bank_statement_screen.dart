@@ -113,7 +113,7 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
     }
     if (!provider.hasSearched) {
       return const AppStatePanel.empty(
-        title: 'Chọn filter rồi bấm Search để tải giao dịch',
+        title: 'Chọn filter rồi bấm Tìm để tải giao dịch',
         icon: Icons.manage_search_rounded,
       );
     }
@@ -144,7 +144,9 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
     sync(_orderController, _orderFocus, provider.order ?? '');
     String formattedAmount = '';
     if (provider.amount != null) {
-      final parsed = int.tryParse(provider.amount!.replaceAll(RegExp(r'[^0-9]'), ''));
+      final parsed = int.tryParse(
+        provider.amount!.replaceAll(RegExp(r'[^0-9]'), ''),
+      );
       if (parsed != null) {
         formattedAmount = NumberFormat.decimalPattern('vi_VN').format(parsed);
       }
@@ -199,9 +201,14 @@ class _FilterPanelState extends State<_FilterPanel> {
                         _isExpanded = !_isExpanded;
                       });
                     },
-                    borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+                    borderRadius: BorderRadius.circular(
+                      AppLayoutTokens.cardRadius,
+                    ),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 4,
+                        horizontal: 2,
+                      ),
                       child: Row(
                         children: [
                           const Icon(Icons.filter_alt_outlined),
@@ -283,22 +290,28 @@ class _FilterPanelState extends State<_FilterPanel> {
                         ),
                       ],
                       onChanged: (value) {
-                        if (value != null) widget.provider.setOrderStatus(value);
+                        if (value != null) {
+                          widget.provider.setOrderStatus(value);
+                        }
                       },
                     ),
                     const SizedBox(height: 10),
                     _DateField(
                       label: 'Từ ngày',
                       value: widget.provider.startDate,
-                      onPicked: (date) =>
-                          widget.provider.setDateRange(date, widget.provider.endDate),
+                      onPicked: (date) => widget.provider.setDateRange(
+                        date,
+                        widget.provider.endDate,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     _DateField(
                       label: 'Đến ngày',
                       value: widget.provider.endDate,
-                      onPicked: (date) =>
-                          widget.provider.setDateRange(widget.provider.startDate, date),
+                      onPicked: (date) => widget.provider.setDateRange(
+                        widget.provider.startDate,
+                        date,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -319,16 +332,20 @@ class _FilterPanelState extends State<_FilterPanel> {
                                 )
                                 .toList(),
                             onChanged: (value) {
-                              if (value != null) widget.provider.setLimit(value);
+                              if (value != null) {
+                                widget.provider.setLimit(value);
+                              }
                             },
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: AppPrimaryButton(
-                            onPressed: widget.provider.canSearch ? widget.provider.search : null,
+                            onPressed: widget.provider.canSearch
+                                ? widget.provider.search
+                                : null,
                             icon: Icons.search_rounded,
-                            label: 'Search',
+                            label: 'Tìm',
                             isLoading: widget.provider.isLoading,
                           ),
                         ),
@@ -348,7 +365,9 @@ class _FilterPanelState extends State<_FilterPanel> {
               children: [
                 Row(
                   children: [
-                    Expanded(child: _StoreFilterButton(provider: widget.provider)),
+                    Expanded(
+                      child: _StoreFilterButton(provider: widget.provider),
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
@@ -421,7 +440,9 @@ class _FilterPanelState extends State<_FilterPanel> {
                           ),
                         ],
                         onChanged: (value) {
-                          if (value != null) widget.provider.setOrderStatus(value);
+                          if (value != null) {
+                            widget.provider.setOrderStatus(value);
+                          }
                         },
                       ),
                     ),
@@ -434,8 +455,10 @@ class _FilterPanelState extends State<_FilterPanel> {
                       child: _DateField(
                         label: 'Từ ngày',
                         value: widget.provider.startDate,
-                        onPicked: (date) =>
-                            widget.provider.setDateRange(date, widget.provider.endDate),
+                        onPicked: (date) => widget.provider.setDateRange(
+                          date,
+                          widget.provider.endDate,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -443,8 +466,10 @@ class _FilterPanelState extends State<_FilterPanel> {
                       child: _DateField(
                         label: 'Đến ngày',
                         value: widget.provider.endDate,
-                        onPicked: (date) =>
-                            widget.provider.setDateRange(widget.provider.startDate, date),
+                        onPicked: (date) => widget.provider.setDateRange(
+                          widget.provider.startDate,
+                          date,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -473,9 +498,11 @@ class _FilterPanelState extends State<_FilterPanel> {
                     SizedBox(
                       width: 140,
                       child: AppPrimaryButton(
-                        onPressed: widget.provider.canSearch ? widget.provider.search : null,
+                        onPressed: widget.provider.canSearch
+                            ? widget.provider.search
+                            : null,
                         icon: Icons.search_rounded,
-                        label: 'Search',
+                        label: 'Tìm',
                         isLoading: widget.provider.isLoading,
                       ),
                     ),
@@ -682,7 +709,9 @@ class _StatementToolbar extends StatelessWidget {
                           ? provider.exportCsv
                           : null,
                       icon: Icons.download_rounded,
-                      label: provider.isExporting ? 'Exporting...' : 'Export CSV',
+                      label: provider.isExporting
+                          ? 'Exporting...'
+                          : 'Export CSV',
                     ),
                   ),
                 ],
@@ -693,7 +722,9 @@ class _StatementToolbar extends StatelessWidget {
                 children: [
                   IconButton(
                     tooltip: 'Trang trước',
-                    onPressed: provider.canGoPrevious ? provider.previousPage : null,
+                    onPressed: provider.canGoPrevious
+                        ? provider.previousPage
+                        : null,
                     icon: const Icon(Icons.chevron_left_rounded),
                   ),
                   const SizedBox(width: 8),
@@ -977,7 +1008,9 @@ class _StatementCardState extends State<_StatementCard> {
                       .map(
                         (row) => ListTile(
                           leading: const Icon(Icons.history_rounded),
-                          title: Text(row.changedByEmail ?? 'Không rõ người sửa'),
+                          title: Text(
+                            row.changedByEmail ?? 'Không rõ người sửa',
+                          ),
                           subtitle: Text(
                             '${_ordersText(row.oldOrders)} → ${_ordersText(row.newOrders)}\n${row.createdAt == null ? '' : DateFormat('HH:mm:ss dd/MM/yyyy').format(row.createdAt!.toLocal())}',
                           ),
@@ -1185,7 +1218,8 @@ class ThousandsSeparatorInputFormatter extends TextInputFormatter {
 
     int newOffset = 0;
     int digitCount = 0;
-    while (newOffset < formatted.length && digitCount < digitCountBeforeCursor) {
+    while (newOffset < formatted.length &&
+        digitCount < digitCountBeforeCursor) {
       if (RegExp(r'[0-9]').hasMatch(formatted[newOffset])) {
         digitCount++;
       }
