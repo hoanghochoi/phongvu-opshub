@@ -28,4 +28,12 @@ describe('AppController', () => {
       });
     });
   });
+
+  describe('reset password page', () => {
+    it('returns the backend-served reset form', () => {
+      const html = appController.getResetPasswordPage();
+      expect(html).toContain('/api/auth/reset-password');
+      expect(html).toContain('/auth/reset-password');
+    });
+  });
 });

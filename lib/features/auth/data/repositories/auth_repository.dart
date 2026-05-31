@@ -6,22 +6,31 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../admin/domain/admin_personnel_definition.dart';
 import '../../../admin/domain/admin_role_definition.dart';
+import '../auth_device_info.dart';
 import '../../domain/entities/store_branch.dart';
 import '../../domain/entities/user.dart';
 
 class AuthRepository {
   final ApiClient _apiClient;
+  final AuthDeviceInfoProvider _deviceInfoProvider;
+  final http.Client _publicClient;
 
-  AuthRepository(this._apiClient);
+  AuthRepository(
+    this._apiClient, {
+    AuthDeviceInfoProvider? deviceInfoProvider,
+    http.Client? publicClient,
+  }) : _deviceInfoProvider = deviceInfoProvider ?? AuthDeviceInfoProvider(),
+       _publicClient = publicClient ?? http.Client();
 
   Future<(User, String?)> login({
     required String email,
     required String password,
   }) async {
     try {
+      final device = await _deviceInfoProvider.load();
       final response = await _postPublicAuth(
         ApiConstants.loginEndpoint,
-        body: {'email': email, 'password': password},
+        body: {'email': email, 'password': password, ...device.toJson()},
       );
       return _userAndTokenFromResponse(_readResponseMap(response.body));
     } on ApiException {
@@ -39,6 +48,7 @@ class AuthRepository {
     required String verificationCode,
   }) async {
     try {
+      final device = await _deviceInfoProvider.load();
       final response = await _postPublicAuth(
         ApiConstants.registerEndpoint,
         body: {
@@ -48,6 +58,7 @@ class AuthRepository {
           'email': email,
           'password': password,
           'verificationCode': verificationCode,
+          ...device.toJson(),
         },
       );
       return _userAndTokenFromResponse(_readResponseMap(response.body));
@@ -73,11 +84,48 @@ class AuthRepository {
     }
   }
 
+  Future<void> requestPasswordReset({required String email}) async {
+    try {
+      await _postPublicAuth(
+        ApiConstants.forgotPasswordEndpoint,
+        body: {'email': email},
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        'Không gửi được email đổi mật khẩu. Vui long thu lai.',
+      );
+    }
+  }
+
+  Future<(User, String?)> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        ApiConstants.changePasswordEndpoint,
+        body: {'currentPassword': currentPassword, 'newPassword': newPassword},
+        timeout: ApiConstants.defaultTimeout,
+      );
+      return _userAndTokenFromResponse(_readResponseMap(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Không đổi được mật khẩu. Vui long thu lai.');
+    }
+  }
+
+  Future<void> logout() async {
+    await _apiClient.post(ApiConstants.logoutEndpoint, body: const {});
+  }
+
   Future<http.Response> _postPublicAuth(
     String endpoint, {
     required Map<String, dynamic> body,
   }) async {
-    final response = await http
+    final response = await _publicClient
         .post(
           Uri.parse('${ApiConstants.baseUrl}$endpoint'),
           headers: const {'Content-Type': 'application/json'},
@@ -334,6 +382,21 @@ class AuthRepository {
       },
     );
     return user;
+  }
+
+  Future<void> resetAdminUserPassword(
+    String id, {
+    required String email,
+  }) async {
+    await _apiClient.post(
+      ApiConstants.adminUserResetPasswordEndpoint(id),
+      body: const {},
+    );
+    await AppLogger.instance.warn(
+      'Admin',
+      'Admin password reset link sent',
+      context: {'userId': id, 'email': email},
+    );
   }
 
   Future<User> updateAdminUser(String id, Map<String, dynamic> body) async {

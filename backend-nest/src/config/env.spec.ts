@@ -13,6 +13,7 @@ const baseEnv = {
   REDIS_PORT: '6379',
   UPLOAD_BASE_DIR: '/data/app_images',
   IMAGE_BASE_URL: 'https://img.example.com',
+  PUBLIC_BASE_URL: 'http://localhost:3000',
 };
 
 describe('env validation', () => {
@@ -131,6 +132,17 @@ describe('env validation', () => {
     ).toThrow('Missing required environment variable: ALLOWED_ORIGINS');
   });
 
+  it('requires public base URL in production', () => {
+    const { PUBLIC_BASE_URL, ...env } = baseEnv;
+    expect(() =>
+      validateRuntimeEnv({
+        ...env,
+        NODE_ENV: 'production',
+        ALLOWED_ORIGINS: 'https://opshub.example.com',
+        IMAGE_BASE_URL: 'https://img.phongvu.example',
+      }),
+    ).toThrow('Missing required environment variable: PUBLIC_BASE_URL');
+  });
   it('checks CORS origins against the configured allowlist', () => {
     expect(
       isCorsOriginAllowed('https://opshub.example.com', {

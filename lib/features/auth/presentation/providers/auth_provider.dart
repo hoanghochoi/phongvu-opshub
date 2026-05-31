@@ -21,6 +21,7 @@ class AuthProvider extends ChangeNotifier {
   bool _isInitialized = false;
 
   AuthProvider(this._repository) {
+    ApiClient().setAuthFailureHandler(_handleRemoteAuthFailure);
     _loadSavedSession();
   }
 
@@ -169,6 +170,31 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       if (kDebugMode) debugPrint('❌ [AuthProvider] Error clearing session: $e');
     }
+  }
+
+  Future<void> _handleRemoteAuthFailure(ApiException exception) async {
+    final email = _user?.email;
+    if (email == null) return;
+    await AppLogger.instance.warn(
+      'Auth',
+      'Remote auth session rejected',
+      context: {'email': email, 'message': exception.message},
+    );
+    await _clearSession();
+    _user = null;
+    _errorMessage = _friendlyAuthFailureMessage(exception.message);
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  String _friendlyAuthFailureMessage(String message) {
+    final lower = message.toLowerCase();
+    if (lower.contains('thiet bi khac') ||
+        lower.contains('thiết bị khác') ||
+        lower.contains('session')) {
+      return 'Tài khoản đã đăng nhập trên thiết bị khác cùng nền tảng. Vui lòng đăng nhập lại.';
+    }
+    return message;
   }
 
   Future<void> _saveOptionalString(
@@ -382,8 +408,129 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> requestPasswordReset({required String email}) async {
+    await AppLogger.instance.info(
+      'Auth',
+      'Password reset request started',
+      context: {'email': email},
+    );
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _repository.requestPasswordReset(email: email);
+      await AppLogger.instance.info(
+        'Auth',
+        'Password reset request succeeded',
+        context: {'email': email},
+      );
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      await AppLogger.instance.warn(
+        'Auth',
+        'Password reset request failed',
+        context: {'email': email, 'message': e.message},
+      );
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      await AppLogger.instance.error(
+        'Auth',
+        'Password reset request crashed',
+        error: e,
+        upload: true,
+        context: {'email': email},
+      );
+      _errorMessage = 'Không gửi được email đổi mật khẩu. Vui long thu lai.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final email = _user?.email;
+    if (_user == null) return false;
+    await AppLogger.instance.info(
+      'Auth',
+      'Password change started',
+      context: {'email': email},
+    );
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final (user, token) = await _repository.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      _user = user;
+      await _saveSession(user, token: token);
+      await AppLogger.instance.info(
+        'Auth',
+        'Password change succeeded',
+        context: {'email': user.email, 'role': user.role},
+      );
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      await AppLogger.instance.warn(
+        'Auth',
+        'Password change failed',
+        context: {'email': email, 'message': e.message},
+      );
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      await AppLogger.instance.error(
+        'Auth',
+        'Password change crashed',
+        error: e,
+        upload: true,
+        context: {'email': email},
+      );
+      _errorMessage = 'Không đổi được mật khẩu. Vui long thu lai.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     final email = _user?.email;
+    if (_user != null) {
+      await AppLogger.instance.info(
+        'Auth',
+        'Logout started',
+        context: {'email': email},
+      );
+      try {
+        await _repository.logout();
+        await AppLogger.instance.info(
+          'Auth',
+          'Logout server session revoked',
+          context: {'email': email},
+        );
+      } catch (e) {
+        await AppLogger.instance.warn(
+          'Auth',
+          'Logout server revoke failed; clearing local session',
+          context: {'email': email, 'error': e.toString()},
+        );
+      }
+    }
     await _clearSession();
     _user = null;
     _errorMessage = null;

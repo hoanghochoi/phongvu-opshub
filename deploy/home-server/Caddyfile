@@ -9,6 +9,10 @@ http://{$OPSHUB_DOMAIN} {
     reverse_proxy realtime:8080
   }
 
+  handle /reset-password* {
+    reverse_proxy api:3000
+  }
+
   handle_path /uploads/* {
     root * /srv/uploads
     file_server

@@ -8,6 +8,7 @@ import '../../features/bank_statement/presentation/providers/bank_statement_prov
 import '../../features/bank_statement/presentation/screens/bank_statement_screen.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/email_check_screen.dart';
+import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/profile_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/store_selection_screen.dart';
@@ -63,9 +64,10 @@ class AppRouter {
         final isLoading = location == '/loading';
         final isLoggingIn = location == '/login';
         final isRegistering = location == '/register';
+        final isForgotPassword = location == '/forgot-password';
 
         if (!isAuthenticated) {
-          if (isLoggingIn || isRegistering) return null;
+          if (isLoggingIn || isRegistering || isForgotPassword) return null;
           return '/login';
         }
 
@@ -92,6 +94,7 @@ class AppRouter {
         if (isLoading ||
             isLoggingIn ||
             isRegistering ||
+            isForgotPassword ||
             location == '/select-store') {
           return '/home';
         }
@@ -114,6 +117,10 @@ class AppRouter {
             final email = state.extra as String?;
             return RegisterScreen(initialEmail: email);
           },
+        ),
+        GoRoute(
+          path: '/forgot-password',
+          builder: (context, state) => const ForgotPasswordScreen(),
         ),
         GoRoute(
           path: '/select-store',

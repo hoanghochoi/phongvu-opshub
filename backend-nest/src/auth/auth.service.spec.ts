@@ -20,6 +20,24 @@ describe('AuthService', () => {
     consumeRegistrationCode: jest.Mock;
     sendRegistrationCode: jest.Mock;
   };
+  let passwordResetService: {
+    sendResetLinkForEmail: jest.Mock;
+    resetPassword: jest.Mock;
+  };
+  let authSessionService: {
+    normalizeDevice: jest.Mock;
+    replacePlatformSession: jest.Mock;
+    revokeCurrentSession: jest.Mock;
+  };
+  const loginDevice = {
+    platform: 'windows',
+    deviceId: 'device-123456',
+  };
+  const authSession = {
+    sessionId: 'session-1',
+    platform: 'windows' as const,
+    sessionVersion: 1,
+  };
 
   beforeEach(() => {
     prisma = {
@@ -37,10 +55,24 @@ describe('AuthService', () => {
         expiresInMinutes: 10,
       }),
     };
+    passwordResetService = {
+      sendResetLinkForEmail: jest.fn().mockResolvedValue({
+        ok: true,
+        expiresInMinutes: 30,
+      }),
+      resetPassword: jest.fn().mockResolvedValue({ ok: true }),
+    };
+    authSessionService = {
+      normalizeDevice: jest.fn((device) => device),
+      replacePlatformSession: jest.fn().mockResolvedValue(authSession),
+      revokeCurrentSession: jest.fn().mockResolvedValue({ ok: true }),
+    };
     service = new AuthService(
       prisma as any,
       jwtService as any,
       emailVerificationService as any,
+      passwordResetService as any,
+      authSessionService as any,
     );
   });
 
@@ -65,6 +97,7 @@ describe('AuthService', () => {
         lastName: 'Nguyen',
         password: 'Password1!',
         verificationCode: '123456',
+        ...loginDevice,
       }),
     ).resolves.toMatchObject({
       login: true,
@@ -123,6 +156,7 @@ describe('AuthService', () => {
         firstName: 'An',
         password: 'Password1!',
         verificationCode: '123456',
+        ...loginDevice,
       }),
     ).resolves.toMatchObject({
       login: true,
@@ -155,6 +189,7 @@ describe('AuthService', () => {
         firstName: 'An',
         password: 'Password1!',
         verificationCode: '123456',
+        ...loginDevice,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -177,7 +212,7 @@ describe('AuthService', () => {
     prisma.user.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.passwordLogin('staff@phongvu-shop.vn', 'Password1!'),
+      service.passwordLogin('staff@phongvu-shop.vn', 'Password1!', loginDevice),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(prisma.user.create).not.toHaveBeenCalled();
   });
@@ -196,7 +231,7 @@ describe('AuthService', () => {
     });
 
     await expect(
-      service.passwordLogin('staff@phongvu-shop.vn', 'Password1!'),
+      service.passwordLogin('staff@phongvu-shop.vn', 'Password1!', loginDevice),
     ).resolves.toMatchObject({
       login: true,
       access_token: 'signed-jwt',
@@ -211,12 +246,20 @@ describe('AuthService', () => {
       role: 'ADMIN',
       storeUuid: 'store-1',
       storeCode: 'CP01',
+      tokenVersion: 0,
+      sessionId: 'session-1',
+      platform: 'windows',
+      sessionVersion: 1,
     });
+    expect(authSessionService.replacePlatformSession).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'user-1' }),
+      loginDevice,
+    );
   });
 
   it('rejects users outside the allowed Phong Vu email domains', async () => {
     await expect(
-      service.passwordLogin('staff@example.com', 'Password1!'),
+      service.passwordLogin('staff@example.com', 'Password1!', loginDevice),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
@@ -234,8 +277,93 @@ describe('AuthService', () => {
     });
 
     await expect(
-      service.passwordLogin('staff@phongvu-shop.vn', 'WrongPassword1!'),
+      service.passwordLogin(
+        'staff@phongvu-shop.vn',
+        'WrongPassword1!',
+        loginDevice,
+      ),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('changes password and issues a JWT with the next token version', async () => {
+    const password = await bcrypt.hash('Password1!', 4);
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'staff@phongvu-shop.vn',
+      firstName: 'An',
+      password,
+      role: 'STAFF',
+      status: 'yes',
+      tokenVersion: 2,
+      storeId: null,
+      store: null,
+    });
+    prisma.user.update.mockImplementation(async ({ data }) => ({
+      id: 'user-1',
+      email: 'staff@phongvu-shop.vn',
+      firstName: 'An',
+      password: data.password,
+      role: 'STAFF',
+      status: 'yes',
+      tokenVersion: 3,
+      storeId: null,
+      store: null,
+    }));
+
+    await expect(
+      service.changePassword('user-1', 'Password1!', 'Password2!', authSession),
+    ).resolves.toMatchObject({
+      login: true,
+      access_token: 'signed-jwt',
+      email: 'staff@phongvu-shop.vn',
+    });
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'user-1' },
+        data: expect.objectContaining({
+          password: expect.any(String),
+          tokenVersion: { increment: 1 },
+        }),
+      }),
+    );
+    expect(jwtService.sign).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        tokenVersion: 3,
+        sessionId: 'session-1',
+        platform: 'windows',
+        sessionVersion: 1,
+      }),
+    );
+  });
+
+  it('revokes the current platform session on logout', async () => {
+    await expect(
+      service.logout({ id: 'user-1', authSession }),
+    ).resolves.toEqual({ ok: true });
+    expect(authSessionService.revokeCurrentSession).toHaveBeenCalledWith(
+      'user-1',
+      authSession,
+      'LOGOUT',
+    );
+  });
+
+  it('delegates forgot password after normalizing and validating the email domain', async () => {
+    await expect(
+      service.forgotPassword(' Staff@PhongVu-Shop.vn '),
+    ).resolves.toEqual({ ok: true, expiresInMinutes: 30 });
+    expect(passwordResetService.sendResetLinkForEmail).toHaveBeenCalledWith(
+      'staff@phongvu-shop.vn',
+    );
+  });
+
+  it('delegates reset password token consumption', async () => {
+    await expect(
+      service.resetPassword('reset-token', 'Password2!'),
+    ).resolves.toEqual({ ok: true });
+    expect(passwordResetService.resetPassword).toHaveBeenCalledWith(
+      'reset-token',
+      'Password2!',
+    );
   });
 
   it('returns app user profile data by email', async () => {

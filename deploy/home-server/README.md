@@ -30,7 +30,7 @@ sudo mkdir -p /mnt/truenas/opshub-backups
 
    Registration email verification requires SMTP settings in the env file:
    `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, and
-   `SMTP_FROM`. For Gmail, use an app password.
+   `SMTP_FROM`. For Gmail, use an app password. Password reset links use PUBLIC_BASE_URL, currently https://opshub.hoanghochoi.com, and expire according to PASSWORD_RESET_TTL_MINUTES.
 
 3. Start the stack:
 
@@ -42,7 +42,7 @@ OPSHUB_ENV_FILE=./env docker compose --env-file deploy/home-server/env -f deploy
 4. Build Flutter for production with the home-server API:
 
 ```bash
-flutter build apk --release --dart-define=API_BASE_URL=https://opshub.example.com/api
+flutter build apk --release --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api
 ```
 
 5. Publish the APK and app-version metadata:
@@ -57,7 +57,7 @@ Set these values in the runtime env so mobile clients can require the update:
 APP_VERSION=1.1.2
 APP_BUILD_NUMBER=3
 APP_MIN_SUPPORTED_BUILD=3
-APP_UPDATE_URL=https://opshub.example.com/downloads/phongvu-opshub.apk
+APP_UPDATE_URL=https://opshub.hoanghochoi.com/downloads/phongvu-opshub.apk
 APP_RELEASE_NOTES=Release notes shown in the app
 APP_FORCE_UPDATE=true
 ```

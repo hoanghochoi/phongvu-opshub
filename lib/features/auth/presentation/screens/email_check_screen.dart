@@ -46,7 +46,9 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(gradient: GradientHeader.getGradient(context)),
+        decoration: BoxDecoration(
+          gradient: GradientHeader.getGradient(context),
+        ),
         child: SafeArea(
           child: Consumer<AuthProvider>(
             builder: (context, authProvider, _) {
@@ -69,6 +71,7 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
                         setState(() => _obscurePassword = !_obscurePassword);
                       },
                       onSubmit: () => _handleLogin(context),
+                      onForgotPassword: () => context.push('/forgot-password'),
                       onRegister: () => context.push('/register'),
                     ),
                     const SizedBox(height: 24),
@@ -178,6 +181,7 @@ class _LoginCard extends StatelessWidget {
     required this.isLoading,
     required this.onTogglePassword,
     required this.onSubmit,
+    required this.onForgotPassword,
     required this.onRegister,
   });
 
@@ -189,6 +193,7 @@ class _LoginCard extends StatelessWidget {
   final bool isLoading;
   final VoidCallback onTogglePassword;
   final VoidCallback onSubmit;
+  final VoidCallback onForgotPassword;
   final VoidCallback onRegister;
 
   @override
@@ -323,6 +328,17 @@ class _LoginCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppLayoutTokens.formInlineGap),
+            TextButton.icon(
+              onPressed: isLoading ? null : onForgotPassword,
+              icon: const Icon(Icons.lock_reset_rounded),
+              label: const Text(
+                'Quên mật khẩu',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+              ),
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
+            ),
             TextButton.icon(
               onPressed: isLoading ? null : onRegister,
               icon: const Icon(Icons.person_add_alt_1_rounded),
