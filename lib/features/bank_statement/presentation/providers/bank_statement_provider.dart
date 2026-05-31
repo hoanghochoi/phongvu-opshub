@@ -20,6 +20,7 @@ class BankStatementRowMessage {
 class BankStatementProvider extends ChangeNotifier {
   final BankStatementRepository _repository;
   final List<BankStatementTransaction> _transactions = [];
+  final List<BankStatementTransaction> _snapshotTransactions = [];
   final List<StoreBranch> _stores = [];
   final Set<String> _selectedIds = {};
   final Map<String, BankStatementRowMessage> _rowMessages = {};
@@ -190,21 +191,23 @@ class BankStatementProvider extends ChangeNotifier {
   void setLimit(int value) {
     if (_limit == value) return;
     _limit = value;
-    _resetPagingAndSelection();
-    if (_hasSearched) unawaited(search());
+    _page = 0;
+    _applyVisiblePage();
     notifyListeners();
   }
 
   Future<void> nextPage() async {
     if (!canGoNext) return;
     _page += 1;
-    await search();
+    _applyVisiblePage();
+    notifyListeners();
   }
 
   Future<void> previousPage() async {
     if (!canGoPrevious) return;
     _page -= 1;
-    await search();
+    _applyVisiblePage();
+    notifyListeners();
   }
 
   void toggleSelected(String id, bool selected) {
@@ -233,31 +236,35 @@ class BankStatementProvider extends ChangeNotifier {
     _errorMessage = null;
     _exportMessage = null;
     notifyListeners();
-    final query = _query();
+    final query = _query(page: 0, limit: _limit);
     try {
       await AppLogger.instance.info(
         'BankStatement',
         'Bank statement search started',
         context: _logContext(),
       );
-      final page = await _repository.fetchStatements(query);
-      _transactions
+      final firstPage = await _repository.fetchStatements(query);
+      final snapshotRows = firstPage.total > firstPage.transactions.length
+          ? (await _repository.fetchStatements(
+              _query(page: 0, limit: firstPage.total),
+            )).transactions
+          : firstPage.transactions;
+      _snapshotTransactions
         ..clear()
-        ..addAll(page.transactions);
-      _page = page.page;
-      _limit = page.limit;
-      _total = page.total;
+        ..addAll(snapshotRows);
+      _page = 0;
+      _total = _snapshotTransactions.length;
+      _applyVisiblePage();
       _hasSearched = true;
-      _selectedIds.removeWhere(
-        (id) => !_transactions.any((item) => item.id == id),
-      );
       await AppLogger.instance.info(
         'BankStatement',
         'Bank statement search succeeded',
         context: {
           ..._logContext(),
-          'count': _transactions.length,
+          'count': _snapshotTransactions.length,
           'total': _total,
+          'selectedCount': _selectedIds.length,
+          'snapshot': true,
         },
       );
     } catch (error) {
@@ -280,15 +287,23 @@ class BankStatementProvider extends ChangeNotifier {
     _exportMessage = null;
     notifyListeners();
     final selected = _selectedIds.toList(growable: false);
+    final snapshotIds = _snapshotTransactions
+        .map((transaction) => transaction.id)
+        .toList(growable: false);
+    final exportIds = selected.isNotEmpty ? selected : snapshotIds;
     try {
       await AppLogger.instance.info(
         'BankStatement',
         'Bank statement export started',
-        context: {..._logContext(), 'selectedCount': selected.length},
+        context: {
+          ..._logContext(),
+          'selectedCount': selected.length,
+          'snapshotCount': snapshotIds.length,
+        },
       );
       final csv = await _repository.exportCsv(
         _query(),
-        transactionIds: selected,
+        transactionIds: exportIds,
       );
       final path = await FilePicker.saveFile(
         dialogTitle: 'Lưu file sao kê',
@@ -302,7 +317,11 @@ class BankStatementProvider extends ChangeNotifier {
       await AppLogger.instance.info(
         'BankStatement',
         'Bank statement export succeeded',
-        context: {'selectedCount': selected.length, 'saved': path != null},
+        context: {
+          'selectedCount': selected.length,
+          'snapshotCount': snapshotIds.length,
+          'saved': path != null,
+        },
       );
     } catch (error) {
       _exportMessage = 'Export CSV thất bại.';
@@ -327,10 +346,7 @@ class BankStatementProvider extends ChangeNotifier {
         context: {'transactionId': transactionId, 'orderCount': orders.length},
       );
       final updated = await _repository.updateOrders(transactionId, orders);
-      final index = _transactions.indexWhere(
-        (item) => item.id == transactionId,
-      );
-      if (index >= 0) _transactions[index] = updated;
+      _replaceTransaction(updated);
       _showRowMessage(transactionId, 'Đã lưu mã đơn hàng.', true);
       await AppLogger.instance.info(
         'BankStatement',
@@ -396,7 +412,7 @@ class BankStatementProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  BankStatementQuery _query() {
+  BankStatementQuery _query({int? page, int? limit}) {
     return BankStatementQuery(
       allStores: _allStores,
       storeIds: _selectedStoreIds.toList()..sort(),
@@ -406,8 +422,8 @@ class BankStatementProvider extends ChangeNotifier {
       orderStatus: _orderStatus,
       startDate: _startDate,
       endDate: _endDate,
-      page: _page,
-      limit: _limit,
+      page: page ?? _page,
+      limit: limit ?? _limit,
     );
   }
 
@@ -426,7 +442,36 @@ class BankStatementProvider extends ChangeNotifier {
 
   void _resetPagingAndSelection() {
     _page = 0;
+    _total = 0;
+    _hasSearched = false;
     _selectedIds.clear();
+    _transactions.clear();
+    _snapshotTransactions.clear();
+  }
+
+  void _applyVisiblePage() {
+    _transactions.clear();
+    if (_snapshotTransactions.isEmpty || _limit <= 0) return;
+    final start = _page * _limit;
+    if (start >= _snapshotTransactions.length) {
+      _page = 0;
+      return _applyVisiblePage();
+    }
+    final end = start + _limit > _snapshotTransactions.length
+        ? _snapshotTransactions.length
+        : start + _limit;
+    _transactions.addAll(_snapshotTransactions.sublist(start, end));
+  }
+
+  void _replaceTransaction(BankStatementTransaction updated) {
+    final visibleIndex = _transactions.indexWhere(
+      (item) => item.id == updated.id,
+    );
+    if (visibleIndex >= 0) _transactions[visibleIndex] = updated;
+    final snapshotIndex = _snapshotTransactions.indexWhere(
+      (item) => item.id == updated.id,
+    );
+    if (snapshotIndex >= 0) _snapshotTransactions[snapshotIndex] = updated;
   }
 
   String? _clean(String value) {

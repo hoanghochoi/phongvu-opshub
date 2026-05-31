@@ -118,6 +118,46 @@ void main() {
       },
     );
 
+    test('keeps selected ids across server-side pages', () async {
+      final repository = _FakeBankStatementRepository(
+        pages: [
+          [
+            _transaction('tx-1', ['26052912345678']),
+            _transaction('tx-2', const []),
+          ],
+          [_transaction('tx-3', const []), _transaction('tx-4', const [])],
+        ],
+      );
+      final provider = BankStatementProvider(repository);
+      await provider.initialize(_nationalManager);
+
+      provider.setOrderStatus('MISSING_ORDER');
+      provider.setLimit(2);
+      await provider.search();
+      provider.toggleAllVisible(true);
+      final callsAfterSearch = repository.fetchStatementsCount;
+
+      expect(provider.page, 0);
+      expect(provider.selectedIds, {'tx-1', 'tx-2'});
+
+      await provider.nextPage();
+      expect(repository.fetchStatementsCount, callsAfterSearch);
+      provider.toggleSelected('tx-3', true);
+
+      expect(provider.page, 1);
+      expect(provider.transactions.map((item) => item.id), ['tx-3', 'tx-4']);
+      expect(provider.selectedIds, {'tx-1', 'tx-2', 'tx-3'});
+
+      await provider.previousPage();
+      expect(repository.fetchStatementsCount, callsAfterSearch);
+
+      expect(provider.page, 0);
+      expect(provider.transactions.map((item) => item.id), ['tx-1', 'tx-2']);
+      expect(provider.selectedIds, {'tx-1', 'tx-2', 'tx-3'});
+
+      provider.dispose();
+    });
+
     test('rejects invalid inline order dates before calling API', () async {
       final repository = _FakeBankStatementRepository();
       final provider = BankStatementProvider(repository);
@@ -173,12 +213,18 @@ class _FakeBankStatementRepository extends BankStatementRepository {
   BankStatementQuery? lastQuery;
   List<String> lastUpdatedOrders = const [];
 
-  final List<BankStatementTransaction> _rows = [
-    _transaction('tx-1', ['26052912345678']),
-    _transaction('tx-2', const []),
-  ];
+  final List<List<BankStatementTransaction>> _pages;
 
-  _FakeBankStatementRepository() : super(ApiClient());
+  _FakeBankStatementRepository({List<List<BankStatementTransaction>>? pages})
+    : _pages =
+          pages ??
+          [
+            [
+              _transaction('tx-1', ['26052912345678']),
+              _transaction('tx-2', const []),
+            ],
+          ],
+      super(ApiClient());
 
   @override
   Future<List<StoreBranch>> fetchStores() async {
@@ -192,11 +238,19 @@ class _FakeBankStatementRepository extends BankStatementRepository {
   Future<BankStatementPage> fetchStatements(BankStatementQuery query) async {
     fetchStatementsCount += 1;
     lastQuery = query;
+    final allRows = _pages.expand((page) => page).toList(growable: false);
+    final start = query.page * query.limit;
+    final end = start + query.limit > allRows.length
+        ? allRows.length
+        : start + query.limit;
+    final rows = start >= allRows.length
+        ? const <BankStatementTransaction>[]
+        : allRows.sublist(start, end);
     return BankStatementPage(
-      transactions: List.of(_rows),
+      transactions: List.of(rows),
       page: query.page,
       limit: query.limit,
-      total: _rows.length,
+      total: allRows.length,
     );
   }
 
@@ -207,10 +261,16 @@ class _FakeBankStatementRepository extends BankStatementRepository {
   ) async {
     updateOrdersCount += 1;
     lastUpdatedOrders = List.of(orders);
-    final index = _rows.indexWhere((row) => row.id == transactionId);
-    final updated = _rows[index].copyWith(orders: orders);
-    _rows[index] = updated;
-    return updated;
+    for (var pageIndex = 0; pageIndex < _pages.length; pageIndex += 1) {
+      final index = _pages[pageIndex].indexWhere(
+        (row) => row.id == transactionId,
+      );
+      if (index < 0) continue;
+      final updated = _pages[pageIndex][index].copyWith(orders: orders);
+      _pages[pageIndex][index] = updated;
+      return updated;
+    }
+    throw StateError('Missing fake transaction $transactionId');
   }
 
   @override
