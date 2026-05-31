@@ -446,7 +446,7 @@ class AuthProvider extends ChangeNotifier {
         upload: true,
         context: {'email': email},
       );
-      _errorMessage = 'Không gửi được email đổi mật khẩu. Vui long thu lai.';
+      _errorMessage = 'Không gửi được email đổi mật khẩu. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -501,7 +501,7 @@ class AuthProvider extends ChangeNotifier {
         upload: true,
         context: {'email': email},
       );
-      _errorMessage = 'Không đổi được mật khẩu. Vui long thu lai.';
+      _errorMessage = 'Không đổi được mật khẩu. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
       return false;

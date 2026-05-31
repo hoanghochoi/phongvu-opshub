@@ -1,10 +1,24 @@
-export function resetPasswordPageHtml(): string {
+type ResetPasswordPageOptions = {
+  token?: string;
+  status?: 'error' | 'success';
+  message?: string;
+  showForm?: boolean;
+};
+
+export function resetPasswordPageHtml(
+  options: ResetPasswordPageOptions = {},
+): string {
+  const token = escapeHtml(options.token || '');
+  const message = options.message ? escapeHtml(options.message) : '';
+  const statusClass = options.status ? ` status-${options.status}` : '';
+  const showForm = options.showForm ?? Boolean(options.token);
+
   return `<!doctype html>
 <html lang="vi">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Doi mat khau OpsHub</title>
+  <title>Đổi mật khẩu OpsHub</title>
   <style>
     :root { color-scheme: light; font-family: Inter, Arial, sans-serif; }
     body {
@@ -45,80 +59,40 @@ export function resetPasswordPageHtml(): string {
       font-weight: 800;
       cursor: pointer;
     }
-    button:disabled { opacity: 0.65; cursor: progress; }
-    .status { margin-top: 14px; min-height: 22px; font-weight: 700; }
-    .error { color: #b91c1c; }
-    .success { color: #047857; }
+    .status { margin: 16px 0 0; min-height: 22px; font-weight: 700; }
+    .status-error { color: #b91c1c; }
+    .status-success { color: #047857; }
     .hint { font-size: 13px; margin-top: 16px; }
   </style>
 </head>
 <body>
   <main>
-    <h1>Doi mat khau OpsHub</h1>
-    <p>Nhap mat khau moi cho tai khoan cua ban. Link chi dung mot lan va se het han sau thoi gian quy dinh.</p>
-    <form id="reset-form">
-      <label for="password">Mat khau moi</label>
-      <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8" />
-      <label for="confirm-password">Nhap lai mat khau moi</label>
-      <input id="confirm-password" name="confirm-password" type="password" autocomplete="new-password" required minlength="8" />
-      <button id="submit-button" type="submit">Doi mat khau</button>
-      <div id="status" class="status" role="status" aria-live="polite"></div>
+    <h1>Đổi mật khẩu OpsHub</h1>
+    <p>Nhập mật khẩu mới cho tài khoản của bạn. Link chỉ dùng một lần và sẽ hết hạn sau thời gian quy định.</p>
+    ${message ? `<p class="status${statusClass}" role="status">${message}</p>` : ''}
+    ${
+      showForm
+        ? `<form method="post" action="/reset-password" autocomplete="off">
+      <input type="hidden" name="token" value="${token}" />
+      <label for="newPassword">Mật khẩu mới</label>
+      <input id="newPassword" name="newPassword" type="password" autocomplete="new-password" required minlength="8" />
+      <label for="confirmPassword">Nhập lại mật khẩu mới</label>
+      <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" required minlength="8" />
+      <button type="submit">Đổi mật khẩu</button>
     </form>
-    <p class="hint">Mat khau can co it nhat 8 ky tu, 1 chu HOA, 1 so va 1 ky tu dac biet.</p>
+    <p class="hint">Mật khẩu cần có ít nhất 8 ký tự, 1 chữ HOA, 1 số và 1 ký tự đặc biệt.</p>`
+        : ''
+    }
   </main>
-  <script>
-    const token = new URLSearchParams(window.location.search).get('token') || '';
-    const form = document.getElementById('reset-form');
-    const statusEl = document.getElementById('status');
-    const button = document.getElementById('submit-button');
-
-    function setStatus(message, className) {
-      statusEl.textContent = message;
-      statusEl.className = 'status ' + className;
-    }
-
-    async function postReset(endpoint, payload) {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (response.status === 404) return { retry: true };
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const message = Array.isArray(body.message) ? body.message.join('\n') : body.message;
-        throw new Error(message || 'Khong doi duoc mat khau.');
-      }
-      return { ok: true };
-    }
-
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (!token) {
-        setStatus('Link doi mat khau khong hop le.', 'error');
-        return;
-      }
-      const newPassword = document.getElementById('password').value;
-      const confirmPassword = document.getElementById('confirm-password').value;
-      if (newPassword !== confirmPassword) {
-        setStatus('Mat khau nhap lai chua khop.', 'error');
-        return;
-      }
-      button.disabled = true;
-      setStatus('Dang doi mat khau...', '');
-      try {
-        const payload = { token, newPassword };
-        const primary = await postReset('/api/auth/reset-password', payload);
-        if (primary.retry) await postReset('/auth/reset-password', payload);
-        setStatus('Da doi mat khau. Ban co the quay lai ung dung de dang nhap.', 'success');
-        form.reset();
-      } catch (error) {
-        setStatus(error.message || 'Khong doi duoc mat khau.', 'error');
-      } finally {
-        button.disabled = false;
-      }
-    });
-  </script>
 </body>
 </html>`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

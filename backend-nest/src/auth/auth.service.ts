@@ -80,11 +80,11 @@ export class AuthService {
       this.logger.warn(
         `Password login failed: email=${email} platform=${normalizedDevice.platform} reason=invalid_password`,
       );
-      throw new UnauthorizedException('Email hoac mat khau khong dung');
+      throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
     }
 
     if (user.status === 'no') {
-      throw new ForbiddenException('Tai khoan da bi khoa. Lien he Quan ly.');
+      throw new ForbiddenException('Tài khoản đã bị khóa. Liên hệ Quản lý.');
     }
 
     const session = await this.authSessionService.replacePlatformSession(
@@ -105,7 +105,7 @@ export class AuthService {
     const firstName = input.firstName.trim();
     const lastName = input.lastName?.trim() || null;
     if (!firstName) {
-      throw new BadRequestException('Vui long nhap ho ten');
+      throw new BadRequestException('Vui lòng nhập họ tên');
     }
 
     const existingUser = await this.prisma.user.findUnique({
@@ -115,7 +115,7 @@ export class AuthService {
 
     if (existingUser?.password) {
       throw new BadRequestException(
-        'Email nay da duoc dang ky. Vui long dang nhap.',
+        'Email này đã được đăng ký. Vui lòng đăng nhập.',
       );
     }
 
@@ -178,7 +178,7 @@ export class AuthService {
     });
     if (!user) throw new UnauthorizedException('User not found');
     if (!user.password) {
-      throw new BadRequestException('Tai khoan chua co mat khau.');
+      throw new BadRequestException('Tài khoản chưa có mật khẩu.');
     }
 
     const isPasswordValid = await bcrypt.compare(
@@ -186,7 +186,7 @@ export class AuthService {
       user.password,
     );
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Mat khau hien tai khong dung');
+      throw new UnauthorizedException('Mật khẩu hiện tại không đúng');
     }
 
     const password = await this.hashPassword(newPassword);
@@ -250,14 +250,14 @@ export class AuthService {
   private normalizeEmail(emailInput: string) {
     const email = emailInput.trim().toLowerCase();
     if (!email || !email.includes('@')) {
-      throw new BadRequestException('Email khong hop le');
+      throw new BadRequestException('Email không hợp lệ');
     }
     return email;
   }
 
   private assertAllowedDomain(email: string) {
     if (getAllowedEmailDomains().length === 0) {
-      throw new ForbiddenException('Chua cau hinh domain email Phong Vu');
+      throw new ForbiddenException('Chưa cấu hình domain email Phong Vũ');
     }
 
     if (!isAllowedEmailDomain(email)) {

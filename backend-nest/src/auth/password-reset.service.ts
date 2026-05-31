@@ -65,7 +65,7 @@ export class PasswordResetService {
       where: { id: userId },
       select: { id: true, email: true, firstName: true, status: true },
     });
-    if (!user) throw new NotFoundException('Khong tim thay user');
+    if (!user) throw new NotFoundException('Không tìm thấy user');
 
     await this.sendResetLinkForUser(user, {
       source: 'SUPER_ADMIN',
@@ -76,20 +76,28 @@ export class PasswordResetService {
 
   async resetPassword(token: string, newPassword: string) {
     const tokenHash = this.hashToken(token);
+    this.logger.log('Password reset started');
     const record = await this.prisma.passwordResetToken.findUnique({
       where: { tokenHash },
       include: { user: { include: { store: true } } },
     });
 
     if (!record) {
+      this.logger.warn('Password reset failed: reason=missing_token');
       throw this.invalidTokenError();
     }
     if (record.consumedAt || record.expiresAt.getTime() < Date.now()) {
+      this.logger.warn(
+        `Password reset failed: userId=${record.userId} source=${record.source} reason=${record.consumedAt ? 'consumed' : 'expired'}`,
+      );
       throw this.invalidTokenError();
     }
     if (record.attempts >= RESET_TOKEN_MAX_ATTEMPTS) {
+      this.logger.warn(
+        `Password reset failed: userId=${record.userId} source=${record.source} reason=max_attempts attempts=${record.attempts}`,
+      );
       throw new BadRequestException(
-        'Link doi mat khau da bi khoa do thu sai qua nhieu lan.',
+        'Link đổi mật khẩu đã bị khóa do thử sai quá nhiều lần.',
       );
     }
 
@@ -100,6 +108,9 @@ export class PasswordResetService {
         where: { id: record.id },
         data: { attempts: { increment: 1 } },
       });
+      this.logger.warn(
+        `Password reset failed: userId=${record.userId} source=${record.source} reason=weak_password attempts=${record.attempts + 1}`,
+      );
       throw error;
     }
 
@@ -175,17 +186,17 @@ export class PasswordResetService {
     const link = this.resetLink(token);
     await this.mailService.sendMail({
       to: user.email,
-      subject: 'Doi mat khau OpsHub',
+      subject: 'Đổi mật khẩu OpsHub',
       text:
-        `Xin chao ${user.firstName || user.email},\n\n` +
-        `Bam link sau de doi mat khau OpsHub. Link het han sau ${ttlMinutes} phut:\n` +
+        `Xin chào ${user.firstName || user.email},\n\n` +
+        `Bấm link sau để đổi mật khẩu OpsHub. Link hết hạn sau ${ttlMinutes} phút:\n` +
         `${link}\n\n` +
-        'Neu ban khong yeu cau doi mat khau, vui long bo qua email nay.',
+        'Nếu bạn không yêu cầu đổi mật khẩu, vui lòng bỏ qua email này.',
       html:
-        `<p>Xin chao ${this.escapeHtml(user.firstName || user.email)},</p>` +
-        `<p>Bam link sau de doi mat khau OpsHub. Link het han sau ${ttlMinutes} phut.</p>` +
-        `<p><a href="${link}">Doi mat khau OpsHub</a></p>` +
-        '<p>Neu ban khong yeu cau doi mat khau, vui long bo qua email nay.</p>',
+        `<p>Xin chào ${this.escapeHtml(user.firstName || user.email)},</p>` +
+        `<p>Bấm link sau để đổi mật khẩu OpsHub. Link hết hạn sau ${ttlMinutes} phút.</p>` +
+        `<p><a href="${link}">Đổi mật khẩu OpsHub</a></p>` +
+        '<p>Nếu bạn không yêu cầu đổi mật khẩu, vui lòng bỏ qua email này.</p>',
     });
 
     this.logger.log(
@@ -223,7 +234,7 @@ export class PasswordResetService {
 
   private invalidTokenError() {
     return new BadRequestException(
-      'Link doi mat khau khong hop le hoac da het han.',
+      'Link đổi mật khẩu không hợp lệ hoặc đã hết hạn.',
     );
   }
 

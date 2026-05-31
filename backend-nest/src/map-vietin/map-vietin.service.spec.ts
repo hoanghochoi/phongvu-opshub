@@ -908,7 +908,7 @@ describe('MapVietinService', () => {
     );
 
     expect(csv.charCodeAt(0)).toBe(0xfeff);
-    expect(csv).toContain('Ma showroom');
+    expect(csv).toContain('Mã showroom');
     expect(csv).toContain('26052912345678');
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({

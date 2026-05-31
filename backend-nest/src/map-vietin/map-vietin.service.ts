@@ -293,12 +293,12 @@ export class MapVietinService {
   ) {
     this.assertCanUseStatements(user);
     const id = String(transactionId || '').trim();
-    if (!id) throw new BadRequestException('transactionId khong hop le');
+    if (!id) throw new BadRequestException('transactionId không hợp lệ');
     const orders = this.normalizeOrderCodes(input.orders || []);
     const existing = await this.prisma.mapVietinTransaction.findUnique({
       where: { id },
     });
-    if (!existing) throw new BadRequestException('Giao dich khong hop le');
+    if (!existing) throw new BadRequestException('Giao dịch không hợp lệ');
     await this.assertCanReadStatementStore(user, existing.storeCode);
 
     const oldOrders = this.normalizeOrderCodes(existing.orders || []);
@@ -338,11 +338,11 @@ export class MapVietinService {
   async listStatementOrderHistory(user: any, transactionId: string) {
     this.assertCanUseStatements(user);
     const id = String(transactionId || '').trim();
-    if (!id) throw new BadRequestException('transactionId khong hop le');
+    if (!id) throw new BadRequestException('transactionId không hợp lệ');
     const transaction = await this.prisma.mapVietinTransaction.findUnique({
       where: { id },
     });
-    if (!transaction) throw new BadRequestException('Giao dich khong hop le');
+    if (!transaction) throw new BadRequestException('Giao dịch không hợp lệ');
     await this.assertCanReadStatementStore(user, transaction.storeCode);
     const rows = await this.prisma.mapVietinTransactionOrderAudit.findMany({
       where: { transactionId: id },
@@ -674,7 +674,7 @@ export class MapVietinService {
       this.logger.warn(
         `Statement search rejected without filter: user=${this.safeUserLabel(user)}`,
       );
-      throw new BadRequestException('Vui long chon filter truoc khi search');
+      throw new BadRequestException('Vui lòng chọn bộ lọc trước khi tìm kiếm');
     }
     const scopeWhere = await this.buildStatementScopeWhere(user, filters);
     const filterWhere = this.buildStatementFilterWhere(filters);
@@ -698,7 +698,7 @@ export class MapVietinService {
     const storeIds = this.parseStoreCodes(input.storeIds);
     const requestedAllStores = this.parseBoolean(input.allStores);
     if (requestedAllStores && storeIds.length > 0) {
-      throw new BadRequestException('Chi chon tat ca hoac danh sach showroom');
+      throw new BadRequestException('Chỉ chọn tất cả hoặc danh sách showroom');
     }
 
     const orderText = this.cleanText(input.order);
@@ -715,7 +715,7 @@ export class MapVietinService {
     ].filter(Boolean).length;
     if (primaryCount > 1) {
       throw new BadRequestException(
-        'Chi duoc dung doc lap mot trong cac filter chinh',
+        'Chỉ được dùng độc lập một trong các bộ lọc chính',
       );
     }
     const hasEffectiveFilter =
@@ -760,13 +760,13 @@ export class MapVietinService {
 
     const store = await this.resolveUserStore(user);
     if (requestedAllStores) {
-      throw new ForbiddenException('Khong co quyen xem tat ca showroom');
+      throw new ForbiddenException('Không có quyền xem tất cả showroom');
     }
     if (
       storeIds.length > 0 &&
       (storeIds.length > 1 || storeIds[0] !== store.storeId)
     ) {
-      throw new ForbiddenException('Chi duoc xem giao dich showroom cua minh');
+      throw new ForbiddenException('Chỉ được xem giao dịch showroom của mình');
     }
     return { storeCode: store.storeId };
   }
@@ -832,18 +832,18 @@ export class MapVietinService {
     if (this.hasNationalStatementScope(user)) return;
     const store = await this.resolveUserStore(user);
     if (store.storeId !== storeCode) {
-      throw new ForbiddenException('Chi duoc xem giao dich showroom cua minh');
+      throw new ForbiddenException('Chỉ được xem giao dịch showroom của mình');
     }
   }
 
   private async resolveUserStore(user: any) {
     if (!user.storeId) {
-      throw new ForbiddenException('Tai khoan chua duoc gan showroom');
+      throw new ForbiddenException('Tài khoản chưa được gán showroom');
     }
     const store = await this.prisma.store.findUnique({
       where: { id: user.storeId },
     });
-    if (!store) throw new BadRequestException('Showroom khong hop le');
+    if (!store) throw new BadRequestException('Showroom không hợp lệ');
     return store;
   }
 
@@ -858,7 +858,7 @@ export class MapVietinService {
 
   private assertCanUseStatements(user: any) {
     if (![SUPER_ADMIN_ROLE, MANAGER_ROLE].includes(String(user.role || ''))) {
-      throw new ForbiddenException('Khong co quyen xem sao ke');
+      throw new ForbiddenException('Không có quyền xem sao kê');
     }
   }
 
@@ -886,11 +886,11 @@ export class MapVietinService {
     const text = this.cleanText(value);
     if (!text) return null;
     if (!/^[0-9.,\s]+$/.test(text)) {
-      throw new BadRequestException('So tien khong hop le');
+      throw new BadRequestException('Số tiền không hợp lệ');
     }
     const normalized = text.replace(/[^0-9]/g, '');
     if (!normalized || normalized.length > 12) {
-      throw new BadRequestException('So tien khong hop le');
+      throw new BadRequestException('Số tiền không hợp lệ');
     }
     return Number(normalized);
   }
@@ -898,7 +898,7 @@ export class MapVietinService {
   private normalizeSingleOrderCode(value: string) {
     const orders = this.normalizeOrderCodes([value]);
     if (orders.length !== 1) {
-      throw new BadRequestException('Ma don hang khong hop le');
+      throw new BadRequestException('Mã đơn hàng không hợp lệ');
     }
     return orders[0];
   }
@@ -910,7 +910,7 @@ export class MapVietinService {
       const value = String(raw || '').trim();
       if (!value) continue;
       if (!/^[A-Za-z0-9_-]{1,80}$/.test(value)) {
-        throw new BadRequestException('transactionIds khong hop le');
+        throw new BadRequestException('transactionIds không hợp lệ');
       }
       if (seen.has(value)) continue;
       seen.add(value);
@@ -1234,7 +1234,7 @@ export class MapVietinService {
         .filter(Boolean);
       for (const token of tokens) {
         if (!this.isValidOrderCode(token)) {
-          throw new BadRequestException('Ma don hang khong hop le');
+          throw new BadRequestException('Mã đơn hàng không hợp lệ');
         }
         if (seen.has(token)) continue;
         seen.add(token);
@@ -1440,7 +1440,7 @@ export class MapVietinService {
       String(endValue || startValue || ''),
     );
     if (!startMatch || !endMatch) {
-      throw new BadRequestException('date khÃ´ng há»£p lá»‡');
+      throw new BadRequestException('date không hợp lệ');
     }
     const year = Number(startMatch[1]);
     const month = Number(startMatch[2]);
@@ -1453,10 +1453,10 @@ export class MapVietinService {
       Date.UTC(endYear, endMonth - 1, endDay + 1, -7, 0, 0, 0),
     );
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      throw new BadRequestException('date khÃ´ng há»£p lá»‡');
+      throw new BadRequestException('date không hợp lệ');
     }
     if (end <= start) {
-      throw new BadRequestException('endDate pháº£i sau startDate');
+      throw new BadRequestException('endDate phải sau startDate');
     }
     return { start, end };
   }
@@ -1701,19 +1701,19 @@ export class MapVietinService {
 
   private toStatementsCsv(rows: Array<Record<string, any>>) {
     const headers = [
-      'Ma showroom',
-      'Ma giao dich',
-      'So tien',
-      'Noi dung chuyen khoan',
-      'Ma don hang',
-      'Trang thai',
-      'Ngay giao dich',
-      'Nguoi chuyen',
-      'Tai khoan chuyen',
-      'Lan dau thay',
-      'Nguon order',
-      'Nguoi sua order',
-      'Thoi gian sua order',
+      'Mã showroom',
+      'Mã giao dịch',
+      'Số tiền',
+      'Nội dung chuyển khoản',
+      'Mã đơn hàng',
+      'Trạng thái',
+      'Ngày giao dịch',
+      'Người chuyển',
+      'Tài khoản chuyển',
+      'Lần đầu thấy',
+      'Nguồn đơn hàng',
+      'Người sửa đơn hàng',
+      'Thời gian sửa đơn hàng',
     ];
     const lines = [headers.map((value) => this.csvCell(value)).join(',')];
     for (const row of rows) {

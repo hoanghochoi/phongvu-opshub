@@ -34,7 +34,7 @@ export type AuthSessionClaims = {
 
 const SESSION_TTL_DAYS = 7;
 const SESSION_REPLACED_MESSAGE =
-  'Tai khoan da dang nhap tren thiet bi khac cung nen tang. Vui long dang nhap lai.';
+  'Tài khoản đã đăng nhập trên thiết bị khác cùng nền tảng. Vui lòng đăng nhập lại.';
 
 @Injectable()
 export class AuthSessionService {
@@ -175,11 +175,11 @@ export class AuthSessionService {
       .trim()
       .toLowerCase();
     if (!this.isAllowedPlatform(platform)) {
-      throw new BadRequestException('Nen tang dang nhap khong hop le.');
+      throw new BadRequestException('Nền tảng đăng nhập không hợp lệ.');
     }
     const deviceId = String(device.deviceId || '').trim();
     if (deviceId.length < 8 || deviceId.length > 128) {
-      throw new BadRequestException('Ma thiet bi dang nhap khong hop le.');
+      throw new BadRequestException('Mã thiết bị đăng nhập không hợp lệ.');
     }
     return {
       platform,
