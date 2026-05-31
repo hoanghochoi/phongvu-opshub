@@ -101,8 +101,8 @@ model MapVietinTransactionOrderAudit {
 }
 
 model MapVietinUnmappedTransaction {
-  id                String   @id @default(uuid())
-  unmappedKey       String   @unique
+  id                String    @id @default(uuid())
+  unmappedKey       String    @unique
   virtualAccount    String?
   reason            String
   transactionNumber String?
@@ -113,37 +113,37 @@ model MapVietinUnmappedTransaction {
   payerName         String?
   payerAccount      String?
   rawData           Json
-  firstSeenAt       DateTime @default(now())
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  firstSeenAt       DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([reason, firstSeenAt])
   @@index([virtualAccount, firstSeenAt])
 }
 
 model MapVietinSyncState {
-  id            String   @id @default(uuid())
-  storeCode     String   @unique
+  id            String    @id @default(uuid())
+  storeCode     String    @unique
   lastSyncedAt  DateTime?
   lastSuccessAt DateTime?
   lastError     String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model PaymentNotification {
-  id            String    @id @default(uuid())
+  id            String   @id @default(uuid())
   storeCode     String
-  transactionId String    @unique
+  transactionId String   @unique
   text          String
   amount        Int
-  audioStatus   String    @default("PENDING")
+  audioStatus   String   @default("PENDING")
   audioPath     String?
   audioMime     String?
   audioError    String?
   expiresAt     DateTime
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([storeCode, createdAt])
   @@index([expiresAt])
@@ -188,6 +188,7 @@ model User {
   id                 String    @id @default(uuid())
   email              String    @unique
   password           String
+  tokenVersion       Int       @default(0)
   firstName          String
   lastName           String?
   role               String    @default("STAFF")
@@ -209,15 +210,61 @@ model User {
   jobRole        JobRoleDefinition?    @relation(fields: [jobRoleCode], references: [code])
   workScopeType  String?
 
-  warrantiesCreated Warranty[]            @relation("CreatedBy")
-  warrantiesHandled Warranty[]            @relation("HandledBy")
-  feedbacks         Feedback[]
-  fifoLogs          FifoLog[]
-  vietQrPayments    VietQrPaymentIntent[]
+  warrantiesCreated   Warranty[]            @relation("CreatedBy")
+  warrantiesHandled   Warranty[]            @relation("HandledBy")
+  feedbacks           Feedback[]
+  fifoLogs            FifoLog[]
+  vietQrPayments      VietQrPaymentIntent[]
+  passwordResetTokens PasswordResetToken[]
+  platformSessions    UserPlatformSession[]
 
   @@index([departmentCode])
   @@index([jobRoleCode])
   @@index([workScopeType])
+}
+
+model UserPlatformSession {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform       String
+  sessionVersion Int       @default(1)
+  deviceIdHash   String
+  deviceLabel    String?
+  appVersion     String?
+  buildNumber    String?
+  lastLoginAt    DateTime  @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  revokedReason  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([userId, platform])
+  @@index([userId])
+  @@index([platform])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+model PasswordResetToken {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email           String
+  purpose         String    @default("PASSWORD_RESET")
+  tokenHash       String    @unique
+  expiresAt       DateTime
+  consumedAt      DateTime?
+  attempts        Int       @default(0)
+  source          String
+  createdByUserId String?
+  createdByEmail  String?
+  createdAt       DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([email, createdAt])
+  @@index([expiresAt])
 }
 
 model RoleDefinition {

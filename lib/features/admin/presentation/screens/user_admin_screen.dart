@@ -5,6 +5,7 @@ import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
@@ -64,6 +65,67 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     }
   }
 
+  Future<void> _resetPassword(User user) async {
+    final userId = user.id;
+    if (userId == null || userId.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset mật khẩu'),
+        content: Text('Gửi link đổi mật khẩu đến ${user.email}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Gửi link'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin password reset started',
+      context: {'userId': userId, 'email': user.email, 'role': user.role},
+    );
+    try {
+      await _repository.resetAdminUserPassword(userId, email: user.email);
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      await AppLogger.instance.info(
+        'Admin',
+        'Admin password reset succeeded',
+        context: {'userId': userId, 'email': user.email},
+      );
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Đã gửi link đổi mật khẩu đến ${user.email}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      await AppLogger.instance.error(
+        'Admin',
+        'Admin password reset failed',
+        error: e,
+        upload: true,
+        context: {'userId': userId, 'email': user.email},
+      );
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Không gửi được link đổi mật khẩu'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Future<void> _openEditor([User? user]) async {
     final canEditRole =
         context.read<AuthProvider>().user?.role == 'SUPER_ADMIN';
@@ -110,6 +172,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canResetPassword =
+        context.watch<AuthProvider>().user?.role == 'SUPER_ADMIN';
     return Scaffold(
       appBar: GradientHeader(
         title: 'Quản lý người dùng',
@@ -164,10 +228,21 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                             '${_roleTitle(user.role)} • ${user.storeInfo}\n${_personnelTitle(user)}',
                           ),
                           isThreeLine: true,
-                          trailing: AppIconAction(
-                            onPressed: () => _openEditor(user),
-                            icon: Icons.edit_outlined,
-                            tooltip: 'Sửa người dùng',
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (canResetPassword)
+                                AppIconAction(
+                                  onPressed: () => _resetPassword(user),
+                                  icon: Icons.lock_reset_outlined,
+                                  tooltip: 'Reset mật khẩu',
+                                ),
+                              AppIconAction(
+                                onPressed: () => _openEditor(user),
+                                icon: Icons.edit_outlined,
+                                tooltip: 'Sửa người dùng',
+                              ),
+                            ],
                           ),
                         );
                       },

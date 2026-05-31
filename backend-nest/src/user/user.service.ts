@@ -13,6 +13,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { getDataSyncSource } from '../config/env';
 import { UploadService } from '../upload/upload.service';
 import { encryptSecret } from '../common/secret-cipher';
+import { PasswordResetService } from '../auth/password-reset.service';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 const ADMIN_ROLE = 'ADMIN';
@@ -171,6 +172,7 @@ export class UserService implements OnModuleInit {
   constructor(
     private prisma: PrismaService,
     private uploadService: UploadService,
+    private passwordResetService: PasswordResetService,
   ) {
     if (getDataSyncSource() !== 'bigquery') {
       return;
@@ -531,6 +533,17 @@ export class UserService implements OnModuleInit {
     return this.toUserDto(updated);
   }
 
+  async adminSendPasswordResetLink(admin: any, userId: string) {
+    this.assertSuperAdmin(admin);
+    const result = await this.passwordResetService.sendResetLinkForUserId(
+      userId,
+      { id: admin.id, email: admin.email },
+    );
+    this.logger.log(
+      `Admin password reset link requested: admin=${admin.email || admin.id || 'unknown'} targetUserId=${userId}`,
+    );
+    return result;
+  }
   private async resolveStoreForAdmin(admin: any, storeCode?: string) {
     const normalizedStoreCode = String(storeCode || '').trim();
     if (!normalizedStoreCode) return null;

@@ -1,12 +1,7 @@
-import {
-  BadRequestException,
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import nodemailer from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
+import { OpshubMailService } from './opshub-mail.service';
 
 const CODE_TTL_MINUTES = 10;
 const CODE_SALT_ROUNDS = 10;
@@ -17,7 +12,10 @@ const REGISTER_PURPOSE = 'REGISTER';
 export class EmailVerificationService {
   private readonly logger = new Logger(EmailVerificationService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mailService: OpshubMailService,
+  ) {}
 
   async sendRegistrationCode(email: string) {
     const code = this.generateCode();
@@ -33,7 +31,12 @@ export class EmailVerificationService {
       },
     });
 
-    await this.sendEmail(email, code);
+    await this.mailService.sendMail({
+      to: email,
+      subject: 'Ma xac thuc dang ky OpsHub',
+      text: `Ma xac thuc OpsHub cua ban la ${code}. Ma het han sau ${CODE_TTL_MINUTES} phut.`,
+    });
+    this.logger.log(`Registration verification email sent to ${email}`);
     return {
       ok: true,
       expiresInMinutes: CODE_TTL_MINUTES,
@@ -51,16 +54,16 @@ export class EmailVerificationService {
     });
 
     if (!record) {
-      throw new BadRequestException('Vui lòng gửi mã xác thực email trước.');
+      throw new BadRequestException('Vui long gui ma xac thuc email truoc.');
     }
 
     if (record.expiresAt.getTime() < Date.now()) {
-      throw new BadRequestException('Mã xác thực đã hết hạn.');
+      throw new BadRequestException('Ma xac thuc da het han.');
     }
 
     if (record.attempts >= MAX_ATTEMPTS) {
       throw new BadRequestException(
-        'Mã xác thực đã bị khóa do nhập sai quá nhiều lần.',
+        'Ma xac thuc da bi khoa do nhap sai qua nhieu lan.',
       );
     }
 
@@ -70,7 +73,7 @@ export class EmailVerificationService {
         where: { id: record.id },
         data: { attempts: { increment: 1 } },
       });
-      throw new BadRequestException('Mã xác thực không đúng.');
+      throw new BadRequestException('Ma xac thuc khong dung.');
     }
 
     await this.prisma.emailVerificationCode.update({
@@ -81,41 +84,5 @@ export class EmailVerificationService {
 
   private generateCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
-  }
-
-  private async sendEmail(to: string, code: string) {
-    const host = process.env.SMTP_HOST?.trim();
-    const user = process.env.SMTP_USER?.trim();
-    const pass = process.env.SMTP_PASS?.trim();
-    const from = process.env.SMTP_FROM?.trim() || user;
-    const port = Number(process.env.SMTP_PORT || '587');
-    const secure = process.env.SMTP_SECURE === 'true';
-
-    if (!host || !user || !pass || !from) {
-      throw new InternalServerErrorException(
-        'Chưa cấu hình gửi email xác thực.',
-      );
-    }
-
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass },
-    });
-
-    try {
-      await transporter.sendMail({
-        from,
-        to,
-        subject: 'Mã xác thực đăng ký OpsHub',
-        text: `Mã xác thực OpsHub của bạn là ${code}. Mã hết hạn sau ${CODE_TTL_MINUTES} phút.`,
-      });
-    } catch (error) {
-      this.logger.error(`Failed to send verification email to ${to}`, error);
-      throw new InternalServerErrorException(
-        'Không gửi được mã xác thực email.',
-      );
-    }
   }
 }

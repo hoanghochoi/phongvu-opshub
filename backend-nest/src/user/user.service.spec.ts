@@ -4,6 +4,7 @@ import { UserService } from './user.service';
 describe('UserService admin store management', () => {
   let service: UserService;
   let prisma: any;
+  let passwordResetService: { sendResetLinkForUserId: jest.Mock };
 
   const superAdmin = { role: 'SUPER_ADMIN' };
   const admin = { role: 'ADMIN' };
@@ -36,8 +37,14 @@ describe('UserService admin store management', () => {
         update: jest.fn(),
       },
     };
+    passwordResetService = {
+      sendResetLinkForUserId: jest.fn().mockResolvedValue({
+        ok: true,
+        expiresInMinutes: 30,
+      }),
+    };
     process.env.JWT_SECRET = 'test-secret';
-    service = new UserService(prisma, {} as any);
+    service = new UserService(prisma, {} as any, passwordResetService as any);
   });
 
   it('creates a store with normalized payment fields for super admin', async () => {
@@ -205,6 +212,23 @@ describe('UserService admin store management', () => {
         workScopeType: 'ONLINE',
       }),
     ).resolves.toMatchObject({ personnelCode: 'SALE_ONLINE' });
+  });
+
+  it('lets only super admin request a password reset link for a user', async () => {
+    await expect(
+      service.adminSendPasswordResetLink(
+        { id: 'admin-1', email: 'admin@phongvu.vn', role: 'SUPER_ADMIN' },
+        'user-1',
+      ),
+    ).resolves.toEqual({ ok: true, expiresInMinutes: 30 });
+    expect(passwordResetService.sendResetLinkForUserId).toHaveBeenCalledWith(
+      'user-1',
+      { id: 'admin-1', email: 'admin@phongvu.vn' },
+    );
+
+    await expect(
+      service.adminSendPasswordResetLink(manager, 'user-1'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('blocks branch admin from mutating stores', async () => {

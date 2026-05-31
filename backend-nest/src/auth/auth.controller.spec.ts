@@ -6,7 +6,16 @@ describe('AuthController', () => {
     passwordLogin: jest.Mock;
     register: jest.Mock;
     sendRegistrationVerificationCode: jest.Mock;
+    forgotPassword: jest.Mock;
+    resetPassword: jest.Mock;
+    changePassword: jest.Mock;
+    logout: jest.Mock;
     getUserData: jest.Mock;
+  };
+
+  const loginDevice = {
+    platform: 'windows',
+    deviceId: 'device-123456',
   };
 
   beforeEach(() => {
@@ -14,6 +23,10 @@ describe('AuthController', () => {
       passwordLogin: jest.fn(),
       register: jest.fn(),
       sendRegistrationVerificationCode: jest.fn(),
+      forgotPassword: jest.fn(),
+      resetPassword: jest.fn(),
+      changePassword: jest.fn(),
+      logout: jest.fn(),
       getUserData: jest.fn(),
     };
     controller = new AuthController(authService as any);
@@ -26,6 +39,7 @@ describe('AuthController', () => {
       controller.login({
         email: 'staff@phongvu-shop.vn',
         password: 'Password1!',
+        ...loginDevice,
       }),
     ).resolves.toEqual({
       access_token: 'jwt',
@@ -33,6 +47,7 @@ describe('AuthController', () => {
     expect(authService.passwordLogin).toHaveBeenCalledWith(
       'staff@phongvu-shop.vn',
       'Password1!',
+      expect.objectContaining(loginDevice),
     );
   });
 
@@ -46,6 +61,7 @@ describe('AuthController', () => {
         lastName: 'Nguyen',
         password: 'Password1!',
         verificationCode: '123456',
+        ...loginDevice,
       }),
     ).resolves.toEqual({
       access_token: 'jwt',
@@ -56,6 +72,7 @@ describe('AuthController', () => {
       lastName: 'Nguyen',
       password: 'Password1!',
       verificationCode: '123456',
+      ...loginDevice,
     });
   });
 
@@ -66,12 +83,67 @@ describe('AuthController', () => {
 
     await expect(
       controller.sendVerificationCode({ email: 'staff@phongvu-shop.vn' }),
-    ).resolves.toEqual({
-      ok: true,
-    });
+    ).resolves.toEqual({ ok: true });
     expect(authService.sendRegistrationVerificationCode).toHaveBeenCalledWith(
       'staff@phongvu-shop.vn',
     );
+  });
+
+  it('delegates forgot password requests', async () => {
+    authService.forgotPassword.mockResolvedValue({ ok: true });
+
+    await expect(
+      controller.forgotPassword({ email: 'staff@phongvu-shop.vn' }),
+    ).resolves.toEqual({ ok: true });
+    expect(authService.forgotPassword).toHaveBeenCalledWith(
+      'staff@phongvu-shop.vn',
+    );
+  });
+
+  it('delegates reset password submissions', async () => {
+    authService.resetPassword.mockResolvedValue({ ok: true });
+
+    await expect(
+      controller.resetPassword({
+        token: 'token-token-token-token',
+        newPassword: 'Password2!',
+      }),
+    ).resolves.toEqual({ ok: true });
+    expect(authService.resetPassword).toHaveBeenCalledWith(
+      'token-token-token-token',
+      'Password2!',
+    );
+  });
+
+  it('delegates authenticated password changes', async () => {
+    authService.changePassword.mockResolvedValue({ access_token: 'new-jwt' });
+
+    await expect(
+      controller.changePassword(
+        { user: { id: 'user-1', authSession: { sessionId: 'session-1' } } },
+        { currentPassword: 'Password1!', newPassword: 'Password2!' },
+      ),
+    ).resolves.toEqual({ access_token: 'new-jwt' });
+    expect(authService.changePassword).toHaveBeenCalledWith(
+      'user-1',
+      'Password1!',
+      'Password2!',
+      { sessionId: 'session-1' },
+    );
+  });
+
+  it('delegates logout for the current platform session', async () => {
+    authService.logout.mockResolvedValue({ ok: true });
+
+    await expect(
+      controller.logout({
+        user: { id: 'user-1', authSession: { sessionId: 'session-1' } },
+      }),
+    ).resolves.toEqual({ ok: true });
+    expect(authService.logout).toHaveBeenCalledWith({
+      id: 'user-1',
+      authSession: { sessionId: 'session-1' },
+    });
   });
 
   it('loads the current JWT user by email', async () => {

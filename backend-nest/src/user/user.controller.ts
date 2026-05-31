@@ -76,6 +76,10 @@ export class UserController {
   ) {
     return this.userService.adminUpdateUser(req.user, id, body);
   }
+  @Post('admin/users/:id/reset-password')
+  resetUserPassword(@Request() req: any, @Param('id') id: string) {
+    return this.userService.adminSendPasswordResetLink(req.user, id);
+  }
 
   @Get('admin/roles')
   listRoles(@Request() req: any) {

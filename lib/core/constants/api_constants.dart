@@ -16,12 +16,17 @@ class ApiConstants {
   static const String loginEndpoint = '/auth/login';
   static const String registerEndpoint = '/auth/register';
   static const String verificationCodeEndpoint = '/auth/verification-code';
+  static const String forgotPasswordEndpoint = '/auth/forgot-password';
+  static const String changePasswordEndpoint = '/auth/change-password';
+  static const String logoutEndpoint = '/auth/logout';
   static const String getUserEndpoint = '/auth/get-user';
   static const String storesEndpoint = '/stores';
   static const String profileEndpoint = '/users/me';
   static const String selectStoreEndpoint = '/users/me/select-store';
   static const String avatarEndpoint = '/users/me/avatar';
   static const String adminUsersEndpoint = '/admin/users';
+  static String adminUserResetPasswordEndpoint(String id) =>
+      '/admin/users/$id/reset-password';
   static const String adminRolesEndpoint = '/admin/roles';
   static const String adminDepartmentsEndpoint = '/admin/departments';
   static const String adminJobRolesEndpoint = '/admin/job-roles';

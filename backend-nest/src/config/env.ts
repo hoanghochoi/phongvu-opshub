@@ -108,6 +108,7 @@ export function validateRuntimeEnv(env: EnvMap = process.env): void {
   validateRedisPort(env);
   validateFifoDateTolerance(env);
   validateAllowedOrigins(env);
+  validatePublicBaseUrl(env);
   validateBigQueryEnv(env);
   validateProductionPlaceholders(env);
 }
@@ -200,6 +201,21 @@ function validateAllowedOrigins(env: EnvMap): void {
   }
 }
 
+function validatePublicBaseUrl(env: EnvMap): void {
+  const value = getEnvValue(env, 'PUBLIC_BASE_URL');
+  if (env.NODE_ENV === 'production' && !value) {
+    throw new Error('Missing required environment variable: PUBLIC_BASE_URL');
+  }
+  if (!value) return;
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      throw new Error('invalid protocol');
+    }
+  } catch {
+    throw new Error(`Invalid PUBLIC_BASE_URL value: ${value}`);
+  }
+}
 function validateProductionPlaceholders(env: EnvMap): void {
   if (env.NODE_ENV !== 'production') {
     return;

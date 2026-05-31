@@ -1,13 +1,40 @@
 import {
   IsEmail,
+  IsIn,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { AUTH_PLATFORMS } from './auth-session.service';
 
-export class PasswordLoginDto {
+class AuthDeviceDto {
+  @IsIn(AUTH_PLATFORMS)
+  platform!: string;
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  deviceId!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  deviceLabel?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  appVersion?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  buildNumber?: string;
+}
+
+export class PasswordLoginDto extends AuthDeviceDto {
   @IsEmail()
   email!: string;
 
@@ -33,6 +60,31 @@ export class RegisterDto extends PasswordLoginDto {
   @MaxLength(6)
   @Matches(/^[0-9]{6}$/)
   verificationCode!: string;
+}
+
+export class ChangePasswordDto {
+  @IsString()
+  @MinLength(1)
+  currentPassword!: string;
+
+  @IsString()
+  @MinLength(1)
+  newPassword!: string;
+}
+
+export class ForgotPasswordDto {
+  @IsEmail()
+  email!: string;
+}
+
+export class ResetPasswordDto {
+  @IsString()
+  @MinLength(20)
+  token!: string;
+
+  @IsString()
+  @MinLength(1)
+  newPassword!: string;
 }
 
 export class SendEmailVerificationDto {

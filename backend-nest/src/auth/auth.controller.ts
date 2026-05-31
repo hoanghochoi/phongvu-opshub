@@ -9,9 +9,12 @@ import {
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
 import {
+  ChangePasswordDto,
+  ForgotPasswordDto,
   GetUserDto,
   PasswordLoginDto,
   RegisterDto,
+  ResetPasswordDto,
   SendEmailVerificationDto,
 } from './auth.dto';
 
@@ -21,7 +24,7 @@ export class AuthController {
 
   @Post('login')
   async login(@Body() body: PasswordLoginDto) {
-    return this.authService.passwordLogin(body.email, body.password);
+    return this.authService.passwordLogin(body.email, body.password, body);
   }
 
   @Post('register')
@@ -34,6 +37,33 @@ export class AuthController {
     return this.authService.sendRegistrationVerificationCode(body.email);
   }
 
+  @Post('forgot-password')
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    return this.authService.forgotPassword(body.email);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() body: ResetPasswordDto) {
+    return this.authService.resetPassword(body.token, body.newPassword);
+  }
+
+  @Post('change-password')
+  @UseGuards(AuthGuard('jwt'))
+  async changePassword(@Request() req: any, @Body() body: ChangePasswordDto) {
+    return this.authService.changePassword(
+      req.user.id,
+      body.currentPassword,
+      body.newPassword,
+      req.user.authSession,
+    );
+  }
+
+  @Post('logout')
+  @UseGuards(AuthGuard('jwt'))
+  async logout(@Request() req: any) {
+    return this.authService.logout(req.user);
+  }
+
   // POST /auth/get-user
   @Post('get-user')
   @UseGuards(AuthGuard('jwt'))
@@ -41,7 +71,7 @@ export class AuthController {
     return this.authService.getUserData(req.user.email);
   }
 
-  // GET /auth/me — convenience JWT-protected endpoint
+  // GET /auth/me - convenience JWT-protected endpoint
   @Get('me')
   @UseGuards(AuthGuard('jwt'))
   async getMe(@Request() req: any) {

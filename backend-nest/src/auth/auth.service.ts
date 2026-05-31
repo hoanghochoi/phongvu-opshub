@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
@@ -9,6 +10,13 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './auth.dto';
 import { EmailVerificationService } from './email-verification.service';
+import { PasswordResetService } from './password-reset.service';
+import { assertPasswordPolicy } from './password-policy';
+import {
+  AuthDeviceContext,
+  AuthSessionClaims,
+  AuthSessionService,
+} from './auth-session.service';
 import {
   allowedEmailDomainMessage,
   getAllowedEmailDomains,
@@ -28,15 +36,27 @@ const WORK_SCOPE_TYPES = new Set([
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private emailVerificationService: EmailVerificationService,
+    private passwordResetService: PasswordResetService,
+    private authSessionService: AuthSessionService,
   ) {}
 
-  async passwordLogin(emailInput: string, password: string) {
+  async passwordLogin(
+    emailInput: string,
+    password: string,
+    device: AuthDeviceContext,
+  ) {
     const email = this.normalizeEmail(emailInput);
     this.assertAllowedDomain(email);
+    const normalizedDevice = this.authSessionService.normalizeDevice(device);
+    this.logger.log(
+      `Password login started: email=${email} platform=${normalizedDevice.platform}`,
+    );
 
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -57,6 +77,9 @@ export class AuthService {
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
+      this.logger.warn(
+        `Password login failed: email=${email} platform=${normalizedDevice.platform} reason=invalid_password`,
+      );
       throw new UnauthorizedException('Email hoac mat khau khong dung');
     }
 
@@ -64,7 +87,15 @@ export class AuthService {
       throw new ForbiddenException('Tai khoan da bi khoa. Lien he Quan ly.');
     }
 
-    return this.buildLoginResponse(user);
+    const session = await this.authSessionService.replacePlatformSession(
+      user,
+      normalizedDevice,
+    );
+    this.logger.log(
+      `Password login succeeded: userId=${user.id} email=${email} platform=${session.platform} sessionVersion=${session.sessionVersion}`,
+    );
+
+    return this.buildLoginResponse(user, session);
   }
 
   async register(input: RegisterDto) {
@@ -105,7 +136,15 @@ export class AuthService {
           include: { store: true },
         });
 
-    return this.buildLoginResponse(user);
+    const session = await this.authSessionService.replacePlatformSession(
+      user,
+      input,
+    );
+    this.logger.log(
+      `Registration login session issued: userId=${user.id} email=${email} platform=${session.platform} sessionVersion=${session.sessionVersion}`,
+    );
+
+    return this.buildLoginResponse(user, session);
   }
 
   async sendRegistrationVerificationCode(emailInput: string) {
@@ -123,6 +162,62 @@ export class AuthService {
     }
 
     return this.emailVerificationService.sendRegistrationCode(email);
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    session: AuthSessionClaims,
+  ) {
+    assertPasswordPolicy(newPassword);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { store: true },
+    });
+    if (!user) throw new UnauthorizedException('User not found');
+    if (!user.password) {
+      throw new BadRequestException('Tai khoan chua co mat khau.');
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      currentPassword,
+      user.password,
+    );
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Mat khau hien tai khong dung');
+    }
+
+    const password = await this.hashPassword(newPassword);
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password,
+        tokenVersion: { increment: 1 },
+      },
+      include: { store: true },
+    });
+
+    return this.buildLoginResponse(updated, session);
+  }
+
+  async logout(user: { id: string; authSession: AuthSessionClaims }) {
+    return this.authSessionService.revokeCurrentSession(
+      user.id,
+      user.authSession,
+      'LOGOUT',
+    );
+  }
+
+  async forgotPassword(emailInput: string) {
+    const email = this.normalizeEmail(emailInput);
+    this.assertAllowedDomain(email);
+    return this.passwordResetService.sendResetLinkForEmail(email);
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    return this.passwordResetService.resetPassword(token, newPassword);
   }
 
   async getUserData(email: string) {
@@ -174,28 +269,36 @@ export class AuthService {
     return bcrypt.hash(password, PASSWORD_SALT_ROUNDS);
   }
 
-  private buildLoginResponse(user: {
-    id: string;
-    email: string;
-    firstName: string;
-    lastName?: string | null;
-    avatarUrl?: string | null;
-    role: string;
-    status: string;
-    departmentCode?: string | null;
-    jobRoleCode?: string | null;
-    workScopeType?: string | null;
-    profileCompletedAt?: Date | null;
-    branchLockedAt?: Date | null;
-    storeId?: string | null;
-    store?: { storeId?: string | null; storeName?: string | null } | null;
-  }) {
+  private buildLoginResponse(
+    user: {
+      id: string;
+      email: string;
+      firstName: string;
+      lastName?: string | null;
+      avatarUrl?: string | null;
+      role: string;
+      status: string;
+      departmentCode?: string | null;
+      jobRoleCode?: string | null;
+      workScopeType?: string | null;
+      profileCompletedAt?: Date | null;
+      branchLockedAt?: Date | null;
+      storeId?: string | null;
+      tokenVersion?: number | null;
+      store?: { storeId?: string | null; storeName?: string | null } | null;
+    },
+    session: AuthSessionClaims,
+  ) {
     const jwtPayload = {
       email: user.email,
       sub: user.id,
       role: user.role,
       storeUuid: user.storeId ?? null,
       storeCode: user.store?.storeId ?? null,
+      tokenVersion: user.tokenVersion ?? 0,
+      sessionId: session.sessionId,
+      platform: session.platform,
+      sessionVersion: session.sessionVersion,
     };
     return {
       login: true,

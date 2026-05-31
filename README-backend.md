@@ -61,6 +61,7 @@ Expected responses:
 ## Deployment Checklist
 
 - Set a strong `JWT_SECRET`.
+- Set `PUBLIC_BASE_URL` to the public OpsHub origin, for example `https://opshub.hoanghochoi.com`, so password reset emails point to the correct landing page.
 - Set `DATABASE_URL` to the production PostgreSQL database.
 - Set `REDIS_HOST` and `REDIS_PORT` consistently for NestJS and Go.
 - Keep `data/email_domain.txt` current with accepted Phong Vu email domains, or
