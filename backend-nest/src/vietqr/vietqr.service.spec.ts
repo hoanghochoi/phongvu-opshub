@@ -139,6 +139,148 @@ describe('VietQrService', () => {
     expect(result.imageSizeBytes).toBeGreaterThan(1000);
   }, 15000);
 
+  it('returns external payment status without running MAP check', async () => {
+    prisma.vietQrPaymentIntent.findUnique.mockResolvedValue({
+      id: 'payment-1',
+      storeCode: 'CP62',
+      amount: 150000,
+      orderCode: 'DH-001',
+      transferContent: 'DH-001 CP62 BOT',
+      qrPayload: 'payload',
+      status: 'PENDING',
+      matchedTransactionNumber: null,
+      matchedAmount: null,
+      matchedTranTime: null,
+      matchedPayerName: null,
+      matchedPayerAccount: null,
+      matchedTransactionContent: null,
+      confirmedAt: null,
+      lastCheckedAt: null,
+      lastCheckResult: null,
+      createdAt: new Date('2026-05-20T10:00:00.000Z'),
+      updatedAt: new Date('2026-05-20T10:00:00.000Z'),
+    });
+
+    await expect(
+      service.getExternalStatus('payment-1'),
+    ).resolves.toMatchObject({
+      paymentId: 'payment-1',
+      status: 'PENDING',
+      confirmed: false,
+      amount: 150000,
+      transferContent: 'DH-001 CP62 BOT',
+    });
+    expect(mapVietinService.searchTransactionsForStoreCode).not.toHaveBeenCalled();
+  });
+
+  it('checks external payment status and updates matching stored payment', async () => {
+    const createdAt = new Date('2026-05-20T10:00:00.000Z');
+    const updatedAt = new Date('2026-05-20T10:05:00.000Z');
+    const pendingIntent = {
+      id: 'payment-1',
+      storeCode: 'CP62',
+      amount: 150000,
+      orderCode: 'DH-001',
+      transferContent: 'DH-001 CP62 BOT',
+      qrPayload: 'payload',
+      status: 'PENDING',
+      createdAt,
+      updatedAt: createdAt,
+    };
+    const paidIntent = {
+      ...pendingIntent,
+      status: 'PAID',
+      matchedTransactionNumber: 'txn-1',
+      matchedAmount: 150000,
+      matchedTranTime: updatedAt,
+      matchedPayerName: 'Nguyen Van A',
+      matchedPayerAccount: '123456789',
+      matchedTransactionContent: 'IBFT DH-001 CP62 BOT',
+      confirmedAt: updatedAt,
+      lastCheckedAt: updatedAt,
+      lastCheckResult: { reason: 'MATCHED_STORED', matchedCandidates: 1 },
+      updatedAt,
+    };
+    prisma.vietQrPaymentIntent.findUnique
+      .mockResolvedValueOnce(pendingIntent)
+      .mockResolvedValueOnce(paidIntent);
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      {
+        id: 'map-id-1',
+        transactionNumber: 'txn-1',
+        amount: 150000,
+        paidAt: updatedAt,
+        payerName: 'Nguyen Van A',
+        payerAccount: '123456789',
+        content: 'IBFT DH-001 CP62 BOT',
+      },
+    ]);
+    prisma.vietQrPaymentIntent.update.mockResolvedValue(paidIntent);
+
+    await expect(
+      service.checkExternalStatus('payment-1'),
+    ).resolves.toMatchObject({
+      paymentId: 'payment-1',
+      status: 'PAID',
+      confirmed: true,
+      matchedTransactionNumber: 'txn-1',
+      checkResult: { reason: 'MATCHED_STORED', confirmed: true },
+    });
+    expect(mapVietinService.searchTransactionsForStoreCode).not.toHaveBeenCalled();
+  });
+
+  it('keeps external status pending when no stored MAP transaction matches', async () => {
+    const createdAt = new Date('2026-05-20T10:00:00.000Z');
+    const checkedAt = new Date('2026-05-20T10:05:00.000Z');
+    const pendingIntent = {
+      id: 'payment-1',
+      storeCode: 'CP62',
+      amount: 150000,
+      orderCode: 'DH-001',
+      transferContent: 'DH-001 CP62 BOT',
+      qrPayload: 'payload',
+      status: 'PENDING',
+      matchedTransactionNumber: null,
+      matchedAmount: null,
+      matchedTranTime: null,
+      matchedPayerName: null,
+      matchedPayerAccount: null,
+      matchedTransactionContent: null,
+      confirmedAt: null,
+      lastCheckedAt: null,
+      lastCheckResult: null,
+      createdAt,
+      updatedAt: createdAt,
+    };
+    prisma.vietQrPaymentIntent.findUnique.mockResolvedValue(pendingIntent);
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+    prisma.vietQrPaymentIntent.update.mockResolvedValue({
+      ...pendingIntent,
+      lastCheckedAt: checkedAt,
+      lastCheckResult: {
+        confirmed: false,
+        reason: 'NO_STORED_MATCH',
+        matchedCandidates: 0,
+      },
+      updatedAt: checkedAt,
+    });
+
+    await expect(
+      service.checkExternalStatus('payment-1'),
+    ).resolves.toMatchObject({
+      paymentId: 'payment-1',
+      status: 'PENDING',
+      confirmed: false,
+      checkResult: { reason: 'NO_STORED_MATCH', confirmed: false },
+    });
+    expect(prisma.vietQrPaymentIntent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'PENDING' }),
+      }),
+    );
+    expect(mapVietinService.searchTransactionsForStoreCode).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid amount', async () => {
     await expect(
       service.create({ amount: 0, orderCode: 'DH-001', storeCode: 'HCM01' }),

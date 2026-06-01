@@ -61,6 +61,28 @@ export interface VietQrExternalImageResponse {
   imageBuffer: Buffer;
 }
 
+export interface VietQrExternalStatusResponse {
+  paymentId: string;
+  status: string;
+  confirmed: boolean;
+  storeCode: string;
+  amount: number | null;
+  orderCode: string | null;
+  transferContent: string;
+  createdAt: Date;
+  updatedAt: Date;
+  confirmedAt: Date | null;
+  lastCheckedAt: Date | null;
+  lastCheckResult: unknown;
+  matchedTransactionNumber: string | null;
+  matchedAmount: number | null;
+  matchedTranTime: Date | null;
+  matchedPayerName: string | null;
+  matchedPayerAccount: string | null;
+  matchedTransactionContent: string | null;
+  checkResult?: Record<string, unknown>;
+}
+
 type MapTransaction = Record<string, unknown>;
 
 @Injectable()
@@ -233,6 +255,85 @@ export class VietQrService {
     }
   }
 
+  async getExternalStatus(
+    paymentIntentId: string,
+  ): Promise<VietQrExternalStatusResponse> {
+    const intent = await this.findPaymentIntent(paymentIntentId);
+    return this.toExternalStatusResponse(intent);
+  }
+
+  async checkExternalStatus(
+    paymentIntentId: string,
+  ): Promise<VietQrExternalStatusResponse> {
+    const id = this.normalizePaymentIntentId(paymentIntentId);
+    const intent = await this.findPaymentIntent(id);
+
+    if (intent.status === 'PAID') {
+      return this.toExternalStatusResponse(intent, {
+        confirmed: true,
+        reason: 'ALREADY_CONFIRMED',
+      });
+    }
+
+    if (!intent.amount || !intent.transferContent) {
+      const result = {
+        confirmed: false,
+        reason: 'MISSING_MATCH_FIELDS',
+        message:
+          'QR thieu so tien hoac noi dung chuyen khoan nen khong the tu xac nhan',
+      };
+      const updated = await this.updateExternalStatusCheck(
+        intent.id,
+        intent.status,
+        result,
+      );
+      return this.toExternalStatusResponse(updated, result);
+    }
+
+    const storedMatches = await this.findStoredMatches(intent);
+    if (storedMatches.length === 1) {
+      const match = storedMatches[0];
+      const now = new Date();
+      const result = {
+        confirmed: true,
+        reason: 'MATCHED_STORED',
+        matchedCandidates: 1,
+      };
+      const updated = await this.prisma.vietQrPaymentIntent.update({
+        where: { id: intent.id },
+        data: {
+          status: 'PAID',
+          matchedTransactionId: match.id,
+          matchedTransactionNumber: match.transactionNumber,
+          matchedAmount: match.amount,
+          matchedTranTime: match.paidAt,
+          matchedPayerName: match.payerName,
+          matchedPayerAccount: match.payerAccount,
+          matchedTransactionContent: match.content,
+          confirmedAt: now,
+          lastCheckedAt: now,
+          lastCheckResult: result as Prisma.InputJsonObject,
+        },
+      });
+      return this.toExternalStatusResponse(updated, result);
+    }
+
+    const result = {
+      confirmed: false,
+      reason:
+        storedMatches.length > 1
+          ? 'MULTIPLE_STORED_MATCHES'
+          : 'NO_STORED_MATCH',
+      matchedCandidates: storedMatches.length,
+    };
+    const updated = await this.updateExternalStatusCheck(
+      intent.id,
+      storedMatches.length > 1 ? 'AMBIGUOUS' : intent.status,
+      result,
+    );
+    return this.toExternalStatusResponse(updated, result);
+  }
+
   private resolveTransferContent(
     orderCode: string,
     storeCode: string,
@@ -290,6 +391,59 @@ export class VietQrService {
       imageSizeBytes: image.buffer.length,
       imageBuffer: image.buffer,
     };
+  }
+
+  private toExternalStatusResponse(
+    intent: any,
+    checkResult?: Record<string, unknown>,
+  ): VietQrExternalStatusResponse {
+    return {
+      paymentId: intent.id,
+      status: intent.status,
+      confirmed: intent.status === 'PAID',
+      storeCode: intent.storeCode,
+      amount: intent.amount,
+      orderCode: intent.orderCode,
+      transferContent: intent.transferContent,
+      createdAt: intent.createdAt,
+      updatedAt: intent.updatedAt,
+      confirmedAt: intent.confirmedAt,
+      lastCheckedAt: intent.lastCheckedAt,
+      lastCheckResult: intent.lastCheckResult,
+      matchedTransactionNumber: intent.matchedTransactionNumber,
+      matchedAmount: intent.matchedAmount,
+      matchedTranTime: intent.matchedTranTime,
+      matchedPayerName: intent.matchedPayerName,
+      matchedPayerAccount: intent.matchedPayerAccount,
+      matchedTransactionContent: intent.matchedTransactionContent,
+      ...(checkResult ? { checkResult } : {}),
+    };
+  }
+
+  private async findPaymentIntent(paymentIntentId: string) {
+    const id = this.normalizePaymentIntentId(paymentIntentId);
+    const intent = await this.prisma.vietQrPaymentIntent.findUnique({
+      where: { id },
+    });
+    if (!intent) {
+      throw new NotFoundException('Khong tim thay ban ghi thanh toan VietQR');
+    }
+    return intent;
+  }
+
+  private updateExternalStatusCheck(
+    id: string,
+    status: string,
+    result: Record<string, unknown>,
+  ) {
+    return this.prisma.vietQrPaymentIntent.update({
+      where: { id },
+      data: {
+        status,
+        lastCheckedAt: new Date(),
+        lastCheckResult: result as Prisma.InputJsonObject,
+      },
+    });
   }
 
   async confirmPayment(user: any, paymentIntentId: string) {
@@ -685,6 +839,14 @@ export class VietQrService {
 
   private normalizeOptionalText(value: string | null | undefined): string {
     return this.normalizeTransferContent(value || '');
+  }
+
+  private normalizePaymentIntentId(value: string | null | undefined): string {
+    const normalized = (value || '').trim();
+    if (!normalized) {
+      throw new BadRequestException('paymentId khong duoc de trong');
+    }
+    return normalized;
   }
 
   private normalizeLogValue(value: string | null | undefined): string {
