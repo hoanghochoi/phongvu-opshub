@@ -68,6 +68,8 @@ class PaymentConfirmationCard extends StatelessWidget {
         return 'Cần kiểm tra thủ công';
       case 'MISSING_MATCH_FIELDS':
         return 'Thiếu dữ liệu để tự xác nhận';
+      case 'EXPIRED_VIETNAM_DAY':
+        return 'QR da qua ngay';
       default:
         return 'Chưa xác nhận được';
     }

@@ -10,6 +10,9 @@ import '../../../auth/domain/entities/user.dart';
 import '../../data/bank_statement_repository.dart';
 import '../../domain/bank_statement_transaction.dart';
 
+const int _statementSnapshotPageSize = 100;
+const int _vietnamUtcOffsetHours = 7;
+
 class BankStatementRowMessage {
   final String text;
   final bool success;
@@ -19,6 +22,7 @@ class BankStatementRowMessage {
 
 class BankStatementProvider extends ChangeNotifier {
   final BankStatementRepository _repository;
+  final DateTime Function() _now;
   final List<BankStatementTransaction> _transactions = [];
   final List<BankStatementTransaction> _snapshotTransactions = [];
   final List<StoreBranch> _stores = [];
@@ -45,7 +49,8 @@ class BankStatementProvider extends ChangeNotifier {
   int _total = 0;
   Set<String> _selectedStoreIds = {};
 
-  BankStatementProvider(this._repository);
+  BankStatementProvider(this._repository, {DateTime Function()? now})
+    : _now = now ?? DateTime.now;
 
   List<BankStatementTransaction> get transactions =>
       List.unmodifiable(_transactions);
@@ -244,11 +249,7 @@ class BankStatementProvider extends ChangeNotifier {
         context: _logContext(),
       );
       final firstPage = await _repository.fetchStatements(query);
-      final snapshotRows = firstPage.total > firstPage.transactions.length
-          ? (await _repository.fetchStatements(
-              _query(page: 0, limit: firstPage.total),
-            )).transactions
-          : firstPage.transactions;
+      final snapshotRows = await _fetchSnapshotRows(firstPage);
       _snapshotTransactions
         ..clear()
         ..addAll(snapshotRows);
@@ -279,6 +280,38 @@ class BankStatementProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<List<BankStatementTransaction>> _fetchSnapshotRows(
+    BankStatementPage firstPage,
+  ) async {
+    final total = firstPage.total;
+    if (total <= firstPage.transactions.length) {
+      return firstPage.transactions;
+    }
+
+    await AppLogger.instance.info(
+      'BankStatement',
+      'Bank statement snapshot paging started',
+      context: {
+        ..._logContext(),
+        'firstPageCount': firstPage.transactions.length,
+        'serverTotal': total,
+        'snapshotLimit': _statementSnapshotPageSize,
+      },
+    );
+
+    final rows = <BankStatementTransaction>[];
+    var page = 0;
+    while (rows.length < total) {
+      final result = await _repository.fetchStatements(
+        _query(page: page, limit: _statementSnapshotPageSize),
+      );
+      if (result.transactions.isEmpty) break;
+      rows.addAll(result.transactions);
+      page += 1;
+    }
+    return rows;
   }
 
   Future<void> exportCsv() async {
@@ -413,6 +446,7 @@ class BankStatementProvider extends ChangeNotifier {
   }
 
   BankStatementQuery _query({int? page, int? limit}) {
+    final defaultToday = _usesDefaultTodayDateRange ? _todayInVietnam() : null;
     return BankStatementQuery(
       allStores: _allStores,
       storeIds: _selectedStoreIds.toList()..sort(),
@@ -420,11 +454,20 @@ class BankStatementProvider extends ChangeNotifier {
       amount: _amount,
       content: _content,
       orderStatus: _orderStatus,
-      startDate: _startDate,
-      endDate: _endDate,
+      startDate: _startDate ?? defaultToday,
+      endDate: _endDate ?? defaultToday,
       page: page ?? _page,
       limit: limit ?? _limit,
     );
+  }
+
+  bool get _usesDefaultTodayDateRange => _startDate == null && _endDate == null;
+
+  DateTime _todayInVietnam() {
+    final vietnamNow = _now().toUtc().add(
+      const Duration(hours: _vietnamUtcOffsetHours),
+    );
+    return DateTime(vietnamNow.year, vietnamNow.month, vietnamNow.day);
   }
 
   int get _primaryFilterCount => [
@@ -509,6 +552,7 @@ class BankStatementProvider extends ChangeNotifier {
       'orderStatus': _orderStatus,
       'hasStartDate': _startDate != null,
       'hasEndDate': _endDate != null,
+      'defaultTodayDate': _usesDefaultTodayDateRange,
       'page': _page,
       'limit': _limit,
     };
