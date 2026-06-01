@@ -42,6 +42,11 @@ a customer to scan and pay manually.
   time after QR creation. MAP transaction timestamps are interpreted as Vietnam
   local time. Missing amount/content, no match, or multiple matches remain
   unconfirmed and require manual review.
+- The backend auto-reconciles every `PENDING` VietQR payment intent, including
+  app-created and n8n-created intents, against already-synced
+  `MapVietinTransaction` rows every 5 seconds. This job does not call MAP
+  directly. If an intent is still `PENDING` after its Vietnam-local creation day
+  has passed, the backend marks it `FAILED` with reason `EXPIRED_VIETNAM_DAY`.
 
 ## PC Payment Monitor
 
@@ -121,6 +126,10 @@ a customer to scan and pay manually.
 - Order filter is an exact match against any stored order in the transaction.
   Amount filter is exact integer amount. Content filter is case-insensitive
   contains matching.
+- When a statement search is run without a selected date range, the app sends
+  today's Vietnam-local date as both start and end date. SR searches therefore
+  load the full snapshot for the current day instead of scanning all stored
+  history.
 - `ÄÃ£ cÃ³ Ä‘Æ¡n hÃ ng` means the stored order list is not empty. `ChÆ°a cÃ³ Ä‘Æ¡n hÃ ng`
   means the order list is empty.
 - Statement rows show transaction details beside a compact order area. Users can
@@ -167,6 +176,10 @@ The NestJS API expects these values when `POST /vietqr` is used:
 - `VIETQR_ACCOUNT_NAME`
 - `VIETQR_MERCHANT_CITY`
 - `VIETQR_EXTERNAL_API_KEY` for `/vietqr/n8n` and `/vietqr/n8n/image`
+- `VIETQR_AUTO_RECONCILE_ENABLED=false` optionally pauses the background
+  DB-only VietQR reconciliation job.
+- `VIETQR_AUTO_RECONCILE_BATCH_SIZE` optionally overrides the default 100
+  pending intents processed per 5-second reconcile tick.
 - `VIETQR_LOGO_PATH` optionally points image rendering to a logo file when the
   backend process cannot see the repo app icon path.
 
@@ -187,6 +200,9 @@ clear service-unavailable error until the config is present.
   of appending `{STORE_CODE} BOT` again.
 - n8n should prefer the header key path. Query keys are accepted only to keep
   quick-link style calls possible, and request logs strip query strings.
+- n8n does not need to poll MAP. It can read `/vietqr/n8n/status` for the stored
+  payment intent status, while the backend background job keeps `PENDING`,
+  `PAID`, `AMBIGUOUS`, and `FAILED` current from OpsHub's synced MAP DB table.
 
 ## MAP Reconciliation Configuration
 

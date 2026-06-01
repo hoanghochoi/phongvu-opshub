@@ -6,11 +6,16 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MapVietinService } from '../map-vietin/map-vietin.service';
 import { VietQrImageRenderer } from './vietqr-image.renderer';
 import type { RenderedVietQrImage } from './vietqr-image.renderer';
+
+const VIETQR_AUTO_RECONCILE_INTERVAL_MS = 5_000;
+const VIETQR_AUTO_RECONCILE_BATCH_SIZE = 100;
+const VIETNAM_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 export interface CreateVietQrInput {
   amount?: number | null;
@@ -89,6 +94,7 @@ type MapTransaction = Record<string, unknown>;
 export class VietQrService {
   private readonly logger = new Logger(VietQrService.name);
   private readonly imageRenderer = new VietQrImageRenderer();
+  private autoReconcileInProgress = false;
   private readonly mapAmountKeys = [
     'amount',
     'txnAmount',
@@ -267,71 +273,83 @@ export class VietQrService {
   ): Promise<VietQrExternalStatusResponse> {
     const id = this.normalizePaymentIntentId(paymentIntentId);
     const intent = await this.findPaymentIntent(id);
-
-    if (intent.status === 'PAID') {
-      return this.toExternalStatusResponse(intent, {
-        confirmed: true,
-        reason: 'ALREADY_CONFIRMED',
-      });
-    }
-
-    if (!intent.amount || !intent.transferContent) {
-      const result = {
-        confirmed: false,
-        reason: 'MISSING_MATCH_FIELDS',
-        message:
-          'QR thieu so tien hoac noi dung chuyen khoan nen khong the tu xac nhan',
-      };
-      const updated = await this.updateExternalStatusCheck(
-        intent.id,
-        intent.status,
-        result,
-      );
-      return this.toExternalStatusResponse(updated, result);
-    }
-
-    const storedMatches = await this.findStoredMatches(intent);
-    if (storedMatches.length === 1) {
-      const match = storedMatches[0];
-      const now = new Date();
-      const result = {
-        confirmed: true,
-        reason: 'MATCHED_STORED',
-        matchedCandidates: 1,
-      };
-      const updated = await this.prisma.vietQrPaymentIntent.update({
-        where: { id: intent.id },
-        data: {
-          status: 'PAID',
-          matchedTransactionId: match.id,
-          matchedTransactionNumber: match.transactionNumber,
-          matchedAmount: match.amount,
-          matchedTranTime: match.paidAt,
-          matchedPayerName: match.payerName,
-          matchedPayerAccount: match.payerAccount,
-          matchedTransactionContent: match.content,
-          confirmedAt: now,
-          lastCheckedAt: now,
-          lastCheckResult: result as Prisma.InputJsonObject,
-        },
-      });
-      return this.toExternalStatusResponse(updated, result);
-    }
-
-    const result = {
-      confirmed: false,
-      reason:
-        storedMatches.length > 1
-          ? 'MULTIPLE_STORED_MATCHES'
-          : 'NO_STORED_MATCH',
-      matchedCandidates: storedMatches.length,
-    };
-    const updated = await this.updateExternalStatusCheck(
-      intent.id,
-      storedMatches.length > 1 ? 'AMBIGUOUS' : intent.status,
-      result,
+    const reconciled = await this.reconcileStoredPaymentIntent(intent, {
+      source: 'external',
+    });
+    return this.toExternalStatusResponse(
+      reconciled.intent,
+      reconciled.checkResult,
     );
-    return this.toExternalStatusResponse(updated, result);
+  }
+
+  @Interval(VIETQR_AUTO_RECONCILE_INTERVAL_MS)
+  async reconcilePendingPaymentIntents() {
+    if (this.isAutoReconcileDisabled()) return;
+    if (this.autoReconcileInProgress) {
+      this.logger.debug(
+        'VietQR auto reconcile skipped because previous run is active',
+      );
+      return;
+    }
+
+    const startedAt = Date.now();
+    this.autoReconcileInProgress = true;
+    try {
+      const pending = await this.prisma.vietQrPaymentIntent.findMany({
+        where: { status: 'PENDING' },
+        orderBy: { createdAt: 'asc' },
+        take: this.autoReconcileBatchSize(),
+      });
+      if (pending.length === 0) return;
+
+      let paid = 0;
+      let failed = 0;
+      let ambiguous = 0;
+      let stillPending = 0;
+      let skipped = 0;
+
+      this.logger.log(
+        `VietQR auto reconcile started: pending=${pending.length} batchSize=${this.autoReconcileBatchSize()}`,
+      );
+      for (const intent of pending) {
+        try {
+          const reconciled = await this.reconcileStoredPaymentIntent(intent, {
+            source: 'auto',
+          });
+          switch (reconciled.intent.status) {
+            case 'PAID':
+              paid += 1;
+              break;
+            case 'FAILED':
+              failed += 1;
+              break;
+            case 'AMBIGUOUS':
+              ambiguous += 1;
+              break;
+            case 'PENDING':
+              stillPending += 1;
+              break;
+            default:
+              skipped += 1;
+              break;
+          }
+        } catch (error) {
+          skipped += 1;
+          this.logger.warn(
+            `VietQR auto reconcile failed for paymentId=${intent.id} storeCode=${intent.storeCode}: ${this.safeError(error)}`,
+          );
+        }
+      }
+      this.logger.log(
+        `VietQR auto reconcile completed: scanned=${pending.length} paid=${paid} failed=${failed} ambiguous=${ambiguous} pending=${stillPending} skipped=${skipped} durationMs=${Date.now() - startedAt}`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `VietQR auto reconcile query failed: ${this.safeError(error)}`,
+      );
+    } finally {
+      this.autoReconcileInProgress = false;
+    }
   }
 
   private resolveTransferContent(
@@ -431,19 +449,138 @@ export class VietQrService {
     return intent;
   }
 
-  private updateExternalStatusCheck(
-    id: string,
-    status: string,
-    result: Record<string, unknown>,
-  ) {
-    return this.prisma.vietQrPaymentIntent.update({
-      where: { id },
-      data: {
-        status,
+  private async reconcileStoredPaymentIntent(
+    intent: any,
+    options: { source: 'auto' | 'external' },
+  ): Promise<{ intent: any; checkResult: Record<string, unknown> }> {
+    if (intent.status === 'PAID') {
+      return {
+        intent,
+        checkResult: {
+          confirmed: true,
+          reason: 'ALREADY_CONFIRMED',
+          source: options.source,
+        },
+      };
+    }
+
+    if (intent.status === 'FAILED') {
+      return {
+        intent,
+        checkResult: {
+          confirmed: false,
+          reason: 'EXPIRED_VIETNAM_DAY',
+          source: options.source,
+        },
+      };
+    }
+
+    if (intent.status !== 'PENDING') {
+      return {
+        intent,
+        checkResult: {
+          confirmed: false,
+          reason: 'STATUS_NOT_PENDING',
+          status: intent.status,
+          source: options.source,
+        },
+      };
+    }
+
+    if (this.isBeforeCurrentVietnamDay(intent.createdAt)) {
+      const now = new Date();
+      const result = {
+        confirmed: false,
+        reason: 'EXPIRED_VIETNAM_DAY',
+        source: options.source,
+      };
+      const updated = await this.updatePendingReconcileResult(intent.id, {
+        status: 'FAILED',
+        lastCheckedAt: now,
+        lastCheckResult: result as Prisma.InputJsonObject,
+      });
+      this.logger.log(
+        `VietQR payment intent expired: source=${options.source} paymentId=${intent.id} storeCode=${intent.storeCode} createdAt=${intent.createdAt.toISOString()}`,
+      );
+      return { intent: updated ?? intent, checkResult: result };
+    }
+
+    if (!intent.amount || !intent.transferContent) {
+      const result = {
+        confirmed: false,
+        reason: 'MISSING_MATCH_FIELDS',
+        message:
+          'QR thieu so tien hoac noi dung chuyen khoan nen khong the tu xac nhan',
+        source: options.source,
+      };
+      const updated = await this.updatePendingReconcileResult(intent.id, {
+        status: 'PENDING',
         lastCheckedAt: new Date(),
         lastCheckResult: result as Prisma.InputJsonObject,
-      },
+      });
+      return { intent: updated ?? intent, checkResult: result };
+    }
+
+    const storedMatches = await this.findStoredMatches(intent);
+    if (storedMatches.length === 1) {
+      const match = storedMatches[0];
+      const now = new Date();
+      const result = {
+        confirmed: true,
+        reason: 'MATCHED_STORED',
+        matchedCandidates: 1,
+        source: options.source,
+      };
+      const updated = await this.updatePendingReconcileResult(intent.id, {
+        status: 'PAID',
+        matchedTransactionId: match.id,
+        matchedTransactionNumber: match.transactionNumber,
+        matchedAmount: match.amount,
+        matchedTranTime: match.paidAt,
+        matchedPayerName: match.payerName,
+        matchedPayerAccount: match.payerAccount,
+        matchedTransactionContent: match.content,
+        confirmedAt: now,
+        lastCheckedAt: now,
+        lastCheckResult: result as Prisma.InputJsonObject,
+      });
+      this.logger.log(
+        `VietQR payment intent paid from stored MAP transaction: source=${options.source} paymentId=${intent.id} storeCode=${intent.storeCode} transactionId=${match.id}`,
+      );
+      return { intent: updated ?? intent, checkResult: result };
+    }
+
+    const result = {
+      confirmed: false,
+      reason:
+        storedMatches.length > 1
+          ? 'MULTIPLE_STORED_MATCHES'
+          : 'NO_STORED_MATCH',
+      matchedCandidates: storedMatches.length,
+      source: options.source,
+    };
+    const updated = await this.updatePendingReconcileResult(intent.id, {
+      status: storedMatches.length > 1 ? 'AMBIGUOUS' : 'PENDING',
+      lastCheckedAt: new Date(),
+      lastCheckResult: result as Prisma.InputJsonObject,
     });
+    return { intent: updated ?? intent, checkResult: result };
+  }
+
+  private async updatePendingReconcileResult(
+    id: string,
+    data: Prisma.VietQrPaymentIntentUpdateManyMutationInput,
+  ) {
+    const updated = await this.prisma.vietQrPaymentIntent.updateMany({
+      where: { id, status: 'PENDING' },
+      data,
+    });
+    if (updated.count === 0) {
+      this.logger.debug(
+        `VietQR reconcile skipped stale pending update: paymentId=${id}`,
+      );
+    }
+    return this.prisma.vietQrPaymentIntent.findUnique({ where: { id } });
   }
 
   async confirmPayment(user: any, paymentIntentId: string) {
@@ -463,6 +600,22 @@ export class VietQrService {
         status: intent.status,
         confirmed: true,
         reason: 'ALREADY_CONFIRMED',
+        matchedTransactionNumber: intent.matchedTransactionNumber,
+        matchedAmount: intent.matchedAmount,
+        matchedTranTime: intent.matchedTranTime,
+        matchedPayerName: intent.matchedPayerName,
+        matchedPayerAccount: intent.matchedPayerAccount,
+        matchedTransactionContent: intent.matchedTransactionContent,
+        confirmedAt: intent.confirmedAt,
+      };
+    }
+
+    if (intent.status === 'FAILED') {
+      return {
+        id: intent.id,
+        status: intent.status,
+        confirmed: false,
+        reason: 'EXPIRED_VIETNAM_DAY',
         matchedTransactionNumber: intent.matchedTransactionNumber,
         matchedAmount: intent.matchedAmount,
         matchedTranTime: intent.matchedTranTime,
@@ -743,6 +896,32 @@ export class VietQrService {
 
   private buildCheckResult(reason: string, matchedCandidates: number) {
     return { confirmed: reason === 'MATCHED', reason, matchedCandidates };
+  }
+
+  private isAutoReconcileDisabled() {
+    return process.env.VIETQR_AUTO_RECONCILE_ENABLED === 'false';
+  }
+
+  private autoReconcileBatchSize() {
+    const parsed = Number(process.env.VIETQR_AUTO_RECONCILE_BATCH_SIZE);
+    return Number.isFinite(parsed) && parsed > 0
+      ? Math.trunc(parsed)
+      : VIETQR_AUTO_RECONCILE_BATCH_SIZE;
+  }
+
+  private isBeforeCurrentVietnamDay(value: Date) {
+    return (
+      this.vietnamDayNumber(value) < this.vietnamDayNumber(new Date(Date.now()))
+    );
+  }
+
+  private vietnamDayNumber(value: Date) {
+    const vietnamTime = new Date(value.getTime() + VIETNAM_UTC_OFFSET_MS);
+    return (
+      vietnamTime.getUTCFullYear() * 10000 +
+      (vietnamTime.getUTCMonth() + 1) * 100 +
+      vietnamTime.getUTCDate()
+    );
   }
 
   private normalizeMatchText(value: string) {

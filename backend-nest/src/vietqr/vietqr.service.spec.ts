@@ -14,7 +14,9 @@ describe('VietQrService', () => {
     vietQrPaymentIntent: {
       create: jest.Mock;
       findUnique: jest.Mock;
+      findMany: jest.Mock;
       update: jest.Mock;
+      updateMany: jest.Mock;
     };
     mapVietinTransaction: {
       findMany: jest.Mock;
@@ -40,7 +42,9 @@ describe('VietQrService', () => {
           ...data,
         })),
         findUnique: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       mapVietinTransaction: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -51,6 +55,7 @@ describe('VietQrService', () => {
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     process.env = originalEnv;
   });
 
@@ -161,19 +166,24 @@ describe('VietQrService', () => {
       updatedAt: new Date('2026-05-20T10:00:00.000Z'),
     });
 
-    await expect(
-      service.getExternalStatus('payment-1'),
-    ).resolves.toMatchObject({
-      paymentId: 'payment-1',
-      status: 'PENDING',
-      confirmed: false,
-      amount: 150000,
-      transferContent: 'DH-001 CP62 BOT',
-    });
-    expect(mapVietinService.searchTransactionsForStoreCode).not.toHaveBeenCalled();
+    await expect(service.getExternalStatus('payment-1')).resolves.toMatchObject(
+      {
+        paymentId: 'payment-1',
+        status: 'PENDING',
+        confirmed: false,
+        amount: 150000,
+        transferContent: 'DH-001 CP62 BOT',
+      },
+    );
+    expect(
+      mapVietinService.searchTransactionsForStoreCode,
+    ).not.toHaveBeenCalled();
   });
 
   it('checks external payment status and updates matching stored payment', async () => {
+    jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2026-05-20T10:06:00.000Z').getTime());
     const createdAt = new Date('2026-05-20T10:00:00.000Z');
     const updatedAt = new Date('2026-05-20T10:05:00.000Z');
     const pendingIntent = {
@@ -215,8 +225,6 @@ describe('VietQrService', () => {
         content: 'IBFT DH-001 CP62 BOT',
       },
     ]);
-    prisma.vietQrPaymentIntent.update.mockResolvedValue(paidIntent);
-
     await expect(
       service.checkExternalStatus('payment-1'),
     ).resolves.toMatchObject({
@@ -226,12 +234,26 @@ describe('VietQrService', () => {
       matchedTransactionNumber: 'txn-1',
       checkResult: { reason: 'MATCHED_STORED', confirmed: true },
     });
-    expect(mapVietinService.searchTransactionsForStoreCode).not.toHaveBeenCalled();
+    expect(prisma.vietQrPaymentIntent.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'payment-1', status: 'PENDING' },
+        data: expect.objectContaining({
+          status: 'PAID',
+          matchedTransactionId: 'map-id-1',
+          matchedTransactionNumber: 'txn-1',
+        }),
+      }),
+    );
+    expect(
+      mapVietinService.searchTransactionsForStoreCode,
+    ).not.toHaveBeenCalled();
   });
 
   it('keeps external status pending when no stored MAP transaction matches', async () => {
+    jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2026-05-20T10:06:00.000Z').getTime());
     const createdAt = new Date('2026-05-20T10:00:00.000Z');
-    const checkedAt = new Date('2026-05-20T10:05:00.000Z');
     const pendingIntent = {
       id: 'payment-1',
       storeCode: 'CP62',
@@ -254,16 +276,6 @@ describe('VietQrService', () => {
     };
     prisma.vietQrPaymentIntent.findUnique.mockResolvedValue(pendingIntent);
     prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
-    prisma.vietQrPaymentIntent.update.mockResolvedValue({
-      ...pendingIntent,
-      lastCheckedAt: checkedAt,
-      lastCheckResult: {
-        confirmed: false,
-        reason: 'NO_STORED_MATCH',
-        matchedCandidates: 0,
-      },
-      updatedAt: checkedAt,
-    });
 
     await expect(
       service.checkExternalStatus('payment-1'),
@@ -273,12 +285,140 @@ describe('VietQrService', () => {
       confirmed: false,
       checkResult: { reason: 'NO_STORED_MATCH', confirmed: false },
     });
-    expect(prisma.vietQrPaymentIntent.update).toHaveBeenCalledWith(
+    expect(prisma.vietQrPaymentIntent.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: { id: 'payment-1', status: 'PENDING' },
         data: expect.objectContaining({ status: 'PENDING' }),
       }),
     );
-    expect(mapVietinService.searchTransactionsForStoreCode).not.toHaveBeenCalled();
+    expect(
+      mapVietinService.searchTransactionsForStoreCode,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('auto-reconciles pending VietQR intents from stored MAP transactions only', async () => {
+    jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2026-05-20T10:06:00.000Z').getTime());
+    const createdAt = new Date('2026-05-20T10:00:00.000Z');
+    const paidAt = new Date('2026-05-20T10:05:00.000Z');
+    const pendingIntent = {
+      id: 'payment-1',
+      storeCode: 'CP62',
+      amount: 150000,
+      orderCode: 'DH-001',
+      transferContent: 'DH-001 CP62 BOT',
+      qrPayload: 'payload',
+      status: 'PENDING',
+      createdAt,
+      updatedAt: createdAt,
+    };
+    const paidIntent = {
+      ...pendingIntent,
+      status: 'PAID',
+      matchedTransactionNumber: 'txn-1',
+      matchedAmount: 150000,
+      matchedTranTime: paidAt,
+      matchedPayerName: 'Nguyen Van A',
+      matchedPayerAccount: '123456789',
+      matchedTransactionContent: 'IBFT DH-001 CP62 BOT',
+      confirmedAt: paidAt,
+      lastCheckedAt: paidAt,
+      updatedAt: paidAt,
+    };
+    prisma.vietQrPaymentIntent.findMany.mockResolvedValue([pendingIntent]);
+    prisma.vietQrPaymentIntent.findUnique.mockResolvedValue(paidIntent);
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      {
+        id: 'map-id-1',
+        transactionNumber: 'txn-1',
+        amount: 150000,
+        paidAt,
+        payerName: 'Nguyen Van A',
+        payerAccount: '123456789',
+        content: 'IBFT DH-001 CP62 BOT',
+      },
+    ]);
+
+    await service.reconcilePendingPaymentIntents();
+
+    expect(prisma.vietQrPaymentIntent.findMany).toHaveBeenCalledWith({
+      where: { status: 'PENDING' },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    });
+    expect(prisma.vietQrPaymentIntent.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'payment-1', status: 'PENDING' },
+        data: expect.objectContaining({
+          status: 'PAID',
+          matchedTransactionId: 'map-id-1',
+        }),
+      }),
+    );
+    expect(
+      mapVietinService.searchTransactionsForStoreCode,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('marks still-pending VietQR intents failed after the Vietnam-local day changes', async () => {
+    const nowSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2026-05-20T17:01:00.000Z').getTime());
+    const createdAt = new Date('2026-05-20T16:59:00.000Z');
+    const pendingIntent = {
+      id: 'payment-1',
+      storeCode: 'CP62',
+      amount: 150000,
+      orderCode: 'DH-001',
+      transferContent: 'DH-001 CP62 BOT',
+      qrPayload: 'payload',
+      status: 'PENDING',
+      matchedTransactionNumber: null,
+      matchedAmount: null,
+      matchedTranTime: null,
+      matchedPayerName: null,
+      matchedPayerAccount: null,
+      matchedTransactionContent: null,
+      confirmedAt: null,
+      lastCheckedAt: null,
+      lastCheckResult: null,
+      createdAt,
+      updatedAt: createdAt,
+    };
+    const failedIntent = {
+      ...pendingIntent,
+      status: 'FAILED',
+      lastCheckResult: { reason: 'EXPIRED_VIETNAM_DAY' },
+      updatedAt: new Date('2026-05-20T17:01:00.000Z'),
+    };
+    prisma.vietQrPaymentIntent.findUnique
+      .mockResolvedValueOnce(pendingIntent)
+      .mockResolvedValueOnce(failedIntent);
+
+    try {
+      await expect(
+        service.checkExternalStatus('payment-1'),
+      ).resolves.toMatchObject({
+        paymentId: 'payment-1',
+        status: 'FAILED',
+        confirmed: false,
+        checkResult: { reason: 'EXPIRED_VIETNAM_DAY', confirmed: false },
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
+
+    expect(prisma.mapVietinTransaction.findMany).not.toHaveBeenCalled();
+    expect(prisma.vietQrPaymentIntent.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'payment-1', status: 'PENDING' },
+        data: expect.objectContaining({ status: 'FAILED' }),
+      }),
+    );
+    expect(
+      mapVietinService.searchTransactionsForStoreCode,
+    ).not.toHaveBeenCalled();
   });
 
   it('rejects invalid amount', async () => {
@@ -454,6 +594,41 @@ describe('VietQrService', () => {
     expect(
       mapVietinService.searchTransactionsForStoreCode,
     ).not.toHaveBeenCalled();
+  });
+
+  it('does not revive a failed expired payment from the app confirm endpoint', async () => {
+    const createdAt = new Date('2026-05-19T16:59:00.000Z');
+    prisma.vietQrPaymentIntent.findUnique.mockResolvedValue({
+      id: 'payment-1',
+      storeCode: 'CP62',
+      amount: 150000,
+      orderCode: 'DH-001',
+      transferContent: 'DH-001 CP62 BOT',
+      status: 'FAILED',
+      matchedTransactionNumber: null,
+      matchedAmount: null,
+      matchedTranTime: null,
+      matchedPayerName: null,
+      matchedPayerAccount: null,
+      matchedTransactionContent: null,
+      confirmedAt: null,
+      createdAt,
+    });
+
+    await expect(
+      service.confirmPayment({ role: 'SUPER_ADMIN' }, 'payment-1'),
+    ).resolves.toMatchObject({
+      id: 'payment-1',
+      status: 'FAILED',
+      confirmed: false,
+      reason: 'EXPIRED_VIETNAM_DAY',
+    });
+
+    expect(prisma.mapVietinTransaction.findMany).not.toHaveBeenCalled();
+    expect(
+      mapVietinService.searchTransactionsForStoreCode,
+    ).not.toHaveBeenCalled();
+    expect(prisma.vietQrPaymentIntent.update).not.toHaveBeenCalled();
   });
 
   it('confirms MAP rows that use Vietnam-local time and alternate field names', async () => {

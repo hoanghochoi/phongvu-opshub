@@ -250,7 +250,8 @@ class _VietQrScreenState extends State<VietQrScreen> {
   bool _shouldStopAutoCheck(VietQrPaymentConfirmation confirmation) {
     return confirmation.confirmed ||
         confirmation.reason == 'MISSING_MATCH_FIELDS' ||
-        confirmation.reason == 'MULTIPLE_MATCHES';
+        confirmation.reason == 'MULTIPLE_MATCHES' ||
+        confirmation.reason == 'EXPIRED_VIETNAM_DAY';
   }
 
   Future<void> _checkPayment({bool showFeedback = false}) async {
@@ -642,6 +643,8 @@ class _VietQrScreenState extends State<VietQrScreen> {
         return 'Có nhiều giao dịch khớp, cần kiểm tra thủ công';
       case 'MISSING_MATCH_FIELDS':
         return 'QR thiếu số tiền hoặc nội dung, cần kiểm tra thủ công';
+      case 'EXPIRED_VIETNAM_DAY':
+        return 'QR da qua ngay, vui long tao ma moi';
       default:
         return 'Chưa xác nhận được thanh toán';
     }

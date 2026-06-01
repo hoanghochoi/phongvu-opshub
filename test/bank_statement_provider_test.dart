@@ -158,6 +158,51 @@ void main() {
       provider.dispose();
     });
 
+    test('keeps SR snapshot fetches under backend page limit', () async {
+      final repository = _FakeBankStatementRepository(
+        pages: [
+          List.generate(
+            125,
+            (index) => _transaction('tx-${index + 1}', const []),
+          ),
+        ],
+      );
+      final provider = BankStatementProvider(
+        repository,
+        now: () => DateTime.utc(2026, 5, 31, 18),
+      );
+      await provider.initialize(_superAdmin);
+
+      provider.setStoreSelection(allStores: false, ids: {'CP01'});
+      await provider.search();
+
+      expect(provider.hasSearched, isTrue);
+      expect(provider.total, 125);
+      expect(provider.transactions.length, 20);
+      expect(repository.fetchStatementsCount, 3);
+      expect(repository.seenQueries.map((query) => query.limit), [
+        20,
+        100,
+        100,
+      ]);
+      expect(
+        repository.seenQueries.every(
+          (query) => query.storeIds.single == 'CP01',
+        ),
+        isTrue,
+      );
+      expect(
+        repository.seenQueries.every(
+          (query) =>
+              query.startDate == DateTime(2026, 6) &&
+              query.endDate == DateTime(2026, 6),
+        ),
+        isTrue,
+      );
+
+      provider.dispose();
+    });
+
     test('rejects invalid inline order dates before calling API', () async {
       final repository = _FakeBankStatementRepository();
       final provider = BankStatementProvider(repository);
@@ -207,10 +252,17 @@ const _nationalManager = User(
   workScopeType: 'NATIONAL',
 );
 
+const _superAdmin = User(
+  id: 'admin-1',
+  email: 'super@example.com',
+  role: 'SUPER_ADMIN',
+);
+
 class _FakeBankStatementRepository extends BankStatementRepository {
   int fetchStatementsCount = 0;
   int updateOrdersCount = 0;
   BankStatementQuery? lastQuery;
+  final List<BankStatementQuery> seenQueries = [];
   List<String> lastUpdatedOrders = const [];
 
   final List<List<BankStatementTransaction>> _pages;
@@ -238,6 +290,7 @@ class _FakeBankStatementRepository extends BankStatementRepository {
   Future<BankStatementPage> fetchStatements(BankStatementQuery query) async {
     fetchStatementsCount += 1;
     lastQuery = query;
+    seenQueries.add(query);
     final allRows = _pages.expand((page) => page).toList(growable: false);
     final start = query.page * query.limit;
     final end = start + query.limit > allRows.length

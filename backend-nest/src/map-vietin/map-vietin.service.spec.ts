@@ -317,7 +317,10 @@ describe('MapVietinService', () => {
   });
 
   it('uses a 3000-5000ms random delay for scheduled MAP history sync', () => {
-    jest.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValueOnce(0.9999);
+    jest
+      .spyOn(Math, 'random')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.9999);
 
     expect((service as any).randomMapHistorySyncDelayMs()).toBe(3000);
     expect((service as any).randomMapHistorySyncDelayMs()).toBe(5000);
@@ -864,6 +867,25 @@ describe('MapVietinService', () => {
     expect(JSON.stringify(where)).toContain('CP01');
     expect(JSON.stringify(where)).toContain('26052912345678');
     expect(JSON.stringify(where)).toContain('isEmpty');
+  });
+
+  it('filters statements by selected SR codes for super admin', async () => {
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(0);
+
+    await expect(
+      service.listStatements(
+        { role: 'SUPER_ADMIN' },
+        { storeIds: 'cp01, CP02', page: 0, limit: 20 },
+      ),
+    ).resolves.toMatchObject({ total: 0, list: [] });
+
+    expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeCode: { in: ['CP01', 'CP02'] } },
+      }),
+    );
+    expect(prisma.store.findUnique).not.toHaveBeenCalled();
   });
 
   it('rejects combined primary statement filters', async () => {
