@@ -17,6 +17,8 @@ optional amount, optional transfer content, and the signed-in user's store code.
 - Backend returns a VietQR EMV payload plus account display fields.
 - Backend omits amount/content EMV fields when staff leaves them blank.
 - Flutter renders the QR image from the backend payload.
+- n8n can call OpsHub with a dedicated VietQR API key and receive transfer
+  details plus a server-rendered PNG matching the app export layout.
 - Backend stores each QR as a payment intent.
 - The QR result screen automatically checks payment status when amount and
   transfer content are fixed; staff can also run an immediate manual check.
@@ -33,3 +35,4 @@ optional amount, optional transfer content, and the signed-in user's store code.
 
 - Flutter: `flutter analyze`, `flutter test`.
 - NestJS: `npm run build`, `npm test -- --runInBand`.
+- Focused n8n API proof: `npm test -- --runInBand src/vietqr/vietqr.controller.spec.ts src/vietqr/vietqr.service.spec.ts`.

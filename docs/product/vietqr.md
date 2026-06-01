@@ -18,6 +18,11 @@ a customer to scan and pay manually.
   field from the QR payload instead of encoding an empty value.
 - The Flutter app requests VietQR data from the NestJS API and renders the QR
   image locally from the returned EMV payload.
+- n8n can call the secured OpsHub VietQR API to receive the same transfer
+  details plus a server-rendered PNG image containing QR, logo, bank, account,
+  amount, and transfer content. The endpoint requires `VIETQR_EXTERNAL_API_KEY`
+  through `x-opshub-vietqr-key`, `Authorization: Bearer <key>`, or a query key
+  for quick-link compatibility.
 - The backend owns the bank BIN, account number, account name, and merchant
   city through environment configuration.
 - Admin backend can probe VietinBank MAP payment transactions for a configured
@@ -161,9 +166,27 @@ The NestJS API expects these values when `POST /vietqr` is used:
 - `VIETQR_ACCOUNT_NUMBER`
 - `VIETQR_ACCOUNT_NAME`
 - `VIETQR_MERCHANT_CITY`
+- `VIETQR_EXTERNAL_API_KEY` for `/vietqr/n8n` and `/vietqr/n8n/image`
+- `VIETQR_LOGO_PATH` optionally points image rendering to a logo file when the
+  backend process cannot see the repo app icon path.
 
 Missing config does not block backend startup, but the VietQR endpoint returns a
 clear service-unavailable error until the config is present.
+
+## n8n VietQR API
+
+- `GET /vietqr/n8n` or `POST /vietqr/n8n` returns JSON fields for n8n,
+  including `paymentId`, bank/account fields, `amount`, `transferContent`,
+  `qrPayload`, `imageMimeType`, `imageFileName`, `imageBase64`, and
+  `imageDataUrl`.
+- `GET /vietqr/n8n/image` returns the PNG directly and includes the transfer
+  details in `X-OpsHub-*` response headers.
+- Inputs may use app-style fields (`amount`, `orderCode`, `storeCode`) or the
+  current n8n quick-link content field (`addInfo`). When `addInfo` or
+  `transferContent` is sent, OpsHub uses that exact normalized content instead
+  of appending `{STORE_CODE} BOT` again.
+- n8n should prefer the header key path. Query keys are accepted only to keep
+  quick-link style calls possible, and request logs strip query strings.
 
 ## MAP Reconciliation Configuration
 

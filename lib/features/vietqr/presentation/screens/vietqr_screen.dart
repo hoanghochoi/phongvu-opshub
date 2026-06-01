@@ -592,7 +592,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
             amountFormatter: _currencyFormatter,
           ),
           const SizedBox(height: 16),
-        ] else if (canAutoConfirm) ...[
+        ] else if (!confirmed && canAutoConfirm) ...[
           PaymentWaitingCard(isChecking: _isCheckingPayment),
           const SizedBox(height: 16),
         ],
