@@ -13,6 +13,7 @@ export interface RenderedVietQrImage {
 export class VietQrImageRenderer {
   private readonly width = 1080;
   private readonly height = 1560;
+  private fontFaceCache?: string;
 
   async renderPng(transfer: VietQrResponse): Promise<RenderedVietQrImage> {
     const [qrBuffer, logoBuffer] = await Promise.all([
@@ -34,12 +35,14 @@ export class VietQrImageRenderer {
   }
 
   private buildBaseSvg(transfer: VietQrResponse): string {
+    const fontFamily =
+      '&quot;OpsHubSans&quot;, &quot;SF Pro Display&quot;, &quot;DejaVu Sans&quot;, Arial, Helvetica, sans-serif';
     const titleStyle =
-      'font-family: Arial, Helvetica, sans-serif; font-size: 58px; font-weight: 700; fill: #1238C8;';
+      `font-family: ${fontFamily}; font-size: 58px; font-weight: 700; fill: #1238C8;`;
     const labelStyle =
-      'font-family: Arial, Helvetica, sans-serif; font-size: 32px; font-weight: 400; fill: #5F6673;';
+      `font-family: ${fontFamily}; font-size: 32px; font-weight: 400; fill: #5F6673;`;
     const valueStyle =
-      'font-family: Arial, Helvetica, sans-serif; font-size: 38px; font-weight: 700; fill: #1F2430;';
+      `font-family: ${fontFamily}; font-size: 38px; font-weight: 700; fill: #1F2430;`;
     const rows = [
       ['Ngân hàng', transfer.bankName],
       ['Số tài khoản', transfer.accountNumber],
@@ -50,6 +53,7 @@ export class VietQrImageRenderer {
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${this.width}" height="${this.height}" viewBox="0 0 ${this.width} ${this.height}">
+  ${this.svgStyle()}
   <rect width="${this.width}" height="${this.height}" fill="#FFFFFF"/>
   <text x="72" y="111" style="${titleStyle}">PhongVu OpsHub</text>
   <text x="72" y="168" style="${labelStyle}">Mã chuyển khoản VietQR</text>
@@ -126,6 +130,51 @@ export class VietQrImageRenderer {
       <path d="M256 220c18 42 36 60 78 78-42 18-60 36-78 78-18-42-36-60-78-78 42-18 60-36 78-78z" fill="#FFFFFF"/>
     </svg>`;
     return Buffer.from(fallback);
+  }
+
+  private svgStyle(): string {
+    const fontFaces = this.fontFaceCss();
+    if (!fontFaces) return '';
+    return `<style type="text/css"><![CDATA[
+${fontFaces}
+]]></style>`;
+  }
+
+  private fontFaceCss(): string {
+    if (this.fontFaceCache !== undefined) return this.fontFaceCache;
+
+    const faces = [
+      { fileName: 'SF-Pro-Display-Regular.otf', weight: 400 },
+      { fileName: 'SF-Pro-Display-Semibold.otf', weight: 600 },
+      { fileName: 'SF-Pro-Display-Bold.otf', weight: 700 },
+    ]
+      .map((face) => {
+        const font = this.fontSourceBuffer(face.fileName);
+        if (!font) return '';
+        const dataUrl = `data:font/otf;base64,${font.toString('base64')}`;
+        return `@font-face { font-family: 'OpsHubSans'; src: url('${dataUrl}') format('opentype'); font-weight: ${face.weight}; font-style: normal; }`;
+      })
+      .filter(Boolean)
+      .join('\n');
+
+    this.fontFaceCache = faces;
+    return this.fontFaceCache;
+  }
+
+  private fontSourceBuffer(fileName: string): Buffer | null {
+    const explicitDir = process.env.VIETQR_FONT_DIR?.trim();
+    const candidates = [
+      explicitDir ? resolve(explicitDir, fileName) : null,
+      resolve(process.cwd(), 'fonts', fileName),
+      resolve(process.cwd(), '..', 'fonts', fileName),
+    ].filter((value): value is string => Boolean(value));
+
+    for (const candidate of candidates) {
+      if (!existsSync(candidate)) continue;
+      return readFileSync(candidate);
+    }
+
+    return null;
   }
 
   private infoRow(
