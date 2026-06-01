@@ -2,18 +2,31 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MapVietinService } from '../map-vietin/map-vietin.service';
+import { VietQrImageRenderer } from './vietqr-image.renderer';
+import type { RenderedVietQrImage } from './vietqr-image.renderer';
 
 export interface CreateVietQrInput {
   amount?: number | null;
   orderCode?: string | null;
+  transferContentOverride?: string | null;
   storeCode: string;
   createdById?: string | null;
+}
+
+export interface CreateExternalVietQrInput {
+  amount?: number | null;
+  orderCode?: string | null;
+  transferContent?: string | null;
+  addInfo?: string | null;
+  storeCode: string;
+  source?: string | null;
 }
 
 export interface VietQrResponse {
@@ -29,10 +42,31 @@ export interface VietQrResponse {
   createdAt: Date;
 }
 
+export interface VietQrExternalImageResponse {
+  paymentId: string;
+  bankBin: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  amount: number | null;
+  transferContent: string;
+  qrPayload: string;
+  status: string;
+  createdAt: Date;
+  imageMimeType: 'image/png';
+  imageFileName: string;
+  imageBase64: string;
+  imageDataUrl: string;
+  imageSizeBytes: number;
+  imageBuffer: Buffer;
+}
+
 type MapTransaction = Record<string, unknown>;
 
 @Injectable()
 export class VietQrService {
+  private readonly logger = new Logger(VietQrService.name);
+  private readonly imageRenderer = new VietQrImageRenderer();
   private readonly mapAmountKeys = [
     'amount',
     'txnAmount',
@@ -120,13 +154,15 @@ export class VietQrService {
   ) {}
 
   async create(input: CreateVietQrInput): Promise<VietQrResponse> {
-    const config = await this.getConfig(input.storeCode);
     const amount = this.normalizeAmount(input.amount);
     const storeCode = this.normalizeText(input.storeCode, 'storeCode');
+    const config = await this.getConfig(storeCode);
     const orderCode = this.normalizeOptionalText(input.orderCode);
-    const transferContent = orderCode
-      ? this.normalizeTransferContent(`${orderCode} ${storeCode} BOT`)
-      : '';
+    const transferContent = this.resolveTransferContent(
+      orderCode,
+      storeCode,
+      input.transferContentOverride,
+    );
 
     const merchantAccountInfo = this.buildMerchantAccountInfo(
       config.bankBin,
@@ -158,17 +194,101 @@ export class VietQrService {
       },
     });
 
+    return this.toResponse(paymentIntent, config);
+  }
+
+  async createExternal(
+    input: CreateExternalVietQrInput,
+  ): Promise<VietQrExternalImageResponse> {
+    const startedAt = Date.now();
+    const source = this.normalizeLogValue(input.source || 'n8n');
+    const storeCode = this.normalizeLogValue(input.storeCode);
+    const hasAmount = input.amount !== null && input.amount !== undefined;
+    const transferContentOverride =
+      input.transferContent || input.addInfo || null;
+
+    this.logger.log(
+      `External VietQR generation started: source=${source} storeCode=${storeCode} hasAmount=${hasAmount} hasTransferContent=${Boolean(transferContentOverride || input.orderCode)}`,
+    );
+
+    try {
+      const transfer = await this.create({
+        amount: input.amount,
+        orderCode: input.orderCode,
+        transferContentOverride,
+        storeCode: input.storeCode,
+        createdById: null,
+      });
+      const image = await this.imageRenderer.renderPng(transfer);
+      const response = this.toExternalResponse(transfer, image);
+      this.logger.log(
+        `External VietQR generation succeeded: source=${source} paymentId=${transfer.id} storeCode=${storeCode} amount=${transfer.amount ?? 'editable'} durationMs=${Date.now() - startedAt} imageSizeBytes=${response.imageSizeBytes}`,
+      );
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `External VietQR generation failed: source=${source} storeCode=${storeCode} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  private resolveTransferContent(
+    orderCode: string,
+    storeCode: string,
+    transferContentOverride?: string | null,
+  ) {
+    if (
+      transferContentOverride !== undefined &&
+      transferContentOverride !== null
+    ) {
+      return this.normalizeTransferContent(transferContentOverride);
+    }
+    return orderCode
+      ? this.normalizeTransferContent(`${orderCode} ${storeCode} BOT`)
+      : '';
+  }
+
+  private toResponse(
+    paymentIntent: any,
+    config: Awaited<ReturnType<VietQrService['getConfig']>>,
+  ): VietQrResponse {
     return {
       id: paymentIntent.id,
       bankBin: config.bankBin,
       bankName: config.bankName,
       accountNumber: config.accountNumber,
       accountName: config.accountName,
-      amount,
-      transferContent,
+      amount: paymentIntent.amount,
+      transferContent: paymentIntent.transferContent,
       qrPayload: paymentIntent.qrPayload,
       status: paymentIntent.status,
       createdAt: paymentIntent.createdAt,
+    };
+  }
+
+  private toExternalResponse(
+    transfer: VietQrResponse,
+    image: RenderedVietQrImage,
+  ): VietQrExternalImageResponse {
+    const imageBase64 = image.buffer.toString('base64');
+    return {
+      paymentId: transfer.id,
+      bankBin: transfer.bankBin,
+      bankName: transfer.bankName,
+      accountNumber: transfer.accountNumber,
+      accountName: transfer.accountName,
+      amount: transfer.amount,
+      transferContent: transfer.transferContent,
+      qrPayload: transfer.qrPayload,
+      status: transfer.status,
+      createdAt: transfer.createdAt,
+      imageMimeType: image.mimeType,
+      imageFileName: image.fileName,
+      imageBase64,
+      imageDataUrl: `data:${image.mimeType};base64,${imageBase64}`,
+      imageSizeBytes: image.buffer.length,
+      imageBuffer: image.buffer,
     };
   }
 
@@ -565,6 +685,18 @@ export class VietQrService {
 
   private normalizeOptionalText(value: string | null | undefined): string {
     return this.normalizeTransferContent(value || '');
+  }
+
+  private normalizeLogValue(value: string | null | undefined): string {
+    const normalized = this.normalizeTransferContent(value || 'unknown');
+    return normalized || 'unknown';
+  }
+
+  private safeError(error: unknown): string {
+    if (error instanceof Error) {
+      return `${error.name}:${error.message}`.slice(0, 220);
+    }
+    return String(error).slice(0, 220);
   }
 
   private normalizeTransferContent(value: string): string {

@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import jsQR from 'jsqr';
+import { PNG } from 'pngjs';
 import { VietQrService } from './vietqr.service';
 
 describe('VietQrService', () => {
@@ -73,6 +75,7 @@ describe('VietQrService', () => {
     expect(result.qrPayload).toContain('0208QRIBFTTA');
     expect(result.qrPayload).toContain('5406150000');
     expect(result.qrPayload).toContain('0816DH-001 HCM01 BOT');
+    expect(hasValidCrc(result.qrPayload)).toBe(true);
     expect(result.qrPayload).toMatch(/6304[0-9A-F]{4}$/);
   });
 
@@ -108,6 +111,33 @@ describe('VietQrService', () => {
     expect(result.transferContent).toBe('COC BAO HANH MAY A HCM01 BOT');
     expect(result.qrPayload).toContain('0828COC BAO HANH MAY A HCM01 BOT');
   });
+
+  it('creates an n8n-ready image response with exact addInfo transfer content', async () => {
+    const result = await service.createExternal({
+      amount: 150000,
+      addInfo: 'DH-001 CP62 BOT',
+      storeCode: 'CP62',
+      source: 'n8n-test',
+    });
+
+    expect(result).toMatchObject({
+      paymentId: 'payment-1',
+      bankBin: '970436',
+      bankName: 'Vietcombank',
+      accountNumber: '123456789',
+      accountName: 'PHONG VU',
+      amount: 150000,
+      transferContent: 'DH-001 CP62 BOT',
+      imageMimeType: 'image/png',
+      imageFileName: 'vietqr_DH-001_CP62_BOT.png',
+    });
+    expect(result.imageDataUrl.startsWith('data:image/png;base64,')).toBe(true);
+    expect(result.imageBuffer.subarray(0, 4)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+    );
+    expect(decodeQrFromPng(result.imageBuffer)).toBe(result.qrPayload);
+    expect(result.imageSizeBytes).toBeGreaterThan(1000);
+  }, 15000);
 
   it('rejects invalid amount', async () => {
     await expect(
@@ -442,6 +472,30 @@ describe('VietQrService', () => {
     });
   });
 });
+
+function decodeQrFromPng(buffer: Buffer): string | null {
+  const png = PNG.sync.read(buffer);
+  const data = new Uint8ClampedArray(
+    png.data.buffer,
+    png.data.byteOffset,
+    png.data.byteLength,
+  );
+  return jsQR(data, png.width, png.height)?.data ?? null;
+}
+
+function hasValidCrc(payload: string): boolean {
+  const expected = payload.slice(-4);
+  const withoutCrc = payload.slice(0, -4);
+  let crc = 0xffff;
+  for (let i = 0; i < withoutCrc.length; i += 1) {
+    crc ^= withoutCrc.charCodeAt(i) << 8;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc & 0x8000) !== 0 ? (crc << 1) ^ 0x1021 : crc << 1;
+      crc &= 0xffff;
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0') === expected;
+}
 
 function readTopLevelEmvTags(payload: string): Record<string, string> {
   const tags: Record<string, string> = {};
