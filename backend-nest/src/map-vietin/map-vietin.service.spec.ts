@@ -44,6 +44,7 @@ describe('MapVietinService', () => {
     delete process.env.MAP_VIETIN_GLOBAL_SYNC_ENABLED;
     delete process.env.MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES;
     delete process.env.MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS;
+    delete process.env.MAP_VIETIN_SYNC_ENABLED;
     paymentNotifications = { createForTransaction: jest.fn() };
     fetchMock = jest.fn();
     global.fetch = fetchMock as any;
@@ -320,6 +321,19 @@ describe('MapVietinService', () => {
 
     expect((service as any).randomMapHistorySyncDelayMs()).toBe(3000);
     expect((service as any).randomMapHistorySyncDelayMs()).toBe(5000);
+  });
+
+  it('does not start the MAP history scheduler when MAP sync is disabled', () => {
+    process.env.MAP_VIETIN_SYNC_ENABLED = 'false';
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+    const disabledService = new MapVietinService(
+      prisma,
+      paymentNotifications as any,
+    );
+
+    disabledService.onModuleInit();
+
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
   });
 
   it('schedules the next MAP history sync only after the current run finishes', async () => {

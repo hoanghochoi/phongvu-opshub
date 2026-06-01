@@ -41,8 +41,11 @@ This file maps product behavior to proof. Existing flows are marked
 - PAYMENT-MONITOR-001, 2026-06-01: changed only the backend MAP-history fetch
   scheduler so each scheduled fetch waits a random 3000-5000ms after the
   previous run finishes; client polling of OpsHub stored transactions remains
-  unchanged. Validation: `npm test -- --runInBand
-  src/map-vietin/map-vietin.service.spec.ts` (25 tests), `npm run build`.
+  unchanged. When `MAP_VIETIN_SYNC_ENABLED=false`, the scheduler does not start
+  a timer, so paused MAP sync stays paused until the backend is restarted with
+  sync enabled. Validation: `npm test -- --runInBand
+  src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
+  `npm test -- --runInBand` (29 suites, 171 tests), `git diff --check`.
   Gap: live VPS deploy/smoke pending.
 
 ## Evidence Rules
