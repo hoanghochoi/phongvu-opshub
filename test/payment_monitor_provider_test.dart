@@ -13,6 +13,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  const retryDelay = Duration(milliseconds: 1);
+
   setUp(() {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     SharedPreferences.setMockInitialValues({});
@@ -40,7 +42,12 @@ void main() {
       ],
     );
     final speaker = _FakePaymentSpeaker();
-    final provider = PaymentMonitorProvider(repository, speaker);
+    final provider = PaymentMonitorProvider(
+      repository,
+      speaker,
+      null,
+      retryDelay,
+    );
 
     await Future<void>.delayed(Duration.zero);
     provider.syncAuth(
@@ -71,7 +78,12 @@ void main() {
   test('requests stored transactions with the selected date range', () async {
     final repository = _FakePaymentMonitorRepository(notifications: const []);
     final speaker = _FakePaymentSpeaker();
-    final provider = PaymentMonitorProvider(repository, speaker);
+    final provider = PaymentMonitorProvider(
+      repository,
+      speaker,
+      null,
+      retryDelay,
+    );
 
     await Future<void>.delayed(Duration.zero);
     provider.syncAuth(
@@ -100,44 +112,61 @@ void main() {
     provider.dispose();
   });
 
-  test('retries payment audio once before acknowledging played', () async {
-    final repository = _FakePaymentMonitorRepository(
-      notifications: [_readyNotification()],
-    );
-    final speaker = _FakePaymentSpeaker(failuresBeforeSuccess: 1);
-    final provider = PaymentMonitorProvider(repository, speaker);
+  test(
+    'retries payment audio with cached bytes before acknowledging played',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: [_readyNotification()],
+      );
+      final speaker = _FakePaymentSpeaker(failuresBeforeSuccess: 1);
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
 
-    await Future<void>.delayed(Duration.zero);
-    provider.syncAuth(
-      const User(
-        id: 'user-1',
-        email: 'staff@example.com',
-        role: 'MANAGER',
-        storeId: 'store-uuid-1',
-      ),
-      isInitialized: true,
-    );
-    await _waitUntil(
-      () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
-    );
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(
+        const User(
+          id: 'user-1',
+          email: 'staff@example.com',
+          role: 'MANAGER',
+          storeId: 'store-uuid-1',
+        ),
+        isInitialized: true,
+      );
+      await _waitUntil(
+        () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
+      );
 
-    expect(repository.downloadCount, 2);
-    expect(speaker.playCount, 2);
-    expect(repository.ackEvents, contains('PLAYED'));
-    expect(repository.ackEvents, isNot(contains('FAILED')));
-    expect(provider.speakerError, isNull);
+      expect(repository.downloadCount, 1);
+      expect(speaker.playCount, 2);
+      expect(
+        repository.ackEvents.where((event) => event == 'PLAYBACK_FAILED'),
+        hasLength(1),
+      );
+      expect(repository.ackEvents, contains('PLAYED'));
+      expect(repository.ackEvents, isNot(contains('FAILED')));
+      expect(provider.speakerError, isNull);
 
-    provider.dispose();
-  });
+      provider.dispose();
+    },
+  );
 
   test(
-    'final payment audio failure shows speaker error and acks failed',
+    'final payment audio failure logs playback failures and acks failed',
     () async {
       final repository = _FakePaymentMonitorRepository(
         notifications: [_readyNotification()],
       );
       final speaker = _FakePaymentSpeaker(failuresBeforeSuccess: 99);
-      final provider = PaymentMonitorProvider(repository, speaker);
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
 
       await Future<void>.delayed(Duration.zero);
       provider.syncAuth(
@@ -153,10 +182,17 @@ void main() {
         () => repository.ackEvents.contains('FAILED') && !provider.isLoading,
       );
 
-      expect(repository.downloadCount, 2);
-      expect(speaker.playCount, 2);
-      expect(repository.ackEvents, contains('FAILED'));
-      expect(repository.ackErrors.single, contains('speaker failed'));
+      expect(repository.downloadCount, 1);
+      expect(speaker.playCount, 3);
+      expect(
+        repository.ackEvents.where((event) => event == 'PLAYBACK_FAILED'),
+        hasLength(2),
+      );
+      expect(
+        repository.ackEvents.where((event) => event == 'FAILED'),
+        hasLength(1),
+      );
+      expect(repository.ackErrors.last, contains('speaker failed 3'));
       expect(provider.speakerError, isNotNull);
       expect(provider.speakerError!.notificationId, 'note-1');
       expect(provider.speakerError!.amount, 1250000);
@@ -171,6 +207,7 @@ void main() {
       _FakePaymentMonitorRepository(notifications: const []),
       _FakePaymentSpeaker(),
       restartService,
+      retryDelay,
     );
 
     await provider.restartApp();
@@ -182,7 +219,7 @@ void main() {
 }
 
 Future<void> _waitUntil(bool Function() condition) async {
-  for (var i = 0; i < 100; i += 1) {
+  for (var i = 0; i < 200; i += 1) {
     if (condition()) return;
     await Future<void>.delayed(const Duration(milliseconds: 25));
   }
@@ -267,14 +304,26 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
   _FakePaymentSpeaker({this.failuresBeforeSuccess = 0});
 
   @override
-  Future<void> playServerAudio({
+  Future<PaymentSpeakerResult> playServerAudio({
     required int amount,
     required List<int>? audioBytes,
+    required String notificationId,
+    required String transactionId,
+    required String storeCode,
+    required String clientId,
+    required int attempt,
   }) async {
     playCount += 1;
     if (playCount <= failuresBeforeSuccess) {
       throw StateError('speaker failed $playCount');
     }
+    return const PaymentSpeakerResult(
+      backend: 'fake',
+      extension: 'wav',
+      durationMs: 5,
+      reportedSuccess: true,
+      audibleVerified: false,
+    );
   }
 }
 

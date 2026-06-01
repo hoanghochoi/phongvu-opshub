@@ -74,6 +74,12 @@ dependencies:
   # Realtime/audio notifications
   web_socket_channel: ^3.0.1
   ffi: ^2.1.4
+  media_kit: 1.2.6
+  media_kit_libs_windows_audio:
+    git:
+      url: https://github.com/media-kit/media-kit.git
+      ref: 7102e7da96f39c718487a8f7a59b6a034aae7f45
+      path: libs/windows/media_kit_libs_windows_audio
 
   # File system paths
   path_provider: ^2.1.1
@@ -167,14 +173,14 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/icon/source/app_icon_padded.png"
 
-  # Tùy chọn cho Android adaptive icon
+  # TÃ¹y chá»n cho Android adaptive icon
   adaptive_icon_foreground: "assets/icon/source/app_icon_foreground.png"
   adaptive_icon_background: "#081B5A"
 
-  # Tùy chọn cho iOS
+  # TÃ¹y chá»n cho iOS
   remove_alpha_ios: true
 
-  # Tùy chọn cho Windows
+  # TÃ¹y chá»n cho Windows
   windows:
     generate: true
     image_path: "assets/icon/source/app_icon_padded.png"

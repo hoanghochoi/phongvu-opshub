@@ -187,6 +187,40 @@ describe('PaymentNotificationsService', () => {
     });
   });
 
+  it('records playback failed acknowledgement without marking it terminal', async () => {
+    prisma.paymentNotification.findUnique.mockResolvedValue({
+      id: 'note-1',
+      transactionId: 'txn-1',
+      storeCode: 'CP01',
+    });
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+    prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({});
+
+    await expect(
+      service.acknowledge(
+        { id: 'user-1', role: 'MANAGER', storeId: 'store-uuid-1' },
+        'note-1',
+        {
+          clientId: 'pc-1',
+          event: 'PLAYBACK_FAILED',
+          error: 'speaker failed attempt 1',
+        },
+      ),
+    ).resolves.toEqual({ ok: true });
+
+    expect(prisma.paymentNotificationDeliveryLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        notificationId: 'note-1',
+        transactionId: 'txn-1',
+        storeCode: 'CP01',
+        userId: 'user-1',
+        clientId: 'pc-1',
+        event: 'PLAYBACK_FAILED',
+        error: 'speaker failed attempt 1',
+      }),
+    });
+  });
+
   it('filters ready notifications after the requested createdAt checkpoint', async () => {
     const checkpoint = new Date('2026-05-21T10:00:00.000Z');
     prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });

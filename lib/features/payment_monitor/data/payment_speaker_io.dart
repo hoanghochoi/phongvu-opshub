@@ -1,66 +1,223 @@
+import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter/services.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/logging/app_logger.dart';
+import 'payment_speaker_types.dart';
 
 class PaymentSpeaker {
   static const _source = 'PaymentSpeaker';
+  static const _voiceTimeout = Duration(seconds: 20);
+  static const _cueTimeout = Duration(seconds: 5);
 
-  Future<void> playServerAudio({
+  Future<PaymentSpeakerResult> playServerAudio({
     required int amount,
     required List<int>? audioBytes,
+    required String notificationId,
+    required String transactionId,
+    required String storeCode,
+    required String clientId,
+    required int attempt,
   }) async {
-    if (!Platform.isWindows) return;
+    if (!Platform.isWindows) {
+      return const PaymentSpeakerResult(
+        backend: 'unsupported',
+        extension: 'wav',
+        durationMs: 0,
+        reportedSuccess: true,
+        audibleVerified: false,
+      );
+    }
+
+    if (audioBytes == null || audioBytes.isEmpty) {
+      throw const PaymentSpeakerException('Server audio is empty');
+    }
+
+    final directory = await getTemporaryDirectory();
+    await _playTingTing(directory);
+
+    final extension = _audioExtension(audioBytes);
+    final file = File(
+      '${directory.path}${Platform.pathSeparator}opshub-payment-${DateTime.now().microsecondsSinceEpoch}.$extension',
+    );
+    await file.writeAsBytes(audioBytes, flush: true);
+
     try {
       await AppLogger.instance.info(
         _source,
         'Preparing server payment audio playback',
         context: {
+          'notificationId': notificationId,
+          'transactionId': transactionId,
+          'storeCode': storeCode,
+          'clientId': clientId,
           'amount': amount,
-          'hasAudioBytes': audioBytes != null && audioBytes.isNotEmpty,
-          'bytes': audioBytes?.length ?? 0,
-        },
-      );
-      final directory = await getTemporaryDirectory();
-      await _playTingTing(directory);
-      if (audioBytes == null || audioBytes.isEmpty) {
-        throw StateError('Server audio is empty');
-      }
-
-      final extension = _audioExtension(audioBytes);
-      final file = File(
-        '${directory.path}${Platform.pathSeparator}opshub-payment-${DateTime.now().microsecondsSinceEpoch}.$extension',
-      );
-      await file.writeAsBytes(audioBytes, flush: true);
-      await AppLogger.instance.info(
-        _source,
-        'Playing server payment audio through Windows MCI',
-        context: {
-          'amount': amount,
+          'attempt': attempt,
           'extension': extension,
           'bytes': audioBytes.length,
-          'path': file.path,
+          'waveOutDevices': _waveOutDeviceCount(),
         },
       );
+      return await _playWithFallbacks(file: file, extension: extension);
+    } finally {
+      await file.delete().catchError((_) => file);
+    }
+  }
+
+  Future<void> _playTingTing(Directory directory) async {
+    try {
+      final asset = await rootBundle.load('data/ting_ting.mp3');
+      final file = File(
+        '${directory.path}${Platform.pathSeparator}opshub-ting-ting.mp3',
+      );
+      await file.writeAsBytes(asset.buffer.asUint8List(), flush: true);
       try {
-        await _playAudioFile(file.path, const Duration(seconds: 20));
+        await _playWithMediaKit(
+          file: file,
+          extension: 'mp3',
+          timeout: _cueTimeout,
+        );
       } finally {
         await file.delete().catchError((_) => file);
       }
     } catch (error, stackTrace) {
-      await AppLogger.instance.error(
+      await AppLogger.instance.warn(
         _source,
-        'Server audio playback failed',
-        error: error,
-        stackTrace: stackTrace,
+        'Payment sound cue skipped',
+        context: {
+          'error': error.toString(),
+          'stackTrace': stackTrace.toString(),
+        },
       );
-      rethrow;
     }
+  }
+
+  Future<PaymentSpeakerResult> _playWithFallbacks({
+    required File file,
+    required String extension,
+  }) async {
+    final backendErrors = <String>[];
+
+    try {
+      return await _playWithMediaKit(
+        file: file,
+        extension: extension,
+        timeout: _voiceTimeout,
+      );
+    } catch (error) {
+      backendErrors.add('media_kit: ${_safeBackendError(error)}');
+      await AppLogger.instance.warn(
+        _source,
+        'media_kit playback failed; trying Windows fallback',
+        context: {'extension': extension, 'error': _safeBackendError(error)},
+      );
+    }
+
+    if (extension == 'wav') {
+      try {
+        return await _playWithPlaySound(file: file, timeout: _voiceTimeout);
+      } catch (error) {
+        backendErrors.add('play_sound: ${_safeBackendError(error)}');
+        await AppLogger.instance.warn(
+          _source,
+          'PlaySound fallback failed; trying MCI fallback',
+          context: {'extension': extension, 'error': _safeBackendError(error)},
+        );
+      }
+    }
+
+    try {
+      return await _playWithMci(
+        file: file,
+        extension: extension,
+        timeout: _voiceTimeout,
+      );
+    } catch (error) {
+      backendErrors.add('mci: ${_safeBackendError(error)}');
+    }
+
+    throw PaymentSpeakerException(
+      'Payment speaker playback failed',
+      backendErrors: backendErrors,
+    );
+  }
+
+  Future<PaymentSpeakerResult> _playWithMediaKit({
+    required File file,
+    required String extension,
+    required Duration timeout,
+  }) async {
+    final stopwatch = Stopwatch()..start();
+    final player = Player();
+    try {
+      final completed = player.stream.completed.firstWhere((value) => value);
+      final failed = player.stream.error
+          .where((message) => message.trim().isNotEmpty)
+          .first
+          .then<void>((message) {
+            throw StateError('media_kit error: $message');
+          });
+      await player.open(Media(file.uri.toString()), play: true);
+      await Future.any<void>([completed.then((_) {}), failed]).timeout(timeout);
+      return PaymentSpeakerResult(
+        backend: 'media_kit',
+        extension: extension,
+        durationMs: stopwatch.elapsedMilliseconds,
+        reportedSuccess: true,
+        audibleVerified: false,
+      );
+    } finally {
+      await player.stop().catchError((_) {});
+      await player.dispose().catchError((_) {});
+    }
+  }
+
+  Future<PaymentSpeakerResult> _playWithPlaySound({
+    required File file,
+    required Duration timeout,
+  }) async {
+    final waveDevices = _waveOutDeviceCount();
+    if (waveDevices <= 0) {
+      throw StateError('No wave output device is available for PlaySound');
+    }
+    final stopwatch = Stopwatch()..start();
+    await Isolate.run(
+      () => _playAudioFileWithPlaySound(file.path),
+    ).timeout(timeout);
+    return PaymentSpeakerResult(
+      backend: 'play_sound',
+      extension: 'wav',
+      durationMs: stopwatch.elapsedMilliseconds,
+      reportedSuccess: true,
+      audibleVerified: false,
+    );
+  }
+
+  Future<PaymentSpeakerResult> _playWithMci({
+    required File file,
+    required String extension,
+    required Duration timeout,
+  }) async {
+    final stopwatch = Stopwatch()..start();
+    await Isolate.run(
+      () => _playAudioFileWithMci(
+        file.path,
+        type: extension == 'mp3' ? 'mpegvideo' : null,
+      ),
+    ).timeout(timeout);
+    return PaymentSpeakerResult(
+      backend: 'mci',
+      extension: extension,
+      durationMs: stopwatch.elapsedMilliseconds,
+      reportedSuccess: true,
+      audibleVerified: false,
+    );
   }
 
   String _audioExtension(List<int> audioBytes) {
@@ -74,41 +231,25 @@ class PaymentSpeaker {
     return 'mp3';
   }
 
-  Future<void> _playTingTing(Directory directory) async {
-    try {
-      await AppLogger.instance.info(
-        _source,
-        'Loading payment sound cue',
-        context: {'asset': 'data/ting_ting.mp3'},
-      );
-      final asset = await rootBundle.load('data/ting_ting.mp3');
-      final file = File(
-        '${directory.path}${Platform.pathSeparator}opshub-ting-ting.mp3',
-      );
-      await file.writeAsBytes(asset.buffer.asUint8List(), flush: true);
-      await AppLogger.instance.info(
-        _source,
-        'Playing payment sound cue through Windows MCI',
-        context: {'bytes': asset.lengthInBytes, 'path': file.path},
-      );
-      await _playAudioFile(file.path, const Duration(seconds: 5));
-    } catch (error, stackTrace) {
-      await AppLogger.instance.warn(
-        _source,
-        'Payment sound cue skipped',
-        context: {
-          'error': error.toString(),
-          'stackTrace': stackTrace.toString(),
-        },
-      );
-    }
+  int _waveOutDeviceCount() {
+    final winmm = DynamicLibrary.open('winmm.dll');
+    final waveOutGetNumDevs = winmm
+        .lookupFunction<_WaveOutGetNumDevsNative, _WaveOutGetNumDevsDart>(
+          'waveOutGetNumDevs',
+        );
+    return waveOutGetNumDevs();
   }
 
-  Future<void> _playAudioFile(String path, Duration timeout) {
-    return Isolate.run(() => _playAudioFileWithMci(path)).timeout(timeout);
+  String _safeBackendError(Object error) {
+    final text = error.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+    return text.length <= 180 ? text : '${text.substring(0, 177)}...';
   }
 }
 
+typedef _PlaySoundNative = Int32 Function(Pointer<Utf16>, IntPtr, Uint32);
+typedef _PlaySoundDart = int Function(Pointer<Utf16>, int, int);
+typedef _WaveOutGetNumDevsNative = Uint32 Function();
+typedef _WaveOutGetNumDevsDart = int Function();
 typedef _MciSendStringNative =
     Uint32 Function(Pointer<Utf16>, Pointer<Utf16>, Uint32, IntPtr);
 typedef _MciSendStringDart =
@@ -117,11 +258,32 @@ typedef _MciGetErrorStringNative =
     Int32 Function(Uint32, Pointer<Utf16>, Uint32);
 typedef _MciGetErrorStringDart = int Function(int, Pointer<Utf16>, int);
 
-void _playAudioFileWithMci(String path) {
-  final alias = 'opshub${DateTime.now().microsecondsSinceEpoch}';
-  final type = path.toLowerCase().endsWith('.mp3') ? 'mpegvideo' : 'waveaudio';
+void _playAudioFileWithPlaySound(String path) {
+  final winmm = DynamicLibrary.open('winmm.dll');
+  final playSound = winmm.lookupFunction<_PlaySoundNative, _PlaySoundDart>(
+    'PlaySoundW',
+  );
+  final nativePath = path.toNativeUtf16();
+  const sndFilename = 0x00020000;
+  const sndSync = 0x0000;
+  const sndNodefault = 0x0002;
   try {
-    _sendMciCommand('open "${_escapeMciPath(path)}" type $type alias $alias');
+    final ok = playSound(nativePath, 0, sndFilename | sndSync | sndNodefault);
+    if (ok == 0) {
+      throw StateError('PlaySoundW failed to play WAV audio');
+    }
+  } finally {
+    calloc.free(nativePath);
+  }
+}
+
+void _playAudioFileWithMci(String path, {String? type}) {
+  final alias = 'opshub${DateTime.now().microsecondsSinceEpoch}';
+  try {
+    final openCommand = type == null
+        ? 'open "${_escapeMciPath(path)}" alias $alias'
+        : 'open "${_escapeMciPath(path)}" type $type alias $alias';
+    _sendMciCommand(openCommand);
     _sendMciCommand('play $alias wait');
   } finally {
     _sendMciCommand('close $alias', throwOnError: false);

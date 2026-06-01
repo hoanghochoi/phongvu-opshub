@@ -1,4 +1,4 @@
-import {
+﻿import {
   IsIn,
   IsObject,
   IsOptional,
@@ -32,7 +32,7 @@ export class PaymentNotificationAckDto {
   @MaxLength(120)
   clientId!: string;
 
-  @IsIn(['DELIVERED', 'PLAYED', 'FAILED', 'SILENCED'])
+  @IsIn(['DELIVERED', 'PLAYED', 'FAILED', 'SILENCED', 'PLAYBACK_FAILED'])
   event!: string;
 
   @IsOptional()
