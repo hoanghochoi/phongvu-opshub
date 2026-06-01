@@ -66,6 +66,18 @@ export class VietQrController {
     );
   }
 
+  @Get('n8n/status')
+  async externalStatusFromQuery(@Request() req: any, @Query() query: any) {
+    this.assertExternalAccess(req, query);
+    return this.externalStatus(query);
+  }
+
+  @Post('n8n/status')
+  async externalStatusFromBody(@Request() req: any, @Body() body: any) {
+    this.assertExternalAccess(req, body);
+    return this.externalStatus(body);
+  }
+
   @Get('n8n/image')
   async createExternalImage(
     @Request() req: any,
@@ -135,6 +147,18 @@ export class VietQrController {
     return json;
   }
 
+  private externalStatus(raw: Record<string, unknown>) {
+    const paymentId = this.firstText(
+      raw.paymentId,
+      raw.payment_id,
+      raw.id,
+    );
+    if (this.isTruthy(raw.check) || this.isTruthy(raw.confirm)) {
+      return this.vietQrService.checkExternalStatus(paymentId ?? '');
+    }
+    return this.vietQrService.getExternalStatus(paymentId ?? '');
+  }
+
   private parseAmount(value: unknown): number | null {
     if (value === undefined || value === null || value === '') return null;
     if (typeof value === 'number') return value;
@@ -154,5 +178,13 @@ export class VietQrController {
       if (normalized) return normalized;
     }
     return null;
+  }
+
+  private isTruthy(value: unknown): boolean {
+    if (typeof value === 'boolean') return value;
+    if (value === undefined || value === null) return false;
+    return ['1', 'true', 'yes', 'y'].includes(
+      String(value).trim().toLowerCase(),
+    );
   }
 }

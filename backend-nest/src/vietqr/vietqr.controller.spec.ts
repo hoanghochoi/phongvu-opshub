@@ -161,6 +161,66 @@ describe('VietQrController', () => {
     );
     expect(res.send).toHaveBeenCalledWith(imageBuffer);
   });
+
+  it('returns n8n payment status by payment id', async () => {
+    const originalKey = process.env.VIETQR_EXTERNAL_API_KEY;
+    process.env.VIETQR_EXTERNAL_API_KEY = 'external-secret';
+    const service = {
+      getExternalStatus: jest.fn().mockResolvedValue({
+        paymentId: 'payment-1',
+        status: 'PENDING',
+        confirmed: false,
+      }),
+    };
+    const controller = new VietQrController(service as any);
+
+    try {
+      await expect(
+        controller.externalStatusFromQuery(
+          { headers: { 'x-opshub-vietqr-key': 'external-secret' } },
+          { paymentId: 'payment-1' },
+        ),
+      ).resolves.toEqual({
+        paymentId: 'payment-1',
+        status: 'PENDING',
+        confirmed: false,
+      });
+    } finally {
+      restoreExternalApiKey(originalKey);
+    }
+
+    expect(service.getExternalStatus).toHaveBeenCalledWith('payment-1');
+  });
+
+  it('checks n8n payment status when requested', async () => {
+    const originalKey = process.env.VIETQR_EXTERNAL_API_KEY;
+    process.env.VIETQR_EXTERNAL_API_KEY = 'external-secret';
+    const service = {
+      checkExternalStatus: jest.fn().mockResolvedValue({
+        paymentId: 'payment-1',
+        status: 'PAID',
+        confirmed: true,
+      }),
+    };
+    const controller = new VietQrController(service as any);
+
+    try {
+      await expect(
+        controller.externalStatusFromBody(
+          { headers: { authorization: 'Bearer external-secret' } },
+          { id: 'payment-1', check: true },
+        ),
+      ).resolves.toEqual({
+        paymentId: 'payment-1',
+        status: 'PAID',
+        confirmed: true,
+      });
+    } finally {
+      restoreExternalApiKey(originalKey);
+    }
+
+    expect(service.checkExternalStatus).toHaveBeenCalledWith('payment-1');
+  });
 });
 
 function restoreExternalApiKey(value: string | undefined) {

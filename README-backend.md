@@ -67,8 +67,11 @@ Expected responses:
 - Keep `data/email_domain.txt` current with accepted Phong Vu email domains, or
   set `EMAIL_DOMAIN_FILE` to an equivalent file path.
 - Set all `BIGQUERY_*` values and place the service-account JSON outside git.
-- For n8n VietQR image generation, set `VIETQR_EXTERNAL_API_KEY` and send it
-  from n8n with `x-opshub-vietqr-key` or `Authorization: Bearer <key>`.
+- For n8n VietQR image/status integration, set `VIETQR_EXTERNAL_API_KEY` and
+  send it from n8n with `x-opshub-vietqr-key` or `Authorization: Bearer <key>`.
+  `GET/POST /vietqr/n8n/status` accepts `paymentId`/`id`; `check=true` compares
+  only against MAP transactions already synced into OpsHub DB, without calling
+  MAP directly.
 - For MAP payment sync, prefer `MAP_VIETIN_GLOBAL_USERNAME` and
   `MAP_VIETIN_GLOBAL_PASSWORD` so one backend account can read all showroom
   transactions. The sync maps MAP `virtualAccount` values to
