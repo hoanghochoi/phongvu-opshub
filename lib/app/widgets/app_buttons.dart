@@ -16,7 +16,7 @@ class AppButtonMetrics {
 
 class AppPrimaryButton extends StatelessWidget {
   final VoidCallback? onPressed;
-  final IconData icon;
+  final IconData? icon;
   final String label;
   final bool isLoading;
   final String? loadingLabel;
@@ -24,7 +24,7 @@ class AppPrimaryButton extends StatelessWidget {
   const AppPrimaryButton({
     super.key,
     required this.onPressed,
-    required this.icon,
+    this.icon,
     required this.label,
     this.isLoading = false,
     this.loadingLabel,
@@ -32,38 +32,49 @@ class AppPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasIcon = icon != null || isLoading;
+    final buttonStyle = FilledButton.styleFrom(
+      backgroundColor: AppTheme.primaryBlue,
+      foregroundColor: Colors.white,
+      disabledBackgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.45),
+      disabledForegroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
+      ),
+      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+    );
+
+    final buttonLabel = Text(
+      isLoading ? loadingLabel ?? label : label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      softWrap: false,
+    );
+
     return SizedBox(
       width: double.infinity,
       height: AppButtonMetrics.height,
-      child: FilledButton.icon(
-        onPressed: isLoading ? null : onPressed,
-        icon: isLoading
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : Icon(icon),
-        label: Text(
-          isLoading ? loadingLabel ?? label : label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          softWrap: false,
-        ),
-        style: FilledButton.styleFrom(
-          backgroundColor: AppTheme.primaryBlue,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.45),
-          disabledForegroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
-          ),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-        ),
-      ),
+      child: hasIcon
+          ? FilledButton.icon(
+              onPressed: isLoading ? null : onPressed,
+              icon: isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Icon(icon),
+              label: buttonLabel,
+              style: buttonStyle,
+            )
+          : FilledButton(
+              onPressed: onPressed,
+              style: buttonStyle,
+              child: buttonLabel,
+            ),
     );
   }
 }

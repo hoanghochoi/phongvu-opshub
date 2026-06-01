@@ -54,9 +54,9 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
     final provider = context.read<FifoProvider>();
     final error = provider.error;
     if (error == null || !mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(error), backgroundColor: AppColors.error));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error), backgroundColor: AppColors.error),
+    );
     provider.clearError();
   }
 
@@ -87,10 +87,12 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
                           },
                         ),
                         if (provider.isLoading)
-                          const Positioned.fill(
+                          Positioned.fill(
                             child: ColoredBox(
-                              color: Color(0x66FFFFFF),
-                              child: AppStatePanel.loading(
+                              color: Theme.of(
+                                context,
+                              ).scaffoldBackgroundColor.withValues(alpha: 0.7),
+                              child: const AppStatePanel.loading(
                                 title: 'Đang kiểm tra FIFO',
                                 compact: true,
                               ),
@@ -157,7 +159,7 @@ class _FifoInputBar extends StatelessWidget {
                   value: includeExported,
                   onChanged: isLoading ? null : onIncludeExportedChanged,
                   title: const Text('Hiển thị đã xuất kho'),
-                  secondary: const Icon(Icons.inventory_outlined),
+                  secondary: const Icon(Icons.inventory_2_outlined),
                 ),
                 Row(
                   children: [
@@ -252,7 +254,10 @@ class _SkuResultList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (result.items.isEmpty) {
-      return const Center(child: Text('Không tìm thấy SKU trong SR của bạn'));
+      return const AppStatePanel.empty(
+        title: 'Không tìm thấy SKU trong SR của bạn',
+        icon: Icons.inventory_2_outlined,
+      );
     }
 
     return ListView.builder(
@@ -397,7 +402,9 @@ class _FifoItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = item.exported ? AppColors.neutral500 : _fifoColor(rank, total);
+    final color = item.exported
+        ? AppColors.neutral500
+        : _fifoColor(rank, total);
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: IntrinsicHeight(
@@ -470,7 +477,7 @@ class _FifoItemCard extends StatelessWidget {
                           child: Text(
                             item.exported
                                 ? 'Bỏ đánh dấu xuất kho'
-                                : 'Đã xuất kho',
+                                : 'Đánh dấu xuất kho',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             softWrap: false,

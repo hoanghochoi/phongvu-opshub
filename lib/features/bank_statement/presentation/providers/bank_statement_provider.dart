@@ -182,7 +182,10 @@ class BankStatementProvider extends ChangeNotifier {
   }
 
   void setDateRange(DateTime? start, DateTime? end) {
-    if (start != null && end != null && end.isBefore(start)) {
+    if (start == null || end == null) {
+      _startDate = null;
+      _endDate = null;
+    } else if (end.isBefore(start)) {
       _startDate = end;
       _endDate = start;
     } else {

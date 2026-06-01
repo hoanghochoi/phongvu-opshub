@@ -18,7 +18,11 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
   });
 
   static const LinearGradient gradient = LinearGradient(
-    colors: [AppColors.gradientStart, AppColors.gradientMid, AppColors.gradientEnd],
+    colors: [
+      AppColors.gradientStart,
+      AppColors.gradientMid,
+      AppColors.gradientEnd,
+    ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -27,8 +31,16 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return LinearGradient(
       colors: isDark
-          ? [AppColors.darkGradientStart, AppColors.darkGradientMid, AppColors.darkGradientEnd]
-          : [AppColors.gradientStart, AppColors.gradientMid, AppColors.gradientEnd],
+          ? [
+              AppColors.darkGradientStart,
+              AppColors.darkGradientMid,
+              AppColors.darkGradientEnd,
+            ]
+          : [
+              AppColors.gradientStart,
+              AppColors.gradientMid,
+              AppColors.gradientEnd,
+            ],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
@@ -39,22 +51,20 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(gradient: getGradient(context)),
-      child: AppBar(
-        title: Text(title),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        automaticallyImplyLeading: showBack && onBack == null,
-        leading: (showBack && onBack != null)
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: onBack,
-              )
-            : null,
-        actions: actions,
+    return AppBar(
+      title: Text(title),
+      centerTitle: true,
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      automaticallyImplyLeading: showBack && onBack == null,
+      leading: (showBack && onBack != null)
+          ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: onBack)
+          : null,
+      actions: actions,
+      flexibleSpace: DecoratedBox(
+        decoration: BoxDecoration(gradient: getGradient(context)),
+        child: const SizedBox.expand(),
       ),
     );
   }

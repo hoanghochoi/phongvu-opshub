@@ -4,7 +4,23 @@ import '../theme/app_colors.dart';
 import 'app_buttons.dart';
 import 'app_layout.dart';
 
-enum AppStateTone { neutral, info, success, warning, error }
+enum AppStateTone {
+  neutral,
+  info,
+  success,
+  warning,
+  error;
+
+  Color get color {
+    return switch (this) {
+      AppStateTone.info => AppColors.info,
+      AppStateTone.success => AppColors.success,
+      AppStateTone.warning => AppColors.warning,
+      AppStateTone.error => AppColors.error,
+      AppStateTone.neutral => AppColors.neutral500,
+    };
+  }
+}
 
 class AppStatePanel extends StatelessWidget {
   final IconData icon;
@@ -15,6 +31,7 @@ class AppStatePanel extends StatelessWidget {
   final IconData? actionIcon;
   final VoidCallback? onAction;
   final bool compact;
+  final bool isLoading;
 
   const AppStatePanel({
     super.key,
@@ -26,7 +43,7 @@ class AppStatePanel extends StatelessWidget {
     this.actionIcon,
     this.onAction,
     this.compact = false,
-  });
+  }) : isLoading = false;
 
   const AppStatePanel.empty({
     super.key,
@@ -37,7 +54,8 @@ class AppStatePanel extends StatelessWidget {
     this.actionIcon,
     this.onAction,
     this.compact = false,
-  }) : tone = AppStateTone.neutral;
+  }) : tone = AppStateTone.neutral,
+       isLoading = false;
 
   const AppStatePanel.error({
     super.key,
@@ -48,7 +66,8 @@ class AppStatePanel extends StatelessWidget {
     this.actionIcon,
     this.onAction,
     this.compact = false,
-  }) : tone = AppStateTone.error;
+  }) : tone = AppStateTone.error,
+       isLoading = false;
 
   const AppStatePanel.loading({
     super.key,
@@ -59,11 +78,12 @@ class AppStatePanel extends StatelessWidget {
        tone = AppStateTone.info,
        actionLabel = null,
        actionIcon = null,
-       onAction = null;
+       onAction = null,
+       isLoading = true;
 
   @override
   Widget build(BuildContext context) {
-    final color = _toneColor(tone);
+    final color = tone.color;
     final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
       fontWeight: FontWeight.w700,
       color: tone == AppStateTone.neutral ? AppColors.neutral700 : color,
@@ -78,8 +98,7 @@ class AppStatePanel extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (tone == AppStateTone.info &&
-                  icon == Icons.hourglass_top_rounded)
+              if (isLoading)
                 SizedBox.square(
                   dimension: compact ? 28 : 36,
                   child: CircularProgressIndicator(
@@ -134,16 +153,6 @@ class AppStatePanel extends StatelessWidget {
       ),
     );
   }
-
-  Color _toneColor(AppStateTone tone) {
-    return switch (tone) {
-      AppStateTone.info => AppColors.info,
-      AppStateTone.success => AppColors.success,
-      AppStateTone.warning => AppColors.warning,
-      AppStateTone.error => AppColors.error,
-      AppStateTone.neutral => AppColors.neutral500,
-    };
-  }
 }
 
 class AppStatusBanner extends StatelessWidget {
@@ -162,7 +171,7 @@ class AppStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _toneColor(tone);
+    final color = tone.color;
     return Card(
       elevation: 0,
       color: color.withValues(alpha: 0.08),
@@ -188,7 +197,14 @@ class AppStatusBanner extends StatelessWidget {
                     style: TextStyle(color: color, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 4),
-                  Text(message),
+                  Text(
+                    message,
+                    style: TextStyle(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? AppColors.neutral200
+                          : AppColors.neutral800,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -196,15 +212,5 @@ class AppStatusBanner extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Color _toneColor(AppStateTone tone) {
-    return switch (tone) {
-      AppStateTone.info => AppColors.info,
-      AppStateTone.success => AppColors.success,
-      AppStateTone.warning => AppColors.warning,
-      AppStateTone.error => AppColors.error,
-      AppStateTone.neutral => AppColors.neutral500,
-    };
   }
 }

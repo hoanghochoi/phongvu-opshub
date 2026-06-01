@@ -93,12 +93,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                   AppFeatureSection(actions: actions),
                   const SizedBox(height: 20),
-                  Center(
-                    child: Text(
-                      _version.isNotEmpty ? 'v$_version' : '',
-                      style: const TextStyle(fontSize: 12, color: AppColors.neutral400),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -143,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
         icon: Icons.qr_code_2_rounded,
         title: 'VietQR',
         description: 'Tạo mã chuyển khoản',
-        color: const Color(0xFF0F766E),
+        color: AppColors.teal600,
         onTap: () => context.push('/vietqr'),
       ),
       if (canUseBankStatements)
@@ -151,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: Icons.fact_check_outlined,
           title: 'Sao kê',
           description: 'Rà soát mã đơn',
-          color: const Color(0xFF2563EB),
+          color: AppColors.info,
           onTap: () => context.push('/bank-statement'),
         ),
       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows)
@@ -159,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: Icons.volume_up_rounded,
           title: 'Tiền vào',
           description: 'Cập nhật giao dịch',
-          color: const Color(0xFF7C3AED),
+          color: AppColors.violet600,
           onTap: () => context.push('/payment-monitor'),
         ),
     ];
@@ -174,111 +168,119 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildDrawer(BuildContext context) {
     return Drawer(
-      backgroundColor: AppColors.gradientStart,
-      child: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Row(
-                children: [
-                  const AppLogo(size: 48, borderRadius: 16),
-                  const SizedBox(width: 12),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'PhongVu',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+      backgroundColor: Colors.transparent,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: GradientHeader.getGradient(context),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Row(
+                  children: [
+                    const AppLogo(size: 48, borderRadius: 16),
+                    const SizedBox(width: 12),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'PhongVu',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
-                      Text(
-                        'OpsHub',
-                        style: TextStyle(fontSize: 16, color: Colors.white70),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const Divider(color: Colors.white24, thickness: 1),
-            ListTile(
-              leading: const Icon(Icons.person_outline, color: Colors.white),
-              title: const Text(
-                'Thông tin cá nhân',
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
-              onTap: () {
-                Navigator.of(context).pop();
-                context.push('/profile');
-              },
-            ),
-            if (context.watch<AuthProvider>().user?.isAdmin == true)
-              ListTile(
-                leading: const Icon(
-                  Icons.admin_panel_settings_outlined,
-                  color: Colors.white,
+                        Text(
+                          'OpsHub',
+                          style: TextStyle(fontSize: 16, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
+              ),
+              const Divider(color: Colors.white24, thickness: 1),
+              ListTile(
+                leading: const Icon(Icons.person_outline, color: Colors.white),
                 title: const Text(
-                  'Quản trị',
+                  'Thông tin cá nhân',
                   style: TextStyle(color: Colors.white, fontSize: 16),
                 ),
                 onTap: () {
                   Navigator.of(context).pop();
-                  context.push('/admin');
+                  context.push('/profile');
                 },
               ),
-            ListTile(
-              leading: const Icon(
-                Icons.question_answer_rounded,
-                color: Colors.white,
+              if (context.watch<AuthProvider>().user?.isAdmin == true)
+                ListTile(
+                  leading: const Icon(
+                    Icons.admin_panel_settings_outlined,
+                    color: Colors.white,
+                  ),
+                  title: const Text(
+                    'Quản trị',
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context.push('/admin');
+                  },
+                ),
+              ListTile(
+                leading: const Icon(
+                  Icons.question_answer_rounded,
+                  color: Colors.white,
+                ),
+                title: const Text(
+                  'Phản hồi',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  context.push('/feedback');
+                },
               ),
-              title: const Text(
-                'Phản hồi',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+              ListTile(
+                leading: const Icon(
+                  Icons.settings_outlined,
+                  color: Colors.white,
+                ),
+                title: const Text(
+                  'Cài đặt',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  context.push('/settings');
+                },
               ),
-              onTap: () {
-                Navigator.of(context).pop();
-                context.push('/feedback');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings_outlined, color: Colors.white),
-              title: const Text(
-                'Cài đặt',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+              ListTile(
+                leading: const Icon(Icons.info_outline, color: Colors.white),
+                title: const Text(
+                  'Thông tin ứng dụng',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showAppInfoDialog(context);
+                },
               ),
-              onTap: () {
-                Navigator.of(context).pop();
-                context.push('/settings');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.info_outline, color: Colors.white),
-              title: const Text(
-                'Thông tin ứng dụng',
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
-              onTap: () {
-                Navigator.of(context).pop();
-                _showAppInfoDialog(context);
-              },
-            ),
-            const Spacer(),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                _version.isNotEmpty ? 'Version $_version' : '',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white.withValues(alpha: 0.5),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  _version.isNotEmpty ? 'Version $_version' : '',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.5),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -395,7 +397,13 @@ class _CompactHomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initials = userName.isNotEmpty ? userName[0].toUpperCase() : '?';
+    final cleanName = userName.contains('@')
+        ? userName.split('@').first
+        : userName;
+    final nameParts = cleanName.trim().split(' ');
+    final initials = (nameParts.isNotEmpty && nameParts.first.isNotEmpty)
+        ? nameParts.first[0].toUpperCase()
+        : '?';
 
     return Container(
       decoration: BoxDecoration(

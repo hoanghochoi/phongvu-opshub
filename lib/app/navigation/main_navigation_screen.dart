@@ -6,6 +6,8 @@ import '../../features/fifo/presentation/screens/fifo_check_screen.dart';
 import '../../features/warranty/presentation/screens/warranty_main_screen.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 
+import '../theme/app_colors.dart';
+
 class MainNavigationScreen extends StatefulWidget {
   final int initialIndex;
 
@@ -162,10 +164,62 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         body: IndexedStack(index: selectedIndex, children: screens),
         bottomNavigationBar: destinations.length < 2
             ? null
-            : NavigationBar(
-                selectedIndex: selectedIndex,
-                onDestinationSelected: _onItemTapped,
-                destinations: destinations,
+            : NavigationBarTheme(
+                data: NavigationBarThemeData(
+                  backgroundColor:
+                      Theme.of(context).brightness == Brightness.dark
+                      ? AppColors.darkSurface
+                      : AppColors.surface,
+                  indicatorColor: AppColors.primary500.withValues(alpha: 0.12),
+                  iconTheme: WidgetStateProperty.resolveWith<IconThemeData>((
+                    states,
+                  ) {
+                    final isDark =
+                        Theme.of(context).brightness == Brightness.dark;
+                    if (states.contains(WidgetState.selected)) {
+                      return IconThemeData(
+                        color: isDark
+                            ? AppColors.primary300
+                            : AppColors.primary500,
+                        size: 24,
+                      );
+                    }
+                    return IconThemeData(
+                      color: isDark
+                          ? AppColors.neutral400
+                          : AppColors.neutral500,
+                      size: 24,
+                    );
+                  }),
+                  labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((
+                    states,
+                  ) {
+                    final isDark =
+                        Theme.of(context).brightness == Brightness.dark;
+                    if (states.contains(WidgetState.selected)) {
+                      return TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isDark
+                            ? AppColors.primary300
+                            : AppColors.primary500,
+                      );
+                    }
+                    return TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: isDark
+                          ? AppColors.neutral400
+                          : AppColors.neutral500,
+                    );
+                  }),
+                ),
+                child: NavigationBar(
+                  selectedIndex: selectedIndex,
+                  onDestinationSelected: _onItemTapped,
+                  destinations: destinations,
+                  elevation: 8,
+                ),
               ),
       ),
     );

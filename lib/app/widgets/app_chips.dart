@@ -17,12 +17,15 @@ class AppInfoChip extends StatelessWidget {
     this.text, {
     super.key,
     this.color,
-    this.maxWidth = 180,
+    this.maxWidth,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isEmpty = text.isEmpty;
     final effectiveColor = color ?? AppColors.neutral700;
+    final displayColor = isEmpty ? AppColors.neutral400 : effectiveColor;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
@@ -32,16 +35,28 @@ class AppInfoChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: effectiveColor),
+          Icon(
+            icon,
+            size: 14,
+            color: isEmpty ? AppColors.neutral400 : effectiveColor,
+          ),
           const SizedBox(width: 4),
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxWidth ?? 180),
-            child: Text(
-              text.isEmpty ? 'Chưa có' : text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-              style: TextStyle(fontSize: 12, color: effectiveColor),
+          Flexible(
+            child: ConstrainedBox(
+              constraints: maxWidth != null
+                  ? BoxConstraints(maxWidth: maxWidth!)
+                  : const BoxConstraints(),
+              child: Text(
+                isEmpty ? 'Chưa có' : text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: displayColor,
+                  fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
+                ),
+              ),
             ),
           ),
         ],
@@ -57,12 +72,20 @@ class AppStatusChip extends StatelessWidget {
   final String label;
   final Color? color;
   final Color? backgroundColor;
+  final double fontSize;
+  final FontWeight fontWeight;
+  final EdgeInsets padding;
+  final double? maxWidth;
 
   const AppStatusChip({
     super.key,
     required this.label,
     this.color,
     this.backgroundColor,
+    this.fontSize = 11,
+    this.fontWeight = FontWeight.w700,
+    this.padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    this.maxWidth,
   });
 
   @override
@@ -71,20 +94,25 @@ class AppStatusChip extends StatelessWidget {
     final effectiveBg =
         backgroundColor ?? effectiveColor.withValues(alpha: 0.08);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: padding,
       decoration: BoxDecoration(
         color: effectiveBg,
         borderRadius: AppRadius.allSm,
       ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        softWrap: false,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: effectiveColor,
+      child: ConstrainedBox(
+        constraints: maxWidth == null
+            ? const BoxConstraints()
+            : BoxConstraints(maxWidth: maxWidth!),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+            color: effectiveColor,
+          ),
         ),
       ),
     );

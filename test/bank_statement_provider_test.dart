@@ -87,6 +87,34 @@ void main() {
     });
 
     test(
+      'requires complete date ranges and defaults missing ranges to today',
+      () async {
+        final repository = _FakeBankStatementRepository();
+        final provider = BankStatementProvider(
+          repository,
+          now: () => DateTime.utc(2026, 5, 31, 18),
+        );
+        await provider.initialize(_nationalManager);
+
+        provider.setDateRange(DateTime(2026, 5, 29), null);
+        expect(provider.startDate, isNull);
+        expect(provider.endDate, isNull);
+
+        provider.setDateRange(null, DateTime(2026, 5, 30));
+        expect(provider.startDate, isNull);
+        expect(provider.endDate, isNull);
+
+        provider.setOrder('26060112345678');
+        await provider.search();
+
+        expect(repository.lastQuery?.startDate, DateTime(2026, 6));
+        expect(repository.lastQuery?.endDate, DateTime(2026, 6));
+
+        provider.dispose();
+      },
+    );
+
+    test(
       'searches on demand, ticks current page, and updates orders inline',
       () async {
         final repository = _FakeBankStatementRepository();
