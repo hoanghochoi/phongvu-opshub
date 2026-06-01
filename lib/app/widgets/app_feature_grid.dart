@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+
+import 'app_layout.dart';
 
 class AppFeatureAction {
   final IconData icon;
@@ -32,22 +33,13 @@ class AppFeatureSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              '${actions.length} mục',
-              style: TextStyle(fontSize: 12, color: AppColors.neutral500),
-            ),
-          ],
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
         ),
         const SizedBox(height: 12),
         AppFeatureGrid(actions: actions),
@@ -107,15 +99,17 @@ class AppFeatureTile extends StatelessWidget {
       label: 'Chức năng ${action.title}',
       hint: action.description,
       child: Material(
-        color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
+        color:
+            Theme.of(context).cardTheme.color ??
+            Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
         child: InkWell(
           onTap: action.onTap,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
               border: Border.all(color: Theme.of(context).dividerColor),
               boxShadow: [
                 BoxShadow(
@@ -133,7 +127,9 @@ class AppFeatureTile extends StatelessWidget {
                   height: 34,
                   decoration: BoxDecoration(
                     color: action.color.withValues(alpha: 0.11),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(
+                      AppLayoutTokens.cardRadius,
+                    ),
                   ),
                   child: Icon(action.icon, color: action.color, size: 20),
                 ),

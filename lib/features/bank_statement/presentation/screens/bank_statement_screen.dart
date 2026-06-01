@@ -295,23 +295,10 @@ class _FilterPanelState extends State<_FilterPanel> {
                         }
                       },
                     ),
-                    const SizedBox(height: 10),
-                    _DateField(
-                      label: 'Từ ngày',
-                      value: widget.provider.startDate,
-                      onPicked: (date) => widget.provider.setDateRange(
-                        date,
-                        widget.provider.endDate,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _DateField(
-                      label: 'Đến ngày',
-                      value: widget.provider.endDate,
-                      onPicked: (date) => widget.provider.setDateRange(
-                        widget.provider.startDate,
-                        date,
-                      ),
+                    _DateRangeButton(
+                      startDate: widget.provider.startDate,
+                      endDate: widget.provider.endDate,
+                      onChanged: widget.provider.setDateRange,
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -452,24 +439,10 @@ class _FilterPanelState extends State<_FilterPanel> {
                 Row(
                   children: [
                     Expanded(
-                      child: _DateField(
-                        label: 'Từ ngày',
-                        value: widget.provider.startDate,
-                        onPicked: (date) => widget.provider.setDateRange(
-                          date,
-                          widget.provider.endDate,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _DateField(
-                        label: 'Đến ngày',
-                        value: widget.provider.endDate,
-                        onPicked: (date) => widget.provider.setDateRange(
-                          widget.provider.startDate,
-                          date,
-                        ),
+                      child: _DateRangeButton(
+                        startDate: widget.provider.startDate,
+                        endDate: widget.provider.endDate,
+                        onChanged: widget.provider.setDateRange,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -620,53 +593,348 @@ class _StoreFilterButton extends StatelessWidget {
   }
 }
 
-class _DateField extends StatelessWidget {
-  final String label;
-  final DateTime? value;
-  final ValueChanged<DateTime?> onPicked;
+class _DateRangeButton extends StatelessWidget {
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final void Function(DateTime? start, DateTime? end) onChanged;
 
-  const _DateField({
-    required this.label,
-    required this.value,
-    required this.onPicked,
+  const _DateRangeButton({
+    required this.startDate,
+    required this.endDate,
+    required this.onChanged,
   });
+
+  bool get _hasExplicitRange => startDate != null && endDate != null;
+
+  DateTime _todayStart() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  String _getLabelText() {
+    final formatter = DateFormat('dd/MM/yyyy');
+    final todayStart = _todayStart();
+
+    if (!_hasExplicitRange) {
+      return 'Hôm nay';
+    }
+
+    final startStr = formatter.format(startDate!);
+    final endStr = formatter.format(endDate!);
+
+    if (startStr == endStr) {
+      final today = formatter.format(todayStart);
+      final yesterday = DateFormat(
+        'dd/MM/yyyy',
+      ).format(DateTime.now().subtract(const Duration(days: 1)));
+      if (startStr == today) return 'Hôm nay';
+      if (startStr == yesterday) return 'Hôm qua';
+      return startStr;
+    }
+
+    // Check presets
+    final now = DateTime.now();
+
+    final s = DateTime(startDate!.year, startDate!.month, startDate!.day);
+    final e = DateTime(endDate!.year, endDate!.month, endDate!.day);
+
+    if (e.difference(s).inDays == 6 && e.isAtSameMomentAs(todayStart)) {
+      return '7 ngày qua';
+    }
+    if (e.difference(s).inDays == 29 && e.isAtSameMomentAs(todayStart)) {
+      return '30 ngày qua';
+    }
+    if (s.year == now.year &&
+        s.month == now.month &&
+        s.day == 1 &&
+        e.isAtSameMomentAs(todayStart)) {
+      return 'Tháng này';
+    }
+
+    return '$startStr → $endStr';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final label = _getLabelText();
     return InkWell(
       borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
       onTap: () async {
-        final now = DateTime.now();
-        final picked = await showDatePicker(
+        final result = await showDialog<Map<String, DateTime?>>(
           context: context,
-          initialDate: value ?? now,
-          firstDate: DateTime(2024),
-          lastDate: now.add(const Duration(days: 1)),
-          helpText: label,
-          cancelText: 'Hủy',
-          confirmText: 'Chọn',
+          builder: (context) => _DateRangeDialog(
+            initialStart: _hasExplicitRange ? startDate : null,
+            initialEnd: _hasExplicitRange ? endDate : null,
+          ),
         );
-        onPicked(picked);
+        if (result != null) {
+          if (result.containsKey('clear')) {
+            onChanged(null, null);
+          } else {
+            onChanged(result['start'], result['end']);
+          }
+        }
       },
       child: InputDecorator(
         decoration: InputDecoration(
-          labelText: label,
+          labelText: 'Khoảng thời gian',
           constraints: const BoxConstraints(minHeight: 52),
           border: const OutlineInputBorder(),
-          suffixIcon: value == null
-              ? const Icon(Icons.calendar_month_rounded)
+          prefixIcon: const Icon(Icons.calendar_today_outlined),
+          suffixIcon: !_hasExplicitRange
+              ? const Icon(Icons.arrow_drop_down_rounded, size: 28)
               : IconButton(
-                  tooltip: 'Xóa ngày',
-                  onPressed: () => onPicked(null),
+                  tooltip: 'Xóa bộ lọc',
+                  onPressed: () => onChanged(null, null),
                   icon: const Icon(Icons.close_rounded),
                 ),
         ),
         child: Text(
-          value == null ? 'Chưa chọn' : DateFormat('dd/MM/yyyy').format(value!),
+          label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           softWrap: false,
         ),
+      ),
+    );
+  }
+}
+
+class _DateRangeDialog extends StatefulWidget {
+  final DateTime? initialStart;
+  final DateTime? initialEnd;
+
+  const _DateRangeDialog({this.initialStart, this.initialEnd});
+
+  @override
+  State<_DateRangeDialog> createState() => _DateRangeDialogState();
+}
+
+class _DateRangeDialogState extends State<_DateRangeDialog> {
+  DateTime? _start;
+  DateTime? _end;
+
+  bool get _hasExplicitRange => _start != null && _end != null;
+
+  DateTime _todayStart() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _start = widget.initialStart;
+    _end = widget.initialEnd;
+  }
+
+  void _setPreset(String preset) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+
+    switch (preset) {
+      case 'today':
+        setState(() {
+          _start = todayStart;
+          _end = todayStart;
+        });
+        break;
+      case 'yesterday':
+        final yesterday = todayStart.subtract(const Duration(days: 1));
+        setState(() {
+          _start = yesterday;
+          _end = yesterday;
+        });
+        break;
+      case '7days':
+        setState(() {
+          _start = todayStart.subtract(const Duration(days: 6));
+          _end = todayStart;
+        });
+        break;
+      case '30days':
+        setState(() {
+          _start = todayStart.subtract(const Duration(days: 29));
+          _end = todayStart;
+        });
+        break;
+      case 'thisMonth':
+        setState(() {
+          _start = DateTime(now.year, now.month, 1);
+          _end = todayStart;
+        });
+        break;
+    }
+  }
+
+  Future<void> _pickCustomRange() async {
+    final now = DateTime.now();
+    final todayStart = _todayStart();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2024),
+      lastDate: now.add(const Duration(days: 1)),
+      initialDateRange: _hasExplicitRange
+          ? DateTimeRange(start: _start!, end: _end!)
+          : DateTimeRange(start: todayStart, end: todayStart),
+      helpText: 'Chọn khoảng ngày',
+      cancelText: 'Hủy',
+      confirmText: 'Chọn',
+    );
+    if (picked != null) {
+      setState(() {
+        _start = picked.start;
+        _end = picked.end;
+      });
+    }
+  }
+
+  bool _isPresetActive(String preset) {
+    final now = DateTime.now();
+    final todayStart = _todayStart();
+    final s = _hasExplicitRange
+        ? DateTime(_start!.year, _start!.month, _start!.day)
+        : todayStart;
+    final e = _hasExplicitRange
+        ? DateTime(_end!.year, _end!.month, _end!.day)
+        : todayStart;
+
+    switch (preset) {
+      case 'today':
+        return s.isAtSameMomentAs(todayStart) && e.isAtSameMomentAs(todayStart);
+      case 'yesterday':
+        final yesterday = todayStart.subtract(const Duration(days: 1));
+        return s.isAtSameMomentAs(yesterday) && e.isAtSameMomentAs(yesterday);
+      case '7days':
+        return e.difference(s).inDays == 6 && e.isAtSameMomentAs(todayStart);
+      case '30days':
+        return e.difference(s).inDays == 29 && e.isAtSameMomentAs(todayStart);
+      case 'thisMonth':
+        return s.year == now.year &&
+            s.month == now.month &&
+            s.day == 1 &&
+            e.isAtSameMomentAs(todayStart);
+      default:
+        return false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final formatter = DateFormat('dd/MM/yyyy');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return AlertDialog(
+      title: const Text(
+        'Chọn khoảng thời gian',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Chọn nhanh:',
+              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildPresetChip('Hôm nay', 'today'),
+                _buildPresetChip('Hôm qua', 'yesterday'),
+                _buildPresetChip('7 ngày qua', '7days'),
+                _buildPresetChip('30 ngày qua', '30days'),
+                _buildPresetChip('Tháng này', 'thisMonth'),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Khoảng ngày đã chọn:',
+              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: _pickCustomRange,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: isDark ? AppColors.neutral700 : AppColors.neutral300,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_month_outlined, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _hasExplicitRange
+                            ? '${formatter.format(_start!)} → ${formatter.format(_end!)}'
+                            : 'Hôm nay',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.edit_outlined, size: 18),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Hủy'),
+        ),
+        if (_hasExplicitRange)
+          TextButton(
+            onPressed: () => Navigator.of(context).pop({'clear': null}),
+            child: const Text(
+              'Xóa lọc',
+              style: TextStyle(color: AppColors.error),
+            ),
+          ),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.of(context).pop({'start': _start, 'end': _end});
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary500,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Áp dụng'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPresetChip(String label, String presetKey) {
+    final active = _isPresetActive(presetKey);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return ChoiceChip(
+      label: Text(label),
+      selected: active,
+      onSelected: (_) => _setPreset(presetKey),
+      selectedColor: AppColors.primary500.withValues(alpha: 0.15),
+      labelStyle: TextStyle(
+        color: active
+            ? AppColors.primary500
+            : (isDark ? Colors.white : AppColors.neutral800),
+        fontWeight: active ? FontWeight.bold : FontWeight.normal,
       ),
     );
   }
@@ -1045,6 +1313,10 @@ class _TransactionDetails extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final time = tx.paidAt ?? tx.firstSeenAt;
+    final contentStyle = Theme.of(
+      context,
+    ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700);
+    final pillFontSize = contentStyle?.fontSize ?? 14;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1052,19 +1324,32 @@ class _TransactionDetails extends StatelessWidget {
           spacing: 8,
           runSpacing: 6,
           children: [
-            AppStatusChip(label: tx.storeId, color: AppColors.info),
-            AppStatusChip(
+            _StatementPill(
+              label: 'VietinBank',
+              color: AppColors.violet600,
+              fontSize: pillFontSize,
+            ),
+            _StatementPill(
+              label: tx.storeId.isEmpty ? 'Không rõ' : tx.storeId,
+              color: AppColors.info,
+              fontSize: pillFontSize,
+            ),
+            _StatementPill(
               label: '${money.format(tx.amount)} VND',
               color: AppColors.success,
+              fontSize: pillFontSize,
             ),
-            if (tx.status?.isNotEmpty == true)
-              AppStatusChip(label: tx.status!, color: AppColors.neutral600),
+            _StatementPill(
+              label: 'Thành công',
+              color: AppColors.success,
+              fontSize: pillFontSize,
+            ),
           ],
         ),
         const SizedBox(height: 8),
         Text(
           tx.content.isEmpty ? 'Không có nội dung chuyển khoản' : tx.content,
-          style: const TextStyle(fontWeight: FontWeight.w700),
+          style: contentStyle,
         ),
         const SizedBox(height: 6),
         Text(
@@ -1079,6 +1364,29 @@ class _TransactionDetails extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _StatementPill extends StatelessWidget {
+  final String label;
+  final Color color;
+  final double fontSize;
+
+  const _StatementPill({
+    required this.label,
+    required this.color,
+    required this.fontSize,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppStatusChip(
+      label: label,
+      color: color,
+      fontSize: fontSize,
+      fontWeight: FontWeight.w700,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
     );
   }
 }

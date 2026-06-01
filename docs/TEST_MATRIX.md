@@ -39,6 +39,23 @@ This file maps product behavior to proof. Existing flows are marked
 ## Recent Evidence
 
 
+- PAYMENT-STATEMENT-001, 2026-06-02: Sao ke date range now shows `Hom nay`
+  when no explicit range is selected, treats incomplete custom ranges as the
+  default current-day query, and renders short transaction summary pills for
+  `VietinBank`, SR code, amount, and the transfer-success state without showing
+  the raw MAP API status. Validation: `dart format --output=none
+  --set-exit-if-changed` for changed Dart files, `git diff --check`, `flutter
+  analyze --no-pub`, full `flutter test --no-pub` (42 tests), and `flutter
+  build windows --debug --no-pub`. Gap: live Windows UI click-through remains
+  manual.
+- UI-UX-001, 2026-06-02: refreshed home, bottom navigation, shared action
+  buttons, status panels, feature tiles, and FIFO empty/loading states for more
+  consistent desktop/mobile density while keeping existing routes and data flows
+  unchanged. Validation: `dart format --output=none --set-exit-if-changed` for
+  changed Dart files, `git diff --check`, `flutter analyze --no-pub`, full
+  `flutter test --no-pub` (42 tests), and `flutter build windows --debug
+  --no-pub`. Gap: manual visual smoke on target Windows hardware remains
+  pending.
 - PAYMENT-MONITOR-001, 2026-06-01: Windows payment monitor now initializes
   `media_kit` and retries each payment notification up to 3 times with a
   10-second delay before falling back to terminal `FAILED`. The client uploads

@@ -130,12 +130,17 @@ a customer to scan and pay manually.
   today's Vietnam-local date as both start and end date. SR searches therefore
   load the full snapshot for the current day instead of scanning all stored
   history.
+- The statement date-range control shows `Hôm nay` when no explicit range is
+  selected. A custom date range must include both start and end dates; an
+  incomplete range is treated as no explicit range.
 - `ÄÃ£ cÃ³ Ä‘Æ¡n hÃ ng` means the stored order list is not empty. `ChÆ°a cÃ³ Ä‘Æ¡n hÃ ng`
   means the order list is empty.
-- Statement rows show transaction details beside a compact order area. Users can
-  edit orders inline, enter multiple orders separated by whitespace, comma, or
-  semicolon, save/cancel in place, and see a short per-row success or failure
-  message.
+- Statement rows show transaction details beside a compact order area. The row
+  summary uses short readable pills for payment source, SR code, amount, and
+  successful transfer status, not the raw MAP API status; the current payment
+  source label is `VietinBank`. Users can edit orders inline, enter multiple
+  orders separated by whitespace, comma, or semicolon, save/cancel in place, and
+  see a short per-row success or failure message.
 - Manual order edits write an audit row with old orders, new orders, editor id,
   editor email, source, and timestamp. The history icon opens these audit rows;
   automatic MAP extraction is not shown as a manual edit.
