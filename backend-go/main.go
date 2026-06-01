@@ -221,7 +221,7 @@ func (h *Hub) listenToRedis() {
 	ch := pubsub.Channel()
 
 	for msg := range ch {
-		log.Println("Received event from Redis:", msg.Payload)
+		log.Printf("Received event from Redis channel=%s payloadBytes=%d", msg.Channel, len(msg.Payload))
 		// Transform message if needed, or just broadcast raw JSON
 		type BroadcastMsg struct {
 			Type    string          `json:"type"`
