@@ -189,6 +189,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     this.mapHistorySyncStopped = false;
+    if (this.isMapHistorySyncDisabled()) {
+      this.logger.log(
+        'MAP history sync scheduler disabled by MAP_VIETIN_SYNC_ENABLED=false',
+      );
+      return;
+    }
     this.scheduleNextMapHistorySync();
   }
 
@@ -385,7 +391,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private scheduleNextMapHistorySync() {
-    if (this.mapHistorySyncStopped) return;
+    if (this.mapHistorySyncStopped || this.isMapHistorySyncDisabled()) return;
     const delayMs = this.randomMapHistorySyncDelayMs();
     if (this.mapHistorySyncTimer) {
       clearTimeout(this.mapHistorySyncTimer);
@@ -416,8 +422,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  private isMapHistorySyncDisabled() {
+    return process.env.MAP_VIETIN_SYNC_ENABLED === 'false';
+  }
+
   async syncConfiguredStores() {
-    if (process.env.MAP_VIETIN_SYNC_ENABLED === 'false') return;
+    if (this.isMapHistorySyncDisabled()) return;
     if (!this.isWithinMapSyncWindow()) {
       if (this.lastSyncWindowOpen !== false) {
         this.logger.log(
