@@ -26,7 +26,7 @@ a customer to scan and pay manually.
 - Each generated QR is stored as a payment intent so staff can run payment
   confirmation after showing the QR to the customer.
 - The QR result screen automatically checks payment status while the screen is
-  open when amount and transfer content are fixed. Staff can also tap `Kiểm tra
+  open when amount and transfer content are fixed. Staff can also tap `Kiá»ƒm tra
   ngay` to run the same check immediately.
 - Once payment is confirmed, the app hides the QR and shows a green success
   state with MAP transaction details when available: payer, received amount,
@@ -40,7 +40,7 @@ a customer to scan and pay manually.
 
 ## PC Payment Monitor
 
-- The Windows PC app exposes a `Tiền vào` home action.
+- The Windows PC app exposes a `Tiá»n vÃ o` home action.
 - The NestJS API is the source of truth for MAP transactions. It polls
   configured showroom MAP accounts in the background, stores successful incoming
   transactions in Postgres, and exposes the stored list to scoped clients.
@@ -65,9 +65,9 @@ a customer to scan and pay manually.
   rows are not announced again.
 - While the app is running, the PC polls OpsHub every 5 seconds. Each newly
   observed successful incoming transaction is announced through generated audio
-  as `Phong Vũ đã nhận: <amount> đồng.`. Piper audio uses speed `0.90` by
+  as `Phong VÅ© Ä‘Ã£ nháº­n: <amount> Ä‘á»“ng.`. Piper audio uses speed `0.90` by
   default so the final word has more room to finish.
-- Turning off `Đọc thông báo tiền vào` mutes only the speaker path. The PC keeps
+- Turning off `Äá»c thÃ´ng bÃ¡o tiá»n vÃ o` mutes only the speaker path. The PC keeps
   polling/syncing transactions every 5 seconds, and muted notifications are
   recorded as `SILENCED` so they are not played later as backlog.
 - QR payment confirmation checks stored MAP transactions first. If a matching
@@ -82,8 +82,14 @@ a customer to scan and pay manually.
   only through JWT-protected endpoints. Production uses Piper `vi-vais1000`
   through `TTS_VOICE_ID=piper:vi-vais1000`; the sidecar still accepts the
   legacy `custom:suong-vo` voice id for rollback-friendly deploys. The Windows
-  app plays `data/ting ting.mp3` before the generated audio, then falls back to
-  local Windows speech if the server audio is unavailable.
+  app plays `data/ting_ting.mp3` before the generated audio, then attempts
+  playback in this order for each notification: `media_kit` on Windows, Win32
+  `PlaySoundW` for WAV files, and MCI as the final fallback.
+- When a speaker attempt fails, the client uploads `PaymentSpeaker` started /
+  succeeded / failed logs with sanitized context and acknowledges
+  `PLAYBACK_FAILED` for attempts 1-2. The client waits 10 seconds between
+  attempts, reuses the same downloaded audio bytes across all 3 attempts, and
+  acknowledges terminal `FAILED` only after attempt 3 still cannot play.
 - Payment notification audio is cleaned after 7 days, delivery/app logs after
   30 days, and stored MAP transactions after 90 days by default.
 
@@ -110,7 +116,7 @@ a customer to scan and pay manually.
 - Order filter is an exact match against any stored order in the transaction.
   Amount filter is exact integer amount. Content filter is case-insensitive
   contains matching.
-- `Đã có đơn hàng` means the stored order list is not empty. `Chưa có đơn hàng`
+- `ÄÃ£ cÃ³ Ä‘Æ¡n hÃ ng` means the stored order list is not empty. `ChÆ°a cÃ³ Ä‘Æ¡n hÃ ng`
   means the order list is empty.
 - Statement rows show transaction details beside a compact order area. Users can
   edit orders inline, enter multiple orders separated by whitespace, comma, or
@@ -134,7 +140,7 @@ Bank-web confirmation is possible only as a separate reconciliation feature
 after the bank portal is identified and approved for automation. Current
 research against VietinBank MAP merchant transaction payment page shows a
 searchable transaction list with filters for amount, transaction code, date
-range, status, and a `Tải kết quả` export action.
+range, status, and a `Táº£i káº¿t quáº£` export action.
 
 Preferred paths, from safest to riskiest:
 
