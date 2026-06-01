@@ -315,6 +315,36 @@ describe('MapVietinService', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('uses a 3000-5000ms random delay for scheduled MAP history sync', () => {
+    jest.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValueOnce(0.9999);
+
+    expect((service as any).randomMapHistorySyncDelayMs()).toBe(3000);
+    expect((service as any).randomMapHistorySyncDelayMs()).toBe(5000);
+  });
+
+  it('schedules the next MAP history sync only after the current run finishes', async () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0.5);
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+    let resolveSync!: () => void;
+    jest.spyOn(service, 'syncConfiguredStores').mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveSync = resolve;
+      }),
+    );
+
+    const runPromise = (service as any).runScheduledMapHistorySync();
+    await Promise.resolve();
+
+    expect(service.syncConfiguredStores).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+
+    resolveSync();
+    await runPromise;
+
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 4000);
+    service.onModuleDestroy();
+  });
+
   it('reuses cached global MAP session across sync loops', async () => {
     process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
     process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';

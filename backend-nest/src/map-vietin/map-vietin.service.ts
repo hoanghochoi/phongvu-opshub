@@ -4,10 +4,11 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
+  OnModuleDestroy,
+  OnModuleInit,
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -34,6 +35,8 @@ const GLOBAL_SYNC_STATE_CODE = '__GLOBAL__';
 const MAP_SYNC_PAGE_SIZE = 100;
 const MAP_SYNC_START_HOUR_VN = 8;
 const MAP_SYNC_END_HOUR_VN = 22;
+const MAP_HISTORY_SYNC_DELAY_MIN_MS = 3000;
+const MAP_HISTORY_SYNC_DELAY_MAX_MS = 5000;
 const DEFAULT_GLOBAL_SYNC_MAX_PAGES = 2;
 const DEFAULT_GLOBAL_SESSION_TTL_SECONDS = 10 * 60;
 const VIETNAM_UTC_OFFSET_HOURS = 7;
@@ -84,10 +87,12 @@ type UnmappedReason =
   | 'AMBIGUOUS_ACCOUNT';
 
 @Injectable()
-export class MapVietinService {
+export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MapVietinService.name);
   private syncInProgress = false;
   private lastSyncWindowOpen?: boolean;
+  private mapHistorySyncTimer?: NodeJS.Timeout;
+  private mapHistorySyncStopped = false;
   private globalSessionCache?: {
     username: string;
     session: MapSession;
@@ -181,6 +186,19 @@ export class MapVietinService {
     @Optional()
     private paymentNotifications?: PaymentNotificationsService,
   ) {}
+
+  onModuleInit() {
+    this.mapHistorySyncStopped = false;
+    this.scheduleNextMapHistorySync();
+  }
+
+  onModuleDestroy() {
+    this.mapHistorySyncStopped = true;
+    if (this.mapHistorySyncTimer) {
+      clearTimeout(this.mapHistorySyncTimer);
+      this.mapHistorySyncTimer = undefined;
+    }
+  }
 
   async searchTransactions(admin: any, input: SearchMapVietinTransactionsDto) {
     const store = await this.resolveStore(admin, input.storeId);
@@ -366,7 +384,38 @@ export class MapVietinService {
     };
   }
 
-  @Interval(5000)
+  private scheduleNextMapHistorySync() {
+    if (this.mapHistorySyncStopped) return;
+    const delayMs = this.randomMapHistorySyncDelayMs();
+    if (this.mapHistorySyncTimer) {
+      clearTimeout(this.mapHistorySyncTimer);
+    }
+    this.mapHistorySyncTimer = setTimeout(() => {
+      void this.runScheduledMapHistorySync();
+    }, delayMs);
+    this.mapHistorySyncTimer.unref?.();
+    this.logger.debug(`Next MAP history sync scheduled in ${delayMs}ms`);
+  }
+
+  private async runScheduledMapHistorySync() {
+    try {
+      await this.syncConfiguredStores();
+    } catch (error) {
+      this.logger.warn(
+        `Scheduled MAP history sync failed: ${this.safeError(error).slice(0, 500)}`,
+      );
+    } finally {
+      this.scheduleNextMapHistorySync();
+    }
+  }
+
+  private randomMapHistorySyncDelayMs() {
+    const span = MAP_HISTORY_SYNC_DELAY_MAX_MS - MAP_HISTORY_SYNC_DELAY_MIN_MS;
+    return (
+      MAP_HISTORY_SYNC_DELAY_MIN_MS + Math.floor(Math.random() * (span + 1))
+    );
+  }
+
   async syncConfiguredStores() {
     if (process.env.MAP_VIETIN_SYNC_ENABLED === 'false') return;
     if (!this.isWithinMapSyncWindow()) {

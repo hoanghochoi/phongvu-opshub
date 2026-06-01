@@ -36,6 +36,15 @@ This file maps product behavior to proof. Existing flows are marked
 | PLATFORM-001 | NestJS, Go realtime, PostgreSQL, Redis local stack health | partial | no | no | health checks needed | existing_unverified | Product docs seeded from README/code inspection |
 | UPDATE-001 | Mobile clients check backend version metadata and require APK updates when server build is newer or minimum supported build is raised | yes | no | mobile smoke needed | Android | changed | Pending validation in current patch |
 
+## Recent Evidence
+
+- PAYMENT-MONITOR-001, 2026-06-01: changed only the backend MAP-history fetch
+  scheduler so each scheduled fetch waits a random 3000-5000ms after the
+  previous run finishes; client polling of OpsHub stored transactions remains
+  unchanged. Validation: `npm test -- --runInBand
+  src/map-vietin/map-vietin.service.spec.ts` (25 tests), `npm run build`.
+  Gap: live VPS deploy/smoke pending.
+
 ## Evidence Rules
 
 - Unit proof covers pure validators, service rules, and focused repositories.
