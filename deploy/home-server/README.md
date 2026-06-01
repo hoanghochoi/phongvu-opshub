@@ -15,7 +15,9 @@ Target layout:
 - Compose file for runtime checks: `/home/ubuntu/phongvu-opshub/current/deploy/home-server/docker-compose.home.yml`.
 - MAP global sync reads `100` rows per MAP page and defaults to
   `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES=2`, for at most `200` rows per sync loop.
-  Background MAP sync runs only from `08:00` to before `22:00` Vietnam time.
+  After each backend MAP-history fetch finishes, the next scheduled fetch waits
+  a random `3000`-`5000` ms. Background MAP sync runs only from `08:00` to
+  before `22:00` Vietnam time.
 
 ## Checklist
 

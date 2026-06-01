@@ -49,8 +49,10 @@ a customer to scan and pay manually.
   `Store.transferAccountNumber`, and stores the transaction under the matched
   showroom. Per-showroom MAP credentials remain a fallback when global sync is
   disabled or not configured. Global sync reads 100 MAP rows per page and
-  defaults to 2 pages per sync loop. Background MAP sync runs only from
-  08:00 to before 22:00 Vietnam time each day.
+  defaults to 2 pages per sync loop. After each backend MAP-history fetch
+  finishes, the backend waits a random 3000-5000ms before starting the next
+  scheduled fetch. Background MAP sync runs only from 08:00 to before 22:00
+  Vietnam time each day.
 - Successful global MAP rows that cannot be mapped to exactly one showroom are
   quarantined for debug and do not create payment notifications or play audio.
 - The monitor is independent from OpsHub-created QR/payment intents. It reads
