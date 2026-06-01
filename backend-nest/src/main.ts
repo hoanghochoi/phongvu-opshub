@@ -11,6 +11,7 @@ import {
   isCorsOriginAllowed,
   validateRuntimeEnv,
 } from './config/env';
+import { requestPathForLog } from './request-log';
 
 async function bootstrap() {
   validateRuntimeEnv();
@@ -28,7 +29,7 @@ async function bootstrap() {
         JSON.stringify({
           requestId,
           method: req.method,
-          path: req.originalUrl || req.url,
+          path: requestPathForLog(req),
           statusCode: res.statusCode,
           durationMs: Date.now() - startedAt,
         }),

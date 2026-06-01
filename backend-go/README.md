@@ -22,11 +22,7 @@ go test ./...
 go run .
 ```
 
-The WebSocket endpoint is:
-
-```text
-ws://localhost:8080/ws?access_token=<jwt>
-```
+The WebSocket endpoint is `/ws`. Send the JWT with `Authorization: Bearer <jwt>`; avoid query-string tokens because URLs can be logged by proxies and diagnostics. The legacy `access_token` query parameter is still accepted for compatibility.
 
 The liveness endpoint is:
 
