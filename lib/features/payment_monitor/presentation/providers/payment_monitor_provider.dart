@@ -1,9 +1,10 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/logging/app_logger.dart';
+import '../../../../core/network/api_exception.dart' as api;
 import '../../../../core/platform/app_restart_service.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../data/payment_speaker.dart';
@@ -33,6 +34,13 @@ class PaymentMonitorProvider extends ChangeNotifier {
   static const _speakerEnabledPreferenceKey = 'payment_monitor_enabled';
   static const _maxAudioPlaybackAttempts = 3;
   static const _defaultPlaybackRetryDelay = Duration(seconds: 10);
+  static const _pollBackoffSchedule = <Duration>[
+    Duration(seconds: 5),
+    Duration(seconds: 10),
+    Duration(seconds: 20),
+    Duration(seconds: 40),
+    Duration(minutes: 1),
+  ];
 
   final PaymentMonitorRepository _repository;
   final PaymentSpeaker _speaker;
@@ -58,6 +66,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool _loggedMonitorStarted = false;
   bool _isSpeakerEnabled = true;
   bool _isSpeakerPreferenceLoaded = false;
+  int _pollFailureCount = 0;
+  DateTime? _nextPollAllowedAt;
   PaymentSpeakerError? _speakerError;
 
   PaymentMonitorProvider(
@@ -174,7 +184,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         },
       ),
     );
-    _poll();
+    _poll(force: true);
   }
 
   void setPageSize(int value) {
@@ -191,21 +201,21 @@ class PaymentMonitorProvider extends ChangeNotifier {
         },
       ),
     );
-    _poll();
+    _poll(force: true);
   }
 
   void nextPage() {
     if (!canGoNextPage) return;
     _pageIndex += 1;
     unawaited(_logPageChanged('next'));
-    _poll();
+    _poll(force: true);
   }
 
   void previousPage() {
     if (!canGoPreviousPage) return;
     _pageIndex -= 1;
     unawaited(_logPageChanged('previous'));
-    _poll();
+    _poll(force: true);
   }
 
   Future<void> _loadEnabledPreference() async {
@@ -262,7 +272,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _terminalNotificationIds.clear();
     _speakerError = null;
     _latestTransactions.clear();
-    _poll();
+    _poll(force: true);
     _timer = Timer.periodic(_pollInterval, (_) => _poll());
     notifyListeners();
   }
@@ -286,6 +296,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _isLoading = false;
     _notificationCheckpointAt = null;
     _loggedMonitorStarted = false;
+    _pollFailureCount = 0;
+    _nextPollAllowedAt = null;
     _terminalNotificationIds.clear();
     _latestTransactions.clear();
     _errorMessage = null;
@@ -298,12 +310,18 @@ class PaymentMonitorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _poll() async {
+  Future<void> _poll({bool force = false}) async {
     if (_isLoading || !_canMonitorOnThisDevice || !_hasMonitorScope) return;
+    final nextPollAllowedAt = _nextPollAllowedAt;
+    if (!force && nextPollAllowedAt != null) {
+      final now = DateTime.now();
+      if (now.isBefore(nextPollAllowedAt)) return;
+    }
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
+    var phase = 'client_id';
     try {
       final clientId = await _ensureClientId();
       if (!_loggedMonitorStarted) {
@@ -317,6 +335,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           },
         );
       }
+      phase = 'stored_transactions';
       final transactionPage = await _repository.fetchStoredTransactions(
         storeId: _requestStoreId,
         startDate: _formatDateForApi(_rangeStartDate),
@@ -324,6 +343,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         page: _pageIndex,
         limit: _pageSize,
       );
+      phase = 'ready_notifications';
       final notifications = await _repository.fetchReadyNotifications(
         clientId: clientId,
         storeId: _requestStoreId,
@@ -349,9 +369,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
           storeCode: _requestStoreId,
         );
       }
+      phase = 'playback';
       await _handleReadyNotifications(notifications, clientId);
 
       _lastCheckedAt = DateTime.now();
+      _pollFailureCount = 0;
+      _nextPollAllowedAt = null;
       _pageIndex = transactionPage.page;
       _pageSize = transactionPage.limit;
       _totalTransactions = transactionPage.total;
@@ -359,7 +382,14 @@ class PaymentMonitorProvider extends ChangeNotifier {
         ..clear()
         ..addAll(transactionPage.transactions);
     } catch (error) {
-      _errorMessage = _friendlyPollError(error);
+      final pollError = _classifyPollError(error);
+      final failureCount = _pollFailureCount + 1;
+      _pollFailureCount = failureCount;
+      final nextRetryAt = pollError.isAuthFailure
+          ? null
+          : DateTime.now().add(_pollBackoffForFailure(failureCount));
+      _nextPollAllowedAt = nextRetryAt;
+      _errorMessage = pollError.message;
       await AppLogger.instance.error(
         'PaymentMonitor',
         'Payment monitor poll failed',
@@ -367,12 +397,21 @@ class PaymentMonitorProvider extends ChangeNotifier {
         upload: true,
         context: {
           'storeId': _requestStoreId ?? _user?.storeId,
+          'phase': phase,
+          'errorType': pollError.errorType,
+          if (pollError.statusCode != null) 'statusCode': pollError.statusCode,
+          'failureCount': failureCount,
+          'authFailure': pollError.isAuthFailure,
+          if (nextRetryAt != null) 'nextRetryAt': nextRetryAt.toIso8601String(),
           'startDate': _formatDateForApi(_rangeStartDate),
           'endDate': _formatDateForApi(_rangeEndDate),
           'page': _pageIndex,
           'limit': _pageSize,
         },
       );
+      if (pollError.isAuthFailure) {
+        _stop(reason: 'auth_failed');
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -591,6 +630,14 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'durationMs': result.durationMs,
             'reportedSuccess': result.reportedSuccess,
             'audibleVerified': result.audibleVerified,
+            'normalized': result.normalized,
+            if (result.sampleRateHz != null)
+              'sampleRateHz': result.sampleRateHz,
+            if (result.channels != null) 'channels': result.channels,
+            if (result.bitsPerSample != null)
+              'bitsPerSample': result.bitsPerSample,
+            if (result.audioPreflightStatus != null)
+              'audioPreflightStatus': result.audioPreflightStatus,
             'startedAt': startedAt.toIso8601String(),
           },
         );
@@ -609,6 +656,14 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'durationMs': result.durationMs,
             'reportedSuccess': result.reportedSuccess,
             'audibleVerified': result.audibleVerified,
+            'normalized': result.normalized,
+            if (result.sampleRateHz != null)
+              'sampleRateHz': result.sampleRateHz,
+            if (result.channels != null) 'channels': result.channels,
+            if (result.bitsPerSample != null)
+              'bitsPerSample': result.bitsPerSample,
+            if (result.audioPreflightStatus != null)
+              'audioPreflightStatus': result.audioPreflightStatus,
             'startedAt': startedAt.toIso8601String(),
           },
           storeCode: notification.storeCode,
@@ -616,7 +671,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
         return;
       } catch (error, stackTrace) {
         final safeError = _safeSpeakerError(error);
-        final isFinalAttempt = attempt >= _maxAudioPlaybackAttempts;
+        final retryable = error is! PaymentSpeakerException || error.retryable;
+        final isFinalAttempt =
+            attempt >= _maxAudioPlaybackAttempts || !retryable;
         final nextRetryAt = isFinalAttempt
             ? null
             : DateTime.now().add(_playbackRetryDelay);
@@ -629,6 +686,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'attempt': attempt,
           'attempts': _maxAudioPlaybackAttempts,
           'final': isFinalAttempt,
+          'retryable': retryable,
           'error': safeError,
           if (nextRetryAt != null) 'nextRetryAt': nextRetryAt.toIso8601String(),
           if (error is PaymentSpeakerException &&
@@ -761,7 +819,13 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   String _buildSpeakerErrorMessage(String safeError) {
-    return 'Không phát được loa sau _maxAudioPlaybackAttempts lần thử. '
+    final lower = safeError.toLowerCase();
+    if (lower.contains('audio output device') ||
+        lower.contains('waveoutdevices=0') ||
+        lower.contains('no wave device')) {
+      return 'Windows không nhận thiết bị âm thanh. Kiểm tra loa/audio driver rồi bấm Khởi động lại app. Lỗi: $safeError';
+    }
+    return 'Không phát được loa sau $_maxAudioPlaybackAttempts lần thử. '
         'Bấm Khởi động lại app rồi thử lại. Lỗi: $safeError';
   }
 
@@ -803,17 +867,82 @@ class PaymentMonitorProvider extends ChangeNotifier {
     return '${normalized.substring(0, 177)}...';
   }
 
-  static String _friendlyPollError(Object error) {
-    final text = error.toString().toLowerCase();
-    if (text.contains('network') || text.contains('socket')) {
-      return 'KhÃƒÂ´ng kÃ¡ÂºÂ¿t nÃ¡Â»â€˜i Ã„â€˜Ã†Â°Ã¡Â»Â£c. Vui lÃƒÂ²ng kiÃ¡Â»Æ’m tra mÃ¡ÂºÂ¡ng rÃ¡Â»â€œi thÃ¡Â»Â­ lÃ¡ÂºÂ¡i.';
+  static _PaymentPollError _classifyPollError(Object error) {
+    final statusCode = error is api.ApiException ? error.statusCode : null;
+    final rawMessage = error is api.ApiException
+        ? error.message
+        : error.toString();
+    final message = rawMessage.trim();
+    final lower = message.toLowerCase();
+    final authFailure =
+        statusCode == 401 ||
+        statusCode == 403 ||
+        lower.contains('unauthorized') ||
+        lower.contains('phiên làm việc') ||
+        lower.contains('dang nhap tren thiet bi khac') ||
+        lower.contains('đăng nhập trên thiết bị khác');
+
+    if (authFailure) {
+      return _PaymentPollError(
+        message: message.isNotEmpty
+            ? message
+            : 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.',
+        errorType: error.runtimeType.toString(),
+        statusCode: statusCode,
+        isAuthFailure: true,
+      );
     }
-    if (text.contains('timeout')) {
-      return 'KÃ¡ÂºÂ¿t nÃ¡Â»â€˜i hÃ†Â¡i lÃƒÂ¢u. Vui lÃƒÂ²ng thÃ¡Â»Â­ lÃ¡ÂºÂ¡i sau ÃƒÂ­t phÃƒÂºt.';
+    if (error is api.NetworkException) {
+      return _PaymentPollError(
+        message: error.message,
+        errorType: error.runtimeType.toString(),
+        statusCode: statusCode,
+      );
     }
-    if (text.contains('401') || text.contains('403')) {
-      return 'TÃƒÂ i khoÃ¡ÂºÂ£n chÃ†Â°a cÃƒÂ³ quyÃ¡Â»Ân xem giao dÃ¡Â»â€¹ch cÃ¡Â»Â§a showroom nÃƒÂ y.';
+    if (error is api.TimeoutException) {
+      return _PaymentPollError(
+        message: error.message,
+        errorType: error.runtimeType.toString(),
+        statusCode: statusCode,
+      );
     }
-    return 'ChÃ†Â°a cÃ¡ÂºÂ­p nhÃ¡ÂºÂ­t Ã„â€˜Ã†Â°Ã¡Â»Â£c giao dÃ¡Â»â€¹ch. Vui lÃƒÂ²ng thÃ¡Â»Â­ lÃ¡ÂºÂ¡i sau ÃƒÂ­t phÃƒÂºt.';
+    if (error is api.ServerException) {
+      return _PaymentPollError(
+        message: error.message,
+        errorType: error.runtimeType.toString(),
+        statusCode: statusCode,
+      );
+    }
+    if (error is api.ApiException && message.isNotEmpty) {
+      return _PaymentPollError(
+        message: message,
+        errorType: error.runtimeType.toString(),
+        statusCode: statusCode,
+      );
+    }
+    return _PaymentPollError(
+      message: 'Chưa cập nhật được giao dịch. Vui lòng thử lại sau ít phút.',
+      errorType: error.runtimeType.toString(),
+      statusCode: statusCode,
+    );
   }
+
+  static Duration _pollBackoffForFailure(int failureCount) {
+    final index = (failureCount - 1).clamp(0, _pollBackoffSchedule.length - 1);
+    return _pollBackoffSchedule[index];
+  }
+}
+
+class _PaymentPollError {
+  final String message;
+  final String errorType;
+  final int? statusCode;
+  final bool isAuthFailure;
+
+  const _PaymentPollError({
+    required this.message,
+    required this.errorType,
+    this.statusCode,
+    this.isAuthFailure = false,
+  });
 }

@@ -26,6 +26,8 @@ CONFIG_PATH = Path(os.getenv("PIPER_CONFIG_PATH", str(MODEL_DIR / "config.json")
 TMP_DIR = Path(os.getenv("PIPER_TMP_DIR", "/tmp/opshub-piper-tts"))
 DEFAULT_VOICE_ID = os.getenv("PIPER_VOICE_ID", "piper:vi-vais1000")
 MAX_TEXT_CHARS = int(os.getenv("PIPER_MAX_TEXT_CHARS", "500"))
+LEADING_SILENCE_MS = int(os.getenv("PIPER_LEADING_SILENCE_MS", "250"))
+TAIL_SILENCE_MS = int(os.getenv("PIPER_TAIL_SILENCE_MS", "500"))
 
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -91,6 +93,8 @@ def config() -> dict[str, Any]:
         "modelPath": str(MODEL_PATH),
         "configPath": str(CONFIG_PATH),
         "maxTextChars": MAX_TEXT_CHARS,
+        "leadingSilenceMs": LEADING_SILENCE_MS,
+        "tailSilenceMs": TAIL_SILENCE_MS,
         "loadedAt": _loaded_at,
     }
 
@@ -130,14 +134,17 @@ def synthesize(request: SynthesizeRequest, background_tasks: BackgroundTasks):
             voice = _load_voice()
             with wave.open(output_path, "wb") as wav_file:
                 voice.synthesize_wav(text, wav_file, syn_config=syn_config)
+        _pad_wav_silence(output_path, LEADING_SILENCE_MS, TAIL_SILENCE_MS)
 
         duration = _wav_duration(output_path)
         size = Path(output_path).stat().st_size
         logger.info(
-            "Piper synthesize success elapsed=%.3fs audio=%.2fs bytes=%s",
+            "Piper synthesize success elapsed=%.3fs audio=%.2fs bytes=%s leading_silence_ms=%s tail_silence_ms=%s",
             time.perf_counter() - start,
             duration,
             size,
+            LEADING_SILENCE_MS,
+            TAIL_SILENCE_MS,
         )
         background_tasks.add_task(_cleanup_file, output_path)
         return FileResponse(
@@ -158,6 +165,24 @@ def synthesize(request: SynthesizeRequest, background_tasks: BackgroundTasks):
 def _wav_duration(path: str) -> float:
     with wave.open(path, "rb") as wav_file:
         return wav_file.getnframes() / wav_file.getframerate()
+
+
+def _pad_wav_silence(path: str, leading_ms: int, trailing_ms: int) -> None:
+    if leading_ms <= 0 and trailing_ms <= 0:
+        return
+    with wave.open(path, "rb") as wav_file:
+        params = wav_file.getparams()
+        frames = wav_file.readframes(wav_file.getnframes())
+    leading_frames = int(params.framerate * max(leading_ms, 0) / 1000)
+    trailing_frames = int(params.framerate * max(trailing_ms, 0) / 1000)
+    frame_width = params.nchannels * params.sampwidth
+    leading_silence = b"\x00" * leading_frames * frame_width
+    trailing_silence = b"\x00" * trailing_frames * frame_width
+    with wave.open(path, "wb") as wav_file:
+        wav_file.setparams(params)
+        wav_file.writeframes(leading_silence)
+        wav_file.writeframes(frames)
+        wav_file.writeframes(trailing_silence)
 
 
 def _cleanup_file(path: str) -> None:

@@ -10,6 +10,10 @@ VieNeu runtime with Piper `vi-vais1000`.
   `voice_id`, `speed`, `pitch`, and `voice_index`.
 - The service always returns `audio/wav`; the Windows app already detects and
   plays WAV files.
+- The WAV output prepends `PIPER_LEADING_SILENCE_MS` of leading silence,
+  default `250`, so playback does not clip the first word.
+- The WAV output appends `PIPER_TAIL_SILENCE_MS` of trailing silence, default
+  `500`, so playback does not clip the final word.
 - `speed` maps to Piper `length_scale = 1 / speed`.
 - `pitch` is accepted for compatibility but ignored in v1.
 - Supported voice ids are `piper:vi-vais1000`, `custom:suong-vo`, and

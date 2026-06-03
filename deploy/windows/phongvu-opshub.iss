@@ -57,8 +57,84 @@ Name: "{userdesktop}\{#AppName}"; Filename: "{app}\phongvu_opshub.exe"; Tasks: d
 Filename: "{app}\phongvu_opshub.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent; Check: ShouldLaunchApp
 
 [Code]
+function WaveOutGetNumDevs(): Integer;
+  external 'waveOutGetNumDevs@winmm.dll stdcall';
+
 var
   VcRedistNeedsRestart: Boolean;
+
+function BoolText(Value: Boolean): String;
+begin
+  if Value then
+    Result := 'true'
+  else
+    Result := 'false';
+end;
+
+function IsServiceRunning(ServiceName: String): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := Exec(
+    ExpandConstant('{sys}\cmd.exe'),
+    '/C sc query "' + ServiceName + '" | find "RUNNING" >nul',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode
+  ) and (ResultCode = 0);
+
+  if Result then
+    Log('Windows audio service is running: ' + ServiceName + '.')
+  else
+    Log('Windows audio service is not running or unavailable: ' + ServiceName + '. Exit code: ' + IntToStr(ResultCode) + '.');
+end;
+
+function AudioServicesRunning(): Boolean;
+begin
+  Result :=
+    IsServiceRunning('Audiosrv') and
+    IsServiceRunning('AudioEndpointBuilder');
+end;
+
+function AudioOutputAvailable(): Boolean;
+var
+  DeviceCount: Integer;
+begin
+  DeviceCount := WaveOutGetNumDevs();
+  Result := DeviceCount > 0;
+  Log('Windows audio output device count reported by waveOutGetNumDevs: ' + IntToStr(DeviceCount) + '.');
+end;
+
+procedure RunAudioPreflight();
+var
+  ServicesOk: Boolean;
+  OutputOk: Boolean;
+  Message: String;
+begin
+  ServicesOk := AudioServicesRunning();
+  OutputOk := AudioOutputAvailable();
+
+  if ServicesOk and OutputOk then
+  begin
+    Log('Windows audio preflight passed.');
+    Exit;
+  end;
+
+  Log('Windows audio preflight warning. servicesOk=' + BoolText(ServicesOk) + ', outputOk=' + BoolText(OutputOk) + '.');
+  Message :=
+    'PhongVu OpsHub will continue installing, but payment notification audio may not play on this PC yet.' + #13#10#13#10 +
+    'Please check Windows Audio service, audio driver, and the selected speaker/output device before relying on payment voice alerts.';
+
+  if not WizardSilent then
+    MsgBox(Message, mbInformation, MB_OK);
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+  RunAudioPreflight();
+end;
 
 function VcRuntimeDllsPresent(): Boolean;
 begin

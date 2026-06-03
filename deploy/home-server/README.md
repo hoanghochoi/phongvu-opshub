@@ -120,6 +120,9 @@ runtime files, has an older runtime, or has a partial install. The portable ZIP 
 kept for internal/manual use and does not install prerequisites by itself. The
 latest Microsoft Visual C++ v14 Redistributable supports Windows 10/11 and
 Windows Server 2016+; older Windows versions remain an unsupported install risk.
+The installer also performs a non-blocking Windows audio preflight; missing
+Windows Audio services or playback devices are logged and shown as an interactive
+warning, but setup continues because audio devices can be fixed after install.
 
 Then it uploads the client artifacts to `/srv/opshub/downloads/`, points Windows
 update metadata at the installer EXE, updates the backend generic `APP_*`,
