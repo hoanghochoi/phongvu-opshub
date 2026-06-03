@@ -34,21 +34,24 @@ describe('WarrantyController', () => {
   });
 
   it('searches warranties with an empty string fallback', async () => {
+    const req = { user: { id: 'user-1', storeId: 'store-1' } };
     warrantyService.searchByReceipt.mockResolvedValue([]);
 
-    await expect(controller.search(undefined as any)).resolves.toEqual([]);
-    expect(warrantyService.searchByReceipt).toHaveBeenCalledWith('');
+    await expect(controller.search(req, undefined as any)).resolves.toEqual([]);
+    expect(warrantyService.searchByReceipt).toHaveBeenCalledWith(req.user, '');
   });
 
   it('updates warranty status with handler id', async () => {
+    const req = { user: { id: 'handler-1', storeId: 'store-1' } };
     warrantyService.updateWarrantyStatus.mockResolvedValue({ status: 'DONE' });
 
     await expect(
-      controller.updateStatus({ user: { id: 'handler-1' } }, 'warranty-1', {
+      controller.updateStatus(req, 'warranty-1', {
         status: 'DONE',
       }),
     ).resolves.toEqual({ status: 'DONE' });
     expect(warrantyService.updateWarrantyStatus).toHaveBeenCalledWith(
+      req.user,
       'warranty-1',
       'handler-1',
       'DONE',
