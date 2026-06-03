@@ -24,15 +24,15 @@ Only authorized Phong Vũ staff should access OpsHub workflows.
 - Users can change their password while authenticated by entering their current
   password and a new password that satisfies the password policy.
 - Users who forget their password can request a reset email from the login
-  screen. The response is generic so the API does not reveal whether an email
-  exists.
-- `SUPER_ADMIN` can send a password reset link from user management. This does
-  not unlock disabled users; `status=no` still blocks login.
-- Password reset links point to `PUBLIC_BASE_URL/reset-password?token=...`, are
-  single-use, store only a token hash, expire after 30 minutes by default, and
-  invalidate previous active reset links for the same user.
-- The reset landing page submits a server-side `POST /reset-password` form so
-  passwords are never placed in the browser URL.
+  screen. The email contains a 6-digit code that expires after 10 minutes. The
+  response is generic so the API does not reveal whether an email exists.
+- After verifying the reset code in the app, users enter the new password and
+  confirmation in the app. The backend stores only a one-time reset-token hash
+  between code verification and final password update.
+- `SUPER_ADMIN` can set a user's new password directly from user management.
+  This does not unlock disabled users; `status=no` still blocks login.
+- The legacy reset landing page remains available for previously issued links,
+  but the current forgot-password flow no longer sends reset links.
 - Successful password change/reset increments the user token version so older
   JWTs are rejected.
 
@@ -40,7 +40,7 @@ Only authorized Phong Vũ staff should access OpsHub workflows.
 
 - Login behavior is security-sensitive and defaults to the high-risk lane when
   changed.
-- Allowed Phong Vũ email domains, password policy, reset-token lifetime, JWT
+- Allowed Phong Vũ email domains, password policy, reset-code lifetime, JWT
   token-version invalidation, platform-session enforcement, session
   persistence, and logout behavior must be explicit in implementation stories.
 - Do not commit real credentials, tokens, service accounts, or production env

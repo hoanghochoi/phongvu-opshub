@@ -99,6 +99,44 @@ class AuthRepository {
     }
   }
 
+  Future<String> verifyPasswordResetCode({
+    required String email,
+    required String code,
+  }) async {
+    try {
+      final response = await _postPublicAuth(
+        ApiConstants.forgotPasswordVerifyCodeEndpoint,
+        body: {'email': email, 'code': code},
+      );
+      final data = _readResponseMap(response.body);
+      final resetToken = data['resetToken']?.toString();
+      if (resetToken == null || resetToken.isEmpty) {
+        throw ApiException('Mã xác thực chưa hợp lệ. Vui lòng thử lại.');
+      }
+      return resetToken;
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Không xác thực được mã. Vui lòng thử lại.');
+    }
+  }
+
+  Future<void> resetForgottenPassword({
+    required String resetToken,
+    required String newPassword,
+  }) async {
+    try {
+      await _postPublicAuth(
+        ApiConstants.resetPasswordEndpoint,
+        body: {'token': resetToken, 'newPassword': newPassword},
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Không đổi được mật khẩu. Vui lòng thử lại.');
+    }
+  }
+
   Future<(User, String?)> changePassword({
     required String currentPassword,
     required String newPassword,
@@ -387,14 +425,15 @@ class AuthRepository {
   Future<void> resetAdminUserPassword(
     String id, {
     required String email,
+    required String newPassword,
   }) async {
     await _apiClient.post(
       ApiConstants.adminUserResetPasswordEndpoint(id),
-      body: const {},
+      body: {'newPassword': newPassword},
     );
     await AppLogger.instance.warn(
       'Admin',
-      'Admin password reset link sent',
+      'Admin user password changed',
       context: {'userId': id, 'email': email},
     );
   }

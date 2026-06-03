@@ -533,14 +533,15 @@ export class UserService implements OnModuleInit {
     return this.toUserDto(updated);
   }
 
-  async adminSendPasswordResetLink(admin: any, userId: string) {
+  async adminSetUserPassword(admin: any, userId: string, newPassword: string) {
     this.assertSuperAdmin(admin);
-    const result = await this.passwordResetService.sendResetLinkForUserId(
+    const result = await this.passwordResetService.setPasswordForUserId(
       userId,
+      newPassword,
       { id: admin.id, email: admin.email },
     );
     this.logger.log(
-      `Admin password reset link requested: admin=${admin.email || admin.id || 'unknown'} targetUserId=${userId}`,
+      `Admin password reset completed: admin=${admin.email || admin.id || 'unknown'} targetUserId=${userId}`,
     );
     return result;
   }

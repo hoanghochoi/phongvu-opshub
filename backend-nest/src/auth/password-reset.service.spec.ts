@@ -13,10 +13,15 @@ describe('PasswordResetService', () => {
   let mailService: { sendMail: jest.Mock };
 
   beforeEach(() => {
-    process.env.PUBLIC_BASE_URL = 'https://opshub.hoanghochoi.com';
     prisma = {
       user: {
         findUnique: jest.fn(),
+        update: jest.fn(),
+      },
+      emailVerificationCode: {
+        updateMany: jest.fn(),
+        create: jest.fn(),
+        findFirst: jest.fn(),
         update: jest.fn(),
       },
       passwordResetToken: {
@@ -34,12 +39,7 @@ describe('PasswordResetService', () => {
     service = new PasswordResetService(prisma, mailService as any);
   });
 
-  afterEach(() => {
-    delete process.env.PUBLIC_BASE_URL;
-    delete process.env.PASSWORD_RESET_TTL_MINUTES;
-  });
-
-  it('creates a hashed one-time token and sends a reset link without exposing the stored hash', async () => {
+  it('sends a 10-minute reset code without creating a reset link', async () => {
     prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
       email: 'staff@phongvu-shop.vn',
@@ -48,34 +48,109 @@ describe('PasswordResetService', () => {
     });
 
     await expect(
-      service.sendResetLinkForEmail('staff@phongvu-shop.vn'),
-    ).resolves.toEqual({ ok: true, expiresInMinutes: 30 });
+      service.sendResetCodeForEmail('staff@phongvu-shop.vn'),
+    ).resolves.toEqual({ ok: true, expiresInMinutes: 10 });
 
+    expect(prisma.emailVerificationCode.updateMany).toHaveBeenCalledWith({
+      where: {
+        email: 'staff@phongvu-shop.vn',
+        purpose: 'PASSWORD_RESET',
+        consumedAt: null,
+      },
+      data: { consumedAt: expect.any(Date) },
+    });
     expect(prisma.passwordResetToken.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           userId: 'user-1',
+          purpose: 'PASSWORD_RESET',
           consumedAt: null,
         }),
       }),
     );
-    const createData = prisma.passwordResetToken.create.mock.calls[0][0].data;
-    expect(createData.tokenHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(createData.source).toBe('SELF_SERVICE');
+    const createData =
+      prisma.emailVerificationCode.create.mock.calls[0][0].data;
+    expect(createData).toMatchObject({
+      email: 'staff@phongvu-shop.vn',
+      purpose: 'PASSWORD_RESET',
+      codeHash: expect.any(String),
+      expiresAt: expect.any(Date),
+    });
     const emailText = mailService.sendMail.mock.calls[0][0].text;
-    expect(emailText).toContain(
-      'https://opshub.hoanghochoi.com/reset-password?token=',
-    );
-    expect(emailText).not.toContain(createData.tokenHash);
+    expect(emailText).toContain('Mã đổi mật khẩu OpsHub');
+    expect(emailText).toContain('10 phút');
+    expect(emailText).not.toContain('/reset-password?token=');
+    expect(emailText).not.toContain(createData.codeHash);
   });
 
   it('returns the same generic response when forgot-password email is missing', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.sendResetLinkForEmail('missing@phongvu-shop.vn'),
-    ).resolves.toEqual({ ok: true, expiresInMinutes: 30 });
+      service.sendResetCodeForEmail('missing@phongvu-shop.vn'),
+    ).resolves.toEqual({ ok: true, expiresInMinutes: 10 });
     expect(mailService.sendMail).not.toHaveBeenCalled();
+  });
+
+  it('verifies a reset code, consumes it, and returns only the plain reset token', async () => {
+    const codeHash = await bcrypt.hash('123456', 4);
+    prisma.emailVerificationCode.findFirst.mockResolvedValue({
+      id: 'code-1',
+      email: 'staff@phongvu-shop.vn',
+      purpose: 'PASSWORD_RESET',
+      codeHash,
+      expiresAt: new Date(Date.now() + 30_000),
+      consumedAt: null,
+      attempts: 0,
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'staff@phongvu-shop.vn',
+    });
+
+    const result = await service.verifyResetCode(
+      'staff@phongvu-shop.vn',
+      '123456',
+    );
+
+    expect(result).toMatchObject({ ok: true, expiresInMinutes: 10 });
+    expect(result.resetToken).toEqual(expect.any(String));
+    expect(prisma.emailVerificationCode.update).toHaveBeenCalledWith({
+      where: { id: 'code-1' },
+      data: { consumedAt: expect.any(Date) },
+    });
+    const createData = prisma.passwordResetToken.create.mock.calls[0][0].data;
+    expect(createData).toMatchObject({
+      userId: 'user-1',
+      email: 'staff@phongvu-shop.vn',
+      purpose: 'PASSWORD_RESET',
+      source: 'SELF_SERVICE',
+      tokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      expiresAt: expect.any(Date),
+    });
+    expect(result.resetToken).not.toBe(createData.tokenHash);
+  });
+
+  it('increments attempts when reset code verification fails', async () => {
+    prisma.emailVerificationCode.findFirst.mockResolvedValue({
+      id: 'code-1',
+      email: 'staff@phongvu-shop.vn',
+      purpose: 'PASSWORD_RESET',
+      codeHash: await bcrypt.hash('123456', 4),
+      expiresAt: new Date(Date.now() + 30_000),
+      consumedAt: null,
+      attempts: 0,
+    });
+
+    await expect(
+      service.verifyResetCode('staff@phongvu-shop.vn', '654321'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.emailVerificationCode.update).toHaveBeenCalledWith({
+      where: { id: 'code-1' },
+      data: { attempts: { increment: 1 } },
+    });
+    expect(prisma.passwordResetToken.create).not.toHaveBeenCalled();
   });
 
   it('resets the password, consumes the token, and increments token version', async () => {
@@ -147,5 +222,45 @@ describe('PasswordResetService', () => {
       data: { attempts: { increment: 1 } },
     });
     expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('lets an admin set a user password directly and revoke sessions', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'staff@phongvu-shop.vn',
+      status: 'no',
+    });
+
+    await expect(
+      service.setPasswordForUserId('user-1', 'Password2!', {
+        id: 'admin-1',
+        email: 'admin@phongvu.vn',
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'user-1' },
+        data: expect.objectContaining({
+          password: expect.any(String),
+          tokenVersion: { increment: 1 },
+        }),
+      }),
+    );
+    expect(prisma.userPlatformSession.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', revokedAt: null },
+      data: {
+        revokedAt: expect.any(Date),
+        revokedReason: 'ADMIN_PASSWORD_RESET',
+      },
+    });
+    expect(prisma.emailVerificationCode.updateMany).toHaveBeenCalledWith({
+      where: {
+        email: 'staff@phongvu-shop.vn',
+        purpose: 'PASSWORD_RESET',
+        consumedAt: null,
+      },
+      data: { consumedAt: expect.any(Date) },
+    });
   });
 });

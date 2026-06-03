@@ -7,6 +7,7 @@ describe('AuthController', () => {
     register: jest.Mock;
     sendRegistrationVerificationCode: jest.Mock;
     forgotPassword: jest.Mock;
+    verifyForgotPasswordCode: jest.Mock;
     resetPassword: jest.Mock;
     changePassword: jest.Mock;
     logout: jest.Mock;
@@ -24,6 +25,7 @@ describe('AuthController', () => {
       register: jest.fn(),
       sendRegistrationVerificationCode: jest.fn(),
       forgotPassword: jest.fn(),
+      verifyForgotPasswordCode: jest.fn(),
       resetPassword: jest.fn(),
       changePassword: jest.fn(),
       logout: jest.fn(),
@@ -97,6 +99,29 @@ describe('AuthController', () => {
     ).resolves.toEqual({ ok: true });
     expect(authService.forgotPassword).toHaveBeenCalledWith(
       'staff@phongvu-shop.vn',
+    );
+  });
+
+  it('delegates forgot password code verification', async () => {
+    authService.verifyForgotPasswordCode.mockResolvedValue({
+      ok: true,
+      resetToken: 'reset-token',
+      expiresInMinutes: 10,
+    });
+
+    await expect(
+      controller.verifyForgotPasswordCode({
+        email: 'staff@phongvu-shop.vn',
+        code: '123456',
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      resetToken: 'reset-token',
+      expiresInMinutes: 10,
+    });
+    expect(authService.verifyForgotPasswordCode).toHaveBeenCalledWith(
+      'staff@phongvu-shop.vn',
+      '123456',
     );
   });
 

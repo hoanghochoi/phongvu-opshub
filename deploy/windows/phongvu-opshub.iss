@@ -34,10 +34,12 @@ ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
 CloseApplications=yes
 RestartApplications=no
+SetupIconFile=..\..\assets\icon\windows\app_icon.ico
 UninstallDisplayIcon={app}\phongvu_opshub.exe
 VersionInfoCompany={#AppPublisher}
 VersionInfoDescription={#AppName} installer
 VersionInfoProductName={#AppName}
+
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

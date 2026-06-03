@@ -213,7 +213,13 @@ export class AuthService {
   async forgotPassword(emailInput: string) {
     const email = this.normalizeEmail(emailInput);
     this.assertAllowedDomain(email);
-    return this.passwordResetService.sendResetLinkForEmail(email);
+    return this.passwordResetService.sendResetCodeForEmail(email);
+  }
+
+  async verifyForgotPasswordCode(emailInput: string, code: string) {
+    const email = this.normalizeEmail(emailInput);
+    this.assertAllowedDomain(email);
+    return this.passwordResetService.verifyResetCode(email, code);
   }
 
   async resetPassword(token: string, newPassword: string) {

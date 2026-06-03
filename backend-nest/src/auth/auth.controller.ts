@@ -16,6 +16,7 @@ import {
   RegisterDto,
   ResetPasswordDto,
   SendEmailVerificationDto,
+  VerifyForgotPasswordCodeDto,
 } from './auth.dto';
 
 @Controller('auth')
@@ -40,6 +41,11 @@ export class AuthController {
   @Post('forgot-password')
   async forgotPassword(@Body() body: ForgotPasswordDto) {
     return this.authService.forgotPassword(body.email);
+  }
+
+  @Post('forgot-password/verify-code')
+  async verifyForgotPasswordCode(@Body() body: VerifyForgotPasswordCodeDto) {
+    return this.authService.verifyForgotPasswordCode(body.email, body.code);
   }
 
   @Post('reset-password')

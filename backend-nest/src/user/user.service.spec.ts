@@ -4,7 +4,7 @@ import { UserService } from './user.service';
 describe('UserService admin store management', () => {
   let service: UserService;
   let prisma: any;
-  let passwordResetService: { sendResetLinkForUserId: jest.Mock };
+  let passwordResetService: { setPasswordForUserId: jest.Mock };
 
   const superAdmin = { role: 'SUPER_ADMIN' };
   const admin = { role: 'ADMIN' };
@@ -38,9 +38,8 @@ describe('UserService admin store management', () => {
       },
     };
     passwordResetService = {
-      sendResetLinkForUserId: jest.fn().mockResolvedValue({
+      setPasswordForUserId: jest.fn().mockResolvedValue({
         ok: true,
-        expiresInMinutes: 30,
       }),
     };
     process.env.JWT_SECRET = 'test-secret';
@@ -214,20 +213,22 @@ describe('UserService admin store management', () => {
     ).resolves.toMatchObject({ personnelCode: 'SALE_ONLINE' });
   });
 
-  it('lets only super admin request a password reset link for a user', async () => {
+  it('lets only super admin set a user password directly', async () => {
     await expect(
-      service.adminSendPasswordResetLink(
+      service.adminSetUserPassword(
         { id: 'admin-1', email: 'admin@phongvu.vn', role: 'SUPER_ADMIN' },
         'user-1',
+        'Password2!',
       ),
-    ).resolves.toEqual({ ok: true, expiresInMinutes: 30 });
-    expect(passwordResetService.sendResetLinkForUserId).toHaveBeenCalledWith(
+    ).resolves.toEqual({ ok: true });
+    expect(passwordResetService.setPasswordForUserId).toHaveBeenCalledWith(
       'user-1',
+      'Password2!',
       { id: 'admin-1', email: 'admin@phongvu.vn' },
     );
 
     await expect(
-      service.adminSendPasswordResetLink(manager, 'user-1'),
+      service.adminSetUserPassword(manager, 'user-1', 'Password2!'),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 

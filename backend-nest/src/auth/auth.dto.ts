@@ -77,6 +77,17 @@ export class ForgotPasswordDto {
   email!: string;
 }
 
+export class VerifyForgotPasswordCodeDto {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @MinLength(6)
+  @MaxLength(6)
+  @Matches(/^[0-9]{6}$/)
+  code!: string;
+}
+
 export class ResetPasswordDto {
   @IsString()
   @MinLength(20)
