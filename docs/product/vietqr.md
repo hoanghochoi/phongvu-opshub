@@ -151,9 +151,11 @@ a customer to scan and pay manually.
 - Manual order edits write an audit row with old orders, new orders, editor id,
   editor email, source, and timestamp. The history icon opens these audit rows;
   automatic MAP extraction is not shown as a manual edit.
-- CSV export returns UTF-8 with BOM. Selected transaction ids take precedence;
-  if nothing is selected, export includes every row matching the current
-  filter/date/status, not just the visible page.
+- CSV export returns UTF-8 with BOM for Excel, preserves long numeric
+  identifiers such as transaction numbers, order codes, and payer accounts as
+  text, and formats transaction timestamps in Vietnam local time. Selected
+  transaction ids take precedence; if nothing is selected, export includes every
+  row matching the current filter/date/status, not just the visible page.
 - `Sao ke` keeps header, filters, selection bar, and export controls fixed while
   only the transaction list scrolls. The page allows selecting and copying text.
 - `Sao ke` and `Tien vao` cards use a green border when the transaction has at

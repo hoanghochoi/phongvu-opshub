@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
@@ -145,7 +146,7 @@ class BankStatementRepository {
         .toList();
   }
 
-  Future<String> exportCsv(
+  Future<Uint8List> exportCsv(
     BankStatementQuery query, {
     List<String> transactionIds = const [],
   }) async {
@@ -154,6 +155,6 @@ class BankStatementRepository {
       body: query.toExportBody(transactionIds: transactionIds),
       timeout: const Duration(seconds: 60),
     );
-    return response.body;
+    return Uint8List.fromList(response.bodyBytes);
   }
 }

@@ -1778,38 +1778,60 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     for (const row of rows) {
       lines.push(
         [
-          row.storeCode,
-          row.transactionNumber,
-          row.amount,
-          row.content,
-          (row.orders || []).join(' | '),
-          row.status,
-          this.csvDate(row.paidAt),
-          row.payerName,
-          row.payerAccount,
-          this.csvDate(row.firstSeenAt),
-          row.orderSource,
-          row.orderUpdatedByEmail,
-          this.csvDate(row.orderUpdatedAt),
-        ]
-          .map((value) => this.csvCell(value))
-          .join(','),
+          this.csvCell(row.storeCode),
+          this.csvExcelTextCell(row.transactionNumber),
+          this.csvAmountCell(row.amount),
+          this.csvCell(row.content),
+          this.csvExcelTextCell((row.orders || []).join(' | ')),
+          this.csvCell(row.status),
+          this.csvCell(this.csvVietnamDate(row.paidAt)),
+          this.csvCell(row.payerName),
+          this.csvExcelTextCell(row.payerAccount),
+          this.csvCell(this.csvVietnamDate(row.firstSeenAt)),
+          this.csvCell(row.orderSource),
+          this.csvCell(row.orderUpdatedByEmail),
+          this.csvCell(this.csvVietnamDate(row.orderUpdatedAt)),
+        ].join(','),
       );
     }
-    return `\ufeff${lines.join('\r\n')}`;
+    return `${String.fromCharCode(0xfeff)}${lines.join('\r\n')}`;
   }
 
   private csvCell(value: unknown) {
-    const text = value === null || value === undefined ? '' : String(value);
+    const text = this.csvText(value);
     if (!/[",\r\n]/.test(text)) return text;
     return `"${text.replace(/"/g, '""')}"`;
   }
 
-  private csvDate(value: unknown) {
+  private csvExcelTextCell(value: unknown) {
+    const text = this.csvText(value);
+    if (!text) return '';
+    const formulaText = text.replace(/"/g, '""').replace(/[\r\n]+/g, ' ');
+    return this.csvCell(`="${formulaText}"`);
+  }
+
+  private csvAmountCell(value: unknown) {
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) return '';
+    return String(Math.trunc(amount));
+  }
+
+  private csvVietnamDate(value: unknown) {
     if (!value) return '';
     const date = value instanceof Date ? value : new Date(String(value));
     if (Number.isNaN(date.getTime())) return '';
-    return date.toISOString();
+    const vietnamTime = new Date(
+      date.getTime() + VIETNAM_UTC_OFFSET_HOURS * 60 * 60 * 1000,
+    );
+    const two = (part: number) => String(part).padStart(2, '0');
+    return [
+      `${two(vietnamTime.getUTCDate())}/${two(vietnamTime.getUTCMonth() + 1)}/${vietnamTime.getUTCFullYear()}`,
+      `${two(vietnamTime.getUTCHours())}:${two(vietnamTime.getUTCMinutes())}:${two(vietnamTime.getUTCSeconds())}`,
+    ].join(' ');
+  }
+
+  private csvText(value: unknown) {
+    return value === null || value === undefined ? '' : String(value);
   }
 
   private safeUserLabel(user: any) {

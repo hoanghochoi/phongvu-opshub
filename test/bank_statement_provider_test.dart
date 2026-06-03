@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -271,6 +273,14 @@ void main() {
       'transactionIds': ['tx-1'],
     });
   });
+
+  test('keeps UTF-8 BOM when saving CSV bytes', () {
+    final withoutBom = ensureUtf8BomForCsv(Uint8List.fromList([0x63, 0x73]));
+    expect(withoutBom, [0xef, 0xbb, 0xbf, 0x63, 0x73]);
+
+    final withBom = Uint8List.fromList([0xef, 0xbb, 0xbf, 0x63, 0x73]);
+    expect(ensureUtf8BomForCsv(withBom), withBom);
+  });
 }
 
 const _nationalManager = User(
@@ -362,11 +372,11 @@ class _FakeBankStatementRepository extends BankStatementRepository {
   }
 
   @override
-  Future<String> exportCsv(
+  Future<Uint8List> exportCsv(
     BankStatementQuery query, {
     List<String> transactionIds = const [],
   }) async {
-    return 'csv';
+    return Uint8List.fromList([0xef, 0xbb, 0xbf, 0x63, 0x73, 0x76]);
   }
 }
 

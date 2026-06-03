@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -337,7 +336,7 @@ class BankStatementProvider extends ChangeNotifier {
           'snapshotCount': snapshotIds.length,
         },
       );
-      final csv = await _repository.exportCsv(
+      final csvBytes = await _repository.exportCsv(
         _query(),
         transactionIds: exportIds,
       );
@@ -346,7 +345,7 @@ class BankStatementProvider extends ChangeNotifier {
         fileName: 'opshub_sao_ke_${_timestampForFile()}.csv',
         type: FileType.custom,
         allowedExtensions: const ['csv'],
-        bytes: Uint8List.fromList(utf8.encode(csv)),
+        bytes: ensureUtf8BomForCsv(csvBytes),
         lockParentWindow: true,
       );
       _exportMessage = path == null ? 'Đã hủy lưu CSV.' : 'Đã export CSV.';
@@ -566,4 +565,16 @@ class BankStatementProvider extends ChangeNotifier {
     String two(int value) => value.toString().padLeft(2, '0');
     return '${now.year}${two(now.month)}${two(now.day)}_${two(now.hour)}${two(now.minute)}${two(now.second)}';
   }
+}
+
+@visibleForTesting
+Uint8List ensureUtf8BomForCsv(Uint8List bytes) {
+  const bom = [0xef, 0xbb, 0xbf];
+  if (bytes.length >= bom.length &&
+      bytes[0] == bom[0] &&
+      bytes[1] == bom[1] &&
+      bytes[2] == bom[2]) {
+    return bytes;
+  }
+  return Uint8List.fromList([...bom, ...bytes]);
 }

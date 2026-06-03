@@ -955,15 +955,15 @@ describe('MapVietinService', () => {
     prisma.mapVietinTransaction.findMany.mockResolvedValue([
       {
         storeCode: 'CP01',
-        transactionNumber: 'TXN-001',
-        amount: 1250000,
-        content: 'Khach chuyen tien',
+        transactionNumber: '2030000000000',
+        amount: 5190000,
+        content: 'Khách chuyển tiền, cần giữ tiếng Việt',
         orders: ['26052912345678'],
-        status: '00',
-        paidAt: new Date('2026-05-21T03:00:00.000Z'),
-        payerName: null,
-        payerAccount: null,
-        firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+        status: 'Thành công',
+        paidAt: new Date('2026-06-03T09:39:41.000Z'),
+        payerName: 'Nguyễn Văn A',
+        payerAccount: '9704361234567890',
+        firstSeenAt: new Date('2026-06-03T09:40:05.000Z'),
         orderSource: 'AUTO',
       },
     ]);
@@ -975,7 +975,14 @@ describe('MapVietinService', () => {
 
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain('Mã showroom');
-    expect(csv).toContain('26052912345678');
+    expect(csv).toContain('Số tiền');
+    expect(csv).toContain('Khách chuyển tiền, cần giữ tiếng Việt');
+    expect(csv).toContain('5190000');
+    expect(csv).toContain('03/06/2026 16:39:41');
+    expect(csv).not.toContain('2026-06-03T09:39:41.000Z');
+    expect(csv).toContain('"=""2030000000000"""');
+    expect(csv).toContain('"=""26052912345678"""');
+    expect(csv).toContain('"=""9704361234567890"""');
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ id: { in: ['stored-1'] } }),
