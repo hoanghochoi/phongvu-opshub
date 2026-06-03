@@ -29,6 +29,7 @@ const DEFAULT_TRANSACTION_RETENTION_DAYS = 90;
 const DEFAULT_TTS_VOICE_ID = 'piper:vi-vais1000';
 const DEFAULT_TTS_SPEED = 0.9;
 const DEFAULT_TTS_PITCH = 1.0;
+const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
 
 type StoredTransaction = {
   id: string;
@@ -98,6 +99,21 @@ export class PaymentNotificationsService {
     const afterCreatedAt = query.afterCreatedAt
       ? this.parseDate(query.afterCreatedAt, 'afterCreatedAt')
       : null;
+    const terminalDeliveries =
+      await this.prisma.paymentNotificationDeliveryLog.findMany({
+        where: {
+          clientId,
+          storeCode,
+          event: { in: TERMINAL_DELIVERY_EVENTS },
+          ...(afterCreatedAt ? { createdAt: { gt: afterCreatedAt } } : {}),
+        },
+        select: { notificationId: true },
+        distinct: ['notificationId'],
+      });
+    const terminalNotificationIds = terminalDeliveries
+      .map((row) => row.notificationId)
+      .filter(Boolean);
+
     const candidates = await this.prisma.paymentNotification.findMany({
       where: {
         storeCode,
@@ -105,25 +121,22 @@ export class PaymentNotificationsService {
         audioPath: { not: null },
         expiresAt: { gt: new Date() },
         ...(afterCreatedAt ? { createdAt: { gt: afterCreatedAt } } : {}),
+        ...(terminalNotificationIds.length > 0
+          ? { id: { notIn: terminalNotificationIds } }
+          : {}),
       },
       orderBy: { createdAt: 'asc' },
-      take: limit * 3,
+      take: limit,
     });
 
-    const ready: Array<Record<string, unknown>> = [];
-    for (const notification of candidates) {
-      const played = await this.prisma.paymentNotificationDeliveryLog.findFirst(
-        {
-          where: {
-            notificationId: notification.id,
-            clientId,
-            event: { in: ['PLAYED', 'SILENCED', 'FAILED'] },
-          },
-          select: { id: true },
-        },
+    if (terminalNotificationIds.length >= limit * 3) {
+      this.logger.debug(
+        `Payment ready query excluded ${terminalNotificationIds.length} terminal notifications for store=${storeCode} client=${this.safeClientLabel(clientId)}`,
       );
-      if (played) continue;
-      ready.push({
+    }
+
+    const ready: Array<Record<string, unknown>> = candidates.map(
+      (notification) => ({
         notificationId: notification.id,
         transactionId: notification.transactionId,
         storeCode: notification.storeCode,
@@ -131,9 +144,8 @@ export class PaymentNotificationsService {
         audioStatus: notification.audioStatus,
         audioUrl: `/payment-notifications/${notification.id}/audio`,
         createdAt: notification.createdAt.toISOString(),
-      });
-      if (ready.length >= limit) break;
-    }
+      }),
+    );
 
     return { list: ready };
   }
@@ -478,5 +490,11 @@ export class PaymentNotificationsService {
 
   private safeError(error: unknown) {
     return error instanceof Error ? error.message : String(error);
+  }
+
+  private safeClientLabel(clientId: string) {
+    const normalized = clientId.trim();
+    if (normalized.length <= 12) return normalized;
+    return `${normalized.slice(0, 8)}...${normalized.slice(-4)}`;
   }
 }

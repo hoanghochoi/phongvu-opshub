@@ -40,6 +40,26 @@ This file maps product behavior to proof. Existing flows are marked
 ## Recent Evidence
 
 
+- PAYMENT-STATEMENT-001, 2026-06-03: fixed CSV export for Excel by preserving
+  server CSV bytes in Flutter, ensuring a UTF-8 BOM before save, exporting long
+  numeric identifiers as Excel text, and formatting statement timestamps in
+  Vietnam local time. Validation: focused `npm test -- --runInBand
+  src/map-vietin/map-vietin.service.spec.ts`, focused `flutter test --no-pub
+  test\bank_statement_provider_test.dart --reporter expanded`, `npm run build`,
+  `flutter analyze --no-pub`, full `npm test -- --runInBand` (30 suites, 189
+  tests), and full `flutter test --no-pub --reporter expanded` (51 tests).
+  Gap: manual open-exported-CSV-in-Excel smoke on target Windows remains
+  pending.
+- PAYMENT-MONITOR-001, 2026-06-03: fixed `/payment-notifications/ready`
+  starvation where long-running clients could see transactions in `Tien vao`
+  but not receive newer audio notifications because the backend capped old
+  READY candidates before excluding the client's terminal
+  `PLAYED`/`SILENCED`/`FAILED` logs. The endpoint now excludes terminal
+  notification ids in the READY query and logs large terminal exclusion counts.
+  Validation: focused `npm test -- --runInBand
+  src/payment-notifications/payment-notifications.service.spec.ts`,
+  `npm run build`, and full `npm test -- --runInBand` (30 suites, 189 tests).
+  Gap: live Windows speaker/poll smoke after deploy remains pending.
 - UI-UX-001, 2026-06-03: fixed Android release startup blank screen caused by
   unconditional `MediaKit.ensureInitialized()` before `runApp`; media_kit now
   initializes only on non-web Windows, logs the startup branch through
