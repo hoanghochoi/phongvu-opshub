@@ -1,13 +1,18 @@
 # Design
 
-- Add `User.tokenVersion` and `PasswordResetToken` in Prisma with hashed token,
-  expiry, consumed timestamp, attempt count, source, and admin actor metadata.
-- Add public auth APIs for forgot/reset and a JWT-protected self-service change
-  password API.
-- Add an admin API under `POST /admin/users/:id/reset-password` guarded by
-  `SUPER_ADMIN`.
-- Serve a minimal backend HTML landing page at `/reset-password`; the page uses
-  a server-side `POST /reset-password` form so password values never enter the
-  URL. Keep the JSON `POST /auth/reset-password` API for programmatic clients.
-- Reuse SMTP through a shared mail service and never log password, token, SMTP
-  secret, or full reset link.
+- Keep `User.tokenVersion`, `PasswordResetToken`, and `EmailVerificationCode` as
+  the reset primitives; no new Prisma table is required for this flow.
+- `POST /auth/forgot-password` sends a 6-digit reset code through the shared mail
+  service and returns a generic response for all allowed-domain emails.
+- `POST /auth/forgot-password/verify-code` consumes a valid reset code and
+  creates a one-time `PasswordResetToken`; `POST /auth/reset-password` consumes
+  that token and updates the password.
+- `POST /admin/users/:id/reset-password` is guarded by `SUPER_ADMIN` and sets the
+  target user's new password directly from a `newPassword` request body.
+- The backend-served `/reset-password` page remains as legacy compatibility for
+  previously issued links, but current reset emails send codes instead of links.
+- SMTP uses `SMTP_USER=hoanghochoi1618@gmail.com` with the existing Gmail app
+  password and displays `SMTP_FROM=admin@hoanghochoi.com`, a verified Gmail
+  "Send mail as" alias.
+- Never log password, code, reset token, SMTP secret, authorization headers, or
+  full sensitive payloads.

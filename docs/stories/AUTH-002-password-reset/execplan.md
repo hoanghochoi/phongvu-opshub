@@ -1,9 +1,12 @@
 # Execution Plan
 
-1. Add Prisma migration and regenerate the client.
-2. Implement shared mail, password policy, reset token service, auth/admin APIs,
-   JWT version checks, and landing page.
-3. Add Flutter forgot-password, self password change, and super-admin reset UI
-   with `AppLogger` events.
-4. Update deploy route/env/docs and harness/test matrix records.
-5. Run backend and Flutter validation commands.
+1. Reuse existing Prisma reset tables and implement reset-code send, verify, and
+   token consumption in the auth service.
+2. Change the admin reset endpoint to accept `newPassword` and set the managed
+   user's password directly under `SUPER_ADMIN` guard.
+3. Replace the Flutter forgot-password screen with the in-app email code and new
+   password flow, and update the user-management reset dialog.
+4. Update SMTP docs/env examples for the verified `admin@hoanghochoi.com` Gmail
+   alias.
+5. Run focused backend tests, full backend/Flutter validation, and diff hygiene
+   before committing.

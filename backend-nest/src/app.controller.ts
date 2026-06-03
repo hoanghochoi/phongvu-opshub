@@ -142,6 +142,10 @@ export class AppController {
 
   private canRetryReset(message: string): boolean {
     const normalized = message.toLowerCase();
-    return !normalized.includes('link đổi mật khẩu');
+    return (
+      !normalized.includes('link đổi mật khẩu') &&
+      !normalized.includes('phiên đổi mật khẩu') &&
+      !normalized.includes('link Ä‘á»•i máº­t kháº©u')
+    );
   }
 }

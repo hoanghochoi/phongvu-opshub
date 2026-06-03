@@ -173,14 +173,14 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/icon/source/app_icon_padded.png"
 
-  # TÃ¹y chá»n cho Android adaptive icon
+  # TÃ¹y chá» n cho Android adaptive icon
   adaptive_icon_foreground: "assets/icon/source/app_icon_foreground.png"
   adaptive_icon_background: "#081B5A"
 
-  # TÃ¹y chá»n cho iOS
+  # TÃ¹y chá» n cho iOS
   remove_alpha_ios: true
 
-  # TÃ¹y chá»n cho Windows
+  # TÃ¹y chá» n cho Windows
   windows:
     generate: true
     image_path: "assets/icon/source/app_icon_padded.png"
@@ -195,5 +195,10 @@ flutter_launcher_icons:
 
   # macOS AppIcon set
   macos:
+    generate: true
+    image_path: "assets/icon/source/app_icon_padded.png"
+
+  # Linux AppIcon
+  linux:
     generate: true
     image_path: "assets/icon/source/app_icon_padded.png"

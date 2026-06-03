@@ -124,6 +124,56 @@ void main() {
       }
     },
   );
+
+  test('AuthRepository sends forgot-password code flow payloads', () async {
+    final requests = <({String path, Map<String, dynamic> body})>[];
+    final repo = AuthRepository(
+      ApiClient(),
+      publicClient: MockClient((http.Request request) async {
+        requests.add((
+          path: request.url.path,
+          body: jsonDecode(request.body) as Map<String, dynamic>,
+        ));
+        if (request.url.path.endsWith('/auth/forgot-password/verify-code')) {
+          return http.Response(
+            jsonEncode({
+              'ok': true,
+              'resetToken': 'reset-token-1234567890',
+              'expiresInMinutes': 10,
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response(
+          jsonEncode({'ok': true, 'expiresInMinutes': 10}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    await repo.requestPasswordReset(email: 'staff@phongvu.vn');
+    final resetToken = await repo.verifyPasswordResetCode(
+      email: 'staff@phongvu.vn',
+      code: '123456',
+    );
+    await repo.resetForgottenPassword(
+      resetToken: resetToken,
+      newPassword: 'Password2!',
+    );
+
+    expect(requests, hasLength(3));
+    expect(requests[0].path, endsWith('/auth/forgot-password'));
+    expect(requests[0].body, {'email': 'staff@phongvu.vn'});
+    expect(requests[1].path, endsWith('/auth/forgot-password/verify-code'));
+    expect(requests[1].body, {'email': 'staff@phongvu.vn', 'code': '123456'});
+    expect(requests[2].path, endsWith('/auth/reset-password'));
+    expect(requests[2].body, {
+      'token': 'reset-token-1234567890',
+      'newPassword': 'Password2!',
+    });
+  });
 }
 
 class _FakeAuthDeviceInfoProvider extends AuthDeviceInfoProvider {

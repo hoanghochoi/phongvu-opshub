@@ -1,4 +1,10 @@
-import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class UpdateProfileDto {
   @IsOptional()
@@ -52,6 +58,12 @@ export class AdminUserDto extends UpdateProfileDto {
   @IsString()
   @MaxLength(40)
   workScopeType?: string;
+}
+
+export class AdminResetPasswordDto {
+  @IsString()
+  @MinLength(1)
+  newPassword!: string;
 }
 
 export class AdminRoleDto {

@@ -17,6 +17,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { imageUploadOptions } from '../upload/image-upload.options';
 import { UserService } from './user.service';
 import {
+  AdminResetPasswordDto,
   AdminRoleDto,
   AdminStoreDto,
   AdminUserDto,
@@ -77,8 +78,16 @@ export class UserController {
     return this.userService.adminUpdateUser(req.user, id, body);
   }
   @Post('admin/users/:id/reset-password')
-  resetUserPassword(@Request() req: any, @Param('id') id: string) {
-    return this.userService.adminSendPasswordResetLink(req.user, id);
+  resetUserPassword(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: AdminResetPasswordDto,
+  ) {
+    return this.userService.adminSetUserPassword(
+      req.user,
+      id,
+      body.newPassword,
+    );
   }
 
   @Get('admin/roles')

@@ -17,6 +17,9 @@ class ApiConstants {
   static const String registerEndpoint = '/auth/register';
   static const String verificationCodeEndpoint = '/auth/verification-code';
   static const String forgotPasswordEndpoint = '/auth/forgot-password';
+  static const String forgotPasswordVerifyCodeEndpoint =
+      '/auth/forgot-password/verify-code';
+  static const String resetPasswordEndpoint = '/auth/reset-password';
   static const String changePasswordEndpoint = '/auth/change-password';
   static const String logoutEndpoint = '/auth/logout';
   static const String getUserEndpoint = '/auth/get-user';

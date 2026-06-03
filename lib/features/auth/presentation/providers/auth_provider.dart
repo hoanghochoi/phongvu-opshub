@@ -453,6 +453,109 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<String?> verifyPasswordResetCode({
+    required String email,
+    required String code,
+  }) async {
+    await AppLogger.instance.info(
+      'Auth',
+      'Password reset code verification started',
+      context: {'email': email},
+    );
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final resetToken = await _repository.verifyPasswordResetCode(
+        email: email,
+        code: code,
+      );
+      await AppLogger.instance.info(
+        'Auth',
+        'Password reset code verification succeeded',
+        context: {'email': email},
+      );
+      _isLoading = false;
+      notifyListeners();
+      return resetToken;
+    } on ApiException catch (e) {
+      await AppLogger.instance.warn(
+        'Auth',
+        'Password reset code verification failed',
+        context: {'email': email, 'message': e.message},
+      );
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    } catch (e) {
+      await AppLogger.instance.error(
+        'Auth',
+        'Password reset code verification crashed',
+        error: e,
+        upload: true,
+        context: {'email': email},
+      );
+      _errorMessage = 'Không xác thực được mã. Vui lòng thử lại.';
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<bool> resetForgottenPassword({
+    required String email,
+    required String resetToken,
+    required String newPassword,
+  }) async {
+    await AppLogger.instance.info(
+      'Auth',
+      'Forgotten password reset started',
+      context: {'email': email},
+    );
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _repository.resetForgottenPassword(
+        resetToken: resetToken,
+        newPassword: newPassword,
+      );
+      await AppLogger.instance.info(
+        'Auth',
+        'Forgotten password reset succeeded',
+        context: {'email': email},
+      );
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      await AppLogger.instance.warn(
+        'Auth',
+        'Forgotten password reset failed',
+        context: {'email': email, 'message': e.message},
+      );
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      await AppLogger.instance.error(
+        'Auth',
+        'Forgotten password reset crashed',
+        error: e,
+        upload: true,
+        context: {'email': email},
+      );
+      _errorMessage = 'Không đổi được mật khẩu. Vui lòng thử lại.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> changePassword({
     required String currentPassword,
     required String newPassword,

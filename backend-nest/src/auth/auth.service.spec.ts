@@ -21,7 +21,8 @@ describe('AuthService', () => {
     sendRegistrationCode: jest.Mock;
   };
   let passwordResetService: {
-    sendResetLinkForEmail: jest.Mock;
+    sendResetCodeForEmail: jest.Mock;
+    verifyResetCode: jest.Mock;
     resetPassword: jest.Mock;
   };
   let authSessionService: {
@@ -56,9 +57,14 @@ describe('AuthService', () => {
       }),
     };
     passwordResetService = {
-      sendResetLinkForEmail: jest.fn().mockResolvedValue({
+      sendResetCodeForEmail: jest.fn().mockResolvedValue({
         ok: true,
-        expiresInMinutes: 30,
+        expiresInMinutes: 10,
+      }),
+      verifyResetCode: jest.fn().mockResolvedValue({
+        ok: true,
+        resetToken: 'reset-token',
+        expiresInMinutes: 10,
       }),
       resetPassword: jest.fn().mockResolvedValue({ ok: true }),
     };
@@ -350,9 +356,23 @@ describe('AuthService', () => {
   it('delegates forgot password after normalizing and validating the email domain', async () => {
     await expect(
       service.forgotPassword(' Staff@PhongVu-Shop.vn '),
-    ).resolves.toEqual({ ok: true, expiresInMinutes: 30 });
-    expect(passwordResetService.sendResetLinkForEmail).toHaveBeenCalledWith(
+    ).resolves.toEqual({ ok: true, expiresInMinutes: 10 });
+    expect(passwordResetService.sendResetCodeForEmail).toHaveBeenCalledWith(
       'staff@phongvu-shop.vn',
+    );
+  });
+
+  it('delegates forgot password code verification after normalizing the email', async () => {
+    await expect(
+      service.verifyForgotPasswordCode(' Staff@PhongVu-Shop.vn ', '123456'),
+    ).resolves.toEqual({
+      ok: true,
+      resetToken: 'reset-token',
+      expiresInMinutes: 10,
+    });
+    expect(passwordResetService.verifyResetCode).toHaveBeenCalledWith(
+      'staff@phongvu-shop.vn',
+      '123456',
     );
   });
 

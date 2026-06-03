@@ -6,6 +6,7 @@ import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../../../core/utils/validators.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
@@ -68,24 +69,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   Future<void> _resetPassword(User user) async {
     final userId = user.id;
     if (userId == null || userId.isEmpty) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reset mật khẩu'),
-        content: Text('Gửi link đổi mật khẩu đến ${user.email}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Gửi link'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+    final newPassword = await _showAdminResetPasswordDialog(user);
+    if (newPassword == null) return;
 
     await AppLogger.instance.info(
       'Admin',
@@ -93,7 +78,11 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       context: {'userId': userId, 'email': user.email, 'role': user.role},
     );
     try {
-      await _repository.resetAdminUserPassword(userId, email: user.email);
+      await _repository.resetAdminUserPassword(
+        userId,
+        email: user.email,
+        newPassword: newPassword,
+      );
       if (!mounted) return;
       final messenger = ScaffoldMessenger.of(context);
       await AppLogger.instance.info(
@@ -103,7 +92,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       );
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Đã gửi link đổi mật khẩu đến ${user.email}'),
+          content: Text('Đã đổi mật khẩu cho ${user.email}'),
           backgroundColor: Colors.green,
         ),
       );
@@ -119,10 +108,105 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       );
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('Không gửi được link đổi mật khẩu'),
+          content: Text('Không đổi được mật khẩu'),
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+  Future<String?> _showAdminResetPasswordDialog(User user) async {
+    final formKey = GlobalKey<FormState>();
+    final passwordController = TextEditingController();
+    final confirmController = TextEditingController();
+    var obscurePassword = true;
+    var obscureConfirm = true;
+
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Đổi mật khẩu user'),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(user.email),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: passwordController,
+                    obscureText: obscurePassword,
+                    autofillHints: const [AutofillHints.newPassword],
+                    decoration: InputDecoration(
+                      labelText: 'Mật khẩu mới',
+                      prefixIcon: const Icon(Icons.lock_rounded),
+                      suffixIcon: IconButton(
+                        onPressed: () => setDialogState(
+                          () => obscurePassword = !obscurePassword,
+                        ),
+                        icon: Icon(
+                          obscurePassword
+                              ? Icons.visibility_rounded
+                              : Icons.visibility_off_rounded,
+                        ),
+                      ),
+                    ),
+                    validator: (value) =>
+                        Validators.getPasswordError(value ?? ''),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: confirmController,
+                    obscureText: obscureConfirm,
+                    autofillHints: const [AutofillHints.newPassword],
+                    decoration: InputDecoration(
+                      labelText: 'Nhập lại mật khẩu mới',
+                      prefixIcon: const Icon(Icons.lock_reset_rounded),
+                      suffixIcon: IconButton(
+                        onPressed: () => setDialogState(
+                          () => obscureConfirm = !obscureConfirm,
+                        ),
+                        icon: Icon(
+                          obscureConfirm
+                              ? Icons.visibility_rounded
+                              : Icons.visibility_off_rounded,
+                        ),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value != passwordController.text) {
+                        return 'Mật khẩu nhập lại chưa khớp';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Hủy'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (formKey.currentState?.validate() != true) return;
+                  Navigator.of(context).pop(passwordController.text);
+                },
+                child: const Text('Đổi mật khẩu'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      passwordController.dispose();
+      confirmController.dispose();
     }
   }
 

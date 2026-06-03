@@ -13,9 +13,12 @@ Required proof:
 
 Manual smoke after deploy:
 
-- `/reset-password?token=bad` loads and rejects invalid token.
-- Reset landing form uses server-side POST, has no inline script, and does not
-  expose password fields in the URL.
-- Forgot-password returns generic success.
-- A valid reset link changes the password once and rejects reuse.
-- `SUPER_ADMIN` can send a reset link; non-super-admin receives forbidden.
+- Forgot-password returns generic success and sends a 6-digit code from
+  `admin@hoanghochoi.com` when the email belongs to an OpsHub account.
+- Reset code works once, expires after 10 minutes, and rejects wrong codes.
+- After code verification, the app shows password and confirm-password fields;
+  a valid reset changes the password and requires login again.
+- Old sessions are revoked after self-service or admin password reset.
+- `SUPER_ADMIN` can set a user's password directly; non-super-admin receives
+  forbidden.
+- Legacy `/reset-password?token=bad` still loads and rejects invalid tokens.
