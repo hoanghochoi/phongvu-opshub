@@ -124,6 +124,19 @@ The installer also performs a non-blocking Windows audio preflight; missing
 Windows Audio services or playback devices are logged and shown as an interactive
 warning, but setup continues because audio devices can be fixed after install.
 
+For internal-only Windows rollout, configure optional Windows signing secrets so
+the workflow signs `phongvu_opshub.exe` before packaging and signs the final Inno
+installer after compilation. Target PCs must trust the matching public
+certificate in both `Trusted Root Certification Authorities` and `Trusted
+Publishers`; otherwise a self-signed signature will still look untrusted. When
+signing is enabled, the workflow also exports the public certificate and bundles
+it into the Inno installer for current-user trust import on first run. That import
+helps later updates, but it cannot prevent the very first browser or SmartScreen
+prompt on a PC that has not already trusted the certificate. When signing secrets
+are missing, the workflow keeps producing unsigned artifacts and logs that state
+instead of failing. It also publishes a `.sha256` file beside the direct Windows
+downloads so operators can verify the ZIP and installer hash.
+
 Then it uploads the client artifacts to `/srv/opshub/downloads/`, points Windows
 update metadata at the installer EXE, updates the backend generic `APP_*`,
 `APP_ANDROID_APP_*`, and `APP_WINDOWS_APP_*` env values, runs Prisma migrations,
@@ -140,6 +153,10 @@ Required GitHub repository secrets:
 - `ANDROID_KEYSTORE_PASSWORD` - Android release keystore password.
 - `ANDROID_KEY_ALIAS` - Android release key alias.
 - `ANDROID_KEY_PASSWORD` - Android release key password.
+- `WINDOWS_SIGNING_PFX_BASE64` - optional base64 text of the internal Windows
+  code-signing PFX.
+- `WINDOWS_SIGNING_PFX_PASSWORD` - optional password for that PFX; required when
+  `WINDOWS_SIGNING_PFX_BASE64` is set.
 
 The Android signing secrets must stay stable across releases. If the APK is
 signed with a different key, Android will reject in-place updates with

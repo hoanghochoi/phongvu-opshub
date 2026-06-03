@@ -26,6 +26,7 @@ jobs:
       windows_zip_name: ${{ steps.version.outputs.windows_zip_name }}
       windows_installer_basename: ${{ steps.version.outputs.windows_installer_basename }}
       windows_installer_name: ${{ steps.version.outputs.windows_installer_name }}
+      windows_checksum_name: ${{ steps.version.outputs.windows_checksum_name }}
       release_notes: ${{ steps.version.outputs.release_notes }}
     steps:
       - name: Compute release version
@@ -49,6 +50,8 @@ jobs:
           echo "windows_installer_basename=${windows_installer_basename}" >> "$GITHUB_OUTPUT"
           echo "windows_installer_name=${windows_installer_name}" >> "$GITHUB_OUTPUT"
           echo "release_notes=${release_notes}" >> "$GITHUB_OUTPUT"
+          windows_checksum_name=phongvu-opshub-windows-v${version_name}+${version_code}.sha256
+          echo windows_checksum_name=${windows_checksum_name} >> $GITHUB_OUTPUT
 
   build_android:
     runs-on: ubuntu-latest
@@ -125,6 +128,37 @@ jobs:
             --build-number "${{ needs.prepare.outputs.version_code }}" `
             --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}"
 
+      - name: Configure Windows internal signing certificate
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_BASE64)) {
+            Write-Warning 'WINDOWS_SIGNING_PFX_BASE64 is not configured; Windows artifacts will stay unsigned.'
+            'WINDOWS_SIGNING_ENABLED=false' | Out-File -FilePath $env:GITHUB_ENV -Append
+            return
+          }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_PASSWORD)) {
+            throw 'WINDOWS_SIGNING_PFX_PASSWORD is required when WINDOWS_SIGNING_PFX_BASE64 is configured.'
+          }
+          $certPath = Join-Path $env:RUNNER_TEMP 'opshub-windows-signing.pfx'
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64))
+          $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certPath, $env:WINDOWS_SIGNING_PFX_PASSWORD)
+          $publicCertPath = Join-Path $env:RUNNER_TEMP 'opshub-windows-signing.cer'
+          [IO.File]::WriteAllBytes($publicCertPath, $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+          'WINDOWS_SIGNING_ENABLED=true' | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WINDOWS_SIGNING_PFX_PATH=$certPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WINDOWS_SIGNING_CERT_PATH=$publicCertPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Sign Windows app executable
+        if: env.WINDOWS_SIGNING_ENABLED == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          .\scripts\sign-windows-artifact.ps1 -Path 'build\windows\x64\runner\Release\phongvu_opshub.exe'
+
       - name: Zip Windows release
         shell: pwsh
         run: |
@@ -168,13 +202,48 @@ jobs:
           }
           $releaseDir = (Resolve-Path "build\windows\x64\runner\Release").Path
           $outputDir = (Resolve-Path "build\windows\x64\runner").Path
-          & $iscc `
-            "/DAppVersion=${{ needs.prepare.outputs.version_name }}" `
-            "/DSourceDir=$releaseDir" `
-            "/DVcRedistPath=${env:VC_REDIST_X64_PATH}" `
-            "/DOutputDir=$outputDir" `
-            "/DOutputBaseFilename=${{ needs.prepare.outputs.windows_installer_basename }}" `
-            "deploy\windows\phongvu-opshub.iss"
+          $isccArgs = @(
+            "/DAppVersion=${{ needs.prepare.outputs.version_name }}",
+            "/DSourceDir=$releaseDir",
+            "/DVcRedistPath=${env:VC_REDIST_X64_PATH}",
+            "/DOutputDir=$outputDir",
+            "/DOutputBaseFilename=${{ needs.prepare.outputs.windows_installer_basename }}"
+          )
+          if ($env:WINDOWS_SIGNING_ENABLED -eq 'true') {
+            if (-not (Test-Path $env:WINDOWS_SIGNING_CERT_PATH)) {
+              throw 'WINDOWS_SIGNING_CERT_PATH is missing while Windows signing is enabled.'
+            }
+            $isccArgs += "/DInternalCodeSigningCertPath=${env:WINDOWS_SIGNING_CERT_PATH}"
+          }
+          $isccArgs += 'deploy\windows\phongvu-opshub.iss'
+          & $iscc @isccArgs
+
+      - name: Sign Windows installer
+        if: env.WINDOWS_SIGNING_ENABLED == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          .\scripts\sign-windows-artifact.ps1 -Path 'build\windows\x64\runner\${{ needs.prepare.outputs.windows_installer_name }}'
+
+      - name: Write Windows checksums
+        shell: pwsh
+        run: |
+          $runnerDir = 'build\windows\x64\runner'
+          $checksumPath = Join-Path $runnerDir '${{ needs.prepare.outputs.windows_checksum_name }}'
+          $files = @(
+            '${{ needs.prepare.outputs.windows_zip_name }}',
+            '${{ needs.prepare.outputs.windows_installer_name }}'
+          )
+          $lines = foreach ($file in $files) {
+            $path = Join-Path $runnerDir $file
+            if (-not (Test-Path $path)) {
+              throw ('Missing Windows artifact for checksum: {0}' -f $file)
+            }
+            $hash = (Get-FileHash -Algorithm SHA256 -Path $path).Hash.ToLowerInvariant()
+            '{0}  {1}' -f $hash, $file
+          }
+          Set-Content -Path $checksumPath -Value $lines -Encoding ascii
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -183,6 +252,7 @@ jobs:
           path: |
             build/windows/x64/runner/${{ needs.prepare.outputs.windows_zip_name }}
             build/windows/x64/runner/${{ needs.prepare.outputs.windows_installer_name }}
+            build/windows/x64/runner/${{ needs.prepare.outputs.windows_checksum_name }}
           if-no-files-found: error
 
   deploy:
@@ -256,6 +326,9 @@ jobs:
             "opshub-vps:/srv/opshub/downloads/${{ needs.prepare.outputs.windows_zip_name }}"
           scp "dist/windows/${{ needs.prepare.outputs.windows_installer_name }}" \
             "opshub-vps:/srv/opshub/downloads/${{ needs.prepare.outputs.windows_installer_name }}"
+
+          scp 'dist/windows/${{ needs.prepare.outputs.windows_checksum_name }}' \
+            'opshub-vps:/srv/opshub/downloads/${{ needs.prepare.outputs.windows_checksum_name }}'
 
       - name: Deploy backend and publish version metadata
         shell: bash
@@ -344,10 +417,10 @@ jobs:
             rm -rf "$dir"
           done
 
-          mapfile -t client_files < <(find /srv/opshub/downloads -maxdepth 1 -type f \( -name 'phongvu-opshub-v*.apk' -o -name 'phongvu-opshub-windows-v*.zip' -o -name 'phongvu-opshub-windows-setup-v*.exe' \) -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
+          mapfile -t client_files < <(find /srv/opshub/downloads -maxdepth 1 -type f \( -name 'phongvu-opshub-v*.apk' -o -name 'phongvu-opshub-windows-v*.zip' -o -name 'phongvu-opshub-windows-setup-v*.exe' -o -name 'phongvu-opshub-windows-v*.sha256' \) -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
           kept=0
           for file in "${client_files[@]}"; do
-            if [ "$kept" -lt 15 ]; then
+            if [ "$kept" -lt 20 ]; then
               kept=$((kept + 1))
               continue
             fi
