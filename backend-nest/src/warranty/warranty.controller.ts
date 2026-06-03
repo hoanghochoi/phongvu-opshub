@@ -26,26 +26,26 @@ export class WarrantyController {
 
   // GET /warranties — list all
   @Get()
-  async findAll() {
-    return this.warrantyService.getAllWarranties();
+  async findAll(@Request() req: any) {
+    return this.warrantyService.getAllWarranties(req.user);
   }
 
   // GET /warranties/search?receipt=xxxxx
   @Get('search')
-  async search(@Query('receipt') receipt: string) {
-    return this.warrantyService.searchByReceipt(receipt || '');
+  async search(@Request() req: any, @Query('receipt') receipt: string) {
+    return this.warrantyService.searchByReceipt(req.user, receipt || '');
   }
 
   // GET /warranties/detail?receipt=xxxxx
   @Get('detail')
-  async getDetail(@Query('receipt') receipt: string) {
-    return this.warrantyService.getByReceipt(receipt);
+  async getDetail(@Request() req: any, @Query('receipt') receipt: string) {
+    return this.warrantyService.getByReceipt(req.user, receipt);
   }
 
   // GET /warranties/:id
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.warrantyService.getWarrantyById(id);
+  async findOne(@Request() req: any, @Param('id') id: string) {
+    return this.warrantyService.getWarrantyById(req.user, id);
   }
 
   // PUT /warranties/:id/status — update status, broadcasts via Redis -> Go -> WebSocket
@@ -56,6 +56,7 @@ export class WarrantyController {
     @Body() body: UpdateWarrantyStatusDto,
   ) {
     return this.warrantyService.updateWarrantyStatus(
+      req.user,
       id,
       req.user.id,
       body.status,
