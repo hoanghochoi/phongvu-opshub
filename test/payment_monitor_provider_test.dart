@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/core/platform/app_restart_service.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/payment_speaker.dart';
@@ -112,6 +113,42 @@ void main() {
     provider.dispose();
   });
 
+  test('stops monitor when polling returns an auth failure', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: const [],
+      transactionError: ApiException(
+        'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.',
+        401,
+      ),
+    );
+    final speaker = _FakePaymentSpeaker();
+    final provider = PaymentMonitorProvider(
+      repository,
+      speaker,
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(
+      const User(
+        id: 'user-1',
+        email: 'staff@example.com',
+        role: 'MANAGER',
+        storeId: 'store-uuid-1',
+      ),
+      isInitialized: true,
+    );
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+
+    expect(provider.isActive, isFalse);
+    expect(speaker.playCount, 0);
+
+    provider.dispose();
+  });
+
   test(
     'retries payment audio with cached bytes before acknowledging played',
     () async {
@@ -201,6 +238,52 @@ void main() {
     },
   );
 
+  test(
+    'non-retryable payment audio failure acks failed without retries',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: [_readyNotification()],
+      );
+      final speaker = _FakePaymentSpeaker(nonRetryableFailure: true);
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(
+        const User(
+          id: 'user-1',
+          email: 'staff@example.com',
+          role: 'MANAGER',
+          storeId: 'store-uuid-1',
+        ),
+        isInitialized: true,
+      );
+      await _waitUntil(
+        () => repository.ackEvents.contains('FAILED') && !provider.isLoading,
+      );
+
+      expect(repository.downloadCount, 1);
+      expect(speaker.playCount, 1);
+      expect(repository.ackEvents, isNot(contains('PLAYBACK_FAILED')));
+      expect(
+        repository.ackEvents.where((event) => event == 'FAILED'),
+        hasLength(1),
+      );
+      expect(repository.ackErrors.last, contains('audio output device'));
+      expect(provider.speakerError, isNotNull);
+      expect(
+        provider.speakerError!.message,
+        contains('Windows không nhận thiết bị âm thanh'),
+      );
+
+      provider.dispose();
+    },
+  );
+
   test('restartApp delegates to restart service', () async {
     final restartService = _FakeAppRestartService();
     final provider = PaymentMonitorProvider(
@@ -239,6 +322,7 @@ PaymentNotification _readyNotification() {
 
 class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<PaymentNotification> notifications;
+  final Object? transactionError;
   final List<String> ackEvents = [];
   final List<String> ackErrors = [];
   final List<String?> requestedStartDates = [];
@@ -246,8 +330,10 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   int transactionFetchCount = 0;
   int downloadCount = 0;
 
-  _FakePaymentMonitorRepository({required this.notifications})
-    : super(ApiClient());
+  _FakePaymentMonitorRepository({
+    required this.notifications,
+    this.transactionError,
+  }) : super(ApiClient());
 
   @override
   Future<StoredPaymentTransactionsPage> fetchStoredTransactions({
@@ -259,6 +345,8 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     int limit = 10,
   }) async {
     transactionFetchCount += 1;
+    final error = transactionError;
+    if (error != null) throw error;
     requestedStartDates.add(startDate);
     requestedEndDates.add(endDate);
     return StoredPaymentTransactionsPage(
@@ -299,9 +387,13 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
 
 class _FakePaymentSpeaker extends PaymentSpeaker {
   final int failuresBeforeSuccess;
+  final bool nonRetryableFailure;
   int playCount = 0;
 
-  _FakePaymentSpeaker({this.failuresBeforeSuccess = 0});
+  _FakePaymentSpeaker({
+    this.failuresBeforeSuccess = 0,
+    this.nonRetryableFailure = false,
+  });
 
   @override
   Future<PaymentSpeakerResult> playServerAudio({
@@ -314,6 +406,13 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
     required int attempt,
   }) async {
     playCount += 1;
+    if (nonRetryableFailure) {
+      throw const PaymentSpeakerException(
+        'Windows does not report any audio output device',
+        backendErrors: ['waveOutDevices=0'],
+        retryable: false,
+      );
+    }
     if (playCount <= failuresBeforeSuccess) {
       throw StateError('speaker failed $playCount');
     }

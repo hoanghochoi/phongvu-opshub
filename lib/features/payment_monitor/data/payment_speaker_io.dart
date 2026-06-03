@@ -10,11 +10,50 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../core/logging/app_logger.dart';
 import 'payment_speaker_types.dart';
+import 'payment_wav_tools.dart';
+
+typedef PaymentMediaKitPlayer =
+    Future<PaymentSpeakerResult> Function({
+      required File file,
+      required String extension,
+      required Duration timeout,
+    });
+
+typedef PaymentPlaySoundPlayer =
+    Future<PaymentSpeakerResult> Function({
+      required File file,
+      required Duration timeout,
+    });
+
+typedef PaymentMciPlayer =
+    Future<PaymentSpeakerResult> Function({
+      required File file,
+      required String extension,
+      required Duration timeout,
+    });
 
 class PaymentSpeaker {
   static const _source = 'PaymentSpeaker';
   static const _voiceTimeout = Duration(seconds: 20);
   static const _cueTimeout = Duration(seconds: 5);
+
+  final PaymentMediaKitPlayer? _mediaKitPlayerForTesting;
+  final PaymentPlaySoundPlayer? _playSoundPlayerForTesting;
+  final PaymentMciPlayer? _mciPlayerForTesting;
+  final Directory? _temporaryDirectoryForTesting;
+  final int Function()? _waveOutDeviceCountForTesting;
+
+  PaymentSpeaker({
+    PaymentMediaKitPlayer? mediaKitPlayerForTesting,
+    PaymentPlaySoundPlayer? playSoundPlayerForTesting,
+    PaymentMciPlayer? mciPlayerForTesting,
+    Directory? temporaryDirectoryForTesting,
+    int Function()? waveOutDeviceCountForTesting,
+  }) : _mediaKitPlayerForTesting = mediaKitPlayerForTesting,
+       _playSoundPlayerForTesting = playSoundPlayerForTesting,
+       _mciPlayerForTesting = mciPlayerForTesting,
+       _temporaryDirectoryForTesting = temporaryDirectoryForTesting,
+       _waveOutDeviceCountForTesting = waveOutDeviceCountForTesting;
 
   Future<PaymentSpeakerResult> playServerAudio({
     required int amount,
@@ -39,32 +78,57 @@ class PaymentSpeaker {
       throw const PaymentSpeakerException('Server audio is empty');
     }
 
-    final directory = await getTemporaryDirectory();
+    final extension = _audioExtension(audioBytes);
+    final waveOutDevices = _waveOutDeviceCount();
+    final wavInfo = extension == 'wav'
+        ? PaymentWavTools.tryReadInfo(audioBytes)
+        : null;
+    final audioPreflightStatus = waveOutDevices > 0
+        ? 'wave_out_devices_available'
+        : 'wave_out_devices_missing';
+    final playbackContext = <String, Object?>{
+      'notificationId': notificationId,
+      'transactionId': transactionId,
+      'storeCode': storeCode,
+      'clientId': clientId,
+      'amount': amount,
+      'attempt': attempt,
+      'extension': extension,
+      'bytes': audioBytes.length,
+      'waveOutDevices': waveOutDevices,
+      'audioPreflightStatus': audioPreflightStatus,
+      if (wavInfo != null) ...wavInfo.toLogContext(prefix: 'sourceWav'),
+      if (extension == 'wav' && wavInfo == null) 'wavHeader': 'unreadable',
+    };
+    await AppLogger.instance.info(
+      _source,
+      'Preparing server payment audio playback',
+      context: playbackContext,
+    );
+    if (waveOutDevices <= 0) {
+      throw const PaymentSpeakerException(
+        'Windows does not report any audio output device',
+        backendErrors: ['waveOutDevices=0'],
+        retryable: false,
+      );
+    }
+
+    final directory =
+        _temporaryDirectoryForTesting ?? await getTemporaryDirectory();
     await _playTingTing(directory);
 
-    final extension = _audioExtension(audioBytes);
     final file = File(
       '${directory.path}${Platform.pathSeparator}opshub-payment-${DateTime.now().microsecondsSinceEpoch}.$extension',
     );
     await file.writeAsBytes(audioBytes, flush: true);
 
     try {
-      await AppLogger.instance.info(
-        _source,
-        'Preparing server payment audio playback',
-        context: {
-          'notificationId': notificationId,
-          'transactionId': transactionId,
-          'storeCode': storeCode,
-          'clientId': clientId,
-          'amount': amount,
-          'attempt': attempt,
-          'extension': extension,
-          'bytes': audioBytes.length,
-          'waveOutDevices': _waveOutDeviceCount(),
-        },
+      return await _playWithFallbacks(
+        file: file,
+        extension: extension,
+        context: playbackContext,
+        audioPreflightStatus: audioPreflightStatus,
       );
-      return await _playWithFallbacks(file: file, extension: extension);
     } finally {
       await file.delete().catchError((_) => file);
     }
@@ -101,50 +165,124 @@ class PaymentSpeaker {
   Future<PaymentSpeakerResult> _playWithFallbacks({
     required File file,
     required String extension,
+    required Map<String, Object?> context,
+    required String audioPreflightStatus,
+    bool allowMci326Normalize = true,
+    bool normalized = false,
   }) async {
     final backendErrors = <String>[];
+    final wavInfo = extension == 'wav' ? await _readWavInfo(file) : null;
 
     try {
-      return await _playWithMediaKit(
+      final result = await _playWithMediaKit(
         file: file,
         extension: extension,
         timeout: _voiceTimeout,
+      );
+      return _withAudioContext(
+        result,
+        wavInfo,
+        normalized: normalized,
+        audioPreflightStatus: audioPreflightStatus,
       );
     } catch (error) {
       backendErrors.add('media_kit: ${_safeBackendError(error)}');
       await AppLogger.instance.warn(
         _source,
         'media_kit playback failed; trying Windows fallback',
-        context: {'extension': extension, 'error': _safeBackendError(error)},
+        context: {
+          ...context,
+          'normalized': normalized,
+          'error': _safeBackendError(error),
+        },
       );
     }
 
     if (extension == 'wav') {
       try {
-        return await _playWithPlaySound(file: file, timeout: _voiceTimeout);
+        final result = await _playWithPlaySound(
+          file: file,
+          timeout: _voiceTimeout,
+        );
+        return _withAudioContext(
+          result,
+          wavInfo,
+          normalized: normalized,
+          audioPreflightStatus: audioPreflightStatus,
+        );
       } catch (error) {
         backendErrors.add('play_sound: ${_safeBackendError(error)}');
         await AppLogger.instance.warn(
           _source,
           'PlaySound fallback failed; trying MCI fallback',
-          context: {'extension': extension, 'error': _safeBackendError(error)},
+          context: {
+            ...context,
+            'normalized': normalized,
+            'error': _safeBackendError(error),
+          },
         );
       }
     }
 
     try {
-      return await _playWithMci(
+      final result = await _playWithMci(
         file: file,
         extension: extension,
         timeout: _voiceTimeout,
       );
+      return _withAudioContext(
+        result,
+        wavInfo,
+        normalized: normalized,
+        audioPreflightStatus: audioPreflightStatus,
+      );
     } catch (error) {
       backendErrors.add('mci: ${_safeBackendError(error)}');
+      await _logMciFailure(error, context, normalized: normalized);
+      if (extension == 'wav' &&
+          allowMci326Normalize &&
+          _isMciCode(error, 326)) {
+        final normalizedFile = await _createNormalizedWavForMci326(
+          sourceFile: file,
+          context: context,
+        );
+        if (normalizedFile != null) {
+          try {
+            return await _playWithFallbacks(
+              file: normalizedFile.file,
+              extension: 'wav',
+              context: {
+                ...context,
+                'normalizeReason': 'mci326',
+                'normalizedBytes': normalizedFile.result.bytes.length,
+                ...normalizedFile.result.source.toLogContext(
+                  prefix: 'originalWav',
+                ),
+                ...normalizedFile.result.target.toLogContext(
+                  prefix: 'normalizedWav',
+                ),
+              },
+              audioPreflightStatus: audioPreflightStatus,
+              allowMci326Normalize: false,
+              normalized: true,
+            );
+          } catch (normalizedError) {
+            backendErrors.add(
+              'normalized_wav: ${_safeBackendError(normalizedError)}',
+            );
+          } finally {
+            await normalizedFile.file.delete().catchError(
+              (_) => normalizedFile.file,
+            );
+          }
+        }
+      }
     }
 
     throw PaymentSpeakerException(
       'Payment speaker playback failed',
       backendErrors: backendErrors,
+      retryable: !_isAudioEnvironmentFailure(backendErrors),
     );
   }
 
@@ -153,6 +291,11 @@ class PaymentSpeaker {
     required String extension,
     required Duration timeout,
   }) async {
+    final override = _mediaKitPlayerForTesting;
+    if (override != null) {
+      return override(file: file, extension: extension, timeout: timeout);
+    }
+
     final stopwatch = Stopwatch()..start();
     final player = Player();
     try {
@@ -182,6 +325,11 @@ class PaymentSpeaker {
     required File file,
     required Duration timeout,
   }) async {
+    final override = _playSoundPlayerForTesting;
+    if (override != null) {
+      return override(file: file, timeout: timeout);
+    }
+
     final waveDevices = _waveOutDeviceCount();
     if (waveDevices <= 0) {
       throw StateError('No wave output device is available for PlaySound');
@@ -204,6 +352,11 @@ class PaymentSpeaker {
     required String extension,
     required Duration timeout,
   }) async {
+    final override = _mciPlayerForTesting;
+    if (override != null) {
+      return override(file: file, extension: extension, timeout: timeout);
+    }
+
     final stopwatch = Stopwatch()..start();
     await Isolate.run(
       () => _playAudioFileWithMci(
@@ -220,6 +373,111 @@ class PaymentSpeaker {
     );
   }
 
+  Future<PaymentWavInfo?> _readWavInfo(File file) async {
+    try {
+      return PaymentWavTools.readInfo(await file.readAsBytes());
+    } on PaymentWavException {
+      return null;
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  PaymentSpeakerResult _withAudioContext(
+    PaymentSpeakerResult result,
+    PaymentWavInfo? wavInfo, {
+    required bool normalized,
+    required String audioPreflightStatus,
+  }) {
+    return result.copyWith(
+      normalized: normalized || result.normalized,
+      sampleRateHz: wavInfo?.sampleRateHz ?? result.sampleRateHz,
+      channels: wavInfo?.channels ?? result.channels,
+      bitsPerSample: wavInfo?.bitsPerSample ?? result.bitsPerSample,
+      audioPreflightStatus: result.audioPreflightStatus ?? audioPreflightStatus,
+    );
+  }
+
+  Future<void> _logMciFailure(
+    Object error,
+    Map<String, Object?> context, {
+    required bool normalized,
+  }) async {
+    await AppLogger.instance.warn(
+      _source,
+      'MCI playback failed',
+      context: {
+        ...context,
+        'normalized': normalized,
+        if (error is MciCommandException) 'mciCode': error.code,
+        if (error is MciCommandException) 'mciMessage': error.message,
+        'error': _safeBackendError(error),
+      },
+    );
+  }
+
+  Future<_NormalizedWavFile?> _createNormalizedWavForMci326({
+    required File sourceFile,
+    required Map<String, Object?> context,
+  }) async {
+    try {
+      final sourceBytes = await sourceFile.readAsBytes();
+      final sourceInfo = PaymentWavTools.readInfo(sourceBytes);
+      if (_isAlreadyPcm16Mono44100(sourceInfo)) {
+        await AppLogger.instance.warn(
+          _source,
+          'MCI 326 normalize fallback skipped because WAV is already normalized',
+          context: {
+            ...context,
+            'normalizeReason': 'mci326',
+            ...sourceInfo.toLogContext(prefix: 'sourceWav'),
+          },
+        );
+        return null;
+      }
+
+      final normalized = PaymentWavTools.normalizeToPcm16Mono44100(sourceBytes);
+      final file = File(
+        '${sourceFile.parent.path}${Platform.pathSeparator}opshub-payment-normalized-${DateTime.now().microsecondsSinceEpoch}.wav',
+      );
+      await file.writeAsBytes(normalized.bytes, flush: true);
+      await AppLogger.instance.info(
+        _source,
+        'Payment WAV normalized for MCI 326 fallback',
+        context: {
+          ...context,
+          'normalizeReason': 'mci326',
+          'originalBytes': sourceBytes.length,
+          'normalizedBytes': normalized.bytes.length,
+          ...normalized.source.toLogContext(prefix: 'originalWav'),
+          ...normalized.target.toLogContext(prefix: 'normalizedWav'),
+        },
+      );
+      return _NormalizedWavFile(file, normalized);
+    } catch (error) {
+      await AppLogger.instance.warn(
+        _source,
+        'Payment WAV normalize fallback skipped',
+        context: {
+          ...context,
+          'normalizeReason': 'mci326',
+          'error': _safeBackendError(error),
+        },
+      );
+      return null;
+    }
+  }
+
+  bool _isAlreadyPcm16Mono44100(PaymentWavInfo info) {
+    return info.isPcm16 &&
+        info.channels == 1 &&
+        info.sampleRateHz == PaymentWavTools.targetSampleRateHz;
+  }
+
+  bool _isMciCode(Object error, int code) {
+    return error is MciCommandException && error.code == code;
+  }
+
   String _audioExtension(List<int> audioBytes) {
     if (audioBytes.length >= 4 &&
         audioBytes[0] == 0x52 &&
@@ -232,6 +490,9 @@ class PaymentSpeaker {
   }
 
   int _waveOutDeviceCount() {
+    final override = _waveOutDeviceCountForTesting;
+    if (override != null) return override();
+
     final winmm = DynamicLibrary.open('winmm.dll');
     final waveOutGetNumDevs = winmm
         .lookupFunction<_WaveOutGetNumDevsNative, _WaveOutGetNumDevsDart>(
@@ -244,6 +505,32 @@ class PaymentSpeaker {
     final text = error.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
     return text.length <= 180 ? text : '${text.substring(0, 177)}...';
   }
+
+  bool _isAudioEnvironmentFailure(List<String> backendErrors) {
+    final text = backendErrors.join(' ').toLowerCase();
+    return text.contains('waveoutdevices=0') ||
+        text.contains('no wave output device') ||
+        text.contains('no wave device') ||
+        text.contains('mci command failed (326)') ||
+        text.contains('mci command failed (277)');
+  }
+}
+
+class MciCommandException implements Exception {
+  final int code;
+  final String message;
+
+  const MciCommandException(this.code, this.message);
+
+  @override
+  String toString() => 'Windows MCI command failed ($code): $message';
+}
+
+class _NormalizedWavFile {
+  final File file;
+  final PaymentWavNormalizeResult result;
+
+  const _NormalizedWavFile(this.file, this.result);
 }
 
 typedef _PlaySoundNative = Int32 Function(Pointer<Utf16>, IntPtr, Uint32);
@@ -300,9 +587,7 @@ void _sendMciCommand(String command, {bool throwOnError = true}) {
   try {
     final code = mciSendString(nativeCommand, nullptr, 0, 0);
     if (code != 0 && throwOnError) {
-      throw StateError(
-        'Windows MCI command failed ($code): ${_mciErrorMessage(winmm, code)}',
-      );
+      throw MciCommandException(code, _mciErrorMessage(winmm, code));
     }
   } finally {
     calloc.free(nativeCommand);

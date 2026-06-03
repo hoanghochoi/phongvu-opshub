@@ -94,12 +94,19 @@ a customer to scan and pay manually.
   legacy `custom:suong-vo` voice id for rollback-friendly deploys. The Windows
   app plays `data/ting_ting.mp3` before the generated audio, then attempts
   playback in this order for each notification: `media_kit` on Windows, Win32
-  `PlaySoundW` for WAV files, and MCI as the final fallback.
+  `PlaySoundW` for WAV files, and MCI as the final fallback. If MCI returns
+  error `326` for WAV audio, the client normalizes only that local temp file to
+  `WAV PCM 16-bit mono 44100 Hz` and retries once without requesting a larger
+  server audio payload. The Windows installer also runs a non-blocking audio
+  preflight for `Audiosrv`, `AudioEndpointBuilder`, and WinMM output devices;
+  missing service/device checks warn the user but do not block installation.
 - When a speaker attempt fails, the client uploads `PaymentSpeaker` started /
   succeeded / failed logs with sanitized context and acknowledges
   `PLAYBACK_FAILED` for attempts 1-2. The client waits 10 seconds between
   attempts, reuses the same downloaded audio bytes across all 3 attempts, and
-  acknowledges terminal `FAILED` only after attempt 3 still cannot play.
+  acknowledges terminal `FAILED` only after attempt 3 still cannot play. Audio
+  logs include sanitized WAV header fields, MCI code/message, WinMM output
+  device count, and whether the local MCI-326 normalized fallback was used.
 - Payment notification audio is cleaned after 7 days, delivery/app logs after
   30 days, and stored MAP transactions after 90 days by default.
 
