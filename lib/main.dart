@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:media_kit/media_kit.dart';
 
 import 'app/app.dart';
 import 'core/logging/app_logger.dart';
+import 'core/platform/media_kit_bootstrap.dart';
 
 void main() {
   runWithAppLogging(() async {
     WidgetsFlutterBinding.ensureInitialized();
-    MediaKit.ensureInitialized();
     await AppLogger.instance.initialize();
+    await initializeMediaKitIfSupported();
     runApp(const App());
   });
 }
