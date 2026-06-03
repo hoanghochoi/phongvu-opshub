@@ -27,7 +27,8 @@ Go realtime service.
 - Client diagnostics: authenticated clients upload a sanitized previous-day
   activity summary once per day for operational debugging. The upload uses the
   existing app-log pipeline and does not include the raw log file.
-- Platform: NestJS API, Go realtime service, PostgreSQL, Redis, BigQuery.
+- Platform: NestJS API, Go realtime service, PostgreSQL, Redis, BigQuery, and
+  Windows release distribution.
 
 ## Non-Goals
 
