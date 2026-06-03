@@ -39,6 +39,18 @@ This file maps product behavior to proof. Existing flows are marked
 ## Recent Evidence
 
 
+- UI-UX-001, 2026-06-03: fixed Android release startup blank screen caused by
+  unconditional `MediaKit.ensureInitialized()` before `runApp`; media_kit now
+  initializes only on non-web Windows, logs the startup branch through
+  `AppLogger`, and lets the app continue with fallback audio if Windows media
+  initialization fails. Validation: reproduced the blank screen on a real
+  Android 14 device (`21081111RG`) with release APK `versionCode=100050`, where
+  logcat showed `media_kit: ERROR: MediaKit.ensureInitialized`; after the fix,
+  `flutter analyze --no-pub`, full `flutter test --no-pub` (43 tests), release
+  APK build `versionCode=100051`, install over the existing app without data
+  wipe, logcat startup check with no media_kit startup error, and screenshot
+  proof showing the Home screen rendered on the same device. Gap: GitHub deploy
+  proof pending until this fix is pushed.
 - PAYMENT-STATEMENT-001, 2026-06-02: Sao ke date range now shows `Hom nay`
   when no explicit range is selected, treats incomplete custom ranges as the
   default current-day query, and renders short transaction summary pills for
