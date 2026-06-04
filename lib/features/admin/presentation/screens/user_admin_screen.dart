@@ -29,6 +29,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   List<AdminRoleDefinition> _roles = AdminRoles.definitions;
   List<AdminPersonnelDefinition> _departments = [];
   List<AdminPersonnelDefinition> _jobRoles = [];
+  List<AdminRegionDefinition> _regions = [];
+  List<AdminAreaDefinition> _areas = [];
   bool _loading = true;
 
   @override
@@ -52,6 +54,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         _repository.listAdminRoles(),
         _repository.listAdminDepartments(),
         _repository.listAdminJobRoles(),
+        _repository.listAdminRegions(),
+        _repository.listAdminAreas(),
       ]);
       if (!mounted) return;
       setState(() {
@@ -60,6 +64,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         _roles = results[2] as List<AdminRoleDefinition>;
         _departments = results[3] as List<AdminPersonnelDefinition>;
         _jobRoles = results[4] as List<AdminPersonnelDefinition>;
+        _regions = results[5] as List<AdminRegionDefinition>;
+        _areas = results[6] as List<AdminAreaDefinition>;
       });
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -221,6 +227,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         roles: _roles,
         departments: _departments,
         jobRoles: _jobRoles,
+        regions: _regions,
+        areas: _areas,
         user: user,
         canEditRole: canEditRole,
       ),
@@ -345,6 +353,8 @@ class _UserEditorDialog extends StatefulWidget {
   final List<AdminRoleDefinition> roles;
   final List<AdminPersonnelDefinition> departments;
   final List<AdminPersonnelDefinition> jobRoles;
+  final List<AdminRegionDefinition> regions;
+  final List<AdminAreaDefinition> areas;
   final User? user;
   final bool canEditRole;
 
@@ -354,6 +364,8 @@ class _UserEditorDialog extends StatefulWidget {
     required this.roles,
     required this.departments,
     required this.jobRoles,
+    required this.regions,
+    required this.areas,
     required this.canEditRole,
     this.user,
   });
@@ -372,6 +384,8 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   String? _departmentCode;
   String? _jobRoleCode;
   String _workScopeType = 'STORE';
+  String? _regionCode;
+  String? _areaCode;
   bool _saving = false;
 
   @override
@@ -387,6 +401,8 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     _departmentCode = user?.departmentCode;
     _jobRoleCode = user?.jobRoleCode;
     _workScopeType = user?.workScopeType ?? _defaultScopeForRole(_role);
+    _regionCode = user?.regionCode;
+    _areaCode = user?.areaCode;
   }
 
   @override
@@ -409,6 +425,8 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
         'departmentCode': _departmentCode,
         'jobRoleCode': _jobRoleCode,
         'workScopeType': _workScopeType,
+        'regionCode': _regionCode,
+        'areaCode': _areaCode,
         if (widget.canEditRole) 'role': _role,
       };
       final user = widget.user;
@@ -445,13 +463,53 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
 
   String _previewPersonnelCode(String? jobRoleCode, String scope) {
     if (jobRoleCode == null || jobRoleCode.isEmpty) return 'Chưa gán';
+    final region = _regionAbbr(_regionCode);
+    final area = _areaAbbr(_areaCode);
     if (scope == 'STORE') {
-      return _storeId?.isNotEmpty == true
-          ? '${jobRoleCode}_$_storeId'
-          : '${jobRoleCode}_STORE';
+      final store = _storeId?.isNotEmpty == true ? _storeId! : 'STORE';
+      final storeArea =
+          _areaAbbr(_storeAreaCode(_storeId)) ?? area ?? 'CHUA_GAN';
+      final storeRegion =
+          _regionAbbr(_storeRegionCode(_storeId)) ?? region ?? 'CHUA_GAN';
+      return '${jobRoleCode}_${store}_${storeArea}_$storeRegion';
     }
-    if (scope == 'ONLINE') return jobRoleCode;
-    return '${jobRoleCode}_$scope';
+    if (scope == 'AREA') {
+      final value = area ?? 'CHUA_GAN';
+      return '${jobRoleCode}_${value}_${value}_${region ?? 'CHUA_GAN'}';
+    }
+    if (scope == 'REGION') {
+      final value = region ?? 'CHUA_GAN';
+      return '${jobRoleCode}_${value}_${value}_$value';
+    }
+    return '${jobRoleCode}_NATIONAL_NATIONAL_NATIONAL';
+  }
+
+  String? _regionAbbr(String? code) {
+    for (final region in widget.regions) {
+      if (region.code == code) return region.abbreviation;
+    }
+    return code;
+  }
+
+  String? _areaAbbr(String? code) {
+    for (final area in widget.areas) {
+      if (area.code == code) return area.abbreviation;
+    }
+    return code;
+  }
+
+  String? _storeAreaCode(String? storeId) {
+    for (final store in widget.stores) {
+      if (store.storeId == storeId) return store.areaCode;
+    }
+    return null;
+  }
+
+  String? _storeRegionCode(String? storeId) {
+    for (final store in widget.stores) {
+      if (store.storeId == storeId) return store.regionCode;
+    }
+    return null;
   }
 
   @override
@@ -546,9 +604,55 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                       ),
                     )
                     .toList(),
-                onChanged: (value) =>
-                    setState(() => _workScopeType = value ?? 'STORE'),
+                onChanged: (value) => setState(() {
+                  _workScopeType = value ?? 'STORE';
+                  if (_workScopeType != 'REGION') _regionCode = null;
+                  if (_workScopeType != 'AREA') _areaCode = null;
+                  if (_workScopeType != 'STORE') _storeId = null;
+                }),
               ),
+              if (_workScopeType == 'REGION')
+                DropdownButtonFormField<String?>(
+                  initialValue: _regionCode,
+                  decoration: const InputDecoration(labelText: 'Mien'),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Chua gan'),
+                    ),
+                    ...widget.regions.map(
+                      (region) => DropdownMenuItem<String?>(
+                        value: region.code,
+                        child: Text('${region.abbreviation} - ${region.title}'),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => _regionCode = value),
+                ),
+              if (_workScopeType == 'AREA')
+                DropdownButtonFormField<String?>(
+                  initialValue: _areaCode,
+                  decoration: const InputDecoration(labelText: 'Vung'),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Chua gan'),
+                    ),
+                    ...widget.areas.map(
+                      (area) => DropdownMenuItem<String?>(
+                        value: area.code,
+                        child: Text('${area.abbreviation} - ${area.title}'),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() {
+                    _areaCode = value;
+                    _regionCode = null;
+                    for (final area in widget.areas) {
+                      if (area.code == value) _regionCode = area.regionCode;
+                    }
+                  }),
+                ),
               TextFormField(
                 key: ValueKey(
                   '${widget.user?.personnelCode}|$_jobRoleCode|$_workScopeType|$_storeId',
@@ -569,23 +673,24 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                 ],
                 onChanged: (value) => setState(() => _status = value ?? 'yes'),
               ),
-              DropdownButtonFormField<String?>(
-                initialValue: _storeId,
-                decoration: const InputDecoration(labelText: 'Chi nhánh'),
-                items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('Chưa gán'),
-                  ),
-                  ...widget.stores.map(
-                    (store) => DropdownMenuItem<String?>(
-                      value: store.storeId,
-                      child: Text(store.displayName),
+              if (_workScopeType == 'STORE')
+                DropdownButtonFormField<String?>(
+                  initialValue: _storeId,
+                  decoration: const InputDecoration(labelText: 'Chi nhánh'),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Chưa gán'),
                     ),
-                  ),
-                ],
-                onChanged: (value) => setState(() => _storeId = value),
-              ),
+                    ...widget.stores.map(
+                      (store) => DropdownMenuItem<String?>(
+                        value: store.storeId,
+                        child: Text(store.displayName),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => _storeId = value),
+                ),
             ],
           ),
         ),

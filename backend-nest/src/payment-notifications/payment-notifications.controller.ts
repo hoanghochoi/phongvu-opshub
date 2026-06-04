@@ -12,6 +12,9 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import type { Response } from 'express';
+import { FEATURE_KEYS } from '../feature/feature.constants';
+import { RequireFeature } from '../feature/feature.decorator';
+import { FeatureGuard } from '../feature/feature.guard';
 import {
   CreateAppLogDto,
   ListPaymentNotificationsQueryDto,
@@ -20,11 +23,12 @@ import {
 import { PaymentNotificationsService } from './payment-notifications.service';
 
 @Controller()
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), FeatureGuard)
 export class PaymentNotificationsController {
   constructor(private readonly service: PaymentNotificationsService) {}
 
   @Get('payment-notifications/ready')
+  @RequireFeature(FEATURE_KEYS.PAYMENT_MONITOR)
   listReady(
     @Request() req: any,
     @Query() query: ListPaymentNotificationsQueryDto,
@@ -33,6 +37,7 @@ export class PaymentNotificationsController {
   }
 
   @Get('payment-notifications/:id/audio')
+  @RequireFeature(FEATURE_KEYS.PAYMENT_MONITOR)
   @Header('Cache-Control', 'private, max-age=300')
   async getAudio(
     @Request() req: any,
@@ -49,6 +54,7 @@ export class PaymentNotificationsController {
   }
 
   @Post('payment-notifications/:id/ack')
+  @RequireFeature(FEATURE_KEYS.PAYMENT_MONITOR)
   acknowledge(
     @Request() req: any,
     @Param('id') id: string,

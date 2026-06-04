@@ -9,11 +9,14 @@ import {
 } from '@nestjs/common';
 import { SortService } from './sort.service';
 import { AuthGuard } from '@nestjs/passport';
+import { FEATURE_KEYS } from '../feature/feature.constants';
+import { RequireFeature } from '../feature/feature.decorator';
+import { FeatureGuard } from '../feature/feature.guard';
 import { FifoCheckDto, SortCompletionReportDto, SortTextDto } from './sort.dto';
 import { FifoService } from '../fifo/fifo.service';
 
 @Controller('sort')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), FeatureGuard)
 export class SortController {
   private readonly logger = new Logger(SortController.name);
 
@@ -25,6 +28,7 @@ export class SortController {
   // POST /sort — body: { text: "SKU_OR_BIN" }
   // User email is extracted from JWT token, not from body
   @Post()
+  @RequireFeature(FEATURE_KEYS.FIFO)
   async sort(@Req() req: any, @Body() body: SortTextDto) {
     const userEmail = req.user?.email || '';
     this.logger.log(`[SORT] text="${body.text}" user="${userEmail}"`);
@@ -38,6 +42,7 @@ export class SortController {
   // POST /sort/fifo-check — body: { text: "SKU_OR_SERIAL", qty?: number }
   // User email is extracted from JWT token, not from body
   @Post('fifo-check')
+  @RequireFeature(FEATURE_KEYS.FIFO)
   async fifoCheck(@Req() req: any, @Body() body: FifoCheckDto) {
     const userEmail = req.user?.email || '';
     this.logger.log(
@@ -59,6 +64,7 @@ export class SortController {
 
   // POST /sort/completion-report — body: { sortedSKUs: [...] }
   @Post('completion-report')
+  @RequireFeature(FEATURE_KEYS.FIFO)
   async completionReport(
     @Req() req: any,
     @Body() body: SortCompletionReportDto,

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/features/admin/domain/admin_personnel_definition.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 
 void main() {
@@ -9,33 +10,47 @@ void main() {
       'departmentCode': 'SALES',
       'jobRoleCode': 'SALE',
       'workScopeType': 'STORE',
-      'personnelCode': 'SALE_CP62',
+      'personnelCode': 'SALE_CP62_HCM_MN',
       'mustSelectStore': false,
       'storeId': 'CP62',
+      'areaCode': 'HCM',
+      'regionCode': 'MIEN_NAM',
     });
 
     expect(user.departmentCode, 'SALES');
     expect(user.jobRoleCode, 'SALE');
     expect(user.workScopeType, 'STORE');
-    expect(user.personnelCode, 'SALE_CP62');
+    expect(user.personnelCode, 'SALE_CP62_HCM_MN');
+    expect(user.areaCode, 'HCM');
+    expect(user.regionCode, 'MIEN_NAM');
     expect(user.needsStoreSelection, isFalse);
     expect(user.belongsToCp62, isTrue);
     expect(user.canUseCp62RestrictedFlows, isTrue);
   });
 
-  test('User does not require store selection for online personnel scope', () {
+  test('User does not require store selection for Chatsale region scope', () {
     final user = User.fromJson({
       'email': 'online@phongvu.vn',
       'role': 'STAFF',
-      'jobRoleCode': 'SALE_ONLINE',
-      'workScopeType': 'ONLINE',
-      'personnelCode': 'SALE_ONLINE',
+      'jobRoleCode': 'CHATSALE',
+      'workScopeType': 'REGION',
+      'regionCode': 'CHATSALE',
+      'regionAbbreviation': 'CHATSALE',
+      'personnelCode': 'CHATSALE_CHATSALE_CHATSALE_CHATSALE',
       'mustSelectStore': false,
     });
 
     expect(user.needsStoreSelection, isFalse);
     expect(user.belongsToCp62, isFalse);
     expect(user.canUseCp62RestrictedFlows, isFalse);
+  });
+
+  test('Scope definitions do not expose legacy ONLINE or MULTI_STORE', () {
+    final values = AdminWorkScopes.definitions.map((scope) => scope.value);
+
+    expect(values, containsAll(['NATIONAL', 'REGION', 'AREA', 'STORE']));
+    expect(values, isNot(contains('ONLINE')));
+    expect(values, isNot(contains('MULTI_STORE')));
   });
 
   test('User treats CP62 store name as CP62 scope', () {

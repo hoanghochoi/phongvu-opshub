@@ -58,6 +58,16 @@ export class AdminUserDto extends UpdateProfileDto {
   @IsString()
   @MaxLength(40)
   workScopeType?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  regionCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  areaCode?: string;
 }
 
 export class AdminResetPasswordDto {
@@ -81,6 +91,45 @@ export class AdminRoleDto {
   description?: string;
 }
 
+export class AdminPersonnelCatalogDto extends AdminRoleDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  departmentCode?: string;
+
+  @IsOptional()
+  isActive?: boolean;
+}
+
+export class AdminRegionDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  code?: string;
+
+  @IsString()
+  @MaxLength(80)
+  displayName!: string;
+
+  @IsString()
+  @MaxLength(40)
+  abbreviation!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  description?: string;
+
+  @IsOptional()
+  isActive?: boolean;
+}
+
+export class AdminAreaDto extends AdminRegionDto {
+  @IsString()
+  @MaxLength(40)
+  regionCode!: string;
+}
+
 export class AdminStoreDto {
   @IsOptional()
   @IsString()
@@ -91,6 +140,11 @@ export class AdminStoreDto {
   @IsString()
   @MaxLength(120)
   storeName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  areaCode?: string;
 
   @IsOptional()
   @IsString()

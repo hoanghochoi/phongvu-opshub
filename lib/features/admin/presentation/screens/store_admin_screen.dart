@@ -8,6 +8,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../domain/admin_personnel_definition.dart';
 
 class StoreAdminScreen extends StatefulWidget {
   const StoreAdminScreen({super.key});
@@ -20,6 +21,7 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
   final _repository = AuthRepository(ApiClient());
   final _searchController = TextEditingController();
   List<StoreBranch> _stores = [];
+  List<AdminAreaDefinition> _areas = [];
   bool _loading = true;
 
   @override
@@ -37,11 +39,15 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final stores = await _repository.listAdminStores(
-        query: _searchController.text,
-      );
+      final results = await Future.wait([
+        _repository.listAdminStores(query: _searchController.text),
+        _repository.listAdminAreas(),
+      ]);
       if (!mounted) return;
-      setState(() => _stores = stores);
+      setState(() {
+        _stores = results[0] as List<StoreBranch>;
+        _areas = results[1] as List<AdminAreaDefinition>;
+      });
     } catch (error) {
       if (mounted) {
         _showMessage('Chưa tải được danh sách showroom. Vui lòng thử lại.');
@@ -54,8 +60,11 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
   Future<void> _openEditor([StoreBranch? store]) async {
     final updated = await showDialog<bool>(
       context: context,
-      builder: (context) =>
-          _StoreEditorDialog(repository: _repository, store: store),
+      builder: (context) => _StoreEditorDialog(
+        repository: _repository,
+        store: store,
+        areas: _areas,
+      ),
     );
     if (updated == true) await _load();
   }
@@ -208,7 +217,9 @@ class _StoreCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -269,7 +280,8 @@ class _StoreCard extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: Theme.of(context).brightness == Brightness.dark
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
                                 ? Colors.teal[300]!
                                 : const Color(0xFF0F766E),
                             fontSize: 12,
@@ -277,6 +289,16 @@ class _StoreCard extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                      Text(
+                        store.regionAreaLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 12,
+                          height: 1.25,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -306,8 +328,13 @@ class _StoreCard extends StatelessWidget {
 class _StoreEditorDialog extends StatefulWidget {
   final AuthRepository repository;
   final StoreBranch? store;
+  final List<AdminAreaDefinition> areas;
 
-  const _StoreEditorDialog({required this.repository, this.store});
+  const _StoreEditorDialog({
+    required this.repository,
+    required this.areas,
+    this.store,
+  });
 
   @override
   State<_StoreEditorDialog> createState() => _StoreEditorDialogState();
@@ -322,6 +349,7 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
   final _bankBinController = TextEditingController();
   final _mapUsernameController = TextEditingController();
   final _mapPasswordController = TextEditingController();
+  String? _areaCode;
   bool _saving = false;
 
   @override
@@ -335,6 +363,7 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
     _bankNameController.text = store?.transferBankName ?? '';
     _bankBinController.text = store?.transferBankBin ?? '';
     _mapUsernameController.text = store?.mapVietinUsername ?? '';
+    _areaCode = store?.areaCode;
   }
 
   @override
@@ -356,6 +385,7 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
       final body = {
         'storeId': _storeIdController.text.trim().toUpperCase(),
         'storeName': _storeNameController.text.trim(),
+        'areaCode': _areaCode,
         'transferAccountNumber': _accountNumberController.text.trim(),
         'transferAccountName': _accountNameController.text.trim(),
         'transferBankName': _bankNameController.text.trim(),
@@ -403,6 +433,23 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
               TextField(
                 controller: _storeNameController,
                 decoration: const InputDecoration(labelText: 'Tên showroom'),
+              ),
+              DropdownButtonFormField<String?>(
+                initialValue: _areaCode,
+                decoration: const InputDecoration(labelText: 'Vung/Mien'),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Chua gan'),
+                  ),
+                  ...widget.areas.map(
+                    (area) => DropdownMenuItem<String?>(
+                      value: area.code,
+                      child: Text('${area.abbreviation} - ${area.title}'),
+                    ),
+                  ),
+                ],
+                onChanged: (value) => setState(() => _areaCode = value),
               ),
               TextField(
                 controller: _accountNumberController,

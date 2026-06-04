@@ -13,6 +13,9 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import type { Response } from 'express';
+import { FEATURE_KEYS } from '../feature/feature.constants';
+import { RequireFeature } from '../feature/feature.decorator';
+import { FeatureGuard } from '../feature/feature.guard';
 import { VietQrService } from './vietqr.service';
 
 @Controller('vietqr')
@@ -20,7 +23,8 @@ export class VietQrController {
   constructor(private readonly vietQrService: VietQrService) {}
 
   @Post()
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), FeatureGuard)
+  @RequireFeature(FEATURE_KEYS.VIETQR)
   async create(
     @Request() req: any,
     @Body()
@@ -45,7 +49,8 @@ export class VietQrController {
   }
 
   @Post(':id/confirm')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), FeatureGuard)
+  @RequireFeature(FEATURE_KEYS.VIETQR)
   async confirm(@Request() req: any, @Param('id') id: string) {
     return this.vietQrService.confirmPayment(req.user, id);
   }

@@ -16,6 +16,8 @@ model Store {
   id                      String   @id @default(uuid())
   storeId                 String   @unique // e.g. "HCM01", "HN02"
   storeName               String
+  areaCode                String?
+  area                    AreaDefinition? @relation(fields: [areaCode], references: [code])
   transferAccountNumber   String?
   transferAccountName     String?
   transferBankName        String?
@@ -26,6 +28,10 @@ model Store {
   updatedAt               DateTime @updatedAt
 
   users User[]
+
+  featureAccessRules FeatureAccessRule[]
+
+  @@index([areaCode])
 }
 
 model VietQrPaymentIntent {
@@ -209,6 +215,10 @@ model User {
   jobRoleCode    String?
   jobRole        JobRoleDefinition?    @relation(fields: [jobRoleCode], references: [code])
   workScopeType  String?
+  regionCode     String?
+  region         RegionDefinition?     @relation(fields: [regionCode], references: [code])
+  areaCode       String?
+  area           AreaDefinition?       @relation(fields: [areaCode], references: [code])
 
   warrantiesCreated   Warranty[]            @relation("CreatedBy")
   warrantiesHandled   Warranty[]            @relation("HandledBy")
@@ -217,10 +227,13 @@ model User {
   vietQrPayments      VietQrPaymentIntent[]
   passwordResetTokens PasswordResetToken[]
   platformSessions    UserPlatformSession[]
+  featureAccessRules   FeatureAccessRule[]
 
   @@index([departmentCode])
   @@index([jobRoleCode])
   @@index([workScopeType])
+  @@index([regionCode])
+  @@index([areaCode])
 }
 
 model UserPlatformSession {
@@ -283,10 +296,12 @@ model DepartmentDefinition {
   displayName String
   description String?
   isSystem    Boolean  @default(true)
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   users User[]
+  featureAccessRules FeatureAccessRule[]
 }
 
 model JobRoleDefinition {
@@ -296,12 +311,97 @@ model JobRoleDefinition {
   description    String?
   departmentCode String?
   isSystem       Boolean  @default(true)
+  isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   users User[]
+  featureAccessRules FeatureAccessRule[]
 
   @@index([departmentCode])
+}
+
+model RegionDefinition {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  displayName  String
+  abbreviation String
+  description  String?
+  isSystem     Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  areas AreaDefinition[]
+  users User[]
+  featureAccessRules FeatureAccessRule[]
+}
+
+model AreaDefinition {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  displayName  String
+  abbreviation String
+  description  String?
+  regionCode   String
+  region       RegionDefinition @relation(fields: [regionCode], references: [code])
+  isSystem     Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  stores Store[]
+  users User[]
+  featureAccessRules FeatureAccessRule[]
+
+  @@index([regionCode])
+}
+
+model FeatureDefinition {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  displayName String
+  description String?
+  isSystem    Boolean  @default(true)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rules FeatureAccessRule[]
+}
+
+model FeatureAccessRule {
+  id             String   @id @default(uuid())
+  featureCode    String
+  feature        FeatureDefinition @relation(fields: [featureCode], references: [code], onDelete: Cascade, onUpdate: Cascade)
+  enabled        Boolean
+  systemRole     String?
+  departmentCode String?
+  department     DepartmentDefinition? @relation(fields: [departmentCode], references: [code], onUpdate: Cascade)
+  jobRoleCode    String?
+  jobRole        JobRoleDefinition? @relation(fields: [jobRoleCode], references: [code], onUpdate: Cascade)
+  workScopeType  String?
+  regionCode     String?
+  region         RegionDefinition? @relation(fields: [regionCode], references: [code], onUpdate: Cascade)
+  areaCode       String?
+  area           AreaDefinition? @relation(fields: [areaCode], references: [code], onUpdate: Cascade)
+  storeCode      String?
+  store          Store? @relation(fields: [storeCode], references: [storeId], onUpdate: Cascade)
+  userId         String?
+  user           User? @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([featureCode])
+  @@index([systemRole])
+  @@index([departmentCode])
+  @@index([jobRoleCode])
+  @@index([workScopeType])
+  @@index([regionCode])
+  @@index([areaCode])
+  @@index([storeCode])
+  @@index([userId])
 }
 
 model EmailVerificationCode {

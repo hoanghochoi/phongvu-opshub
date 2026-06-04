@@ -14,9 +14,7 @@ import '../../../chat/presentation/widgets/barcode_scanner_screen.dart'
     show BarcodeScannerScreen;
 
 class FifoCheckScreen extends StatefulWidget {
-  final VoidCallback? onBackToHome;
-
-  const FifoCheckScreen({super.key, this.onBackToHome});
+  const FifoCheckScreen({super.key});
 
   @override
   State<FifoCheckScreen> createState() => _FifoCheckScreenState();
@@ -66,7 +64,6 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
       appBar: GradientHeader(
         title: 'Kiểm tra FIFO',
         showBack: true,
-        onBack: widget.onBackToHome,
       ),
       body: SafeArea(
         child: Consumer<FifoProvider>(

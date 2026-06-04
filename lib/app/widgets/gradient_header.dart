@@ -8,6 +8,7 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
   final bool showBack;
   final VoidCallback? onBack;
   final List<Widget>? actions;
+  final PreferredSizeWidget? bottom;
 
   const GradientHeader({
     super.key,
@@ -15,6 +16,7 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
     this.showBack = false,
     this.onBack,
     this.actions,
+    this.bottom,
   });
 
   static const LinearGradient gradient = LinearGradient(
@@ -47,7 +49,8 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(56);
+  Size get preferredSize =>
+      Size.fromHeight(kToolbarHeight + (bottom?.preferredSize.height ?? 0));
 
   @override
   Widget build(BuildContext context) {
@@ -62,6 +65,7 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
           ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: onBack)
           : null,
       actions: actions,
+      bottom: bottom,
       flexibleSpace: DecoratedBox(
         decoration: BoxDecoration(gradient: getGradient(context)),
         child: const SizedBox.expand(),

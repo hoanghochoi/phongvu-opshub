@@ -11,7 +11,14 @@ class User {
   final String? departmentCode;
   final String? jobRoleCode;
   final String? workScopeType;
+  final String? regionCode;
+  final String? regionName;
+  final String? regionAbbreviation;
+  final String? areaCode;
+  final String? areaName;
+  final String? areaAbbreviation;
   final String? personnelCode;
+  final Map<String, bool> featureAccess;
   final bool mustSelectStore;
 
   const User({
@@ -27,7 +34,14 @@ class User {
     this.departmentCode,
     this.jobRoleCode,
     this.workScopeType,
+    this.regionCode,
+    this.regionName,
+    this.regionAbbreviation,
+    this.areaCode,
+    this.areaName,
+    this.areaAbbreviation,
     this.personnelCode,
+    this.featureAccess = const {},
     this.mustSelectStore = false,
   });
 
@@ -45,14 +59,26 @@ class User {
       departmentCode: json['departmentCode']?.toString(),
       jobRoleCode: json['jobRoleCode']?.toString(),
       workScopeType: json['workScopeType']?.toString(),
+      regionCode: json['regionCode']?.toString(),
+      regionName: json['regionName']?.toString(),
+      regionAbbreviation: json['regionAbbreviation']?.toString(),
+      areaCode: json['areaCode']?.toString(),
+      areaName: json['areaName']?.toString(),
+      areaAbbreviation: json['areaAbbreviation']?.toString(),
       personnelCode: json['personnelCode']?.toString(),
+      featureAccess: _featureAccessFromJson(
+        json['resolvedFeatureAccess'] ?? json['featureAccess'],
+      ),
       mustSelectStore:
           json['mustSelectStore'] == true || json['mustSelectStore'] == 'true',
     );
   }
 
-  bool get isAdmin =>
-      role == 'ADMIN' || role == 'SUPER_ADMIN' || role == 'MANAGER';
+  bool get isAdmin {
+    final resolved = featureAccess['ADMIN'];
+    if (resolved != null) return resolved;
+    return role == 'ADMIN' || role == 'SUPER_ADMIN' || role == 'MANAGER';
+  }
 
   bool get needsStoreSelection =>
       (workScopeType ??
@@ -63,16 +89,78 @@ class User {
       (mustSelectStore || storeId == null);
 
   bool get belongsToCp62 {
-    final values = [storeId, storeName, personnelCode, workScopeType];
+    final values = [
+      storeId,
+      storeName,
+      personnelCode,
+      workScopeType,
+      regionCode,
+      areaCode,
+    ];
     return values.any((value) => value?.toUpperCase().contains('CP62') == true);
   }
 
-  bool get canUseCp62RestrictedFlows => role == 'SUPER_ADMIN' || belongsToCp62;
+  bool get canUseCp62RestrictedFlows => canUseFeature('FIFO');
 
   bool get hasNationalWorkScope =>
       role == 'SUPER_ADMIN' || workScopeType?.toUpperCase() == 'NATIONAL';
 
-  bool get canUseBankStatements => role == 'SUPER_ADMIN' || role == 'MANAGER';
+  bool get canUseBankStatements => canUseFeature('BANK_STATEMENTS');
+
+  bool canUseFeature(String featureCode) {
+    final resolved = featureAccess[featureCode];
+    if (resolved != null) return resolved;
+    if (role == 'SUPER_ADMIN') return true;
+    return switch (featureCode) {
+      'ADMIN' ||
+      'ADMIN_USERS' ||
+      'ADMIN_STORES' => role == 'ADMIN' || role == 'MANAGER',
+      'ADMIN_ROLES' ||
+      'ADMIN_REGIONS' ||
+      'ADMIN_PERSONNEL' ||
+      'ADMIN_FEATURES' => false,
+      'FIFO' || 'WARRANTY' => belongsToCp62,
+      'FIFO_IMPORT' => role == 'ADMIN',
+      'BANK_STATEMENTS' => role == 'MANAGER',
+      _ => true,
+    };
+  }
+
+  User copyWith({Map<String, bool>? featureAccess}) {
+    return User(
+      id: id,
+      email: email,
+      name: name,
+      lastName: lastName,
+      avatarUrl: avatarUrl,
+      storeId: storeId,
+      storeName: storeName,
+      role: role,
+      status: status,
+      departmentCode: departmentCode,
+      jobRoleCode: jobRoleCode,
+      workScopeType: workScopeType,
+      regionCode: regionCode,
+      regionName: regionName,
+      regionAbbreviation: regionAbbreviation,
+      areaCode: areaCode,
+      areaName: areaName,
+      areaAbbreviation: areaAbbreviation,
+      personnelCode: personnelCode,
+      featureAccess: featureAccess ?? this.featureAccess,
+      mustSelectStore: mustSelectStore,
+    );
+  }
+
+  static Map<String, bool> _featureAccessFromJson(Object? value) {
+    if (value is! Map) return const {};
+    return value.map(
+      (key, access) => MapEntry(
+        key.toString(),
+        access == true || access.toString().toLowerCase() == 'true',
+      ),
+    );
+  }
 
   String get storeInfo {
     if (storeId != null && storeName != null) {
@@ -101,8 +189,23 @@ class User {
         other.departmentCode == departmentCode &&
         other.jobRoleCode == jobRoleCode &&
         other.workScopeType == workScopeType &&
+        other.regionCode == regionCode &&
+        other.regionName == regionName &&
+        other.regionAbbreviation == regionAbbreviation &&
+        other.areaCode == areaCode &&
+        other.areaName == areaName &&
+        other.areaAbbreviation == areaAbbreviation &&
         other.personnelCode == personnelCode &&
+        _mapEquals(other.featureAccess, featureAccess) &&
         other.mustSelectStore == mustSelectStore;
+  }
+
+  static bool _mapEquals(Map<String, bool> a, Map<String, bool> b) {
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      if (b[entry.key] != entry.value) return false;
+    }
+    return true;
   }
 
   @override
@@ -118,7 +221,14 @@ class User {
       departmentCode.hashCode ^
       jobRoleCode.hashCode ^
       workScopeType.hashCode ^
+      regionCode.hashCode ^
+      regionName.hashCode ^
+      regionAbbreviation.hashCode ^
+      areaCode.hashCode ^
+      areaName.hashCode ^
+      areaAbbreviation.hashCode ^
       personnelCode.hashCode ^
+      featureAccess.hashCode ^
       mustSelectStore.hashCode;
 
   @override

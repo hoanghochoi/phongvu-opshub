@@ -25,13 +25,15 @@ import {
 
 const PASSWORD_SALT_ROUNDS = 12;
 const STORE_SCOPE = 'STORE';
+const AREA_SCOPE = 'AREA';
+const REGION_SCOPE = 'REGION';
 const NATIONAL_SCOPE = 'NATIONAL';
+const DEFAULT_REGION_CODE = 'CHUA_GAN';
 const WORK_SCOPE_TYPES = new Set([
   STORE_SCOPE,
-  'MULTI_STORE',
-  'REGION',
+  AREA_SCOPE,
+  REGION_SCOPE,
   NATIONAL_SCOPE,
-  'ONLINE',
 ]);
 
 @Injectable()
@@ -60,7 +62,7 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({
       where: { email },
-      include: { store: true },
+      include: this.userDtoInclude(),
     });
 
     if (!user) {
@@ -110,7 +112,7 @@ export class AuthService {
 
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
-      include: { store: true },
+      include: this.userDtoInclude(),
     });
 
     if (existingUser?.password) {
@@ -129,11 +131,11 @@ export class AuthService {
       ? await this.prisma.user.update({
           where: { id: existingUser.id },
           data: { firstName, lastName, password, status: 'yes' },
-          include: { store: true },
+          include: this.userDtoInclude(),
         })
       : await this.prisma.user.create({
           data: { email, firstName, lastName, password, status: 'yes' },
-          include: { store: true },
+          include: this.userDtoInclude(),
         });
 
     const session = await this.authSessionService.replacePlatformSession(
@@ -174,7 +176,7 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { store: true },
+      include: this.userDtoInclude(),
     });
     if (!user) throw new UnauthorizedException('User not found');
     if (!user.password) {
@@ -196,7 +198,7 @@ export class AuthService {
         password,
         tokenVersion: { increment: 1 },
       },
-      include: { store: true },
+      include: this.userDtoInclude(),
     });
 
     return this.buildLoginResponse(updated, session);
@@ -229,7 +231,7 @@ export class AuthService {
   async getUserData(email: string) {
     const user = await this.prisma.user.findUnique({
       where: { email },
-      include: { store: true },
+      include: this.userDtoInclude(),
     });
 
     if (!user) throw new UnauthorizedException('User not found');
@@ -246,6 +248,12 @@ export class AuthService {
       departmentCode: user.departmentCode ?? null,
       jobRoleCode: user.jobRoleCode ?? null,
       workScopeType: this.effectiveWorkScope(user),
+      regionCode: this.regionForUser(user)?.code ?? null,
+      regionName: this.regionForUser(user)?.displayName ?? null,
+      regionAbbreviation: this.regionForUser(user)?.abbreviation ?? null,
+      areaCode: this.areaForUser(user)?.code ?? null,
+      areaName: this.areaForUser(user)?.displayName ?? null,
+      areaAbbreviation: this.areaForUser(user)?.abbreviation ?? null,
       personnelCode: this.personnelCodeFor(user),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
@@ -275,6 +283,14 @@ export class AuthService {
     return bcrypt.hash(password, PASSWORD_SALT_ROUNDS);
   }
 
+  private userDtoInclude() {
+    return {
+      store: { include: { area: { include: { region: true } } } },
+      region: true,
+      area: { include: { region: true } },
+    };
+  }
+
   private buildLoginResponse(
     user: {
       id: string;
@@ -287,11 +303,19 @@ export class AuthService {
       departmentCode?: string | null;
       jobRoleCode?: string | null;
       workScopeType?: string | null;
+      regionCode?: string | null;
+      areaCode?: string | null;
       profileCompletedAt?: Date | null;
       branchLockedAt?: Date | null;
       storeId?: string | null;
       tokenVersion?: number | null;
-      store?: { storeId?: string | null; storeName?: string | null } | null;
+      region?: any | null;
+      area?: any | null;
+      store?: {
+        storeId?: string | null;
+        storeName?: string | null;
+        area?: any | null;
+      } | null;
     },
     session: AuthSessionClaims,
   ) {
@@ -321,6 +345,12 @@ export class AuthService {
       departmentCode: user.departmentCode ?? null,
       jobRoleCode: user.jobRoleCode ?? null,
       workScopeType: this.effectiveWorkScope(user),
+      regionCode: this.regionForUser(user)?.code ?? null,
+      regionName: this.regionForUser(user)?.displayName ?? null,
+      regionAbbreviation: this.regionForUser(user)?.abbreviation ?? null,
+      areaCode: this.areaForUser(user)?.code ?? null,
+      areaName: this.areaForUser(user)?.displayName ?? null,
+      areaAbbreviation: this.areaForUser(user)?.abbreviation ?? null,
       personnelCode: this.personnelCodeFor(user),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
@@ -359,18 +389,55 @@ export class AuthService {
     jobRoleCode?: string | null;
     workScopeType?: string | null;
     storeId?: string | null;
-    store?: { storeId?: string | null } | null;
+    region?: any | null;
+    area?: any | null;
+    store?: { storeId?: string | null; area?: any | null } | null;
   }) {
     const jobRoleCode = String(user.jobRoleCode || '')
       .trim()
       .toUpperCase();
     if (!jobRoleCode) return null;
     const scope = this.effectiveWorkScope(user);
+    const area = this.areaForUser(user);
+    const region = this.regionForUser(user);
+    const areaAbbr = this.scopeAbbreviation(area?.abbreviation || area?.code);
+    const regionAbbr = this.scopeAbbreviation(
+      region?.abbreviation || region?.code,
+    );
     if (scope === STORE_SCOPE) {
-      const storeCode = user.store?.storeId || user.storeId;
-      return storeCode ? `${jobRoleCode}_${storeCode}` : `${jobRoleCode}_STORE`;
+      const storeCode = this.scopeAbbreviation(user.store?.storeId || 'STORE');
+      return `${jobRoleCode}_${storeCode}_${areaAbbr}_${regionAbbr}`;
     }
-    if (scope === 'ONLINE') return jobRoleCode;
-    return `${jobRoleCode}_${scope}`;
+    if (scope === AREA_SCOPE) {
+      return `${jobRoleCode}_${areaAbbr}_${areaAbbr}_${regionAbbr}`;
+    }
+    if (scope === REGION_SCOPE) {
+      return `${jobRoleCode}_${regionAbbr}_${regionAbbr}_${regionAbbr}`;
+    }
+    return `${jobRoleCode}_NATIONAL_NATIONAL_NATIONAL`;
+  }
+
+  private areaForUser(user: any) {
+    if (this.effectiveWorkScope(user) === STORE_SCOPE) {
+      return user?.store?.area ?? user?.area ?? null;
+    }
+    return user?.area ?? user?.store?.area ?? null;
+  }
+
+  private regionForUser(user: any) {
+    if (this.effectiveWorkScope(user) === STORE_SCOPE) {
+      const storeArea = user?.store?.area ?? null;
+      return storeArea?.region ?? user?.region ?? user?.area?.region ?? null;
+    }
+    const area = this.areaForUser(user);
+    return user?.region ?? area?.region ?? user?.store?.area?.region ?? null;
+  }
+
+  private scopeAbbreviation(value?: string | null) {
+    const code = String(value || DEFAULT_REGION_CODE)
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]/g, '_');
+    return code || DEFAULT_REGION_CODE;
   }
 }

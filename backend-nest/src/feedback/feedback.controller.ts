@@ -12,10 +12,14 @@ import { FeedbackService } from './feedback.service';
 import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { imageUploadOptions } from '../upload/image-upload.options';
+import { FEATURE_KEYS } from '../feature/feature.constants';
+import { RequireFeature } from '../feature/feature.decorator';
+import { FeatureGuard } from '../feature/feature.guard';
 import { CreateFeedbackDto } from './feedback.dto';
 
 @Controller('feedback')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), FeatureGuard)
+@RequireFeature(FEATURE_KEYS.FEEDBACK)
 export class FeedbackController {
   constructor(private readonly feedbackService: FeedbackService) {}
 

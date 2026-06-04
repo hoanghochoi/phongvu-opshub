@@ -4,6 +4,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../../admin/domain/admin_feature_definition.dart';
 import '../../../admin/domain/admin_personnel_definition.dart';
 import '../../../admin/domain/admin_role_definition.dart';
 import '../auth_device_info.dart';
@@ -340,6 +341,17 @@ class AuthRepository {
     );
   }
 
+  Future<Map<String, bool>> getMyFeatureAccess() async {
+    final response = await _apiClient.get(ApiConstants.featuresMeEndpoint);
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return data.map(
+      (key, value) => MapEntry(
+        key,
+        value == true || value.toString().toLowerCase() == 'true',
+      ),
+    );
+  }
+
   Future<User> selectStore(String storeId, String email) async {
     final response = await _apiClient.post(
       ApiConstants.selectStoreEndpoint,
@@ -478,6 +490,35 @@ class AuthRepository {
     return departments;
   }
 
+  Future<AdminPersonnelDefinition> createAdminDepartment(
+    AdminPersonnelDefinition department,
+  ) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminDepartmentsEndpoint,
+      body: department.toJson(),
+    );
+    return AdminPersonnelDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<AdminPersonnelDefinition> updateAdminDepartment(
+    String code,
+    AdminPersonnelDefinition department,
+  ) async {
+    final response = await _apiClient.patch(
+      '${ApiConstants.adminDepartmentsEndpoint}/$code',
+      body: department.toJson(),
+    );
+    return AdminPersonnelDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> deleteAdminDepartment(String code) async {
+    await _apiClient.delete('${ApiConstants.adminDepartmentsEndpoint}/$code');
+  }
+
   Future<List<AdminPersonnelDefinition>> listAdminJobRoles() async {
     final response = await _apiClient.get(ApiConstants.adminJobRolesEndpoint);
     final data = jsonDecode(response.body) as List<dynamic>;
@@ -493,6 +534,222 @@ class AuthRepository {
       context: {'count': jobRoles.length},
     );
     return jobRoles;
+  }
+
+  Future<AdminPersonnelDefinition> createAdminJobRole(
+    AdminPersonnelDefinition jobRole,
+  ) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminJobRolesEndpoint,
+      body: jobRole.toJson(),
+    );
+    return AdminPersonnelDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<AdminPersonnelDefinition> updateAdminJobRole(
+    String code,
+    AdminPersonnelDefinition jobRole,
+  ) async {
+    final response = await _apiClient.patch(
+      '${ApiConstants.adminJobRolesEndpoint}/$code',
+      body: jobRole.toJson(),
+    );
+    return AdminPersonnelDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> deleteAdminJobRole(String code) async {
+    await _apiClient.delete('${ApiConstants.adminJobRolesEndpoint}/$code');
+  }
+
+  Future<List<AdminRegionDefinition>> listAdminRegions() async {
+    final response = await _apiClient.get(ApiConstants.adminRegionsEndpoint);
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map(
+          (item) =>
+              AdminRegionDefinition.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<AdminRegionDefinition> createAdminRegion(
+    AdminRegionDefinition region,
+  ) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminRegionsEndpoint,
+      body: region.toJson(),
+    );
+    return AdminRegionDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<AdminRegionDefinition> updateAdminRegion(
+    String code,
+    AdminRegionDefinition region,
+  ) async {
+    final response = await _apiClient.patch(
+      '${ApiConstants.adminRegionsEndpoint}/$code',
+      body: region.toJson(),
+    );
+    return AdminRegionDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> deleteAdminRegion(String code) async {
+    await _apiClient.delete('${ApiConstants.adminRegionsEndpoint}/$code');
+  }
+
+  Future<List<AdminAreaDefinition>> listAdminAreas({String? regionCode}) async {
+    final response = await _apiClient.get(
+      ApiConstants.adminAreasEndpoint,
+      queryParameters: regionCode?.trim().isNotEmpty == true
+          ? {'regionCode': regionCode!.trim()}
+          : null,
+    );
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map(
+          (item) => AdminAreaDefinition.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<AdminAreaDefinition> createAdminArea(AdminAreaDefinition area) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminAreasEndpoint,
+      body: area.toJson(),
+    );
+    return AdminAreaDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<AdminAreaDefinition> updateAdminArea(
+    String code,
+    AdminAreaDefinition area,
+  ) async {
+    final response = await _apiClient.patch(
+      '${ApiConstants.adminAreasEndpoint}/$code',
+      body: area.toJson(),
+    );
+    return AdminAreaDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> deleteAdminArea(String code) async {
+    await _apiClient.delete('${ApiConstants.adminAreasEndpoint}/$code');
+  }
+
+  Future<List<AdminFeatureDefinition>> listAdminFeatures() async {
+    final response = await _apiClient.get(ApiConstants.adminFeaturesEndpoint);
+    final data = jsonDecode(response.body) as List<dynamic>;
+    final features = data
+        .map(
+          (item) =>
+              AdminFeatureDefinition.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin features loaded',
+      context: {'count': features.length},
+    );
+    return features;
+  }
+
+  Future<AdminFeatureDefinition> createAdminFeature(
+    AdminFeatureDefinition feature,
+  ) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminFeaturesEndpoint,
+      body: feature.toJson(),
+    );
+    final created = AdminFeatureDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin feature created',
+      context: {'featureCode': created.code},
+    );
+    return created;
+  }
+
+  Future<AdminFeatureDefinition> updateAdminFeature(
+    String code,
+    AdminFeatureDefinition feature,
+  ) async {
+    final response = await _apiClient.patch(
+      '${ApiConstants.adminFeaturesEndpoint}/$code',
+      body: feature.toJson(),
+    );
+    final updated = AdminFeatureDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin feature updated',
+      context: {'featureCode': updated.code},
+    );
+    return updated;
+  }
+
+  Future<void> deleteAdminFeature(String code) async {
+    await _apiClient.delete('${ApiConstants.adminFeaturesEndpoint}/$code');
+    await AppLogger.instance.warn(
+      'Admin',
+      'Admin feature deleted',
+      context: {'featureCode': code},
+    );
+  }
+
+  Future<List<AdminFeatureRule>> listAdminFeatureRules({
+    String? featureCode,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConstants.adminFeatureRulesEndpoint,
+      queryParameters: featureCode?.trim().isNotEmpty == true
+          ? {'featureCode': featureCode!.trim()}
+          : null,
+    );
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map((item) => AdminFeatureRule.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<AdminFeatureRule> createAdminFeatureRule(AdminFeatureRule rule) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminFeatureRulesEndpoint,
+      body: rule.toJson(),
+    );
+    return AdminFeatureRule.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<AdminFeatureRule> updateAdminFeatureRule(
+    String id,
+    AdminFeatureRule rule,
+  ) async {
+    final response = await _apiClient.patch(
+      '${ApiConstants.adminFeatureRulesEndpoint}/$id',
+      body: rule.toJson(),
+    );
+    return AdminFeatureRule.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> deleteAdminFeatureRule(String id) async {
+    await _apiClient.delete('${ApiConstants.adminFeatureRulesEndpoint}/$id');
   }
 
   Future<List<AdminRoleDefinition>> listAdminRoles() async {

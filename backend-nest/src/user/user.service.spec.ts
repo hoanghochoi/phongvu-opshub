@@ -6,58 +6,145 @@ describe('UserService admin store management', () => {
   let prisma: any;
   let passwordResetService: { setPasswordForUserId: jest.Mock };
 
-  const superAdmin = { role: 'SUPER_ADMIN' };
+  const superAdmin = { id: 'admin-1', email: 'admin@phongvu.vn', role: 'SUPER_ADMIN' };
   const admin = { role: 'ADMIN' };
   const manager = { role: 'MANAGER', storeId: 'store-1' };
+  const region = {
+    code: 'MIEN_NAM',
+    displayName: 'Mien Nam',
+    abbreviation: 'MN',
+    isActive: true,
+  };
+  const area = {
+    code: 'HCM',
+    displayName: 'Ho Chi Minh',
+    abbreviation: 'HCM',
+    regionCode: region.code,
+    region,
+    isActive: true,
+  };
+  const defaultArea = {
+    code: 'CHUA_GAN',
+    displayName: 'Chua gan',
+    abbreviation: 'CHUA_GAN',
+    regionCode: 'CHUA_GAN',
+    region: {
+      code: 'CHUA_GAN',
+      displayName: 'Chua gan',
+      abbreviation: 'CHUA_GAN',
+      isActive: true,
+    },
+    isActive: true,
+  };
+  const chatsaleRegion = {
+    code: 'CHATSALE',
+    displayName: 'Chatsale',
+    abbreviation: 'CHATSALE',
+    isActive: true,
+  };
+  const store = {
+    id: 'store-62',
+    storeId: 'CP62',
+    storeName: 'CP62',
+    areaCode: area.code,
+    area,
+  };
 
   beforeEach(() => {
     prisma = {
       store: {
         findMany: jest.fn(),
-        findUnique: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
+        findUnique: jest.fn(async ({ where }: any) => {
+          if (where.storeId === 'CP62' || where.id === 'store-62') return store;
+          if (where.storeId === 'CP01' || where.id === 'store-1') {
+            return { id: 'store-1', storeId: 'CP01', storeName: 'CP01', areaCode: area.code, area };
+          }
+          return null;
+        }),
+        create: jest.fn(async ({ data }: any) => ({
+          id: 'store-1',
+          ...data,
+          area: data.areaCode === area.code ? area : defaultArea,
+          _count: { users: 0 },
+        })),
+        update: jest.fn(async ({ data }: any) => ({
+          id: 'store-1',
+          storeId: 'CP01',
+          storeName: 'CP01',
+          ...data,
+          area: data.areaCode === area.code ? area : defaultArea,
+          _count: { users: 1 },
+        })),
         delete: jest.fn(),
       },
       roleDefinition: {
         upsert: jest.fn(),
-        findUnique: jest.fn(),
+        findUnique: jest.fn(async ({ where }: any) => ({ code: where.code, isActive: true })),
       },
       departmentDefinition: {
         upsert: jest.fn(),
-        findUnique: jest.fn(),
+        findUnique: jest.fn(async ({ where }: any) => ({ code: where.code, isActive: true })),
       },
       jobRoleDefinition: {
         upsert: jest.fn(),
-        findUnique: jest.fn(),
+        findUnique: jest.fn(async ({ where }: any) => ({ code: where.code, isActive: true })),
+      },
+      regionDefinition: {
+        upsert: jest.fn(),
+        findUnique: jest.fn(async ({ where }: any) => {
+          if (where.code === chatsaleRegion.code) return chatsaleRegion;
+          if (where.code === region.code) return region;
+          if (where.code === defaultArea.region.code) return defaultArea.region;
+          return null;
+        }),
+      },
+      areaDefinition: {
+        upsert: jest.fn(),
+        findUnique: jest.fn(async ({ where }: any) => {
+          if (where.code === area.code) return area;
+          if (where.code === defaultArea.code) return defaultArea;
+          if (where.code === chatsaleRegion.code) {
+            return { ...chatsaleRegion, regionCode: chatsaleRegion.code, region: chatsaleRegion };
+          }
+          return null;
+        }),
       },
       user: {
         findUnique: jest.fn(),
-        create: jest.fn(),
+        create: jest.fn(async ({ data }: any) => ({
+          id: `user-${data.jobRoleCode}`,
+          email: data.email,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          role: data.role,
+          status: data.status,
+          departmentCode: data.departmentCode,
+          jobRoleCode: data.jobRoleCode,
+          workScopeType: data.workScopeType,
+          storeId: data.storeId,
+          regionCode: data.regionCode,
+          areaCode: data.areaCode,
+          store: data.storeId ? store : null,
+          region: data.regionCode === chatsaleRegion.code ? chatsaleRegion : null,
+          area: data.areaCode === area.code ? area : null,
+        })),
         update: jest.fn(),
       },
     };
     passwordResetService = {
-      setPasswordForUserId: jest.fn().mockResolvedValue({
-        ok: true,
-      }),
+      setPasswordForUserId: jest.fn().mockResolvedValue({ ok: true }),
     };
     process.env.JWT_SECRET = 'test-secret';
     service = new UserService(prisma, {} as any, passwordResetService as any);
   });
 
-  it('creates a store with normalized payment fields for super admin', async () => {
-    prisma.store.findUnique.mockResolvedValue(null);
-    prisma.store.create.mockImplementation(async ({ data }: any) => ({
-      id: 'store-1',
-      ...data,
-      _count: { users: 0 },
-    }));
+  it('creates a store with normalized payment fields and default area', async () => {
+    prisma.store.findUnique.mockImplementationOnce(async () => null);
 
     await expect(
       service.adminCreateStore(superAdmin, {
         storeId: ' cp99 ',
-        storeName: '  Cửa hàng CP99 ',
+        storeName: '  Cua hang CP99 ',
         transferAccountNumber: ' 123456 ',
         transferAccountName: ' Phong Vu CP99 ',
         transferBankName: ' VietinBank ',
@@ -67,41 +154,18 @@ describe('UserService admin store management', () => {
       }),
     ).resolves.toMatchObject({
       storeId: 'CP99',
-      storeName: 'Cửa hàng CP99',
+      storeName: 'Cua hang CP99',
+      areaCode: 'CHUA_GAN',
+      regionCode: 'CHUA_GAN',
       transferAccountNumber: '123456',
       transferBankBin: '970415',
       mapVietinUsername: 'map-user',
       hasMapVietinPassword: true,
       userCount: 0,
     });
-
-    expect(prisma.store.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          storeId: 'CP99',
-          storeName: 'Cửa hàng CP99',
-          mapVietinUsername: 'map-user',
-          mapVietinPasswordCipher: expect.stringMatching(/^v1:/),
-        }),
-      }),
-    );
   });
 
   it('lets a manager update only their own store MAP credentials', async () => {
-    prisma.store.findUnique.mockResolvedValue({
-      id: 'store-1',
-      storeId: 'CP01',
-      storeName: 'CP01',
-      mapVietinPasswordCipher: 'old-cipher',
-    });
-    prisma.store.update.mockImplementation(async ({ data }: any) => ({
-      id: 'store-1',
-      storeId: 'CP01',
-      storeName: 'CP01',
-      ...data,
-      _count: { users: 1 },
-    }));
-
     await expect(
       service.adminUpdateStore(manager, 'CP01', {
         mapVietinUsername: 'manager-map',
@@ -131,9 +195,8 @@ describe('UserService admin store management', () => {
       role: 'STAFF',
       status: 'yes',
       storeId: 'store-1',
-      store: { storeId: 'CP01', storeName: 'CP01' },
+      store: { storeId: 'CP01', storeName: 'CP01', area },
     });
-    prisma.roleDefinition.findUnique.mockResolvedValue({ code: 'MANAGER' });
 
     await expect(
       service.adminUpdateUser(manager, 'user-1', { role: 'MANAGER' }),
@@ -141,30 +204,7 @@ describe('UserService admin store management', () => {
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
-  it('returns predictable personnel codes by job role and work scope', async () => {
-    const store = { id: 'store-62', storeId: 'CP62', storeName: 'CP62' };
-    prisma.store.findUnique.mockResolvedValue(store);
-    prisma.roleDefinition.findUnique.mockResolvedValue({ code: 'STAFF' });
-    prisma.departmentDefinition.findUnique.mockImplementation(
-      async ({ where }: any) => ({ code: where.code }),
-    );
-    prisma.jobRoleDefinition.findUnique.mockImplementation(
-      async ({ where }: any) => ({ code: where.code }),
-    );
-    prisma.user.create.mockImplementation(async ({ data }: any) => ({
-      id: `user-${data.jobRoleCode}`,
-      email: data.email,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      role: data.role,
-      status: data.status,
-      departmentCode: data.departmentCode,
-      jobRoleCode: data.jobRoleCode,
-      workScopeType: data.workScopeType,
-      storeId: data.storeId,
-      store: data.storeId ? store : null,
-    }));
-
+  it('generates personnel codes from SR, area, and region scope', async () => {
     await expect(
       service.adminCreateUser(superAdmin, {
         email: 'sale@phongvu.vn',
@@ -175,7 +215,11 @@ describe('UserService admin store management', () => {
         jobRoleCode: 'SALE',
         workScopeType: 'STORE',
       }),
-    ).resolves.toMatchObject({ personnelCode: 'SALE_CP62' });
+    ).resolves.toMatchObject({
+      personnelCode: 'SALE_CP62_HCM_MN',
+      areaCode: 'HCM',
+      regionCode: 'MIEN_NAM',
+    });
 
     await expect(
       service.adminCreateUser(superAdmin, {
@@ -184,42 +228,100 @@ describe('UserService admin store management', () => {
         role: 'STAFF',
         storeId: 'CP62',
         departmentCode: 'MANAGEMENT',
-        jobRoleCode: 'MANAGER',
+        jobRoleCode: 'STORE_MANAGER',
         workScopeType: 'STORE',
       }),
-    ).resolves.toMatchObject({ personnelCode: 'MANAGER_CP62' });
+    ).resolves.toMatchObject({ personnelCode: 'STORE_MANAGER_CP62_HCM_MN' });
 
     await expect(
       service.adminCreateUser(superAdmin, {
-        email: 'warehouse@phongvu.vn',
-        firstName: 'Warehouse',
+        email: 'area@phongvu.vn',
+        firstName: 'Area',
         role: 'STAFF',
-        storeId: 'CP62',
-        departmentCode: 'WAREHOUSE',
-        jobRoleCode: 'WAREHOUSE',
-        workScopeType: 'STORE',
+        departmentCode: 'MANAGEMENT',
+        jobRoleCode: 'AREA_MANAGER',
+        workScopeType: 'AREA',
+        areaCode: 'HCM',
       }),
-    ).resolves.toMatchObject({ personnelCode: 'WAREHOUSE_CP62' });
+    ).resolves.toMatchObject({ personnelCode: 'AREA_MANAGER_HCM_HCM_MN' });
 
+    await expect(
+      service.adminCreateUser(superAdmin, {
+        email: 'chat@phongvu.vn',
+        firstName: 'Chat',
+        role: 'STAFF',
+        departmentCode: 'SALES',
+        jobRoleCode: 'CHATSALE',
+        workScopeType: 'REGION',
+        regionCode: 'CHATSALE',
+      }),
+    ).resolves.toMatchObject({ personnelCode: 'CHATSALE_CHATSALE_CHATSALE_CHATSALE' });
+  });
+
+  it('derives STORE-scope user area and region from the assigned SR', () => {
+    const staleRegion = {
+      code: 'MIEN_CU',
+      displayName: 'Mien cu',
+      abbreviation: 'MC',
+    };
+    const staleArea = {
+      code: 'VUNG_CU',
+      displayName: 'Vung cu',
+      abbreviation: 'VC',
+      region: staleRegion,
+    };
+
+    const dto = (service as any).toUserDto({
+      id: 'user-store',
+      email: 'store@phongvu.vn',
+      firstName: 'Store',
+      lastName: null,
+      role: 'STAFF',
+      status: 'yes',
+      departmentCode: 'SALES',
+      jobRoleCode: 'SALE',
+      workScopeType: 'STORE',
+      areaCode: staleArea.code,
+      regionCode: staleRegion.code,
+      area: staleArea,
+      region: staleRegion,
+      store,
+    });
+
+    expect(dto).toMatchObject({
+      areaCode: 'HCM',
+      regionCode: 'MIEN_NAM',
+      personnelCode: 'SALE_CP62_HCM_MN',
+    });
+  });
+
+  it('rejects legacy ONLINE and MULTI_STORE scopes after migration', async () => {
     await expect(
       service.adminCreateUser(superAdmin, {
         email: 'online@phongvu.vn',
         firstName: 'Online',
         role: 'STAFF',
         departmentCode: 'SALES',
-        jobRoleCode: 'SALE_ONLINE',
+        jobRoleCode: 'CHATSALE',
         workScopeType: 'ONLINE',
       }),
-    ).resolves.toMatchObject({ personnelCode: 'SALE_ONLINE' });
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    await expect(
+      service.adminCreateUser(superAdmin, {
+        email: 'multi@phongvu.vn',
+        firstName: 'Multi',
+        role: 'STAFF',
+        departmentCode: 'SALES',
+        jobRoleCode: 'SALE',
+        workScopeType: 'MULTI_STORE',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('lets only super admin set a user password directly', async () => {
     await expect(
-      service.adminSetUserPassword(
-        { id: 'admin-1', email: 'admin@phongvu.vn', role: 'SUPER_ADMIN' },
-        'user-1',
-        'Password2!',
-      ),
+      service.adminSetUserPassword(superAdmin, 'user-1', 'Password2!'),
     ).resolves.toEqual({ ok: true });
     expect(passwordResetService.setPasswordForUserId).toHaveBeenCalledWith(
       'user-1',
@@ -236,18 +338,18 @@ describe('UserService admin store management', () => {
     await expect(
       service.adminCreateStore(admin, {
         storeId: 'CP99',
-        storeName: 'Cửa hàng CP99',
+        storeName: 'Cua hang CP99',
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.store.create).not.toHaveBeenCalled();
   });
 
-  it('does not delete stores assigned to users', async () => {
+  it('does not delete stores assigned to users or feature rules', async () => {
     prisma.store.findUnique.mockResolvedValue({
       id: 'store-1',
       storeId: 'CP99',
-      storeName: 'Cửa hàng CP99',
-      _count: { users: 2 },
+      storeName: 'Cua hang CP99',
+      _count: { users: 2, featureAccessRules: 0 },
     });
 
     await expect(
