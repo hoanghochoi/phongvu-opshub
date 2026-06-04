@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Tải bản mới nhất của PhongVu OpsHub cho Android và Windows.">
+  <title>Tải PhongVu OpsHub</title>
+  <link rel="icon" href="/downloads/opshub-icon-192.png">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --surface-soft: #eef4ff;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d9e1ef;
+      --primary: #1458d4;
+      --primary-dark: #0d3f9a;
+      --danger: #b42318;
+      --ok: #027a48;
+      --shadow: 0 16px 50px rgba(15, 23, 42, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(20, 88, 212, 0.12), transparent 30rem),
+        linear-gradient(180deg, #ffffff 0%, var(--bg) 48%, #eef2f8 100%);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .page {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 40px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 56px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand img {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      box-shadow: 0 8px 22px rgba(20, 88, 212, 0.24);
+    }
+
+    .brand-name {
+      display: block;
+      font-size: 15px;
+      font-weight: 750;
+      line-height: 1.2;
+    }
+
+    .brand-subtitle {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.25;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.8);
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 0.95fr) minmax(340px, 1.05fr);
+      gap: 32px;
+      align-items: center;
+      padding: 52px 0 28px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      padding: 6px 10px;
+      border: 1px solid rgba(20, 88, 212, 0.18);
+      border-radius: 999px;
+      background: var(--surface-soft);
+      color: var(--primary-dark);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    h1 {
+      max-width: 680px;
+      margin: 18px 0 14px;
+      font-size: clamp(34px, 5vw, 56px);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 620px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.65;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .meta-chip {
+      min-height: 36px;
+      padding: 8px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.74);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .meta-chip strong {
+      color: var(--ink);
+      font-weight: 750;
+    }
+
+    .download-panel {
+      padding: 18px;
+      border: 1px solid rgba(217, 225, 239, 0.88);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 19px;
+      line-height: 1.25;
+    }
+
+    .panel-subtitle {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .download-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .download-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      min-height: 96px;
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .download-card.primary {
+      border-color: rgba(20, 88, 212, 0.3);
+      background: linear-gradient(180deg, #ffffff 0%, #f3f7ff 100%);
+    }
+
+    .card-title-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #eaf2ff;
+      color: var(--primary-dark);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .card-copy {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .file-meta {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .download-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 128px;
+      min-height: 42px;
+      padding: 10px 14px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1;
+      text-decoration: none;
+      transition: background 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+    }
+
+    .download-button:hover {
+      background: var(--primary-dark);
+      box-shadow: 0 10px 24px rgba(20, 88, 212, 0.24);
+      transform: translateY(-1px);
+    }
+
+    .download-button.secondary {
+      border-color: var(--line);
+      background: #ffffff;
+      color: var(--ink);
+    }
+
+    .download-button.secondary:hover {
+      background: #f6f8fc;
+      box-shadow: none;
+    }
+
+    .download-button[aria-disabled="true"] {
+      pointer-events: none;
+      background: #d0d5dd;
+      color: #667085;
+    }
+
+    .checksum-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .checksum-row a {
+      color: var(--primary-dark);
+      font-weight: 750;
+      text-decoration: none;
+    }
+
+    .message {
+      margin-top: 20px;
+      padding: 14px 15px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .message.error {
+      border-color: rgba(180, 35, 24, 0.28);
+      background: #fff4f3;
+      color: var(--danger);
+    }
+
+    .message.success {
+      border-color: rgba(2, 122, 72, 0.24);
+      background: #ecfdf3;
+      color: var(--ok);
+    }
+
+    .skeleton {
+      position: relative;
+      overflow: hidden;
+      color: transparent;
+      background: #e7edf6;
+      border-radius: 6px;
+    }
+
+    .skeleton::after {
+      position: absolute;
+      inset: 0;
+      content: "";
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
+      transform: translateX(-100%);
+      animation: shimmer 1.4s infinite;
+    }
+
+    @keyframes shimmer {
+      to {
+        transform: translateX(100%);
+      }
+    }
+
+    @media (max-width: 860px) {
+      .page {
+        width: min(100% - 24px, 680px);
+        padding-top: 20px;
+      }
+
+      .topbar {
+        align-items: flex-start;
+      }
+
+      .status-pill {
+        white-space: normal;
+        text-align: right;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+        gap: 24px;
+        padding-top: 36px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .download-panel {
+        padding: 12px;
+      }
+
+      .download-card {
+        grid-template-columns: 1fr;
+      }
+
+      .download-button {
+        width: 100%;
+      }
+
+      .panel-head {
+        display: block;
+      }
+
+      .status-pill {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar" aria-label="PhongVu OpsHub">
+      <div class="brand">
+        <img src="/downloads/opshub-icon-192.png" alt="PhongVu OpsHub">
+        <span>
+          <span class="brand-name">PhongVu OpsHub</span>
+          <span class="brand-subtitle">Internal operations app</span>
+        </span>
+      </div>
+      <span class="status-pill" id="headerStatus">Đang kiểm tra bản mới nhất</span>
+    </header>
+
+    <section class="hero">
+      <div>
+        <span class="eyebrow">Download center</span>
+        <h1>Tải PhongVu OpsHub</h1>
+        <p class="lead">
+          Chọn đúng gói cài đặt cho máy đang dùng. Windows nên dùng bản setup EXE để tự cài prerequisite; ZIP chỉ dành cho trường hợp portable/manual.
+        </p>
+        <div class="meta-row" aria-live="polite">
+          <span class="meta-chip">Phiên bản: <strong id="versionText">--</strong></span>
+          <span class="meta-chip">Build: <strong id="buildText">--</strong></span>
+          <span class="meta-chip">Cập nhật: <strong id="publishedText">--</strong></span>
+        </div>
+      </div>
+
+      <section class="download-panel" aria-labelledby="downloadTitle">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title" id="downloadTitle">Bản mới nhất</h2>
+            <p class="panel-subtitle" id="releaseNotes">Đang tải thông tin phát hành.</p>
+          </div>
+        </div>
+
+        <div class="download-list" id="downloadList">
+          <article class="download-card primary">
+            <div>
+              <div class="card-title-row">
+                <span class="card-title skeleton">Windows installer</span>
+              </div>
+              <p class="card-copy skeleton">Đang tải dữ liệu.</p>
+              <div class="file-meta skeleton">--</div>
+            </div>
+            <a class="download-button" aria-disabled="true">Đang tải</a>
+          </article>
+        </div>
+
+        <div class="checksum-row" id="checksumRow" hidden></div>
+        <div class="message" id="stateMessage">Đang lấy manifest mới nhất từ server.</div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const manifestUrl = '/downloads/latest.json';
+    const downloadList = document.getElementById('downloadList');
+    const checksumRow = document.getElementById('checksumRow');
+    const stateMessage = document.getElementById('stateMessage');
+    const headerStatus = document.getElementById('headerStatus');
+    const versionText = document.getElementById('versionText');
+    const buildText = document.getElementById('buildText');
+    const publishedText = document.getElementById('publishedText');
+    const releaseNotes = document.getElementById('releaseNotes');
+
+    const downloads = [
+      {
+        key: 'windowsInstaller',
+        title: 'Windows setup EXE',
+        badge: 'Khuyên dùng',
+        description: 'Cài đặt chuẩn cho Windows, có kiểm tra prerequisite và cấu hình cần thiết.',
+        button: 'Tải EXE',
+        primary: true,
+      },
+      {
+        key: 'apk',
+        title: 'Android APK',
+        badge: 'Android',
+        description: 'Dành cho điện thoại Android, cài đè để cập nhật khi cùng signing key.',
+        button: 'Tải APK',
+        primary: false,
+      },
+      {
+        key: 'windowsZip',
+        title: 'Windows portable ZIP',
+        badge: 'Manual',
+        description: 'Gói ZIP cho triển khai thủ công; không tự cài prerequisite như bản setup.',
+        button: 'Tải ZIP',
+        primary: false,
+      },
+    ];
+
+    loadManifest();
+
+    async function loadManifest() {
+      try {
+        const response = await fetch(`${manifestUrl}?t=${Date.now()}`, { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const manifest = await response.json();
+        renderManifest(manifest);
+      } catch (error) {
+        renderError(error);
+      }
+    }
+
+    function renderManifest(manifest) {
+      const files = manifest.files || {};
+      versionText.textContent = manifest.version || '--';
+      buildText.textContent = manifest.build || '--';
+      publishedText.textContent = formatDate(manifest.publishedAt);
+      releaseNotes.textContent = manifest.releaseNotes || 'Không có release notes.';
+      headerStatus.textContent = 'Manifest đã sẵn sàng';
+
+      downloadList.innerHTML = downloads.map((item) => renderCard(item, files[item.key])).join('');
+      renderChecksum(files.windowsChecksum);
+
+      stateMessage.className = 'message success';
+      stateMessage.textContent = 'Các link tải được lấy từ manifest mới nhất.';
+    }
+
+    function renderCard(item, file) {
+      const disabled = !file || !file.url;
+      const safeUrl = disabled ? '#' : escapeAttr(file.url);
+      const buttonClass = item.primary ? 'download-button' : 'download-button secondary';
+      const fileMeta = disabled
+        ? 'Chưa có file trong manifest.'
+        : `${escapeHtml(file.fileName || 'download')} · ${formatBytes(file.sizeBytes)}`;
+      return `
+        <article class="download-card${item.primary ? ' primary' : ''}">
+          <div>
+            <div class="card-title-row">
+              <span class="card-title">${escapeHtml(item.title)}</span>
+              <span class="tag">${escapeHtml(item.badge)}</span>
+            </div>
+            <p class="card-copy">${escapeHtml(item.description)}</p>
+            <div class="file-meta">${fileMeta}</div>
+          </div>
+          <a class="${buttonClass}" href="${safeUrl}"${disabled ? ' aria-disabled="true"' : ''} download>${escapeHtml(item.button)}</a>
+        </article>`;
+    }
+
+    function renderChecksum(file) {
+      if (!file || !file.url) {
+        checksumRow.hidden = true;
+        checksumRow.innerHTML = '';
+        return;
+      }
+      checksumRow.hidden = false;
+      checksumRow.innerHTML = `SHA256 Windows: <a href="${escapeAttr(file.url)}" download>${escapeHtml(file.fileName || 'checksum')}</a>`;
+    }
+
+    function renderError(error) {
+      headerStatus.textContent = 'Không lấy được manifest';
+      releaseNotes.textContent = 'Không thể tải thông tin phát hành.';
+      downloadList.innerHTML = downloads.map((item) => renderCard(item, null)).join('');
+      checksumRow.hidden = true;
+      stateMessage.className = 'message error';
+      stateMessage.textContent = `Không lấy được manifest mới nhất (${error.message}). Vui lòng thử lại sau.`;
+    }
+
+    function formatBytes(value) {
+      const bytes = Number(value);
+      if (!Number.isFinite(bytes) || bytes <= 0) return '--';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let size = bytes;
+      let unit = 0;
+      while (size >= 1024 && unit < units.length - 1) {
+        size /= 1024;
+        unit += 1;
+      }
+      return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+    }
+
+    function formatDate(value) {
+      const timestamp = Date.parse(value);
+      if (!Number.isFinite(timestamp)) return '--';
+      return new Intl.DateTimeFormat('vi-VN', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(new Date(timestamp));
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"]/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+      }[char]));
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>

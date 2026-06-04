@@ -5,6 +5,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      skip_client_build:
+        description: Deploy only the /download landing page and latest manifest from live artifacts.
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -56,6 +62,7 @@ jobs:
   build_android:
     runs-on: ubuntu-latest
     needs: prepare
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -109,6 +116,7 @@ jobs:
   build_windows:
     runs-on: windows-latest
     needs: prepare
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -261,6 +269,7 @@ jobs:
       - prepare
       - build_android
       - build_windows
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -276,6 +285,25 @@ jobs:
         with:
           name: windows-client
           path: dist/windows
+
+      - name: Write download manifest
+        shell: bash
+        env:
+          DOWNLOAD_MANIFEST_OUTPUT: dist/downloads/latest.json
+          APP_VERSION: ${{ needs.prepare.outputs.version_name }}
+          APP_BUILD_NUMBER: ${{ needs.prepare.outputs.version_code }}
+          APP_RELEASE_NOTES: ${{ needs.prepare.outputs.release_notes }}
+          APK_FILE_NAME: ${{ needs.prepare.outputs.apk_name }}
+          APK_FILE_PATH: dist/android/app-release.apk
+          WINDOWS_INSTALLER_FILE_NAME: ${{ needs.prepare.outputs.windows_installer_name }}
+          WINDOWS_INSTALLER_FILE_PATH: dist/windows/${{ needs.prepare.outputs.windows_installer_name }}
+          WINDOWS_ZIP_FILE_NAME: ${{ needs.prepare.outputs.windows_zip_name }}
+          WINDOWS_ZIP_FILE_PATH: dist/windows/${{ needs.prepare.outputs.windows_zip_name }}
+          WINDOWS_CHECKSUM_FILE_NAME: ${{ needs.prepare.outputs.windows_checksum_name }}
+          WINDOWS_CHECKSUM_FILE_PATH: dist/windows/${{ needs.prepare.outputs.windows_checksum_name }}
+        run: |
+          set -euo pipefail
+          node scripts/download-manifest.mjs from-artifacts
 
       - name: Connect Tailscale
         uses: tailscale/github-action@v4
@@ -329,6 +357,12 @@ jobs:
 
           scp 'dist/windows/${{ needs.prepare.outputs.windows_checksum_name }}' \
             'opshub-vps:/srv/opshub/downloads/${{ needs.prepare.outputs.windows_checksum_name }}'
+          scp 'dist/downloads/latest.json' \
+            'opshub-vps:/srv/opshub/downloads/latest.json'
+          scp 'deploy/home-server/download.html' \
+            'opshub-vps:/srv/opshub/downloads/download.html'
+          scp 'web/icons/Icon-192.png' \
+            'opshub-vps:/srv/opshub/downloads/opshub-icon-192.png'
 
       - name: Deploy backend and publish version metadata
         shell: bash
@@ -385,6 +419,11 @@ jobs:
           upsert_env APP_WINDOWS_APP_UPDATE_URL "$WINDOWS_UPDATE_URL"
           upsert_env APP_WINDOWS_APP_RELEASE_NOTES "$APP_RELEASE_NOTES"
           upsert_env APP_WINDOWS_APP_FORCE_UPDATE true
+
+          docker run --rm \
+            --env-file "$OPSHUB_ENV_FILE" \
+            -v "$REMOTE_RELEASE_DIR/deploy/home-server/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
 
           ln -sfn "$REMOTE_RELEASE_DIR" "${CURRENT_DIR}.next"
           mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
@@ -466,3 +505,194 @@ jobs:
           " "$android_json" "$windows_json" "${{ needs.prepare.outputs.version_code }}"
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$android_json")" >/dev/null
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$windows_json")" >/dev/null
+          retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
+          manifest_json="$(retry_curl "${OPSHUB_PUBLIC_BASE_URL}/downloads/latest.json")"
+          node -e "
+            const manifest = JSON.parse(process.argv[1]);
+            const expectedVersion = process.argv[2];
+            const expectedBuild = Number(process.argv[3]);
+            if (manifest.version !== expectedVersion) {
+              throw new Error('Download manifest version expected ' + expectedVersion + ', got ' + manifest.version);
+            }
+            if (manifest.build !== expectedBuild) {
+              throw new Error('Download manifest build expected ' + expectedBuild + ', got ' + manifest.build);
+            }
+            const required = ['apk', 'windowsInstaller', 'windowsZip', 'windowsChecksum'];
+            for (const key of required) {
+              const file = manifest.files?.[key];
+              if (!file?.url || !file?.fileName || !Number.isInteger(file.sizeBytes) || file.sizeBytes <= 0) {
+                throw new Error('Download manifest file entry is invalid: ' + key);
+              }
+            }
+            if (!manifest.files.apk.url.endsWith('.apk')) throw new Error('APK URL is invalid');
+            if (!manifest.files.windowsInstaller.url.endsWith('.exe')) throw new Error('Windows installer URL is invalid');
+            if (!manifest.files.windowsZip.url.endsWith('.zip')) throw new Error('Windows ZIP URL is invalid');
+            if (!manifest.files.windowsChecksum.url.endsWith('.sha256')) throw new Error('Windows checksum URL is invalid');
+          " "$manifest_json" "${{ needs.prepare.outputs.version_name }}" "${{ needs.prepare.outputs.version_code }}"
+          node -e "
+            const manifest = JSON.parse(process.argv[1]);
+            for (const file of Object.values(manifest.files)) console.log(file.url);
+          " "$manifest_json" | while IFS= read -r url; do
+            curl -fIs "$url" >/dev/null
+          done
+
+  deploy_download_static:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_client_build == true }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Confirm static-only deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'Static-only deploy requested; Android and Windows build jobs are skipped.'
+
+      - name: Capture live app-version metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/downloads
+          curl -fsS "${OPSHUB_API_BASE_URL}/app-version?platform=android" > dist/downloads/android-before.json
+          curl -fsS "${OPSHUB_API_BASE_URL}/app-version?platform=windows" > dist/downloads/windows-before.json
+
+      - name: Write download manifest from live artifacts
+        shell: bash
+        env:
+          DOWNLOAD_MANIFEST_OUTPUT: dist/downloads/latest.json
+        run: |
+          set -euo pipefail
+          node scripts/download-manifest.mjs from-live
+
+      - name: Connect Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          ping: ${{ secrets.OPSHUB_VPS_HOST }}
+          version: latest
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          VPS_HOST: ${{ secrets.OPSHUB_VPS_HOST }}
+          VPS_PORT: ${{ secrets.OPSHUB_VPS_PORT || '22' }}
+          VPS_USER: ${{ secrets.OPSHUB_VPS_USER || 'ubuntu' }}
+          VPS_SSH_KEY: ${{ secrets.OPSHUB_VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/opshub_deploy_key
+          chmod 600 ~/.ssh/opshub_deploy_key
+          ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts
+          {
+            echo "Host opshub-vps"
+            echo "  HostName $VPS_HOST"
+            echo "  Port $VPS_PORT"
+            echo "  User $VPS_USER"
+            echo "  IdentityFile ~/.ssh/opshub_deploy_key"
+            echo "  IdentitiesOnly yes"
+          } >> ~/.ssh/config
+
+      - name: Upload download landing files and reload Caddy
+        shell: bash
+        run: |
+          set -euo pipefail
+          caddy_tmp="/tmp/opshub-Caddyfile-${GITHUB_SHA}"
+          ssh opshub-vps "mkdir -p /srv/opshub/downloads"
+          scp 'dist/downloads/latest.json' \
+            'opshub-vps:/srv/opshub/downloads/latest.json'
+          scp 'deploy/home-server/download.html' \
+            'opshub-vps:/srv/opshub/downloads/download.html'
+          scp 'web/icons/Icon-192.png' \
+            'opshub-vps:/srv/opshub/downloads/opshub-icon-192.png'
+          scp 'deploy/home-server/Caddyfile' "opshub-vps:${caddy_tmp}"
+
+          ssh opshub-vps \
+            "CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
+             OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
+             CADDY_TMP='$caddy_tmp' \
+             bash -s" <<'REMOTE'
+          set -euo pipefail
+          if [ ! -d "$CURRENT_DIR/deploy/home-server" ]; then
+            echo "Current deploy directory is missing: $CURRENT_DIR/deploy/home-server" >&2
+            exit 1
+          fi
+          docker run --rm \
+            --env-file "$OPSHUB_ENV_FILE" \
+            -v "$CADDY_TMP:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+          install -m 0644 "$CADDY_TMP" "$CURRENT_DIR/deploy/home-server/Caddyfile"
+          rm -f "$CADDY_TMP"
+          cd "$CURRENT_DIR"
+          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
+            --env-file "$OPSHUB_ENV_FILE" \
+            -f deploy/home-server/docker-compose.home.yml \
+            up -d --no-deps caddy
+          if ! docker compose \
+            --env-file "$OPSHUB_ENV_FILE" \
+            -f deploy/home-server/docker-compose.home.yml \
+            exec -T caddy caddy reload --config /etc/caddy/Caddyfile; then
+            docker compose \
+              --env-file "$OPSHUB_ENV_FILE" \
+              -f deploy/home-server/docker-compose.home.yml \
+              restart caddy
+          fi
+          docker compose \
+            --env-file "$OPSHUB_ENV_FILE" \
+            -f deploy/home-server/docker-compose.home.yml \
+            ps caddy
+          REMOTE
+
+      - name: Verify static download deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          retry_curl() {
+            local url="$1"
+            local attempt
+            for attempt in {1..12}; do
+              if curl -fsS "$url"; then
+                return 0
+              fi
+              sleep 5
+            done
+            curl -fsS "$url"
+          }
+
+          retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
+          manifest_json="$(retry_curl "${OPSHUB_PUBLIC_BASE_URL}/downloads/latest.json")"
+          android_after="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android")"
+          windows_after="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows")"
+          node -e "
+            const fs = require('node:fs');
+            const manifest = JSON.parse(process.argv[1]);
+            const androidBefore = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+            const windowsBefore = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+            const androidAfter = JSON.parse(process.argv[4]);
+            const windowsAfter = JSON.parse(process.argv[5]);
+            if (JSON.stringify(androidBefore) !== JSON.stringify(androidAfter)) {
+              throw new Error('Android app-version changed during static-only deploy');
+            }
+            if (JSON.stringify(windowsBefore) !== JSON.stringify(windowsAfter)) {
+              throw new Error('Windows app-version changed during static-only deploy');
+            }
+            if (manifest.version !== androidAfter.latestVersion || manifest.build !== androidAfter.latestBuild) {
+              throw new Error('Download manifest does not match live Android metadata');
+            }
+            const required = ['apk', 'windowsInstaller', 'windowsZip', 'windowsChecksum'];
+            for (const key of required) {
+              const file = manifest.files?.[key];
+              if (!file?.url || !file?.fileName || !Number.isInteger(file.sizeBytes) || file.sizeBytes <= 0) {
+                throw new Error('Download manifest file entry is invalid: ' + key);
+              }
+            }
+          " "$manifest_json" dist/downloads/android-before.json dist/downloads/windows-before.json "$android_after" "$windows_after"
+          node -e "
+            const manifest = JSON.parse(process.argv[1]);
+            for (const file of Object.values(manifest.files)) console.log(file.url);
+          " "$manifest_json" | while IFS= read -r url; do
+            curl -fIs "$url" >/dev/null
+          done

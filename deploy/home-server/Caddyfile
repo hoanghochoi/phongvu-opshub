@@ -13,10 +13,22 @@ http://{$OPSHUB_DOMAIN} {
     reverse_proxy api:3000
   }
 
+  handle /download/ {
+    redir /download 308
+  }
+
+  handle /download {
+    root * /srv/downloads
+    rewrite * /download.html
+    file_server
+  }
+
   handle_path /uploads/* {
     root * /srv/uploads
     file_server
   }
+
+  header /downloads/latest.json Cache-Control "no-store, no-cache, must-revalidate"
 
   handle_path /downloads/* {
     root * /srv/downloads
