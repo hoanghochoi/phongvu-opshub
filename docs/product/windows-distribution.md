@@ -22,6 +22,13 @@
 - Direct downloads still publish a SHA256 checksum file beside the Windows ZIP
   and installer EXE. The checksum is generated after signing, so it matches the
   final downloadable files.
+- The staff download page is served at `/download` and reads
+  `/downloads/latest.json` for the current APK, Windows installer, Windows ZIP,
+  and checksum links.
+- Manual GitHub Actions dispatch with `skip_client_build=true` may update only
+  the download landing page, Caddy route, icon, and manifest from already live
+  artifacts. This path must not create a new Windows package, change app-version
+  metadata, or repack an existing version.
 - Browser warnings for uncommon downloads can still appear on public browser
   download paths. For internal rollout, prefer managed deployment, trusted
   intranet download, or an IT allow-list over asking staff to bypass warnings.
@@ -76,6 +83,8 @@ Import-Certificate -FilePath .\opshub-codesign.cer `
   trusted the public `.cer`; the target staff PCs must trust the certificate for
   Windows to treat the publisher as trusted.
 - Publish the installer EXE, portable ZIP, and `.sha256` file together.
+- Verify `/download` and `/downloads/latest.json` point to the same installer,
+  portable ZIP, and checksum files after release.
 - Do not rebuild or repack an already published version under the same name.
 - Scan final artifacts with Microsoft Defender before rollout.
 - If Defender, Edge, Chrome, or Safe Browsing flags the file as malware or

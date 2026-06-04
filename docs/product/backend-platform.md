@@ -13,6 +13,8 @@ development services for OpsHub.
 - Prisma owns the database schema.
 - BigQuery configuration is required for inventory-related backend behavior.
 - Mobile update metadata is exposed by `GET /app-version`.
+- Staff client downloads are exposed by `GET /download`, backed by the public
+  manifest at `GET /downloads/latest.json`.
 
 ## Health Checks
 
@@ -35,6 +37,11 @@ curl http://localhost:3000/app-version
   `APP_UPDATE_URL`, `APP_RELEASE_NOTES`, and `APP_FORCE_UPDATE` when shipping
   a mobile APK. Clients compare `APP_BUILD_NUMBER` with their installed build
   number and open `APP_UPDATE_URL` when an update is required.
+- Full GitHub deploys publish `/downloads/latest.json` for the download landing
+  page after APK, Windows installer, Windows ZIP, and checksum artifacts are
+  available. Manual `workflow_dispatch` with `skip_client_build=true` refreshes
+  only the static download page and manifest from existing live artifacts; it
+  must not change app-version metadata or rebuild client packages.
 
 ## Expected Proof
 
