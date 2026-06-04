@@ -19,6 +19,7 @@ import { AppVersionModule } from './app-version/app-version.module';
 import { MapVietinModule } from './map-vietin/map-vietin.module';
 import { PaymentNotificationsModule } from './payment-notifications/payment-notifications.module';
 import { FifoModule } from './fifo/fifo.module';
+import { FeatureModule } from './feature/feature.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { FifoModule } from './fifo/fifo.module';
     FifoLogModule,
     VietQrModule,
     AppVersionModule,
+    FeatureModule,
     PaymentNotificationsModule,
     MapVietinModule,
     FifoModule,

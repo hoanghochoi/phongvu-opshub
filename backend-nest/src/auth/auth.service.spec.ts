@@ -424,25 +424,70 @@ describe('AuthService', () => {
     });
   });
 
-  it('uses work scope when deciding branch selection and personnel code', async () => {
+  it('uses region scope when deciding branch selection and personnel code', async () => {
     prisma.user.findUnique.mockResolvedValue({
       storeId: null,
       firstName: 'Sale',
       role: 'STAFF',
       status: 'yes',
       departmentCode: 'SALES',
-      jobRoleCode: 'SALE_ONLINE',
-      workScopeType: 'ONLINE',
+      jobRoleCode: 'CHATSALE',
+      workScopeType: 'REGION',
+      regionCode: 'CHATSALE',
+      region: {
+        code: 'CHATSALE',
+        displayName: 'Chatsale',
+        abbreviation: 'CHATSALE',
+      },
       store: null,
     });
 
     await expect(
       service.getUserData('online@phongvu-shop.vn'),
     ).resolves.toMatchObject({
-      jobRoleCode: 'SALE_ONLINE',
-      workScopeType: 'ONLINE',
-      personnelCode: 'SALE_ONLINE',
+      jobRoleCode: 'CHATSALE',
+      workScopeType: 'REGION',
+      regionCode: 'CHATSALE',
+      personnelCode: 'CHATSALE_CHATSALE_CHATSALE_CHATSALE',
       mustSelectStore: false,
+    });
+  });
+
+  it('derives STORE-scope profile area and region from the assigned SR', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      storeId: 'store-62',
+      firstName: 'Sale',
+      role: 'STAFF',
+      status: 'yes',
+      departmentCode: 'SALES',
+      jobRoleCode: 'SALE',
+      workScopeType: 'STORE',
+      areaCode: 'VUNG_CU',
+      regionCode: 'MIEN_CU',
+      area: {
+        code: 'VUNG_CU',
+        displayName: 'Vung cu',
+        abbreviation: 'VC',
+        region: { code: 'MIEN_CU', displayName: 'Mien cu', abbreviation: 'MC' },
+      },
+      region: { code: 'MIEN_CU', displayName: 'Mien cu', abbreviation: 'MC' },
+      store: {
+        storeId: 'CP62',
+        storeName: 'CP62',
+        area: {
+          code: 'HCM',
+          displayName: 'Ho Chi Minh',
+          abbreviation: 'HCM',
+          region: { code: 'MIEN_NAM', displayName: 'Mien Nam', abbreviation: 'MN' },
+        },
+      },
+    });
+
+    await expect(service.getUserData('sale@phongvu.vn')).resolves.toMatchObject({
+      workScopeType: 'STORE',
+      areaCode: 'HCM',
+      regionCode: 'MIEN_NAM',
+      personnelCode: 'SALE_CP62_HCM_MN',
     });
   });
 

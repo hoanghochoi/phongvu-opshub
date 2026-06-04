@@ -11,10 +11,14 @@ import {
 } from '@nestjs/common';
 import { WarrantyService } from './warranty.service';
 import { AuthGuard } from '@nestjs/passport';
+import { FEATURE_KEYS } from '../feature/feature.constants';
+import { RequireFeature } from '../feature/feature.decorator';
+import { FeatureGuard } from '../feature/feature.guard';
 import { CreateWarrantyDto, UpdateWarrantyStatusDto } from './warranty.dto';
 
 @Controller('warranties')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), FeatureGuard)
+@RequireFeature(FEATURE_KEYS.WARRANTY)
 export class WarrantyController {
   constructor(private readonly warrantyService: WarrantyService) {}
 

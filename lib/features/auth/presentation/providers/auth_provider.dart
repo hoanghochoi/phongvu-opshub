@@ -46,6 +46,12 @@ class AuthProvider extends ChangeNotifier {
       final departmentCode = prefs.getString('user_departmentCode');
       final jobRoleCode = prefs.getString('user_jobRoleCode');
       final workScopeType = prefs.getString('user_workScopeType');
+      final regionCode = prefs.getString('user_regionCode');
+      final regionName = prefs.getString('user_regionName');
+      final regionAbbreviation = prefs.getString('user_regionAbbreviation');
+      final areaCode = prefs.getString('user_areaCode');
+      final areaName = prefs.getString('user_areaName');
+      final areaAbbreviation = prefs.getString('user_areaAbbreviation');
       final personnelCode = prefs.getString('user_personnelCode');
       final token = await _readSavedToken(prefs);
 
@@ -62,6 +68,12 @@ class AuthProvider extends ChangeNotifier {
           departmentCode: departmentCode,
           jobRoleCode: jobRoleCode,
           workScopeType: workScopeType,
+          regionCode: regionCode,
+          regionName: regionName,
+          regionAbbreviation: regionAbbreviation,
+          areaCode: areaCode,
+          areaName: areaName,
+          areaAbbreviation: areaAbbreviation,
           personnelCode: personnelCode,
           mustSelectStore:
               (workScopeType ??
@@ -75,6 +87,7 @@ class AuthProvider extends ChangeNotifier {
         // Restore JWT token to ApiClient for authenticated API calls
         if (token != null) {
           ApiClient().setAuthToken(token);
+          _user = await _withFeatureAccess(_user!);
           _queueDailyActivityLogUpload();
           if (kDebugMode) debugPrint('✅ [AuthProvider] Restored JWT token');
         }
@@ -134,6 +147,20 @@ class AuthProvider extends ChangeNotifier {
         'user_workScopeType',
         user.workScopeType,
       );
+      await _saveOptionalString(prefs, 'user_regionCode', user.regionCode);
+      await _saveOptionalString(prefs, 'user_regionName', user.regionName);
+      await _saveOptionalString(
+        prefs,
+        'user_regionAbbreviation',
+        user.regionAbbreviation,
+      );
+      await _saveOptionalString(prefs, 'user_areaCode', user.areaCode);
+      await _saveOptionalString(prefs, 'user_areaName', user.areaName);
+      await _saveOptionalString(
+        prefs,
+        'user_areaAbbreviation',
+        user.areaAbbreviation,
+      );
       await _saveOptionalString(
         prefs,
         'user_personnelCode',
@@ -163,6 +190,12 @@ class AuthProvider extends ChangeNotifier {
       await prefs.remove('user_departmentCode');
       await prefs.remove('user_jobRoleCode');
       await prefs.remove('user_workScopeType');
+      await prefs.remove('user_regionCode');
+      await prefs.remove('user_regionName');
+      await prefs.remove('user_regionAbbreviation');
+      await prefs.remove('user_areaCode');
+      await prefs.remove('user_areaName');
+      await prefs.remove('user_areaAbbreviation');
       await prefs.remove('user_personnelCode');
       await prefs.remove(_jwtTokenKey);
       await _secureStorage.delete(key: _jwtTokenKey);
@@ -231,6 +264,25 @@ class AuthProvider extends ChangeNotifier {
     );
   }
 
+  Future<User> _withFeatureAccess(User user) async {
+    try {
+      final access = await _repository.getMyFeatureAccess();
+      await AppLogger.instance.info(
+        'Auth',
+        'Feature access loaded',
+        context: {'email': user.email, 'count': access.length},
+      );
+      return user.copyWith(featureAccess: access);
+    } catch (e) {
+      await AppLogger.instance.warn(
+        'Auth',
+        'Feature access load failed; using legacy fallback',
+        context: {'email': user.email, 'error': e.toString()},
+      );
+      return user;
+    }
+  }
+
   Future<bool> login({required String email, required String password}) async {
     if (kDebugMode) debugPrint('[AuthProvider] Starting password login...');
     await AppLogger.instance.info(
@@ -247,7 +299,7 @@ class AuthProvider extends ChangeNotifier {
         email: email,
         password: password,
       );
-      _user = user;
+      _user = await _withFeatureAccess(user);
 
       if (_user != null) {
         await _saveSession(_user!, token: token);
@@ -321,7 +373,7 @@ class AuthProvider extends ChangeNotifier {
         password: password,
         verificationCode: verificationCode,
       );
-      _user = user;
+      _user = await _withFeatureAccess(user);
 
       await _saveSession(_user!, token: token);
       await AppLogger.instance.info(
@@ -576,7 +628,7 @@ class AuthProvider extends ChangeNotifier {
         currentPassword: currentPassword,
         newPassword: newPassword,
       );
-      _user = user;
+      _user = await _withFeatureAccess(user);
       await _saveSession(user, token: token);
       await AppLogger.instance.info(
         'Auth',
@@ -663,7 +715,9 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _user = await _repository.selectStore(storeId, _user!.email);
+      _user = await _withFeatureAccess(
+        await _repository.selectStore(storeId, _user!.email),
+      );
       await _saveSession(_user!);
       await AppLogger.instance.info(
         'Auth',
@@ -702,10 +756,12 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _user = await _repository.updateProfile(
-        email: _user!.email,
-        firstName: firstName,
-        lastName: lastName,
+      _user = await _withFeatureAccess(
+        await _repository.updateProfile(
+          email: _user!.email,
+          firstName: firstName,
+          lastName: lastName,
+        ),
       );
       await _saveSession(_user!);
       await AppLogger.instance.info(
@@ -741,7 +797,9 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _user = await _repository.uploadAvatar(email: _user!.email, path: path);
+      _user = await _withFeatureAccess(
+        await _repository.uploadAvatar(email: _user!.email, path: path),
+      );
       await _saveSession(_user!);
       await AppLogger.instance.info(
         'Auth',
@@ -770,7 +828,7 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final updatedUser = await _repository.getUserData(_user!.email);
-      _user = updatedUser;
+      _user = await _withFeatureAccess(updatedUser);
 
       await _saveSession(_user!);
       notifyListeners();

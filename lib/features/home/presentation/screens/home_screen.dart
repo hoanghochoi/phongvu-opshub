@@ -42,17 +42,29 @@ class _HomeScreenState extends State<HomeScreen> {
     final isAdmin = context.select<AuthProvider, bool>(
       (auth) => auth.user?.isAdmin == true,
     );
-    final canUseCp62Flows = context.select<AuthProvider, bool>(
-      (auth) => auth.user?.canUseCp62RestrictedFlows == true,
+    final canUseFifo = context.select<AuthProvider, bool>(
+      (auth) => auth.user?.canUseFeature('FIFO') == true,
+    );
+    final canUseWarranty = context.select<AuthProvider, bool>(
+      (auth) => auth.user?.canUseFeature('WARRANTY') == true,
     );
     final canUseBankStatements = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseBankStatements == true,
     );
+    final canUseVietQr = context.select<AuthProvider, bool>(
+      (auth) => auth.user?.canUseFeature('VIETQR') == true,
+    );
+    final canUsePaymentMonitor = context.select<AuthProvider, bool>(
+      (auth) => auth.user?.canUseFeature('PAYMENT_MONITOR') == true,
+    );
     final actions = _buildHomeActions(
       context,
       isAdmin,
-      canUseCp62Flows,
+      canUseFifo,
+      canUseWarranty,
       canUseBankStatements,
+      canUseVietQr,
+      canUsePaymentMonitor,
     );
 
     return Scaffold(
@@ -86,7 +98,8 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (!kIsWeb &&
+                  if (canUsePaymentMonitor &&
+                      !kIsWeb &&
                       defaultTargetPlatform == TargetPlatform.windows) ...[
                     const _PaymentMonitorQuickToggle(),
                     const SizedBox(height: 16),
@@ -105,8 +118,11 @@ class _HomeScreenState extends State<HomeScreen> {
   List<AppFeatureAction> _buildHomeActions(
     BuildContext context,
     bool isAdmin,
-    bool canUseCp62Flows,
+    bool canUseFifo,
+    bool canUseWarranty,
     bool canUseBankStatements,
+    bool canUseVietQr,
+    bool canUsePaymentMonitor,
   ) {
     return [
       if (isAdmin)
@@ -117,7 +133,7 @@ class _HomeScreenState extends State<HomeScreen> {
           color: AppColors.neutral600,
           onTap: () => context.push('/admin'),
         ),
-      if (canUseCp62Flows) ...[
+      if (canUseFifo)
         AppFeatureAction(
           icon: Icons.qr_code_scanner_rounded,
           title: 'FIFO',
@@ -125,6 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
           color: AppColors.info,
           onTap: () => context.push('/fifo-menu'),
         ),
+      if (canUseWarranty)
         AppFeatureAction(
           icon: Icons.camera_alt_rounded,
           title: 'BH / SC',
@@ -132,14 +149,14 @@ class _HomeScreenState extends State<HomeScreen> {
           color: AppColors.success,
           onTap: () => context.push('/warranty-main'),
         ),
-      ],
-      AppFeatureAction(
-        icon: Icons.qr_code_2_rounded,
-        title: 'VietQR',
-        description: 'Tạo mã chuyển khoản',
-        color: AppColors.teal600,
-        onTap: () => context.push('/vietqr'),
-      ),
+      if (canUseVietQr)
+        AppFeatureAction(
+          icon: Icons.qr_code_2_rounded,
+          title: 'VietQR',
+          description: 'Tạo mã chuyển khoản',
+          color: AppColors.teal600,
+          onTap: () => context.push('/vietqr'),
+        ),
       if (canUseBankStatements)
         AppFeatureAction(
           icon: Icons.fact_check_outlined,
@@ -148,7 +165,9 @@ class _HomeScreenState extends State<HomeScreen> {
           color: AppColors.info,
           onTap: () => context.push('/bank-statement'),
         ),
-      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows)
+      if (canUsePaymentMonitor &&
+          !kIsWeb &&
+          defaultTargetPlatform == TargetPlatform.windows)
         AppFeatureAction(
           icon: Icons.volume_up_rounded,
           title: 'Tiền vào',

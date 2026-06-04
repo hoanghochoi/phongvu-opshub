@@ -13,7 +13,10 @@ import '../../features/auth/presentation/screens/profile_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/store_selection_screen.dart';
 import '../../features/admin/presentation/screens/admin_menu_screen.dart';
+import '../../features/admin/presentation/screens/feature_admin_screen.dart';
 import '../../features/admin/presentation/screens/inventory_import_screen.dart';
+import '../../features/admin/presentation/screens/personnel_catalog_admin_screen.dart';
+import '../../features/admin/presentation/screens/region_admin_screen.dart';
 import '../../features/admin/presentation/screens/role_admin_screen.dart';
 import '../../features/admin/presentation/screens/store_admin_screen.dart';
 import '../../features/admin/presentation/screens/user_admin_screen.dart';
@@ -35,16 +38,6 @@ class AppRouter {
 
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
-
-  static const Set<String> _cp62OnlyRoutes = {
-    '/fifo-menu',
-    '/fifo-check',
-    '/fifo-history',
-    '/sort',
-    '/warranty-main',
-    '/warranty',
-    '/check-warranty',
-  };
 
   static GoRouter createRouter(AuthProvider authProvider) {
     return GoRouter(
@@ -76,13 +69,9 @@ class AppRouter {
           return '/select-store';
         }
 
-        if (_cp62OnlyRoutes.contains(location) &&
-            authProvider.user?.canUseCp62RestrictedFlows != true) {
-          return '/home';
-        }
-
-        if (location == '/bank-statement' &&
-            authProvider.user?.canUseBankStatements != true) {
+        final routeFeature = _featureForRoute(location);
+        if (routeFeature != null &&
+            authProvider.user?.canUseFeature(routeFeature) != true) {
           return '/home';
         }
 
@@ -128,11 +117,7 @@ class AppRouter {
         ),
         GoRoute(
           path: '/home',
-          builder: (context, state) {
-            final extra = state.extra;
-            final initialIndex = extra is int ? extra : 1;
-            return MainNavigationScreen(initialIndex: initialIndex);
-          },
+          builder: (context, state) => const MainNavigationScreen(),
         ),
         GoRoute(
           path: '/profile',
@@ -151,6 +136,18 @@ class AppRouter {
           builder: (context, state) => const RoleAdminScreen(),
         ),
         GoRoute(
+          path: '/admin/regions',
+          builder: (context, state) => const RegionAdminScreen(),
+        ),
+        GoRoute(
+          path: '/admin/personnel',
+          builder: (context, state) => const PersonnelCatalogAdminScreen(),
+        ),
+        GoRoute(
+          path: '/admin/features',
+          builder: (context, state) => const FeatureAdminScreen(),
+        ),
+        GoRoute(
           path: '/admin/stores',
           builder: (context, state) => const StoreAdminScreen(),
         ),
@@ -164,8 +161,7 @@ class AppRouter {
         ),
         GoRoute(
           path: '/fifo-check',
-          builder: (context, state) =>
-              FifoCheckScreen(onBackToHome: () => context.go('/home')),
+          builder: (context, state) => const FifoCheckScreen(),
         ),
         GoRoute(
           path: '/fifo-history',
@@ -211,5 +207,30 @@ class AppRouter {
         ),
       ],
     );
+  }
+
+  static String? _featureForRoute(String location) {
+    return switch (location) {
+      '/admin' => 'ADMIN',
+      '/admin/users' => 'ADMIN_USERS',
+      '/admin/roles' => 'ADMIN_ROLES',
+      '/admin/stores' => 'ADMIN_STORES',
+      '/admin/regions' => 'ADMIN_REGIONS',
+      '/admin/personnel' => 'ADMIN_PERSONNEL',
+      '/admin/features' => 'ADMIN_FEATURES',
+      '/admin/inventory-import' => 'FIFO_IMPORT',
+      '/fifo-menu' => 'FIFO',
+      '/fifo-check' => 'FIFO',
+      '/fifo-history' => 'FIFO',
+      '/sort' => 'FIFO',
+      '/warranty-main' => 'WARRANTY',
+      '/warranty' => 'WARRANTY',
+      '/check-warranty' => 'WARRANTY',
+      '/vietqr' => 'VIETQR',
+      '/bank-statement' => 'BANK_STATEMENTS',
+      '/payment-monitor' => 'PAYMENT_MONITOR',
+      '/feedback' => 'FEEDBACK',
+      _ => null,
+    };
   }
 }

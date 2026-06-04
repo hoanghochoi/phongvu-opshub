@@ -21,18 +21,20 @@ const MANAGER_ROLE = 'MANAGER';
 const STAFF_ROLE = 'STAFF';
 
 const STORE_SCOPE = 'STORE';
-const MULTI_STORE_SCOPE = 'MULTI_STORE';
+const AREA_SCOPE = 'AREA';
 const REGION_SCOPE = 'REGION';
 const NATIONAL_SCOPE = 'NATIONAL';
-const ONLINE_SCOPE = 'ONLINE';
 
 const WORK_SCOPE_TYPES = new Set([
   STORE_SCOPE,
-  MULTI_STORE_SCOPE,
+  AREA_SCOPE,
   REGION_SCOPE,
   NATIONAL_SCOPE,
-  ONLINE_SCOPE,
 ]);
+
+const DEFAULT_REGION_CODE = 'CHUA_GAN';
+const CHATSALE_REGION_CODE = 'CHATSALE';
+const TELESALE_REGION_CODE = 'TELESALE';
 
 const DEFAULT_ROLE_DEFINITIONS = [
   {
@@ -97,8 +99,8 @@ const DEFAULT_DEPARTMENT_DEFINITIONS = [
 
 const DEFAULT_JOB_ROLE_DEFINITIONS = [
   {
-    code: 'MANAGER',
-    displayName: 'Manager',
+    code: 'STORE_MANAGER',
+    displayName: 'Store Manager',
     description: 'Quản lý SR hoặc bộ phận',
     departmentCode: 'MANAGEMENT',
   },
@@ -109,9 +111,15 @@ const DEFAULT_JOB_ROLE_DEFINITIONS = [
     departmentCode: 'SALES',
   },
   {
-    code: 'SALE_ONLINE',
-    displayName: 'Online Sales',
-    description: 'Nhân viên sale online',
+    code: 'CHATSALE',
+    displayName: 'Chatsale',
+    description: 'Nhan su chatsale',
+    departmentCode: 'SALES',
+  },
+  {
+    code: 'TELESALE',
+    displayName: 'Telesale',
+    description: 'Nhan su telesale',
     departmentCode: 'SALES',
   },
   {
@@ -163,6 +171,39 @@ const DEFAULT_JOB_ROLE_DEFINITIONS = [
     departmentCode: 'EXECUTIVE',
   },
 ];
+
+const DEFAULT_REGION_DEFINITIONS = [
+  {
+    code: DEFAULT_REGION_CODE,
+    displayName: 'Chua gan',
+    abbreviation: DEFAULT_REGION_CODE,
+    description: 'Vung/Mien mac dinh cho du lieu cu chua phan loai',
+    isSystem: true,
+  },
+  {
+    code: CHATSALE_REGION_CODE,
+    displayName: 'Chatsale',
+    abbreviation: CHATSALE_REGION_CODE,
+    description: 'Scope ao tuong duong cap Mien cho doi Chatsale',
+    isSystem: true,
+  },
+  {
+    code: TELESALE_REGION_CODE,
+    displayName: 'Telesale',
+    abbreviation: TELESALE_REGION_CODE,
+    description: 'Scope ao tuong duong cap Mien cho doi Telesale',
+    isSystem: true,
+  },
+];
+
+const DEFAULT_AREA_DEFINITIONS = DEFAULT_REGION_DEFINITIONS.map((region) => ({
+  code: region.code,
+  displayName: region.displayName,
+  abbreviation: region.abbreviation,
+  description: region.description,
+  regionCode: region.code,
+  isSystem: true,
+}));
 
 @Injectable()
 export class UserService implements OnModuleInit {
@@ -268,6 +309,7 @@ export class UserService implements OnModuleInit {
               data: {
                 storeId: branchId,
                 storeName: branchName || branchId,
+                areaCode: DEFAULT_REGION_CODE,
               },
             });
             storeCreatedCount++;
@@ -293,6 +335,8 @@ export class UserService implements OnModuleInit {
             status,
             storeId: storeUuid,
             workScopeType: this.defaultWorkScopeForRole(role),
+            regionCode: storeUuid ? DEFAULT_REGION_CODE : null,
+            areaCode: storeUuid ? DEFAULT_REGION_CODE : null,
           },
           create: {
             email,
@@ -303,6 +347,8 @@ export class UserService implements OnModuleInit {
             status,
             storeId: storeUuid,
             workScopeType: this.defaultWorkScopeForRole(role),
+            regionCode: storeUuid ? DEFAULT_REGION_CODE : null,
+            areaCode: storeUuid ? DEFAULT_REGION_CODE : null,
           },
         });
 
@@ -319,7 +365,7 @@ export class UserService implements OnModuleInit {
 
   async listStores(q?: string) {
     const query = q?.trim();
-    return this.prisma.store.findMany({
+    const stores = await this.prisma.store.findMany({
       where: query
         ? {
             OR: [
@@ -329,22 +375,15 @@ export class UserService implements OnModuleInit {
           }
         : undefined,
       orderBy: { storeId: 'asc' },
-      select: {
-        id: true,
-        storeId: true,
-        storeName: true,
-        transferAccountNumber: true,
-        transferAccountName: true,
-        transferBankName: true,
-        transferBankBin: true,
-      },
+      include: { area: { include: { region: true } } },
     });
+    return stores.map((store) => this.toStoreDto(store));
   }
 
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { store: true },
+      include: this.userDtoInclude(),
     });
     if (!user) throw new NotFoundException('Không tìm thấy user');
     return this.toUserDto(user);
@@ -364,7 +403,7 @@ export class UserService implements OnModuleInit {
         firstName,
         lastName: body.lastName?.trim() || null,
       },
-      include: { store: true },
+      include: this.userDtoInclude(),
     });
     return this.toUserDto(user);
   }
@@ -377,7 +416,7 @@ export class UserService implements OnModuleInit {
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: { avatarUrl },
-      include: { store: true },
+      include: this.userDtoInclude(),
     });
     return this.toUserDto(user);
   }
@@ -390,7 +429,7 @@ export class UserService implements OnModuleInit {
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { store: true },
+      include: this.userDtoInclude(),
     });
     if (!user) throw new NotFoundException('Không tìm thấy user');
     if (user.storeId || user.branchLockedAt) {
@@ -399,6 +438,7 @@ export class UserService implements OnModuleInit {
 
     const store = await this.prisma.store.findUnique({
       where: { storeId: normalizedStoreCode },
+      include: { area: true },
     });
     if (!store) throw new BadRequestException('Chi nhánh không hợp lệ');
 
@@ -406,10 +446,12 @@ export class UserService implements OnModuleInit {
       where: { id: userId },
       data: {
         storeId: store.id,
+        areaCode: store.areaCode ?? DEFAULT_REGION_CODE,
+        regionCode: store.area?.regionCode ?? DEFAULT_REGION_CODE,
         branchLockedAt: new Date(),
         profileCompletedAt: new Date(),
       },
-      include: { store: true },
+      include: this.userDtoInclude(),
     });
     return this.toUserDto(updated);
   }
@@ -431,7 +473,7 @@ export class UserService implements OnModuleInit {
               }
             : {}),
         },
-        include: { store: true },
+        include: this.userDtoInclude(),
         orderBy: { createdAt: 'desc' },
         take: 200,
       })
@@ -467,7 +509,7 @@ export class UserService implements OnModuleInit {
         branchLockedAt: storeUuid ? new Date() : null,
         profileCompletedAt: storeUuid ? new Date() : null,
       },
-      include: { store: true },
+      include: this.userDtoInclude(),
     });
     this.logger.log(
       `Admin user created: email=${email} role=${role} scope=${personnel.workScopeType} personnelCode=${this.personnelCodeFor(user) ?? 'none'}`,
@@ -479,12 +521,12 @@ export class UserService implements OnModuleInit {
     this.assertAdmin(admin);
     const current = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { store: true },
+      include: this.userDtoInclude(),
     });
     if (!current) throw new NotFoundException('Không tìm thấy user');
 
-    if (this.isScopedAdmin(admin) && current.storeId !== admin.storeId) {
-      throw new ForbiddenException('Không có quyền sửa user ngoài chi nhánh');
+    if (this.isScopedAdmin(admin) && !this.userWithinAdminScope(admin, current)) {
+      throw new ForbiddenException('Không có quyền sửa user ngoài phạm vi quản lý');
     }
 
     const role = body.role
@@ -525,7 +567,7 @@ export class UserService implements OnModuleInit {
           ? (current.profileCompletedAt ?? new Date())
           : current.profileCompletedAt,
       },
-      include: { store: true },
+      include: this.userDtoInclude(),
     });
     this.logger.log(
       `Admin user updated: id=${userId} role=${role} scope=${personnel.workScopeType} personnelCode=${this.personnelCodeFor(updated) ?? 'none'}`,
@@ -551,10 +593,11 @@ export class UserService implements OnModuleInit {
 
     const store = await this.prisma.store.findUnique({
       where: { storeId: normalizedStoreCode },
+      include: { area: true },
     });
     if (!store) throw new BadRequestException('Chi nhánh không hợp lệ');
-    if (this.isScopedAdmin(admin) && admin.storeId !== store.id) {
-      throw new ForbiddenException('Chỉ được gán user vào chi nhánh của mình');
+    if (this.isScopedAdmin(admin) && !this.storeWithinAdminScope(admin, store)) {
+      throw new ForbiddenException('Chỉ được gán user trong phạm vi quản lý');
     }
     return store.id;
   }
@@ -590,9 +633,29 @@ export class UserService implements OnModuleInit {
 
   private adminScope(admin: any) {
     if (this.isScopedAdmin(admin)) {
-      return admin.storeId
-        ? { storeId: admin.storeId }
-        : { id: '__NO_STORE__' };
+      const scope = this.effectiveWorkScope(admin);
+      if (scope === NATIONAL_SCOPE) return {};
+      if (scope === REGION_SCOPE) {
+        return admin.regionCode
+          ? {
+              OR: [
+                { regionCode: admin.regionCode },
+                { store: { area: { regionCode: admin.regionCode } } },
+              ],
+            }
+          : { id: '__NO_REGION__' };
+      }
+      if (scope === AREA_SCOPE) {
+        return admin.areaCode
+          ? {
+              OR: [
+                { areaCode: admin.areaCode },
+                { store: { areaCode: admin.areaCode } },
+              ],
+            }
+          : { id: '__NO_AREA__' };
+      }
+      return admin.storeId ? { storeId: admin.storeId } : { id: '__NO_STORE__' };
     }
     return {};
   }
@@ -601,7 +664,50 @@ export class UserService implements OnModuleInit {
     return user.role === ADMIN_ROLE || user.role === MANAGER_ROLE;
   }
 
+  private storeWithinAdminScope(admin: any, store: any) {
+    const scope = this.effectiveWorkScope(admin);
+    if (scope === NATIONAL_SCOPE) return true;
+    if (scope === REGION_SCOPE) {
+      return Boolean(admin.regionCode && store.area?.regionCode === admin.regionCode);
+    }
+    if (scope === AREA_SCOPE) {
+      return Boolean(admin.areaCode && store.areaCode === admin.areaCode);
+    }
+    return Boolean(admin.storeId && admin.storeId === store.id);
+  }
+
+  private userWithinAdminScope(admin: any, user: any) {
+    const scope = this.effectiveWorkScope(admin);
+    if (scope === NATIONAL_SCOPE) return true;
+    const userArea = this.areaForUser(user);
+    const userRegion = this.regionForUser(user);
+    if (scope === REGION_SCOPE) {
+      return Boolean(
+        admin.regionCode &&
+          (user.regionCode === admin.regionCode ||
+            userRegion?.code === admin.regionCode),
+      );
+    }
+    if (scope === AREA_SCOPE) {
+      return Boolean(
+        admin.areaCode &&
+          (user.areaCode === admin.areaCode || userArea?.code === admin.areaCode),
+      );
+    }
+    return Boolean(admin.storeId && user.storeId === admin.storeId);
+  }
+
+  private userDtoInclude() {
+    return {
+      store: { include: { area: { include: { region: true } } } },
+      region: true,
+      area: { include: { region: true } },
+    };
+  }
+
   private toUserDto(user: any) {
+    const region = this.regionForUser(user);
+    const area = this.areaForUser(user);
     return {
       id: user.id,
       email: user.email,
@@ -616,6 +722,12 @@ export class UserService implements OnModuleInit {
       departmentCode: user.departmentCode ?? null,
       jobRoleCode: user.jobRoleCode ?? null,
       workScopeType: this.effectiveWorkScope(user),
+      regionCode: region?.code ?? null,
+      regionName: region?.displayName ?? null,
+      regionAbbreviation: region?.abbreviation ?? null,
+      areaCode: area?.code ?? null,
+      areaName: area?.displayName ?? null,
+      areaAbbreviation: area?.abbreviation ?? null,
       personnelCode: this.personnelCodeFor(user),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
@@ -646,6 +758,7 @@ export class UserService implements OnModuleInit {
     await this.seedDefaultPersonnelCatalog();
     return this.prisma.departmentDefinition.findMany({
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
+      include: { _count: { select: { users: true, featureAccessRules: true } } },
     });
   }
 
@@ -654,7 +767,338 @@ export class UserService implements OnModuleInit {
     await this.seedDefaultPersonnelCatalog();
     return this.prisma.jobRoleDefinition.findMany({
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
+      include: { _count: { select: { users: true, featureAccessRules: true } } },
     });
+  }
+
+  async adminListRegions(admin: any) {
+    this.assertAdmin(admin);
+    await this.seedDefaultPersonnelCatalog();
+    return this.prisma.regionDefinition.findMany({
+      orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
+      include: { _count: { select: { areas: true, users: true, featureAccessRules: true } } },
+    });
+  }
+
+  async adminListAreas(admin: any, regionCodeInput?: string) {
+    this.assertAdmin(admin);
+    await this.seedDefaultPersonnelCatalog();
+    const regionCode = regionCodeInput
+      ? this.normalizePersonnelCode(regionCodeInput, 'Mã Miền không hợp lệ')
+      : null;
+    return this.prisma.areaDefinition.findMany({
+      where: regionCode ? { regionCode } : undefined,
+      orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
+      include: {
+        region: true,
+        _count: { select: { stores: true, users: true, featureAccessRules: true } },
+      },
+    });
+  }
+
+  async adminCreateRegion(admin: any, body: any) {
+    this.assertSuperAdmin(admin);
+    const code = this.normalizePersonnelCode(
+      body.code || body.abbreviation,
+      'Mã Miền không hợp lệ',
+    );
+    if (!code) throw new BadRequestException('Mã Miền không được để trống');
+    const existing = await this.prisma.regionDefinition.findUnique({ where: { code } });
+    if (existing) throw new BadRequestException('Miền đã tồn tại');
+    const displayName = this.normalizeRequiredText(body.displayName, 'Tên Miền không được để trống', 80);
+    const abbreviation = this.normalizeCatalogAbbreviation(body.abbreviation || code);
+    return this.prisma.$transaction(async (tx) => {
+      const region = await tx.regionDefinition.create({
+        data: {
+          code,
+          displayName,
+          abbreviation,
+          description: this.normalizeRoleDescription(body.description),
+          isSystem: false,
+          isActive: body.isActive !== false,
+        },
+      });
+      const sameCodeArea = await tx.areaDefinition.findUnique({ where: { code } });
+      if (!sameCodeArea) {
+        await tx.areaDefinition.create({
+          data: {
+            code,
+            displayName,
+            abbreviation,
+            description: 'Vùng mặc định cùng mã Miền',
+            regionCode: code,
+            isSystem: false,
+            isActive: true,
+          },
+        });
+      }
+      return region;
+    });
+  }
+
+  async adminUpdateRegion(admin: any, currentCodeInput: string, body: any) {
+    this.assertSuperAdmin(admin);
+    const currentCode = this.normalizePersonnelCode(currentCodeInput, 'Mã Miền không hợp lệ');
+    if (!currentCode) throw new BadRequestException('Mã Miền không hợp lệ');
+    const current = await this.prisma.regionDefinition.findUnique({ where: { code: currentCode } });
+    if (!current) throw new NotFoundException('Không tìm thấy Miền');
+    const nextCode = body.code
+      ? this.normalizePersonnelCode(body.code, 'Mã Miền không hợp lệ')
+      : current.code;
+    if (!nextCode) throw new BadRequestException('Mã Miền không hợp lệ');
+    if (current.isSystem && nextCode !== current.code) {
+      throw new BadRequestException('Không được đổi mã Miền hệ thống');
+    }
+    return this.prisma.regionDefinition.update({
+      where: { code: current.code },
+      data: {
+        code: nextCode,
+        displayName:
+          body.displayName === undefined
+            ? current.displayName
+            : this.normalizeRequiredText(body.displayName, 'Tên Miền không được để trống', 80),
+        abbreviation:
+          body.abbreviation === undefined
+            ? current.abbreviation
+            : this.normalizeCatalogAbbreviation(body.abbreviation),
+        description:
+          body.description === undefined
+            ? current.description
+            : this.normalizeRoleDescription(body.description),
+        isActive: body.isActive === undefined ? current.isActive : body.isActive === true,
+      },
+    });
+  }
+
+  async adminDeleteRegion(admin: any, codeInput: string) {
+    this.assertSuperAdmin(admin);
+    const code = this.normalizePersonnelCode(codeInput, 'Mã Miền không hợp lệ');
+    if (!code) throw new BadRequestException('Mã Miền không hợp lệ');
+    const region = await this.prisma.regionDefinition.findUnique({
+      where: { code },
+      include: { _count: { select: { areas: true, users: true, featureAccessRules: true } } },
+    });
+    if (!region) throw new NotFoundException('Không tìm thấy Miền');
+    if (region.isSystem) throw new BadRequestException('Không được xóa Miền hệ thống');
+    if (region._count.areas > 0 || region._count.users > 0 || region._count.featureAccessRules > 0) {
+      throw new BadRequestException('Miền đang được sử dụng, không thể xóa');
+    }
+    await this.prisma.regionDefinition.delete({ where: { code } });
+    return { deleted: true, code };
+  }
+
+  async adminCreateArea(admin: any, body: any) {
+    this.assertSuperAdmin(admin);
+    const code = this.normalizePersonnelCode(body.code || body.abbreviation, 'Mã Vùng không hợp lệ');
+    if (!code) throw new BadRequestException('Mã Vùng không được để trống');
+    const regionCode = await this.resolveRegionCode(body.regionCode, null);
+    if (!regionCode) throw new BadRequestException('Vui lòng chọn Miền');
+    const existing = await this.prisma.areaDefinition.findUnique({ where: { code } });
+    if (existing) throw new BadRequestException('Vùng đã tồn tại');
+    return this.prisma.areaDefinition.create({
+      data: {
+        code,
+        displayName: this.normalizeRequiredText(body.displayName, 'Tên Vùng không được để trống', 80),
+        abbreviation: this.normalizeCatalogAbbreviation(body.abbreviation || code),
+        description: this.normalizeRoleDescription(body.description),
+        regionCode,
+        isSystem: false,
+        isActive: body.isActive !== false,
+      },
+      include: { region: true },
+    });
+  }
+
+  async adminUpdateArea(admin: any, currentCodeInput: string, body: any) {
+    this.assertSuperAdmin(admin);
+    const currentCode = this.normalizePersonnelCode(currentCodeInput, 'Mã Vùng không hợp lệ');
+    if (!currentCode) throw new BadRequestException('Mã Vùng không hợp lệ');
+    const current = await this.prisma.areaDefinition.findUnique({ where: { code: currentCode } });
+    if (!current) throw new NotFoundException('Không tìm thấy Vùng');
+    const nextCode = body.code
+      ? this.normalizePersonnelCode(body.code, 'Mã Vùng không hợp lệ')
+      : current.code;
+    if (!nextCode) throw new BadRequestException('Mã Vùng không hợp lệ');
+    if (current.isSystem && nextCode !== current.code) {
+      throw new BadRequestException('Không được đổi mã Vùng hệ thống');
+    }
+    const regionCode =
+      body.regionCode === undefined
+        ? current.regionCode
+        : await this.resolveRegionCode(body.regionCode, current.regionCode);
+    return this.prisma.areaDefinition.update({
+      where: { code: current.code },
+      data: {
+        code: nextCode,
+        displayName:
+          body.displayName === undefined
+            ? current.displayName
+            : this.normalizeRequiredText(body.displayName, 'Tên Vùng không được để trống', 80),
+        abbreviation:
+          body.abbreviation === undefined
+            ? current.abbreviation
+            : this.normalizeCatalogAbbreviation(body.abbreviation),
+        description:
+          body.description === undefined
+            ? current.description
+            : this.normalizeRoleDescription(body.description),
+        regionCode: regionCode ?? current.regionCode,
+        isActive: body.isActive === undefined ? current.isActive : body.isActive === true,
+      },
+      include: { region: true },
+    });
+  }
+
+  async adminDeleteArea(admin: any, codeInput: string) {
+    this.assertSuperAdmin(admin);
+    const code = this.normalizePersonnelCode(codeInput, 'Mã Vùng không hợp lệ');
+    if (!code) throw new BadRequestException('Mã Vùng không hợp lệ');
+    const area = await this.prisma.areaDefinition.findUnique({
+      where: { code },
+      include: { _count: { select: { stores: true, users: true, featureAccessRules: true } } },
+    });
+    if (!area) throw new NotFoundException('Không tìm thấy Vùng');
+    if (area.isSystem) throw new BadRequestException('Không được xóa Vùng hệ thống');
+    if (area._count.stores > 0 || area._count.users > 0 || area._count.featureAccessRules > 0) {
+      throw new BadRequestException('Vùng đang được sử dụng, không thể xóa');
+    }
+    await this.prisma.areaDefinition.delete({ where: { code } });
+    return { deleted: true, code };
+  }
+
+  async adminCreateDepartment(admin: any, body: any) {
+    this.assertSuperAdmin(admin);
+    const code = this.normalizePersonnelCode(body.code, 'Mã phòng ban không hợp lệ');
+    if (!code) throw new BadRequestException('Mã phòng ban không được để trống');
+    const existing = await this.prisma.departmentDefinition.findUnique({ where: { code } });
+    if (existing) throw new BadRequestException('Phòng ban đã tồn tại');
+    return this.prisma.departmentDefinition.create({
+      data: {
+        code,
+        displayName: this.normalizeRequiredText(body.displayName, 'Tên phòng ban không được để trống', 80),
+        description: this.normalizeRoleDescription(body.description),
+        isSystem: false,
+        isActive: body.isActive !== false,
+      },
+    });
+  }
+
+  async adminUpdateDepartment(admin: any, currentCodeInput: string, body: any) {
+    this.assertSuperAdmin(admin);
+    const currentCode = this.normalizePersonnelCode(currentCodeInput, 'Mã phòng ban không hợp lệ');
+    if (!currentCode) throw new BadRequestException('Mã phòng ban không hợp lệ');
+    const current = await this.prisma.departmentDefinition.findUnique({ where: { code: currentCode } });
+    if (!current) throw new NotFoundException('Không tìm thấy phòng ban');
+    const nextCode = body.code
+      ? this.normalizePersonnelCode(body.code, 'Mã phòng ban không hợp lệ')
+      : current.code;
+    if (!nextCode) throw new BadRequestException('Mã phòng ban không hợp lệ');
+    if (current.isSystem && nextCode !== current.code) {
+      throw new BadRequestException('Không được đổi mã phòng ban hệ thống');
+    }
+    return this.prisma.departmentDefinition.update({
+      where: { code: current.code },
+      data: {
+        code: nextCode,
+        displayName:
+          body.displayName === undefined
+            ? current.displayName
+            : this.normalizeRequiredText(body.displayName, 'Tên phòng ban không được để trống', 80),
+        description:
+          body.description === undefined
+            ? current.description
+            : this.normalizeRoleDescription(body.description),
+        isActive: body.isActive === undefined ? current.isActive : body.isActive === true,
+      },
+    });
+  }
+
+  async adminDeleteDepartment(admin: any, codeInput: string) {
+    this.assertSuperAdmin(admin);
+    const code = this.normalizePersonnelCode(codeInput, 'Mã phòng ban không hợp lệ');
+    if (!code) throw new BadRequestException('Mã phòng ban không hợp lệ');
+    const department = await this.prisma.departmentDefinition.findUnique({
+      where: { code },
+      include: { _count: { select: { users: true, featureAccessRules: true } } },
+    });
+    if (!department) throw new NotFoundException('Không tìm thấy phòng ban');
+    if (department.isSystem) throw new BadRequestException('Không được xóa phòng ban hệ thống');
+    if (department._count.users > 0 || department._count.featureAccessRules > 0) {
+      throw new BadRequestException('Phòng ban đang được sử dụng, không thể xóa');
+    }
+    await this.prisma.departmentDefinition.delete({ where: { code } });
+    return { deleted: true, code };
+  }
+
+  async adminCreateJobRole(admin: any, body: any) {
+    this.assertSuperAdmin(admin);
+    const code = this.normalizePersonnelCode(body.code, 'Mã chức danh không hợp lệ');
+    if (!code) throw new BadRequestException('Mã chức danh không được để trống');
+    const existing = await this.prisma.jobRoleDefinition.findUnique({ where: { code } });
+    if (existing) throw new BadRequestException('Chức danh đã tồn tại');
+    const departmentCode = await this.resolveDepartmentCode(body.departmentCode, null);
+    return this.prisma.jobRoleDefinition.create({
+      data: {
+        code,
+        displayName: this.normalizeRequiredText(body.displayName, 'Tên chức danh không được để trống', 80),
+        description: this.normalizeRoleDescription(body.description),
+        departmentCode,
+        isSystem: false,
+        isActive: body.isActive !== false,
+      },
+    });
+  }
+
+  async adminUpdateJobRole(admin: any, currentCodeInput: string, body: any) {
+    this.assertSuperAdmin(admin);
+    const currentCode = this.normalizePersonnelCode(currentCodeInput, 'Mã chức danh không hợp lệ');
+    if (!currentCode) throw new BadRequestException('Mã chức danh không hợp lệ');
+    const current = await this.prisma.jobRoleDefinition.findUnique({ where: { code: currentCode } });
+    if (!current) throw new NotFoundException('Không tìm thấy chức danh');
+    const nextCode = body.code
+      ? this.normalizePersonnelCode(body.code, 'Mã chức danh không hợp lệ')
+      : current.code;
+    if (!nextCode) throw new BadRequestException('Mã chức danh không hợp lệ');
+    if (current.isSystem && nextCode !== current.code) {
+      throw new BadRequestException('Không được đổi mã chức danh hệ thống');
+    }
+    const departmentCode =
+      body.departmentCode === undefined
+        ? current.departmentCode
+        : await this.resolveDepartmentCode(body.departmentCode, current.departmentCode);
+    return this.prisma.jobRoleDefinition.update({
+      where: { code: current.code },
+      data: {
+        code: nextCode,
+        displayName:
+          body.displayName === undefined
+            ? current.displayName
+            : this.normalizeRequiredText(body.displayName, 'Tên chức danh không được để trống', 80),
+        description:
+          body.description === undefined
+            ? current.description
+            : this.normalizeRoleDescription(body.description),
+        departmentCode,
+        isActive: body.isActive === undefined ? current.isActive : body.isActive === true,
+      },
+    });
+  }
+
+  async adminDeleteJobRole(admin: any, codeInput: string) {
+    this.assertSuperAdmin(admin);
+    const code = this.normalizePersonnelCode(codeInput, 'Mã chức danh không hợp lệ');
+    if (!code) throw new BadRequestException('Mã chức danh không hợp lệ');
+    const jobRole = await this.prisma.jobRoleDefinition.findUnique({
+      where: { code },
+      include: { _count: { select: { users: true, featureAccessRules: true } } },
+    });
+    if (!jobRole) throw new NotFoundException('Không tìm thấy chức danh');
+    if (jobRole.isSystem) throw new BadRequestException('Không được xóa chức danh hệ thống');
+    if (jobRole._count.users > 0 || jobRole._count.featureAccessRules > 0) {
+      throw new BadRequestException('Chức danh đang được sử dụng, không thể xóa');
+    }
+    await this.prisma.jobRoleDefinition.delete({ where: { code } });
+    return { deleted: true, code };
   }
 
   async adminCreateRole(admin: any, body: any) {
@@ -746,7 +1190,10 @@ export class UserService implements OnModuleInit {
     const stores = await this.prisma.store.findMany({
       where: this.adminStoreScope(admin, query),
       orderBy: { storeId: 'asc' },
-      include: { _count: { select: { users: true } } },
+      include: {
+        area: { include: { region: true } },
+        _count: { select: { users: true } },
+      },
     });
     return stores.map((store) => this.toStoreDto(store));
   }
@@ -765,14 +1212,20 @@ export class UserService implements OnModuleInit {
     });
     if (existing) throw new BadRequestException('Store đã tồn tại');
 
+    const areaCode = await this.resolveAreaCodeForStore(body.areaCode);
+
     const store = await this.prisma.store.create({
       data: {
         storeId,
         storeName,
+        areaCode,
         ...this.normalizeStorePaymentFields(body),
         ...this.normalizeMapVietinFields(body),
       },
-      include: { _count: { select: { users: true } } },
+      include: {
+        area: { include: { region: true } },
+        _count: { select: { users: true } },
+      },
     });
     return this.toStoreDto(store);
   }
@@ -781,10 +1234,11 @@ export class UserService implements OnModuleInit {
     const currentCode = this.normalizeStoreCode(currentStoreId);
     const current = await this.prisma.store.findUnique({
       where: { storeId: currentCode },
+      include: { area: true },
     });
     if (!current) throw new NotFoundException('Không tìm thấy store');
 
-    if (this.isScopedAdmin(admin) && current.id !== admin.storeId) {
+    if (this.isScopedAdmin(admin) && !this.storeWithinAdminScope(admin, current)) {
       throw new ForbiddenException('Không có quyền sửa showroom khác');
     } else if (!this.isScopedAdmin(admin)) {
       this.assertSuperAdmin(admin);
@@ -803,6 +1257,14 @@ export class UserService implements OnModuleInit {
       if (existing) throw new BadRequestException('Store đã tồn tại');
     }
 
+    const nextAreaCode =
+      body.areaCode === undefined
+        ? current.areaCode
+        : await this.resolveAreaCodeForStore(body.areaCode);
+    if (this.isScopedAdmin(admin) && nextAreaCode !== current.areaCode) {
+      throw new ForbiddenException('Không có quyền đổi Vùng/Miền của SR');
+    }
+
     const store = await this.prisma.store.update({
       where: { storeId: current.storeId },
       data: {
@@ -815,10 +1277,14 @@ export class UserService implements OnModuleInit {
                 'Tên store không được để trống',
                 120,
               ),
+        areaCode: nextAreaCode,
         ...this.normalizeStorePaymentFields(body),
         ...this.normalizeMapVietinFields(body),
       },
-      include: { _count: { select: { users: true } } },
+      include: {
+        area: { include: { region: true } },
+        _count: { select: { users: true } },
+      },
     });
     return this.toStoreDto(store);
   }
@@ -828,11 +1294,14 @@ export class UserService implements OnModuleInit {
     const storeId = this.normalizeStoreCode(storeIdInput);
     const store = await this.prisma.store.findUnique({
       where: { storeId },
-      include: { _count: { select: { users: true } } },
+      include: { _count: { select: { users: true, featureAccessRules: true } } },
     });
     if (!store) throw new NotFoundException('Không tìm thấy store');
     if (store._count.users > 0) {
       throw new BadRequestException('Store đang có user, không thể xóa');
+    }
+    if (store._count.featureAccessRules > 0) {
+      throw new BadRequestException('Store đang có rule tính năng, không thể xóa');
     }
 
     await this.prisma.store.delete({ where: { storeId } });
@@ -864,8 +1333,9 @@ export class UserService implements OnModuleInit {
             displayName: department.displayName,
             description: department.description,
             isSystem: true,
+            isActive: true,
           },
-          create: { ...department, isSystem: true },
+          create: { ...department, isSystem: true, isActive: true },
         }),
       ),
     );
@@ -879,14 +1349,48 @@ export class UserService implements OnModuleInit {
             description: jobRole.description,
             departmentCode: jobRole.departmentCode,
             isSystem: true,
+            isActive: true,
           },
-          create: { ...jobRole, isSystem: true },
+          create: { ...jobRole, isSystem: true, isActive: true },
+        }),
+      ),
+    );
+
+    await Promise.all(
+      DEFAULT_REGION_DEFINITIONS.map((region) =>
+        this.prisma.regionDefinition.upsert({
+          where: { code: region.code },
+          update: {
+            displayName: region.displayName,
+            abbreviation: region.abbreviation,
+            description: region.description,
+            isSystem: true,
+            isActive: true,
+          },
+          create: { ...region, isActive: true },
+        }),
+      ),
+    );
+
+    await Promise.all(
+      DEFAULT_AREA_DEFINITIONS.map((area) =>
+        this.prisma.areaDefinition.upsert({
+          where: { code: area.code },
+          update: {
+            displayName: area.displayName,
+            abbreviation: area.abbreviation,
+            description: area.description,
+            regionCode: area.regionCode,
+            isSystem: true,
+            isActive: true,
+          },
+          create: { ...area, isActive: true },
         }),
       ),
     );
 
     this.logger.log(
-      `Personnel catalog seeded: departments=${DEFAULT_DEPARTMENT_DEFINITIONS.length}, jobRoles=${DEFAULT_JOB_ROLE_DEFINITIONS.length}`,
+      `Personnel catalog seeded: departments=${DEFAULT_DEPARTMENT_DEFINITIONS.length}, jobRoles=${DEFAULT_JOB_ROLE_DEFINITIONS.length}, regions=${DEFAULT_REGION_DEFINITIONS.length}, areas=${DEFAULT_AREA_DEFINITIONS.length}`,
     );
   }
 
@@ -907,8 +1411,63 @@ export class UserService implements OnModuleInit {
       options.current?.workScopeType,
       options.role,
     );
+    const scopeLocation = await this.resolveScopeLocation(body, {
+      current: options.current,
+      storeUuid: options.storeUuid,
+      workScopeType,
+    });
 
-    return { departmentCode, jobRoleCode, workScopeType };
+    return { departmentCode, jobRoleCode, workScopeType, ...scopeLocation };
+  }
+
+  private async resolveScopeLocation(
+    body: any,
+    options: {
+      current?: any;
+      storeUuid?: string | null;
+      workScopeType: string;
+    },
+  ) {
+    if (options.workScopeType === NATIONAL_SCOPE) {
+      return { regionCode: null, areaCode: null };
+    }
+
+    if (options.workScopeType === STORE_SCOPE) {
+      const store = options.storeUuid
+        ? await this.prisma.store.findUnique({
+            where: { id: options.storeUuid },
+            include: { area: { include: { region: true } } },
+          })
+        : null;
+      const areaCode = store?.areaCode ?? DEFAULT_REGION_CODE;
+      const regionCode = store?.area?.regionCode ?? DEFAULT_REGION_CODE;
+      return { regionCode, areaCode };
+    }
+
+    if (options.workScopeType === AREA_SCOPE) {
+      const areaCode = await this.resolveAreaCode(
+        body.areaCode,
+        options.current?.areaCode ?? null,
+      );
+      if (!areaCode) throw new BadRequestException('Vui lòng chọn Vùng');
+      const area = await this.prisma.areaDefinition.findUnique({
+        where: { code: areaCode },
+      });
+      if (!area) throw new BadRequestException('Vùng không tồn tại');
+      return { regionCode: area.regionCode, areaCode: area.code };
+    }
+
+    const regionCode = await this.resolveRegionCode(
+      body.regionCode,
+      options.current?.regionCode ?? null,
+    );
+    if (!regionCode) throw new BadRequestException('Vui lòng chọn Miền');
+    const areaCode = await this.resolveOptionalAreaForRegion(
+      body.areaCode,
+      options.current?.areaCode ?? null,
+      regionCode,
+    );
+    return { regionCode, areaCode };
   }
 
   private async resolveDepartmentCode(input: unknown, current?: string | null) {
@@ -921,9 +1480,9 @@ export class UserService implements OnModuleInit {
     const department = await this.prisma.departmentDefinition.findUnique({
       where: { code },
     });
-    if (!department) {
+    if (!department || !department.isActive) {
       this.logger.warn(`Personnel validation failed: department=${code}`);
-      throw new BadRequestException('Phòng ban không tồn tại');
+      throw new BadRequestException('Phòng ban không tồn tại hoặc đã tắt');
     }
     return department.code;
   }
@@ -938,11 +1497,75 @@ export class UserService implements OnModuleInit {
     const jobRole = await this.prisma.jobRoleDefinition.findUnique({
       where: { code },
     });
-    if (!jobRole) {
+    if (!jobRole || !jobRole.isActive) {
       this.logger.warn(`Personnel validation failed: jobRole=${code}`);
-      throw new BadRequestException('Chức danh không tồn tại');
+      throw new BadRequestException('Chức danh không tồn tại hoặc đã tắt');
     }
     return jobRole.code;
+  }
+
+  private async resolveRegionCode(input: unknown, current?: string | null) {
+    if (input === undefined) return current ?? null;
+    const code = this.normalizePersonnelCode(input, 'Mã Miền không hợp lệ');
+    if (!code) return null;
+    const region = await this.prisma.regionDefinition.findUnique({
+      where: { code },
+    });
+    if (!region || !region.isActive) {
+      this.logger.warn(`Personnel validation failed: region=${code}`);
+      throw new BadRequestException('Miền không tồn tại hoặc đã tắt');
+    }
+    return region.code;
+  }
+
+  private async resolveAreaCode(input: unknown, current?: string | null) {
+    if (input === undefined) return current ?? null;
+    const code = this.normalizePersonnelCode(input, 'Mã Vùng không hợp lệ');
+    if (!code) return null;
+    const area = await this.prisma.areaDefinition.findUnique({
+      where: { code },
+    });
+    if (!area || !area.isActive) {
+      this.logger.warn(`Personnel validation failed: area=${code}`);
+      throw new BadRequestException('Vùng không tồn tại hoặc đã tắt');
+    }
+    return area.code;
+  }
+
+  private async resolveOptionalAreaForRegion(
+    input: unknown,
+    current: string | null,
+    regionCode: string,
+  ) {
+    const areaCode = await this.resolveAreaCode(input, current);
+    if (!areaCode) {
+      const defaultArea = await this.prisma.areaDefinition.findUnique({
+        where: { code: regionCode },
+      });
+      return defaultArea?.regionCode === regionCode ? defaultArea.code : null;
+    }
+    const area = await this.prisma.areaDefinition.findUnique({
+      where: { code: areaCode },
+    });
+    if (area?.regionCode !== regionCode) {
+      throw new BadRequestException('Vùng không thuộc Miền đã chọn');
+    }
+    return area.code;
+  }
+
+  private async resolveAreaCodeForStore(input: unknown) {
+    const code = this.normalizePersonnelCode(
+      input || DEFAULT_REGION_CODE,
+      'Mã Vùng không hợp lệ',
+    );
+    if (!code) return DEFAULT_REGION_CODE;
+    const area = await this.prisma.areaDefinition.findUnique({
+      where: { code },
+    });
+    if (!area || !area.isActive) {
+      throw new BadRequestException('Vùng không tồn tại hoặc đã tắt');
+    }
+    return area.code;
   }
 
   private resolveWorkScopeType(
@@ -951,7 +1574,10 @@ export class UserService implements OnModuleInit {
     role: string,
   ) {
     if (input === undefined) {
-      return current || this.defaultWorkScopeForRole(role);
+      const currentScope = String(current || '').trim().toUpperCase();
+      return WORK_SCOPE_TYPES.has(currentScope)
+        ? currentScope
+        : this.defaultWorkScopeForRole(role);
     }
 
     const scope = String(input || '')
@@ -1002,19 +1628,56 @@ export class UserService implements OnModuleInit {
     jobRoleCode?: string | null;
     workScopeType?: string | null;
     storeId?: string | null;
-    store?: { storeId?: string | null } | null;
+    store?: { storeId?: string | null; area?: any | null } | null;
+    region?: any | null;
+    area?: any | null;
   }) {
     const jobRoleCode = String(user.jobRoleCode || '')
       .trim()
       .toUpperCase();
     if (!jobRoleCode) return null;
     const scope = this.effectiveWorkScope(user);
+    const area = this.areaForUser(user);
+    const region = this.regionForUser(user);
+    const areaAbbr = this.scopeAbbreviation(area?.abbreviation || area?.code);
+    const regionAbbr = this.scopeAbbreviation(
+      region?.abbreviation || region?.code,
+    );
     if (scope === STORE_SCOPE) {
-      const storeCode = user.store?.storeId || user.storeId;
-      return storeCode ? `${jobRoleCode}_${storeCode}` : `${jobRoleCode}_STORE`;
+      const storeCode = this.scopeAbbreviation(user.store?.storeId || 'STORE');
+      return `${jobRoleCode}_${storeCode}_${areaAbbr}_${regionAbbr}`;
     }
-    if (scope === ONLINE_SCOPE) return jobRoleCode;
-    return `${jobRoleCode}_${scope}`;
+    if (scope === AREA_SCOPE) {
+      return `${jobRoleCode}_${areaAbbr}_${areaAbbr}_${regionAbbr}`;
+    }
+    if (scope === REGION_SCOPE) {
+      return `${jobRoleCode}_${regionAbbr}_${regionAbbr}_${regionAbbr}`;
+    }
+    return `${jobRoleCode}_NATIONAL_NATIONAL_NATIONAL`;
+  }
+
+  private areaForUser(user: any) {
+    if (this.effectiveWorkScope(user) === STORE_SCOPE) {
+      return user?.store?.area ?? user?.area ?? null;
+    }
+    return user?.area ?? user?.store?.area ?? null;
+  }
+
+  private regionForUser(user: any) {
+    if (this.effectiveWorkScope(user) === STORE_SCOPE) {
+      const storeArea = user?.store?.area ?? null;
+      return storeArea?.region ?? user?.region ?? user?.area?.region ?? null;
+    }
+    const area = this.areaForUser(user);
+    return user?.region ?? area?.region ?? user?.store?.area?.region ?? null;
+  }
+
+  private scopeAbbreviation(value?: string | null) {
+    const code = String(value || DEFAULT_REGION_CODE)
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]/g, '_');
+    return code || DEFAULT_REGION_CODE;
   }
 
   private normalizeRoleCode(roleStr: string, strict = false) {
@@ -1043,6 +1706,17 @@ export class UserService implements OnModuleInit {
   private normalizeRoleDescription(value?: string | null) {
     const description = String(value || '').trim();
     return description ? description.slice(0, 180) : null;
+  }
+
+  private normalizeCatalogAbbreviation(value: unknown) {
+    const abbreviation = String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]/g, '_');
+    if (!/^[A-Z0-9][A-Z0-9_]{0,39}$/.test(abbreviation)) {
+      throw new BadRequestException('Viết tắt không hợp lệ');
+    }
+    return abbreviation;
   }
 
   private async ensureRoleExists(code: string) {
@@ -1149,19 +1823,40 @@ export class UserService implements OnModuleInit {
           ],
         }
       : undefined;
-    const scopeWhere = this.isScopedAdmin(admin)
-      ? { id: admin.storeId || '__NO_STORE__' }
-      : undefined;
+    const scopeWhere = this.adminStoreScopeWhere(admin);
 
     if (queryWhere && scopeWhere) return { AND: [scopeWhere, queryWhere] };
     return queryWhere || scopeWhere;
   }
 
+  private adminStoreScopeWhere(admin: any): Prisma.StoreWhereInput | undefined {
+    if (!this.isScopedAdmin(admin)) return undefined;
+    const scope = this.effectiveWorkScope(admin);
+    if (scope === NATIONAL_SCOPE) return undefined;
+    if (scope === REGION_SCOPE) {
+      return admin.regionCode
+        ? { area: { regionCode: admin.regionCode } }
+        : { id: '__NO_REGION__' };
+    }
+    if (scope === AREA_SCOPE) {
+      return admin.areaCode ? { areaCode: admin.areaCode } : { id: '__NO_AREA__' };
+    }
+    return { id: admin.storeId || '__NO_STORE__' };
+  }
+
   private toStoreDto(store: any) {
+    const area = store.area ?? null;
+    const region = area?.region ?? null;
     return {
       id: store.id,
       storeId: store.storeId,
       storeName: store.storeName,
+      areaCode: area?.code ?? store.areaCode ?? null,
+      areaName: area?.displayName ?? null,
+      areaAbbreviation: area?.abbreviation ?? null,
+      regionCode: region?.code ?? null,
+      regionName: region?.displayName ?? null,
+      regionAbbreviation: region?.abbreviation ?? null,
       transferAccountNumber: store.transferAccountNumber,
       transferAccountName: store.transferAccountName,
       transferBankName: store.transferBankName,

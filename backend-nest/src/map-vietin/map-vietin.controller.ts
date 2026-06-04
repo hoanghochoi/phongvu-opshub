@@ -12,6 +12,9 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import type { Response } from 'express';
+import { FEATURE_KEYS } from '../feature/feature.constants';
+import { RequireFeature } from '../feature/feature.decorator';
+import { FeatureGuard } from '../feature/feature.guard';
 import {
   ExportMapVietinStatementsDto,
   ListStoredMapVietinTransactionsDto,
@@ -22,11 +25,12 @@ import {
 import { MapVietinService } from './map-vietin.service';
 
 @Controller('admin/map-vietin')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), FeatureGuard)
 export class MapVietinController {
   constructor(private readonly mapVietinService: MapVietinService) {}
 
   @Post('transactions/search')
+  @RequireFeature(FEATURE_KEYS.BANK_STATEMENTS)
   searchTransactions(
     @Request() req: any,
     @Body() body: SearchMapVietinTransactionsDto,
@@ -35,6 +39,7 @@ export class MapVietinController {
   }
 
   @Get('transactions')
+  @RequireFeature(FEATURE_KEYS.PAYMENT_MONITOR)
   listStoredTransactions(
     @Request() req: any,
     @Query() query: ListStoredMapVietinTransactionsDto,
@@ -43,6 +48,7 @@ export class MapVietinController {
   }
 
   @Get('statements')
+  @RequireFeature(FEATURE_KEYS.BANK_STATEMENTS)
   listStatements(
     @Request() req: any,
     @Query() query: ListMapVietinStatementsDto,
@@ -51,6 +57,7 @@ export class MapVietinController {
   }
 
   @Post('statements/export')
+  @RequireFeature(FEATURE_KEYS.BANK_STATEMENTS)
   async exportStatements(
     @Request() req: any,
     @Body() body: ExportMapVietinStatementsDto,
@@ -66,6 +73,7 @@ export class MapVietinController {
   }
 
   @Patch('statements/:id/orders')
+  @RequireFeature(FEATURE_KEYS.BANK_STATEMENTS)
   updateStatementOrders(
     @Request() req: any,
     @Param('id') id: string,
@@ -75,6 +83,7 @@ export class MapVietinController {
   }
 
   @Get('statements/:id/order-history')
+  @RequireFeature(FEATURE_KEYS.BANK_STATEMENTS)
   listStatementOrderHistory(@Request() req: any, @Param('id') id: string) {
     return this.mapVietinService.listStatementOrderHistory(req.user, id);
   }
