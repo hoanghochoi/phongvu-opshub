@@ -418,7 +418,7 @@
         <span class="eyebrow">Tải ứng dụng</span>
         <h1>Cài đặt PhongVu OpsHub</h1>
         <p class="lead">
-          Chọn đúng bản cho thiết bị đang dùng. Nếu dùng máy Windows, hãy tải bộ cài được khuyên dùng để ứng dụng tự chuẩn bị các thành phần cần thiết.
+          Trang này sẽ ưu tiên bản phù hợp với thiết bị bạn đang dùng. Bạn vẫn có thể chọn bản khác bên dưới khi cần cài cho máy khác.
         </p>
         <div class="meta-row" aria-live="polite">
           <span class="meta-chip">Phiên bản: <strong id="versionText">--</strong></span>
@@ -430,7 +430,7 @@
       <section class="download-panel" aria-labelledby="downloadTitle">
         <div class="panel-head">
           <div>
-            <h2 class="panel-title" id="downloadTitle">Chọn bản tải xuống</h2>
+            <h2 class="panel-title" id="downloadTitle">Bản phù hợp nhất</h2>
             <p class="panel-subtitle" id="releaseNotes">Đang kiểm tra phiên bản mới nhất.</p>
           </div>
         </div>
@@ -439,7 +439,7 @@
           <article class="download-card primary">
             <div>
               <div class="card-title-row">
-                <span class="card-title skeleton">Máy Windows</span>
+                <span class="card-title skeleton">Đang nhận diện thiết bị</span>
               </div>
               <p class="card-copy skeleton">Đang chuẩn bị link tải.</p>
               <div class="file-meta skeleton">--</div>
@@ -465,14 +465,15 @@
     const publishedText = document.getElementById('publishedText');
     const releaseNotes = document.getElementById('releaseNotes');
 
+    const platformPreference = detectPlatformPreference();
+
     const downloads = [
       {
         key: 'windowsInstaller',
         title: 'Máy Windows',
-        badge: 'Nên dùng',
+        badge: 'Windows',
         description: 'Dành cho laptop hoặc máy tính Windows. Bộ cài sẽ tự chuẩn bị các thành phần cần thiết để chạy ứng dụng.',
         button: 'Tải cho Windows',
-        primary: true,
       },
       {
         key: 'apk',
@@ -480,7 +481,6 @@
         badge: 'Android',
         description: 'Dành cho điện thoại Android. Tải file APK rồi mở file trên điện thoại để cài đặt hoặc cập nhật.',
         button: 'Tải cho Android',
-        primary: false,
       },
       {
         key: 'windowsZip',
@@ -488,7 +488,6 @@
         badge: 'Dự phòng',
         description: 'Chỉ dùng khi được IT hướng dẫn hoặc cần chạy dạng portable. Bản này không tự cài các thành phần hỗ trợ.',
         button: 'Tải ZIP',
-        primary: false,
       },
     ];
 
@@ -512,14 +511,55 @@
       versionText.textContent = manifest.version || '--';
       buildText.textContent = manifest.build || '--';
       publishedText.textContent = formatDate(manifest.publishedAt);
-      releaseNotes.textContent = manifest.releaseNotes || 'Chưa có ghi chú cho bản cập nhật này.';
-      headerStatus.textContent = 'Đã tìm thấy bản mới nhất';
+      releaseNotes.textContent = platformPreference.message;
+      headerStatus.textContent = platformPreference.status;
 
-      downloadList.innerHTML = downloads.map((item) => renderCard(item, files[item.key])).join('');
+      downloadList.innerHTML = prioritizedDownloads().map((item) => renderCard(item, files[item.key])).join('');
       renderChecksum(files.windowsChecksum);
 
       stateMessage.className = 'message success';
-      stateMessage.textContent = 'Các link bên dưới đang trỏ tới bản mới nhất.';
+      stateMessage.textContent = `${platformPreference.shortMessage} Các link bên dưới đang trỏ tới bản mới nhất.`;
+    }
+
+    function detectPlatformPreference() {
+      const ua = navigator.userAgent || navigator.vendor || '';
+      if (/android/i.test(ua)) {
+        return {
+          key: 'apk',
+          status: 'Đã ưu tiên bản Android',
+          message: 'Bạn đang mở bằng thiết bị Android, nên bản Android được đưa lên đầu.',
+          shortMessage: 'Đã ưu tiên bản Android cho thiết bị hiện tại.',
+        };
+      }
+      if (/windows nt|win64|win32|wow64/i.test(ua)) {
+        return {
+          key: 'windowsInstaller',
+          status: 'Đã ưu tiên bản Windows',
+          message: 'Bạn đang mở bằng máy Windows, nên bộ cài Windows được đưa lên đầu.',
+          shortMessage: 'Đã ưu tiên bản Windows cho thiết bị hiện tại.',
+        };
+      }
+      return {
+        key: 'windowsInstaller',
+        status: 'Đã tìm thấy bản mới nhất',
+        message: 'Chưa nhận diện được nền tảng cần cài. Bản Windows được đặt trước, các bản khác vẫn ở bên dưới.',
+        shortMessage: 'Chưa nhận diện được thiết bị, nên giữ bản Windows ở đầu danh sách.',
+      };
+    }
+
+    function prioritizedDownloads() {
+      return downloads
+        .map((item) => ({
+          ...item,
+          primary: item.key === platformPreference.key,
+          badge: item.key === platformPreference.key ? 'Nên dùng' : item.badge,
+        }))
+        .sort((left, right) => {
+          if (left.key === platformPreference.key) return -1;
+          if (right.key === platformPreference.key) return 1;
+          return downloads.findIndex((item) => item.key === left.key) -
+            downloads.findIndex((item) => item.key === right.key);
+        });
     }
 
     function renderCard(item, file) {
