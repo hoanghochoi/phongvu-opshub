@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Tải bản mới nhất của PhongVu OpsHub cho Android và Windows.">
-  <title>Tải PhongVu OpsHub</title>
+  <meta name="description" content="Trang tải ứng dụng PhongVu OpsHub mới nhất cho nhân viên dùng Android và Windows.">
+  <title>Tải ứng dụng PhongVu OpsHub</title>
   <link rel="icon" href="/downloads/opshub-icon-192.png">
   <style>
     :root {
@@ -407,18 +407,18 @@
         <img src="/downloads/opshub-icon-192.png" alt="PhongVu OpsHub">
         <span>
           <span class="brand-name">PhongVu OpsHub</span>
-          <span class="brand-subtitle">Internal operations app</span>
+          <span class="brand-subtitle">Ứng dụng nội bộ Phong Vũ</span>
         </span>
       </div>
-      <span class="status-pill" id="headerStatus">Đang kiểm tra bản mới nhất</span>
+      <span class="status-pill" id="headerStatus">Đang tìm bản mới nhất</span>
     </header>
 
     <section class="hero">
       <div>
-        <span class="eyebrow">Download center</span>
-        <h1>Tải PhongVu OpsHub</h1>
+        <span class="eyebrow">Tải ứng dụng</span>
+        <h1>Cài đặt PhongVu OpsHub</h1>
         <p class="lead">
-          Chọn đúng gói cài đặt cho máy đang dùng. Windows nên dùng bản setup EXE để tự cài prerequisite; ZIP chỉ dành cho trường hợp portable/manual.
+          Chọn đúng bản cho thiết bị đang dùng. Nếu dùng máy Windows, hãy tải bộ cài được khuyên dùng để ứng dụng tự chuẩn bị các thành phần cần thiết.
         </p>
         <div class="meta-row" aria-live="polite">
           <span class="meta-chip">Phiên bản: <strong id="versionText">--</strong></span>
@@ -430,8 +430,8 @@
       <section class="download-panel" aria-labelledby="downloadTitle">
         <div class="panel-head">
           <div>
-            <h2 class="panel-title" id="downloadTitle">Bản mới nhất</h2>
-            <p class="panel-subtitle" id="releaseNotes">Đang tải thông tin phát hành.</p>
+            <h2 class="panel-title" id="downloadTitle">Chọn bản tải xuống</h2>
+            <p class="panel-subtitle" id="releaseNotes">Đang kiểm tra phiên bản mới nhất.</p>
           </div>
         </div>
 
@@ -439,17 +439,17 @@
           <article class="download-card primary">
             <div>
               <div class="card-title-row">
-                <span class="card-title skeleton">Windows installer</span>
+                <span class="card-title skeleton">Máy Windows</span>
               </div>
-              <p class="card-copy skeleton">Đang tải dữ liệu.</p>
+              <p class="card-copy skeleton">Đang chuẩn bị link tải.</p>
               <div class="file-meta skeleton">--</div>
             </div>
-            <a class="download-button" aria-disabled="true">Đang tải</a>
+            <a class="download-button" aria-disabled="true">Đang kiểm tra</a>
           </article>
         </div>
 
         <div class="checksum-row" id="checksumRow" hidden></div>
-        <div class="message" id="stateMessage">Đang lấy manifest mới nhất từ server.</div>
+        <div class="message" id="stateMessage">Đang kiểm tra link tải mới nhất.</div>
       </section>
     </section>
   </main>
@@ -468,25 +468,25 @@
     const downloads = [
       {
         key: 'windowsInstaller',
-        title: 'Windows setup EXE',
-        badge: 'Khuyên dùng',
-        description: 'Cài đặt chuẩn cho Windows, có kiểm tra prerequisite và cấu hình cần thiết.',
-        button: 'Tải EXE',
+        title: 'Máy Windows',
+        badge: 'Nên dùng',
+        description: 'Dành cho laptop hoặc máy tính Windows. Bộ cài sẽ tự chuẩn bị các thành phần cần thiết để chạy ứng dụng.',
+        button: 'Tải cho Windows',
         primary: true,
       },
       {
         key: 'apk',
-        title: 'Android APK',
+        title: 'Điện thoại Android',
         badge: 'Android',
-        description: 'Dành cho điện thoại Android, cài đè để cập nhật khi cùng signing key.',
-        button: 'Tải APK',
+        description: 'Dành cho điện thoại Android. Tải file APK rồi mở file trên điện thoại để cài đặt hoặc cập nhật.',
+        button: 'Tải cho Android',
         primary: false,
       },
       {
         key: 'windowsZip',
-        title: 'Windows portable ZIP',
-        badge: 'Manual',
-        description: 'Gói ZIP cho triển khai thủ công; không tự cài prerequisite như bản setup.',
+        title: 'Bản Windows dạng ZIP',
+        badge: 'Dự phòng',
+        description: 'Chỉ dùng khi được IT hướng dẫn hoặc cần chạy dạng portable. Bản này không tự cài các thành phần hỗ trợ.',
         button: 'Tải ZIP',
         primary: false,
       },
@@ -512,14 +512,14 @@
       versionText.textContent = manifest.version || '--';
       buildText.textContent = manifest.build || '--';
       publishedText.textContent = formatDate(manifest.publishedAt);
-      releaseNotes.textContent = manifest.releaseNotes || 'Không có release notes.';
-      headerStatus.textContent = 'Manifest đã sẵn sàng';
+      releaseNotes.textContent = manifest.releaseNotes || 'Chưa có ghi chú cho bản cập nhật này.';
+      headerStatus.textContent = 'Đã tìm thấy bản mới nhất';
 
       downloadList.innerHTML = downloads.map((item) => renderCard(item, files[item.key])).join('');
       renderChecksum(files.windowsChecksum);
 
       stateMessage.className = 'message success';
-      stateMessage.textContent = 'Các link tải được lấy từ manifest mới nhất.';
+      stateMessage.textContent = 'Các link bên dưới đang trỏ tới bản mới nhất.';
     }
 
     function renderCard(item, file) {
@@ -527,7 +527,7 @@
       const safeUrl = disabled ? '#' : escapeAttr(file.url);
       const buttonClass = item.primary ? 'download-button' : 'download-button secondary';
       const fileMeta = disabled
-        ? 'Chưa có file trong manifest.'
+        ? 'Link tải chưa sẵn sàng.'
         : `${escapeHtml(file.fileName || 'download')} · ${formatBytes(file.sizeBytes)}`;
       return `
         <article class="download-card${item.primary ? ' primary' : ''}">
@@ -550,16 +550,16 @@
         return;
       }
       checksumRow.hidden = false;
-      checksumRow.innerHTML = `SHA256 Windows: <a href="${escapeAttr(file.url)}" download>${escapeHtml(file.fileName || 'checksum')}</a>`;
+      checksumRow.innerHTML = `Mã kiểm tra file Windows: <a href="${escapeAttr(file.url)}" download>${escapeHtml(file.fileName || 'checksum')}</a>`;
     }
 
     function renderError(error) {
-      headerStatus.textContent = 'Không lấy được manifest';
-      releaseNotes.textContent = 'Không thể tải thông tin phát hành.';
+      headerStatus.textContent = 'Chưa tải được thông tin';
+      releaseNotes.textContent = 'Chưa lấy được thông tin phiên bản mới nhất.';
       downloadList.innerHTML = downloads.map((item) => renderCard(item, null)).join('');
       checksumRow.hidden = true;
       stateMessage.className = 'message error';
-      stateMessage.textContent = `Không lấy được manifest mới nhất (${error.message}). Vui lòng thử lại sau.`;
+      stateMessage.textContent = `Chưa tải được link mới nhất (${error.message}). Vui lòng thử lại sau hoặc báo IT nếu cần cài gấp.`;
     }
 
     function formatBytes(value) {
