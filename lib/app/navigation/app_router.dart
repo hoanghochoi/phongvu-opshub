@@ -164,6 +164,10 @@ class AppRouter {
           path: '/fifo-history',
           builder: (context, state) => const FifoHistoryScreen(),
         ),
+        GoRoute(
+          path: '/fifo/inventory-import',
+          builder: (context, state) => const InventoryImportScreen(),
+        ),
         GoRoute(path: '/sort', builder: (context, state) => const SortScreen()),
         GoRoute(
           path: '/warranty-main',
@@ -219,9 +223,9 @@ class AppRouter {
       '/admin/personnel' => 'ADMIN_PERSONNEL',
       '/admin/features' => 'ADMIN_FEATURES',
       '/admin/inventory-import' => 'FIFO_IMPORT',
-      '/fifo-menu' => 'FIFO',
       '/fifo-check' => 'FIFO',
       '/fifo-history' => 'FIFO',
+      '/fifo/inventory-import' => 'FIFO_IMPORT',
       '/sort' => 'FIFO',
       '/warranty-main' => 'WARRANTY',
       '/warranty' => 'WARRANTY',

@@ -66,14 +66,6 @@ class AdminMenuScreen extends StatelessWidget {
           color: AppColors.error,
           onTap: () => context.push('/admin/features'),
         ),
-      if (canUse('FIFO_IMPORT'))
-        AppFeatureAction(
-          icon: Icons.upload_file_outlined,
-          title: 'Cập nhật tồn kho',
-          description: 'Import Excel cho FIFO',
-          color: AppColors.amber500,
-          onTap: () => context.push('/admin/inventory-import'),
-        ),
     ];
 
     return Scaffold(

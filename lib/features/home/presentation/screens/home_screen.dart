@@ -42,9 +42,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final isAdmin = context.select<AuthProvider, bool>(
       (auth) => auth.user?.isAdmin == true,
     );
-    final canUseFifo = context.select<AuthProvider, bool>(
-      (auth) => auth.user?.canUseFeature('FIFO') == true,
-    );
+    final canUseFifoMenu = context.select<AuthProvider, bool>((auth) {
+      final user = auth.user;
+      return user?.canUseFeature('FIFO') == true ||
+          user?.canUseFeature('FIFO_IMPORT') == true;
+    });
     final canUseWarranty = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('WARRANTY') == true,
     );
@@ -62,7 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final actions = _buildHomeActions(
       context,
       isAdmin,
-      canUseFifo,
+      canUseFifoMenu,
       canUseWarranty,
       canUseBankStatements,
       canUseVietQr,
@@ -119,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<AppFeatureAction> _buildHomeActions(
     BuildContext context,
     bool isAdmin,
-    bool canUseFifo,
+    bool canUseFifoMenu,
     bool canUseWarranty,
     bool canUseBankStatements,
     bool canUseVietQr,
@@ -135,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
           color: AppColors.neutral600,
           onTap: () => context.push('/admin'),
         ),
-      if (canUseFifo)
+      if (canUseFifoMenu)
         AppFeatureAction(
           icon: Icons.qr_code_scanner_rounded,
           title: 'FIFO',
