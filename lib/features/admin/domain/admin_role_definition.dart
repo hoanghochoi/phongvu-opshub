@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_colors.dart';
+
 class AdminRoleDefinition {
   final String? id;
   final String value;
@@ -50,11 +52,11 @@ class AdminRoleDefinition {
 
   static Color _colorFor(String code) {
     return switch (code) {
-      'SUPER_ADMIN' => const Color(0xFF7C3AED),
-      'ADMIN' => const Color(0xFF2563EB),
-      'MANAGER' => const Color(0xFF0F766E),
-      'STAFF' => const Color(0xFF4B5563),
-      _ => const Color(0xFF9333EA),
+      'SUPER_ADMIN' => AppColors.violet600,
+      'ADMIN' => AppColors.info,
+      'MANAGER' => AppColors.teal600,
+      'STAFF' => AppColors.neutral600,
+      _ => AppColors.purple600,
     };
   }
 }
@@ -68,28 +70,28 @@ class AdminRoles {
       title: 'Super Admin',
       description: 'Toàn quyền hệ thống',
       icon: Icons.verified_user_outlined,
-      color: Color(0xFF7C3AED),
+      color: AppColors.violet600,
     ),
     AdminRoleDefinition(
       value: 'ADMIN',
       title: 'Admin',
       description: 'Quản lý người dùng theo phạm vi',
       icon: Icons.admin_panel_settings_outlined,
-      color: Color(0xFF2563EB),
+      color: AppColors.info,
     ),
     AdminRoleDefinition(
       value: 'MANAGER',
       title: 'Manager',
       description: 'Nhóm quyền quản lý vận hành',
       icon: Icons.manage_accounts_outlined,
-      color: Color(0xFF0F766E),
+      color: AppColors.teal600,
     ),
     AdminRoleDefinition(
       value: 'STAFF',
       title: 'Staff',
       description: 'Quyền thao tác hằng ngày',
       icon: Icons.badge_outlined,
-      color: Color(0xFF4B5563),
+      color: AppColors.neutral600,
     ),
   ];
 

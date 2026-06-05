@@ -1,10 +1,10 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../core/platform/app_platform_capabilities.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
@@ -57,6 +57,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final canUsePaymentMonitor = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('PAYMENT_MONITOR') == true,
     );
+    final supportsPaymentMonitor =
+        AppPlatformCapabilities.isPaymentMonitorSupported();
     final actions = _buildHomeActions(
       context,
       isAdmin,
@@ -65,6 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
       canUseBankStatements,
       canUseVietQr,
       canUsePaymentMonitor,
+      supportsPaymentMonitor,
     );
 
     return Scaffold(
@@ -98,9 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (canUsePaymentMonitor &&
-                      !kIsWeb &&
-                      defaultTargetPlatform == TargetPlatform.windows) ...[
+                  if (canUsePaymentMonitor && supportsPaymentMonitor) ...[
                     const _PaymentMonitorQuickToggle(),
                     const SizedBox(height: 16),
                   ],
@@ -123,6 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
     bool canUseBankStatements,
     bool canUseVietQr,
     bool canUsePaymentMonitor,
+    bool supportsPaymentMonitor,
   ) {
     return [
       if (isAdmin)
@@ -165,9 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
           color: AppColors.info,
           onTap: () => context.push('/bank-statement'),
         ),
-      if (canUsePaymentMonitor &&
-          !kIsWeb &&
-          defaultTargetPlatform == TargetPlatform.windows)
+      if (canUsePaymentMonitor && supportsPaymentMonitor)
         AppFeatureAction(
           icon: Icons.volume_up_rounded,
           title: 'Tiền vào',
