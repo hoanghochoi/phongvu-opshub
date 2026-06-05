@@ -774,10 +774,21 @@ export class UserService implements OnModuleInit {
   async adminListRegions(admin: any) {
     this.assertAdmin(admin);
     await this.seedDefaultPersonnelCatalog();
-    return this.prisma.regionDefinition.findMany({
+    const regions = await this.prisma.regionDefinition.findMany({
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
-      include: { _count: { select: { areas: true, users: true, featureAccessRules: true } } },
+      include: { _count: { select: { areas: true, featureAccessRules: true } } },
     });
+    const userCounts = await Promise.all(
+      regions.map((region) =>
+        this.prisma.user.count({
+          where: this.regionUserCountWhere(region.code),
+        }),
+      ),
+    );
+    return regions.map((region, index) => ({
+      ...region,
+      _count: { ...region._count, users: userCounts[index] },
+    }));
   }
 
   async adminListAreas(admin: any, regionCodeInput?: string) {
@@ -786,14 +797,25 @@ export class UserService implements OnModuleInit {
     const regionCode = regionCodeInput
       ? this.normalizePersonnelCode(regionCodeInput, 'Mã Miền không hợp lệ')
       : null;
-    return this.prisma.areaDefinition.findMany({
+    const areas = await this.prisma.areaDefinition.findMany({
       where: regionCode ? { regionCode } : undefined,
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
       include: {
         region: true,
-        _count: { select: { stores: true, users: true, featureAccessRules: true } },
+        _count: { select: { stores: true, featureAccessRules: true } },
       },
     });
+    const userCounts = await Promise.all(
+      areas.map((area) =>
+        this.prisma.user.count({
+          where: this.areaUserCountWhere(area.code),
+        }),
+      ),
+    );
+    return areas.map((area, index) => ({
+      ...area,
+      _count: { ...area._count, users: userCounts[index] },
+    }));
   }
 
   async adminCreateRegion(admin: any, body: any) {
@@ -1265,7 +1287,8 @@ export class UserService implements OnModuleInit {
       throw new ForbiddenException('Không có quyền đổi Vùng/Miền của SR');
     }
 
-    const store = await this.prisma.store.update({
+    const store = await this.prisma.$transaction(async (tx) => {
+      const updatedStore = await tx.store.update({
       where: { storeId: current.storeId },
       data: {
         storeId: nextCode,
@@ -1285,6 +1308,20 @@ export class UserService implements OnModuleInit {
         area: { include: { region: true } },
         _count: { select: { users: true } },
       },
+    });
+
+      if (nextAreaCode !== current.areaCode) {
+        const regionCode = updatedStore.area?.regionCode ?? DEFAULT_REGION_CODE;
+        const syncResult = await tx.user.updateMany({
+          where: { storeId: current.id, workScopeType: STORE_SCOPE },
+          data: { areaCode: updatedStore.areaCode, regionCode },
+        });
+        this.logger.log(
+          `Store area changed: store=${updatedStore.storeId} area=${current.areaCode || 'null'}->${updatedStore.areaCode || 'null'} region=${regionCode} syncedUsers=${syncResult.count}`,
+        );
+      }
+
+      return updatedStore;
     });
     return this.toStoreDto(store);
   }
@@ -1566,6 +1603,29 @@ export class UserService implements OnModuleInit {
       throw new BadRequestException('Vùng không tồn tại hoặc đã tắt');
     }
     return area.code;
+  }
+
+  private regionUserCountWhere(regionCode: string): Prisma.UserWhereInput {
+    return {
+      OR: [
+        { AND: [{ regionCode }, { NOT: { workScopeType: STORE_SCOPE } }] },
+        { AND: [{ regionCode }, { workScopeType: STORE_SCOPE }, { storeId: null }] },
+        {
+          workScopeType: STORE_SCOPE,
+          store: { is: { area: { is: { regionCode } } } },
+        },
+      ],
+    };
+  }
+
+  private areaUserCountWhere(areaCode: string): Prisma.UserWhereInput {
+    return {
+      OR: [
+        { AND: [{ areaCode }, { NOT: { workScopeType: STORE_SCOPE } }] },
+        { AND: [{ areaCode }, { workScopeType: STORE_SCOPE }, { storeId: null }] },
+        { workScopeType: STORE_SCOPE, store: { is: { areaCode } } },
+      ],
+    };
   }
 
   private resolveWorkScopeType(

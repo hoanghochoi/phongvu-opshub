@@ -90,7 +90,11 @@ export class FeatureService implements OnModuleInit {
     return this.prisma.featureDefinition.create({
       data: {
         code,
-        displayName: this.requiredText(body.displayName, 'Tên tính năng không được để trống', 120),
+        displayName: this.requiredText(
+          body.displayName,
+          'Tên tính năng không được để trống',
+          120,
+        ),
         description: this.optionalText(body.description, 240),
         isSystem: false,
         isActive: body.isActive !== false,
@@ -120,13 +124,19 @@ export class FeatureService implements OnModuleInit {
         displayName:
           body.displayName === undefined
             ? current.displayName
-            : this.requiredText(body.displayName, 'Tên tính năng không được để trống', 120),
+            : this.requiredText(
+                body.displayName,
+                'Tên tính năng không được để trống',
+                120,
+              ),
         description:
           body.description === undefined
             ? current.description
             : this.optionalText(body.description, 240),
         isActive:
-          body.isActive === undefined ? current.isActive : body.isActive === true,
+          body.isActive === undefined
+            ? current.isActive
+            : body.isActive === true,
       },
     });
   }
@@ -155,7 +165,9 @@ export class FeatureService implements OnModuleInit {
       ? this.normalizeCode(featureCode, 'Mã tính năng không hợp lệ')
       : undefined;
     return this.prisma.featureAccessRule.findMany({
-      where: normalizedFeatureCode ? { featureCode: normalizedFeatureCode } : undefined,
+      where: normalizedFeatureCode
+        ? { featureCode: normalizedFeatureCode }
+        : undefined,
       orderBy: { updatedAt: 'desc' },
       include: {
         feature: true,
@@ -164,7 +176,9 @@ export class FeatureService implements OnModuleInit {
         region: true,
         area: true,
         store: true,
-        user: { select: { id: true, email: true, firstName: true, lastName: true } },
+        user: {
+          select: { id: true, email: true, firstName: true, lastName: true },
+        },
       },
     });
   }
@@ -175,11 +189,24 @@ export class FeatureService implements OnModuleInit {
     return this.prisma.featureAccessRule.create({ data });
   }
 
+  async adminCreateRules(admin: any, body: any) {
+    this.assertSuperAdmin(admin);
+    const dataList = await this.normalizeRuleBatchInput(body);
+    return this.prisma.$transaction(
+      dataList.map((data) => this.prisma.featureAccessRule.create({ data })),
+    );
+  }
+
   async adminUpdateRule(admin: any, id: string, body: any) {
     this.assertSuperAdmin(admin);
-    const current = await this.prisma.featureAccessRule.findUnique({ where: { id } });
+    const current = await this.prisma.featureAccessRule.findUnique({
+      where: { id },
+    });
     if (!current) throw new NotFoundException('Không tìm thấy rule');
-    const data = await this.normalizeRuleInput({ ...current, ...body }, current);
+    const data = await this.normalizeRuleInput(
+      { ...current, ...body },
+      current,
+    );
     return this.prisma.featureAccessRule.update({ where: { id }, data });
   }
 
@@ -232,7 +259,10 @@ export class FeatureService implements OnModuleInit {
       'Mã tính năng không hợp lệ',
     );
     await this.ensureFeature(featureCode);
-    const enabled = input.enabled === undefined ? current?.enabled === true : input.enabled === true;
+    const enabled =
+      input.enabled === undefined
+        ? current?.enabled === true
+        : input.enabled === true;
     const workScopeType = this.normalizeOptionalCode(input.workScopeType);
     if (workScopeType && !VALID_WORK_SCOPES.has(workScopeType)) {
       throw new BadRequestException('Phạm vi tính năng không hợp lệ');
@@ -256,6 +286,191 @@ export class FeatureService implements OnModuleInit {
     return data;
   }
 
+  private async normalizeRuleBatchInput(input: any) {
+    const featureCode = this.normalizeCode(
+      input.featureCode,
+      'MÃ£ tÃ­nh nÄƒng khÃ´ng há»£p lá»‡',
+    );
+    await this.ensureFeature(featureCode);
+    const enabled = input.enabled === true;
+    const note = this.optionalText(input.note, 240);
+    const systemRoles = this.normalizeCodeOptions(
+      input.systemRoles,
+      input.systemRole,
+    );
+    const departmentCodes = this.normalizeCodeOptions(
+      input.departmentCodes,
+      input.departmentCode,
+    );
+    const jobRoleCodes = this.normalizeCodeOptions(
+      input.jobRoleCodes,
+      input.jobRoleCode,
+    );
+    const workScopeTypes = this.normalizeCodeOptions(
+      input.workScopeTypes,
+      input.workScopeType,
+    );
+    for (const workScopeType of workScopeTypes) {
+      if (workScopeType && !VALID_WORK_SCOPES.has(workScopeType)) {
+        throw new BadRequestException(
+          'Pháº¡m vi tÃ­nh nÄƒng khÃ´ng há»£p lá»‡',
+        );
+      }
+    }
+    const locations = await this.normalizeLocationOptions(
+      this.normalizeCodeOptions(input.regionCodes, input.regionCode),
+      this.normalizeCodeOptions(input.areaCodes, input.areaCode),
+    );
+    const storeCodes = this.normalizeCodeOptions(
+      input.storeCodes,
+      input.storeCode,
+    );
+    const userIds = this.normalizeTextOptions(input.userIds, input.userId, 80);
+
+    const dataList = this.expandRuleBatch({
+      featureCode,
+      enabled,
+      note,
+      systemRoles,
+      departmentCodes,
+      jobRoleCodes,
+      workScopeTypes,
+      locations,
+      storeCodes,
+      userIds,
+    });
+
+    if (dataList.length > 500) {
+      throw new BadRequestException('Tá»‘i Ä‘a 500 rules má»—i láº§n táº¡o');
+    }
+
+    for (const data of dataList) {
+      await this.validateRuleReferences(data);
+    }
+    return dataList;
+  }
+
+  private normalizeCodeOptions(listValue: unknown, singleValue: unknown) {
+    const values = Array.isArray(listValue) ? listValue : [];
+    return this.normalizeOptions(values, singleValue, (value) =>
+      this.normalizeOptionalCode(value),
+    );
+  }
+
+  private normalizeTextOptions(
+    listValue: unknown,
+    singleValue: unknown,
+    maxLength: number,
+  ) {
+    const values = Array.isArray(listValue) ? listValue : [];
+    return this.normalizeOptions(values, singleValue, (value) =>
+      this.optionalText(value, maxLength),
+    );
+  }
+
+  private normalizeOptions(
+    listValue: unknown[],
+    singleValue: unknown,
+    normalize: (value: unknown) => string | null,
+  ) {
+    const seen = new Set<string>();
+    const result: Array<string | null> = [];
+    const add = (value: unknown) => {
+      const normalized = normalize(value);
+      if (!normalized) return;
+      const key = normalized.toUpperCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      result.push(normalized);
+    };
+    listValue.forEach(add);
+    add(singleValue);
+    return result.length === 0 ? [null] : result;
+  }
+
+  private async normalizeLocationOptions(
+    regionCodes: Array<string | null>,
+    areaCodes: Array<string | null>,
+  ) {
+    const selectedRegions = regionCodes.filter((code): code is string =>
+      Boolean(code),
+    );
+    const selectedAreas = areaCodes.filter((code): code is string =>
+      Boolean(code),
+    );
+
+    if (selectedRegions.length === 0 && selectedAreas.length === 0) {
+      return [{ regionCode: null, areaCode: null }];
+    }
+    if (selectedAreas.length === 0) {
+      return selectedRegions.map((regionCode) => ({
+        regionCode,
+        areaCode: null,
+      }));
+    }
+    if (selectedRegions.length === 0) {
+      return selectedAreas.map((areaCode) => ({ regionCode: null, areaCode }));
+    }
+
+    const locations: Array<{ regionCode: string; areaCode: string }> = [];
+    for (const areaCode of selectedAreas) {
+      const area = await this.prisma.areaDefinition.findUnique({
+        where: { code: areaCode },
+      });
+      if (!area) throw new BadRequestException('VÃ¹ng khÃ´ng tá»“n táº¡i');
+      if (selectedRegions.includes(area.regionCode)) {
+        locations.push({ regionCode: area.regionCode, areaCode });
+      }
+    }
+    if (locations.length === 0) {
+      throw new BadRequestException('VÃ¹ng khÃ´ng thuá»™c Miá»n Ä‘Ã£ chá»n');
+    }
+    return locations;
+  }
+
+  private expandRuleBatch(input: {
+    featureCode: string;
+    enabled: boolean;
+    note: string | null;
+    systemRoles: Array<string | null>;
+    departmentCodes: Array<string | null>;
+    jobRoleCodes: Array<string | null>;
+    workScopeTypes: Array<string | null>;
+    locations: Array<{ regionCode: string | null; areaCode: string | null }>;
+    storeCodes: Array<string | null>;
+    userIds: Array<string | null>;
+  }) {
+    const dataList: any[] = [];
+    for (const systemRole of input.systemRoles) {
+      for (const departmentCode of input.departmentCodes) {
+        for (const jobRoleCode of input.jobRoleCodes) {
+          for (const workScopeType of input.workScopeTypes) {
+            for (const location of input.locations) {
+              for (const storeCode of input.storeCodes) {
+                for (const userId of input.userIds) {
+                  dataList.push({
+                    featureCode: input.featureCode,
+                    enabled: input.enabled,
+                    systemRole,
+                    departmentCode,
+                    jobRoleCode,
+                    workScopeType,
+                    regionCode: location.regionCode,
+                    areaCode: location.areaCode,
+                    storeCode,
+                    userId,
+                    note: input.note,
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return dataList;
+  }
+
   private async validateRuleReferences(data: {
     systemRole: string | null;
     departmentCode: string | null;
@@ -269,7 +484,8 @@ export class FeatureService implements OnModuleInit {
       const role = await this.prisma.roleDefinition.findUnique({
         where: { code: data.systemRole },
       });
-      if (!role) throw new BadRequestException('Vai trò hệ thống không tồn tại');
+      if (!role)
+        throw new BadRequestException('Vai trò hệ thống không tồn tại');
     }
     if (data.departmentCode) {
       const department = await this.prisma.departmentDefinition.findUnique({
@@ -305,13 +521,17 @@ export class FeatureService implements OnModuleInit {
       if (!store) throw new BadRequestException('SR không tồn tại');
     }
     if (data.userId) {
-      const user = await this.prisma.user.findUnique({ where: { id: data.userId } });
+      const user = await this.prisma.user.findUnique({
+        where: { id: data.userId },
+      });
       if (!user) throw new BadRequestException('User không tồn tại');
     }
   }
 
   private async ensureFeature(code: string) {
-    const feature = await this.prisma.featureDefinition.findUnique({ where: { code } });
+    const feature = await this.prisma.featureDefinition.findUnique({
+      where: { code },
+    });
     if (!feature) throw new BadRequestException('Tính năng không tồn tại');
   }
 
@@ -360,14 +580,20 @@ export class FeatureService implements OnModuleInit {
   private regionForContextSource(source: any) {
     if (this.effectiveScope(source) === 'STORE') {
       const storeArea = source?.store?.area ?? null;
-      return storeArea?.region ?? source?.region ?? source?.area?.region ?? null;
+      return (
+        storeArea?.region ?? source?.region ?? source?.area?.region ?? null
+      );
     }
     const area = this.areaForContextSource(source);
-    return source?.region ?? area?.region ?? source?.store?.area?.region ?? null;
+    return (
+      source?.region ?? area?.region ?? source?.store?.area?.region ?? null
+    );
   }
 
   private effectiveScope(user: any) {
-    const scope = String(user?.workScopeType || '').trim().toUpperCase();
+    const scope = String(user?.workScopeType || '')
+      .trim()
+      .toUpperCase();
     if (VALID_WORK_SCOPES.has(scope)) return scope;
     if (user?.role === SUPER_ADMIN_ROLE || user?.role === ADMIN_ROLE) {
       return 'NATIONAL';
@@ -390,7 +616,10 @@ export class FeatureService implements OnModuleInit {
 
   private matches(ruleValue?: string | null, contextValue?: string | null) {
     if (!ruleValue) return true;
-    return String(ruleValue).toUpperCase() === String(contextValue || '').toUpperCase();
+    return (
+      String(ruleValue).toUpperCase() ===
+      String(contextValue || '').toUpperCase()
+    );
   }
 
   private ruleScore(rule: any) {
@@ -408,7 +637,9 @@ export class FeatureService implements OnModuleInit {
 
   private legacyAllows(context: FeatureContext, featureCode: string) {
     const role = context.role;
-    const isAdmin = [SUPER_ADMIN_ROLE, ADMIN_ROLE, MANAGER_ROLE].includes(role || '');
+    const isAdmin = [SUPER_ADMIN_ROLE, ADMIN_ROLE, MANAGER_ROLE].includes(
+      role || '',
+    );
     switch (featureCode) {
       case FEATURE_KEYS.ADMIN:
       case FEATURE_KEYS.ADMIN_USERS:
@@ -436,13 +667,21 @@ export class FeatureService implements OnModuleInit {
   }
 
   private belongsToCp62(context: FeatureContext) {
-    return [context.storeCode, context.storeName, context.regionCode, context.areaCode]
+    return [
+      context.storeCode,
+      context.storeName,
+      context.regionCode,
+      context.areaCode,
+    ]
       .filter(Boolean)
       .some((value) => String(value).toUpperCase().includes('CP62'));
   }
 
   private normalizeCode(value: unknown, message: string) {
-    const code = String(value || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+    const code = String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]/g, '_');
     if (!/^[A-Z][A-Z0-9_]{1,59}$/.test(code)) {
       throw new BadRequestException(message);
     }

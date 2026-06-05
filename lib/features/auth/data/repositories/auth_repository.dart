@@ -735,6 +735,25 @@ class AuthRepository {
     );
   }
 
+  Future<List<AdminFeatureRule>> createAdminFeatureRulesBatch(
+    AdminFeatureRuleBatchRequest request,
+  ) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminFeatureRulesBatchEndpoint,
+      body: request.toJson(),
+    );
+    final data = jsonDecode(response.body) as List<dynamic>;
+    final rules = data
+        .map((item) => AdminFeatureRule.fromJson(item as Map<String, dynamic>))
+        .toList();
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin feature rules batch created',
+      context: {'featureCode': request.featureCode, 'count': rules.length},
+    );
+    return rules;
+  }
+
   Future<AdminFeatureRule> updateAdminFeatureRule(
     String id,
     AdminFeatureRule rule,

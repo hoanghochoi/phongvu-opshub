@@ -14,7 +14,11 @@ import { AuthGuard } from '@nestjs/passport';
 import { FeatureGuard } from './feature.guard';
 import { RequireFeature } from './feature.decorator';
 import { FEATURE_KEYS } from './feature.constants';
-import { AdminFeatureDto, AdminFeatureRuleDto } from './feature.dto';
+import {
+  AdminFeatureDto,
+  AdminFeatureRuleBatchDto,
+  AdminFeatureRuleDto,
+} from './feature.dto';
 import { FeatureService } from './feature.service';
 
 @Controller()
@@ -65,6 +69,12 @@ export class FeatureController {
   @RequireFeature(FEATURE_KEYS.ADMIN_FEATURES)
   createRule(@Request() req: any, @Body() body: AdminFeatureRuleDto) {
     return this.featureService.adminCreateRule(req.user, body);
+  }
+
+  @Post('admin/features/rules/batch')
+  @RequireFeature(FEATURE_KEYS.ADMIN_FEATURES)
+  createRules(@Request() req: any, @Body() body: AdminFeatureRuleBatchDto) {
+    return this.featureService.adminCreateRules(req.user, body);
   }
 
   @Patch('admin/features/rules/:id')

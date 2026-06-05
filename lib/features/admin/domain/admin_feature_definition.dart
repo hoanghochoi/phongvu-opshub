@@ -107,3 +107,45 @@ class AdminFeatureRule {
     'note': note,
   };
 }
+
+class AdminFeatureRuleBatchRequest {
+  final String featureCode;
+  final bool enabled;
+  final List<String> systemRoles;
+  final List<String> departmentCodes;
+  final List<String> jobRoleCodes;
+  final List<String> workScopeTypes;
+  final List<String> regionCodes;
+  final List<String> areaCodes;
+  final List<String> storeCodes;
+  final List<String> userIds;
+  final String? note;
+
+  const AdminFeatureRuleBatchRequest({
+    required this.featureCode,
+    required this.enabled,
+    this.systemRoles = const [],
+    this.departmentCodes = const [],
+    this.jobRoleCodes = const [],
+    this.workScopeTypes = const [],
+    this.regionCodes = const [],
+    this.areaCodes = const [],
+    this.storeCodes = const [],
+    this.userIds = const [],
+    this.note,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'featureCode': featureCode,
+    'enabled': enabled,
+    'systemRoles': systemRoles,
+    'departmentCodes': departmentCodes,
+    'jobRoleCodes': jobRoleCodes,
+    'workScopeTypes': workScopeTypes,
+    'regionCodes': regionCodes,
+    'areaCodes': areaCodes,
+    'storeCodes': storeCodes,
+    'userIds': userIds,
+    'note': note,
+  };
+}
