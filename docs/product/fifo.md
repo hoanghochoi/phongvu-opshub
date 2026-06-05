@@ -31,7 +31,7 @@ history where permitted.
   A refresh upserts current rows and deactivates missing rows only when those
   existing rows are `opshub_source='bigquery'` for SR codes present in the
   refresh.
-- Admin and super admin users can manually import an Excel inventory export
+- Users with `FIFO_IMPORT` access can manually import an Excel inventory export from the FIFO menu
   with the physical serial inventory format as a supplemental path. Manual
   imports map their Vietnamese headers into the canonical BigQuery shape,
   upsert `opshub_source='manual'`, preserve export state, and do not deactivate

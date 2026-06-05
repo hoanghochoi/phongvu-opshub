@@ -48,6 +48,28 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  PreferredSizeWidget? _headerBottom(BuildContext context) {
+    final headerBottom = bottom;
+    if (headerBottom == null) return null;
+
+    return PreferredSize(
+      preferredSize: headerBottom.preferredSize,
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          tabBarTheme: const TabBarThemeData(
+            labelColor: AppColors.surface,
+            unselectedLabelColor: AppColors.neutral100,
+            indicatorColor: AppColors.surface,
+            dividerColor: Colors.transparent,
+            labelStyle: TextStyle(fontWeight: FontWeight.w800),
+            unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+        child: headerBottom,
+      ),
+    );
+  }
+
   @override
   Size get preferredSize =>
       Size.fromHeight(kToolbarHeight + (bottom?.preferredSize.height ?? 0));
@@ -65,7 +87,7 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
           ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: onBack)
           : null,
       actions: actions,
-      bottom: bottom,
+      bottom: _headerBottom(context),
       flexibleSpace: DecoratedBox(
         decoration: BoxDecoration(gradient: getGradient(context)),
         child: const SizedBox.expand(),

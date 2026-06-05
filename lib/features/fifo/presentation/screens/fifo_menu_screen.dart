@@ -14,24 +14,38 @@ class FifoMenuScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
-    final role = authProvider.user?.role ?? '';
-    final isAdmin = role == 'ADMIN' || role == 'SUPER_ADMIN';
+    final user = authProvider.user;
+    final role = user?.role ?? '';
+    final canUseFifo = user?.canUseFeature('FIFO') == true;
+    final canImportInventory = user?.canUseFeature('FIFO_IMPORT') == true;
+    final canViewHistory =
+        canUseFifo && (role == 'ADMIN' || role == 'SUPER_ADMIN');
     final actions = [
-      AppFeatureAction(
-        icon: Icons.qr_code_scanner_rounded,
-        title: 'Kiểm tra FIFO',
-        description: 'Tra cứu thứ tự FIFO',
-        color: AppColors.info,
-        onTap: () => context.push('/fifo-check'),
-      ),
-      AppFeatureAction(
-        icon: Icons.swap_vert_rounded,
-        title: 'Sắp xếp FIFO',
-        description: 'Quét hoặc nhập SKU/BIN',
-        color: AppColors.indigo600,
-        onTap: () => context.push('/sort'),
-      ),
-      if (isAdmin)
+      if (canUseFifo)
+        AppFeatureAction(
+          icon: Icons.qr_code_scanner_rounded,
+          title: 'Kiểm tra FIFO',
+          description: 'Tra cứu thứ tự FIFO',
+          color: AppColors.info,
+          onTap: () => context.push('/fifo-check'),
+        ),
+      if (canUseFifo)
+        AppFeatureAction(
+          icon: Icons.swap_vert_rounded,
+          title: 'Sắp xếp FIFO',
+          description: 'Quét hoặc nhập SKU/BIN',
+          color: AppColors.indigo600,
+          onTap: () => context.push('/sort'),
+        ),
+      if (canImportInventory)
+        AppFeatureAction(
+          icon: Icons.upload_file_outlined,
+          title: 'Cập nhật tồn kho',
+          description: 'Import Excel cho FIFO',
+          color: AppColors.amber500,
+          onTap: () => context.push('/fifo/inventory-import'),
+        ),
+      if (canViewHistory)
         AppFeatureAction(
           icon: Icons.history_rounded,
           title: 'Lịch sử FIFO',
@@ -43,7 +57,9 @@ class FifoMenuScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: const GradientHeader(title: 'FIFO', showBack: true),
-      body: AppResponsiveContent(child: AppFeatureSection(actions: actions)),
+      body: actions.isEmpty
+          ? const Center(child: Text('Chưa có tính năng FIFO được bật.'))
+          : AppResponsiveContent(child: AppFeatureSection(actions: actions)),
     );
   }
 }

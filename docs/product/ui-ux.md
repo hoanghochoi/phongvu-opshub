@@ -42,6 +42,10 @@ visual systems that make the app feel assembled from unrelated screens.
   `AppStatusPill`.
 - Feature entry screens use `AppFeatureSection` and `AppFeatureGrid` so mobile
   and desktop tiles stay consistent.
+- Header tabs on colored or gradient app bars must set explicit selected,
+  inactive, indicator, and divider colors from `AppColors`. Selected and
+  inactive labels must remain readable on both Android and Windows; do not rely
+  on default `TabBar` primary/grey colors on brand-blue backgrounds.
 
 ## Content And Microcopy
 
