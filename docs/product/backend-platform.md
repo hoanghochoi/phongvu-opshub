@@ -37,11 +37,13 @@ curl http://localhost:3000/app-version
   `APP_UPDATE_URL`, `APP_RELEASE_NOTES`, and `APP_FORCE_UPDATE` when shipping
   a mobile APK. Clients compare `APP_BUILD_NUMBER` with their installed build
   number and open `APP_UPDATE_URL` when an update is required.
-- Full GitHub deploys publish `/downloads/latest.json` for the download landing
-  page after APK, Windows installer, Windows ZIP, and checksum artifacts are
-  available. Manual `workflow_dispatch` with `skip_client_build=true` refreshes
-  only the static download page and manifest from existing live artifacts; it
-  must not change app-version metadata or rebuild client packages.
+- Full GitHub deploys build the client packages in Actions, upload the APK,
+  Windows installer, Windows ZIP, and checksum directly to VPS staging, then
+  promote them to `/srv/opshub/downloads/` and publish `/downloads/latest.json`
+  for the download landing page. Manual `workflow_dispatch` with
+  `skip_client_build=true` refreshes only the static download page and manifest
+  from existing live artifacts; it must not change app-version metadata or
+  rebuild client packages.
 
 ## Expected Proof
 
