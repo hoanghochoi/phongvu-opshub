@@ -798,6 +798,14 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
   String? _areaCode;
   String? _storeCode;
   String? _userId;
+  final Set<String> _systemRoles = {};
+  final Set<String> _departmentCodes = {};
+  final Set<String> _jobRoleCodes = {};
+  final Set<String> _workScopeTypes = {};
+  final Set<String> _regionCodes = {};
+  final Set<String> _areaCodes = {};
+  final Set<String> _storeCodes = {};
+  final Set<String> _userIds = {};
   bool _saving = false;
 
   @override
@@ -816,6 +824,14 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
     _areaCode = rule?.areaCode;
     _storeCode = rule?.storeCode;
     _userId = rule?.userId;
+    if (_systemRole != null) _systemRoles.add(_systemRole!);
+    if (_departmentCode != null) _departmentCodes.add(_departmentCode!);
+    if (_jobRoleCode != null) _jobRoleCodes.add(_jobRoleCode!);
+    if (_workScopeType != null) _workScopeTypes.add(_workScopeType!);
+    if (_regionCode != null) _regionCodes.add(_regionCode!);
+    if (_areaCode != null) _areaCodes.add(_areaCode!);
+    if (_storeCode != null) _storeCodes.add(_storeCode!);
+    if (_userId != null) _userIds.add(_userId!);
     _noteController.text = rule?.note ?? '';
   }
 
@@ -833,8 +849,10 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
       return;
     }
     setState(() => _saving = true);
+    final current = widget.rule;
+    final note = _noteController.text.trim();
     final rule = AdminFeatureRule(
-      id: widget.rule?.id,
+      id: current?.id,
       featureCode: _featureCode,
       enabled: _enabled,
       systemRole: _systemRole,
@@ -845,7 +863,20 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
       areaCode: _areaCode,
       storeCode: _storeCode,
       userId: _userId,
-      note: _noteController.text.trim(),
+      note: note,
+    );
+    final batchRequest = AdminFeatureRuleBatchRequest(
+      featureCode: _featureCode,
+      enabled: _enabled,
+      systemRoles: _sortedValues(_systemRoles),
+      departmentCodes: _sortedValues(_departmentCodes),
+      jobRoleCodes: _sortedValues(_jobRoleCodes),
+      workScopeTypes: _sortedValues(_workScopeTypes),
+      regionCodes: _sortedValues(_regionCodes),
+      areaCodes: _sortedValues(_areaCodes),
+      storeCodes: _sortedValues(_storeCodes),
+      userIds: _sortedValues(_userIds),
+      note: note,
     );
     try {
       await AppLogger.instance.info(
@@ -854,24 +885,34 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
         context: {
           'featureCode': rule.featureCode,
           'enabled': rule.enabled,
-          'mode': widget.rule == null ? 'create' : 'update',
-          'hasUser': rule.userId != null,
-          'storeCode': rule.storeCode,
-          'areaCode': rule.areaCode,
-          'regionCode': rule.regionCode,
+          'mode': current == null ? 'batchCreate' : 'update',
+          'roleCount': _systemRoles.length,
+          'departmentCount': _departmentCodes.length,
+          'jobRoleCount': _jobRoleCodes.length,
+          'scopeCount': _workScopeTypes.length,
+          'regionCount': _regionCodes.length,
+          'areaCount': _areaCodes.length,
+          'storeCount': _storeCodes.length,
+          'userCount': _userIds.length,
         },
       );
-      final current = widget.rule;
       if (current == null) {
-        await widget.repository.createAdminFeatureRule(rule);
+        final created = await widget.repository.createAdminFeatureRulesBatch(
+          batchRequest,
+        );
+        await AppLogger.instance.info(
+          'AdminFeatures',
+          'Feature rule batch save succeeded',
+          context: {'featureCode': rule.featureCode, 'count': created.length},
+        );
       } else {
         await widget.repository.updateAdminFeatureRule(current.id ?? '', rule);
+        await AppLogger.instance.info(
+          'AdminFeatures',
+          'Feature rule save succeeded',
+          context: {'featureCode': rule.featureCode, 'enabled': rule.enabled},
+        );
       }
-      await AppLogger.instance.info(
-        'AdminFeatures',
-        'Feature rule save succeeded',
-        context: {'featureCode': rule.featureCode, 'enabled': rule.enabled},
-      );
       if (mounted) Navigator.of(context).pop(true);
     } catch (error, stackTrace) {
       await AppLogger.instance.error(
@@ -894,11 +935,24 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
     }
   }
 
+  List<String> _sortedValues(Set<String> values) {
+    return values.toList()..sort();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final filteredAreas = _regionCode == null
-        ? widget.areas
-        : widget.areas.where((area) => area.regionCode == _regionCode).toList();
+    final isEditing = widget.rule != null;
+    final filteredAreas = isEditing
+        ? (_regionCode == null
+              ? widget.areas
+              : widget.areas
+                    .where((area) => area.regionCode == _regionCode)
+                    .toList())
+        : (_regionCodes.isEmpty
+              ? widget.areas
+              : widget.areas
+                    .where((area) => _regionCodes.contains(area.regionCode))
+                    .toList());
     return AlertDialog(
       title: Text(widget.rule == null ? 'Thêm rule' : 'Sửa rule'),
       content: SizedBox(
@@ -926,93 +980,227 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
                 onChanged: (value) => setState(() => _enabled = value),
                 title: Text(_enabled ? 'Bật tính năng' : 'Tắt tính năng'),
               ),
-              _optionalDropdown(
-                label: 'Vai trò hệ thống',
-                value: _systemRole,
-                items: widget.roles
-                    .map((role) => (role.value, role.title))
-                    .toList(),
-                onChanged: (value) => setState(() => _systemRole = value),
-              ),
-              _optionalDropdown(
-                label: 'Phòng ban',
-                value: _departmentCode,
-                items: widget.departments
-                    .map((item) => (item.code, item.title))
-                    .toList(),
-                onChanged: (value) => setState(() => _departmentCode = value),
-              ),
-              _optionalDropdown(
-                label: 'Chức danh',
-                value: _jobRoleCode,
-                items: widget.jobRoles
-                    .map((item) => (item.code, item.title))
-                    .toList(),
-                onChanged: (value) => setState(() => _jobRoleCode = value),
-              ),
-              _optionalDropdown(
-                label: 'Phạm vi',
-                value: _workScopeType,
-                items: AdminWorkScopes.definitions
-                    .map((scope) => (scope.value, scope.title))
-                    .toList(),
-                onChanged: (value) => setState(() => _workScopeType = value),
-              ),
-              _optionalDropdown(
-                label: 'Miền',
-                value: _regionCode,
-                items: widget.regions
-                    .map(
-                      (region) => (
-                        region.code,
-                        '${region.abbreviation} - ${region.title}',
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() {
-                  _regionCode = value;
-                  if (value == null) return;
-                  final areaMatchesRegion = widget.areas.any(
-                    (area) =>
-                        area.code == _areaCode && area.regionCode == value,
-                  );
-                  if (!areaMatchesRegion) _areaCode = null;
-                }),
-              ),
-              _optionalDropdown(
-                label: 'Vùng',
-                value: _areaCode,
-                items: filteredAreas
-                    .map(
+              if (isEditing)
+                _optionalDropdown(
+                  label: 'Vai trò hệ thống',
+                  value: _systemRole,
+                  items: widget.roles
+                      .map((role) => (role.value, role.title))
+                      .toList(),
+                  onChanged: (value) => setState(() => _systemRole = value),
+                )
+              else
+                _multiSelectField(
+                  label: 'Vai trò hệ thống',
+                  selectedValues: _systemRoles,
+                  items: widget.roles
+                      .map((role) => (role.value, role.title))
+                      .toList(),
+                  onChanged: (values) => setState(() {
+                    _systemRoles
+                      ..clear()
+                      ..addAll(values);
+                  }),
+                ),
+              if (isEditing)
+                _optionalDropdown(
+                  label: 'Phòng ban',
+                  value: _departmentCode,
+                  items: widget.departments
+                      .map((item) => (item.code, item.title))
+                      .toList(),
+                  onChanged: (value) => setState(() => _departmentCode = value),
+                )
+              else
+                _multiSelectField(
+                  label: 'Phòng ban',
+                  selectedValues: _departmentCodes,
+                  items: widget.departments
+                      .map((item) => (item.code, item.title))
+                      .toList(),
+                  onChanged: (values) => setState(() {
+                    _departmentCodes
+                      ..clear()
+                      ..addAll(values);
+                  }),
+                ),
+              if (isEditing)
+                _optionalDropdown(
+                  label: 'Chức danh',
+                  value: _jobRoleCode,
+                  items: widget.jobRoles
+                      .map((item) => (item.code, item.title))
+                      .toList(),
+                  onChanged: (value) => setState(() => _jobRoleCode = value),
+                )
+              else
+                _multiSelectField(
+                  label: 'Chức danh',
+                  selectedValues: _jobRoleCodes,
+                  items: widget.jobRoles
+                      .map((item) => (item.code, item.title))
+                      .toList(),
+                  onChanged: (values) => setState(() {
+                    _jobRoleCodes
+                      ..clear()
+                      ..addAll(values);
+                  }),
+                ),
+              if (isEditing)
+                _optionalDropdown(
+                  label: 'Phạm vi',
+                  value: _workScopeType,
+                  items: AdminWorkScopes.definitions
+                      .map((scope) => (scope.value, scope.title))
+                      .toList(),
+                  onChanged: (value) => setState(() => _workScopeType = value),
+                )
+              else
+                _multiSelectField(
+                  label: 'Phạm vi',
+                  selectedValues: _workScopeTypes,
+                  items: AdminWorkScopes.definitions
+                      .map((scope) => (scope.value, scope.title))
+                      .toList(),
+                  onChanged: (values) => setState(() {
+                    _workScopeTypes
+                      ..clear()
+                      ..addAll(values);
+                  }),
+                ),
+              if (isEditing)
+                _optionalDropdown(
+                  label: 'Miền',
+                  value: _regionCode,
+                  items: widget.regions
+                      .map(
+                        (region) => (
+                          region.code,
+                          '${region.abbreviation} - ${region.title}',
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() {
+                    _regionCode = value;
+                    if (value == null) return;
+                    final areaMatchesRegion = widget.areas.any(
                       (area) =>
-                          (area.code, '${area.abbreviation} - ${area.title}'),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() {
-                  _areaCode = value;
-                  if (value == null) return;
-                  for (final area in widget.areas) {
-                    if (area.code == value) _regionCode = area.regionCode;
-                  }
-                }),
-              ),
-              _optionalDropdown(
-                label: 'SR',
-                value: _storeCode,
-                items: widget.stores
-                    .map((store) => (store.storeId, store.displayName))
-                    .toList(),
-                onChanged: (value) => setState(() => _storeCode = value),
-              ),
-              _optionalDropdown(
-                label: 'User override',
-                value: _userId,
-                items: widget.users
-                    .where((user) => user.id?.isNotEmpty == true)
-                    .map((user) => (user.id!, user.email))
-                    .toList(),
-                onChanged: (value) => setState(() => _userId = value),
-              ),
+                          area.code == _areaCode && area.regionCode == value,
+                    );
+                    if (!areaMatchesRegion) _areaCode = null;
+                  }),
+                )
+              else
+                _multiSelectField(
+                  label: 'Miền',
+                  selectedValues: _regionCodes,
+                  items: widget.regions
+                      .map(
+                        (region) => (
+                          region.code,
+                          '${region.abbreviation} - ${region.title}',
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (values) => setState(() {
+                    _regionCodes
+                      ..clear()
+                      ..addAll(values);
+                    if (_regionCodes.isEmpty) return;
+                    _areaCodes.removeWhere((areaCode) {
+                      final area = widget.areas.where(
+                        (item) => item.code == areaCode,
+                      );
+                      return area.isEmpty ||
+                          !_regionCodes.contains(area.first.regionCode);
+                    });
+                  }),
+                ),
+              if (isEditing)
+                _optionalDropdown(
+                  label: 'Vùng',
+                  value: _areaCode,
+                  items: filteredAreas
+                      .map(
+                        (area) =>
+                            (area.code, '${area.abbreviation} - ${area.title}'),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() {
+                    _areaCode = value;
+                    if (value == null) return;
+                    for (final area in widget.areas) {
+                      if (area.code == value) _regionCode = area.regionCode;
+                    }
+                  }),
+                )
+              else
+                _multiSelectField(
+                  label: 'Vùng',
+                  selectedValues: _areaCodes,
+                  items: filteredAreas
+                      .map(
+                        (area) =>
+                            (area.code, '${area.abbreviation} - ${area.title}'),
+                      )
+                      .toList(),
+                  onChanged: (values) => setState(() {
+                    _areaCodes
+                      ..clear()
+                      ..addAll(values);
+                    for (final area in widget.areas) {
+                      if (_areaCodes.contains(area.code)) {
+                        _regionCodes.add(area.regionCode);
+                      }
+                    }
+                  }),
+                ),
+              if (isEditing)
+                _optionalDropdown(
+                  label: 'SR',
+                  value: _storeCode,
+                  items: widget.stores
+                      .map((store) => (store.storeId, store.displayName))
+                      .toList(),
+                  onChanged: (value) => setState(() => _storeCode = value),
+                )
+              else
+                _multiSelectField(
+                  label: 'SR',
+                  selectedValues: _storeCodes,
+                  items: widget.stores
+                      .map((store) => (store.storeId, store.displayName))
+                      .toList(),
+                  onChanged: (values) => setState(() {
+                    _storeCodes
+                      ..clear()
+                      ..addAll(values);
+                  }),
+                ),
+              if (isEditing)
+                _optionalDropdown(
+                  label: 'User override',
+                  value: _userId,
+                  items: widget.users
+                      .where((user) => user.id?.isNotEmpty == true)
+                      .map((user) => (user.id!, user.email))
+                      .toList(),
+                  onChanged: (value) => setState(() => _userId = value),
+                )
+              else
+                _multiSelectField(
+                  label: 'User override',
+                  selectedValues: _userIds,
+                  items: widget.users
+                      .where((user) => user.id?.isNotEmpty == true)
+                      .map((user) => (user.id!, user.email))
+                      .toList(),
+                  onChanged: (values) => setState(() {
+                    _userIds
+                      ..clear()
+                      ..addAll(values);
+                  }),
+                ),
               TextField(
                 controller: _noteController,
                 decoration: const InputDecoration(labelText: 'Ghi chú'),
@@ -1055,6 +1243,151 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
         ),
       ],
       onChanged: onChanged,
+    );
+  }
+
+  Widget _multiSelectField({
+    required String label,
+    required Set<String> selectedValues,
+    required List<(String, String)> items,
+    required ValueChanged<Set<String>> onChanged,
+  }) {
+    final selectedLabels = items
+        .where((item) => selectedValues.contains(item.$1))
+        .map((item) => item.$2)
+        .toList();
+    return InkWell(
+      onTap: _saving
+          ? null
+          : () async {
+              final values = await showDialog<Set<String>>(
+                context: context,
+                builder: (context) => _MultiSelectDialog(
+                  title: label,
+                  items: items,
+                  selectedValues: selectedValues,
+                ),
+              );
+              if (values != null) onChanged(values);
+            },
+      borderRadius: BorderRadius.circular(4),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+        child: Text(
+          selectedLabels.isEmpty ? 'Không áp dụng' : selectedLabels.join(', '),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+}
+
+class _MultiSelectDialog extends StatefulWidget {
+  final String title;
+  final List<(String, String)> items;
+  final Set<String> selectedValues;
+
+  const _MultiSelectDialog({
+    required this.title,
+    required this.items,
+    required this.selectedValues,
+  });
+
+  @override
+  State<_MultiSelectDialog> createState() => _MultiSelectDialogState();
+}
+
+class _MultiSelectDialogState extends State<_MultiSelectDialog> {
+  final _searchController = TextEditingController();
+  late final Set<String> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = {...widget.selectedValues};
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchController.text.trim().toLowerCase();
+    final filteredItems = query.isEmpty
+        ? widget.items
+        : widget.items.where((item) {
+            return item.$1.toLowerCase().contains(query) ||
+                item.$2.toLowerCase().contains(query);
+          }).toList();
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 480,
+        height: 520,
+        child: Column(
+          children: [
+            TextField(
+              controller: _searchController,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                labelText: 'Tìm kiếm',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: filteredItems.isEmpty
+                  ? const Center(child: Text('Không có dữ liệu'))
+                  : ListView.builder(
+                      itemCount: filteredItems.length,
+                      itemBuilder: (context, index) {
+                        final item = filteredItems[index];
+                        final selected = _selected.contains(item.$1);
+                        return CheckboxListTile(
+                          value: selected,
+                          title: Text(
+                            item.$2,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(item.$1),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          onChanged: (value) => setState(() {
+                            if (value == true) {
+                              _selected.add(item.$1);
+                            } else {
+                              _selected.remove(item.$1);
+                            }
+                          }),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => setState(_selected.clear),
+          child: const Text('Bỏ chọn'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(null),
+          child: const Text('Hủy'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop({..._selected}),
+          child: const Text('Áp dụng'),
+        ),
+      ],
     );
   }
 }

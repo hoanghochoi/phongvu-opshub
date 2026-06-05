@@ -52,6 +52,7 @@ describe('UserService admin store management', () => {
 
   beforeEach(() => {
     prisma = {
+      $transaction: jest.fn(async (handler: any) => handler(prisma)),
       store: {
         findMany: jest.fn(),
         findUnique: jest.fn(async ({ where }: any) => {
@@ -91,6 +92,9 @@ describe('UserService admin store management', () => {
       },
       regionDefinition: {
         upsert: jest.fn(),
+        findMany: jest.fn(async () => [
+          { ...region, _count: { areas: 1, featureAccessRules: 0 } },
+        ]),
         findUnique: jest.fn(async ({ where }: any) => {
           if (where.code === chatsaleRegion.code) return chatsaleRegion;
           if (where.code === region.code) return region;
@@ -100,6 +104,9 @@ describe('UserService admin store management', () => {
       },
       areaDefinition: {
         upsert: jest.fn(),
+        findMany: jest.fn(async () => [
+          { ...area, _count: { stores: 1, featureAccessRules: 0 } },
+        ]),
         findUnique: jest.fn(async ({ where }: any) => {
           if (where.code === area.code) return area;
           if (where.code === defaultArea.code) return defaultArea;
@@ -111,6 +118,7 @@ describe('UserService admin store management', () => {
       },
       user: {
         findUnique: jest.fn(),
+        count: jest.fn(async () => 0),
         create: jest.fn(async ({ data }: any) => ({
           id: `user-${data.jobRoleCode}`,
           email: data.email,
@@ -129,6 +137,7 @@ describe('UserService admin store management', () => {
           area: data.areaCode === area.code ? area : null,
         })),
         update: jest.fn(),
+        updateMany: jest.fn(async () => ({ count: 0 })),
       },
     };
     passwordResetService = {
@@ -292,6 +301,62 @@ describe('UserService admin store management', () => {
       areaCode: 'HCM',
       regionCode: 'MIEN_NAM',
       personnelCode: 'SALE_CP62_HCM_MN',
+    });
+  });
+
+  it('counts region and area users through STORE-scope SR assignments', async () => {
+    prisma.user.count.mockResolvedValueOnce(7).mockResolvedValueOnce(4);
+
+    await expect(service.adminListRegions(superAdmin)).resolves.toEqual([
+      expect.objectContaining({
+        code: region.code,
+        _count: expect.objectContaining({ users: 7, areas: 1 }),
+      }),
+    ]);
+    expect(prisma.user.count).toHaveBeenNthCalledWith(1, {
+      where: {
+        OR: [
+          { AND: [{ regionCode: region.code }, { NOT: { workScopeType: 'STORE' } }] },
+          { AND: [{ regionCode: region.code }, { workScopeType: 'STORE' }, { storeId: null }] },
+          {
+            workScopeType: 'STORE',
+            store: { is: { area: { is: { regionCode: region.code } } } },
+          },
+        ],
+      },
+    });
+
+    await expect(service.adminListAreas(superAdmin)).resolves.toEqual([
+      expect.objectContaining({
+        code: area.code,
+        _count: expect.objectContaining({ users: 4, stores: 1 }),
+      }),
+    ]);
+    expect(prisma.user.count).toHaveBeenNthCalledWith(2, {
+      where: {
+        OR: [
+          { AND: [{ areaCode: area.code }, { NOT: { workScopeType: 'STORE' } }] },
+          { AND: [{ areaCode: area.code }, { workScopeType: 'STORE' }, { storeId: null }] },
+          { workScopeType: 'STORE', store: { is: { areaCode: area.code } } },
+        ],
+      },
+    });
+  });
+
+  it('syncs existing STORE-scope users when an SR moves to another area', async () => {
+    prisma.user.updateMany.mockResolvedValueOnce({ count: 3 });
+
+    await expect(
+      service.adminUpdateStore(superAdmin, 'CP01', { areaCode: defaultArea.code }),
+    ).resolves.toMatchObject({
+      storeId: 'CP01',
+      areaCode: defaultArea.code,
+      regionCode: defaultArea.regionCode,
+    });
+
+    expect(prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { storeId: 'store-1', workScopeType: 'STORE' },
+      data: { areaCode: defaultArea.code, regionCode: defaultArea.regionCode },
     });
   });
 
