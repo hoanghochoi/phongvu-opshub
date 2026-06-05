@@ -36,6 +36,13 @@ visual systems that make the app feel assembled from unrelated screens.
 - Primary actions use `AppPrimaryButton`; secondary actions use
   `AppSecondaryButton`; icon-only actions should use a stable square touch
   target and a tooltip.
+- Paired actions in the same row must use shared button components and
+  `AppButtonMetrics` so height, radius, padding, icon size, and text weight
+  match. If the shared component cannot express the needed variant, extend the
+  shared component before using raw `FilledButton` or `OutlinedButton`.
+- Disabled buttons must preserve the enabled component shape, height, radius,
+  and layout position. Only color, opacity, and enabled state may change;
+  avoid framework-default disabled pills or one-off grey states in feature UI.
 - Empty, loading, error, and unsupported states use `AppStatePanel`.
 - Status messages use `AppStatusBanner` when they explain a page-level state.
 - Metadata and status tags use `AppInfoChip`, `AppStatusChip`, or
