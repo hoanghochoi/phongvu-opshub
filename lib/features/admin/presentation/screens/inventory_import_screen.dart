@@ -1,6 +1,8 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -148,10 +150,7 @@ class _UploadPanel extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(
-                  Icons.table_chart_outlined,
-                  color: Color(0xFF2563EB),
-                ),
+                const Icon(Icons.table_chart_outlined, color: AppColors.info),
                 const SizedBox(width: AppLayoutTokens.formInlineGap),
                 Expanded(
                   child: Text(
@@ -167,33 +166,20 @@ class _UploadPanel extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: AppSecondaryButton(
                     onPressed: isUploading ? null : onPickFile,
-                    icon: const Icon(Icons.folder_open_outlined),
-                    label: const Text(
-                      'Chọn file',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                    ),
+                    icon: Icons.folder_open_outlined,
+                    label: 'Chọn file',
                   ),
                 ),
                 const SizedBox(width: AppLayoutTokens.formInlineGap),
                 Expanded(
-                  child: FilledButton.icon(
-                    onPressed: isUploading ? null : onUpload,
-                    icon: isUploading
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.upload_file_outlined),
-                    label: Text(
-                      isUploading ? 'Đang cập nhật' : 'Cập nhật',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                    ),
+                  child: AppPrimaryButton(
+                    onPressed: onUpload,
+                    icon: Icons.upload_file_outlined,
+                    label: 'Cập nhật',
+                    isLoading: isUploading,
+                    loadingLabel: 'Đang cập nhật',
                   ),
                 ),
               ],
