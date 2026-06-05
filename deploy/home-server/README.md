@@ -138,11 +138,14 @@ are missing, the workflow keeps producing unsigned artifacts and logs that state
 instead of failing. It also publishes a `.sha256` file beside the direct Windows
 downloads so operators can verify the ZIP and installer hash.
 
-Then it uploads the client artifacts to `/srv/opshub/downloads/`, points Windows
-update metadata at the installer EXE, updates the backend generic `APP_*`,
-`APP_ANDROID_APP_*`, and `APP_WINDOWS_APP_*` env values, runs Prisma migrations,
-rebuilds the Docker stack, and keeps only the five newest release folders plus
-the newest client downloads.
+The Android and Windows build jobs upload the finished client packages directly
+to a per-run staging directory on the VPS instead of storing them as GitHub
+Actions artifacts. The deploy job promotes those staged files to
+`/srv/opshub/downloads/`, writes the public download manifest from the published
+files, points Windows update metadata at the installer EXE, updates the backend
+generic `APP_*`, `APP_ANDROID_APP_*`, and `APP_WINDOWS_APP_*` env values, runs
+Prisma migrations, rebuilds the Docker stack, and keeps only the five newest
+release folders plus the newest client downloads.
 
 The public staff download page is served at `/download`. Full deploys publish
 `/srv/opshub/downloads/latest.json` beside the APK, Windows installer, Windows

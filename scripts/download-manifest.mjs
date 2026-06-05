@@ -5,10 +5,12 @@ const mode = process.argv[2];
 
 if (mode === 'from-artifacts') {
   await writeFromArtifacts();
+} else if (mode === 'from-published') {
+  await writeFromPublished();
 } else if (mode === 'from-live') {
   await writeFromLive();
 } else {
-  fail('Usage: node scripts/download-manifest.mjs <from-artifacts|from-live>');
+  fail('Usage: node scripts/download-manifest.mjs <from-artifacts|from-published|from-live>');
 }
 
 async function writeFromArtifacts() {
@@ -112,6 +114,59 @@ async function writeFromLive() {
   writeManifest(outputPath, manifest);
 }
 
+async function writeFromPublished() {
+  const publicBaseUrl = normalizeBaseUrl(requireEnv('OPSHUB_PUBLIC_BASE_URL'));
+  const outputPath = requireEnv('DOWNLOAD_MANIFEST_OUTPUT');
+  const version = requireEnv('APP_VERSION');
+  const build = readPositiveInt(requireEnv('APP_BUILD_NUMBER'), 'APP_BUILD_NUMBER');
+
+  const [apk, installer, zip, checksum] = await Promise.all([
+    publishedFile({
+      publicBaseUrl,
+      fileName: requireEnv('APK_FILE_NAME'),
+      sizeEnvName: 'APK_FILE_SIZE_BYTES',
+      label: 'APK',
+    }),
+    publishedFile({
+      publicBaseUrl,
+      fileName: requireEnv('WINDOWS_INSTALLER_FILE_NAME'),
+      sizeEnvName: 'WINDOWS_INSTALLER_FILE_SIZE_BYTES',
+      label: 'Windows installer',
+    }),
+    publishedFile({
+      publicBaseUrl,
+      fileName: requireEnv('WINDOWS_ZIP_FILE_NAME'),
+      sizeEnvName: 'WINDOWS_ZIP_FILE_SIZE_BYTES',
+      label: 'Windows ZIP',
+    }),
+    publishedFile({
+      publicBaseUrl,
+      fileName: requireEnv('WINDOWS_CHECKSUM_FILE_NAME'),
+      sizeEnvName: 'WINDOWS_CHECKSUM_FILE_SIZE_BYTES',
+      label: 'Windows checksum',
+    }),
+  ]);
+
+  const manifest = {
+    schemaVersion: 1,
+    version,
+    build,
+    releaseNotes: envString('APP_RELEASE_NOTES'),
+    commit: envString('GITHUB_SHA'),
+    publishedAt:
+      latestLastModified(apk.head, installer.head, zip.head, checksum.head) ||
+      new Date().toISOString(),
+    files: {
+      apk: apk.file,
+      windowsInstaller: installer.file,
+      windowsZip: zip.file,
+      windowsChecksum: checksum.file,
+    },
+  };
+
+  writeManifest(outputPath, manifest);
+}
+
 function artifactFile({ publicBaseUrl, fileName, filePath }) {
   const sizeBytes = statSync(filePath).size;
   return {
@@ -127,6 +182,27 @@ function liveFile(url, head) {
     url,
     sizeBytes: head.sizeBytes,
   };
+}
+
+async function publishedFile({ publicBaseUrl, fileName, sizeEnvName, label }) {
+  const url = publishedDownloadUrl(publicBaseUrl, fileName);
+  const sizeBytes = readOptionalPositiveInt(envString(sizeEnvName), sizeEnvName);
+  if (sizeBytes > 0) {
+    return {
+      file: { fileName, url, sizeBytes },
+      head: { sizeBytes, lastModified: '' },
+    };
+  }
+
+  const head = await headFile(url, label);
+  return {
+    file: { fileName, url, sizeBytes: head.sizeBytes },
+    head,
+  };
+}
+
+function publishedDownloadUrl(publicBaseUrl, fileName) {
+  return `${publicBaseUrl}/downloads/${fileName}`;
 }
 
 async function fetchJson(url) {
@@ -207,6 +283,17 @@ function readPositiveInt(value, label) {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) {
     fail(`${label} must be a positive integer.`);
+  }
+  return parsed;
+}
+
+function readOptionalPositiveInt(value, label) {
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    fail(`${label} must be a positive integer when provided.`);
   }
   return parsed;
 }
