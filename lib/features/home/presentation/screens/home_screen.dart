@@ -80,16 +80,18 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (scaffoldContext) {
               return Selector<
                 AuthProvider,
-                ({String userName, String storeInfo})
+                ({String userName, String storeInfo, String? avatarUrl})
               >(
                 selector: (_, auth) => (
                   userName: auth.user?.name ?? auth.user?.email ?? '',
                   storeInfo: auth.user?.storeInfo ?? 'Chưa chọn showroom',
+                  avatarUrl: auth.user?.avatarUrl,
                 ),
                 builder: (context, data, _) {
                   return _CompactHomeHeader(
                     userName: data.userName,
                     storeInfo: data.storeInfo,
+                    avatarUrl: data.avatarUrl,
                     onMenu: () => Scaffold.of(scaffoldContext).openDrawer(),
                     onProfile: () => context.push('/profile'),
                     onLogout: () => _logout(context),
@@ -404,6 +406,7 @@ class _PaymentMonitorQuickToggle extends StatelessWidget {
 class _CompactHomeHeader extends StatelessWidget {
   final String userName;
   final String storeInfo;
+  final String? avatarUrl;
   final VoidCallback onMenu;
   final VoidCallback onProfile;
   final VoidCallback onLogout;
@@ -411,6 +414,7 @@ class _CompactHomeHeader extends StatelessWidget {
   const _CompactHomeHeader({
     required this.userName,
     required this.storeInfo,
+    required this.avatarUrl,
     required this.onMenu,
     required this.onProfile,
     required this.onLogout,
@@ -425,6 +429,19 @@ class _CompactHomeHeader extends StatelessWidget {
     final initials = (nameParts.isNotEmpty && nameParts.first.isNotEmpty)
         ? nameParts.first[0].toUpperCase()
         : '?';
+    final cleanAvatarUrl = avatarUrl?.trim();
+    final hasRemoteAvatar =
+        cleanAvatarUrl != null &&
+        (cleanAvatarUrl.startsWith('http://') ||
+            cleanAvatarUrl.startsWith('https://'));
+    final fallbackAvatar = Text(
+      initials,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
+      ),
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -484,14 +501,21 @@ class _CompactHomeHeader extends StatelessWidget {
                     ),
                   ),
                   alignment: Alignment.center,
-                  child: Text(
-                    initials,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: hasRemoteAvatar
+                      ? Image.network(
+                          cleanAvatarUrl,
+                          key: ValueKey(cleanAvatarUrl),
+                          width: 46,
+                          height: 46,
+                          fit: BoxFit.cover,
+                          frameBuilder: (context, child, frame, _) {
+                            if (frame == null) return fallbackAvatar;
+                            return child;
+                          },
+                          errorBuilder: (_, _, _) => fallbackAvatar,
+                        )
+                      : fallbackAvatar,
                 ),
               ),
               const SizedBox(width: 12),
