@@ -36,10 +36,12 @@ visual systems that make the app feel assembled from unrelated screens.
 - Primary actions use `AppPrimaryButton`; secondary actions use
   `AppSecondaryButton`; icon-only actions should use a stable square touch
   target and a tooltip.
-- Paired actions in the same row must use shared button components and
+- Paired actions must use `AppActionRow` plus shared button components and
   `AppButtonMetrics` so height, radius, padding, icon size, and text weight
-  match. If the shared component cannot express the needed variant, extend the
-  shared component before using raw `FilledButton` or `OutlinedButton`.
+  match. Mobile actions stack full-width; desktop actions are capped and aligned
+  to the action edge so form buttons do not stretch across wide panels. If the
+  shared component cannot express the needed variant, extend the shared
+  component before using raw `FilledButton` or `OutlinedButton`.
 - Disabled buttons must preserve the enabled component shape, height, radius,
   and layout position. Only color, opacity, and enabled state may change;
   avoid framework-default disabled pills or one-off grey states in feature UI.
