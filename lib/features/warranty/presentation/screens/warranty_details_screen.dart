@@ -1,16 +1,21 @@
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import '../providers/warranty_provider.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../../app/widgets/gradient_header.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
+
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
+import '../../../../app/widgets/gradient_header.dart';
+import '../../../../core/logging/app_logger.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+import '../providers/warranty_provider.dart';
 
 class WarrantyDetailsScreen extends StatefulWidget {
   final String receiptNumber;
@@ -44,116 +49,148 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
   }
 
   Future<void> _downloadImage(String imageSource, int index) async {
-    try {
-      // Request storage permission
-      if (Platform.isAndroid) {
-        // For Android 13+ (API 33+), use photos permission
-        final permission = await Permission.photos.status;
+    final isRemoteImage = _isUrl(imageSource);
+    await AppLogger.instance.info(
+      'Warranty',
+      'Warranty detail image download started',
+      context: {
+        'receiptNumber': widget.receiptNumber,
+        'imageIndex': index,
+        'source': isRemoteImage ? 'url' : 'base64',
+      },
+    );
 
+    try {
+      if (Platform.isAndroid) {
+        final permission = await Permission.photos.status;
         if (!permission.isGranted) {
-          // Request permission
           final result = await Permission.photos.request();
 
           if (result.isDenied) {
-            // Permission denied - show guide
-            if (mounted) {
-              _showPermissionGuide(isPermanentlyDenied: false);
-            }
+            await AppLogger.instance.warn(
+              'Warranty',
+              'Warranty detail image download permission denied',
+              context: {
+                'receiptNumber': widget.receiptNumber,
+                'imageIndex': index,
+                'permanentlyDenied': false,
+              },
+            );
+            if (mounted) _showPermissionGuide(isPermanentlyDenied: false);
             return;
-          } else if (result.isPermanentlyDenied) {
-            // Permission permanently denied - show settings guide
-            if (mounted) {
-              _showPermissionGuide(isPermanentlyDenied: true);
-            }
+          }
+
+          if (result.isPermanentlyDenied) {
+            await AppLogger.instance.warn(
+              'Warranty',
+              'Warranty detail image download permission denied',
+              context: {
+                'receiptNumber': widget.receiptNumber,
+                'imageIndex': index,
+                'permanentlyDenied': true,
+              },
+            );
+            if (mounted) _showPermissionGuide(isPermanentlyDenied: true);
             return;
           }
         }
       }
 
-      // Get image bytes
-      List<int> bytes;
-      if (_isUrl(imageSource)) {
-        // Download from URL
-        final response = await http.get(Uri.parse(imageSource));
-        if (response.statusCode != 200) {
-          throw Exception('Không tải được ảnh');
-        }
-        bytes = response.bodyBytes;
-      } else {
-        // Decode from base64 (backward compatibility)
-        bytes = base64Decode(imageSource);
-      }
-
-      // Get download directory
-      Directory? directory;
-      if (Platform.isAndroid) {
-        directory = Directory('/storage/emulated/0/Download');
-      } else if (Platform.isIOS) {
-        directory = await getApplicationDocumentsDirectory();
-      } else {
-        directory = await getDownloadsDirectory();
-      }
-
+      final bytes = isRemoteImage
+          ? await _downloadRemoteImageBytes(imageSource)
+          : base64Decode(imageSource);
+      final directory = await _downloadDirectory();
       if (directory == null) {
-        throw Exception('Không tìm thấy thư mục download');
+        throw Exception('Download directory unavailable');
       }
 
-      // Create file name with original extension
-      String extension = 'jpg'; // default
-      if (_isUrl(imageSource)) {
-        // Extract extension from URL
-        final uri = Uri.parse(imageSource);
-        final path = uri.path.toLowerCase();
-        if (path.endsWith('.png')) {
-          extension = 'png';
-        } else if (path.endsWith('.jpeg') || path.endsWith('.jpg')) {
-          extension = 'jpg';
-        } else if (path.endsWith('.webp')) {
-          extension = 'webp';
-        }
-      }
-
+      final extension = _imageExtension(imageSource);
       final fileName =
           '${widget.receiptNumber}_${index + 1}_${DateTime.now().millisecondsSinceEpoch}.$extension';
-      final filePath = '${directory.path}/$fileName';
-
-      // Write file with original quality (no compression)
-      final file = File(filePath);
+      final file = File('${directory.path}${Platform.pathSeparator}$fileName');
       await file.writeAsBytes(bytes, flush: true);
 
+      await AppLogger.instance.info(
+        'Warranty',
+        'Warranty detail image download succeeded',
+        context: {
+          'receiptNumber': widget.receiptNumber,
+          'imageIndex': index,
+          'fileName': fileName,
+          'byteCount': bytes.length,
+        },
+      );
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã lưu vào: $filePath'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
+        _showSnackBar(
+          'Đã lưu vào: ${file.path}',
+          backgroundColor: AppColors.success,
         );
       }
-    } catch (e) {
+    } catch (error) {
+      await AppLogger.instance.warn(
+        'Warranty',
+        'Warranty detail image download failed',
+        context: {
+          'receiptNumber': widget.receiptNumber,
+          'imageIndex': index,
+          'message': error.toString(),
+        },
+      );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Chưa tải được ảnh. Vui lòng thử lại.'),
-            backgroundColor: Colors.red,
-          ),
+        _showSnackBar(
+          'Chưa tải được ảnh. Vui lòng thử lại.',
+          backgroundColor: AppColors.error,
         );
       }
     }
   }
 
+  Future<List<int>> _downloadRemoteImageBytes(String imageSource) async {
+    final response = await http.get(Uri.parse(imageSource));
+    if (response.statusCode != 200) {
+      throw Exception('Image request failed with ${response.statusCode}');
+    }
+    return response.bodyBytes;
+  }
+
+  Future<Directory?> _downloadDirectory() async {
+    if (Platform.isAndroid) return Directory('/storage/emulated/0/Download');
+    if (Platform.isIOS) return getApplicationDocumentsDirectory();
+    return getDownloadsDirectory();
+  }
+
+  String _imageExtension(String imageSource) {
+    if (!_isUrl(imageSource)) return 'jpg';
+    final path = Uri.parse(imageSource).path.toLowerCase();
+    if (path.endsWith('.png')) return 'png';
+    if (path.endsWith('.jpeg') || path.endsWith('.jpg')) return 'jpg';
+    if (path.endsWith('.webp')) return 'webp';
+    return 'jpg';
+  }
+
+  void _showSnackBar(String message, {required Color backgroundColor}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: backgroundColor,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   void _showPermissionGuide({required bool isPermanentlyDenied}) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (context) {
         return AlertDialog(
           title: Row(
             children: [
               Icon(
                 isPermanentlyDenied ? Icons.settings : Icons.info_outline,
-                color: Colors.orange,
+                color: AppColors.warning,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
               const Expanded(child: Text('Cần cấp quyền lưu ảnh')),
             ],
           ),
@@ -166,12 +203,14 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
                   isPermanentlyDenied
                       ? 'Bạn đã từ chối quyền lưu ảnh. Vui lòng vào Cài đặt để cấp quyền.'
                       : 'Ứng dụng cần quyền truy cập bộ nhớ để lưu ảnh vào máy.',
-                  style: const TextStyle(fontSize: 14),
+                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
-                const SizedBox(height: 16),
-                const Text(
+                const SizedBox(height: AppLayoutTokens.formFieldGap),
+                Text(
                   'Hướng dẫn cấp quyền:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 _buildPermissionStep(
@@ -187,57 +226,8 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
                     '4',
                     'Bật quyền "Ảnh và video" hoặc "Photos and videos"',
                   ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Colors.blue.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.phone_android,
-                              size: 16,
-                              color: Colors.blue[700],
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Tùy theo hãng điện thoại:',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: Colors.blue[900],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _buildPhoneGuide(
-                          'Samsung',
-                          'Cài đặt → Ứng dụng → PhongVu OpsHub → Quyền',
-                        ),
-                        _buildPhoneGuide(
-                          'Xiaomi/Redmi',
-                          'Cài đặt → Ứng dụng → Quản lý ứng dụng → PhongVu OpsHub → Quyền ứng dụng',
-                        ),
-                        _buildPhoneGuide(
-                          'Oppo/Realme',
-                          'Cài đặt → Quyền riêng tư → Trình quản lý quyền → PhongVu OpsHub',
-                        ),
-                        _buildPhoneGuide(
-                          'Vivo',
-                          'Cài đặt → Ứng dụng và thông báo → Quản lý ứng dụng → PhongVu OpsHub → Quyền',
-                        ),
-                      ],
-                    ),
-                  ),
+                  const SizedBox(height: AppLayoutTokens.cardGap),
+                  _PhonePermissionGuide(),
                 ],
               ],
             ),
@@ -249,21 +239,11 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
                   Navigator.of(context).pop();
                   openAppSettings();
                 },
-                child: const Text(
-                  'Mở Cài đặt',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: false,
-                ),
+                child: const Text('Mở Cài đặt'),
               ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                isPermanentlyDenied ? 'Đóng' : 'OK',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
-              ),
+              child: Text(isPermanentlyDenied ? 'Đóng' : 'OK'),
             ),
           ],
         );
@@ -277,58 +257,28 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              color: Colors.orange,
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              color: AppColors.warning,
               shape: BoxShape.circle,
             ),
-            child: Center(
-              child: Text(
-                number,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
+            child: SizedBox.square(
+              dimension: 24,
+              child: Center(
+                child: Text(
+                  number,
+                  style: const TextStyle(
+                    color: AppColors.surface,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPhoneGuide(String brand, String path) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '• ',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.blue[700],
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          const SizedBox(width: AppLayoutTokens.formInlineGap),
           Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: const TextStyle(fontSize: 11, color: Colors.black87),
-                children: [
-                  TextSpan(
-                    text: '$brand: ',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  TextSpan(text: path),
-                ],
-              ),
-            ),
+            child: Text(text, style: Theme.of(context).textTheme.bodySmall),
           ),
         ],
       ),
@@ -340,41 +290,27 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
   }
 
   String _formatDate(String? dateString) {
-    if (dateString == null || dateString.isEmpty) {
-      return 'Chưa có';
-    }
+    if (dateString == null || dateString.isEmpty) return 'Chưa có';
 
     try {
-      // Try to parse different date formats
       DateTime? dateTime;
-
-      // Try ISO format first (yyyy-MM-dd or yyyy-MM-ddTHH:mm:ss)
       try {
         dateTime = DateTime.parse(dateString);
-      } catch (e) {
-        // Try dd/MM/yyyy format
-        try {
-          final parts = dateString.split('/');
-          if (parts.length == 3) {
-            dateTime = DateTime(
-              int.parse(parts[2]), // year
-              int.parse(parts[1]), // month
-              int.parse(parts[0]), // day
-            );
-          }
-        } catch (e) {
-          // If all parsing fails, return original string
-          return dateString;
+      } catch (_) {
+        final parts = dateString.split('/');
+        if (parts.length == 3) {
+          dateTime = DateTime(
+            int.parse(parts[2]),
+            int.parse(parts[1]),
+            int.parse(parts[0]),
+          );
         }
       }
 
-      if (dateTime != null) {
-        // Format as dd/MM/yyyy
-        return DateFormat('dd/MM/yyyy').format(dateTime);
-      }
-
-      return dateString;
-    } catch (e) {
+      return dateTime == null
+          ? dateString
+          : DateFormat('dd/MM/yyyy').format(dateTime);
+    } catch (_) {
       return dateString;
     }
   }
@@ -391,6 +327,26 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
     );
   }
 
+  List<String> _extractImages(Map<String, dynamic> details) {
+    final images = <String>[];
+    final listValue = details['images'];
+    if (listValue is List) {
+      for (final item in listValue) {
+        final image = item?.toString();
+        if (image != null && image.isNotEmpty) images.add(image);
+      }
+      return images;
+    }
+
+    var imageIndex = 0;
+    while (details.containsKey('image$imageIndex')) {
+      final image = details['image$imageIndex']?.toString();
+      if (image != null && image.isNotEmpty) images.add(image);
+      imageIndex++;
+    }
+    return images;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -405,143 +361,190 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
             }
 
             if (warrantyProvider.errorMessage != null) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 64,
-                      color: Colors.red,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      warrantyProvider.errorMessage!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _loadDetails,
-                      child: const Text(
-                        'Thử lại',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: false,
-                      ),
-                    ),
-                  ],
+              return AppResponsiveScrollView(
+                maxWidth: AppLayoutTokens.formMaxWidth,
+                child: AppStatePanel.error(
+                  title: 'Chưa tải được chi tiết biên nhận',
+                  message: warrantyProvider.errorMessage!,
+                  actionLabel: 'Thử lại',
+                  actionIcon: Icons.refresh_rounded,
+                  onAction: _loadDetails,
                 ),
               );
             }
 
             final details = warrantyProvider.currentDetails;
             if (details == null) {
-              return const Center(child: Text('Không có dữ liệu'));
+              return const AppResponsiveScrollView(
+                maxWidth: AppLayoutTokens.formMaxWidth,
+                child: AppStatePanel.empty(
+                  title: 'Không có dữ liệu biên nhận',
+                  icon: Icons.receipt_long_outlined,
+                ),
+              );
             }
 
-            // Extract images
-            final List<String> images = [];
-
-            // Try to get images from array format first (new format)
-            if (details.containsKey('images') && details['images'] is List) {
-              final imagesList = details['images'] as List;
-              for (var img in imagesList) {
-                final imgStr = img?.toString();
-                if (imgStr != null && imgStr.isNotEmpty) {
-                  images.add(imgStr);
-                }
-              }
-            } else {
-              // Fallback to old format (image0, image1, image2...)
-              int imageIndex = 0;
-              while (details.containsKey('image$imageIndex')) {
-                final img = details['image$imageIndex']?.toString();
-                if (img != null && img.isNotEmpty) {
-                  images.add(img);
-                }
-                imageIndex++;
-              }
-            }
-
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+            final images = _extractImages(details);
+            return AppResponsiveScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Receipt info card
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Thông tin biên nhận',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 16),
-                          _InfoRow(
-                            label: 'Biên nhận:',
-                            value: details['receipt']?.toString() ?? 'Chưa có',
-                          ),
-                          _InfoRow(
-                            label: 'Người lưu:',
-                            value: details['user']?.toString() ?? 'Chưa có',
-                          ),
-                          _InfoRow(
-                            label: 'Ngày lưu:',
-                            value: _formatDate(details['date']?.toString()),
-                          ),
-                        ],
-                      ),
-                    ),
+                  _ReceiptInfoCard(details: details, formatDate: _formatDate),
+                  const SizedBox(height: AppLayoutTokens.formSectionGap),
+                  _ImageSection(
+                    images: images,
+                    onView: _viewImage,
+                    onDownload: _downloadImage,
                   ),
-                  const SizedBox(height: 24),
-
-                  // Images section
-                  if (images.isNotEmpty) ...[
-                    Text(
-                      'Hình ảnh (${images.length})',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 1,
-                          ),
-                      itemCount: images.length,
-                      itemBuilder: (context, index) {
-                        return _ImageCard(
-                          imageSource: images[index],
-                          index: index,
-                          onTap: () => _viewImage(images[index], index),
-                          onDownload: () =>
-                              _downloadImage(images[index], index),
-                        );
-                      },
-                    ),
-                  ] else
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(32.0),
-                        child: Text('Không có hình ảnh'),
-                      ),
-                    ),
                 ],
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _PhonePermissionGuide extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.24)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            _PhonePermissionHeader(),
+            SizedBox(height: 8),
+            _PhoneGuideRow(
+              brand: 'Samsung',
+              path: 'Cài đặt -> Ứng dụng -> PhongVu OpsHub -> Quyền',
+            ),
+            _PhoneGuideRow(
+              brand: 'Xiaomi/Redmi',
+              path:
+                  'Cài đặt -> Ứng dụng -> Quản lý ứng dụng -> PhongVu OpsHub -> Quyền ứng dụng',
+            ),
+            _PhoneGuideRow(
+              brand: 'Oppo/Realme',
+              path:
+                  'Cài đặt -> Quyền riêng tư -> Trình quản lý quyền -> PhongVu OpsHub',
+            ),
+            _PhoneGuideRow(
+              brand: 'Vivo',
+              path:
+                  'Cài đặt -> Ứng dụng và thông báo -> Quản lý ứng dụng -> PhongVu OpsHub -> Quyền',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PhonePermissionHeader extends StatelessWidget {
+  const _PhonePermissionHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(Icons.phone_android, size: 16, color: AppColors.info),
+        const SizedBox(width: 6),
+        Text(
+          'Tùy theo hãng điện thoại:',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: AppColors.info,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PhoneGuideRow extends StatelessWidget {
+  final String brand;
+  final String path;
+
+  const _PhoneGuideRow({required this.brand, required this.path});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '- ',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.info,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+                children: [
+                  TextSpan(
+                    text: '$brand: ',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  TextSpan(text: path),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReceiptInfoCard extends StatelessWidget {
+  final Map<String, dynamic> details;
+  final String Function(String? value) formatDate;
+
+  const _ReceiptInfoCard({required this.details, required this.formatDate});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Thông tin biên nhận',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: AppLayoutTokens.formFieldGap),
+            _InfoRow(
+              label: 'Biên nhận:',
+              value: details['receipt']?.toString() ?? 'Chưa có',
+            ),
+            _InfoRow(
+              label: 'Người lưu:',
+              value: details['user']?.toString() ?? 'Chưa có',
+            ),
+            _InfoRow(
+              label: 'Ngày lưu:',
+              value: formatDate(details['date']?.toString()),
+            ),
+          ],
         ),
       ),
     );
@@ -562,10 +565,10 @@ class _InfoRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 100,
+            width: 110,
             child: Text(
               label,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w500,
               ),
@@ -574,12 +577,78 @@ class _InfoRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
         ],
       ),
     );
+  }
+}
+
+class _ImageSection extends StatelessWidget {
+  final List<String> images;
+  final void Function(String imageSource, int index) onView;
+  final void Function(String imageSource, int index) onDownload;
+
+  const _ImageSection({
+    required this.images,
+    required this.onView,
+    required this.onDownload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (images.isEmpty) {
+      return const AppStatePanel.empty(
+        title: 'Không có hình ảnh',
+        icon: Icons.image_not_supported_outlined,
+        compact: true,
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Hình ảnh (${images.length})',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: AppLayoutTokens.cardGap),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = _columnsForWidth(constraints.maxWidth);
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                crossAxisSpacing: AppLayoutTokens.cardGap,
+                mainAxisSpacing: AppLayoutTokens.cardGap,
+                childAspectRatio: 1,
+              ),
+              itemCount: images.length,
+              itemBuilder: (context, index) => _ImageCard(
+                imageSource: images[index],
+                index: index,
+                onTap: () => onView(images[index], index),
+                onDownload: () => onDownload(images[index], index),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  int _columnsForWidth(double width) {
+    if (width >= 980) return 4;
+    if (width >= 680) return 3;
+    return 2;
   }
 }
 
@@ -596,10 +665,6 @@ class _ImageCard extends StatelessWidget {
     required this.onDownload,
   });
 
-  bool _isUrl(String source) {
-    return source.startsWith('http://') || source.startsWith('https://');
-  }
-
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -609,78 +674,124 @@ class _ImageCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            _isUrl(imageSource)
-                ? CachedNetworkImage(
-                    imageUrl: imageSource,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 800,
-                    memCacheHeight: 800,
-                    maxWidthDiskCache: 1000,
-                    maxHeightDiskCache: 1000,
-                    placeholder: (context, url) =>
-                        const Center(child: CircularProgressIndicator()),
-                    errorWidget: (context, url, error) {
-                      return Container(
-                        color: Colors.grey[300],
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.broken_image,
-                              size: 48,
-                              color: Colors.grey[600],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Ảnh ${index + 1} chưa tải được',
-                              style: TextStyle(color: Colors.grey[600]),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  )
-                : Image.memory(
-                    base64Decode(imageSource),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: Colors.grey[300],
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.broken_image,
-                              size: 48,
-                              color: Colors.grey[600],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Ảnh ${index + 1} chưa tải được',
-                              style: TextStyle(color: Colors.grey[600]),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+            _ImageContent(imageSource: imageSource, index: index),
             Positioned(
               top: 8,
               right: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(12),
+              child: _ImageBadge(text: '${index + 1}'),
+            ),
+            Positioned(
+              right: 8,
+              bottom: 8,
+              child: IconButton(
+                tooltip: 'Tải về',
+                onPressed: onDownload,
+                icon: const Icon(Icons.download_rounded),
+                color: AppColors.surface,
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColors.neutral900.withValues(alpha: 0.62),
                 ),
-                child: Text(
-                  '${index + 1}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ImageBadge extends StatelessWidget {
+  final String text;
+
+  const _ImageBadge({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.neutral900.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: AppColors.surface,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ImageContent extends StatelessWidget {
+  final String imageSource;
+  final int? index;
+
+  const _ImageContent({required this.imageSource, this.index});
+
+  bool _isUrl(String source) {
+    return source.startsWith('http://') || source.startsWith('https://');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isUrl(imageSource)) {
+      return CachedNetworkImage(
+        imageUrl: imageSource,
+        fit: BoxFit.cover,
+        memCacheWidth: 800,
+        memCacheHeight: 800,
+        maxWidthDiskCache: 1000,
+        maxHeightDiskCache: 1000,
+        placeholder: (context, url) =>
+            const Center(child: CircularProgressIndicator()),
+        errorWidget: (context, url, error) =>
+            _BrokenImagePlaceholder(index: index),
+      );
+    }
+
+    try {
+      return Image.memory(
+        base64Decode(imageSource),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) =>
+            _BrokenImagePlaceholder(index: index),
+      );
+    } catch (_) {
+      return _BrokenImagePlaceholder(index: index);
+    }
+  }
+}
+
+class _BrokenImagePlaceholder extends StatelessWidget {
+  final int? index;
+
+  const _BrokenImagePlaceholder({this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = index == null
+        ? 'Chưa hiển thị được ảnh'
+        : 'Ảnh ${index! + 1} chưa tải được';
+    return ColoredBox(
+      color: Theme.of(context).brightness == Brightness.dark
+          ? AppColors.darkNeutral100
+          : AppColors.neutral100,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.broken_image, size: 48, color: AppColors.error),
+            const SizedBox(height: 8),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -701,10 +812,6 @@ class _ImageViewScreen extends StatelessWidget {
     required this.onDownload,
   });
 
-  bool _isUrl(String source) {
-    return source.startsWith('http://') || source.startsWith('https://');
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -713,7 +820,7 @@ class _ImageViewScreen extends StatelessWidget {
         showBack: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.download),
+            icon: const Icon(Icons.download_rounded),
             onPressed: onDownload,
             tooltip: 'Tải về',
           ),
@@ -722,41 +829,7 @@ class _ImageViewScreen extends StatelessWidget {
       body: InteractiveViewer(
         minScale: 0.5,
         maxScale: 4.0,
-        child: Center(
-          child: _isUrl(imageSource)
-              ? CachedNetworkImage(
-                  imageUrl: imageSource,
-                  placeholder: (context, url) =>
-                      const Center(child: CircularProgressIndicator()),
-                  errorWidget: (context, url, error) {
-                    return const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.broken_image, size: 64, color: Colors.red),
-                          SizedBox(height: 16),
-                          Text('Chưa hiển thị được ảnh'),
-                        ],
-                      ),
-                    );
-                  },
-                )
-              : Image.memory(
-                  base64Decode(imageSource),
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.broken_image, size: 64, color: Colors.red),
-                          SizedBox(height: 16),
-                          Text('Chưa hiển thị được ảnh'),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        ),
+        child: Center(child: _ImageContent(imageSource: imageSource)),
       ),
     );
   }

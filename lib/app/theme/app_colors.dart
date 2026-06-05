@@ -32,6 +32,11 @@ class AppColors {
   static const Color error = Color(0xFFDC2626);
   static const Color teal600 = Color(0xFF0F766E); // VietQR
   static const Color violet600 = Color(0xFF7C3AED); // Payment monitor
+  static const Color indigo600 = Color(0xFF4F46E5);
+  static const Color purple600 = Color(0xFF9333EA);
+  static const Color emerald600 = Color(0xFF059669);
+  static const Color sky500 = Color(0xFF0EA5E9);
+  static const Color amber500 = Color(0xFFF59E0B);
 
   // ── Neutral / Grey scale ─────────────────────────────────────────
   static const Color neutral50 = Color(0xFFF5F7FB); // scaffold bg

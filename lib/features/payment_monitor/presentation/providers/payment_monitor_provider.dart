@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/logging/app_logger.dart';
+import '../../../../core/platform/app_platform_capabilities.dart';
 import '../../../../core/network/api_exception.dart' as api;
 import '../../../../core/platform/app_restart_service.dart';
 import '../../../auth/domain/entities/user.dart';
@@ -239,7 +240,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   bool get _canMonitorOnThisDevice =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+      AppPlatformCapabilities.isPaymentMonitorSupported();
 
   bool get _hasMonitorScope {
     final user = _user;

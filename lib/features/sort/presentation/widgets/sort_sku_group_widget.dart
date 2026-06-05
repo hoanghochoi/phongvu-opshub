@@ -35,10 +35,9 @@ class SortSKUGroupWidget extends StatelessWidget {
     }
   }
 
-
   // Tính màu cho từng item dựa vào ngày nhập kho
   Color _getItemBackgroundColor(SKUItem item) {
-    if (item.isChecked) return Colors.green[50]!;
+    if (item.isChecked) return AppColors.success.withValues(alpha: 0.08);
     if (item.date.isEmpty) return AppColors.neutral50;
 
     final itemDate = DateFormatter.tryParse(item.date);
@@ -48,12 +47,16 @@ class SortSKUGroupWidget extends StatelessWidget {
     final ratio = (daysDiff / 60).clamp(0.0, 1.0);
 
     // Gradient từ xanh nhạt (mới) -> cam nhạt (cũ)
-    return Color.lerp(Colors.blue[50], Colors.deepOrange[100], ratio)!;
+    return Color.lerp(
+      AppColors.info.withValues(alpha: 0.08),
+      AppColors.warning.withValues(alpha: 0.18),
+      ratio,
+    )!;
   }
 
   // Tính màu border cho item
   Color _getItemBorderColor(SKUItem item) {
-    if (item.isChecked) return Colors.green[400]!;
+    if (item.isChecked) return AppColors.success;
     if (item.date.isEmpty) return AppColors.neutral200;
 
     final itemDate = DateFormatter.tryParse(item.date);
@@ -63,17 +66,21 @@ class SortSKUGroupWidget extends StatelessWidget {
     final ratio = (daysDiff / 60).clamp(0.0, 1.0);
 
     // Gradient từ xanh đậm (mới) -> cam đậm (cũ)
-    return Color.lerp(Colors.blue[400], Colors.deepOrange[400], ratio)!;
+    return Color.lerp(
+      AppColors.info.withValues(alpha: 0.72),
+      AppColors.warning.withValues(alpha: 0.85),
+      ratio,
+    )!;
   }
 
   @override
   Widget build(BuildContext context) {
     final backgroundColor = group.isFullyChecked
-        ? Colors.green[100]
-        : Colors.yellow[100];
+        ? AppColors.success.withValues(alpha: 0.12)
+        : AppColors.warning.withValues(alpha: 0.12);
     final headerColor = group.isFullyChecked
-        ? Colors.green
-        : Colors.orange[800];
+        ? AppColors.success
+        : AppColors.warning;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -93,7 +100,9 @@ class SortSKUGroupWidget extends StatelessWidget {
                     group.isFullyChecked
                         ? Icons.check_circle
                         : Icons.check_circle_outline,
-                    color: group.isFullyChecked ? Colors.green : Colors.grey,
+                    color: group.isFullyChecked
+                        ? AppColors.success
+                        : AppColors.neutral400,
                     size: 28,
                   ),
                 ),
@@ -128,7 +137,7 @@ class SortSKUGroupWidget extends StatelessWidget {
                           softWrap: false,
                           style: TextStyle(
                             fontSize: 13,
-                            color: headerColor?.withValues(alpha: 0.8),
+                            color: headerColor.withValues(alpha: 0.8),
                           ),
                         ),
                       ],
@@ -141,7 +150,7 @@ class SortSKUGroupWidget extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.surface,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -200,7 +209,9 @@ class SortSKUGroupWidget extends StatelessWidget {
                 item.isChecked
                     ? Icons.check_box
                     : Icons.check_box_outline_blank,
-                color: item.isChecked ? Colors.green : Colors.grey,
+                color: item.isChecked
+                    ? AppColors.success
+                    : AppColors.neutral400,
                 size: 24,
               ),
             ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -16,14 +18,14 @@ class WarrantyMainScreen extends StatelessWidget {
         icon: Icons.add_photo_alternate_rounded,
         title: 'Lưu hình ảnh',
         description: 'Ghi nhận BH/SC',
-        color: const Color(0xFF16A34A),
+        color: AppColors.success,
         onTap: () => context.push('/warranty'),
       ),
       AppFeatureAction(
         icon: Icons.search_rounded,
         title: 'Xem lại hình ảnh',
         description: 'Tìm theo biên nhận',
-        color: const Color(0xFF0F766E),
+        color: AppColors.teal600,
         onTap: () => context.push('/check-warranty'),
       ),
     ];
