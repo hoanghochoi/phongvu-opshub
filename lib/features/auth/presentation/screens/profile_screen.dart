@@ -1,10 +1,12 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../../core/utils/validators.dart';
 import '../providers/auth_provider.dart';
 
@@ -16,9 +18,17 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  static const _avatarExtensions = [
+    'jpg',
+    'jpeg',
+    'png',
+    'webp',
+    'heic',
+    'heif',
+  ];
+
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
-  final _picker = ImagePicker();
 
   @override
   void initState() {
@@ -36,20 +46,77 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _pickAvatar() async {
-    final image = await _picker.pickImage(source: ImageSource.gallery);
-    if (image == null || !mounted) return;
-    final success = await context.read<AuthProvider>().uploadAvatar(image.path);
-    if (!success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.read<AuthProvider>().errorMessage ??
-                'Không cập nhật được avatar',
-          ),
-          backgroundColor: Colors.red,
-        ),
+    final authProvider = context.read<AuthProvider>();
+    await AppLogger.instance.info('Profile', 'Avatar picker opened');
+
+    try {
+      final picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: _avatarExtensions,
+        allowMultiple: false,
+        withData: true,
       );
+      final file = picked?.files.single;
+      if (file == null) {
+        await AppLogger.instance.info('Profile', 'Avatar picker cancelled');
+        return;
+      }
+
+      final path = file.path;
+      final bytes = file.bytes;
+      if (path == null && bytes == null) {
+        await AppLogger.instance.warn(
+          'Profile',
+          'Avatar picker returned unreadable file',
+          context: {'fileName': file.name, 'size': file.size},
+        );
+        if (mounted) {
+          _showMessage('Chưa đọc được file ảnh. Vui lòng chọn ảnh khác.');
+        }
+        return;
+      }
+
+      await AppLogger.instance.info(
+        'Profile',
+        'Avatar file selected',
+        context: {
+          'fileName': file.name,
+          'size': file.size,
+          'hasPath': path != null,
+          'hasBytes': bytes != null,
+        },
+      );
+      if (!mounted) return;
+
+      final success = await authProvider.uploadAvatar(
+        path: path,
+        bytes: bytes,
+        fileName: file.name,
+      );
+      if (!success && mounted) {
+        _showMessage(authProvider.errorMessage ?? 'Không cập nhật được avatar');
+      }
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'Profile',
+        'Avatar picker crashed',
+        error: error,
+        stackTrace: stackTrace,
+        upload: true,
+      );
+      if (mounted) {
+        _showMessage('Chưa mở được bộ chọn ảnh. Vui lòng thử lại.');
+      }
     }
+  }
+
+  void _showMessage(String message, {bool success = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: success ? AppColors.success : AppColors.error,
+      ),
+    );
   }
 
   Future<void> _changePassword() async {
@@ -58,12 +125,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (context) => const _ChangePasswordDialog(),
     );
     if (!mounted || changed != true) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã đổi mật khẩu'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    _showMessage('Đã đổi mật khẩu', success: true);
   }
 
   Future<void> _save() async {
@@ -72,15 +134,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       lastName: _lastNameController.text.trim(),
     );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success
-              ? 'Đã lưu thông tin cá nhân'
-              : context.read<AuthProvider>().errorMessage ?? 'Không lưu được',
-        ),
-        backgroundColor: success ? Colors.green : Colors.red,
-      ),
+    _showMessage(
+      success
+          ? 'Đã lưu thông tin cá nhân'
+          : context.read<AuthProvider>().errorMessage ?? 'Không lưu được',
+      success: success,
     );
   }
 
@@ -162,20 +220,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: AppLayoutTokens.formSectionGap),
-            OutlinedButton.icon(
-              onPressed: context.watch<AuthProvider>().isLoading
-                  ? null
-                  : _changePassword,
-              icon: const Icon(Icons.lock_reset_outlined),
-              label: const Text('Đổi mật khẩu'),
-            ),
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
-            AppPrimaryButton(
-              onPressed: _save,
-              icon: Icons.save_outlined,
-              label: 'Lưu',
-              isLoading: context.watch<AuthProvider>().isLoading,
-              loadingLabel: 'Đang lưu...',
+            AppActionRow(
+              children: [
+                AppSecondaryButton(
+                  onPressed: context.watch<AuthProvider>().isLoading
+                      ? null
+                      : _changePassword,
+                  icon: Icons.lock_reset_outlined,
+                  label: 'Đổi mật khẩu',
+                ),
+                AppPrimaryButton(
+                  onPressed: _save,
+                  icon: Icons.save_outlined,
+                  label: 'Lưu',
+                  isLoading: context.watch<AuthProvider>().isLoading,
+                  loadingLabel: 'Đang lưu...',
+                ),
+              ],
             ),
           ],
         ),
@@ -223,7 +284,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(authProvider.errorMessage ?? 'Không đổi được mật khẩu'),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
       ),
     );
   }

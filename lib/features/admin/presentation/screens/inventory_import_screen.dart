@@ -163,24 +163,19 @@ class _UploadPanel extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppLayoutTokens.formFieldGap),
-            Row(
+            AppActionRow(
               children: [
-                Expanded(
-                  child: AppSecondaryButton(
-                    onPressed: isUploading ? null : onPickFile,
-                    icon: Icons.folder_open_outlined,
-                    label: 'Chọn file',
-                  ),
+                AppSecondaryButton(
+                  onPressed: isUploading ? null : onPickFile,
+                  icon: Icons.folder_open_outlined,
+                  label: 'Chọn file',
                 ),
-                const SizedBox(width: AppLayoutTokens.formInlineGap),
-                Expanded(
-                  child: AppPrimaryButton(
-                    onPressed: onUpload,
-                    icon: Icons.upload_file_outlined,
-                    label: 'Cập nhật',
-                    isLoading: isUploading,
-                    loadingLabel: 'Đang cập nhật',
-                  ),
+                AppPrimaryButton(
+                  onPressed: onUpload,
+                  icon: Icons.upload_file_outlined,
+                  label: 'Cập nhật',
+                  isLoading: isUploading,
+                  loadingLabel: 'Đang cập nhật',
                 ),
               ],
             ),

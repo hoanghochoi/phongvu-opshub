@@ -785,12 +785,26 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> uploadAvatar(String path) async {
+  Future<bool> uploadAvatar({
+    String? path,
+    Uint8List? bytes,
+    required String fileName,
+  }) async {
     if (_user == null) return false;
+    if (path == null && bytes == null) {
+      _errorMessage = 'Chưa đọc được file ảnh. Vui lòng chọn ảnh khác.';
+      return false;
+    }
+
     await AppLogger.instance.info(
       'Auth',
       'Avatar upload started',
-      context: {'email': _user!.email},
+      context: {
+        'email': _user!.email,
+        'fileName': fileName,
+        'hasPath': path != null,
+        'byteLength': bytes?.length,
+      },
     );
     _isLoading = true;
     _errorMessage = null;
@@ -798,7 +812,12 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       _user = await _withFeatureAccess(
-        await _repository.uploadAvatar(email: _user!.email, path: path),
+        await _repository.uploadAvatar(
+          email: _user!.email,
+          path: path,
+          bytes: bytes,
+          fileName: fileName,
+        ),
       );
       await _saveSession(_user!);
       await AppLogger.instance.info(
@@ -816,6 +835,19 @@ class AuthProvider extends ChangeNotifier {
         context: {'email': _user?.email, 'message': e.message},
       );
       _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e, stackTrace) {
+      await AppLogger.instance.error(
+        'Auth',
+        'Avatar upload crashed',
+        error: e,
+        stackTrace: stackTrace,
+        upload: true,
+        context: {'email': _user?.email, 'fileName': fileName},
+      );
+      _errorMessage = 'Không cập nhật được avatar. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
       return false;

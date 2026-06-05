@@ -1,7 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import 'app_layout.dart';
 
 class AppButtonMetrics {
   AppButtonMetrics._();
@@ -114,6 +117,61 @@ class AppSecondaryButton extends StatelessWidget {
           textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
+    );
+  }
+}
+
+class AppActionRow extends StatelessWidget {
+  final List<Widget> children;
+  final double maxButtonWidth;
+  final double spacing;
+  final MainAxisAlignment desktopAlignment;
+
+  const AppActionRow({
+    super.key,
+    required this.children,
+    this.maxButtonWidth = 220,
+    this.spacing = AppLayoutTokens.formInlineGap,
+    this.desktopAlignment = MainAxisAlignment.end,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final isCompact = width < AppLayoutTokens.compactBreakpoint;
+
+        if (isCompact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var index = 0; index < children.length; index++) ...[
+                if (index > 0) SizedBox(height: spacing),
+                children[index],
+              ],
+            ],
+          );
+        }
+
+        final availableButtonWidth =
+            (width - (spacing * (children.length - 1))) / children.length;
+        final buttonWidth = math.min(maxButtonWidth, availableButtonWidth);
+
+        return Row(
+          mainAxisAlignment: desktopAlignment,
+          children: [
+            for (var index = 0; index < children.length; index++) ...[
+              if (index > 0) SizedBox(width: spacing),
+              SizedBox(width: buttonWidth, child: children[index]),
+            ],
+          ],
+        );
+      },
     );
   }
 }
