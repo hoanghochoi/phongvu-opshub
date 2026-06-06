@@ -58,6 +58,7 @@ services:
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/payment-audio:/data/payment-audio
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/import:/data/import:ro
       - ../../assets/icon/source:/app/assets/icon/source:ro
+      - ../../assets/icon/acare_logo.png:/app/assets/icon/acare_logo.png:ro
       - ../../fonts:/app/fonts:ro
     networks:
       - opshub
