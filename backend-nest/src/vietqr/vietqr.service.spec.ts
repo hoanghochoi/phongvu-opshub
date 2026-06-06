@@ -75,6 +75,11 @@ describe('VietQrService', () => {
       transferContent: 'DH-001 HCM01 BOT',
       id: 'payment-1',
       status: 'PENDING',
+      qrBrand: {
+        key: 'phongvu',
+        title: 'Phong Vũ',
+        logoKey: 'phongvu',
+      },
     });
     expect(result.qrPayload).toContain('0010A000000727');
     expect(result.qrPayload).toContain('0208QRIBFTTA');
@@ -118,6 +123,17 @@ describe('VietQrService', () => {
   });
 
   it('creates an n8n-ready image response with exact addInfo transfer content', async () => {
+    prisma.store.findUnique.mockResolvedValueOnce({
+      area: {
+        regionCode: 'ACARETEK',
+        region: {
+          code: 'ACARETEK',
+          displayName: 'ACareTek',
+          abbreviation: 'ACareTek',
+        },
+      },
+    });
+
     const result = await service.createExternal({
       amount: 150000,
       addInfo: 'DH-001 CP62 BOT',
@@ -133,6 +149,11 @@ describe('VietQrService', () => {
       accountName: 'PHONG VU',
       amount: 150000,
       transferContent: 'DH-001 CP62 BOT',
+      qrBrand: {
+        key: 'acaretek',
+        title: 'ACareTek',
+        logoKey: 'acare',
+      },
       imageMimeType: 'image/png',
       imageFileName: 'vietqr_DH-001_CP62_BOT.png',
     });
@@ -143,6 +164,32 @@ describe('VietQrService', () => {
     expect(decodeQrFromPng(result.imageBuffer)).toBe(result.qrPayload);
     expect(result.imageSizeBytes).toBeGreaterThan(1000);
   }, 15000);
+
+  it('uses the ACareTek QR brand for stores in the ACareTek region', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      area: {
+        regionCode: 'ACARETEK',
+        region: {
+          code: 'ACARETEK',
+          displayName: 'ACareTek',
+          abbreviation: 'ACareTek',
+        },
+      },
+    });
+
+    const result = await service.create({
+      amount: 150000,
+      orderCode: 'DH-001',
+      storeCode: 'AC001',
+    });
+
+    expect(result.qrBrand).toMatchObject({
+      key: 'acaretek',
+      title: 'ACareTek',
+      logoKey: 'acare',
+      logoAsset: 'assets/icon/acare_logo.png',
+    });
+  });
 
   it('returns external payment status without running MAP check', async () => {
     prisma.vietQrPaymentIntent.findUnique.mockResolvedValue({

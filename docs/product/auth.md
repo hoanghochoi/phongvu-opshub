@@ -2,14 +2,14 @@
 
 ## Intent
 
-Only authorized Phong Vũ staff should access OpsHub workflows.
+Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
 
 ## Current Shape
 
 - Flutter uses email/password sign-in with a separate registration form.
-- Users without an account register with an email thuộc Phong Vũ and an OpsHub
-  password before signing in.
-- NestJS validates the allowed Phong Vũ email domain list from
+- Users without an account register with an OpsHub-accepted staff email domain
+  and an OpsHub password before signing in.
+- NestJS validates the allowed staff email domain list from
   `data/email_domain.txt` and issues JWT-backed sessions.
 - Backend configuration includes `JWT_SECRET`; `EMAIL_DOMAIN_FILE` can override
   the default domain-list file path.
@@ -40,7 +40,7 @@ Only authorized Phong Vũ staff should access OpsHub workflows.
 
 - Login behavior is security-sensitive and defaults to the high-risk lane when
   changed.
-- Allowed Phong Vũ email domains, password policy, reset-code lifetime, JWT
+- Allowed OpsHub staff email domains, password policy, reset-code lifetime, JWT
   token-version invalidation, platform-session enforcement, session
   persistence, and logout behavior must be explicit in implementation stories.
 - Do not commit real credentials, tokens, service accounts, or production env

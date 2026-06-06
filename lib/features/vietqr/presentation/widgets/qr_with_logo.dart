@@ -1,17 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import '../../../../app/widgets/app_logo.dart';
 import '../../domain/entities/vietqr_transfer.dart';
 
 class QrWithLogo extends StatelessWidget {
   final double size;
   final VietQrTransfer transfer;
 
-  const QrWithLogo({
-    super.key,
-    required this.size,
-    required this.transfer,
-  });
+  const QrWithLogo({super.key, required this.size, required this.transfer});
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +35,7 @@ class QrWithLogo extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(7),
                 child: Image.asset(
-                  AppLogo.imageAsset,
+                  transfer.qrBrand.logoAsset,
                   fit: BoxFit.cover,
                 ),
               ),

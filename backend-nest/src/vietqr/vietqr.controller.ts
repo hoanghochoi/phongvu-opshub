@@ -105,6 +105,8 @@ export class VietQrController {
     res.setHeader('X-OpsHub-Account-Name', result.accountName);
     res.setHeader('X-OpsHub-Amount', result.amount?.toString() ?? '');
     res.setHeader('X-OpsHub-Transfer-Content', result.transferContent);
+    res.setHeader('X-OpsHub-Brand-Key', result.qrBrand.key);
+    res.setHeader('X-OpsHub-Brand-Title', result.qrBrand.title);
     res.send(result.imageBuffer);
   }
 
@@ -153,11 +155,7 @@ export class VietQrController {
   }
 
   private externalStatus(raw: Record<string, unknown>) {
-    const paymentId = this.firstText(
-      raw.paymentId,
-      raw.payment_id,
-      raw.id,
-    );
+    const paymentId = this.firstText(raw.paymentId, raw.payment_id, raw.id);
     if (this.isTruthy(raw.check) || this.isTruthy(raw.confirm)) {
       return this.vietQrService.checkExternalStatus(paymentId ?? '');
     }

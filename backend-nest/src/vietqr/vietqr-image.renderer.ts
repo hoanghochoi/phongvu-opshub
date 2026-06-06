@@ -18,7 +18,7 @@ export class VietQrImageRenderer {
   async renderPng(transfer: VietQrResponse): Promise<RenderedVietQrImage> {
     const [qrBuffer, logoBuffer] = await Promise.all([
       this.qrPng(transfer.qrPayload),
-      this.logoPlatePng(),
+      this.logoPlatePng(transfer.qrBrand?.logoKey),
     ]);
     const buffer = await sharp(Buffer.from(this.buildBaseSvg(transfer)))
       .composite([
@@ -37,12 +37,10 @@ export class VietQrImageRenderer {
   private buildBaseSvg(transfer: VietQrResponse): string {
     const fontFamily =
       '&quot;OpsHubSans&quot;, &quot;SF Pro Display&quot;, &quot;DejaVu Sans&quot;, Arial, Helvetica, sans-serif';
-    const titleStyle =
-      `font-family: ${fontFamily}; font-size: 58px; font-weight: 700; fill: #1238C8;`;
-    const labelStyle =
-      `font-family: ${fontFamily}; font-size: 32px; font-weight: 400; fill: #5F6673;`;
-    const valueStyle =
-      `font-family: ${fontFamily}; font-size: 38px; font-weight: 700; fill: #1F2430;`;
+    const titleStyle = `font-family: ${fontFamily}; font-size: 58px; font-weight: 700; fill: #1238C8;`;
+    const labelStyle = `font-family: ${fontFamily}; font-size: 32px; font-weight: 400; fill: #5F6673;`;
+    const valueStyle = `font-family: ${fontFamily}; font-size: 38px; font-weight: 700; fill: #1F2430;`;
+    const brandTitle = this.escapeXml(transfer.qrBrand?.title || 'Phong Vũ');
     const rows = [
       ['Ngân hàng', transfer.bankName],
       ['Số tài khoản', transfer.accountNumber],
@@ -55,7 +53,7 @@ export class VietQrImageRenderer {
 <svg xmlns="http://www.w3.org/2000/svg" width="${this.width}" height="${this.height}" viewBox="0 0 ${this.width} ${this.height}">
   ${this.svgStyle()}
   <rect width="${this.width}" height="${this.height}" fill="#FFFFFF"/>
-  <text x="72" y="111" style="${titleStyle}">PhongVu OpsHub</text>
+  <text x="72" y="111" style="${titleStyle}">${brandTitle}</text>
   <text x="72" y="168" style="${labelStyle}">Mã chuyển khoản VietQR</text>
   ${rows.map((row, index) => this.infoRow(row[0], row[1], 1030 + index * 96, labelStyle, valueStyle)).join('\n')}
 </svg>`;
@@ -71,11 +69,11 @@ export class VietQrImageRenderer {
     });
   }
 
-  private async logoPlatePng(): Promise<Buffer> {
+  private async logoPlatePng(logoKey?: string): Promise<Buffer> {
     const plateSize = 186;
     const iconSize = 150;
     const inset = Math.round((plateSize - iconSize) / 2);
-    const logo = await this.roundedLogoPng(iconSize);
+    const logo = await this.roundedLogoPng(iconSize, logoKey);
     const plateSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${plateSize}" height="${plateSize}" viewBox="0 0 ${plateSize} ${plateSize}">
       <rect width="${plateSize}" height="${plateSize}" rx="24" ry="24" fill="#FFFFFF"/>
     </svg>`;
@@ -85,8 +83,11 @@ export class VietQrImageRenderer {
       .toBuffer();
   }
 
-  private async roundedLogoPng(size: number): Promise<Buffer> {
-    const logo = await sharp(this.logoSourceBuffer())
+  private async roundedLogoPng(
+    size: number,
+    logoKey?: string,
+  ): Promise<Buffer> {
+    const logo = await sharp(this.logoSourceBuffer(logoKey))
       .resize(size, size, { fit: 'cover' })
       .png()
       .toBuffer();
@@ -99,20 +100,8 @@ export class VietQrImageRenderer {
       .toBuffer();
   }
 
-  private logoSourceBuffer(): Buffer {
-    const explicitPath = process.env.VIETQR_LOGO_PATH?.trim();
-    const candidates = [
-      explicitPath,
-      resolve(
-        process.cwd(),
-        '..',
-        'assets',
-        'icon',
-        'source',
-        'app_icon_master.png',
-      ),
-      resolve(process.cwd(), 'assets', 'icon', 'source', 'app_icon_master.png'),
-    ].filter((value): value is string => Boolean(value));
+  private logoSourceBuffer(logoKey?: string): Buffer {
+    const candidates = this.logoSourceCandidates(logoKey);
 
     for (const candidate of candidates) {
       if (!existsSync(candidate)) continue;
@@ -130,6 +119,34 @@ export class VietQrImageRenderer {
       <path d="M256 220c18 42 36 60 78 78-42 18-60 36-78 78-18-42-36-60-78-78 42-18 60-36 78-78z" fill="#FFFFFF"/>
     </svg>`;
     return Buffer.from(fallback);
+  }
+
+  private logoSourceCandidates(logoKey?: string): string[] {
+    const explicitPath = process.env.VIETQR_LOGO_PATH?.trim();
+    const defaultCandidates = [
+      explicitPath,
+      resolve(
+        process.cwd(),
+        '..',
+        'assets',
+        'icon',
+        'source',
+        'app_icon_master.png',
+      ),
+      resolve(process.cwd(), 'assets', 'icon', 'source', 'app_icon_master.png'),
+    ].filter((value): value is string => Boolean(value));
+
+    if (logoKey === 'acare') {
+      const acarePath = process.env.VIETQR_ACARE_LOGO_PATH?.trim();
+      return [
+        acarePath,
+        resolve(process.cwd(), '..', 'assets', 'icon', 'acare_logo.png'),
+        resolve(process.cwd(), 'assets', 'icon', 'acare_logo.png'),
+        ...defaultCandidates,
+      ].filter((value): value is string => Boolean(value));
+    }
+
+    return defaultCandidates;
   }
 
   private svgStyle(): string {

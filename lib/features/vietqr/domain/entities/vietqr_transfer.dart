@@ -1,3 +1,39 @@
+class VietQrBrand {
+  final String key;
+  final String title;
+  final String logoKey;
+  final String logoAsset;
+
+  const VietQrBrand({
+    required this.key,
+    required this.title,
+    required this.logoKey,
+    required this.logoAsset,
+  });
+
+  static const fallback = VietQrBrand(
+    key: 'phongvu',
+    title: 'Phong Vũ',
+    logoKey: 'phongvu',
+    logoAsset: 'assets/icon/source/app_icon_master.png',
+  );
+
+  factory VietQrBrand.fromJson(Object? value) {
+    if (value is! Map) return fallback;
+    return VietQrBrand(
+      key: _readText(value['key'], fallback.key),
+      title: _readText(value['title'], fallback.title),
+      logoKey: _readText(value['logoKey'], fallback.logoKey),
+      logoAsset: _readText(value['logoAsset'], fallback.logoAsset),
+    );
+  }
+
+  static String _readText(Object? value, String fallback) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? fallback : text;
+  }
+}
+
 class VietQrTransfer {
   final String id;
   final String bankBin;
@@ -8,6 +44,7 @@ class VietQrTransfer {
   final String transferContent;
   final String qrPayload;
   final String status;
+  final VietQrBrand qrBrand;
 
   const VietQrTransfer({
     required this.id,
@@ -19,6 +56,7 @@ class VietQrTransfer {
     required this.transferContent,
     required this.qrPayload,
     required this.status,
+    this.qrBrand = VietQrBrand.fallback,
   });
 
   factory VietQrTransfer.fromJson(Map<String, dynamic> json) {
@@ -33,6 +71,7 @@ class VietQrTransfer {
       transferContent: json['transferContent'] as String? ?? '',
       qrPayload: json['qrPayload'] as String? ?? '',
       status: json['status'] as String? ?? 'PENDING',
+      qrBrand: VietQrBrand.fromJson(json['qrBrand']),
     );
   }
 }
