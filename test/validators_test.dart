@@ -1,8 +1,12 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/utils/email_domain_policy.dart';
 import 'package:phongvu_opshub/core/utils/validators.dart';
+import 'package:phongvu_opshub/features/vietqr/domain/entities/vietqr_transfer.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('Validators.parseMessage', () {
     test('parses SKU-only input with default quantity', () {
       expect(Validators.parseMessage('abc123'), {'sku': 'ABC123', 'qty': '1'});
@@ -73,6 +77,49 @@ void main() {
       expect(
         EmailDomainPolicy.isAllowedEmail('staff@phongvu-office.vn', const []),
         isTrue,
+      );
+      expect(
+        EmailDomainPolicy.isAllowedEmail('staff@acaretek.vn', const []),
+        isTrue,
+      );
+    });
+
+    test('loads the ACare logo asset used by VietQR branding', () async {
+      final data = await rootBundle.load('assets/icon/acare_logo.png');
+      expect(data.lengthInBytes, greaterThan(1000));
+    });
+  });
+
+  group('VietQrTransfer', () {
+    test('parses QR brand metadata from API responses', () {
+      final transfer = VietQrTransfer.fromJson({
+        'id': 'payment-1',
+        'qrPayload': 'payload',
+        'qrBrand': {
+          'key': 'acaretek',
+          'title': 'ACareTek',
+          'logoKey': 'acare',
+          'logoAsset': 'assets/icon/acare_logo.png',
+        },
+      });
+
+      expect(transfer.qrBrand.key, 'acaretek');
+      expect(transfer.qrBrand.title, 'ACareTek');
+      expect(transfer.qrBrand.logoKey, 'acare');
+      expect(transfer.qrBrand.logoAsset, 'assets/icon/acare_logo.png');
+    });
+
+    test('falls back to Phong Vu branding for legacy API responses', () {
+      final transfer = VietQrTransfer.fromJson({
+        'id': 'payment-1',
+        'qrPayload': 'payload',
+      });
+
+      expect(transfer.qrBrand.key, 'phongvu');
+      expect(transfer.qrBrand.title, 'Phong Vũ');
+      expect(
+        transfer.qrBrand.logoAsset,
+        'assets/icon/source/app_icon_master.png',
       );
     });
   });

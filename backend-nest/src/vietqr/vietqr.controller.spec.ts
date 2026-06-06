@@ -136,6 +136,12 @@ describe('VietQrController', () => {
         accountName: 'CTY PHONG VU',
         amount: 250000,
         transferContent: 'DH-002 HCM02 BOT',
+        qrBrand: {
+          key: 'phongvu',
+          title: 'Phong Vũ',
+          logoKey: 'phongvu',
+          logoAsset: 'assets/icon/source/app_icon_master.png',
+        },
         imageMimeType: 'image/png',
         imageFileName: 'vietqr_DH-002_HCM02_BOT.png',
         imageBuffer,
@@ -158,6 +164,11 @@ describe('VietQrController', () => {
     expect(res.setHeader).toHaveBeenCalledWith(
       'X-OpsHub-Transfer-Content',
       'DH-002 HCM02 BOT',
+    );
+    expect(res.setHeader).toHaveBeenCalledWith('X-OpsHub-Brand-Key', 'phongvu');
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'X-OpsHub-Brand-Title',
+      'Phong Vũ',
     );
     expect(res.send).toHaveBeenCalledWith(imageBuffer);
   });

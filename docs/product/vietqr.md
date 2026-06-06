@@ -18,11 +18,15 @@ a customer to scan and pay manually.
   field from the QR payload instead of encoding an empty value.
 - The Flutter app requests VietQR data from the NestJS API and renders the QR
   image locally from the returned EMV payload.
+- VietQR responses include `qrBrand` metadata. Stores in the ACareTek Region
+  render QR images with the title `ACareTek` and the ACare logo; other stores
+  render the title `Phong Vũ` and the Phong Vũ logo. The brand affects only the
+  displayed/exported image, not the EMV payload or payment matching rule.
 - n8n can call the secured OpsHub VietQR API to receive the same transfer
-  details plus a server-rendered PNG image containing QR, logo, bank, account,
-  amount, and transfer content. The endpoint requires `VIETQR_EXTERNAL_API_KEY`
-  through `x-opshub-vietqr-key`, `Authorization: Bearer <key>`, or a query key
-  for quick-link compatibility.
+  details plus a server-rendered PNG image containing QR, brand title, logo,
+  bank, account, amount, and transfer content. The endpoint requires
+  `VIETQR_EXTERNAL_API_KEY` through `x-opshub-vietqr-key`, `Authorization:
+  Bearer <key>`, or a query key for quick-link compatibility.
 - The backend owns the bank BIN, account number, account name, and merchant
   city through environment configuration.
 - Admin backend can probe VietinBank MAP payment transactions for a configured
@@ -196,6 +200,8 @@ The NestJS API expects these values when `POST /vietqr` is used:
   pending intents processed per 5-second reconcile tick.
 - `VIETQR_LOGO_PATH` optionally points image rendering to a logo file when the
   backend process cannot see the repo app icon path.
+- `VIETQR_ACARE_LOGO_PATH` optionally points ACareTek image rendering to a logo
+  file when the backend process cannot see `assets/icon/acare_logo.png`.
 
 Missing config does not block backend startup, but the VietQR endpoint returns a
 clear service-unavailable error until the config is present.
@@ -204,10 +210,11 @@ clear service-unavailable error until the config is present.
 
 - `GET /vietqr/n8n` or `POST /vietqr/n8n` returns JSON fields for n8n,
   including `paymentId`, bank/account fields, `amount`, `transferContent`,
-  `qrPayload`, `imageMimeType`, `imageFileName`, `imageBase64`, and
+  `qrPayload`, `qrBrand`, `imageMimeType`, `imageFileName`, `imageBase64`, and
   `imageDataUrl`.
 - `GET /vietqr/n8n/image` returns the PNG directly and includes the transfer
-  details in `X-OpsHub-*` response headers.
+  details plus `X-OpsHub-Brand-Key` and `X-OpsHub-Brand-Title` in `X-OpsHub-*`
+  response headers.
 - Inputs may use app-style fields (`amount`, `orderCode`, `storeCode`) or the
   current n8n quick-link content field (`addInfo`). When `addInfo` or
   `transferContent` is sent, OpsHub uses that exact normalized content instead

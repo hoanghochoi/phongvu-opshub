@@ -17,6 +17,20 @@ const VIETQR_AUTO_RECONCILE_INTERVAL_MS = 5_000;
 const VIETQR_AUTO_RECONCILE_BATCH_SIZE = 100;
 const VIETNAM_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
 
+const PHONGVU_QR_BRAND: VietQrBrand = {
+  key: 'phongvu',
+  title: 'Phong Vũ',
+  logoKey: 'phongvu',
+  logoAsset: 'assets/icon/source/app_icon_master.png',
+};
+
+const ACARE_QR_BRAND: VietQrBrand = {
+  key: 'acaretek',
+  title: 'ACareTek',
+  logoKey: 'acare',
+  logoAsset: 'assets/icon/acare_logo.png',
+};
+
 export interface CreateVietQrInput {
   amount?: number | null;
   orderCode?: string | null;
@@ -34,6 +48,13 @@ export interface CreateExternalVietQrInput {
   source?: string | null;
 }
 
+export interface VietQrBrand {
+  key: string;
+  title: string;
+  logoKey: string;
+  logoAsset: string;
+}
+
 export interface VietQrResponse {
   id: string;
   bankBin: string;
@@ -45,6 +66,7 @@ export interface VietQrResponse {
   qrPayload: string;
   status: string;
   createdAt: Date;
+  qrBrand: VietQrBrand;
 }
 
 export interface VietQrExternalImageResponse {
@@ -58,6 +80,7 @@ export interface VietQrExternalImageResponse {
   qrPayload: string;
   status: string;
   createdAt: Date;
+  qrBrand: VietQrBrand;
   imageMimeType: 'image/png';
   imageFileName: string;
   imageBase64: string;
@@ -250,7 +273,7 @@ export class VietQrService {
       const image = await this.imageRenderer.renderPng(transfer);
       const response = this.toExternalResponse(transfer, image);
       this.logger.log(
-        `External VietQR generation succeeded: source=${source} paymentId=${transfer.id} storeCode=${storeCode} amount=${transfer.amount ?? 'editable'} durationMs=${Date.now() - startedAt} imageSizeBytes=${response.imageSizeBytes}`,
+        `External VietQR generation succeeded: source=${source} paymentId=${transfer.id} storeCode=${storeCode} brandKey=${transfer.qrBrand.key} brandTitle=${this.normalizeLogValue(transfer.qrBrand.title)} amount=${transfer.amount ?? 'editable'} durationMs=${Date.now() - startedAt} imageSizeBytes=${response.imageSizeBytes}`,
       );
       return response;
     } catch (error) {
@@ -383,6 +406,7 @@ export class VietQrService {
       qrPayload: paymentIntent.qrPayload,
       status: paymentIntent.status,
       createdAt: paymentIntent.createdAt,
+      qrBrand: config.qrBrand,
     };
   }
 
@@ -402,6 +426,7 @@ export class VietQrService {
       qrPayload: transfer.qrPayload,
       status: transfer.status,
       createdAt: transfer.createdAt,
+      qrBrand: transfer.qrBrand,
       imageMimeType: image.mimeType,
       imageFileName: image.fileName,
       imageBase64,
@@ -947,7 +972,10 @@ export class VietQrService {
 
   private async getConfig(storeCode: string) {
     const store = storeCode
-      ? await this.prisma.store.findUnique({ where: { storeId: storeCode } })
+      ? await this.prisma.store.findUnique({
+          where: { storeId: storeCode },
+          include: { area: { include: { region: true } } },
+        })
       : null;
     const bankBin =
       store?.transferBankBin?.trim() ||
@@ -975,7 +1003,34 @@ export class VietQrService {
       accountNumber,
       accountName,
       city,
+      qrBrand: this.resolveQrBrand(store),
     };
+  }
+
+  private resolveQrBrand(store: any): VietQrBrand {
+    const area = store?.area ?? null;
+    const region = area?.region ?? null;
+    const candidates = [
+      region?.code,
+      region?.displayName,
+      region?.abbreviation,
+      area?.regionCode,
+    ];
+    return candidates.some((value) => this.isAcareTekRegion(value))
+      ? ACARE_QR_BRAND
+      : PHONGVU_QR_BRAND;
+  }
+
+  private isAcareTekRegion(value: unknown): boolean {
+    return this.normalizeBrandToken(value) === 'ACARETEK';
+  }
+
+  private normalizeBrandToken(value: unknown): string {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '');
   }
 
   private resolveBankBin(bankName?: string | null): string {

@@ -46,5 +46,5 @@ export function isAllowedEmailDomain(email: string): boolean {
 }
 
 export function allowedEmailDomainMessage(): string {
-  return 'Chỉ chấp nhận email thuộc Phong Vũ';
+  return 'Chỉ chấp nhận email thuộc domain OpsHub cho phép';
 }

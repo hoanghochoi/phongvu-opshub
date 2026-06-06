@@ -9,6 +9,7 @@ class EmailDomainPolicy {
     'phongvu-mna.vn',
     'phongvu-care.vn',
     'phongvu-office.vn',
+    'acaretek.vn',
   ];
 
   static Future<List<String>> loadAllowedDomains() async {
@@ -40,6 +41,8 @@ class EmailDomainPolicy {
     return effectiveDomains.contains(parts.last);
   }
 
-  static const promptText = 'Dùng email thuộc Phong Vũ và mật khẩu OpsHub';
-  static const invalidDomainMessage = 'Chỉ chấp nhận email thuộc Phong Vũ';
+  static const promptText =
+      'Dùng email được OpsHub chấp nhận và mật khẩu OpsHub';
+  static const invalidDomainMessage =
+      'Chỉ chấp nhận email thuộc domain OpsHub cho phép';
 }

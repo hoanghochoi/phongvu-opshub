@@ -10,7 +10,6 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
-import '../../../../app/widgets/app_logo.dart';
 import '../../../../app/widgets/info_row.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
@@ -33,7 +32,6 @@ class VietQrScreen extends StatefulWidget {
 
 class _VietQrScreenState extends State<VietQrScreen> {
   static const _mediaChannel = MethodChannel('phongvu_opshub/media');
-  static const _logoAsset = AppLogo.imageAsset;
   static const _paymentPollInterval = Duration(seconds: 10);
   static const _paymentPollMaxAttempts = 36;
 
@@ -120,6 +118,8 @@ class _VietQrScreenState extends State<VietQrScreen> {
           context: {
             'paymentId': transfer.id,
             'storeCode': _storeCodeController.text.trim(),
+            'brandKey': transfer.qrBrand.key,
+            'brandTitle': transfer.qrBrand.title,
             'amount': transfer.amount,
             'hasTransferContent': transfer.transferContent.trim().isNotEmpty,
           },
@@ -388,7 +388,12 @@ class _VietQrScreenState extends State<VietQrScreen> {
       await AppLogger.instance.info(
         'VietQR',
         'QR image saved',
-        context: {'paymentId': transfer.id, 'fileName': fileName},
+        context: {
+          'paymentId': transfer.id,
+          'brandKey': transfer.qrBrand.key,
+          'brandTitle': transfer.qrBrand.title,
+          'fileName': fileName,
+        },
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -400,7 +405,11 @@ class _VietQrScreenState extends State<VietQrScreen> {
         'VietQR',
         'QR image save failed',
         error: e,
-        context: {'paymentId': transfer.id},
+        context: {
+          'paymentId': transfer.id,
+          'brandKey': transfer.qrBrand.key,
+          'brandTitle': transfer.qrBrand.title,
+        },
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -670,7 +679,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
       fontWeight: FontWeight.w700,
     );
 
-    _drawText(canvas, 'PhongVu OpsHub', 72, 64, titleStyle);
+    _drawText(canvas, transfer.qrBrand.title, 72, 64, titleStyle);
     _drawText(canvas, 'Mã chuyển khoản VietQR', 72, 136, labelStyle);
 
     const qrSize = 690.0;
@@ -694,7 +703,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
     qrPainter.paint(canvas, const Size(qrSize, qrSize));
     canvas.translate(-qrLeft, -qrTop);
 
-    final logo = await _loadUiImage(_logoAsset);
+    final logo = await _loadUiImage(transfer.qrBrand.logoAsset);
     const logoSize = 150.0;
     final logoRect = Rect.fromCenter(
       center: const Offset(width / 2, qrTop + qrSize / 2),

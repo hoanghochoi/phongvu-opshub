@@ -214,6 +214,20 @@ describe('AuthService', () => {
     );
   });
 
+  it('accepts the ACareTek staff email domain', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.sendRegistrationVerificationCode(' Staff@ACareTek.vn '),
+    ).resolves.toEqual({
+      ok: true,
+      expiresInMinutes: 10,
+    });
+    expect(emailVerificationService.sendRegistrationCode).toHaveBeenCalledWith(
+      'staff@acaretek.vn',
+    );
+  });
+
   it('rejects login when the account is not registered yet', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
 
@@ -478,17 +492,23 @@ describe('AuthService', () => {
           code: 'HCM',
           displayName: 'Ho Chi Minh',
           abbreviation: 'HCM',
-          region: { code: 'MIEN_NAM', displayName: 'Mien Nam', abbreviation: 'MN' },
+          region: {
+            code: 'MIEN_NAM',
+            displayName: 'Mien Nam',
+            abbreviation: 'MN',
+          },
         },
       },
     });
 
-    await expect(service.getUserData('sale@phongvu.vn')).resolves.toMatchObject({
-      workScopeType: 'STORE',
-      areaCode: 'HCM',
-      regionCode: 'MIEN_NAM',
-      personnelCode: 'SALE_CP62_HCM_MN',
-    });
+    await expect(service.getUserData('sale@phongvu.vn')).resolves.toMatchObject(
+      {
+        workScopeType: 'STORE',
+        areaCode: 'HCM',
+        regionCode: 'MIEN_NAM',
+        personnelCode: 'SALE_CP62_HCM_MN',
+      },
+    );
   });
 
   it('throws when user profile is missing', async () => {
