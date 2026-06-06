@@ -1,75 +1,118 @@
 import 'dotenv/config';
 import pg from 'pg';
+import { pathToFileURL } from 'url';
 import { createPrismaClient } from './prisma-local.mjs';
 
-const N8N_TABLE =
-  process.env.N8N_WARRANTY_TABLE || 'data_table_user_hY8m0IrB9V1iDQQw';
-const IMAGE_BASE_URL = stripTrailingSlash(
-  process.env.IMAGE_BASE_URL || 'https://opshub.hoanghochoi.com/uploads',
-);
-const APPLY = process.argv.includes('--apply');
+const DEFAULT_N8N_TABLE = 'data_table_user_hY8m0IrB9V1iDQQw';
+const DEFAULT_IMAGE_BASE_URL = 'https://opshub.hoanghochoi.com/uploads';
+const TECHNICAL_DEPARTMENT = {
+  code: 'TECHNICAL',
+  displayName: 'Technical',
+  description: 'Technical and repair staff',
+};
+const TECHNICIAN_JOB_ROLE = {
+  code: 'TECHNICIAN',
+  displayName: 'Technician',
+  description: 'Warranty and repair technician',
+  departmentCode: TECHNICAL_DEPARTMENT.code,
+};
 
-if (!process.env.N8N_DATABASE_URL) {
-  console.error('N8N_DATABASE_URL is required');
-  process.exit(1);
-}
+export async function main({
+  argv = process.argv.slice(2),
+  env = process.env,
+} = {}) {
+  const options = parseOptions(argv, env);
 
-const n8nPool = new pg.Pool({ connectionString: process.env.N8N_DATABASE_URL });
-const { prisma, close } = createPrismaClient();
-
-try {
-  const n8nRows = await loadN8nWarrantyRows();
-  const uniqueRows = latestRowByReceipt(n8nRows);
-  const appReceipts = new Set(
-    (await prisma.warranty.findMany({ select: { receipt: true } })).map(
-      (row) => row.receipt,
-    ),
-  );
-  const appUsers = new Map(
-    (
-      await prisma.user.findMany({
-        select: {
-          id: true,
-          email: true,
-          password: true,
-          status: true,
-          storeId: true,
-        },
-      })
-    ).map((user) => [user.email.trim().toLowerCase(), user]),
-  );
-  const appStores = new Map(
-    (await prisma.store.findMany({ select: { id: true, storeId: true } })).map(
-      (store) => [store.storeId.trim().toUpperCase(), store],
-    ),
-  );
-
-  const plan = buildPlan({ rows: uniqueRows, appReceipts, appUsers, appStores });
-  printSummary('dryRun', plan.summary);
-
-  if (!APPLY) {
-    console.log('Dry run only. Re-run with --apply to write changes.');
-    process.exit(0);
+  if (!env.N8N_DATABASE_URL) {
+    console.error('N8N_DATABASE_URL is required');
+    process.exitCode = 1;
+    return;
   }
 
-  const applied = await applyPlan(plan.items);
-  printSummary('applied', applied);
-} finally {
-  await n8nPool.end();
-  await close();
+  const n8nPool = new pg.Pool({ connectionString: env.N8N_DATABASE_URL });
+  const { prisma, close } = createPrismaClient();
+
+  try {
+    const n8nRows = await loadN8nWarrantyRows(n8nPool, options.n8nTable);
+    const uniqueRows = latestRowByReceipt(n8nRows);
+    const appWarranties = new Map(
+      (
+        await prisma.warranty.findMany({
+          select: {
+            id: true,
+            receipt: true,
+            imageLinks: true,
+            createdById: true,
+            createdBy: {
+              select: {
+                id: true,
+                email: true,
+                password: true,
+                status: true,
+                storeId: true,
+              },
+            },
+          },
+        })
+      ).map((row) => [row.receipt, row]),
+    );
+    const appUsers = new Map(
+      (
+        await prisma.user.findMany({
+          select: {
+            id: true,
+            email: true,
+            password: true,
+            status: true,
+            storeId: true,
+            departmentCode: true,
+            jobRoleCode: true,
+            workScopeType: true,
+          },
+        })
+      ).map((user) => [user.email.trim().toLowerCase(), user]),
+    );
+    const appStores = new Map(
+      (
+        await prisma.store.findMany({ select: { id: true, storeId: true } })
+      ).map((store) => [store.storeId.trim().toUpperCase(), store]),
+    );
+
+    const plan = buildPlan({
+      rows: uniqueRows,
+      appWarranties,
+      appUsers,
+      appStores,
+      imageBaseUrl: options.imageBaseUrl,
+      storeFilter: options.storeFilter,
+      reassignExistingCreators: options.reassignExistingCreators,
+    });
+    printSummary('dryRun', options, plan.summary);
+
+    if (!options.apply) {
+      console.log('Dry run only. Re-run with --apply to write changes.');
+      return;
+    }
+
+    const applied = await applyPlan(plan.items, { ...options, prisma });
+    printSummary('applied', options, applied);
+  } finally {
+    await n8nPool.end();
+    await close();
+  }
 }
 
-async function loadN8nWarrantyRows() {
+async function loadN8nWarrantyRows(pool, tableName) {
   const sql = `
     select receipt, "user" as legacy_user, links, "createdAt" as created_at, "updatedAt" as updated_at
-    from "${N8N_TABLE.replace(/"/g, '""')}"
+    from "${tableName.replace(/"/g, '""')}"
     where receipt is not null and btrim(receipt) <> ''
   `;
-  const result = await n8nPool.query(sql);
+  const result = await pool.query(sql);
   return result.rows;
 }
 
-function latestRowByReceipt(rows) {
+export function latestRowByReceipt(rows) {
   const byReceipt = new Map();
   for (const row of rows) {
     const receipt = normalizeReceipt(row.receipt);
@@ -82,12 +125,24 @@ function latestRowByReceipt(rows) {
   return Array.from(byReceipt.values());
 }
 
-function buildPlan({ rows, appReceipts, appUsers, appStores }) {
+export function buildPlan({
+  rows,
+  appWarranties,
+  appUsers,
+  appStores,
+  imageBaseUrl = DEFAULT_IMAGE_BASE_URL,
+  storeFilter = null,
+  reassignExistingCreators = false,
+}) {
   const items = [];
   const summary = {
     n8nRows: rows.length,
+    rowsAfterStoreFilter: 0,
+    rowsSkippedByStoreFilter: 0,
     existingWarrantyRows: 0,
     warrantyRowsToCreate: 0,
+    existingWarrantyImageRowsToUpdate: 0,
+    existingWarrantyCreatorsToUpdate: 0,
     legacyUsersToCreate: 0,
     legacyUsersAlreadyExist: 0,
     legacyLockedUsersToPatchStore: 0,
@@ -95,17 +150,24 @@ function buildPlan({ rows, appReceipts, appUsers, appStores }) {
     rowsWithoutStorePrefix: 0,
     rowsWithInvalidUser: 0,
     rowsWithInvalidLinks: 0,
-    linksToMigrate: 0,
+    linksToCreate: 0,
+    linksToAddToExisting: 0,
   };
   const usersToCreate = new Set();
+  const existingUsers = new Set();
   const storesToCreate = new Set();
   const legacyUsersToPatchStore = new Set();
 
   for (const row of rows) {
-    if (appReceipts.has(row.receipt)) {
-      summary.existingWarrantyRows += 1;
+    const storeCode = inferStoreCode(row.receipt);
+    if (storeFilter && storeCode !== storeFilter) {
+      summary.rowsSkippedByStoreFilter += 1;
       continue;
     }
+    summary.rowsAfterStoreFilter += 1;
+
+    if (!storeCode) summary.rowsWithoutStorePrefix += 1;
+    if (storeCode && !appStores.has(storeCode)) storesToCreate.add(storeCode);
 
     const email = normalizeEmail(row.legacy_user);
     if (!email) {
@@ -113,11 +175,7 @@ function buildPlan({ rows, appReceipts, appUsers, appStores }) {
       continue;
     }
 
-    const storeCode = inferStoreCode(row.receipt);
-    if (!storeCode) summary.rowsWithoutStorePrefix += 1;
-    if (storeCode && !appStores.has(storeCode)) storesToCreate.add(storeCode);
-
-    const imageLinks = normalizeImageLinks(row.links);
+    const imageLinks = normalizeImageLinks(row.links, imageBaseUrl);
     if (imageLinks.length === 0) {
       summary.rowsWithInvalidLinks += 1;
       continue;
@@ -125,21 +183,51 @@ function buildPlan({ rows, appReceipts, appUsers, appStores }) {
 
     const existingUser = appUsers.get(email);
     if (existingUser) {
-      summary.legacyUsersAlreadyExist += 1;
-      if (
-        storeCode &&
-        !existingUser.storeId &&
-        existingUser.status === 'no' &&
-        !existingUser.password
-      ) {
+      existingUsers.add(email);
+      if (shouldPatchLegacyUserStore(existingUser, storeCode)) {
         legacyUsersToPatchStore.add(email);
       }
     } else {
       usersToCreate.add(email);
     }
 
-    summary.warrantyRowsToCreate += 1;
-    summary.linksToMigrate += imageLinks.length;
+    const existingWarranty = appWarranties.get(row.receipt);
+    const nextImageLinks = mergeImageLinks(
+      existingWarranty?.imageLinks,
+      imageLinks,
+      imageBaseUrl,
+    );
+    const normalizedExistingLinks = normalizeImageLinks(
+      existingWarranty?.imageLinks,
+      imageBaseUrl,
+    );
+    const storedExistingLinks = splitImageLinks(existingWarranty?.imageLinks);
+    const imageLinksWillUpdate =
+      Boolean(existingWarranty) &&
+      linksString(nextImageLinks) !== linksString(storedExistingLinks);
+    const creatorWillUpdate = Boolean(
+      existingWarranty &&
+      shouldUpdateExistingCreator(
+        existingWarranty.createdBy,
+        existingUser,
+        email,
+        { reassignExistingCreators },
+      ),
+    );
+
+    if (existingWarranty) {
+      summary.existingWarrantyRows += 1;
+      if (imageLinksWillUpdate) {
+        summary.existingWarrantyImageRowsToUpdate += 1;
+        summary.linksToAddToExisting +=
+          nextImageLinks.length - normalizedExistingLinks.length;
+      }
+      if (creatorWillUpdate) summary.existingWarrantyCreatorsToUpdate += 1;
+    } else {
+      summary.warrantyRowsToCreate += 1;
+      summary.linksToCreate += imageLinks.length;
+    }
+
     items.push({
       receipt: row.receipt,
       email,
@@ -150,32 +238,28 @@ function buildPlan({ rows, appReceipts, appUsers, appStores }) {
   }
 
   summary.legacyUsersToCreate = usersToCreate.size;
+  summary.legacyUsersAlreadyExist = existingUsers.size;
   summary.storesToCreate = storesToCreate.size;
   summary.legacyLockedUsersToPatchStore = legacyUsersToPatchStore.size;
   return { items, summary };
 }
 
-async function applyPlan(items) {
+async function applyPlan(items, options) {
   const summary = {
     storesCreatedOrTouched: 0,
     legacyUsersCreated: 0,
     legacyLockedUsersPatchedStore: 0,
     warrantyRowsCreated: 0,
-    warrantyRowsSkippedExisting: 0,
-    linksMigrated: 0,
+    existingWarrantyRowsTouched: 0,
+    existingWarrantyImageRowsUpdated: 0,
+    existingWarrantyCreatorsUpdated: 0,
+    warrantyRowsSkippedNoChange: 0,
+    linksCreated: 0,
+    linksAddedToExisting: 0,
   };
 
-  await prisma.$transaction(async (tx) => {
-    await tx.roleDefinition.upsert({
-      where: { code: 'STAFF' },
-      update: {},
-      create: {
-        code: 'STAFF',
-        displayName: 'Staff',
-        description: null,
-        isSystem: true,
-      },
-    });
+  await options.prisma.$transaction(async (tx) => {
+    await ensureLegacyCatalog(tx);
 
     const storeCache = new Map();
     const userCache = new Map();
@@ -183,13 +267,18 @@ async function applyPlan(items) {
     for (const item of items) {
       const existingWarranty = await tx.warranty.findUnique({
         where: { receipt: item.receipt },
-        select: { id: true },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              email: true,
+              password: true,
+              status: true,
+              storeId: true,
+            },
+          },
+        },
       });
-      if (existingWarranty) {
-        summary.warrantyRowsSkippedExisting += 1;
-        continue;
-      }
-
       const store = item.storeCode
         ? await resolveStore(tx, item.storeCode, storeCache, summary)
         : null;
@@ -201,20 +290,95 @@ async function applyPlan(items) {
         summary,
       );
 
+      if (existingWarranty) {
+        const existingLinks = normalizeImageLinks(
+          existingWarranty.imageLinks,
+          options.imageBaseUrl,
+        );
+        const storedLinks = splitImageLinks(existingWarranty.imageLinks);
+        const nextLinks = mergeImageLinks(
+          existingWarranty.imageLinks,
+          item.imageLinks,
+          options.imageBaseUrl,
+        );
+        const data = {};
+        if (linksString(nextLinks) !== linksString(storedLinks)) {
+          data.imageLinks = linksString(nextLinks);
+          summary.existingWarrantyImageRowsUpdated += 1;
+          summary.linksAddedToExisting +=
+            nextLinks.length - existingLinks.length;
+        }
+        if (
+          shouldUpdateExistingCreator(
+            existingWarranty.createdBy,
+            user,
+            item.email,
+            { reassignExistingCreators: options.reassignExistingCreators },
+          )
+        ) {
+          data.createdById = user.id;
+          summary.existingWarrantyCreatorsUpdated += 1;
+        }
+        if (Object.keys(data).length > 0) {
+          await tx.warranty.update({
+            where: { id: existingWarranty.id },
+            data,
+          });
+          summary.existingWarrantyRowsTouched += 1;
+        } else {
+          summary.warrantyRowsSkippedNoChange += 1;
+        }
+        continue;
+      }
+
       await tx.warranty.create({
         data: {
           receipt: item.receipt,
-          imageLinks: item.imageLinks.join(';'),
+          imageLinks: linksString(item.imageLinks),
           createdById: user.id,
           createdAt: item.createdAt,
         },
       });
       summary.warrantyRowsCreated += 1;
-      summary.linksMigrated += item.imageLinks.length;
+      summary.linksCreated += item.imageLinks.length;
     }
   });
 
   return summary;
+}
+
+async function ensureLegacyCatalog(tx) {
+  await tx.roleDefinition.upsert({
+    where: { code: 'STAFF' },
+    update: {},
+    create: {
+      code: 'STAFF',
+      displayName: 'Staff',
+      description: null,
+      isSystem: true,
+    },
+  });
+  await tx.departmentDefinition.upsert({
+    where: { code: TECHNICAL_DEPARTMENT.code },
+    update: {
+      displayName: TECHNICAL_DEPARTMENT.displayName,
+      description: TECHNICAL_DEPARTMENT.description,
+      isSystem: true,
+      isActive: true,
+    },
+    create: { ...TECHNICAL_DEPARTMENT, isSystem: true, isActive: true },
+  });
+  await tx.jobRoleDefinition.upsert({
+    where: { code: TECHNICIAN_JOB_ROLE.code },
+    update: {
+      displayName: TECHNICIAN_JOB_ROLE.displayName,
+      description: TECHNICIAN_JOB_ROLE.description,
+      departmentCode: TECHNICIAN_JOB_ROLE.departmentCode,
+      isSystem: true,
+      isActive: true,
+    },
+    create: { ...TECHNICIAN_JOB_ROLE, isSystem: true, isActive: true },
+  });
 }
 
 async function resolveStore(tx, storeCode, cache, summary) {
@@ -237,10 +401,15 @@ async function resolveLegacyUser(tx, email, storeId, cache, summary) {
 
   const existing = await tx.user.findUnique({ where: { email } });
   if (existing) {
-    if (storeId && !existing.storeId && existing.status === 'no' && !existing.password) {
+    if (shouldPatchLegacyUserStore(existing, storeId)) {
       const patched = await tx.user.update({
         where: { id: existing.id },
-        data: { storeId, workScopeType: existing.workScopeType || 'STORE' },
+        data: {
+          storeId,
+          workScopeType: existing.workScopeType || 'STORE',
+          departmentCode: existing.departmentCode || TECHNICAL_DEPARTMENT.code,
+          jobRoleCode: existing.jobRoleCode || TECHNICIAN_JOB_ROLE.code,
+        },
       });
       summary.legacyLockedUsersPatchedStore += 1;
       cache.set(email, patched);
@@ -260,6 +429,8 @@ async function resolveLegacyUser(tx, email, storeId, cache, summary) {
       status: 'no',
       storeId,
       workScopeType: storeId ? 'STORE' : null,
+      departmentCode: TECHNICAL_DEPARTMENT.code,
+      jobRoleCode: TECHNICIAN_JOB_ROLE.code,
     },
   });
   summary.legacyUsersCreated += 1;
@@ -267,16 +438,101 @@ async function resolveLegacyUser(tx, email, storeId, cache, summary) {
   return created;
 }
 
+export function parseOptions(argv = [], env = process.env) {
+  const args = Array.from(argv);
+  let storeFilter = env.N8N_WARRANTY_STORE_FILTER || null;
+  let reassignExistingCreators = env.N8N_WARRANTY_REASSIGN_CREATORS === 'true';
+
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg === '--store' || arg === '--store-filter') {
+      storeFilter = args[i + 1] || storeFilter;
+      i += 1;
+    } else if (arg.startsWith('--store=')) {
+      storeFilter = arg.slice('--store='.length);
+    } else if (arg.startsWith('--store-filter=')) {
+      storeFilter = arg.slice('--store-filter='.length);
+    } else if (arg === '--reassign-existing-creators') {
+      reassignExistingCreators = true;
+    }
+  }
+
+  return {
+    apply: args.includes('--apply'),
+    n8nTable: env.N8N_WARRANTY_TABLE || DEFAULT_N8N_TABLE,
+    imageBaseUrl: stripTrailingSlash(
+      env.IMAGE_BASE_URL || DEFAULT_IMAGE_BASE_URL,
+    ),
+    storeFilter: storeFilter ? normalizeStoreCode(storeFilter) : null,
+    reassignExistingCreators,
+  };
+}
+
+function shouldPatchLegacyUserStore(user, storeId) {
+  return Boolean(
+    storeId && !user.storeId && user.status === 'no' && !user.password,
+  );
+}
+
+export function shouldUpdateExistingCreator(
+  currentCreator,
+  targetUser,
+  targetEmail,
+  { reassignExistingCreators = false } = {},
+) {
+  if (!currentCreator) return true;
+  const currentEmail = normalizeEmail(currentCreator.email);
+  if (currentEmail && currentEmail === targetEmail) return false;
+  if (reassignExistingCreators) return true;
+  if (isLockedLegacyUser(currentCreator)) return true;
+  if (!currentCreator.storeId && targetUser?.storeId) return true;
+  return false;
+}
+
+function isLockedLegacyUser(user) {
+  return user?.status === 'no' && !user?.password;
+}
+
+export function mergeImageLinks(existingValue, incomingLinks, imageBaseUrl) {
+  const links = [
+    ...normalizeImageLinks(existingValue, imageBaseUrl),
+    ...incomingLinks,
+  ];
+  const seen = new Set();
+  const merged = [];
+  for (const link of links) {
+    const key = link.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(link);
+  }
+  return merged;
+}
+
 function normalizeReceipt(value) {
-  const receipt = String(value || '').trim().toUpperCase();
+  const receipt = String(value || '')
+    .trim()
+    .toUpperCase();
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(receipt)) return '';
   return receipt;
 }
 
 function normalizeEmail(value) {
-  const email = String(value || '').trim().toLowerCase();
+  const email = String(value || '')
+    .trim()
+    .toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return '';
   return email;
+}
+
+function normalizeStoreCode(value) {
+  const code = String(value || '')
+    .trim()
+    .toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9_-]{1,39}$/.test(code)) {
+    throw new Error(`Invalid store filter: ${value}`);
+  }
+  return code;
 }
 
 function inferStoreCode(receipt) {
@@ -287,16 +543,23 @@ function inferStoreCode(receipt) {
   return match ? match[1] : null;
 }
 
-function normalizeImageLinks(value) {
+function splitImageLinks(value) {
   return String(value || '')
     .split(';')
     .map((link) => link.trim())
-    .filter(Boolean)
-    .map((link) => normalizeImageLink(link))
     .filter(Boolean);
 }
 
-function normalizeImageLink(link) {
+export function normalizeImageLinks(
+  value,
+  imageBaseUrl = DEFAULT_IMAGE_BASE_URL,
+) {
+  return splitImageLinks(value)
+    .map((link) => normalizeImageLink(link, imageBaseUrl))
+    .filter(Boolean);
+}
+
+function normalizeImageLink(link, imageBaseUrl) {
   let pathname = link;
   try {
     if (/^https?:\/\//i.test(link)) {
@@ -319,7 +582,7 @@ function normalizeImageLink(link) {
   if (parts.length < 2) return null;
   if (parts.some((part) => part === '.' || part === '..')) return null;
   if (!parts.every((part) => /^[A-Za-z0-9._-]{1,160}$/.test(part))) return null;
-  return `${IMAGE_BASE_URL}/${parts.join('/')}`;
+  return `${stripTrailingSlash(imageBaseUrl)}/${parts.join('/')}`;
 }
 
 function legacyFirstName(email) {
@@ -335,10 +598,40 @@ function dateMs(value) {
   return safeDate(value).getTime();
 }
 
+function linksString(links) {
+  return links.join(';');
+}
+
 function stripTrailingSlash(value) {
   return String(value || '').replace(/\/+$/, '');
 }
 
-function printSummary(label, summary) {
-  console.log(JSON.stringify({ label, apply: APPLY, ...summary }, null, 2));
+function printSummary(label, options, summary) {
+  console.log(
+    JSON.stringify(
+      {
+        label,
+        apply: options.apply,
+        storeFilter: options.storeFilter,
+        reassignExistingCreators: options.reassignExistingCreators,
+        imageBaseUrl: options.imageBaseUrl,
+        ...summary,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+function isCliEntryPoint() {
+  return (
+    process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
+  );
+}
+
+if (isCliEntryPoint()) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
 }

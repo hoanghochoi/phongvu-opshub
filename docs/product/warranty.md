@@ -15,10 +15,17 @@ receive status updates.
 - Warranty list, search, detail, and status update reads are scoped in the
   backend: `SUPER_ADMIN` can access every warranty; other signed-in users can
   access warranties created by users in the same showroom (`User.storeId`).
-- Legacy n8n warranty metadata can be migrated with
-  `npm run migrate:n8n-warranty -- --apply` from `backend-nest/`. The script
-  creates locked legacy users for n8n creators that do not yet exist in OpsHub,
-  so a later registration with the same email reuses the same `User` row.
+- Legacy n8n warranty metadata can be reconciled with
+  `npm run migrate:n8n-warranty -- --store=CP62` from `backend-nest/` for a
+  dry-run, then `npm run migrate:n8n-warranty -- --store=CP62 --apply` to write
+  CP62 changes. Add `--reassign-existing-creators` when existing OpsHub rows
+  must have `createdBy` reconciled back to the legacy n8n user, for example rows
+  imported earlier under an admin account. Without `--store`, the script
+  considers all legacy receipt prefixes. The script creates locked legacy users
+  for n8n creators that do not yet exist in OpsHub, patches passwordless locked
+  legacy users to the inferred receipt store, and merges normalized n8n image
+  links into existing warranty rows instead of skipping them. Existing app image
+  links are preserved.
 
 ## Contract Notes
 
