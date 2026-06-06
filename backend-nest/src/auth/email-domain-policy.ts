@@ -3,6 +3,15 @@ import * as path from 'path';
 
 const DEFAULT_DOMAIN_FILE = 'data/email_domain.txt';
 const DOMAIN_FILE_KEY = 'EMAIL_DOMAIN_FILE';
+const DEFAULT_ALLOWED_DOMAINS = [
+  'phongvu-shop.vn',
+  'phongvu-mna.vn',
+  'phongvu-care.vn',
+  'phongvu-office.vn',
+  'phongvu.vn',
+  'teko.vn',
+  'acaretek.vn',
+];
 
 function normalizeDomain(domain: string): string {
   return domain.trim().replace(/^@/, '').toLowerCase();
@@ -30,11 +39,11 @@ export function getAllowedEmailDomains(): string[] {
   for (const file of getCandidateFiles()) {
     if (fs.existsSync(file)) {
       const domains = parseDomainList(fs.readFileSync(file, 'utf8'));
-      if (domains.length > 0) return domains;
+      if (domains.length > 0) return withDefaultDomains(domains);
     }
   }
 
-  return [];
+  return DEFAULT_ALLOWED_DOMAINS;
 }
 
 export function isAllowedEmailDomain(email: string): boolean {
@@ -47,4 +56,8 @@ export function isAllowedEmailDomain(email: string): boolean {
 
 export function allowedEmailDomainMessage(): string {
   return 'Chỉ chấp nhận email thuộc domain OpsHub cho phép';
+}
+
+function withDefaultDomains(domains: string[]): string[] {
+  return Array.from(new Set([...domains, ...DEFAULT_ALLOWED_DOMAINS]));
 }
