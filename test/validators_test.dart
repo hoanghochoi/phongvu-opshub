@@ -84,6 +84,18 @@ void main() {
       );
     });
 
+    test('keeps fallback domains when a bundled domain asset is stale', () {
+      const staleAssetDomains = ['phongvu.vn', 'teko.vn'];
+
+      expect(
+        EmailDomainPolicy.isAllowedEmail(
+          'admin@acaretek.vn',
+          staleAssetDomains,
+        ),
+        isTrue,
+      );
+    });
+
     test('loads the ACare logo asset used by VietQR branding', () async {
       final data = await rootBundle.load('assets/icon/acare_logo.png');
       expect(data.lengthInBytes, greaterThan(1000));
