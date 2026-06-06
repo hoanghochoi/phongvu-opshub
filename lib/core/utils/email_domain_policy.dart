@@ -16,7 +16,7 @@ class EmailDomainPolicy {
     try {
       final raw = await rootBundle.loadString(_assetPath);
       final domains = parse(raw);
-      if (domains.isNotEmpty) return domains;
+      if (domains.isNotEmpty) return _withFallbackDomains(domains);
     } catch (_) {
       // Keep login/register usable in tests and local tools that do not load assets.
     }
@@ -37,8 +37,12 @@ class EmailDomainPolicy {
   static bool isAllowedEmail(String email, List<String> domains) {
     final parts = email.trim().toLowerCase().split('@');
     if (parts.length != 2) return false;
-    final effectiveDomains = domains.isEmpty ? _fallbackDomains : domains;
+    final effectiveDomains = _withFallbackDomains(domains);
     return effectiveDomains.contains(parts.last);
+  }
+
+  static List<String> _withFallbackDomains(List<String> domains) {
+    return <String>{...domains, ..._fallbackDomains}.toList(growable: false);
   }
 
   static const promptText =
