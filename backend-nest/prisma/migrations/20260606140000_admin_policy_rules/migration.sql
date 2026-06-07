@@ -1,4 +1,4 @@
-﻿-- Admin policy definitions and rules: move runtime authorization defaults out of code.
+-- Admin policy definitions and rules: move runtime authorization defaults out of code.
 CREATE TABLE "AdminPolicyDefinition" (
   "id" TEXT NOT NULL,
   "code" TEXT NOT NULL,

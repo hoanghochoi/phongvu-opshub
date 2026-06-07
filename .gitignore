@@ -11,6 +11,8 @@
 .svn/
 .swiftpm/
 artifacts/
+/dist/
+/output/
 migrate_working_dir/
 .neuralmemory/
 .trash/
@@ -68,6 +70,7 @@ macos/Flutter/ephemeral/
 .env.*
 !.env.example
 **/.env
+deploy/*/env
 **/.env.*
 !**/.env.example
 **/*service-account*.json
