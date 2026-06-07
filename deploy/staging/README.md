@@ -60,11 +60,21 @@ production `/download` page.
 
 ## Deploy
 
-Run the manual workflow `Deploy OpsHub Staging`. The workflow builds staging
-Android and Windows packages, uploads them to `/srv/opshub-staging/downloads`,
-publishes manifest URLs under `https://opshub.hoanghochoi.com/staging-download`,
-updates app-version metadata in `/srv/opshub-staging/env`, runs migrations, and
-recreates only the staging Docker services.
+The staging branch is the deploy source for this environment. When the operator
+says `push staging` or `deploy staging`, collect the ready local changes on the
+`staging` branch, run the required validation, then push `origin/staging`. The
+`Deploy OpsHub Staging` workflow also supports manual `workflow_dispatch` for
+operator-controlled reruns.
+
+The workflow builds staging Android and Windows packages, uploads them to
+`/srv/opshub-staging/downloads`, publishes manifest URLs under
+`https://opshub.hoanghochoi.com/staging-download`, updates app-version metadata
+in `/srv/opshub-staging/env`, runs migrations, and recreates only the staging
+Docker services.
+
+Production deploys must not be pushed directly from feature branches. After
+staging is accepted, fast-forward `main` from `staging` and push `origin/main`
+to run the production workflow.
 
 ## Sanitized DB refresh
 
