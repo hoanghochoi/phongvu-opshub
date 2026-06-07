@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -14,6 +14,8 @@ import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
+import { PolicyService } from '../policy/policy.service';
 import {
   CreateAppLogDto,
   ListPaymentNotificationsQueryDto,
@@ -22,7 +24,6 @@ import {
 import { vietnameseAmountWords } from './vietnamese-amount-words';
 
 const PAYMENT_NOTIFICATION_CHANNEL = 'PAYMENT_NOTIFICATION_READY';
-const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 const DEFAULT_AUDIO_RETENTION_DAYS = 7;
 const DEFAULT_LOG_RETENTION_DAYS = 30;
 const DEFAULT_TRANSACTION_RETENTION_DAYS = 90;
@@ -48,6 +49,7 @@ export class PaymentNotificationsService {
   constructor(
     private prisma: PrismaService,
     private redisService: RedisService,
+    private policyService: PolicyService,
   ) {}
 
   async createForTransaction(transaction: StoredTransaction) {
@@ -360,7 +362,7 @@ export class PaymentNotificationsService {
   }
 
   private async assertUserCanAccessStore(user: any, storeCode: string) {
-    if (user?.role === SUPER_ADMIN_ROLE) return;
+    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE)) return;
     const userStoreCode = await this.userStoreCode(user);
     if (!userStoreCode || userStoreCode !== storeCode) {
       throw new ForbiddenException('Không có quyền truy cập showroom này');
@@ -369,9 +371,9 @@ export class PaymentNotificationsService {
 
   private async resolveNotificationStore(user: any, requested?: string) {
     const normalized = requested?.trim().toUpperCase();
-    if (user?.role === SUPER_ADMIN_ROLE) {
+    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE)) {
       if (!normalized) {
-        throw new ForbiddenException('SUPER_ADMIN cần chọn showroom');
+        throw new ForbiddenException('Vui lòng chọn showroom');
       }
       return normalized;
     }
@@ -384,7 +386,7 @@ export class PaymentNotificationsService {
 
   private async resolveAllowedLogStore(user: any, requested?: string) {
     const normalized = requested?.trim().toUpperCase();
-    if (user?.role === SUPER_ADMIN_ROLE) return normalized || null;
+    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE)) return normalized || null;
     const userStoreCode = await this.userStoreCode(user);
     if (normalized && normalized !== userStoreCode) {
       throw new ForbiddenException('Không có quyền ghi log showroom này');

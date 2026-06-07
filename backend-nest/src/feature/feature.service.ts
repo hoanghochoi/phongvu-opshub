@@ -6,15 +6,18 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { DEFAULT_FEATURE_DEFINITIONS, FEATURE_KEYS } from './feature.constants';
+import { PolicyService } from '../policy/policy.service';
+import { DEFAULT_FEATURE_DEFINITIONS } from './feature.constants';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 const ADMIN_ROLE = 'ADMIN';
-const MANAGER_ROLE = 'MANAGER';
+const ADMIN_ACARE_ROLE = 'ADMIN_ACARE';
 const VALID_WORK_SCOPES = new Set(['NATIONAL', 'REGION', 'AREA', 'STORE']);
 
 type FeatureContext = {
   id?: string | null;
+  email?: string | null;
+  emailDomain?: string | null;
   role?: string | null;
   departmentCode?: string | null;
   jobRoleCode?: string | null;
@@ -27,7 +30,7 @@ type FeatureContext = {
 
 @Injectable()
 export class FeatureService implements OnModuleInit {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private policyService: PolicyService) {}
 
   async onModuleInit() {
     await this.seedDefaultFeatures();
@@ -240,17 +243,16 @@ export class FeatureService implements OnModuleInit {
       .map((rule) => ({ rule, score: this.ruleScore(rule) }))
       .sort((a, b) => b.score - a.score);
 
-    if (matches.length === 0) {
-      return this.legacyAllows(context, featureCode);
-    }
+    const policyAllowed = await this.policyService.canAccessPolicyWithContext(
+      context,
+      featureCode,
+    );
+    if (matches.length === 0) return policyAllowed;
 
     const topScore = matches[0].score;
     const topRules = matches.filter((match) => match.score === topScore);
     if (topRules.some((match) => !match.rule.enabled)) return false;
-    return (
-      topRules.some((match) => match.rule.enabled) &&
-      this.legacyAllows(context, featureCode)
-    );
+    return policyAllowed && topRules.some((match) => match.rule.enabled);
   }
 
   private async normalizeRuleInput(input: any, current?: any) {
@@ -271,6 +273,7 @@ export class FeatureService implements OnModuleInit {
     const data = {
       featureCode,
       enabled,
+      emailDomain: this.normalizeOptionalDomain(input.emailDomain),
       systemRole: this.normalizeOptionalCode(input.systemRole),
       departmentCode: this.normalizeOptionalCode(input.departmentCode),
       jobRoleCode: this.normalizeOptionalCode(input.jobRoleCode),
@@ -294,6 +297,10 @@ export class FeatureService implements OnModuleInit {
     await this.ensureFeature(featureCode);
     const enabled = input.enabled === true;
     const note = this.optionalText(input.note, 240);
+    const emailDomains = this.normalizeDomainOptions(
+      input.emailDomains,
+      input.emailDomain,
+    );
     const systemRoles = this.normalizeCodeOptions(
       input.systemRoles,
       input.systemRole,
@@ -331,6 +338,7 @@ export class FeatureService implements OnModuleInit {
       featureCode,
       enabled,
       note,
+      emailDomains,
       systemRoles,
       departmentCodes,
       jobRoleCodes,
@@ -365,6 +373,13 @@ export class FeatureService implements OnModuleInit {
     const values = Array.isArray(listValue) ? listValue : [];
     return this.normalizeOptions(values, singleValue, (value) =>
       this.optionalText(value, maxLength),
+    );
+  }
+
+  private normalizeDomainOptions(listValue: unknown, singleValue: unknown) {
+    const values = Array.isArray(listValue) ? listValue : [];
+    return this.normalizeOptions(values, singleValue, (value) =>
+      this.normalizeOptionalDomain(value),
     );
   }
 
@@ -432,6 +447,7 @@ export class FeatureService implements OnModuleInit {
     featureCode: string;
     enabled: boolean;
     note: string | null;
+    emailDomains: Array<string | null>;
     systemRoles: Array<string | null>;
     departmentCodes: Array<string | null>;
     jobRoleCodes: Array<string | null>;
@@ -441,26 +457,29 @@ export class FeatureService implements OnModuleInit {
     userIds: Array<string | null>;
   }) {
     const dataList: any[] = [];
-    for (const systemRole of input.systemRoles) {
-      for (const departmentCode of input.departmentCodes) {
-        for (const jobRoleCode of input.jobRoleCodes) {
-          for (const workScopeType of input.workScopeTypes) {
-            for (const location of input.locations) {
-              for (const storeCode of input.storeCodes) {
-                for (const userId of input.userIds) {
-                  dataList.push({
-                    featureCode: input.featureCode,
-                    enabled: input.enabled,
-                    systemRole,
-                    departmentCode,
-                    jobRoleCode,
-                    workScopeType,
-                    regionCode: location.regionCode,
-                    areaCode: location.areaCode,
-                    storeCode,
-                    userId,
-                    note: input.note,
-                  });
+    for (const emailDomain of input.emailDomains) {
+      for (const systemRole of input.systemRoles) {
+        for (const departmentCode of input.departmentCodes) {
+          for (const jobRoleCode of input.jobRoleCodes) {
+            for (const workScopeType of input.workScopeTypes) {
+              for (const location of input.locations) {
+                for (const storeCode of input.storeCodes) {
+                  for (const userId of input.userIds) {
+                    dataList.push({
+                      featureCode: input.featureCode,
+                      enabled: input.enabled,
+                      emailDomain,
+                      systemRole,
+                      departmentCode,
+                      jobRoleCode,
+                      workScopeType,
+                      regionCode: location.regionCode,
+                      areaCode: location.areaCode,
+                      storeCode,
+                      userId,
+                      note: input.note,
+                    });
+                  }
                 }
               }
             }
@@ -539,6 +558,8 @@ export class FeatureService implements OnModuleInit {
     if (!user?.id) {
       return {
         id: user?.id ?? null,
+        email: user?.email ?? null,
+        emailDomain: this.emailDomainFromEmail(user?.email),
         role: user?.role ?? null,
         departmentCode: user?.departmentCode ?? null,
         jobRoleCode: user?.jobRoleCode ?? null,
@@ -559,6 +580,8 @@ export class FeatureService implements OnModuleInit {
     const region = this.regionForContextSource(source);
     return {
       id: source.id ?? null,
+      email: source.email ?? null,
+      emailDomain: this.emailDomainFromEmail(source.email),
       role: source.role ?? null,
       departmentCode: source.departmentCode ?? null,
       jobRoleCode: source.jobRoleCode ?? null,
@@ -595,7 +618,11 @@ export class FeatureService implements OnModuleInit {
       .trim()
       .toUpperCase();
     if (VALID_WORK_SCOPES.has(scope)) return scope;
-    if (user?.role === SUPER_ADMIN_ROLE || user?.role === ADMIN_ROLE) {
+    if (
+      user?.role === SUPER_ADMIN_ROLE ||
+      user?.role === ADMIN_ROLE ||
+      user?.role === ADMIN_ACARE_ROLE
+    ) {
       return 'NATIONAL';
     }
     return 'STORE';
@@ -603,6 +630,7 @@ export class FeatureService implements OnModuleInit {
 
   private ruleMatches(rule: any, context: FeatureContext) {
     return (
+      this.matches(rule.emailDomain, context.emailDomain) &&
       this.matches(rule.userId, context.id) &&
       this.matches(rule.storeCode, context.storeCode) &&
       this.matches(rule.areaCode, context.areaCode) &&
@@ -624,6 +652,7 @@ export class FeatureService implements OnModuleInit {
 
   private ruleScore(rule: any) {
     return (
+      (rule.emailDomain ? 256 : 0) +
       (rule.userId ? 128 : 0) +
       (rule.storeCode ? 64 : 0) +
       (rule.areaCode ? 32 : 0) +
@@ -633,48 +662,6 @@ export class FeatureService implements OnModuleInit {
       (rule.departmentCode ? 2 : 0) +
       (rule.systemRole ? 1 : 0)
     );
-  }
-
-  private legacyAllows(context: FeatureContext, featureCode: string) {
-    const role = context.role;
-    const isAdmin = [SUPER_ADMIN_ROLE, ADMIN_ROLE, MANAGER_ROLE].includes(
-      role || '',
-    );
-    switch (featureCode) {
-      case FEATURE_KEYS.ADMIN:
-      case FEATURE_KEYS.ADMIN_USERS:
-      case FEATURE_KEYS.ADMIN_STORES:
-        return isAdmin;
-      case FEATURE_KEYS.ADMIN_ROLES:
-      case FEATURE_KEYS.ADMIN_REGIONS:
-      case FEATURE_KEYS.ADMIN_PERSONNEL:
-      case FEATURE_KEYS.ADMIN_FEATURES:
-        return role === SUPER_ADMIN_ROLE;
-      case FEATURE_KEYS.FIFO:
-      case FEATURE_KEYS.WARRANTY:
-        return role === SUPER_ADMIN_ROLE || this.belongsToCp62(context);
-      case FEATURE_KEYS.FIFO_IMPORT:
-        return role === SUPER_ADMIN_ROLE || role === ADMIN_ROLE;
-      case FEATURE_KEYS.BANK_STATEMENTS:
-        return role === SUPER_ADMIN_ROLE || role === MANAGER_ROLE;
-      case FEATURE_KEYS.VIETQR:
-      case FEATURE_KEYS.PAYMENT_MONITOR:
-      case FEATURE_KEYS.FEEDBACK:
-        return true;
-      default:
-        return true;
-    }
-  }
-
-  private belongsToCp62(context: FeatureContext) {
-    return [
-      context.storeCode,
-      context.storeName,
-      context.regionCode,
-      context.areaCode,
-    ]
-      .filter(Boolean)
-      .some((value) => String(value).toUpperCase().includes('CP62'));
   }
 
   private normalizeCode(value: unknown, message: string) {
@@ -695,6 +682,27 @@ export class FeatureService implements OnModuleInit {
     return this.normalizeCode(value, 'Mã lọc rule không hợp lệ');
   }
 
+  private normalizeOptionalDomain(value: unknown) {
+    if (value === undefined || value === null || String(value).trim() === '') {
+      return null;
+    }
+    const domain = String(value).trim().replace(/^@+/, '').toLowerCase();
+    if (domain.length > 120 || !this.isValidEmailDomain(domain)) {
+      throw new BadRequestException('Domain email khong hop le');
+    }
+    return domain;
+  }
+
+  private emailDomainFromEmail(email: unknown) {
+    const value = String(email || '')
+      .trim()
+      .toLowerCase();
+    const atIndex = value.lastIndexOf('@');
+    if (atIndex < 0) return null;
+    const domain = value.slice(atIndex + 1);
+    return this.isValidEmailDomain(domain) ? domain : null;
+  }
+
   private requiredText(value: unknown, message: string, maxLength: number) {
     const text = String(value || '').trim();
     if (!text) throw new BadRequestException(message);
@@ -705,6 +713,12 @@ export class FeatureService implements OnModuleInit {
     if (value === undefined || value === null) return null;
     const text = String(value || '').trim();
     return text ? text.slice(0, maxLength) : null;
+  }
+
+  private isValidEmailDomain(domain: string) {
+    return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(
+      domain,
+    );
   }
 
   private assertSuperAdmin(user: any) {

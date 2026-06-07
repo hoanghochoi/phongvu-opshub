@@ -1,12 +1,14 @@
-import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
+﻿import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
+import { PolicyService } from '../policy/policy.service';
 import { FifoLogType } from '@prisma/client';
 
 @Injectable()
 export class FifoLogService {
   private readonly logger = new Logger(FifoLogService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private policyService: PolicyService) {}
 
   // -------------------------------------------------------
   // Create a FIFO log entry
@@ -86,7 +88,7 @@ export class FifoLogService {
 
     if (!admin) throw new ForbiddenException('User not found');
 
-    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN') {
+    if (!(await this.policyService.canAccessPolicy(admin, ADMIN_POLICY_CODES.FIFO_LOG_ADMIN))) {
       throw new ForbiddenException('Không có quyền xem lịch sử');
     }
 

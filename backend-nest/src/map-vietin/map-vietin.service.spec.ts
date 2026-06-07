@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { encryptSecret } from '../common/secret-cipher';
+import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { MapVietinService } from './map-vietin.service';
 
 describe('MapVietinService', () => {
@@ -8,6 +9,7 @@ describe('MapVietinService', () => {
   let prisma: any;
   let fetchMock: jest.Mock;
   let paymentNotifications: { createForTransaction: jest.Mock };
+  let policyService: { canAccessPolicy: jest.Mock };
   let service: MapVietinService;
 
   beforeEach(() => {
@@ -46,12 +48,23 @@ describe('MapVietinService', () => {
     delete process.env.MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS;
     delete process.env.MAP_VIETIN_SYNC_ENABLED;
     paymentNotifications = { createForTransaction: jest.fn() };
+    policyService = {
+      canAccessPolicy: jest.fn(async (user: any, code: string) => {
+        if (user?.role === 'SUPER_ADMIN') return true;
+        const role = String(user?.role || '').toUpperCase();
+        const policyCode = String(code || '').toUpperCase();
+        if (policyCode === ADMIN_POLICY_CODES.BANK_STATEMENTS) {
+          return ['ADMIN', 'ADMIN_ACARE', 'MANAGER', 'STAFF'].includes(role);
+        }
+        return false;
+      }),
+    };
     fetchMock = jest.fn();
     global.fetch = fetchMock as any;
     jest
       .spyOn(Date, 'now')
       .mockReturnValue(new Date('2026-05-21T03:00:00.000Z').getTime());
-    service = new MapVietinService(prisma, paymentNotifications as any);
+    service = new MapVietinService(prisma, policyService as any, paymentNotifications as any);
   });
 
   afterEach(() => {
@@ -331,6 +344,7 @@ describe('MapVietinService', () => {
     const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
     const disabledService = new MapVietinService(
       prisma,
+      policyService as any,
       paymentNotifications as any,
     );
 

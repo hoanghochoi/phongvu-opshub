@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -14,11 +14,15 @@ import { getDataSyncSource } from '../config/env';
 import { UploadService } from '../upload/upload.service';
 import { encryptSecret } from '../common/secret-cipher';
 import { PasswordResetService } from '../auth/password-reset.service';
+import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
+import { PolicyService } from '../policy/policy.service';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 const ADMIN_ROLE = 'ADMIN';
+const ADMIN_ACARE_ROLE = 'ADMIN_ACARE';
 const MANAGER_ROLE = 'MANAGER';
 const STAFF_ROLE = 'STAFF';
+const ACARETEK_EMAIL_DOMAIN = 'acaretek.vn';
 
 const STORE_SCOPE = 'STORE';
 const AREA_SCOPE = 'AREA';
@@ -46,6 +50,11 @@ const DEFAULT_ROLE_DEFINITIONS = [
     code: ADMIN_ROLE,
     displayName: 'Admin',
     description: 'Quản lý người dùng theo phạm vi',
+  },
+  {
+    code: ADMIN_ACARE_ROLE,
+    displayName: 'Admin ACare',
+    description: 'Quan ly user thuoc domain acaretek.vn',
   },
   {
     code: MANAGER_ROLE,
@@ -214,6 +223,7 @@ export class UserService implements OnModuleInit {
     private prisma: PrismaService,
     private uploadService: UploadService,
     private passwordResetService: PasswordResetService,
+    private policyService: PolicyService,
   ) {
     if (getDataSyncSource() !== 'bigquery') {
       return;
@@ -457,12 +467,23 @@ export class UserService implements OnModuleInit {
   }
 
   async adminListUsers(admin: any, q?: string) {
-    this.assertAdmin(admin);
+    await this.assertAdmin(admin);
     const query = q?.trim();
-    return this.prisma.user
-      .findMany({
+    const scope = this.adminScope(admin);
+    this.logger.log(
+      'Admin user list started: admin=' +
+        (admin.email || admin.id || 'unknown') +
+        ' role=' +
+        admin.role +
+        ' domainScope=' +
+        this.adminDomainScopeLabel(admin) +
+        ' query=' +
+        (query || 'none'),
+    );
+    try {
+      const users = await this.prisma.user.findMany({
         where: {
-          ...this.adminScope(admin),
+          ...scope,
           ...(query
             ? {
                 OR: [
@@ -476,19 +497,42 @@ export class UserService implements OnModuleInit {
         include: this.userDtoInclude(),
         orderBy: { createdAt: 'desc' },
         take: 200,
-      })
-      .then((users) => users.map((user) => this.toUserDto(user)));
+      });
+      this.logger.log(
+        'Admin user list completed: admin=' +
+          (admin.email || admin.id || 'unknown') +
+          ' role=' +
+          admin.role +
+          ' count=' +
+          users.length +
+          ' domainScope=' +
+          this.adminDomainScopeLabel(admin),
+      );
+      return users.map((user) => this.toUserDto(user));
+    } catch (error) {
+      this.logger.error(
+        'Admin user list failed: admin=' +
+          (admin.email || admin.id || 'unknown') +
+          ' role=' +
+          admin.role +
+          ' domainScope=' +
+          this.adminDomainScopeLabel(admin),
+        error,
+      );
+      throw error;
+    }
   }
 
   async adminCreateUser(admin: any, body: any) {
-    this.assertAdmin(admin);
+    await this.assertAdmin(admin);
     const email = String(body.email || '')
       .trim()
       .toLowerCase();
     if (!email) throw new BadRequestException('Email không được để trống');
+    this.assertEmailWithinAdminDomain(admin, email);
 
     const role = await this.resolveAssignableRole(body.role || STAFF_ROLE);
-    this.assertRoleEditable(admin, role);
+    await this.assertRoleEditable(admin, role);
     const storeUuid = await this.resolveStoreForAdmin(admin, body.storeId);
     const personnel = await this.resolvePersonnelAssignment(body, {
       role,
@@ -518,21 +562,36 @@ export class UserService implements OnModuleInit {
   }
 
   async adminUpdateUser(admin: any, userId: string, body: any) {
-    this.assertAdmin(admin);
+    await this.assertAdmin(admin);
     const current = await this.prisma.user.findUnique({
       where: { id: userId },
       include: this.userDtoInclude(),
     });
     if (!current) throw new NotFoundException('Không tìm thấy user');
 
-    if (this.isScopedAdmin(admin) && !this.userWithinAdminScope(admin, current)) {
-      throw new ForbiddenException('Không có quyền sửa user ngoài phạm vi quản lý');
+    if (
+      this.isScopedAdmin(admin) &&
+      !this.userWithinAdminScope(admin, current)
+    ) {
+      this.logger.warn(
+        'Admin user update blocked by scope: admin=' +
+          (admin.email || admin.id || 'unknown') +
+          ' role=' +
+          admin.role +
+          ' targetUserId=' +
+          userId +
+          ' targetEmail=' +
+          current.email,
+      );
+      throw new ForbiddenException(
+        'Khong co quyen sua user ngoai pham vi quan ly',
+      );
     }
 
     const role = body.role
       ? await this.resolveAssignableRole(body.role)
       : current.role;
-    this.assertRoleEditable(admin, role, current.role);
+    await this.assertRoleEditable(admin, role, current.role);
     const storeUuid =
       body.storeId !== undefined
         ? await this.resolveStoreForAdmin(admin, body.storeId)
@@ -576,7 +635,7 @@ export class UserService implements OnModuleInit {
   }
 
   async adminSetUserPassword(admin: any, userId: string, newPassword: string) {
-    this.assertSuperAdmin(admin);
+    await this.assertSuperAdmin(admin);
     const result = await this.passwordResetService.setPasswordForUserId(
       userId,
       newPassword,
@@ -596,47 +655,57 @@ export class UserService implements OnModuleInit {
       include: { area: true },
     });
     if (!store) throw new BadRequestException('Chi nhánh không hợp lệ');
-    if (this.isScopedAdmin(admin) && !this.storeWithinAdminScope(admin, store)) {
+    if (
+      this.isScopedAdmin(admin) &&
+      !this.storeWithinAdminScope(admin, store)
+    ) {
       throw new ForbiddenException('Chỉ được gán user trong phạm vi quản lý');
     }
     return store.id;
   }
 
-  private assertAdmin(user: any) {
-    if (
-      user.role !== SUPER_ADMIN_ROLE &&
-      user.role !== ADMIN_ROLE &&
-      user.role !== MANAGER_ROLE
-    ) {
-      throw new ForbiddenException('Không có quyền quản trị user');
+  private async assertAdmin(user: any) {
+    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.ADMIN)) {
+      return;
     }
+    throw new ForbiddenException('Không có quyền quản trị user');
   }
 
-  private assertSuperAdmin(user: any) {
-    if (user.role !== SUPER_ADMIN_ROLE) {
-      throw new ForbiddenException('Chỉ SUPER_ADMIN được quản lý role');
+  private async assertSuperAdmin(user: any) {
+    if (user.role === SUPER_ADMIN_ROLE) {
+      return;
     }
+    throw new ForbiddenException('Chỉ SUPER_ADMIN được quản lý role');
   }
 
-  private assertRoleEditable(admin: any, role: string, currentRole?: string) {
-    if (admin.role === SUPER_ADMIN_ROLE) {
+  private async assertPolicy(user: any, policyCode: string, message: string) {
+    if (await this.policyService.canAccessPolicy(user, policyCode)) {
+      return;
+    }
+    throw new ForbiddenException(message);
+  }
+
+  private async assertRoleEditable(admin: any, role: string, currentRole?: string) {
+    if (currentRole && role === currentRole) {
       return;
     }
     if (!currentRole && role === STAFF_ROLE) {
       return;
     }
-    if (currentRole && role === currentRole) {
-      return;
-    }
-    throw new ForbiddenException('Chỉ SUPER_ADMIN được sửa role');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_USER_ROLE_EDIT,
+      'Không có quyền sửa role',
+    );
   }
 
   private adminScope(admin: any) {
     if (this.isScopedAdmin(admin)) {
       const scope = this.effectiveWorkScope(admin);
-      if (scope === NATIONAL_SCOPE) return {};
+      const domainScope = this.adminDomainScope(admin);
+      if (scope === NATIONAL_SCOPE) return domainScope;
       if (scope === REGION_SCOPE) {
-        return admin.regionCode
+        const locationScope = admin.regionCode
           ? {
               OR: [
                 { regionCode: admin.regionCode },
@@ -644,9 +713,10 @@ export class UserService implements OnModuleInit {
               ],
             }
           : { id: '__NO_REGION__' };
+        return this.combineUserScope(domainScope, locationScope);
       }
       if (scope === AREA_SCOPE) {
-        return admin.areaCode
+        const locationScope = admin.areaCode
           ? {
               OR: [
                 { areaCode: admin.areaCode },
@@ -654,21 +724,31 @@ export class UserService implements OnModuleInit {
               ],
             }
           : { id: '__NO_AREA__' };
+        return this.combineUserScope(domainScope, locationScope);
       }
-      return admin.storeId ? { storeId: admin.storeId } : { id: '__NO_STORE__' };
+      const locationScope = admin.storeId
+        ? { storeId: admin.storeId }
+        : { id: '__NO_STORE__' };
+      return this.combineUserScope(domainScope, locationScope);
     }
     return {};
   }
 
   private isScopedAdmin(user: any) {
-    return user.role === ADMIN_ROLE || user.role === MANAGER_ROLE;
+    return (
+      user.role === ADMIN_ROLE ||
+      user.role === ADMIN_ACARE_ROLE ||
+      user.role === MANAGER_ROLE
+    );
   }
 
   private storeWithinAdminScope(admin: any, store: any) {
     const scope = this.effectiveWorkScope(admin);
     if (scope === NATIONAL_SCOPE) return true;
     if (scope === REGION_SCOPE) {
-      return Boolean(admin.regionCode && store.area?.regionCode === admin.regionCode);
+      return Boolean(
+        admin.regionCode && store.area?.regionCode === admin.regionCode,
+      );
     }
     if (scope === AREA_SCOPE) {
       return Boolean(admin.areaCode && store.areaCode === admin.areaCode);
@@ -677,6 +757,9 @@ export class UserService implements OnModuleInit {
   }
 
   private userWithinAdminScope(admin: any, user: any) {
+    if (this.isAcareAdmin(admin) && !this.isAcaretekEmail(user.email)) {
+      return false;
+    }
     const scope = this.effectiveWorkScope(admin);
     if (scope === NATIONAL_SCOPE) return true;
     const userArea = this.areaForUser(user);
@@ -684,14 +767,14 @@ export class UserService implements OnModuleInit {
     if (scope === REGION_SCOPE) {
       return Boolean(
         admin.regionCode &&
-          (user.regionCode === admin.regionCode ||
-            userRegion?.code === admin.regionCode),
+        (user.regionCode === admin.regionCode ||
+          userRegion?.code === admin.regionCode),
       );
     }
     if (scope === AREA_SCOPE) {
       return Boolean(
         admin.areaCode &&
-          (user.areaCode === admin.areaCode || userArea?.code === admin.areaCode),
+        (user.areaCode === admin.areaCode || userArea?.code === admin.areaCode),
       );
     }
     return Boolean(admin.storeId && user.storeId === admin.storeId);
@@ -746,7 +829,7 @@ export class UserService implements OnModuleInit {
   }
 
   async adminListRoles(admin: any) {
-    this.assertAdmin(admin);
+    await this.assertAdmin(admin);
     await this.seedDefaultRoles();
     return this.prisma.roleDefinition.findMany({
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
@@ -754,29 +837,35 @@ export class UserService implements OnModuleInit {
   }
 
   async adminListDepartments(admin: any) {
-    this.assertAdmin(admin);
+    await this.assertAdmin(admin);
     await this.seedDefaultPersonnelCatalog();
     return this.prisma.departmentDefinition.findMany({
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
-      include: { _count: { select: { users: true, featureAccessRules: true } } },
+      include: {
+        _count: { select: { users: true, featureAccessRules: true } },
+      },
     });
   }
 
   async adminListJobRoles(admin: any) {
-    this.assertAdmin(admin);
+    await this.assertAdmin(admin);
     await this.seedDefaultPersonnelCatalog();
     return this.prisma.jobRoleDefinition.findMany({
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
-      include: { _count: { select: { users: true, featureAccessRules: true } } },
+      include: {
+        _count: { select: { users: true, featureAccessRules: true } },
+      },
     });
   }
 
   async adminListRegions(admin: any) {
-    this.assertAdmin(admin);
+    await this.assertAdmin(admin);
     await this.seedDefaultPersonnelCatalog();
     const regions = await this.prisma.regionDefinition.findMany({
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
-      include: { _count: { select: { areas: true, featureAccessRules: true } } },
+      include: {
+        _count: { select: { areas: true, featureAccessRules: true } },
+      },
     });
     const userCounts = await Promise.all(
       regions.map((region) =>
@@ -792,7 +881,7 @@ export class UserService implements OnModuleInit {
   }
 
   async adminListAreas(admin: any, regionCodeInput?: string) {
-    this.assertAdmin(admin);
+    await this.assertAdmin(admin);
     await this.seedDefaultPersonnelCatalog();
     const regionCode = regionCodeInput
       ? this.normalizePersonnelCode(regionCodeInput, 'Mã Miền không hợp lệ')
@@ -819,16 +908,24 @@ export class UserService implements OnModuleInit {
   }
 
   async adminCreateRegion(admin: any, body: any) {
-    this.assertSuperAdmin(admin);
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_REGIONS, 'Không có quyền tạo Miền');
     const code = this.normalizePersonnelCode(
       body.code || body.abbreviation,
       'Mã Miền không hợp lệ',
     );
     if (!code) throw new BadRequestException('Mã Miền không được để trống');
-    const existing = await this.prisma.regionDefinition.findUnique({ where: { code } });
+    const existing = await this.prisma.regionDefinition.findUnique({
+      where: { code },
+    });
     if (existing) throw new BadRequestException('Miền đã tồn tại');
-    const displayName = this.normalizeRequiredText(body.displayName, 'Tên Miền không được để trống', 80);
-    const abbreviation = this.normalizeCatalogAbbreviation(body.abbreviation || code);
+    const displayName = this.normalizeRequiredText(
+      body.displayName,
+      'Tên Miền không được để trống',
+      80,
+    );
+    const abbreviation = this.normalizeCatalogAbbreviation(
+      body.abbreviation || code,
+    );
     return this.prisma.$transaction(async (tx) => {
       const region = await tx.regionDefinition.create({
         data: {
@@ -840,7 +937,9 @@ export class UserService implements OnModuleInit {
           isActive: body.isActive !== false,
         },
       });
-      const sameCodeArea = await tx.areaDefinition.findUnique({ where: { code } });
+      const sameCodeArea = await tx.areaDefinition.findUnique({
+        where: { code },
+      });
       if (!sameCodeArea) {
         await tx.areaDefinition.create({
           data: {
@@ -859,10 +958,15 @@ export class UserService implements OnModuleInit {
   }
 
   async adminUpdateRegion(admin: any, currentCodeInput: string, body: any) {
-    this.assertSuperAdmin(admin);
-    const currentCode = this.normalizePersonnelCode(currentCodeInput, 'Mã Miền không hợp lệ');
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_REGIONS, 'Không có quyền sửa Miền');
+    const currentCode = this.normalizePersonnelCode(
+      currentCodeInput,
+      'Mã Miền không hợp lệ',
+    );
     if (!currentCode) throw new BadRequestException('Mã Miền không hợp lệ');
-    const current = await this.prisma.regionDefinition.findUnique({ where: { code: currentCode } });
+    const current = await this.prisma.regionDefinition.findUnique({
+      where: { code: currentCode },
+    });
     if (!current) throw new NotFoundException('Không tìm thấy Miền');
     const nextCode = body.code
       ? this.normalizePersonnelCode(body.code, 'Mã Miền không hợp lệ')
@@ -878,7 +982,11 @@ export class UserService implements OnModuleInit {
         displayName:
           body.displayName === undefined
             ? current.displayName
-            : this.normalizeRequiredText(body.displayName, 'Tên Miền không được để trống', 80),
+            : this.normalizeRequiredText(
+                body.displayName,
+                'Tên Miền không được để trống',
+                80,
+              ),
         abbreviation:
           body.abbreviation === undefined
             ? current.abbreviation
@@ -887,22 +995,34 @@ export class UserService implements OnModuleInit {
           body.description === undefined
             ? current.description
             : this.normalizeRoleDescription(body.description),
-        isActive: body.isActive === undefined ? current.isActive : body.isActive === true,
+        isActive:
+          body.isActive === undefined
+            ? current.isActive
+            : body.isActive === true,
       },
     });
   }
 
   async adminDeleteRegion(admin: any, codeInput: string) {
-    this.assertSuperAdmin(admin);
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_REGIONS, 'Không có quyền xóa Miền');
     const code = this.normalizePersonnelCode(codeInput, 'Mã Miền không hợp lệ');
     if (!code) throw new BadRequestException('Mã Miền không hợp lệ');
     const region = await this.prisma.regionDefinition.findUnique({
       where: { code },
-      include: { _count: { select: { areas: true, users: true, featureAccessRules: true } } },
+      include: {
+        _count: {
+          select: { areas: true, users: true, featureAccessRules: true },
+        },
+      },
     });
     if (!region) throw new NotFoundException('Không tìm thấy Miền');
-    if (region.isSystem) throw new BadRequestException('Không được xóa Miền hệ thống');
-    if (region._count.areas > 0 || region._count.users > 0 || region._count.featureAccessRules > 0) {
+    if (region.isSystem)
+      throw new BadRequestException('Không được xóa Miền hệ thống');
+    if (
+      region._count.areas > 0 ||
+      region._count.users > 0 ||
+      region._count.featureAccessRules > 0
+    ) {
       throw new BadRequestException('Miền đang được sử dụng, không thể xóa');
     }
     await this.prisma.regionDefinition.delete({ where: { code } });
@@ -910,18 +1030,29 @@ export class UserService implements OnModuleInit {
   }
 
   async adminCreateArea(admin: any, body: any) {
-    this.assertSuperAdmin(admin);
-    const code = this.normalizePersonnelCode(body.code || body.abbreviation, 'Mã Vùng không hợp lệ');
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_REGIONS, 'Không có quyền tạo Vùng');
+    const code = this.normalizePersonnelCode(
+      body.code || body.abbreviation,
+      'Mã Vùng không hợp lệ',
+    );
     if (!code) throw new BadRequestException('Mã Vùng không được để trống');
     const regionCode = await this.resolveRegionCode(body.regionCode, null);
     if (!regionCode) throw new BadRequestException('Vui lòng chọn Miền');
-    const existing = await this.prisma.areaDefinition.findUnique({ where: { code } });
+    const existing = await this.prisma.areaDefinition.findUnique({
+      where: { code },
+    });
     if (existing) throw new BadRequestException('Vùng đã tồn tại');
     return this.prisma.areaDefinition.create({
       data: {
         code,
-        displayName: this.normalizeRequiredText(body.displayName, 'Tên Vùng không được để trống', 80),
-        abbreviation: this.normalizeCatalogAbbreviation(body.abbreviation || code),
+        displayName: this.normalizeRequiredText(
+          body.displayName,
+          'Tên Vùng không được để trống',
+          80,
+        ),
+        abbreviation: this.normalizeCatalogAbbreviation(
+          body.abbreviation || code,
+        ),
         description: this.normalizeRoleDescription(body.description),
         regionCode,
         isSystem: false,
@@ -932,10 +1063,15 @@ export class UserService implements OnModuleInit {
   }
 
   async adminUpdateArea(admin: any, currentCodeInput: string, body: any) {
-    this.assertSuperAdmin(admin);
-    const currentCode = this.normalizePersonnelCode(currentCodeInput, 'Mã Vùng không hợp lệ');
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_REGIONS, 'Không có quyền sửa Vùng');
+    const currentCode = this.normalizePersonnelCode(
+      currentCodeInput,
+      'Mã Vùng không hợp lệ',
+    );
     if (!currentCode) throw new BadRequestException('Mã Vùng không hợp lệ');
-    const current = await this.prisma.areaDefinition.findUnique({ where: { code: currentCode } });
+    const current = await this.prisma.areaDefinition.findUnique({
+      where: { code: currentCode },
+    });
     if (!current) throw new NotFoundException('Không tìm thấy Vùng');
     const nextCode = body.code
       ? this.normalizePersonnelCode(body.code, 'Mã Vùng không hợp lệ')
@@ -955,7 +1091,11 @@ export class UserService implements OnModuleInit {
         displayName:
           body.displayName === undefined
             ? current.displayName
-            : this.normalizeRequiredText(body.displayName, 'Tên Vùng không được để trống', 80),
+            : this.normalizeRequiredText(
+                body.displayName,
+                'Tên Vùng không được để trống',
+                80,
+              ),
         abbreviation:
           body.abbreviation === undefined
             ? current.abbreviation
@@ -965,23 +1105,35 @@ export class UserService implements OnModuleInit {
             ? current.description
             : this.normalizeRoleDescription(body.description),
         regionCode: regionCode ?? current.regionCode,
-        isActive: body.isActive === undefined ? current.isActive : body.isActive === true,
+        isActive:
+          body.isActive === undefined
+            ? current.isActive
+            : body.isActive === true,
       },
       include: { region: true },
     });
   }
 
   async adminDeleteArea(admin: any, codeInput: string) {
-    this.assertSuperAdmin(admin);
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_REGIONS, 'Không có quyền xóa Vùng');
     const code = this.normalizePersonnelCode(codeInput, 'Mã Vùng không hợp lệ');
     if (!code) throw new BadRequestException('Mã Vùng không hợp lệ');
     const area = await this.prisma.areaDefinition.findUnique({
       where: { code },
-      include: { _count: { select: { stores: true, users: true, featureAccessRules: true } } },
+      include: {
+        _count: {
+          select: { stores: true, users: true, featureAccessRules: true },
+        },
+      },
     });
     if (!area) throw new NotFoundException('Không tìm thấy Vùng');
-    if (area.isSystem) throw new BadRequestException('Không được xóa Vùng hệ thống');
-    if (area._count.stores > 0 || area._count.users > 0 || area._count.featureAccessRules > 0) {
+    if (area.isSystem)
+      throw new BadRequestException('Không được xóa Vùng hệ thống');
+    if (
+      area._count.stores > 0 ||
+      area._count.users > 0 ||
+      area._count.featureAccessRules > 0
+    ) {
       throw new BadRequestException('Vùng đang được sử dụng, không thể xóa');
     }
     await this.prisma.areaDefinition.delete({ where: { code } });
@@ -989,15 +1141,25 @@ export class UserService implements OnModuleInit {
   }
 
   async adminCreateDepartment(admin: any, body: any) {
-    this.assertSuperAdmin(admin);
-    const code = this.normalizePersonnelCode(body.code, 'Mã phòng ban không hợp lệ');
-    if (!code) throw new BadRequestException('Mã phòng ban không được để trống');
-    const existing = await this.prisma.departmentDefinition.findUnique({ where: { code } });
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_PERSONNEL, 'Không có quyền tạo phòng ban');
+    const code = this.normalizePersonnelCode(
+      body.code,
+      'Mã phòng ban không hợp lệ',
+    );
+    if (!code)
+      throw new BadRequestException('Mã phòng ban không được để trống');
+    const existing = await this.prisma.departmentDefinition.findUnique({
+      where: { code },
+    });
     if (existing) throw new BadRequestException('Phòng ban đã tồn tại');
     return this.prisma.departmentDefinition.create({
       data: {
         code,
-        displayName: this.normalizeRequiredText(body.displayName, 'Tên phòng ban không được để trống', 80),
+        displayName: this.normalizeRequiredText(
+          body.displayName,
+          'Tên phòng ban không được để trống',
+          80,
+        ),
         description: this.normalizeRoleDescription(body.description),
         isSystem: false,
         isActive: body.isActive !== false,
@@ -1006,10 +1168,16 @@ export class UserService implements OnModuleInit {
   }
 
   async adminUpdateDepartment(admin: any, currentCodeInput: string, body: any) {
-    this.assertSuperAdmin(admin);
-    const currentCode = this.normalizePersonnelCode(currentCodeInput, 'Mã phòng ban không hợp lệ');
-    if (!currentCode) throw new BadRequestException('Mã phòng ban không hợp lệ');
-    const current = await this.prisma.departmentDefinition.findUnique({ where: { code: currentCode } });
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_PERSONNEL, 'Không có quyền sửa phòng ban');
+    const currentCode = this.normalizePersonnelCode(
+      currentCodeInput,
+      'Mã phòng ban không hợp lệ',
+    );
+    if (!currentCode)
+      throw new BadRequestException('Mã phòng ban không hợp lệ');
+    const current = await this.prisma.departmentDefinition.findUnique({
+      where: { code: currentCode },
+    });
     if (!current) throw new NotFoundException('Không tìm thấy phòng ban');
     const nextCode = body.code
       ? this.normalizePersonnelCode(body.code, 'Mã phòng ban không hợp lệ')
@@ -1025,44 +1193,75 @@ export class UserService implements OnModuleInit {
         displayName:
           body.displayName === undefined
             ? current.displayName
-            : this.normalizeRequiredText(body.displayName, 'Tên phòng ban không được để trống', 80),
+            : this.normalizeRequiredText(
+                body.displayName,
+                'Tên phòng ban không được để trống',
+                80,
+              ),
         description:
           body.description === undefined
             ? current.description
             : this.normalizeRoleDescription(body.description),
-        isActive: body.isActive === undefined ? current.isActive : body.isActive === true,
+        isActive:
+          body.isActive === undefined
+            ? current.isActive
+            : body.isActive === true,
       },
     });
   }
 
   async adminDeleteDepartment(admin: any, codeInput: string) {
-    this.assertSuperAdmin(admin);
-    const code = this.normalizePersonnelCode(codeInput, 'Mã phòng ban không hợp lệ');
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_PERSONNEL, 'Không có quyền xóa phòng ban');
+    const code = this.normalizePersonnelCode(
+      codeInput,
+      'Mã phòng ban không hợp lệ',
+    );
     if (!code) throw new BadRequestException('Mã phòng ban không hợp lệ');
     const department = await this.prisma.departmentDefinition.findUnique({
       where: { code },
-      include: { _count: { select: { users: true, featureAccessRules: true } } },
+      include: {
+        _count: { select: { users: true, featureAccessRules: true } },
+      },
     });
     if (!department) throw new NotFoundException('Không tìm thấy phòng ban');
-    if (department.isSystem) throw new BadRequestException('Không được xóa phòng ban hệ thống');
-    if (department._count.users > 0 || department._count.featureAccessRules > 0) {
-      throw new BadRequestException('Phòng ban đang được sử dụng, không thể xóa');
+    if (department.isSystem)
+      throw new BadRequestException('Không được xóa phòng ban hệ thống');
+    if (
+      department._count.users > 0 ||
+      department._count.featureAccessRules > 0
+    ) {
+      throw new BadRequestException(
+        'Phòng ban đang được sử dụng, không thể xóa',
+      );
     }
     await this.prisma.departmentDefinition.delete({ where: { code } });
     return { deleted: true, code };
   }
 
   async adminCreateJobRole(admin: any, body: any) {
-    this.assertSuperAdmin(admin);
-    const code = this.normalizePersonnelCode(body.code, 'Mã chức danh không hợp lệ');
-    if (!code) throw new BadRequestException('Mã chức danh không được để trống');
-    const existing = await this.prisma.jobRoleDefinition.findUnique({ where: { code } });
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_PERSONNEL, 'Không có quyền tạo chức danh');
+    const code = this.normalizePersonnelCode(
+      body.code,
+      'Mã chức danh không hợp lệ',
+    );
+    if (!code)
+      throw new BadRequestException('Mã chức danh không được để trống');
+    const existing = await this.prisma.jobRoleDefinition.findUnique({
+      where: { code },
+    });
     if (existing) throw new BadRequestException('Chức danh đã tồn tại');
-    const departmentCode = await this.resolveDepartmentCode(body.departmentCode, null);
+    const departmentCode = await this.resolveDepartmentCode(
+      body.departmentCode,
+      null,
+    );
     return this.prisma.jobRoleDefinition.create({
       data: {
         code,
-        displayName: this.normalizeRequiredText(body.displayName, 'Tên chức danh không được để trống', 80),
+        displayName: this.normalizeRequiredText(
+          body.displayName,
+          'Tên chức danh không được để trống',
+          80,
+        ),
         description: this.normalizeRoleDescription(body.description),
         departmentCode,
         isSystem: false,
@@ -1072,10 +1271,16 @@ export class UserService implements OnModuleInit {
   }
 
   async adminUpdateJobRole(admin: any, currentCodeInput: string, body: any) {
-    this.assertSuperAdmin(admin);
-    const currentCode = this.normalizePersonnelCode(currentCodeInput, 'Mã chức danh không hợp lệ');
-    if (!currentCode) throw new BadRequestException('Mã chức danh không hợp lệ');
-    const current = await this.prisma.jobRoleDefinition.findUnique({ where: { code: currentCode } });
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_PERSONNEL, 'Không có quyền sửa chức danh');
+    const currentCode = this.normalizePersonnelCode(
+      currentCodeInput,
+      'Mã chức danh không hợp lệ',
+    );
+    if (!currentCode)
+      throw new BadRequestException('Mã chức danh không hợp lệ');
+    const current = await this.prisma.jobRoleDefinition.findUnique({
+      where: { code: currentCode },
+    });
     if (!current) throw new NotFoundException('Không tìm thấy chức danh');
     const nextCode = body.code
       ? this.normalizePersonnelCode(body.code, 'Mã chức danh không hợp lệ')
@@ -1087,7 +1292,10 @@ export class UserService implements OnModuleInit {
     const departmentCode =
       body.departmentCode === undefined
         ? current.departmentCode
-        : await this.resolveDepartmentCode(body.departmentCode, current.departmentCode);
+        : await this.resolveDepartmentCode(
+            body.departmentCode,
+            current.departmentCode,
+          );
     return this.prisma.jobRoleDefinition.update({
       where: { code: current.code },
       data: {
@@ -1095,36 +1303,51 @@ export class UserService implements OnModuleInit {
         displayName:
           body.displayName === undefined
             ? current.displayName
-            : this.normalizeRequiredText(body.displayName, 'Tên chức danh không được để trống', 80),
+            : this.normalizeRequiredText(
+                body.displayName,
+                'Tên chức danh không được để trống',
+                80,
+              ),
         description:
           body.description === undefined
             ? current.description
             : this.normalizeRoleDescription(body.description),
         departmentCode,
-        isActive: body.isActive === undefined ? current.isActive : body.isActive === true,
+        isActive:
+          body.isActive === undefined
+            ? current.isActive
+            : body.isActive === true,
       },
     });
   }
 
   async adminDeleteJobRole(admin: any, codeInput: string) {
-    this.assertSuperAdmin(admin);
-    const code = this.normalizePersonnelCode(codeInput, 'Mã chức danh không hợp lệ');
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_PERSONNEL, 'Không có quyền xóa chức danh');
+    const code = this.normalizePersonnelCode(
+      codeInput,
+      'Mã chức danh không hợp lệ',
+    );
     if (!code) throw new BadRequestException('Mã chức danh không hợp lệ');
     const jobRole = await this.prisma.jobRoleDefinition.findUnique({
       where: { code },
-      include: { _count: { select: { users: true, featureAccessRules: true } } },
+      include: {
+        _count: { select: { users: true, featureAccessRules: true } },
+      },
     });
     if (!jobRole) throw new NotFoundException('Không tìm thấy chức danh');
-    if (jobRole.isSystem) throw new BadRequestException('Không được xóa chức danh hệ thống');
+    if (jobRole.isSystem)
+      throw new BadRequestException('Không được xóa chức danh hệ thống');
     if (jobRole._count.users > 0 || jobRole._count.featureAccessRules > 0) {
-      throw new BadRequestException('Chức danh đang được sử dụng, không thể xóa');
+      throw new BadRequestException(
+        'Chức danh đang được sử dụng, không thể xóa',
+      );
     }
     await this.prisma.jobRoleDefinition.delete({ where: { code } });
     return { deleted: true, code };
   }
 
   async adminCreateRole(admin: any, body: any) {
-    this.assertSuperAdmin(admin);
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_ROLES, 'Không có quyền tạo role');
     const code = this.normalizeRoleCode(body.code, true);
     const existing = await this.prisma.roleDefinition.findUnique({
       where: { code },
@@ -1143,7 +1366,7 @@ export class UserService implements OnModuleInit {
   }
 
   async adminUpdateRole(admin: any, currentCode: string, body: any) {
-    this.assertSuperAdmin(admin);
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_ROLES, 'Không có quyền sửa role');
     const code = this.normalizeRoleCode(currentCode, true);
     const current = await this.prisma.roleDefinition.findUnique({
       where: { code },
@@ -1185,7 +1408,7 @@ export class UserService implements OnModuleInit {
   }
 
   async adminDeleteRole(admin: any, codeInput: string) {
-    this.assertSuperAdmin(admin);
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_ROLES, 'Không có quyền xóa role');
     const code = this.normalizeRoleCode(codeInput, true);
     const role = await this.prisma.roleDefinition.findUnique({
       where: { code },
@@ -1207,7 +1430,7 @@ export class UserService implements OnModuleInit {
   }
 
   async adminListStores(admin: any, q?: string) {
-    this.assertAdmin(admin);
+    await this.assertAdmin(admin);
     const query = q?.trim();
     const stores = await this.prisma.store.findMany({
       where: this.adminStoreScope(admin, query),
@@ -1221,7 +1444,7 @@ export class UserService implements OnModuleInit {
   }
 
   async adminCreateStore(admin: any, body: any) {
-    this.assertSuperAdmin(admin);
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_STORE_CREATE, 'Không có quyền tạo SR');
     const storeId = this.normalizeStoreCode(body.storeId);
     const storeName = this.normalizeRequiredText(
       body.storeName,
@@ -1259,11 +1482,17 @@ export class UserService implements OnModuleInit {
       include: { area: true },
     });
     if (!current) throw new NotFoundException('Không tìm thấy store');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_STORES,
+      'Không có quyền sửa SR',
+    );
 
-    if (this.isScopedAdmin(admin) && !this.storeWithinAdminScope(admin, current)) {
+    if (
+      this.isScopedAdmin(admin) &&
+      !this.storeWithinAdminScope(admin, current)
+    ) {
       throw new ForbiddenException('Không có quyền sửa showroom khác');
-    } else if (!this.isScopedAdmin(admin)) {
-      this.assertSuperAdmin(admin);
     }
 
     const nextCode = body.storeId
@@ -1283,32 +1512,36 @@ export class UserService implements OnModuleInit {
       body.areaCode === undefined
         ? current.areaCode
         : await this.resolveAreaCodeForStore(body.areaCode);
-    if (this.isScopedAdmin(admin) && nextAreaCode !== current.areaCode) {
-      throw new ForbiddenException('Không có quyền đổi Vùng/Miền của SR');
+    if (nextAreaCode !== current.areaCode) {
+      await this.assertPolicy(
+        admin,
+        ADMIN_POLICY_CODES.ADMIN_STORE_SCOPE_EDIT,
+        'Không có quyền đổi Vùng/Miền của SR',
+      );
     }
 
     const store = await this.prisma.$transaction(async (tx) => {
       const updatedStore = await tx.store.update({
-      where: { storeId: current.storeId },
-      data: {
-        storeId: nextCode,
-        storeName:
-          body.storeName === undefined
-            ? current.storeName
-            : this.normalizeRequiredText(
-                body.storeName,
-                'Tên store không được để trống',
-                120,
-              ),
-        areaCode: nextAreaCode,
-        ...this.normalizeStorePaymentFields(body),
-        ...this.normalizeMapVietinFields(body),
-      },
-      include: {
-        area: { include: { region: true } },
-        _count: { select: { users: true } },
-      },
-    });
+        where: { storeId: current.storeId },
+        data: {
+          storeId: nextCode,
+          storeName:
+            body.storeName === undefined
+              ? current.storeName
+              : this.normalizeRequiredText(
+                  body.storeName,
+                  'Tên store không được để trống',
+                  120,
+                ),
+          areaCode: nextAreaCode,
+          ...this.normalizeStorePaymentFields(body),
+          ...this.normalizeMapVietinFields(body),
+        },
+        include: {
+          area: { include: { region: true } },
+          _count: { select: { users: true } },
+        },
+      });
 
       if (nextAreaCode !== current.areaCode) {
         const regionCode = updatedStore.area?.regionCode ?? DEFAULT_REGION_CODE;
@@ -1327,18 +1560,22 @@ export class UserService implements OnModuleInit {
   }
 
   async adminDeleteStore(admin: any, storeIdInput: string) {
-    this.assertSuperAdmin(admin);
+    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_STORE_CREATE, 'Không có quyền xóa SR');
     const storeId = this.normalizeStoreCode(storeIdInput);
     const store = await this.prisma.store.findUnique({
       where: { storeId },
-      include: { _count: { select: { users: true, featureAccessRules: true } } },
+      include: {
+        _count: { select: { users: true, featureAccessRules: true } },
+      },
     });
     if (!store) throw new NotFoundException('Không tìm thấy store');
     if (store._count.users > 0) {
       throw new BadRequestException('Store đang có user, không thể xóa');
     }
     if (store._count.featureAccessRules > 0) {
-      throw new BadRequestException('Store đang có rule tính năng, không thể xóa');
+      throw new BadRequestException(
+        'Store đang có rule tính năng, không thể xóa',
+      );
     }
 
     await this.prisma.store.delete({ where: { storeId } });
@@ -1609,7 +1846,13 @@ export class UserService implements OnModuleInit {
     return {
       OR: [
         { AND: [{ regionCode }, { NOT: { workScopeType: STORE_SCOPE } }] },
-        { AND: [{ regionCode }, { workScopeType: STORE_SCOPE }, { storeId: null }] },
+        {
+          AND: [
+            { regionCode },
+            { workScopeType: STORE_SCOPE },
+            { storeId: null },
+          ],
+        },
         {
           workScopeType: STORE_SCOPE,
           store: { is: { area: { is: { regionCode } } } },
@@ -1622,7 +1865,13 @@ export class UserService implements OnModuleInit {
     return {
       OR: [
         { AND: [{ areaCode }, { NOT: { workScopeType: STORE_SCOPE } }] },
-        { AND: [{ areaCode }, { workScopeType: STORE_SCOPE }, { storeId: null }] },
+        {
+          AND: [
+            { areaCode },
+            { workScopeType: STORE_SCOPE },
+            { storeId: null },
+          ],
+        },
         { workScopeType: STORE_SCOPE, store: { is: { areaCode } } },
       ],
     };
@@ -1634,7 +1883,9 @@ export class UserService implements OnModuleInit {
     role: string,
   ) {
     if (input === undefined) {
-      const currentScope = String(current || '').trim().toUpperCase();
+      const currentScope = String(current || '')
+        .trim()
+        .toUpperCase();
       return WORK_SCOPE_TYPES.has(currentScope)
         ? currentScope
         : this.defaultWorkScopeForRole(role);
@@ -1664,7 +1915,11 @@ export class UserService implements OnModuleInit {
   }
 
   private defaultWorkScopeForRole(role: string) {
-    if (role === SUPER_ADMIN_ROLE || role === ADMIN_ROLE) {
+    if (
+      role === SUPER_ADMIN_ROLE ||
+      role === ADMIN_ROLE ||
+      role === ADMIN_ACARE_ROLE
+    ) {
       return NATIONAL_SCOPE;
     }
     return STORE_SCOPE;
@@ -1803,6 +2058,54 @@ export class UserService implements OnModuleInit {
     return role.code;
   }
 
+  private isAcareAdmin(user: any) {
+    return user?.role === ADMIN_ACARE_ROLE;
+  }
+
+  private isAcaretekEmail(email: unknown) {
+    return String(email || '')
+      .trim()
+      .toLowerCase()
+      .endsWith('@' + ACARETEK_EMAIL_DOMAIN);
+  }
+
+  private adminDomainScope(admin: any): Prisma.UserWhereInput {
+    if (!this.isAcareAdmin(admin)) return {};
+    return {
+      email: {
+        endsWith: '@' + ACARETEK_EMAIL_DOMAIN,
+        mode: Prisma.QueryMode.insensitive,
+      },
+    };
+  }
+
+  private combineUserScope(
+    domainScope: Prisma.UserWhereInput,
+    locationScope: Prisma.UserWhereInput,
+  ): Prisma.UserWhereInput {
+    if (Object.keys(domainScope).length === 0) return locationScope;
+    return { AND: [domainScope, locationScope] };
+  }
+
+  private adminDomainScopeLabel(admin: any) {
+    return this.isAcareAdmin(admin) ? ACARETEK_EMAIL_DOMAIN : 'all';
+  }
+
+  private assertEmailWithinAdminDomain(admin: any, email: string) {
+    if (!this.isAcareAdmin(admin) || this.isAcaretekEmail(email)) return;
+    this.logger.warn(
+      'Admin user create blocked by email domain: admin=' +
+        (admin.email || admin.id || 'unknown') +
+        ' role=' +
+        admin.role +
+        ' targetDomain=' +
+        (email.split('@').pop() || 'invalid'),
+    );
+    throw new ForbiddenException(
+      'ADMIN_ACARE chi duoc quan ly user domain acaretek.vn',
+    );
+  }
+
   private normalizeStoreCode(value: string) {
     const code = String(value || '')
       .trim()
@@ -1899,7 +2202,9 @@ export class UserService implements OnModuleInit {
         : { id: '__NO_REGION__' };
     }
     if (scope === AREA_SCOPE) {
-      return admin.areaCode ? { areaCode: admin.areaCode } : { id: '__NO_AREA__' };
+      return admin.areaCode
+        ? { areaCode: admin.areaCode }
+        : { id: '__NO_AREA__' };
     }
     return { id: admin.storeId || '__NO_STORE__' };
   }

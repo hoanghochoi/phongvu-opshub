@@ -8,6 +8,7 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../admin/domain/admin_feature_definition.dart';
 import '../../../admin/domain/admin_personnel_definition.dart';
+import '../../../admin/domain/admin_policy_definition.dart';
 import '../../../admin/domain/admin_role_definition.dart';
 import '../auth_device_info.dart';
 import '../../domain/entities/store_branch.dart';
@@ -346,6 +347,16 @@ class AuthRepository {
   Future<Map<String, bool>> getMyFeatureAccess() async {
     final response = await _apiClient.get(ApiConstants.featuresMeEndpoint);
     final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return _boolMapFromJson(data);
+  }
+
+  Future<Map<String, bool>> getMyPolicyAccess() async {
+    final response = await _apiClient.get(ApiConstants.policiesMeEndpoint);
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return _boolMapFromJson(data);
+  }
+
+  Map<String, bool> _boolMapFromJson(Map<String, dynamic> data) {
     return data.map(
       (key, value) => MapEntry(
         key,
@@ -840,7 +851,11 @@ class AuthRepository {
     await AppLogger.instance.info(
       'Admin',
       'Admin feature rules batch created',
-      context: {'featureCode': request.featureCode, 'count': rules.length},
+      context: {
+        'featureCode': request.featureCode,
+        'count': rules.length,
+        'domainCount': request.emailDomains.length,
+      },
     );
     return rules;
   }
@@ -860,6 +875,137 @@ class AuthRepository {
 
   Future<void> deleteAdminFeatureRule(String id) async {
     await _apiClient.delete('${ApiConstants.adminFeatureRulesEndpoint}/$id');
+  }
+
+  Future<List<AdminPolicyDefinition>> listAdminPolicies() async {
+    final response = await _apiClient.get(ApiConstants.adminPoliciesEndpoint);
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map(
+          (item) =>
+              AdminPolicyDefinition.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<AdminPolicyDefinition> createAdminPolicy(
+    AdminPolicyDefinition policy,
+  ) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminPoliciesEndpoint,
+      body: policy.toJson(),
+    );
+    return AdminPolicyDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<AdminPolicyDefinition> updateAdminPolicy(
+    String code,
+    AdminPolicyDefinition policy,
+  ) async {
+    final response = await _apiClient.patch(
+      '${ApiConstants.adminPoliciesEndpoint}/$code',
+      body: policy.toJson(),
+    );
+    return AdminPolicyDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> deleteAdminPolicy(String code) async {
+    await _apiClient.delete('${ApiConstants.adminPoliciesEndpoint}/$code');
+  }
+
+  Future<List<AdminPolicyRule>> listAdminPolicyRules({
+    String? policyCode,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConstants.adminPolicyRulesEndpoint,
+      queryParameters: policyCode?.trim().isNotEmpty == true
+          ? {'policyCode': policyCode!.trim()}
+          : null,
+    );
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map((item) => AdminPolicyRule.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<AdminPolicyRule> createAdminPolicyRule(AdminPolicyRule rule) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminPolicyRulesEndpoint,
+      body: rule.toJson(),
+    );
+    return AdminPolicyRule.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<List<AdminPolicyRule>> createAdminPolicyRulesBatch(
+    AdminPolicyRuleBatchRequest request,
+  ) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminPolicyRulesBatchEndpoint,
+      body: request.toJson(),
+    );
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map((item) => AdminPolicyRule.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<AdminPolicyRule> updateAdminPolicyRule(
+    String id,
+    AdminPolicyRule rule,
+  ) async {
+    final response = await _apiClient.patch(
+      '${ApiConstants.adminPolicyRulesEndpoint}/$id',
+      body: rule.toJson(),
+    );
+    return AdminPolicyRule.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> deleteAdminPolicyRule(String id) async {
+    await _apiClient.delete('${ApiConstants.adminPolicyRulesEndpoint}/$id');
+  }
+
+  Future<List<AdminSettingDefinition>> listAdminSettings() async {
+    final response = await _apiClient.get(ApiConstants.adminSettingsEndpoint);
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map(
+          (item) =>
+              AdminSettingDefinition.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<AdminSettingDefinition> createAdminSetting(
+    AdminSettingDefinition setting,
+  ) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminSettingsEndpoint,
+      body: setting.toJson(),
+    );
+    return AdminSettingDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<AdminSettingDefinition> updateAdminSetting(
+    String key,
+    AdminSettingDefinition setting,
+  ) async {
+    final response = await _apiClient.patch(
+      '${ApiConstants.adminSettingsEndpoint}/$key',
+      body: setting.toJson(),
+    );
+    return AdminSettingDefinition.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
   }
 
   Future<List<AdminRoleDefinition>> listAdminRoles() async {

@@ -17,6 +17,7 @@ import { FifoLogModule } from './fifo-log/fifo-log.module';
 import { VietQrModule } from './vietqr/vietqr.module';
 import { AppVersionModule } from './app-version/app-version.module';
 import { MapVietinModule } from './map-vietin/map-vietin.module';
+import { PolicyModule } from './policy/policy.module';
 import { PaymentNotificationsModule } from './payment-notifications/payment-notifications.module';
 import { FifoModule } from './fifo/fifo.module';
 import { FeatureModule } from './feature/feature.module';
@@ -35,6 +36,7 @@ import { FeatureModule } from './feature/feature.module';
     WarrantyModule,
     RedisModule,
     InventoryModule,
+    PolicyModule,
     SortModule,
     FeedbackModule,
     UploadModule,

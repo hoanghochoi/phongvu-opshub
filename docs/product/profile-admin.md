@@ -23,13 +23,21 @@ basic administration for privileged roles.
 
 ## Admin Management
 
-- Admin menu visibility is resolved through backend feature gates; if no
-  feature rule matches, existing authorization remains the fallback.
+- Admin menu visibility is resolved through backend feature and policy maps.
+  If no feature rule matches, the backend feature gate falls back to the
+  resolved policy for the same code.
 - The administration menu contains user management, role management, SR
   management, region/area management, personnel catalog management, feature
   management, and manual FIFO inventory import when the resolved feature map
   allows them.
 - Admin users can list, add, and edit users inside their permitted scope.
+- `ADMIN_ACARE` has admin-equivalent user and store management access, but
+  user management is limited to accounts whose email ends with
+  `@acaretek.vn`.
+- The backend migration seeds `ADMIN_ACARE` as a system role and moves
+  `admin@acaretek.vn` from `ADMIN` to `ADMIN_ACARE` when that account exists.
+- Admin API `403 Forbidden` responses do not clear the local login session;
+  only `401 Unauthorized` is treated as an auth failure.
 - Role management lists roles from the backend role catalog.
 - `SUPER_ADMIN` can add, edit, and delete custom roles.
 - System roles are seeded by the backend and cannot be deleted from the app.
@@ -42,9 +50,17 @@ basic administration for privileged roles.
   (`Vung`) catalogs with display name, abbreviation, active state, and delete
   constraints.
 - Feature management lets `SUPER_ADMIN` manage feature definitions and
-  enabled/disabled rules by system role, department, job role, work scope,
-  region, area, SR, and optional user override. API guards enforce these rules;
-  Flutter only reflects the resolved state.
+  enabled/disabled rules by email domain, system role, department, job role,
+  work scope, region, area, SR, and optional user override. Feature rules are
+  enforced by API guards and Flutter only reflects the resolved state. An
+  explicit feature allow does not grant access beyond the matching admin policy;
+  a matching feature deny can still block access.
+- Policy management lets `SUPER_ADMIN` manage admin policy definitions, policy
+  rules, and system settings. Policy rules support the same detailed selectors
+  as feature rules plus `scopeContains`, and batch creation supports multiple
+  selected users, domains, roles, departments, job roles, scopes, Regions,
+  Areas, SRs, and scope text values. Auth domain, password policy, and OTP
+  policy settings are managed from the policy settings tab.
 - `ADMIN` is scoped to users in the same store and cannot assign
   `SUPER_ADMIN`.
 - `SUPER_ADMIN` can manage all users.

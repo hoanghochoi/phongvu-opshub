@@ -1,4 +1,4 @@
-class ApiConstants {
+﻿class ApiConstants {
   ApiConstants._();
 
   // ──────────────────────────────────────────────────────────
@@ -41,6 +41,12 @@ class ApiConstants {
   static const String adminFeatureRulesEndpoint = '/admin/features/rules';
   static const String adminFeatureRulesBatchEndpoint =
       '/admin/features/rules/batch';
+  static const String policiesMeEndpoint = '/policies/me';
+  static const String adminPoliciesEndpoint = '/admin/policies';
+  static const String adminPolicyRulesEndpoint = '/admin/policies/rules';
+  static const String adminPolicyRulesBatchEndpoint =
+      '/admin/policies/rules/batch';
+  static const String adminSettingsEndpoint = '/admin/settings';
   static const String adminMapVietinTransactionsEndpoint =
       '/admin/map-vietin/transactions/search';
   static const String adminMapVietinStoredTransactionsEndpoint =

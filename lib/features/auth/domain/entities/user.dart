@@ -19,6 +19,7 @@ class User {
   final String? areaAbbreviation;
   final String? personnelCode;
   final Map<String, bool> featureAccess;
+  final Map<String, bool> policyAccess;
   final bool mustSelectStore;
 
   const User({
@@ -42,9 +43,15 @@ class User {
     this.areaAbbreviation,
     this.personnelCode,
     this.featureAccess = const {},
+    this.policyAccess = const {},
     this.mustSelectStore = false,
   });
 
+  static bool isAdminRole(String? role) =>
+      role == 'ADMIN' || role == 'ADMIN_ACARE' || role == 'SUPER_ADMIN';
+
+  static bool isAdminMenuRole(String? role) =>
+      isAdminRole(role) || role == 'MANAGER';
   factory User.fromJson(Map<String, dynamic> json, {String? fallbackEmail}) {
     return User(
       id: json['id']?.toString(),
@@ -69,6 +76,11 @@ class User {
       featureAccess: _featureAccessFromJson(
         json['resolvedFeatureAccess'] ?? json['featureAccess'],
       ),
+      policyAccess: _featureAccessFromJson(
+        json['resolvedAdminPolicies'] ??
+            json['resolvedPolicyAccess'] ??
+            json['policyAccess'],
+      ),
       mustSelectStore:
           json['mustSelectStore'] == true || json['mustSelectStore'] == 'true',
     );
@@ -77,14 +89,11 @@ class User {
   bool get isAdmin {
     final resolved = featureAccess['ADMIN'];
     if (resolved != null) return resolved;
-    return role == 'ADMIN' || role == 'SUPER_ADMIN' || role == 'MANAGER';
+    return isAdminMenuRole(role);
   }
 
   bool get needsStoreSelection =>
-      (workScopeType ??
-              (role == 'SUPER_ADMIN' || role == 'ADMIN'
-                  ? 'NATIONAL'
-                  : 'STORE')) ==
+      (workScopeType ?? (isAdminRole(role) ? 'NATIONAL' : 'STORE')) ==
           'STORE' &&
       (mustSelectStore || storeId == null);
 
@@ -103,30 +112,26 @@ class User {
   bool get canUseCp62RestrictedFlows => canUseFeature('FIFO');
 
   bool get hasNationalWorkScope =>
-      role == 'SUPER_ADMIN' || workScopeType?.toUpperCase() == 'NATIONAL';
+      isAdminRole(role) || workScopeType?.toUpperCase() == 'NATIONAL';
 
   bool get canUseBankStatements => canUseFeature('BANK_STATEMENTS');
 
   bool canUseFeature(String featureCode) {
     final resolved = featureAccess[featureCode];
     if (resolved != null) return resolved;
-    if (role == 'SUPER_ADMIN') return true;
-    return switch (featureCode) {
-      'ADMIN' ||
-      'ADMIN_USERS' ||
-      'ADMIN_STORES' => role == 'ADMIN' || role == 'MANAGER',
-      'ADMIN_ROLES' ||
-      'ADMIN_REGIONS' ||
-      'ADMIN_PERSONNEL' ||
-      'ADMIN_FEATURES' => false,
-      'FIFO' || 'WARRANTY' => belongsToCp62,
-      'FIFO_IMPORT' => role == 'ADMIN',
-      'BANK_STATEMENTS' => role == 'MANAGER',
-      _ => true,
-    };
+    return role == 'SUPER_ADMIN';
   }
 
-  User copyWith({Map<String, bool>? featureAccess}) {
+  bool canUsePolicy(String policyCode) {
+    final resolved = policyAccess[policyCode];
+    if (resolved != null) return resolved;
+    return role == 'SUPER_ADMIN';
+  }
+
+  User copyWith({
+    Map<String, bool>? featureAccess,
+    Map<String, bool>? policyAccess,
+  }) {
     return User(
       id: id,
       email: email,
@@ -148,6 +153,7 @@ class User {
       areaAbbreviation: areaAbbreviation,
       personnelCode: personnelCode,
       featureAccess: featureAccess ?? this.featureAccess,
+      policyAccess: policyAccess ?? this.policyAccess,
       mustSelectStore: mustSelectStore,
     );
   }
@@ -197,6 +203,7 @@ class User {
         other.areaAbbreviation == areaAbbreviation &&
         other.personnelCode == personnelCode &&
         _mapEquals(other.featureAccess, featureAccess) &&
+        _mapEquals(other.policyAccess, policyAccess) &&
         other.mustSelectStore == mustSelectStore;
   }
 
@@ -229,6 +236,7 @@ class User {
       areaAbbreviation.hashCode ^
       personnelCode.hashCode ^
       featureAccess.hashCode ^
+      policyAccess.hashCode ^
       mustSelectStore.hashCode;
 
   @override

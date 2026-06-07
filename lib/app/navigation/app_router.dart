@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -17,6 +17,7 @@ import '../../features/admin/presentation/screens/admin_menu_screen.dart';
 import '../../features/admin/presentation/screens/feature_admin_screen.dart';
 import '../../features/admin/presentation/screens/inventory_import_screen.dart';
 import '../../features/admin/presentation/screens/personnel_catalog_admin_screen.dart';
+import '../../features/admin/presentation/screens/policy_admin_screen.dart';
 import '../../features/admin/presentation/screens/region_admin_screen.dart';
 import '../../features/admin/presentation/screens/role_admin_screen.dart';
 import '../../features/admin/presentation/screens/store_admin_screen.dart';
@@ -145,6 +146,10 @@ class AppRouter {
           builder: (context, state) => const FeatureAdminScreen(),
         ),
         GoRoute(
+          path: '/admin/policies',
+          builder: (context, state) => const PolicyAdminScreen(),
+        ),
+        GoRoute(
           path: '/admin/stores',
           builder: (context, state) => const StoreAdminScreen(),
         ),
@@ -222,6 +227,7 @@ class AppRouter {
       '/admin/regions' => 'ADMIN_REGIONS',
       '/admin/personnel' => 'ADMIN_PERSONNEL',
       '/admin/features' => 'ADMIN_FEATURES',
+      '/admin/policies' => 'ADMIN_POLICIES',
       '/admin/inventory-import' => 'FIFO_IMPORT',
       '/fifo-check' => 'FIFO',
       '/fifo-history' => 'FIFO',

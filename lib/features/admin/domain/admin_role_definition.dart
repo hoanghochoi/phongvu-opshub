@@ -44,6 +44,7 @@ class AdminRoleDefinition {
     return switch (code) {
       'SUPER_ADMIN' => Icons.verified_user_outlined,
       'ADMIN' => Icons.admin_panel_settings_outlined,
+      'ADMIN_ACARE' => Icons.admin_panel_settings_outlined,
       'MANAGER' => Icons.manage_accounts_outlined,
       'STAFF' => Icons.badge_outlined,
       _ => Icons.security_outlined,
@@ -54,6 +55,7 @@ class AdminRoleDefinition {
     return switch (code) {
       'SUPER_ADMIN' => AppColors.violet600,
       'ADMIN' => AppColors.info,
+      'ADMIN_ACARE' => AppColors.sky500,
       'MANAGER' => AppColors.teal600,
       'STAFF' => AppColors.neutral600,
       _ => AppColors.purple600,
@@ -78,6 +80,13 @@ class AdminRoles {
       description: 'Quản lý người dùng theo phạm vi',
       icon: Icons.admin_panel_settings_outlined,
       color: AppColors.info,
+    ),
+    AdminRoleDefinition(
+      value: 'ADMIN_ACARE',
+      title: 'Admin ACare',
+      description: 'Quan ly user thuoc domain acaretek.vn',
+      icon: Icons.admin_panel_settings_outlined,
+      color: AppColors.sky500,
     ),
     AdminRoleDefinition(
       value: 'MANAGER',

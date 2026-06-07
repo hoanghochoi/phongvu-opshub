@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -8,6 +8,8 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
+import { PolicyService } from '../policy/policy.service';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 
@@ -22,6 +24,7 @@ export class WarrantyService {
   constructor(
     private prisma: PrismaService,
     private redisService: RedisService,
+    private policyService: PolicyService,
   ) {}
 
   async createWarranty(userId: string, data: any) {
@@ -41,7 +44,7 @@ export class WarrantyService {
   }
 
   async getAllWarranties(user: any) {
-    const scope = this.resolveReadScope(user, 'list');
+    const scope = await this.resolveReadScope(user, 'list');
     this.logger.log(
       `Warranty list started: userId=${user?.id ?? 'unknown'} scope=${this.scopeLogValue(scope)}`,
     );
@@ -62,7 +65,7 @@ export class WarrantyService {
   }
 
   async searchByReceipt(user: any, receipt: string) {
-    const scope = this.resolveReadScope(user, 'search');
+    const scope = await this.resolveReadScope(user, 'search');
     const normalizedReceipt = String(receipt || '').trim();
     this.logger.log(
       `Warranty search started: userId=${user?.id ?? 'unknown'} scope=${this.scopeLogValue(scope)} receiptLength=${normalizedReceipt.length}`,
@@ -85,7 +88,7 @@ export class WarrantyService {
   }
 
   async getByReceipt(user: any, receipt: string) {
-    const scope = this.resolveReadScope(user, 'detail');
+    const scope = await this.resolveReadScope(user, 'detail');
     const normalizedReceipt = String(receipt || '').trim();
     if (!normalizedReceipt) {
       this.logger.warn(
@@ -120,7 +123,7 @@ export class WarrantyService {
   }
 
   async getWarrantyById(user: any, id: string) {
-    const scope = this.resolveReadScope(user, 'detailById');
+    const scope = await this.resolveReadScope(user, 'detailById');
     this.logger.log(
       `Warranty detail by id started: warrantyId=${id} userId=${user?.id ?? 'unknown'} scope=${this.scopeLogValue(scope)}`,
     );
@@ -146,7 +149,7 @@ export class WarrantyService {
   }
 
   async updateWarrantyStatus(user: any, id: string, userId: string, status: any) {
-    const scope = this.resolveReadScope(user, 'updateStatus');
+    const scope = await this.resolveReadScope(user, 'updateStatus');
     this.logger.log(
       `Warranty status update started: warrantyId=${id} userId=${userId} scope=${this.scopeLogValue(scope)} status=${status}`,
     );
@@ -180,7 +183,7 @@ export class WarrantyService {
     return updated;
   }
 
-  private resolveReadScope(user: any, source: string): WarrantyReadScope {
+  private async resolveReadScope(user: any, source: string): Promise<WarrantyReadScope> {
     if (user?.role === SUPER_ADMIN_ROLE) {
       return { kind: 'ALL' };
     }

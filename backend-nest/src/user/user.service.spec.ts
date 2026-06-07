@@ -1,13 +1,25 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { UserService } from './user.service';
 
 describe('UserService admin store management', () => {
   let service: UserService;
   let prisma: any;
   let passwordResetService: { setPasswordForUserId: jest.Mock };
+  let policyService: any;
 
-  const superAdmin = { id: 'admin-1', email: 'admin@phongvu.vn', role: 'SUPER_ADMIN' };
+  const superAdmin = {
+    id: 'admin-1',
+    email: 'admin@phongvu.vn',
+    role: 'SUPER_ADMIN',
+  };
   const admin = { role: 'ADMIN' };
+  const adminAcare = {
+    id: 'admin-acare',
+    email: 'admin@acaretek.vn',
+    role: 'ADMIN_ACARE',
+    workScopeType: 'NATIONAL',
+  };
   const manager = { role: 'MANAGER', storeId: 'store-1' };
   const region = {
     code: 'MIEN_NAM',
@@ -58,7 +70,13 @@ describe('UserService admin store management', () => {
         findUnique: jest.fn(async ({ where }: any) => {
           if (where.storeId === 'CP62' || where.id === 'store-62') return store;
           if (where.storeId === 'CP01' || where.id === 'store-1') {
-            return { id: 'store-1', storeId: 'CP01', storeName: 'CP01', areaCode: area.code, area };
+            return {
+              id: 'store-1',
+              storeId: 'CP01',
+              storeName: 'CP01',
+              areaCode: area.code,
+              area,
+            };
           }
           return null;
         }),
@@ -80,15 +98,24 @@ describe('UserService admin store management', () => {
       },
       roleDefinition: {
         upsert: jest.fn(),
-        findUnique: jest.fn(async ({ where }: any) => ({ code: where.code, isActive: true })),
+        findUnique: jest.fn(async ({ where }: any) => ({
+          code: where.code,
+          isActive: true,
+        })),
       },
       departmentDefinition: {
         upsert: jest.fn(),
-        findUnique: jest.fn(async ({ where }: any) => ({ code: where.code, isActive: true })),
+        findUnique: jest.fn(async ({ where }: any) => ({
+          code: where.code,
+          isActive: true,
+        })),
       },
       jobRoleDefinition: {
         upsert: jest.fn(),
-        findUnique: jest.fn(async ({ where }: any) => ({ code: where.code, isActive: true })),
+        findUnique: jest.fn(async ({ where }: any) => ({
+          code: where.code,
+          isActive: true,
+        })),
       },
       regionDefinition: {
         upsert: jest.fn(),
@@ -111,13 +138,18 @@ describe('UserService admin store management', () => {
           if (where.code === area.code) return area;
           if (where.code === defaultArea.code) return defaultArea;
           if (where.code === chatsaleRegion.code) {
-            return { ...chatsaleRegion, regionCode: chatsaleRegion.code, region: chatsaleRegion };
+            return {
+              ...chatsaleRegion,
+              regionCode: chatsaleRegion.code,
+              region: chatsaleRegion,
+            };
           }
           return null;
         }),
       },
       user: {
         findUnique: jest.fn(),
+        findMany: jest.fn(async () => []),
         count: jest.fn(async () => 0),
         create: jest.fn(async ({ data }: any) => ({
           id: `user-${data.jobRoleCode}`,
@@ -133,7 +165,8 @@ describe('UserService admin store management', () => {
           regionCode: data.regionCode,
           areaCode: data.areaCode,
           store: data.storeId ? store : null,
-          region: data.regionCode === chatsaleRegion.code ? chatsaleRegion : null,
+          region:
+            data.regionCode === chatsaleRegion.code ? chatsaleRegion : null,
           area: data.areaCode === area.code ? area : null,
         })),
         update: jest.fn(),
@@ -144,7 +177,21 @@ describe('UserService admin store management', () => {
       setPasswordForUserId: jest.fn().mockResolvedValue({ ok: true }),
     };
     process.env.JWT_SECRET = 'test-secret';
-    service = new UserService(prisma, {} as any, passwordResetService as any);
+    policyService = {
+      canAccessPolicy: jest.fn(async (user: any, code: string) => {
+        if (user?.role === 'SUPER_ADMIN') return true;
+        const role = String(user?.role || '').toUpperCase();
+        const policyCode = String(code || '').toUpperCase();
+        if (policyCode === ADMIN_POLICY_CODES.ADMIN) {
+          return ['ADMIN', 'ADMIN_ACARE', 'MANAGER'].includes(role);
+        }
+        if (policyCode === ADMIN_POLICY_CODES.ADMIN_STORES) {
+          return ['ADMIN', 'ADMIN_ACARE', 'MANAGER'].includes(role);
+        }
+        return false;
+      }),
+    };
+    service = new UserService(prisma, {} as any, passwordResetService as any, policyService);
   });
 
   it('creates a store with normalized payment fields and default area', async () => {
@@ -213,6 +260,72 @@ describe('UserService admin store management', () => {
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
+  it('scopes ADMIN_ACARE user management to the acaretek.vn email domain', async () => {
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'acare-user',
+        email: 'staff@acaretek.vn',
+        firstName: 'ACare',
+        lastName: null,
+        role: 'STAFF',
+        status: 'yes',
+        workScopeType: 'STORE',
+        storeId: null,
+        store: null,
+      },
+    ]);
+
+    await expect(service.adminListUsers(adminAcare)).resolves.toEqual([
+      expect.objectContaining({ email: 'staff@acaretek.vn' }),
+    ]);
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          email: {
+            endsWith: '@acaretek.vn',
+            mode: 'insensitive',
+          },
+        }),
+      }),
+    );
+
+    await expect(
+      service.adminCreateUser(adminAcare, {
+        email: 'new@acaretek.vn',
+        firstName: 'New',
+        role: 'STAFF',
+      }),
+    ).resolves.toMatchObject({ email: 'new@acaretek.vn', role: 'STAFF' });
+
+    await expect(
+      service.adminCreateUser(adminAcare, {
+        email: 'staff@phongvu.vn',
+        firstName: 'Wrong Domain',
+        role: 'STAFF',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('blocks ADMIN_ACARE from updating users outside acaretek.vn', async () => {
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'phongvu-user',
+      email: 'staff@phongvu.vn',
+      firstName: 'Phong Vu',
+      lastName: null,
+      role: 'STAFF',
+      status: 'yes',
+      workScopeType: 'STORE',
+      storeId: null,
+      store: null,
+    });
+
+    await expect(
+      service.adminUpdateUser(adminAcare, 'phongvu-user', {
+        firstName: 'Blocked',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
   it('generates personnel codes from SR, area, and region scope', async () => {
     await expect(
       service.adminCreateUser(superAdmin, {
@@ -264,7 +377,9 @@ describe('UserService admin store management', () => {
         workScopeType: 'REGION',
         regionCode: 'CHATSALE',
       }),
-    ).resolves.toMatchObject({ personnelCode: 'CHATSALE_CHATSALE_CHATSALE_CHATSALE' });
+    ).resolves.toMatchObject({
+      personnelCode: 'CHATSALE_CHATSALE_CHATSALE_CHATSALE',
+    });
   });
 
   it('derives STORE-scope user area and region from the assigned SR', () => {
@@ -316,8 +431,19 @@ describe('UserService admin store management', () => {
     expect(prisma.user.count).toHaveBeenNthCalledWith(1, {
       where: {
         OR: [
-          { AND: [{ regionCode: region.code }, { NOT: { workScopeType: 'STORE' } }] },
-          { AND: [{ regionCode: region.code }, { workScopeType: 'STORE' }, { storeId: null }] },
+          {
+            AND: [
+              { regionCode: region.code },
+              { NOT: { workScopeType: 'STORE' } },
+            ],
+          },
+          {
+            AND: [
+              { regionCode: region.code },
+              { workScopeType: 'STORE' },
+              { storeId: null },
+            ],
+          },
           {
             workScopeType: 'STORE',
             store: { is: { area: { is: { regionCode: region.code } } } },
@@ -335,8 +461,16 @@ describe('UserService admin store management', () => {
     expect(prisma.user.count).toHaveBeenNthCalledWith(2, {
       where: {
         OR: [
-          { AND: [{ areaCode: area.code }, { NOT: { workScopeType: 'STORE' } }] },
-          { AND: [{ areaCode: area.code }, { workScopeType: 'STORE' }, { storeId: null }] },
+          {
+            AND: [{ areaCode: area.code }, { NOT: { workScopeType: 'STORE' } }],
+          },
+          {
+            AND: [
+              { areaCode: area.code },
+              { workScopeType: 'STORE' },
+              { storeId: null },
+            ],
+          },
           { workScopeType: 'STORE', store: { is: { areaCode: area.code } } },
         ],
       },
@@ -347,7 +481,9 @@ describe('UserService admin store management', () => {
     prisma.user.updateMany.mockResolvedValueOnce({ count: 3 });
 
     await expect(
-      service.adminUpdateStore(superAdmin, 'CP01', { areaCode: defaultArea.code }),
+      service.adminUpdateStore(superAdmin, 'CP01', {
+        areaCode: defaultArea.code,
+      }),
     ).resolves.toMatchObject({
       storeId: 'CP01',
       areaCode: defaultArea.code,
