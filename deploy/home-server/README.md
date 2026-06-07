@@ -107,6 +107,14 @@ On a VPS that already has host Nginx or Cloudflare Tunnel, set
 
 ## GitHub Deploy
 
+The repository deploys from two long-lived branches only: `staging` and `main`.
+When the operator says `push staging` or `deploy staging`, collect the ready
+changes on `staging`, validate them, and push `origin/staging` to run the
+staging workflow. When the operator says `push production` or
+`deploy production`, fetch GitHub, confirm `main` is an ancestor of `staging`,
+fast-forward `main` from `staging`, re-check the final diff, and push
+`origin/main`.
+
 The repository includes `.github/workflows/deploy-opshub.yml`. On every push to
 `main`, it builds an Android APK, a portable Windows ZIP, and a Windows installer
 EXE with:

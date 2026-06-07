@@ -37,20 +37,23 @@ curl http://localhost:3000/app-version
   `APP_UPDATE_URL`, `APP_RELEASE_NOTES`, and `APP_FORCE_UPDATE` when shipping
   a mobile APK. Clients compare `APP_BUILD_NUMBER` with their installed build
   number and open `APP_UPDATE_URL` when an update is required.
-- Full GitHub deploys build the client packages in Actions, upload the APK,
+- Deploy source branches are `staging` and `main` only. Pushing `staging` runs
+  the staging workflow. Production deploys fast-forward `main` from accepted
+  `staging` code, then push `main` to run the production workflow.
+- Full production GitHub deploys build the client packages in Actions, upload the APK,
   Windows installer, Windows ZIP, and checksum directly to VPS staging, then
   promote them to `/srv/opshub/downloads/` and publish `/downloads/latest.json`
   for the download landing page. Manual `workflow_dispatch` with
   `skip_client_build=true` refreshes only the static download page and manifest
   from existing live artifacts; it must not change app-version metadata or
   rebuild client packages.
-- Staging deploys use the manual `Deploy OpsHub Staging` workflow, target
-  `opshub-staging.hoanghochoi.com` for API/runtime traffic, publish downloads
-  under `/srv/opshub-staging/downloads/`, expose those downloads through
-  `https://opshub.hoanghochoi.com/staging-download`, and build staging client
-  packages with separate Android and Windows app identities. Staging DB refresh
-  is a separate manual sanitized-clone operation and is not part of the normal
-  staging deploy workflow.
+- Staging deploys run on `staging` pushes or manual `Deploy OpsHub Staging`
+  dispatches, target `opshub-staging.hoanghochoi.com` for API/runtime traffic,
+  publish downloads under `/srv/opshub-staging/downloads/`, expose those
+  downloads through `https://opshub.hoanghochoi.com/staging-download`, and build
+  staging client packages with separate Android and Windows app identities.
+  Staging DB refresh is a separate manual sanitized-clone operation and is not
+  part of the normal staging deploy workflow.
 
 ## Expected Proof
 
