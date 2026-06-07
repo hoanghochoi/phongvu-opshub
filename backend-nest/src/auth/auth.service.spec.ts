@@ -30,6 +30,7 @@ describe('AuthService', () => {
     replacePlatformSession: jest.Mock;
     revokeCurrentSession: jest.Mock;
   };
+  let policyService: { getAllowedEmailDomains: jest.Mock };
   const loginDevice = {
     platform: 'windows',
     deviceId: 'device-123456',
@@ -73,12 +74,16 @@ describe('AuthService', () => {
       replacePlatformSession: jest.fn().mockResolvedValue(authSession),
       revokeCurrentSession: jest.fn().mockResolvedValue({ ok: true }),
     };
+    policyService = {
+      getAllowedEmailDomains: jest.fn(async (fallback: string[]) => fallback),
+    };
     service = new AuthService(
       prisma as any,
       jwtService as any,
       emailVerificationService as any,
       passwordResetService as any,
       authSessionService as any,
+      policyService as any,
     );
   });
 

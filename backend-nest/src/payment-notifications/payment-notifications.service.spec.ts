@@ -1,10 +1,12 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PaymentNotificationsService } from './payment-notifications.service';
 
 describe('PaymentNotificationsService', () => {
   const originalEnv = process.env;
   let prisma: any;
   let redis: any;
+  let policyService: { canAccessPolicy: jest.Mock };
   let service: PaymentNotificationsService;
 
   beforeEach(() => {
@@ -35,7 +37,13 @@ describe('PaymentNotificationsService', () => {
       },
     };
     redis = { publishMessage: jest.fn().mockResolvedValue(undefined) };
-    service = new PaymentNotificationsService(prisma, redis);
+    policyService = {
+      canAccessPolicy: jest.fn(async (user: any, code: string) =>
+        user?.role === 'SUPER_ADMIN' &&
+        String(code || '').toUpperCase() === ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE,
+      ),
+    };
+    service = new PaymentNotificationsService(prisma, redis, policyService as any);
   });
 
   afterEach(() => {

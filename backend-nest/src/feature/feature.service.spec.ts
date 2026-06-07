@@ -1,3 +1,4 @@
+import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { FeatureService } from './feature.service';
 
 describe('FeatureService', () => {
@@ -5,6 +6,8 @@ describe('FeatureService', () => {
   let prisma: any;
   let featureActive: boolean;
   let rules: any[];
+  let policyAccess: Record<string, boolean>;
+  let policyService: any;
 
   const area = {
     code: 'HCM',
@@ -14,6 +17,7 @@ describe('FeatureService', () => {
   };
   const storeUser = {
     id: 'user-1',
+    email: 'staff@acaretek.vn',
     role: 'STAFF',
     departmentCode: 'SALES',
     jobRoleCode: 'SALE',
@@ -24,6 +28,19 @@ describe('FeatureService', () => {
   beforeEach(() => {
     featureActive = true;
     rules = [];
+    policyAccess = {
+      [ADMIN_POLICY_CODES.FIFO]: true,
+      [ADMIN_POLICY_CODES.BANK_STATEMENTS]: false,
+      [ADMIN_POLICY_CODES.ADMIN_USERS]: true,
+      [ADMIN_POLICY_CODES.ADMIN_STORES]: true,
+      [ADMIN_POLICY_CODES.FIFO_IMPORT]: true,
+      [ADMIN_POLICY_CODES.ADMIN_FEATURES]: false,
+    };
+    policyService = {
+      canAccessPolicyWithContext: jest.fn(async (_context: any, code: string) =>
+        policyAccess[String(code).toUpperCase()] === true,
+      ),
+    };
     prisma = {
       $transaction: jest.fn(async (operations: Promise<any>[]) =>
         Promise.all(operations),
@@ -70,7 +87,7 @@ describe('FeatureService', () => {
         }),
       },
     };
-    service = new FeatureService(prisma);
+    service = new FeatureService(prisma, policyService);
   });
 
   it('keeps legacy access when no feature rule matches', async () => {
@@ -149,6 +166,45 @@ describe('FeatureService', () => {
     ).resolves.toBe(false);
   });
 
+  it('allows ADMIN_ACARE through admin-equivalent legacy gates', async () => {
+    await expect(
+      service.canAccessFeature({ role: 'ADMIN_ACARE' }, 'ADMIN_USERS'),
+    ).resolves.toBe(true);
+    await expect(
+      service.canAccessFeature({ role: 'ADMIN_ACARE' }, 'ADMIN_STORES'),
+    ).resolves.toBe(true);
+    await expect(
+      service.canAccessFeature({ role: 'ADMIN_ACARE' }, 'FIFO_IMPORT'),
+    ).resolves.toBe(true);
+    await expect(
+      service.canAccessFeature({ role: 'ADMIN_ACARE' }, 'ADMIN_FEATURES'),
+    ).resolves.toBe(false);
+  });
+
+  it('does not let a domain allow override policy authorization', async () => {
+    rules = [
+      {
+        featureCode: 'ADMIN_FEATURES',
+        enabled: true,
+        emailDomain: 'acaretek.vn',
+      },
+    ];
+
+    await expect(
+      service.canAccessFeature({ id: 'user-1' }, 'ADMIN_FEATURES'),
+    ).resolves.toBe(false);
+  });
+
+  it('lets a domain deny beat a user allow', async () => {
+    rules = [
+      { featureCode: 'FIFO', enabled: true, userId: 'user-1' },
+      { featureCode: 'FIFO', enabled: false, emailDomain: 'acaretek.vn' },
+    ];
+
+    await expect(
+      service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
+    ).resolves.toBe(false);
+  });
   it('always bypasses feature gates for super admin', async () => {
     featureActive = false;
     rules = [{ featureCode: 'ADMIN_FEATURES', enabled: false }];
@@ -183,6 +239,35 @@ describe('FeatureService', () => {
         areaCode: 'HCM',
         userId: 'user-1',
         note: 'temporary block',
+      }),
+    });
+  });
+  it('creates feature rules in one batch from multiple email domains', async () => {
+    const result = await service.adminCreateRules(
+      { role: 'SUPER_ADMIN' },
+      {
+        featureCode: 'ADMIN_FEATURES',
+        enabled: true,
+        emailDomains: ['@Acaretek.vn', 'phongvu.vn'],
+        note: 'domain access',
+      },
+    );
+
+    expect(result).toHaveLength(2);
+    expect(prisma.featureAccessRule.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        featureCode: 'ADMIN_FEATURES',
+        enabled: true,
+        emailDomain: 'acaretek.vn',
+        note: 'domain access',
+      }),
+    });
+    expect(prisma.featureAccessRule.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        featureCode: 'ADMIN_FEATURES',
+        enabled: true,
+        emailDomain: 'phongvu.vn',
+        note: 'domain access',
       }),
     });
   });

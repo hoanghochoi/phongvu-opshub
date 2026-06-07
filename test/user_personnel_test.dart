@@ -3,7 +3,7 @@ import 'package:phongvu_opshub/features/admin/domain/admin_personnel_definition.
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 
 void main() {
-  test('User parses personnel fields and store scope selection state', () {
+  test('User parses personnel fields and backend feature access', () {
     final user = User.fromJson({
       'email': 'sale@phongvu.vn',
       'role': 'STAFF',
@@ -15,6 +15,7 @@ void main() {
       'storeId': 'CP62',
       'areaCode': 'HCM',
       'regionCode': 'MIEN_NAM',
+      'resolvedFeatureAccess': {'FIFO': true},
     });
 
     expect(user.departmentCode, 'SALES');
@@ -45,6 +46,34 @@ void main() {
     expect(user.canUseCp62RestrictedFlows, isFalse);
   });
 
+  test('User treats ADMIN_ACARE as admin scoped role with resolved access', () {
+    final user = User.fromJson({
+      'email': 'admin@acaretek.vn',
+      'role': 'ADMIN_ACARE',
+      'resolvedFeatureAccess': {
+        'ADMIN': true,
+        'ADMIN_USERS': true,
+        'ADMIN_STORES': true,
+        'FIFO_IMPORT': true,
+        'ADMIN_FEATURES': false,
+      },
+      'resolvedAdminPolicies': {
+        'ADMIN': true,
+        'ADMIN_POLICIES': false,
+      },
+    });
+
+    expect(user.isAdmin, isTrue);
+    expect(user.needsStoreSelection, isFalse);
+    expect(user.hasNationalWorkScope, isTrue);
+    expect(user.canUseFeature('ADMIN_USERS'), isTrue);
+    expect(user.canUseFeature('ADMIN_STORES'), isTrue);
+    expect(user.canUseFeature('FIFO_IMPORT'), isTrue);
+    expect(user.canUseFeature('ADMIN_FEATURES'), isFalse);
+    expect(user.canUsePolicy('ADMIN'), isTrue);
+    expect(user.canUsePolicy('ADMIN_POLICIES'), isFalse);
+  });
+
   test('Scope definitions do not expose legacy ONLINE or MULTI_STORE', () {
     final values = AdminWorkScopes.definitions.map((scope) => scope.value);
 
@@ -53,7 +82,7 @@ void main() {
     expect(values, isNot(contains('MULTI_STORE')));
   });
 
-  test('User treats CP62 store name as CP62 scope', () {
+  test('User does not infer FIFO access from CP62 scope without backend map', () {
     final user = User.fromJson({
       'email': 'staff@phongvu.vn',
       'role': 'STAFF',
@@ -61,7 +90,7 @@ void main() {
     });
 
     expect(user.belongsToCp62, isTrue);
-    expect(user.canUseCp62RestrictedFlows, isTrue);
+    expect(user.canUseCp62RestrictedFlows, isFalse);
   });
 
   test('User allows super admin through CP62 restricted flows', () {
@@ -73,5 +102,6 @@ void main() {
 
     expect(user.belongsToCp62, isFalse);
     expect(user.canUseCp62RestrictedFlows, isTrue);
+    expect(user.canUsePolicy('ADMIN_POLICIES'), isTrue);
   });
 }

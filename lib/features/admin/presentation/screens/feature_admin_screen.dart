@@ -604,6 +604,7 @@ class _RuleCard extends StatelessWidget {
 
   String _ruleScopeText(AdminFeatureRule rule) {
     final parts = [
+      if (rule.emailDomain?.isNotEmpty == true) 'Domain @${rule.emailDomain}',
       if (rule.userEmail?.isNotEmpty == true) 'User ${rule.userEmail}',
       if (rule.userId?.isNotEmpty == true && rule.userEmail == null)
         'User ${rule.userId}',
@@ -788,6 +789,7 @@ class _FeatureRuleEditorDialog extends StatefulWidget {
 
 class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
   final _noteController = TextEditingController();
+  final _emailDomainsController = TextEditingController();
   late String _featureCode;
   bool _enabled = true;
   String? _systemRole;
@@ -824,6 +826,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
     _areaCode = rule?.areaCode;
     _storeCode = rule?.storeCode;
     _userId = rule?.userId;
+    _emailDomainsController.text = rule?.emailDomain ?? '';
     if (_systemRole != null) _systemRoles.add(_systemRole!);
     if (_departmentCode != null) _departmentCodes.add(_departmentCode!);
     if (_jobRoleCode != null) _jobRoleCodes.add(_jobRoleCode!);
@@ -838,6 +841,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
   @override
   void dispose() {
     _noteController.dispose();
+    _emailDomainsController.dispose();
     super.dispose();
   }
 
@@ -851,10 +855,13 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
     setState(() => _saving = true);
     final current = widget.rule;
     final note = _noteController.text.trim();
+    final domainValues = _domainValuesFromController();
+    final emailDomain = domainValues.isEmpty ? null : domainValues.first;
     final rule = AdminFeatureRule(
       id: current?.id,
       featureCode: _featureCode,
       enabled: _enabled,
+      emailDomain: emailDomain,
       systemRole: _systemRole,
       departmentCode: _departmentCode,
       jobRoleCode: _jobRoleCode,
@@ -868,6 +875,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
     final batchRequest = AdminFeatureRuleBatchRequest(
       featureCode: _featureCode,
       enabled: _enabled,
+      emailDomains: domainValues,
       systemRoles: _sortedValues(_systemRoles),
       departmentCodes: _sortedValues(_departmentCodes),
       jobRoleCodes: _sortedValues(_jobRoleCodes),
@@ -894,6 +902,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
           'areaCount': _areaCodes.length,
           'storeCount': _storeCodes.length,
           'userCount': _userIds.length,
+          'domainCount': domainValues.length,
         },
       );
       if (current == null) {
@@ -903,14 +912,22 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
         await AppLogger.instance.info(
           'AdminFeatures',
           'Feature rule batch save succeeded',
-          context: {'featureCode': rule.featureCode, 'count': created.length},
+          context: {
+            'featureCode': rule.featureCode,
+            'count': created.length,
+            'domainCount': domainValues.length,
+          },
         );
       } else {
         await widget.repository.updateAdminFeatureRule(current.id ?? '', rule);
         await AppLogger.instance.info(
           'AdminFeatures',
           'Feature rule save succeeded',
-          context: {'featureCode': rule.featureCode, 'enabled': rule.enabled},
+          context: {
+            'featureCode': rule.featureCode,
+            'enabled': rule.enabled,
+            'domainCount': domainValues.length,
+          },
         );
       }
       if (mounted) Navigator.of(context).pop(true);
@@ -921,7 +938,11 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
         error: error,
         stackTrace: stackTrace,
         upload: true,
-        context: {'featureCode': rule.featureCode, 'enabled': rule.enabled},
+        context: {
+          'featureCode': rule.featureCode,
+          'enabled': rule.enabled,
+          'domainCount': domainValues.length,
+        },
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -937,6 +958,18 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
 
   List<String> _sortedValues(Set<String> values) {
     return values.toList()..sort();
+  }
+
+  List<String> _domainValuesFromController() {
+    final seen = <String>{};
+    final values = <String>[];
+    for (final raw in _emailDomainsController.text.split(RegExp(r'[\s,;]+'))) {
+      final value = raw.trim().replaceFirst(RegExp(r'^@+'), '').toLowerCase();
+      if (value.isEmpty || seen.contains(value)) continue;
+      seen.add(value);
+      values.add(value);
+    }
+    return values;
   }
 
   @override
@@ -979,6 +1012,20 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
                 value: _enabled,
                 onChanged: (value) => setState(() => _enabled = value),
                 title: Text(_enabled ? 'Bật tính năng' : 'Tắt tính năng'),
+              ),
+              TextField(
+                controller: _emailDomainsController,
+                decoration: InputDecoration(
+                  labelText: 'Domain email',
+                  hintText: isEditing
+                      ? 'acaretek.vn'
+                      : 'acaretek.vn, phongvu.vn',
+                ),
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: isEditing
+                    ? TextInputAction.next
+                    : TextInputAction.newline,
+                maxLines: isEditing ? 1 : 2,
               ),
               if (isEditing)
                 _optionalDropdown(

@@ -39,6 +39,29 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PROFILE-ADMIN-001, 2026-06-07: added configurable admin policy core and UI contract. Backend now has policy definitions, policy rules, system settings, `/policies/me`, and `/admin/policies`/rules/settings APIs; feature fallback now resolves through policy rules and explicit feature allow does not grant access beyond policy authorization. Runtime policy checks cover admin user/store/catalog capability, FIFO import/log, warranty all-scope, bank statement scope, payment monitor all-scope, VietQR cross-store confirmation, auth allowed domains, and inventory sync feature guard metadata. Flutter loads `/policies/me`, parses `resolvedAdminPolicies`, exposes policy/rule/settings admin models, and keeps feature access dependent on backend-resolved maps except `SUPER_ADMIN` bypass. Validation: `npx prisma validate`, `npx prisma generate`, `npm run build`, focused backend policy/feature/user/auth/map-vietin/vietqr/payment/inventory/fifo-log Jest (9 suites, 115 tests), full backend `npm test -- --runInBand` (33 suites, 229 tests), focused Flutter admin policy/user tests (11 tests), `flutter analyze --no-pub`, and full `flutter test --no-pub --reporter expanded` (75 tests). Gap: live deployed admin policy click-through and direct API 403 smoke remain manual.
+- PROFILE-ADMIN-001, 2026-06-06: feature management now supports
+  email-domain access rules. `SUPER_ADMIN` can create/update rule payloads with
+  `emailDomain`/`emailDomains`; backend matching derives the user email domain,
+  gives domain rules the highest access-rule priority, lets domain allow
+  override legacy authorization, and lets domain deny beat user/SR/role rules
+  while global feature inactive state still blocks access. Flutter rule
+  management can enter domain rules and logs domain counts during save flows.
+  Validation: focused backend `src/feature/feature.service.spec.ts` (12 tests),
+  focused Flutter `test/admin_feature_definition_test.dart` (2 tests), `npx
+  prisma validate`, `npx prisma generate`, `npm run build`, full backend `npm
+  test -- --runInBand` (32 suites, 221 tests), `flutter analyze --no-pub`, and
+  full `flutter test --no-pub --reporter expanded` (72 tests). Gap: live
+  admin feature-management click-through after migration remains manual.- PROFILE-ADMIN-001, 2026-06-06: added system role `ADMIN_ACARE`, seeded it
+  through migration, moved `admin@acaretek.vn` from `ADMIN` to `ADMIN_ACARE`
+  when present, scoped `ADMIN_ACARE` user management to `@acaretek.vn`, and
+  changed Flutter API handling so `403 Forbidden` no longer clears the login
+  session. Validation: focused backend user/feature Jest (2 suites, 22 tests),
+  focused Flutter `test/user_personnel_test.dart` (6 tests), `npx prisma
+  validate`, `npm run build`, full backend `npm test -- --runInBand` (32
+  suites, 218 tests), `flutter analyze --no-pub`, and full `flutter test
+  --no-pub --reporter expanded` (70 tests). Gap: live deployed
+  `admin@acaretek.vn` user-management smoke after migration remains manual.
 - AUTH-001, 2026-06-06: added `acaretek.vn` to the accepted OpsHub staff
   domain list and updated Flutter/backend validation copy so ACareTek users are
   not rejected as non-Phong Vu staff. Validation: focused backend auth/VietQR

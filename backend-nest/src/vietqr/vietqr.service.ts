@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -10,6 +10,8 @@ import { Interval } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MapVietinService } from '../map-vietin/map-vietin.service';
+import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
+import { PolicyService } from '../policy/policy.service';
 import { VietQrImageRenderer } from './vietqr-image.renderer';
 import type { RenderedVietQrImage } from './vietqr-image.renderer';
 
@@ -201,6 +203,7 @@ export class VietQrService {
 
   constructor(
     private prisma: PrismaService,
+    private policyService: PolicyService,
     private mapVietinService?: MapVietinService,
   ) {}
 
@@ -797,7 +800,7 @@ export class VietQrService {
   }
 
   private async assertCanAccessIntent(user: any, storeCode: string) {
-    if (user.role === 'SUPER_ADMIN') return;
+    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE)) return;
     if (!user.storeId)
       throw new ForbiddenException('Tài khoản chưa có showroom');
     const store = await this.prisma.store.findUnique({

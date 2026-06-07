@@ -66,6 +66,14 @@ class AdminMenuScreen extends StatelessWidget {
           color: AppColors.error,
           onTap: () => context.push('/admin/features'),
         ),
+      if (canUse('ADMIN_POLICIES'))
+        AppFeatureAction(
+          icon: Icons.policy_outlined,
+          title: 'Quản lý policy',
+          description: 'Quyền và cấu hình hệ thống',
+          color: AppColors.warning,
+          onTap: () => context.push('/admin/policies'),
+        ),
     ];
 
     return Scaffold(

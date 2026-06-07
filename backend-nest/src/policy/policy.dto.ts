@@ -1,15 +1,16 @@
 import {
   IsArray,
   IsBoolean,
+  IsObject,
   IsOptional,
   IsString,
   MaxLength,
 } from 'class-validator';
 
-export class AdminFeatureDto {
+export class AdminPolicyDto {
   @IsOptional()
   @IsString()
-  @MaxLength(60)
+  @MaxLength(80)
   code?: string;
 
   @IsOptional()
@@ -23,19 +24,28 @@ export class AdminFeatureDto {
   description?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  category?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  defaultAllowed?: boolean;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 }
 
-export class AdminFeatureRuleDto {
+export class AdminPolicyRuleDto {
   @IsOptional()
   @IsString()
-  @MaxLength(60)
-  featureCode?: string;
+  @MaxLength(80)
+  policyCode?: string;
 
   @IsOptional()
   @IsBoolean()
-  enabled?: boolean;
+  allowed?: boolean;
 
   @IsOptional()
   @IsString()
@@ -44,37 +54,37 @@ export class AdminFeatureRuleDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(60)
+  @MaxLength(80)
   systemRole?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(60)
+  @MaxLength(80)
   departmentCode?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(60)
+  @MaxLength(80)
   jobRoleCode?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(60)
+  @MaxLength(80)
   workScopeType?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(60)
+  @MaxLength(80)
   regionCode?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(60)
+  @MaxLength(80)
   areaCode?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(60)
+  @MaxLength(80)
   storeCode?: string;
 
   @IsOptional()
@@ -84,17 +94,16 @@ export class AdminFeatureRuleDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
+  scopeContains?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(240)
   note?: string;
 }
 
-export class AdminFeatureRuleBatchDto extends AdminFeatureRuleDto {
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  @MaxLength(60, { each: true })
-  systemRoles?: string[];
-
+export class AdminPolicyRuleBatchDto extends AdminPolicyRuleDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
@@ -104,37 +113,43 @@ export class AdminFeatureRuleBatchDto extends AdminFeatureRuleDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  @MaxLength(60, { each: true })
+  @MaxLength(80, { each: true })
+  systemRoles?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(80, { each: true })
   departmentCodes?: string[];
 
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  @MaxLength(60, { each: true })
+  @MaxLength(80, { each: true })
   jobRoleCodes?: string[];
 
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  @MaxLength(60, { each: true })
+  @MaxLength(80, { each: true })
   workScopeTypes?: string[];
 
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  @MaxLength(60, { each: true })
+  @MaxLength(80, { each: true })
   regionCodes?: string[];
 
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  @MaxLength(60, { each: true })
+  @MaxLength(80, { each: true })
   areaCodes?: string[];
 
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  @MaxLength(60, { each: true })
+  @MaxLength(80, { each: true })
   storeCodes?: string[];
 
   @IsOptional()
@@ -142,4 +157,36 @@ export class AdminFeatureRuleBatchDto extends AdminFeatureRuleDto {
   @IsString({ each: true })
   @MaxLength(80, { each: true })
   userIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(120, { each: true })
+  scopeContainsValues?: string[];
+
+}
+
+export class AdminSettingDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  key?: string;
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  displayName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(240)
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  category?: string;
+
+  @IsOptional()
+  @IsObject()
+  value?: Record<string, unknown> | unknown[];
 }

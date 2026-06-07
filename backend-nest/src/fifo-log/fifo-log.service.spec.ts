@@ -1,4 +1,5 @@
 import { FifoLogService } from './fifo-log.service';
+import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 
 describe('FifoLogService', () => {
   let service: FifoLogService;
@@ -14,6 +15,8 @@ describe('FifoLogService', () => {
     };
   };
 
+  let policyService: { canAccessPolicy: jest.Mock };
+
   beforeEach(() => {
     prisma = {
       user: {
@@ -26,7 +29,13 @@ describe('FifoLogService', () => {
         count: jest.fn(),
       },
     };
-    service = new FifoLogService(prisma as any);
+    policyService = {
+      canAccessPolicy: jest.fn(async (admin: any, code: string) =>
+        ['SUPER_ADMIN', 'ADMIN'].includes(String(admin?.role || '').toUpperCase()) &&
+        String(code || '').toUpperCase() === ADMIN_POLICY_CODES.FIFO_LOG_ADMIN,
+      ),
+    };
+    service = new FifoLogService(prisma as any, policyService as any);
   });
 
   it('does not let branch admins filter logs outside their store', async () => {

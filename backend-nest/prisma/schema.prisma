@@ -375,6 +375,7 @@ model FeatureAccessRule {
   featureCode    String
   feature        FeatureDefinition @relation(fields: [featureCode], references: [code], onDelete: Cascade, onUpdate: Cascade)
   enabled        Boolean
+  emailDomain    String?
   systemRole     String?
   departmentCode String?
   department     DepartmentDefinition? @relation(fields: [departmentCode], references: [code], onUpdate: Cascade)
@@ -394,6 +395,7 @@ model FeatureAccessRule {
   updatedAt      DateTime @updatedAt
 
   @@index([featureCode])
+  @@index([emailDomain])
   @@index([systemRole])
   @@index([departmentCode])
   @@index([jobRoleCode])
@@ -402,6 +404,68 @@ model FeatureAccessRule {
   @@index([areaCode])
   @@index([storeCode])
   @@index([userId])
+}
+
+model AdminPolicyDefinition {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  displayName    String
+  description    String?
+  category       String   @default("GENERAL")
+  defaultAllowed Boolean  @default(false)
+  isSystem       Boolean  @default(true)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  rules AdminPolicyRule[]
+}
+
+model AdminPolicyRule {
+  id             String   @id @default(uuid())
+  policyCode     String
+  policy         AdminPolicyDefinition @relation(fields: [policyCode], references: [code], onDelete: Cascade, onUpdate: Cascade)
+  allowed        Boolean
+  emailDomain    String?
+  systemRole     String?
+  departmentCode String?
+  jobRoleCode    String?
+  workScopeType  String?
+  regionCode     String?
+  areaCode       String?
+  storeCode      String?
+  userId         String?
+  scopeContains  String?
+  note           String?
+  isSystem       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([policyCode])
+  @@index([emailDomain])
+  @@index([systemRole])
+  @@index([departmentCode])
+  @@index([jobRoleCode])
+  @@index([workScopeType])
+  @@index([regionCode])
+  @@index([areaCode])
+  @@index([storeCode])
+  @@index([userId])
+}
+
+model AdminSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  displayName String
+  description String?
+  value       Json
+  category    String   @default("GENERAL")
+  isSystem    Boolean  @default(true)
+  isSensitive Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
 }
 
 model EmailVerificationCode {

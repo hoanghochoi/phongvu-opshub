@@ -1,4 +1,5 @@
-import { ForbiddenException } from '@nestjs/common';
+import { FEATURE_KEYS } from '../feature/feature.constants';
+import { FEATURE_KEY_METADATA } from '../feature/feature.decorator';
 import { InventoryController } from './inventory.controller';
 
 describe('InventoryController', () => {
@@ -39,17 +40,17 @@ describe('InventoryController', () => {
   it('triggers manual BigQuery sync', async () => {
     inventoryService.syncFromBigQuery.mockResolvedValue(undefined);
 
-    await expect(
-      controller.manualSync({ user: { role: 'ADMIN' } }),
-    ).resolves.toEqual({
+    await expect(controller.manualSync()).resolves.toEqual({
       message: 'BigQuery sync triggered',
     });
   });
 
-  it('rejects manual BigQuery sync for non-admin users', async () => {
-    await expect(
-      controller.manualSync({ user: { role: 'STAFF' } }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(inventoryService.syncFromBigQuery).not.toHaveBeenCalled();
+  it('guards manual BigQuery sync with FIFO_IMPORT feature policy', () => {
+    const featureKey = Reflect.getMetadata(
+      FEATURE_KEY_METADATA,
+      controller.manualSync,
+    );
+
+    expect(featureKey).toBe(FEATURE_KEYS.FIFO_IMPORT);
   });
 });

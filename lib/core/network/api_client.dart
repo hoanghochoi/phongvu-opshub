@@ -38,9 +38,10 @@ class ApiClient {
   };
 
   String _messageForStatus(int statusCode) {
-    if (statusCode == 401 || statusCode == 403) {
+    if (statusCode == 401) {
       return 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.';
     }
+    if (statusCode == 403) return 'Bạn không có quyền thực hiện thao tác này.';
     if (statusCode == 404) return 'Không tìm thấy dữ liệu phù hợp.';
     if (statusCode >= 500) {
       return 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.';
@@ -85,7 +86,7 @@ class ApiClient {
 
   Future<Never> _throwForResponse(http.Response response) async {
     final exception = _exceptionForResponse(response.statusCode, response.body);
-    if (response.statusCode == 401 || response.statusCode == 403) {
+    if (response.statusCode == 401) {
       if (kDebugMode) {
         debugPrint('🔒 [ApiClient] Auth error ${response.statusCode}');
       }

@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadGatewayException,
   BadRequestException,
   ForbiddenException,
@@ -14,6 +14,8 @@ import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { decryptSecret } from '../common/secret-cipher';
 import { PaymentNotificationsService } from '../payment-notifications/payment-notifications.service';
+import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
+import { PolicyService } from '../policy/policy.service';
 import {
   ExportMapVietinStatementsDto,
   ListStoredMapVietinTransactionsDto,
@@ -22,9 +24,6 @@ import {
   UpdateMapVietinStatementOrdersDto,
 } from './map-vietin.dto';
 
-const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
-const ADMIN_ROLE = 'ADMIN';
-const MANAGER_ROLE = 'MANAGER';
 const MAP_CLIENT_ID = 'c4a59ac3630f6d8f1abe722eac7052b5';
 const MAP_SIGNATURE_KEY = '***REMOVED***';
 const MAP_NO_AUTH_BASE_URL =
@@ -183,6 +182,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private prisma: PrismaService,
+    private policyService: PolicyService,
     @Optional()
     private paymentNotifications?: PaymentNotificationsService,
   ) {}
@@ -291,7 +291,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   async exportStatementsCsv(user: any, input: ExportMapVietinStatementsDto) {
-    this.assertCanUseStatements(user);
+    await this.assertCanUseStatements(user);
     const selectedIds = this.normalizeTransactionIds(input.transactionIds);
     const where = selectedIds.length
       ? await this.buildSelectedStatementWhere(user, selectedIds)
@@ -315,7 +315,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     transactionId: string,
     input: UpdateMapVietinStatementOrdersDto,
   ) {
-    this.assertCanUseStatements(user);
+    await this.assertCanUseStatements(user);
     const id = String(transactionId || '').trim();
     if (!id) throw new BadRequestException('transactionId không hợp lệ');
     const orders = this.normalizeOrderCodes(input.orders || []);
@@ -360,7 +360,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   async listStatementOrderHistory(user: any, transactionId: string) {
-    this.assertCanUseStatements(user);
+    await this.assertCanUseStatements(user);
     const id = String(transactionId || '').trim();
     if (!id) throw new BadRequestException('transactionId không hợp lệ');
     const transaction = await this.prisma.mapVietinTransaction.findUnique({
@@ -718,7 +718,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     input: ListMapVietinStatementsDto,
     options: { requireFilter: boolean },
   ) {
-    this.assertCanUseStatements(user);
+    await this.assertCanUseStatements(user);
     const filters = (() => {
       try {
         return this.normalizeStatementFilters(input);
@@ -812,7 +812,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   ): Promise<Prisma.MapVietinTransactionWhereInput> {
     const requestedAllStores = filters.requestedAllStores === true;
     const storeIds = filters.storeIds || [];
-    if (this.hasNationalStatementScope(user)) {
+    if (await this.hasNationalStatementScope(user)) {
       if (requestedAllStores || storeIds.length === 0) return {};
       return { storeCode: { in: storeIds } };
     }
@@ -887,8 +887,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async assertCanReadStatementStore(user: any, storeCode: string) {
-    this.assertCanUseStatements(user);
-    if (this.hasNationalStatementScope(user)) return;
+    await this.assertCanUseStatements(user);
+    if (await this.hasNationalStatementScope(user)) return;
     const store = await this.resolveUserStore(user);
     if (store.storeId !== storeCode) {
       throw new ForbiddenException('Chỉ được xem giao dịch showroom của mình');
@@ -906,19 +906,18 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return store;
   }
 
-  private hasNationalStatementScope(user: any) {
-    return (
-      user.role === SUPER_ADMIN_ROLE ||
-      String(user.workScopeType || '')
-        .trim()
-        .toUpperCase() === 'NATIONAL'
+  private async hasNationalStatementScope(user: any) {
+    return this.policyService.canAccessPolicy(
+      user,
+      ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE,
     );
   }
 
-  private assertCanUseStatements(user: any) {
-    if (![SUPER_ADMIN_ROLE, MANAGER_ROLE].includes(String(user.role || ''))) {
-      throw new ForbiddenException('Không có quyền xem sao kê');
+  private async assertCanUseStatements(user: any) {
+    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.BANK_STATEMENTS)) {
+      return;
     }
+    throw new ForbiddenException('Không có quyền xem sao kê');
   }
 
   private parseStoreCodes(value?: string) {
@@ -979,12 +978,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async resolveStore(admin: any, storeCode?: string) {
-    this.assertCanSearch(admin);
+    await this.assertCanSearch(admin);
     const normalizedStoreCode = String(storeCode || '')
       .trim()
       .toUpperCase();
 
-    if (admin.role === SUPER_ADMIN_ROLE) {
+    if (await this.policyService.canAccessPolicy(admin, ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE)) {
       if (!normalizedStoreCode) {
         throw new BadRequestException('Vui lòng chọn showroom cần kiểm tra');
       }
@@ -1014,7 +1013,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       .trim()
       .toUpperCase();
 
-    if (user.role === SUPER_ADMIN_ROLE) {
+    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE)) {
       if (!normalizedStoreCode) {
         throw new BadRequestException('Vui lòng chọn showroom cần theo dõi');
       }
@@ -1520,14 +1519,11 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return { start, end };
   }
 
-  private assertCanSearch(admin: any) {
-    if (
-      ![SUPER_ADMIN_ROLE, ADMIN_ROLE, MANAGER_ROLE].includes(
-        String(admin.role || ''),
-      )
-    ) {
-      throw new ForbiddenException('Không có quyền kiểm tra giao dịch MAP');
+  private async assertCanSearch(admin: any) {
+    if (await this.policyService.canAccessPolicy(admin, ADMIN_POLICY_CODES.BANK_STATEMENTS)) {
+      return;
     }
+    throw new ForbiddenException('Không có quyền kiểm tra giao dịch MAP');
   }
 
   private decryptMapPassword(cipherText: string) {

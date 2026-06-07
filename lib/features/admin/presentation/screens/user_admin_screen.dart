@@ -47,15 +47,45 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
+    final currentUser = context.read<AuthProvider>().user;
+    final canUseStores = currentUser?.canUseFeature('ADMIN_STORES') == true;
+    final canUseRoles = currentUser?.canUseFeature('ADMIN_ROLES') == true;
+    final canUsePersonnel =
+        currentUser?.canUseFeature('ADMIN_PERSONNEL') == true;
+    final canUseRegions = currentUser?.canUseFeature('ADMIN_REGIONS') == true;
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin user management load started',
+      context: {
+        'role': currentUser?.role,
+        'email': currentUser?.email,
+        'canUseStores': canUseStores,
+        'canUseRoles': canUseRoles,
+        'canUsePersonnel': canUsePersonnel,
+        'canUseRegions': canUseRegions,
+      },
+    );
     try {
-      final results = await Future.wait([
+      final results = await Future.wait<Object>([
         _repository.listUsers(query: _searchController.text),
-        _repository.listAdminStores(),
-        _repository.listAdminRoles(),
-        _repository.listAdminDepartments(),
-        _repository.listAdminJobRoles(),
-        _repository.listAdminRegions(),
-        _repository.listAdminAreas(),
+        canUseStores
+            ? _repository.listAdminStores()
+            : Future.value(<StoreBranch>[]),
+        canUseRoles
+            ? _repository.listAdminRoles()
+            : Future.value(AdminRoles.definitions),
+        canUsePersonnel
+            ? _repository.listAdminDepartments()
+            : Future.value(<AdminPersonnelDefinition>[]),
+        canUsePersonnel
+            ? _repository.listAdminJobRoles()
+            : Future.value(<AdminPersonnelDefinition>[]),
+        canUseRegions
+            ? _repository.listAdminRegions()
+            : Future.value(<AdminRegionDefinition>[]),
+        canUseRegions
+            ? _repository.listAdminAreas()
+            : Future.value(<AdminAreaDefinition>[]),
       ]);
       if (!mounted) return;
       setState(() {
@@ -67,6 +97,29 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         _regions = results[5] as List<AdminRegionDefinition>;
         _areas = results[6] as List<AdminAreaDefinition>;
       });
+      await AppLogger.instance.info(
+        'Admin',
+        'Admin user management load succeeded',
+        context: {
+          'role': currentUser?.role,
+          'userCount': _users.length,
+          'storeCount': _stores.length,
+          'roleCount': _roles.length,
+        },
+      );
+    } catch (error) {
+      await AppLogger.instance.error(
+        'Admin',
+        'Admin user management load failed',
+        error: error,
+        upload: true,
+        context: {'role': currentUser?.role, 'email': currentUser?.email},
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không tải được danh sách người dùng')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -449,7 +502,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   }
 
   String _defaultScopeForRole(String role) {
-    return role == 'SUPER_ADMIN' || role == 'ADMIN' ? 'NATIONAL' : 'STORE';
+    return User.isAdminRole(role) ? 'NATIONAL' : 'STORE';
   }
 
   void _setRole(String value) {

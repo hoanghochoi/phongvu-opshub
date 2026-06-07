@@ -77,9 +77,7 @@ class AuthProvider extends ChangeNotifier {
           personnelCode: personnelCode,
           mustSelectStore:
               (workScopeType ??
-                      (role == 'ADMIN' || role == 'SUPER_ADMIN'
-                          ? 'NATIONAL'
-                          : 'STORE')) ==
+                      (User.isAdminRole(role) ? 'NATIONAL' : 'STORE')) ==
                   'STORE' &&
               storeId == null,
         );
@@ -267,16 +265,35 @@ class AuthProvider extends ChangeNotifier {
   Future<User> _withFeatureAccess(User user) async {
     try {
       final access = await _repository.getMyFeatureAccess();
+      Map<String, bool> policyAccess = const {};
+      try {
+        policyAccess = await _repository.getMyPolicyAccess();
+        await AppLogger.instance.info(
+          'Auth',
+          'Policy access loaded',
+          context: {'email': user.email, 'count': policyAccess.length},
+        );
+      } catch (e) {
+        await AppLogger.instance.warn(
+          'Auth',
+          'Policy access load failed; using server response access only',
+          context: {'email': user.email, 'error': e.toString()},
+        );
+      }
       await AppLogger.instance.info(
         'Auth',
         'Feature access loaded',
-        context: {'email': user.email, 'count': access.length},
+        context: {
+          'email': user.email,
+          'count': access.length,
+          'policyCount': policyAccess.length,
+        },
       );
-      return user.copyWith(featureAccess: access);
+      return user.copyWith(featureAccess: access, policyAccess: policyAccess);
     } catch (e) {
       await AppLogger.instance.warn(
         'Auth',
-        'Feature access load failed; using legacy fallback',
+        'Feature access load failed; using server response access only',
         context: {'email': user.email, 'error': e.toString()},
       );
       return user;

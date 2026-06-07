@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -7,6 +7,8 @@ import {
 import { FifoLogType } from '@prisma/client';
 import { FifoLogService } from '../fifo-log/fifo-log.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
+import { PolicyService } from '../policy/policy.service';
 import {
   DISPLAY_RESERVED_BIN_TYPE,
   FifoInventoryItem,
@@ -54,6 +56,7 @@ export class FifoService {
     private prisma: PrismaService,
     private inventory: OpshubFifoInventoryService,
     private fifoLogService: FifoLogService,
+    private policyService: PolicyService,
   ) {}
 
   async check(
@@ -226,7 +229,7 @@ export class FifoService {
   ): Promise<
     ManualInventoryImportResult & { skippedRows: number; totalRows: number }
   > {
-    this.assertInventoryImportAdmin(user);
+    await this.assertInventoryImportAdmin(user);
     const result = await this.inventory.importManualInventory(items);
     await this.log(
       user,

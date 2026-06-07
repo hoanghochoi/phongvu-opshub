@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './auth.dto';
 import { EmailVerificationService } from './email-verification.service';
 import { PasswordResetService } from './password-reset.service';
+import { PolicyService } from '../policy/policy.service';
 import { assertPasswordPolicy } from './password-policy';
 import {
   AuthDeviceContext,
@@ -20,7 +21,6 @@ import {
 import {
   allowedEmailDomainMessage,
   getAllowedEmailDomains,
-  isAllowedEmailDomain,
 } from './email-domain-policy';
 
 const PASSWORD_SALT_ROUNDS = 12;
@@ -46,6 +46,7 @@ export class AuthService {
     private emailVerificationService: EmailVerificationService,
     private passwordResetService: PasswordResetService,
     private authSessionService: AuthSessionService,
+    private policyService: PolicyService,
   ) {}
 
   async passwordLogin(
@@ -54,7 +55,7 @@ export class AuthService {
     device: AuthDeviceContext,
   ) {
     const email = this.normalizeEmail(emailInput);
-    this.assertAllowedDomain(email);
+    await this.assertAllowedDomain(email);
     const normalizedDevice = this.authSessionService.normalizeDevice(device);
     this.logger.log(
       `Password login started: email=${email} platform=${normalizedDevice.platform}`,
@@ -102,7 +103,7 @@ export class AuthService {
 
   async register(input: RegisterDto) {
     const email = this.normalizeEmail(input.email);
-    this.assertAllowedDomain(email);
+    await this.assertAllowedDomain(email);
 
     const firstName = input.firstName.trim();
     const lastName = input.lastName?.trim() || null;
@@ -151,7 +152,7 @@ export class AuthService {
 
   async sendRegistrationVerificationCode(emailInput: string) {
     const email = this.normalizeEmail(emailInput);
-    this.assertAllowedDomain(email);
+    await this.assertAllowedDomain(email);
 
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
@@ -214,13 +215,13 @@ export class AuthService {
 
   async forgotPassword(emailInput: string) {
     const email = this.normalizeEmail(emailInput);
-    this.assertAllowedDomain(email);
+    await this.assertAllowedDomain(email);
     return this.passwordResetService.sendResetCodeForEmail(email);
   }
 
   async verifyForgotPasswordCode(emailInput: string, code: string) {
     const email = this.normalizeEmail(emailInput);
-    this.assertAllowedDomain(email);
+    await this.assertAllowedDomain(email);
     return this.passwordResetService.verifyResetCode(email, code);
   }
 
@@ -269,12 +270,15 @@ export class AuthService {
     return email;
   }
 
-  private assertAllowedDomain(email: string) {
-    if (getAllowedEmailDomains().length === 0) {
+  private async assertAllowedDomain(email: string) {
+    const fallbackDomains = getAllowedEmailDomains();
+    const allowedDomains = await this.policyService.getAllowedEmailDomains(fallbackDomains);
+    if (allowedDomains.length === 0) {
       throw new ForbiddenException('Chưa cấu hình domain email Phong Vũ');
     }
 
-    if (!isAllowedEmailDomain(email)) {
+    const emailDomain = email.split('@')[1]?.toLowerCase();
+    if (!emailDomain || !allowedDomains.includes(emailDomain)) {
       throw new ForbiddenException(allowedEmailDomainMessage());
     }
   }
@@ -378,7 +382,11 @@ export class AuthService {
       .trim()
       .toUpperCase();
     if (WORK_SCOPE_TYPES.has(scope)) return scope;
-    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
+    if (
+      user.role === 'SUPER_ADMIN' ||
+      user.role === 'ADMIN' ||
+      user.role === 'ADMIN_ACARE'
+    ) {
       return NATIONAL_SCOPE;
     }
     return STORE_SCOPE;

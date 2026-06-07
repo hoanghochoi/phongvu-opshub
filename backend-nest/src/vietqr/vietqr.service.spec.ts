@@ -3,6 +3,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import jsQR from 'jsqr';
+import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PNG } from 'pngjs';
 import { VietQrService } from './vietqr.service';
 
@@ -23,6 +24,7 @@ describe('VietQrService', () => {
     };
   };
   let mapVietinService: { searchTransactionsForStoreCode: jest.Mock };
+  let policyService: { canAccessPolicy: jest.Mock };
 
   beforeEach(() => {
     process.env = {
@@ -51,7 +53,15 @@ describe('VietQrService', () => {
       },
     };
     mapVietinService = { searchTransactionsForStoreCode: jest.fn() };
-    service = new VietQrService(prisma as any, mapVietinService as any);
+    policyService = {
+      canAccessPolicy: jest.fn(async (user: any, code: string) => {
+        if (user?.role === 'SUPER_ADMIN') return true;
+        return String(code || '').toUpperCase() ===
+          ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE &&
+          user?.role === 'SUPER_ADMIN';
+      }),
+    };
+    service = new VietQrService(prisma as any, policyService as any, mapVietinService as any);
   });
 
   afterEach(() => {

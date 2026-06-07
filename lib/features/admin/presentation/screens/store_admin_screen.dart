@@ -121,7 +121,10 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
     );
     final canCreateStores = role == 'SUPER_ADMIN';
     final canEditStores =
-        role == 'SUPER_ADMIN' || role == 'MANAGER' || role == 'ADMIN';
+        role == 'SUPER_ADMIN' ||
+        role == 'MANAGER' ||
+        role == 'ADMIN' ||
+        role == 'ADMIN_ACARE';
 
     return Scaffold(
       appBar: GradientHeader(
