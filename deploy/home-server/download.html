@@ -455,7 +455,12 @@
   </main>
 
   <script>
-    const manifestUrl = '/downloads/latest.json';
+    const currentPath = window.location.pathname.replace(/\/+$/, '') || '/download';
+    const isStagingDownloadPage = currentPath === '/staging-download';
+    const downloadsBasePath = isStagingDownloadPage
+      ? '/staging-download/downloads'
+      : '/downloads';
+    const manifestUrl = `${downloadsBasePath}/latest.json`;
     const downloadList = document.getElementById('downloadList');
     const checksumRow = document.getElementById('checksumRow');
     const stateMessage = document.getElementById('stateMessage');
@@ -491,7 +496,46 @@
       },
     ];
 
+    applyPageVariant();
     loadManifest();
+
+    function applyPageVariant() {
+      if (!isStagingDownloadPage) {
+        return;
+      }
+
+      document.title = 'Tải ứng dụng PhongVu OpsHub Staging';
+      document.querySelector('meta[name="description"]')?.setAttribute(
+        'content',
+        'Trang tải ứng dụng PhongVu OpsHub Staging cho smoke test nội bộ.',
+      );
+      document.querySelector('link[rel="icon"]')?.setAttribute('href', `${downloadsBasePath}/opshub-icon-192.png`);
+      document.querySelector('.topbar')?.setAttribute('aria-label', 'PhongVu OpsHub Staging');
+
+      const brandImage = document.querySelector('.brand img');
+      if (brandImage) {
+        brandImage.setAttribute('src', `${downloadsBasePath}/opshub-icon-192.png`);
+        brandImage.setAttribute('alt', 'PhongVu OpsHub Staging');
+      }
+
+      const copyUpdates = [
+        ['.brand-name', 'PhongVu OpsHub Staging'],
+        ['.brand-subtitle', 'Môi trường test nội bộ Phong Vũ'],
+        ['.eyebrow', 'Tải staging'],
+        ['h1', 'Cài đặt PhongVu OpsHub Staging'],
+        [
+          '.lead',
+          'Trang này dành riêng cho bản staging để smoke test trước khi phát hành production. Bạn vẫn có thể chọn Android hoặc Windows bên dưới.',
+        ],
+      ];
+
+      for (const [selector, text] of copyUpdates) {
+        const element = document.querySelector(selector);
+        if (element) {
+          element.textContent = text;
+        }
+      }
+    }
 
     async function loadManifest() {
       try {

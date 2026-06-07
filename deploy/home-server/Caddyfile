@@ -23,6 +23,23 @@ http://{$OPSHUB_DOMAIN} {
     file_server
   }
 
+  handle /staging-download/ {
+    redir /staging-download 308
+  }
+
+  handle /staging-download {
+    rewrite * /download
+    reverse_proxy https://opshub-staging.hoanghochoi.com {
+      header_up Host opshub-staging.hoanghochoi.com
+    }
+  }
+
+  handle_path /staging-download/* {
+    reverse_proxy https://opshub-staging.hoanghochoi.com {
+      header_up Host opshub-staging.hoanghochoi.com
+    }
+  }
+
   handle_path /uploads/* {
     root * /srv/uploads
     file_server

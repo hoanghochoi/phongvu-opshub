@@ -1,25 +1,19 @@
-name: Deploy OpsHub
+name: Deploy OpsHub Staging
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
-    inputs:
-      skip_client_build:
-        description: Deploy only the /download landing page and latest manifest from live artifacts.
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
 
 env:
-  OPSHUB_PUBLIC_BASE_URL: https://opshub.hoanghochoi.com
-  OPSHUB_API_BASE_URL: https://opshub.hoanghochoi.com/api
-  OPSHUB_REMOTE_APP_DIR: /home/ubuntu/phongvu-opshub
-  OPSHUB_ENV_FILE: /srv/opshub/env
+  OPSHUB_PUBLIC_BASE_URL: https://opshub-staging.hoanghochoi.com
+  OPSHUB_API_BASE_URL: https://opshub-staging.hoanghochoi.com/api
+  OPSHUB_DOWNLOAD_PUBLIC_BASE_URL: https://opshub.hoanghochoi.com/staging-download
+  OPSHUB_REMOTE_APP_DIR: /home/hhh/phongvu-opshub-staging
+  OPSHUB_ENV_FILE: /srv/opshub-staging/env
+  OPSHUB_SSD_ROOT: /srv/opshub-staging
+  COMPOSE_PROJECT_NAME: opshub_staging
 
 jobs:
   prepare:
@@ -35,19 +29,20 @@ jobs:
       windows_checksum_name: ${{ steps.version.outputs.windows_checksum_name }}
       release_notes: ${{ steps.version.outputs.release_notes }}
     steps:
-      - name: Compute release version
+      - name: Compute staging release version
         id: version
         shell: bash
         run: |
           set -euo pipefail
           version_name="$(date -u +%Y.%m.%d).${GITHUB_RUN_NUMBER}"
           windows_build_name="$(date -u +%Y).$(date -u +%-m).$(date -u +%-d)"
-          version_code="$((100000 + GITHUB_RUN_NUMBER))"
-          apk_name="phongvu-opshub-v${version_name}+${version_code}.apk"
-          windows_zip_name="phongvu-opshub-windows-v${version_name}+${version_code}.zip"
-          windows_installer_basename="phongvu-opshub-windows-setup-v${version_name}+${version_code}"
+          version_code="$((200000 + GITHUB_RUN_NUMBER))"
+          apk_name="phongvu-opshub-staging-v${version_name}+${version_code}.apk"
+          windows_zip_name="phongvu-opshub-staging-windows-v${version_name}+${version_code}.zip"
+          windows_installer_basename="phongvu-opshub-staging-windows-setup-v${version_name}+${version_code}"
           windows_installer_name="${windows_installer_basename}.exe"
-          release_notes="GitHub ${GITHUB_SHA::7}"
+          windows_checksum_name="phongvu-opshub-staging-windows-v${version_name}+${version_code}.sha256"
+          release_notes="Staging GitHub ${GITHUB_SHA::7}"
           echo "version_name=${version_name}" >> "$GITHUB_OUTPUT"
           echo "windows_build_name=${windows_build_name}" >> "$GITHUB_OUTPUT"
           echo "version_code=${version_code}" >> "$GITHUB_OUTPUT"
@@ -55,14 +50,12 @@ jobs:
           echo "windows_zip_name=${windows_zip_name}" >> "$GITHUB_OUTPUT"
           echo "windows_installer_basename=${windows_installer_basename}" >> "$GITHUB_OUTPUT"
           echo "windows_installer_name=${windows_installer_name}" >> "$GITHUB_OUTPUT"
+          echo "windows_checksum_name=${windows_checksum_name}" >> "$GITHUB_OUTPUT"
           echo "release_notes=${release_notes}" >> "$GITHUB_OUTPUT"
-          windows_checksum_name=phongvu-opshub-windows-v${version_name}+${version_code}.sha256
-          echo windows_checksum_name=${windows_checksum_name} >> $GITHUB_OUTPUT
 
   build_android:
     runs-on: ubuntu-latest
     needs: prepare
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -73,36 +66,36 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Configure Android signing
+      - name: Configure Android staging signing
         shell: bash
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_STAGING_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
           if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "ANDROID_KEYSTORE_BASE64 secret is required for upgrade-safe release APK signing." >&2
+            echo "ANDROID_STAGING_KEYSTORE_BASE64 is required for staging APK signing." >&2
             exit 1
           fi
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
 
-      - name: Build release APK
+      - name: Build staging APK
         shell: bash
         env:
           ANDROID_KEYSTORE_PATH: upload-keystore.jks
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_STAGING_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_STAGING_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_STAGING_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           for key in ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
             if [ -z "${!key}" ]; then
-              echo "$key secret is required for upgrade-safe release APK signing." >&2
+              echo "${key/ANDROID_/ANDROID_STAGING_} is required for staging APK signing." >&2
               exit 1
             fi
           done
           flutter pub get
           flutter build apk --release \
-            --flavor production \
+            --flavor staging \
             --build-name "${{ needs.prepare.outputs.version_name }}" \
             --build-number "${{ needs.prepare.outputs.version_code }}" \
             --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}"
@@ -113,44 +106,47 @@ jobs:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
-          ping: ${{ secrets.OPSHUB_VPS_HOST }}
+          ping: ${{ secrets.OPSHUB_STAGING_VPS_HOST || '100.127.127.89' }}
           version: latest
 
       - name: Configure SSH
         shell: bash
         env:
-          VPS_HOST: ${{ secrets.OPSHUB_VPS_HOST }}
-          VPS_PORT: ${{ secrets.OPSHUB_VPS_PORT || '22' }}
-          VPS_USER: ${{ secrets.OPSHUB_VPS_USER || 'ubuntu' }}
-          VPS_SSH_KEY: ${{ secrets.OPSHUB_VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.OPSHUB_STAGING_VPS_HOST || '100.127.127.89' }}
+          VPS_PORT: ${{ secrets.OPSHUB_STAGING_VPS_PORT || '22' }}
+          VPS_USER: ${{ secrets.OPSHUB_STAGING_VPS_USER || 'hhh' }}
+          VPS_SSH_KEY: ${{ secrets.OPSHUB_STAGING_SSH_KEY }}
         run: |
           set -euo pipefail
+          if [ -z "$VPS_SSH_KEY" ]; then
+            echo "OPSHUB_STAGING_SSH_KEY is required." >&2
+            exit 1
+          fi
           mkdir -p ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/opshub_deploy_key
-          chmod 600 ~/.ssh/opshub_deploy_key
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/opshub_staging_deploy_key
+          chmod 600 ~/.ssh/opshub_staging_deploy_key
           ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts
           {
-            echo "Host opshub-vps"
+            echo "Host opshub-staging"
             echo "  HostName $VPS_HOST"
             echo "  Port $VPS_PORT"
             echo "  User $VPS_USER"
-            echo "  IdentityFile ~/.ssh/opshub_deploy_key"
+            echo "  IdentityFile ~/.ssh/opshub_staging_deploy_key"
             echo "  IdentitiesOnly yes"
           } >> ~/.ssh/config
 
-      - name: Upload APK to VPS staging
+      - name: Upload staging APK
         shell: bash
         run: |
           set -euo pipefail
           staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}/android"
-          ssh opshub-vps "mkdir -p '$staging_dir'"
-          scp 'build/app/outputs/flutter-apk/app-production-release.apk' \
-            "opshub-vps:${staging_dir}/${{ needs.prepare.outputs.apk_name }}"
+          ssh opshub-staging "mkdir -p '$staging_dir'"
+          scp 'build/app/outputs/flutter-apk/app-staging-release.apk' \
+            "opshub-staging:${staging_dir}/${{ needs.prepare.outputs.apk_name }}"
 
   build_windows:
     runs-on: windows-latest
     needs: prepare
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -161,7 +157,7 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Build Windows release
+      - name: Build Windows staging release
         shell: pwsh
         run: |
           flutter pub get
@@ -170,38 +166,38 @@ jobs:
             --build-number "${{ needs.prepare.outputs.version_code }}" `
             --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}"
 
-      - name: Configure Windows internal signing certificate
+      - name: Configure Windows staging signing certificate
         shell: pwsh
         env:
-          WINDOWS_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
-          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+          WINDOWS_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_STAGING_SIGNING_PFX_BASE64 }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_STAGING_SIGNING_PFX_PASSWORD }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_BASE64)) {
-            Write-Warning 'WINDOWS_SIGNING_PFX_BASE64 is not configured; Windows artifacts will stay unsigned.'
+            Write-Warning 'WINDOWS_STAGING_SIGNING_PFX_BASE64 is not configured; Windows staging artifacts will stay unsigned.'
             'WINDOWS_SIGNING_ENABLED=false' | Out-File -FilePath $env:GITHUB_ENV -Append
             return
           }
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_PASSWORD)) {
-            throw 'WINDOWS_SIGNING_PFX_PASSWORD is required when WINDOWS_SIGNING_PFX_BASE64 is configured.'
+            throw 'WINDOWS_STAGING_SIGNING_PFX_PASSWORD is required when WINDOWS_STAGING_SIGNING_PFX_BASE64 is configured.'
           }
-          $certPath = Join-Path $env:RUNNER_TEMP 'opshub-windows-signing.pfx'
+          $certPath = Join-Path $env:RUNNER_TEMP 'opshub-staging-windows-signing.pfx'
           [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64))
           $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certPath, $env:WINDOWS_SIGNING_PFX_PASSWORD)
-          $publicCertPath = Join-Path $env:RUNNER_TEMP 'opshub-windows-signing.cer'
+          $publicCertPath = Join-Path $env:RUNNER_TEMP 'opshub-staging-windows-signing.cer'
           [IO.File]::WriteAllBytes($publicCertPath, $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
           'WINDOWS_SIGNING_ENABLED=true' | Out-File -FilePath $env:GITHUB_ENV -Append
           "WINDOWS_SIGNING_PFX_PATH=$certPath" | Out-File -FilePath $env:GITHUB_ENV -Append
           "WINDOWS_SIGNING_CERT_PATH=$publicCertPath" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Sign Windows app executable
+      - name: Sign Windows staging executable
         if: env.WINDOWS_SIGNING_ENABLED == 'true'
         shell: pwsh
         env:
-          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_STAGING_SIGNING_PFX_PASSWORD }}
         run: |
           .\scripts\sign-windows-artifact.ps1 -Path 'build\windows\x64\runner\Release\phongvu_opshub.exe'
 
-      - name: Zip Windows release
+      - name: Zip Windows staging release
         shell: pwsh
         run: |
           $zipPath = Join-Path "build\windows\x64\runner" "${{ needs.prepare.outputs.windows_zip_name }}"
@@ -219,23 +215,18 @@ jobs:
         run: |
           $prereqDir = New-Item -ItemType Directory -Force -Path "build\windows\prereqs"
           $vcRedistPath = Join-Path $prereqDir.FullName "vc_redist.x64.exe"
-          Invoke-WebRequest `
-            -Uri "https://aka.ms/vc14/vc_redist.x64.exe" `
-            -OutFile $vcRedistPath
-
+          Invoke-WebRequest -Uri "https://aka.ms/vc14/vc_redist.x64.exe" -OutFile $vcRedistPath
           $vcRedist = Get-Item $vcRedistPath
           if ($vcRedist.Length -lt 1000000) {
             throw "Downloaded Visual C++ Redistributable is unexpectedly small: $($vcRedist.Length) bytes"
           }
-
           $signature = Get-AuthenticodeSignature $vcRedistPath
           if ($signature.Status -ne "Valid") {
             throw "Visual C++ Redistributable signature is not valid: $($signature.Status)"
           }
-
           "VC_REDIST_X64_PATH=$($vcRedist.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Build Windows installer
+      - name: Build Windows staging installer
         shell: pwsh
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
@@ -245,30 +236,39 @@ jobs:
           $releaseDir = (Resolve-Path "build\windows\x64\runner\Release").Path
           $outputDir = (Resolve-Path "build\windows\x64\runner").Path
           $isccArgs = @(
-            "/DAppVersion=${{ needs.prepare.outputs.version_name }}",
-            "/DSourceDir=$releaseDir",
-            "/DVcRedistPath=${env:VC_REDIST_X64_PATH}",
-            "/DOutputDir=$outputDir",
-            "/DOutputBaseFilename=${{ needs.prepare.outputs.windows_installer_basename }}"
+            '"' + $iscc + '"',
+            '/DAppName="PhongVu OpsHub Staging"',
+            '/DAppPublisher="PhongVu OpsHub Staging"',
+            '/DAppId="{{6E36D5C9-22C7-48D1-B907-9C8C8C72E77F}"',
+            '/DDefaultDirName="{localappdata}\Programs\PhongVu OpsHub Staging"',
+            '/DAppVersion="${{ needs.prepare.outputs.version_name }}"',
+            '/DSourceDir="' + $releaseDir + '"',
+            '/DVcRedistPath="' + $env:VC_REDIST_X64_PATH + '"',
+            '/DOutputDir="' + $outputDir + '"',
+            '/DOutputBaseFilename="${{ needs.prepare.outputs.windows_installer_basename }}"'
           )
           if ($env:WINDOWS_SIGNING_ENABLED -eq 'true') {
             if (-not (Test-Path $env:WINDOWS_SIGNING_CERT_PATH)) {
               throw 'WINDOWS_SIGNING_CERT_PATH is missing while Windows signing is enabled.'
             }
-            $isccArgs += "/DInternalCodeSigningCertPath=${env:WINDOWS_SIGNING_CERT_PATH}"
+            $isccArgs += '/DInternalCodeSigningCertPath="' + $env:WINDOWS_SIGNING_CERT_PATH + '"'
           }
-          $isccArgs += 'deploy\windows\phongvu-opshub.iss'
-          & $iscc @isccArgs
+          $isccArgs += '"deploy\windows\phongvu-opshub.iss"'
+          $isccCommand = $isccArgs -join ' '
+          cmd.exe /c $isccCommand
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup failed with exit code $LASTEXITCODE."
+          }
 
-      - name: Sign Windows installer
+      - name: Sign Windows staging installer
         if: env.WINDOWS_SIGNING_ENABLED == 'true'
         shell: pwsh
         env:
-          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_STAGING_SIGNING_PFX_PASSWORD }}
         run: |
           .\scripts\sign-windows-artifact.ps1 -Path 'build\windows\x64\runner\${{ needs.prepare.outputs.windows_installer_name }}'
 
-      - name: Write Windows checksums
+      - name: Write Windows staging checksums
         shell: pwsh
         run: |
           $runnerDir = 'build\windows\x64\runner'
@@ -293,42 +293,46 @@ jobs:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
-          ping: ${{ secrets.OPSHUB_VPS_HOST }}
+          ping: ${{ secrets.OPSHUB_STAGING_VPS_HOST || '100.127.127.89' }}
           version: latest
 
       - name: Configure SSH
         shell: bash
         env:
-          VPS_HOST: ${{ secrets.OPSHUB_VPS_HOST }}
-          VPS_PORT: ${{ secrets.OPSHUB_VPS_PORT || '22' }}
-          VPS_USER: ${{ secrets.OPSHUB_VPS_USER || 'ubuntu' }}
-          VPS_SSH_KEY: ${{ secrets.OPSHUB_VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.OPSHUB_STAGING_VPS_HOST || '100.127.127.89' }}
+          VPS_PORT: ${{ secrets.OPSHUB_STAGING_VPS_PORT || '22' }}
+          VPS_USER: ${{ secrets.OPSHUB_STAGING_VPS_USER || 'hhh' }}
+          VPS_SSH_KEY: ${{ secrets.OPSHUB_STAGING_SSH_KEY }}
         run: |
           set -euo pipefail
+          if [ -z "$VPS_SSH_KEY" ]; then
+            echo "OPSHUB_STAGING_SSH_KEY is required." >&2
+            exit 1
+          fi
           mkdir -p ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/opshub_deploy_key
-          chmod 600 ~/.ssh/opshub_deploy_key
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/opshub_staging_deploy_key
+          chmod 600 ~/.ssh/opshub_staging_deploy_key
           ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts
           {
-            echo "Host opshub-vps"
+            echo "Host opshub-staging"
             echo "  HostName $VPS_HOST"
             echo "  Port $VPS_PORT"
             echo "  User $VPS_USER"
-            echo "  IdentityFile ~/.ssh/opshub_deploy_key"
+            echo "  IdentityFile ~/.ssh/opshub_staging_deploy_key"
             echo "  IdentitiesOnly yes"
           } >> ~/.ssh/config
 
-      - name: Upload Windows artifacts to VPS staging
+      - name: Upload Windows staging artifacts
         shell: bash
         run: |
           set -euo pipefail
           staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}/windows"
-          ssh opshub-vps "mkdir -p '$staging_dir'"
+          ssh opshub-staging "mkdir -p '$staging_dir'"
           scp \
             'build/windows/x64/runner/${{ needs.prepare.outputs.windows_zip_name }}' \
             'build/windows/x64/runner/${{ needs.prepare.outputs.windows_installer_name }}' \
             'build/windows/x64/runner/${{ needs.prepare.outputs.windows_checksum_name }}' \
-            "opshub-vps:${staging_dir}/"
+            "opshub-staging:${staging_dir}/"
 
   deploy:
     runs-on: ubuntu-latest
@@ -336,7 +340,6 @@ jobs:
       - prepare
       - build_android
       - build_windows
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -347,28 +350,32 @@ jobs:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
-          ping: ${{ secrets.OPSHUB_VPS_HOST }}
+          ping: ${{ secrets.OPSHUB_STAGING_VPS_HOST || '100.127.127.89' }}
           version: latest
 
       - name: Configure SSH
         shell: bash
         env:
-          VPS_HOST: ${{ secrets.OPSHUB_VPS_HOST }}
-          VPS_PORT: ${{ secrets.OPSHUB_VPS_PORT || '22' }}
-          VPS_USER: ${{ secrets.OPSHUB_VPS_USER || 'ubuntu' }}
-          VPS_SSH_KEY: ${{ secrets.OPSHUB_VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.OPSHUB_STAGING_VPS_HOST || '100.127.127.89' }}
+          VPS_PORT: ${{ secrets.OPSHUB_STAGING_VPS_PORT || '22' }}
+          VPS_USER: ${{ secrets.OPSHUB_STAGING_VPS_USER || 'hhh' }}
+          VPS_SSH_KEY: ${{ secrets.OPSHUB_STAGING_SSH_KEY }}
         run: |
           set -euo pipefail
+          if [ -z "$VPS_SSH_KEY" ]; then
+            echo "OPSHUB_STAGING_SSH_KEY is required." >&2
+            exit 1
+          fi
           mkdir -p ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/opshub_deploy_key
-          chmod 600 ~/.ssh/opshub_deploy_key
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/opshub_staging_deploy_key
+          chmod 600 ~/.ssh/opshub_staging_deploy_key
           ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts
           {
-            echo "Host opshub-vps"
+            echo "Host opshub-staging"
             echo "  HostName $VPS_HOST"
             echo "  Port $VPS_PORT"
             echo "  User $VPS_USER"
-            echo "  IdentityFile ~/.ssh/opshub_deploy_key"
+            echo "  IdentityFile ~/.ssh/opshub_staging_deploy_key"
             echo "  IdentitiesOnly yes"
           } >> ~/.ssh/config
 
@@ -376,9 +383,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          downloads_dir="${OPSHUB_SSD_ROOT}/downloads"
           client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}"
-          ssh opshub-vps \
+          ssh opshub-staging \
             "CLIENT_STAGING_DIR='$client_staging_dir' \
+             DOWNLOADS_DIR='$downloads_dir' \
              APK_NAME='${{ needs.prepare.outputs.apk_name }}' \
              WINDOWS_ZIP_NAME='${{ needs.prepare.outputs.windows_zip_name }}' \
              WINDOWS_INSTALLER_NAME='${{ needs.prepare.outputs.windows_installer_name }}' \
@@ -386,7 +395,6 @@ jobs:
              bash -s" <<'REMOTE'
           set -euo pipefail
 
-          downloads_dir=/srv/opshub/downloads
           android_artifact="$CLIENT_STAGING_DIR/android/$APK_NAME"
           windows_zip="$CLIENT_STAGING_DIR/windows/$WINDOWS_ZIP_NAME"
           windows_installer="$CLIENT_STAGING_DIR/windows/$WINDOWS_INSTALLER_NAME"
@@ -399,16 +407,17 @@ jobs:
             fi
           done
 
-          mkdir -p "$downloads_dir"
-          install -m 0644 "$android_artifact" "$downloads_dir/$APK_NAME"
-          install -m 0644 "$windows_zip" "$downloads_dir/$WINDOWS_ZIP_NAME"
-          install -m 0644 "$windows_installer" "$downloads_dir/$WINDOWS_INSTALLER_NAME"
-          install -m 0644 "$windows_checksum" "$downloads_dir/$WINDOWS_CHECKSUM_NAME"
+          sudo mkdir -p "$DOWNLOADS_DIR"
+          sudo install -m 0644 "$android_artifact" "$DOWNLOADS_DIR/$APK_NAME"
+          sudo install -m 0644 "$windows_zip" "$DOWNLOADS_DIR/$WINDOWS_ZIP_NAME"
+          sudo install -m 0644 "$windows_installer" "$DOWNLOADS_DIR/$WINDOWS_INSTALLER_NAME"
+          sudo install -m 0644 "$windows_checksum" "$DOWNLOADS_DIR/$WINDOWS_CHECKSUM_NAME"
           REMOTE
 
-      - name: Write download manifest
+      - name: Write staging download manifest
         shell: bash
         env:
+          OPSHUB_PUBLIC_BASE_URL: ${{ env.OPSHUB_DOWNLOAD_PUBLIC_BASE_URL }}
           DOWNLOAD_MANIFEST_OUTPUT: dist/downloads/latest.json
           APP_VERSION: ${{ needs.prepare.outputs.version_name }}
           APP_BUILD_NUMBER: ${{ needs.prepare.outputs.version_code }}
@@ -419,50 +428,58 @@ jobs:
           WINDOWS_CHECKSUM_FILE_NAME: ${{ needs.prepare.outputs.windows_checksum_name }}
         run: |
           set -euo pipefail
-          APK_FILE_SIZE_BYTES="$(ssh opshub-vps "stat -c%s '/srv/opshub/downloads/${{ needs.prepare.outputs.apk_name }}'")"
-          WINDOWS_INSTALLER_FILE_SIZE_BYTES="$(ssh opshub-vps "stat -c%s '/srv/opshub/downloads/${{ needs.prepare.outputs.windows_installer_name }}'")"
-          WINDOWS_ZIP_FILE_SIZE_BYTES="$(ssh opshub-vps "stat -c%s '/srv/opshub/downloads/${{ needs.prepare.outputs.windows_zip_name }}'")"
-          WINDOWS_CHECKSUM_FILE_SIZE_BYTES="$(ssh opshub-vps "stat -c%s '/srv/opshub/downloads/${{ needs.prepare.outputs.windows_checksum_name }}'")"
-          export \
-            APK_FILE_SIZE_BYTES \
-            WINDOWS_INSTALLER_FILE_SIZE_BYTES \
-            WINDOWS_ZIP_FILE_SIZE_BYTES \
-            WINDOWS_CHECKSUM_FILE_SIZE_BYTES
+          downloads_dir="${OPSHUB_SSD_ROOT}/downloads"
+          APK_FILE_SIZE_BYTES="$(ssh opshub-staging "sudo stat -c%s '$downloads_dir/${{ needs.prepare.outputs.apk_name }}'")"
+          WINDOWS_INSTALLER_FILE_SIZE_BYTES="$(ssh opshub-staging "sudo stat -c%s '$downloads_dir/${{ needs.prepare.outputs.windows_installer_name }}'")"
+          WINDOWS_ZIP_FILE_SIZE_BYTES="$(ssh opshub-staging "sudo stat -c%s '$downloads_dir/${{ needs.prepare.outputs.windows_zip_name }}'")"
+          WINDOWS_CHECKSUM_FILE_SIZE_BYTES="$(ssh opshub-staging "sudo stat -c%s '$downloads_dir/${{ needs.prepare.outputs.windows_checksum_name }}'")"
+          export APK_FILE_SIZE_BYTES WINDOWS_INSTALLER_FILE_SIZE_BYTES WINDOWS_ZIP_FILE_SIZE_BYTES WINDOWS_CHECKSUM_FILE_SIZE_BYTES
           node scripts/download-manifest.mjs from-published
 
-      - name: Upload app bundle and download metadata
+      - name: Upload app bundle and staging download metadata
         shell: bash
         run: |
           set -euo pipefail
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
-          ssh opshub-vps "mkdir -p '$remote_release_dir' /srv/opshub/downloads"
+          downloads_dir="${OPSHUB_SSD_ROOT}/downloads"
+          tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}"
+          ssh opshub-staging "mkdir -p '$remote_release_dir' '$tmp_dir'"
           rsync -az --delete \
             --exclude '.git/' \
             --exclude '.dart_tool/' \
             --exclude 'build/' \
             --exclude 'dist/' \
-            ./ "opshub-vps:${remote_release_dir}/"
-          scp 'dist/downloads/latest.json' \
-            'opshub-vps:/srv/opshub/downloads/latest.json'
-          scp 'deploy/home-server/download.html' \
-            'opshub-vps:/srv/opshub/downloads/download.html'
-          scp 'web/icons/Icon-192.png' \
-            'opshub-vps:/srv/opshub/downloads/opshub-icon-192.png'
+            ./ "opshub-staging:${remote_release_dir}/"
+          scp 'dist/downloads/latest.json' "opshub-staging:${tmp_dir}/latest.json"
+          scp 'deploy/home-server/download.html' "opshub-staging:${tmp_dir}/download.html"
+          scp 'web/icons/Icon-192.png' "opshub-staging:${tmp_dir}/opshub-icon-192.png"
+          ssh opshub-staging \
+            "DOWNLOADS_DIR='$downloads_dir' TMP_DIR='$tmp_dir' bash -s" <<'REMOTE'
+          set -euo pipefail
+          sudo mkdir -p "$DOWNLOADS_DIR"
+          sudo install -m 0644 "$TMP_DIR/latest.json" "$DOWNLOADS_DIR/latest.json"
+          sudo install -m 0644 "$TMP_DIR/download.html" "$DOWNLOADS_DIR/download.html"
+          sudo install -m 0644 "$TMP_DIR/opshub-icon-192.png" "$DOWNLOADS_DIR/opshub-icon-192.png"
+          rm -rf "$TMP_DIR"
+          REMOTE
 
-      - name: Deploy backend and publish version metadata
+      - name: Deploy staging backend and publish version metadata
         shell: bash
         run: |
           set -euo pipefail
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
           client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}"
-          android_update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.apk_name }}"
-          windows_update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.windows_installer_name }}"
-          ssh opshub-vps \
+          android_update_url="${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.apk_name }}"
+          windows_update_url="${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.windows_installer_name }}"
+          ssh opshub-staging \
             "REMOTE_RELEASE_DIR='$remote_release_dir' \
              CLIENT_STAGING_DIR='$client_staging_dir' \
              OPSHUB_REMOTE_APP_DIR='${OPSHUB_REMOTE_APP_DIR}' \
              CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
              OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
+             OPSHUB_SSD_ROOT='$OPSHUB_SSD_ROOT' \
+             COMPOSE_PROJECT_NAME='$COMPOSE_PROJECT_NAME' \
+             OPSHUB_PUBLIC_BASE_URL='$OPSHUB_PUBLIC_BASE_URL' \
              APP_VERSION='${{ needs.prepare.outputs.version_name }}' \
              APP_BUILD_NUMBER='${{ needs.prepare.outputs.version_code }}' \
              ANDROID_UPDATE_URL='$android_update_url' \
@@ -471,10 +488,11 @@ jobs:
              bash -s" <<'REMOTE'
           set -euo pipefail
 
-          sudo mkdir -p "$(dirname "$OPSHUB_ENV_FILE")"
-          sudo touch "$OPSHUB_ENV_FILE"
-          sudo chown root:"$(id -gn)" "$OPSHUB_ENV_FILE"
-          sudo chmod 640 "$OPSHUB_ENV_FILE"
+          if [ ! -s "$OPSHUB_ENV_FILE" ]; then
+            echo "Missing staging env file: $OPSHUB_ENV_FILE" >&2
+            echo "Run bash deploy/staging/bootstrap.sh on mementoamoris and replace placeholders first." >&2
+            exit 1
+          fi
 
           upsert_env() {
             key="$1"
@@ -486,6 +504,16 @@ jobs:
               printf '%s=%s\n' "$key" "$value" | sudo tee -a "$OPSHUB_ENV_FILE" >/dev/null
             fi
           }
+
+          upsert_env OPSHUB_STAGING true
+          upsert_env COMPOSE_PROJECT_NAME "$COMPOSE_PROJECT_NAME"
+          upsert_env OPSHUB_DOMAIN "opshub-staging.hoanghochoi.com"
+          upsert_env PUBLIC_BASE_URL "$OPSHUB_PUBLIC_BASE_URL"
+          upsert_env OPSHUB_SSD_ROOT "$OPSHUB_SSD_ROOT"
+          upsert_env OPSHUB_HTTP_BIND "127.0.0.1:8090"
+          upsert_env OPSHUB_HTTPS_BIND "127.0.0.1:8443"
+          upsert_env IMAGE_BASE_URL "${OPSHUB_PUBLIC_BASE_URL}/uploads"
+          upsert_env ALLOWED_ORIGINS "$OPSHUB_PUBLIC_BASE_URL"
 
           upsert_env APP_VERSION "$APP_VERSION"
           upsert_env APP_BUILD_NUMBER "$APP_BUILD_NUMBER"
@@ -516,6 +544,7 @@ jobs:
           ln -sfn "$REMOTE_RELEASE_DIR" "${CURRENT_DIR}.next"
           mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
           cd "$CURRENT_DIR"
+          export COMPOSE_PROJECT_NAME
 
           OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
@@ -544,14 +573,15 @@ jobs:
             rm -rf "$dir"
           done
 
-          mapfile -t client_files < <(find /srv/opshub/downloads -maxdepth 1 -type f \( -name 'phongvu-opshub-v*.apk' -o -name 'phongvu-opshub-windows-v*.zip' -o -name 'phongvu-opshub-windows-setup-v*.exe' -o -name 'phongvu-opshub-windows-v*.sha256' \) -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
+          downloads_dir="$OPSHUB_SSD_ROOT/downloads"
+          mapfile -t client_files < <(sudo find "$downloads_dir" -maxdepth 1 -type f \( -name 'phongvu-opshub-staging-v*.apk' -o -name 'phongvu-opshub-staging-windows-v*.zip' -o -name 'phongvu-opshub-staging-windows-setup-v*.exe' -o -name 'phongvu-opshub-staging-windows-v*.sha256' \) -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
           kept=0
           for file in "${client_files[@]}"; do
             if [ "$kept" -lt 20 ]; then
               kept=$((kept + 1))
               continue
             fi
-            rm -f "$file"
+            sudo rm -f "$file"
           done
 
           case "$CLIENT_STAGING_DIR" in
@@ -565,7 +595,7 @@ jobs:
           esac
           REMOTE
 
-      - name: Verify public health and version metadata
+      - name: Verify staging public health and version metadata
         shell: bash
         run: |
           set -euo pipefail
@@ -588,206 +618,44 @@ jobs:
             const android = JSON.parse(process.argv[1]);
             const windows = JSON.parse(process.argv[2]);
             const expectedBuild = Number(process.argv[3]);
-            if (android.latestBuild !== expectedBuild) {
-              throw new Error(\`Android latestBuild expected \${expectedBuild}, got \${android.latestBuild}\`);
+            const publicBaseUrl = process.argv[4];
+            for (const [platform, payload] of Object.entries({ android, windows })) {
+              if (payload.latestBuild !== expectedBuild) {
+                throw new Error(platform + ' latestBuild expected ' + expectedBuild + ', got ' + payload.latestBuild);
+              }
+              if (!String(payload.updateUrl || '').startsWith(publicBaseUrl + '/downloads/')) {
+                throw new Error(platform + ' updateUrl does not point to staging downloads');
+              }
+              if (String(payload.updateUrl || '').includes('opshub.hoanghochoi.com/downloads/')) {
+                throw new Error(platform + ' updateUrl points to production downloads');
+              }
             }
-            if (windows.latestBuild !== expectedBuild) {
-              throw new Error(\`Windows latestBuild expected \${expectedBuild}, got \${windows.latestBuild}\`);
-            }
-            if (!String(android.updateUrl || '').endsWith('.apk')) {
-              throw new Error('Android updateUrl is not an APK');
-            }
-            if (!String(windows.updateUrl || '').endsWith('.exe')) {
-              throw new Error('Windows updateUrl is not an installer EXE');
-            }
-          " "$android_json" "$windows_json" "${{ needs.prepare.outputs.version_code }}"
+            if (!String(android.updateUrl || '').endsWith('.apk')) throw new Error('Android updateUrl is not an APK');
+            if (!String(windows.updateUrl || '').endsWith('.exe')) throw new Error('Windows updateUrl is not an installer EXE');
+          " "$android_json" "$windows_json" "${{ needs.prepare.outputs.version_code }}" "$OPSHUB_DOWNLOAD_PUBLIC_BASE_URL"
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$android_json")" >/dev/null
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$windows_json")" >/dev/null
-          retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
-          manifest_json="$(retry_curl "${OPSHUB_PUBLIC_BASE_URL}/downloads/latest.json")"
+          retry_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}" >/dev/null
+          manifest_json="$(retry_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json")"
           node -e "
             const manifest = JSON.parse(process.argv[1]);
             const expectedVersion = process.argv[2];
             const expectedBuild = Number(process.argv[3]);
-            if (manifest.version !== expectedVersion) {
-              throw new Error('Download manifest version expected ' + expectedVersion + ', got ' + manifest.version);
-            }
-            if (manifest.build !== expectedBuild) {
-              throw new Error('Download manifest build expected ' + expectedBuild + ', got ' + manifest.build);
-            }
-            const required = ['apk', 'windowsInstaller', 'windowsZip', 'windowsChecksum'];
-            for (const key of required) {
-              const file = manifest.files?.[key];
+            const publicBaseUrl = process.argv[4];
+            if (manifest.version !== expectedVersion) throw new Error('Manifest version mismatch');
+            if (manifest.build !== expectedBuild) throw new Error('Manifest build mismatch');
+            for (const [key, file] of Object.entries(manifest.files || {})) {
               if (!file?.url || !file?.fileName || !Number.isInteger(file.sizeBytes) || file.sizeBytes <= 0) {
-                throw new Error('Download manifest file entry is invalid: ' + key);
+                throw new Error('Invalid manifest file entry: ' + key);
+              }
+              if (!file.url.startsWith(publicBaseUrl + '/downloads/')) {
+                throw new Error('Manifest file does not point to staging: ' + key);
+              }
+              if (file.url.includes('opshub.hoanghochoi.com/downloads/')) {
+                throw new Error('Manifest file points to production downloads: ' + key);
               }
             }
-            if (!manifest.files.apk.url.endsWith('.apk')) throw new Error('APK URL is invalid');
-            if (!manifest.files.windowsInstaller.url.endsWith('.exe')) throw new Error('Windows installer URL is invalid');
-            if (!manifest.files.windowsZip.url.endsWith('.zip')) throw new Error('Windows ZIP URL is invalid');
-            if (!manifest.files.windowsChecksum.url.endsWith('.sha256')) throw new Error('Windows checksum URL is invalid');
-          " "$manifest_json" "${{ needs.prepare.outputs.version_name }}" "${{ needs.prepare.outputs.version_code }}"
-          node -e "
-            const manifest = JSON.parse(process.argv[1]);
-            for (const file of Object.values(manifest.files)) console.log(file.url);
-          " "$manifest_json" | while IFS= read -r url; do
-            curl -fIs "$url" >/dev/null
-          done
-
-  deploy_download_static:
-    runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_client_build == true }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Confirm static-only deploy
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo 'Static-only deploy requested; Android and Windows build jobs are skipped.'
-
-      - name: Capture live app-version metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist/downloads
-          curl -fsS "${OPSHUB_API_BASE_URL}/app-version?platform=android" > dist/downloads/android-before.json
-          curl -fsS "${OPSHUB_API_BASE_URL}/app-version?platform=windows" > dist/downloads/windows-before.json
-
-      - name: Write download manifest from live artifacts
-        shell: bash
-        env:
-          DOWNLOAD_MANIFEST_OUTPUT: dist/downloads/latest.json
-        run: |
-          set -euo pipefail
-          node scripts/download-manifest.mjs from-live
-
-      - name: Connect Tailscale
-        uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-          ping: ${{ secrets.OPSHUB_VPS_HOST }}
-          version: latest
-
-      - name: Configure SSH
-        shell: bash
-        env:
-          VPS_HOST: ${{ secrets.OPSHUB_VPS_HOST }}
-          VPS_PORT: ${{ secrets.OPSHUB_VPS_PORT || '22' }}
-          VPS_USER: ${{ secrets.OPSHUB_VPS_USER || 'ubuntu' }}
-          VPS_SSH_KEY: ${{ secrets.OPSHUB_VPS_SSH_KEY }}
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/opshub_deploy_key
-          chmod 600 ~/.ssh/opshub_deploy_key
-          ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts
-          {
-            echo "Host opshub-vps"
-            echo "  HostName $VPS_HOST"
-            echo "  Port $VPS_PORT"
-            echo "  User $VPS_USER"
-            echo "  IdentityFile ~/.ssh/opshub_deploy_key"
-            echo "  IdentitiesOnly yes"
-          } >> ~/.ssh/config
-
-      - name: Upload download landing files and reload Caddy
-        shell: bash
-        run: |
-          set -euo pipefail
-          caddy_tmp="/tmp/opshub-Caddyfile-${GITHUB_SHA}"
-          ssh opshub-vps "mkdir -p /srv/opshub/downloads"
-          scp 'dist/downloads/latest.json' \
-            'opshub-vps:/srv/opshub/downloads/latest.json'
-          scp 'deploy/home-server/download.html' \
-            'opshub-vps:/srv/opshub/downloads/download.html'
-          scp 'web/icons/Icon-192.png' \
-            'opshub-vps:/srv/opshub/downloads/opshub-icon-192.png'
-          scp 'deploy/home-server/Caddyfile' "opshub-vps:${caddy_tmp}"
-
-          ssh opshub-vps \
-            "CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
-             OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
-             CADDY_TMP='$caddy_tmp' \
-             bash -s" <<'REMOTE'
-          set -euo pipefail
-          if [ ! -d "$CURRENT_DIR/deploy/home-server" ]; then
-            echo "Current deploy directory is missing: $CURRENT_DIR/deploy/home-server" >&2
-            exit 1
-          fi
-          docker run --rm \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -v "$CADDY_TMP:/etc/caddy/Caddyfile:ro" \
-            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
-          install -m 0644 "$CADDY_TMP" "$CURRENT_DIR/deploy/home-server/Caddyfile"
-          rm -f "$CADDY_TMP"
-          cd "$CURRENT_DIR"
-          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml \
-            up -d --no-deps caddy
-          if ! docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml \
-            exec -T caddy caddy reload --config /etc/caddy/Caddyfile; then
-            docker compose \
-              --env-file "$OPSHUB_ENV_FILE" \
-              -f deploy/home-server/docker-compose.home.yml \
-              restart caddy
-          fi
-          docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml \
-            ps caddy
-          REMOTE
-
-      - name: Verify static download deploy
-        shell: bash
-        run: |
-          set -euo pipefail
-          retry_curl() {
-            local url="$1"
-            local attempt
-            for attempt in {1..12}; do
-              if curl -fsS "$url"; then
-                return 0
-              fi
-              sleep 5
-            done
-            curl -fsS "$url"
-          }
-
-          retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
-          manifest_json="$(retry_curl "${OPSHUB_PUBLIC_BASE_URL}/downloads/latest.json")"
-          android_after="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android")"
-          windows_after="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows")"
-          node -e "
-            const fs = require('node:fs');
-            const manifest = JSON.parse(process.argv[1]);
-            const androidBefore = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-            const windowsBefore = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
-            const androidAfter = JSON.parse(process.argv[4]);
-            const windowsAfter = JSON.parse(process.argv[5]);
-            if (JSON.stringify(androidBefore) !== JSON.stringify(androidAfter)) {
-              throw new Error('Android app-version changed during static-only deploy');
-            }
-            if (JSON.stringify(windowsBefore) !== JSON.stringify(windowsAfter)) {
-              throw new Error('Windows app-version changed during static-only deploy');
-            }
-            if (manifest.version !== androidAfter.latestVersion || manifest.build !== androidAfter.latestBuild) {
-              throw new Error('Download manifest does not match live Android metadata');
-            }
-            const required = ['apk', 'windowsInstaller', 'windowsZip', 'windowsChecksum'];
-            for (const key of required) {
-              const file = manifest.files?.[key];
-              if (!file?.url || !file?.fileName || !Number.isInteger(file.sizeBytes) || file.sizeBytes <= 0) {
-                throw new Error('Download manifest file entry is invalid: ' + key);
-              }
-            }
-          " "$manifest_json" dist/downloads/android-before.json dist/downloads/windows-before.json "$android_after" "$windows_after"
+          " "$manifest_json" "${{ needs.prepare.outputs.version_name }}" "${{ needs.prepare.outputs.version_code }}" "$OPSHUB_DOWNLOAD_PUBLIC_BASE_URL"
           node -e "
             const manifest = JSON.parse(process.argv[1]);
             for (const file of Object.values(manifest.files)) console.log(file.url);

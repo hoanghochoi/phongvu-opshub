@@ -1,5 +1,15 @@
+#ifndef AppName
 #define AppName "PhongVu OpsHub"
+#endif
+#ifndef AppPublisher
 #define AppPublisher "PhongVu OpsHub"
+#endif
+#ifndef AppId
+#define AppId "{{D3F4B8F6-1F61-4C7E-9E9E-938AF6F38F8F}"
+#endif
+#ifndef DefaultDirName
+#define DefaultDirName "{localappdata}\Programs\PhongVu OpsHub"
+#endif
 #ifndef AppVersion
 #define AppVersion "1.0.0"
 #endif
@@ -17,11 +27,11 @@
 #endif
 
 [Setup]
-AppId={{D3F4B8F6-1F61-4C7E-9E9E-938AF6F38F8F}
+AppId={#AppId}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
-DefaultDirName={localappdata}\Programs\PhongVu OpsHub
+DefaultDirName={#DefaultDirName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}

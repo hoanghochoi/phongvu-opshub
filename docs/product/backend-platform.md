@@ -44,6 +44,13 @@ curl http://localhost:3000/app-version
   `skip_client_build=true` refreshes only the static download page and manifest
   from existing live artifacts; it must not change app-version metadata or
   rebuild client packages.
+- Staging deploys use the manual `Deploy OpsHub Staging` workflow, target
+  `opshub-staging.hoanghochoi.com` for API/runtime traffic, publish downloads
+  under `/srv/opshub-staging/downloads/`, expose those downloads through
+  `https://opshub.hoanghochoi.com/staging-download`, and build staging client
+  packages with separate Android and Windows app identities. Staging DB refresh
+  is a separate manual sanitized-clone operation and is not part of the normal
+  staging deploy workflow.
 
 ## Expected Proof
 
