@@ -191,7 +191,12 @@ describe('UserService admin store management', () => {
         return false;
       }),
     };
-    service = new UserService(prisma, {} as any, passwordResetService as any, policyService);
+    service = new UserService(
+      prisma,
+      {} as any,
+      passwordResetService as any,
+      policyService,
+    );
   });
 
   it('creates a store with normalized payment fields and default area', async () => {
@@ -561,5 +566,42 @@ describe('UserService admin store management', () => {
       service.adminDeleteStore(superAdmin, 'CP99'),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.store.delete).not.toHaveBeenCalled();
+  });
+
+  it('seeds phongvu.vn as a root domain and selectable subdomain', async () => {
+    prisma.organizationNode = {
+      upsert: jest.fn(async ({ where, create }: any) => ({
+        id:
+          where.code === 'DOMAIN_PHONGVU_VN'
+            ? 'org-domain-phongvu-vn'
+            : create.id,
+        code: where.code,
+      })),
+    };
+
+    await (service as any).seedDefaultOrganizationTree();
+
+    expect(prisma.organizationNode.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: 'DOMAIN_PHONGVU_VN' },
+        create: expect.objectContaining({
+          id: 'org-domain-phongvu-vn',
+          type: 'ROOT_DOMAIN',
+          emailDomain: 'phongvu.vn',
+        }),
+      }),
+    );
+    expect(prisma.organizationNode.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: 'SUBDOMAIN_PHONGVU_VN' },
+        create: expect.objectContaining({
+          id: 'org-subdomain-phongvu-vn',
+          type: 'SUBDOMAIN',
+          parentId: 'org-domain-phongvu-vn',
+          emailDomain: 'phongvu.vn',
+          loginAllowed: true,
+        }),
+      }),
+    );
   });
 });
