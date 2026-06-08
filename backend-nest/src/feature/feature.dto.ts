@@ -23,6 +23,18 @@ export class AdminFeatureDto {
   description?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  parentCode?: string;
+
+  @IsOptional()
+  sortOrder?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  visibleInUserPicker?: boolean;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 }

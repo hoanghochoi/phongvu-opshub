@@ -17,9 +17,9 @@ payment account import from CSV, and administration for privileged roles.
 - Forbidden admin API responses do not log the user out; only unauthorized
   session responses clear the local session.
 - Administration contains user management, role management, SR management,
-  Region/Area management, personnel catalog management, feature management,
-  policy management, settings management, and manual inventory import when
-  the resolved feature map allows them.
+  organization tree management, Region/Area management, personnel catalog
+  management, feature management, policy management, settings management, and
+  manual inventory import when the resolved feature map allows them.
 - Role management supports adding, editing, and deleting custom roles.
 - System roles are protected from deletion.
 - Store management supports adding, editing, and deleting stores.
@@ -27,11 +27,17 @@ payment account import from CSV, and administration for privileged roles.
 - SR management assigns each SR to an Area; Region is derived from Area.
 - Store-scoped users derive Region/Area from their assigned SR and do not need
   a direct Region/Area assignment.
-- Feature management supports API-enforced enabled/disabled rules by feature,
-  email domain, system role, department, job role, work scope, Region, Area,
-  SR, and user override. Feature allow rules require matching policy access;
-  feature deny rules can still block access. `SUPER_ADMIN` bypasses feature
-  gates to avoid lockout.
+- Organization management supports root domain, subdomain, block, department,
+  area, showroom, job role, and virtual scope nodes. Default root domains are
+  `phongvu.vn` and `acaretek.vn`; subdomains are created below root domains by
+  `SUPER_ADMIN`.
+- Runtime feature access is a strict per-user allowlist. `SUPER_ADMIN` can
+  assign multiple active features from user management; non-`SUPER_ADMIN` users
+  cannot open unassigned features even when a policy rule would allow the
+  capability. Legacy feature rules remain for reference and backfill.
+- `SUPER_ADMIN` bypasses feature gates to avoid lockout.
+- User management supports filters by name/email search, domain,
+  organization node, feature/screen, role, and status.
 - Policy management supports configurable policy definitions, detailed policy
   rules, and system settings for login domains, password policy, and OTP
   policies. Policy batch creation supports multiple selected users, email

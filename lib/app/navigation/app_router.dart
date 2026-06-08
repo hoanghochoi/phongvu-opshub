@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -16,6 +16,7 @@ import '../../features/auth/presentation/screens/store_selection_screen.dart';
 import '../../features/admin/presentation/screens/admin_menu_screen.dart';
 import '../../features/admin/presentation/screens/feature_admin_screen.dart';
 import '../../features/admin/presentation/screens/inventory_import_screen.dart';
+import '../../features/admin/presentation/screens/organization_tree_admin_screen.dart';
 import '../../features/admin/presentation/screens/personnel_catalog_admin_screen.dart';
 import '../../features/admin/presentation/screens/policy_admin_screen.dart';
 import '../../features/admin/presentation/screens/region_admin_screen.dart';
@@ -138,6 +139,10 @@ class AppRouter {
           builder: (context, state) => const RegionAdminScreen(),
         ),
         GoRoute(
+          path: '/admin/organization',
+          builder: (context, state) => const OrganizationTreeAdminScreen(),
+        ),
+        GoRoute(
           path: '/admin/personnel',
           builder: (context, state) => const PersonnelCatalogAdminScreen(),
         ),
@@ -225,6 +230,7 @@ class AppRouter {
       '/admin/roles' => 'ADMIN_ROLES',
       '/admin/stores' => 'ADMIN_STORES',
       '/admin/regions' => 'ADMIN_REGIONS',
+      '/admin/organization' => 'ADMIN_REGIONS',
       '/admin/personnel' => 'ADMIN_PERSONNEL',
       '/admin/features' => 'ADMIN_FEATURES',
       '/admin/policies' => 'ADMIN_POLICIES',

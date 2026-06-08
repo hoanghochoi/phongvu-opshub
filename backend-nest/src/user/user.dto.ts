@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsEmail,
   IsOptional,
   IsString,
@@ -68,6 +69,38 @@ export class AdminUserDto extends UpdateProfileDto {
   @IsString()
   @MaxLength(40)
   areaCode?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(60, { each: true })
+  featureCodes?: string[];
+}
+
+export class AdminUserQueryDto {
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @IsOptional()
+  @IsString()
+  domain?: string;
+
+  @IsOptional()
+  @IsString()
+  orgNodeId?: string;
+
+  @IsOptional()
+  @IsString()
+  featureCode?: string;
+
+  @IsOptional()
+  @IsString()
+  role?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
 }
 
 export class AdminResetPasswordDto {
@@ -175,4 +208,38 @@ export class AdminStoreDto {
   @IsString()
   @MaxLength(255)
   mapVietinPassword?: string;
+}
+
+export class OrganizationNodeDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  code?: string;
+
+  @IsString()
+  @MaxLength(120)
+  displayName!: string;
+
+  @IsString()
+  @MaxLength(40)
+  type!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  parentId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  emailDomain?: string;
+
+  @IsOptional()
+  loginAllowed?: boolean;
+
+  @IsOptional()
+  isActive?: boolean;
+
+  @IsOptional()
+  sortOrder?: number;
 }

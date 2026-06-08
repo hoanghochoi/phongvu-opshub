@@ -3,18 +3,26 @@ class AdminFeatureDefinition {
   final String code;
   final String title;
   final String description;
+  final String? parentCode;
+  final int sortOrder;
+  final bool visibleInUserPicker;
   final bool isSystem;
   final bool isActive;
   final int ruleCount;
+  final int userAssignmentCount;
 
   const AdminFeatureDefinition({
     this.id,
     required this.code,
     required this.title,
     required this.description,
+    this.parentCode,
+    this.sortOrder = 0,
+    this.visibleInUserPicker = true,
     this.isSystem = true,
     this.isActive = true,
     this.ruleCount = 0,
+    this.userAssignmentCount = 0,
   });
 
   factory AdminFeatureDefinition.fromJson(Map<String, dynamic> json) {
@@ -27,9 +35,14 @@ class AdminFeatureDefinition {
       code: code,
       title: json['displayName']?.toString() ?? code,
       description: json['description']?.toString() ?? '',
+      parentCode: json['parentCode']?.toString(),
+      sortOrder: int.tryParse(json['sortOrder']?.toString() ?? '') ?? 0,
+      visibleInUserPicker: json['visibleInUserPicker'] != false,
       isSystem: json['isSystem'] == true,
       isActive: json['isActive'] != false,
       ruleCount: int.tryParse(counts['rules']?.toString() ?? '') ?? 0,
+      userAssignmentCount:
+          int.tryParse(counts['userAssignments']?.toString() ?? '') ?? 0,
     );
   }
 
@@ -37,6 +50,9 @@ class AdminFeatureDefinition {
     'code': code,
     'displayName': title,
     'description': description,
+    'parentCode': parentCode,
+    'sortOrder': sortOrder,
+    'visibleInUserPicker': visibleInUserPicker,
     'isActive': isActive,
   };
 }

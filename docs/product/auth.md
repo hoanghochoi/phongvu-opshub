@@ -9,10 +9,17 @@ Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
 - Flutter uses email/password sign-in with a separate registration form.
 - Users without an account register with an OpsHub-accepted staff email domain
   and an OpsHub password before signing in.
-- NestJS validates the allowed staff email domain list from
-  `data/email_domain.txt` and issues JWT-backed sessions.
-- Backend configuration includes `JWT_SECRET`; `EMAIL_DOMAIN_FILE` can override
-  the default domain-list file path.
+- NestJS validates allowed staff email domains from active organization tree
+  domain nodes first. The default root domains are `phongvu.vn` and
+  `acaretek.vn`; `SUPER_ADMIN` can add login-enabled subdomain nodes such as
+  `phongvu-shop.vn` under the root tree.
+- `data/email_domain.txt` and `EMAIL_DOMAIN_FILE` remain fallback inputs when
+  the organization tree is unavailable, but they should contain only accepted
+  root domains by default.
+- The break-glass account `admin@hoanghochoi.com` is allowed as an exact email
+  exception even though `hoanghochoi.com` is not an operational organization
+  domain.
+- Backend configuration includes `JWT_SECRET`.
 - Persistent login on the client stores JWTs in secure storage.
 - Each user can keep only one active session per OS platform: `windows`,
   `android`, `ios`, `macos`, `linux`, and `web`. A newer login on the same
@@ -40,8 +47,9 @@ Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
 
 - Login behavior is security-sensitive and defaults to the high-risk lane when
   changed.
-- Allowed OpsHub staff email domains, password policy, reset-code lifetime, JWT
-  token-version invalidation, platform-session enforcement, session
+- Allowed OpsHub staff email domains, organization tree login state, password
+  policy, reset-code lifetime, JWT token-version invalidation,
+  platform-session enforcement, session
   persistence, and logout behavior must be explicit in implementation stories.
 - Do not commit real credentials, tokens, service accounts, or production env
   values.

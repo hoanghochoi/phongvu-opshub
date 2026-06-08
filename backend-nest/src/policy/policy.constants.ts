@@ -31,12 +31,7 @@ export const ADMIN_SETTING_KEYS = {
 } as const;
 
 export const DEFAULT_AUTH_DOMAINS = [
-  'phongvu-shop.vn',
-  'phongvu-mna.vn',
-  'phongvu-care.vn',
-  'phongvu-office.vn',
   'phongvu.vn',
-  'teko.vn',
   'acaretek.vn',
 ];
 

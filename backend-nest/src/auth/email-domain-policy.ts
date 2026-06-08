@@ -4,12 +4,7 @@ import * as path from 'path';
 const DEFAULT_DOMAIN_FILE = 'data/email_domain.txt';
 const DOMAIN_FILE_KEY = 'EMAIL_DOMAIN_FILE';
 const DEFAULT_ALLOWED_DOMAINS = [
-  'phongvu-shop.vn',
-  'phongvu-mna.vn',
-  'phongvu-care.vn',
-  'phongvu-office.vn',
   'phongvu.vn',
-  'teko.vn',
   'acaretek.vn',
 ];
 

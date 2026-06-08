@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/theme/app_colors.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/utils/validators.dart';
@@ -11,6 +12,8 @@ import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../domain/admin_feature_definition.dart';
+import '../../domain/admin_organization_node.dart';
 import '../../domain/admin_personnel_definition.dart';
 import '../../domain/admin_role_definition.dart';
 
@@ -31,6 +34,13 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   List<AdminPersonnelDefinition> _jobRoles = [];
   List<AdminRegionDefinition> _regions = [];
   List<AdminAreaDefinition> _areas = [];
+  List<AdminFeatureDefinition> _features = [];
+  List<AdminOrganizationNode> _orgNodes = [];
+  String? _domainFilter;
+  String? _orgNodeFilter;
+  String? _featureFilter;
+  String? _roleFilter;
+  String? _statusFilter;
   bool _loading = true;
 
   @override
@@ -53,6 +63,9 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     final canUsePersonnel =
         currentUser?.canUseFeature('ADMIN_PERSONNEL') == true;
     final canUseRegions = currentUser?.canUseFeature('ADMIN_REGIONS') == true;
+    final canUseFeatures =
+        currentUser?.role == 'SUPER_ADMIN' ||
+        currentUser?.canUseFeature('ADMIN_FEATURES') == true;
     await AppLogger.instance.info(
       'Admin',
       'Admin user management load started',
@@ -63,11 +76,19 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         'canUseRoles': canUseRoles,
         'canUsePersonnel': canUsePersonnel,
         'canUseRegions': canUseRegions,
+        'canUseFeatures': canUseFeatures,
       },
     );
     try {
       final results = await Future.wait<Object>([
-        _repository.listUsers(query: _searchController.text),
+        _repository.listUsers(
+          query: _searchController.text,
+          domain: _domainFilter,
+          orgNodeId: _orgNodeFilter,
+          featureCode: _featureFilter,
+          role: _roleFilter,
+          status: _statusFilter,
+        ),
         canUseStores
             ? _repository.listAdminStores()
             : Future.value(<StoreBranch>[]),
@@ -86,6 +107,12 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         canUseRegions
             ? _repository.listAdminAreas()
             : Future.value(<AdminAreaDefinition>[]),
+        canUseFeatures
+            ? _repository.listAdminFeatureTree()
+            : Future.value(<AdminFeatureDefinition>[]),
+        canUseRegions
+            ? _repository.listAdminOrganizationTree()
+            : Future.value(<AdminOrganizationNode>[]),
       ]);
       if (!mounted) return;
       setState(() {
@@ -96,6 +123,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         _jobRoles = results[4] as List<AdminPersonnelDefinition>;
         _regions = results[5] as List<AdminRegionDefinition>;
         _areas = results[6] as List<AdminAreaDefinition>;
+        _features = results[7] as List<AdminFeatureDefinition>;
+        _orgNodes = results[8] as List<AdminOrganizationNode>;
       });
       await AppLogger.instance.info(
         'Admin',
@@ -105,6 +134,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
           'userCount': _users.length,
           'storeCount': _stores.length,
           'roleCount': _roles.length,
+          'featureCount': _features.length,
+          'orgNodeCount': _orgNodes.length,
         },
       );
     } catch (error) {
@@ -272,6 +303,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   Future<void> _openEditor([User? user]) async {
     final canEditRole =
         context.read<AuthProvider>().user?.role == 'SUPER_ADMIN';
+    final canEditFeatures = canEditRole;
     final updated = await showDialog<bool>(
       context: context,
       builder: (context) => _UserEditorDialog(
@@ -282,8 +314,10 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         jobRoles: _jobRoles,
         regions: _regions,
         areas: _areas,
+        features: _features,
         user: user,
         canEditRole: canEditRole,
+        canEditFeatures: canEditFeatures,
       ),
     );
     if (updated == true) await _load();
@@ -313,6 +347,30 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       if (definition.code == value) return definition.title;
     }
     return value?.isNotEmpty == true ? value! : 'Chưa gán';
+  }
+
+  List<String> get _domainOptions {
+    final domains =
+        _orgNodes
+            .map((node) => node.emailDomain)
+            .where((domain) => domain?.isNotEmpty == true)
+            .cast<String>()
+            .toSet()
+            .toList()
+          ..sort();
+    return domains;
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _domainFilter = null;
+      _orgNodeFilter = null;
+      _featureFilter = null;
+      _roleFilter = null;
+      _statusFilter = null;
+      _searchController.clear();
+    });
+    _load();
   }
 
   @override
@@ -347,6 +405,102 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                 border: const OutlineInputBorder(),
               ),
               onSubmitted: (_) => _load(),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _FilterDropdown<String>(
+                  width: 180,
+                  value: _domainFilter,
+                  label: 'Domain',
+                  items: _domainOptions
+                      .map(
+                        (domain) => DropdownMenuItem(
+                          value: domain,
+                          child: Text(domain),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() => _domainFilter = value);
+                    _load();
+                  },
+                ),
+                _FilterDropdown<String>(
+                  width: 220,
+                  value: _orgNodeFilter,
+                  label: 'Cơ cấu',
+                  items: _orgNodes
+                      .map(
+                        (node) => DropdownMenuItem(
+                          value: node.id,
+                          child: Text(node.title),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() => _orgNodeFilter = value);
+                    _load();
+                  },
+                ),
+                _FilterDropdown<String>(
+                  width: 220,
+                  value: _featureFilter,
+                  label: 'Màn hình',
+                  items: _features
+                      .map(
+                        (feature) => DropdownMenuItem(
+                          value: feature.code,
+                          child: Text(feature.title),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() => _featureFilter = value);
+                    _load();
+                  },
+                ),
+                _FilterDropdown<String>(
+                  width: 180,
+                  value: _roleFilter,
+                  label: 'Role',
+                  items: _roles
+                      .map(
+                        (role) => DropdownMenuItem(
+                          value: role.value,
+                          child: Text(role.title),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() => _roleFilter = value);
+                    _load();
+                  },
+                ),
+                _FilterDropdown<String>(
+                  width: 160,
+                  value: _statusFilter,
+                  label: 'Trạng thái',
+                  items: const [
+                    DropdownMenuItem(value: 'yes', child: Text('Hoạt động')),
+                    DropdownMenuItem(value: 'no', child: Text('Khóa')),
+                  ],
+                  onChanged: (value) {
+                    setState(() => _statusFilter = value);
+                    _load();
+                  },
+                ),
+                SizedBox(
+                  width: 150,
+                  child: AppSecondaryButton(
+                    onPressed: _resetFilters,
+                    icon: Icons.filter_alt_off_outlined,
+                    label: 'Xóa filter',
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: AppLayoutTokens.formFieldGap),
             Expanded(
@@ -402,6 +556,38 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   }
 }
 
+class _FilterDropdown<T> extends StatelessWidget {
+  final double width;
+  final T? value;
+  final String label;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?> onChanged;
+
+  const _FilterDropdown({
+    required this.width,
+    required this.value,
+    required this.label,
+    required this.items,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: DropdownButtonFormField<T?>(
+        initialValue: value,
+        decoration: InputDecoration(labelText: label, isDense: true),
+        items: [
+          DropdownMenuItem<T?>(value: null, child: const Text('Tất cả')),
+          ...items,
+        ],
+        onChanged: onChanged,
+      ),
+    );
+  }
+}
+
 class _UserEditorDialog extends StatefulWidget {
   final AuthRepository repository;
   final List<StoreBranch> stores;
@@ -410,8 +596,10 @@ class _UserEditorDialog extends StatefulWidget {
   final List<AdminPersonnelDefinition> jobRoles;
   final List<AdminRegionDefinition> regions;
   final List<AdminAreaDefinition> areas;
+  final List<AdminFeatureDefinition> features;
   final User? user;
   final bool canEditRole;
+  final bool canEditFeatures;
 
   const _UserEditorDialog({
     required this.repository,
@@ -421,7 +609,9 @@ class _UserEditorDialog extends StatefulWidget {
     required this.jobRoles,
     required this.regions,
     required this.areas,
+    required this.features,
     required this.canEditRole,
+    required this.canEditFeatures,
     this.user,
   });
 
@@ -441,6 +631,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   String _workScopeType = 'STORE';
   String? _regionCode;
   String? _areaCode;
+  final Set<String> _featureCodes = <String>{};
   bool _saving = false;
 
   @override
@@ -458,6 +649,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     _workScopeType = user?.workScopeType ?? _defaultScopeForRole(_role);
     _regionCode = user?.regionCode;
     _areaCode = user?.areaCode;
+    _featureCodes.addAll(user?.featureCodes ?? const []);
   }
 
   @override
@@ -483,6 +675,8 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
         'regionCode': _regionCode,
         'areaCode': _areaCode,
         if (widget.canEditRole) 'role': _role,
+        if (widget.canEditFeatures)
+          'featureCodes': _featureCodes.toList()..sort(),
       };
       final user = widget.user;
       if (user == null) {
@@ -565,6 +759,46 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       if (store.storeId == storeId) return store.regionCode;
     }
     return null;
+  }
+
+  void _toggleFeature(AdminFeatureDefinition feature, bool selected) {
+    setState(() {
+      if (selected) {
+        _featureCodes.add(feature.code);
+        var parentCode = feature.parentCode;
+        while (parentCode != null && parentCode.isNotEmpty) {
+          _featureCodes.add(parentCode);
+          parentCode = _featureByCode(parentCode)?.parentCode;
+        }
+      } else {
+        _featureCodes.remove(feature.code);
+        for (final child in _descendantsOf(feature.code)) {
+          _featureCodes.remove(child.code);
+        }
+      }
+    });
+  }
+
+  AdminFeatureDefinition? _featureByCode(String code) {
+    for (final feature in widget.features) {
+      if (feature.code == code) return feature;
+    }
+    return null;
+  }
+
+  List<AdminFeatureDefinition> _descendantsOf(String code) {
+    final result = <AdminFeatureDefinition>[];
+    void visit(String parentCode) {
+      for (final feature in widget.features) {
+        if (feature.parentCode == parentCode) {
+          result.add(feature);
+          visit(feature.code);
+        }
+      }
+    }
+
+    visit(code);
+    return result;
   }
 
   @override
@@ -728,6 +962,12 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                 ],
                 onChanged: (value) => setState(() => _status = value ?? 'yes'),
               ),
+              if (widget.canEditFeatures)
+                _FeatureCheckboxTree(
+                  features: widget.features,
+                  selectedCodes: _featureCodes,
+                  onChanged: _toggleFeature,
+                ),
               if (_workScopeType == 'STORE')
                 DropdownButtonFormField<String?>(
                   initialValue: _storeId,
@@ -769,6 +1009,118 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
             softWrap: false,
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _FeatureCheckboxTree extends StatelessWidget {
+  final List<AdminFeatureDefinition> features;
+  final Set<String> selectedCodes;
+  final void Function(AdminFeatureDefinition feature, bool selected) onChanged;
+
+  const _FeatureCheckboxTree({
+    required this.features,
+    required this.selectedCodes,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (features.isEmpty) {
+      return const Text('Chưa tải được danh sách chức năng');
+    }
+    final byParent = <String?, List<AdminFeatureDefinition>>{};
+    for (final feature in features) {
+      byParent.putIfAbsent(feature.parentCode, () => []).add(feature);
+    }
+    for (final list in byParent.values) {
+      list.sort((a, b) {
+        final order = a.sortOrder.compareTo(b.sortOrder);
+        return order != 0 ? order : a.title.compareTo(b.title);
+      });
+    }
+    final roots = byParent[null] ?? const <AdminFeatureDefinition>[];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Chức năng được sử dụng',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 260),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.neutral200),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (final feature in roots)
+                  _FeatureCheckboxTile(
+                    feature: feature,
+                    byParent: byParent,
+                    selectedCodes: selectedCodes,
+                    depth: 0,
+                    onChanged: onChanged,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FeatureCheckboxTile extends StatelessWidget {
+  final AdminFeatureDefinition feature;
+  final Map<String?, List<AdminFeatureDefinition>> byParent;
+  final Set<String> selectedCodes;
+  final int depth;
+  final void Function(AdminFeatureDefinition feature, bool selected) onChanged;
+
+  const _FeatureCheckboxTile({
+    required this.feature,
+    required this.byParent,
+    required this.selectedCodes,
+    required this.depth,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final children = byParent[feature.code] ?? const <AdminFeatureDefinition>[];
+    return Column(
+      children: [
+        CheckboxListTile(
+          dense: true,
+          contentPadding: EdgeInsets.only(left: 8.0 + depth * 18, right: 8),
+          value: selectedCodes.contains(feature.code),
+          title: Text(
+            feature.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(
+            feature.code,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          controlAffinity: ListTileControlAffinity.leading,
+          onChanged: (value) => onChanged(feature, value == true),
+        ),
+        for (final child in children)
+          _FeatureCheckboxTile(
+            feature: child,
+            byParent: byParent,
+            selectedCodes: selectedCodes,
+            depth: depth + 1,
+            onChanged: onChanged,
+          ),
       ],
     );
   }

@@ -75,14 +75,28 @@ void main() {
 
     test('uses fallback domains before asset load finishes', () {
       expect(
-        EmailDomainPolicy.isAllowedEmail('staff@phongvu-office.vn', const []),
+        EmailDomainPolicy.isAllowedEmail('staff@phongvu.vn', const []),
         isTrue,
       );
       expect(
         EmailDomainPolicy.isAllowedEmail('staff@acaretek.vn', const []),
         isTrue,
       );
+      expect(
+        EmailDomainPolicy.isAllowedEmail('staff@phongvu-office.vn', const []),
+        isFalse,
+      );
     });
+
+    test(
+      'allows the break-glass super admin email outside fallback domains',
+      () {
+        expect(
+          EmailDomainPolicy.isAllowedEmail('admin@hoanghochoi.com', const []),
+          isTrue,
+        );
+      },
+    );
 
     test('keeps fallback domains when a bundled domain asset is stale', () {
       const staleAssetDomains = ['phongvu.vn', 'teko.vn'];

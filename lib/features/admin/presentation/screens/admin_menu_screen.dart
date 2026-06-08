@@ -44,6 +44,14 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (canUse('ADMIN_REGIONS'))
         AppFeatureAction(
+          icon: Icons.account_tree_outlined,
+          title: 'Cơ cấu tổ chức',
+          description: 'Domain, khối, phòng ban, SR',
+          color: AppColors.info,
+          onTap: () => context.push('/admin/organization'),
+        ),
+      if (canUse('ADMIN_REGIONS'))
+        AppFeatureAction(
           icon: Icons.map_outlined,
           title: 'Quản lý Vùng/Miền',
           description: 'Miền, Vùng, scope ảo',
