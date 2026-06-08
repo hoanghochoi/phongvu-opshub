@@ -30,6 +30,8 @@ const DEFAULT_TRANSACTION_RETENTION_DAYS = 90;
 const DEFAULT_TTS_VOICE_ID = 'piper:vi-vais1000';
 const DEFAULT_TTS_SPEED = 0.9;
 const DEFAULT_TTS_PITCH = 1.0;
+const DEFAULT_DELIVERY_CLAIM_TTL_SECONDS = 120;
+const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
 
 type StoredTransaction = {
@@ -101,44 +103,73 @@ export class PaymentNotificationsService {
     const afterCreatedAt = query.afterCreatedAt
       ? this.parseDate(query.afterCreatedAt, 'afterCreatedAt')
       : null;
-    const terminalDeliveries =
-      await this.prisma.paymentNotificationDeliveryLog.findMany({
-        where: {
-          clientId,
-          storeCode,
-          event: { in: TERMINAL_DELIVERY_EVENTS },
-          ...(afterCreatedAt ? { createdAt: { gt: afterCreatedAt } } : {}),
-        },
-        select: { notificationId: true },
-        distinct: ['notificationId'],
-      });
-    const terminalNotificationIds = terminalDeliveries
-      .map((row) => row.notificationId)
-      .filter(Boolean);
+    const claimCutoff = new Date(
+      Date.now() - this.deliveryClaimTtlSeconds() * 1000,
+    );
+    const candidates = await this.prisma.$transaction(async (tx) => {
+      await this.lockReadyNotificationClient(tx, clientId, storeCode);
+      const blockedDeliveries =
+        await tx.paymentNotificationDeliveryLog.findMany({
+          where: {
+            clientId,
+            storeCode,
+            ...(afterCreatedAt ? { createdAt: { gt: afterCreatedAt } } : {}),
+            OR: [
+              { event: { in: TERMINAL_DELIVERY_EVENTS } },
+              {
+                event: DELIVERY_CLAIM_EVENT,
+                createdAt: { gt: claimCutoff },
+              },
+            ],
+          },
+          select: { notificationId: true },
+          distinct: ['notificationId'],
+        });
+      const blockedNotificationIds = blockedDeliveries
+        .map((row) => row.notificationId)
+        .filter(Boolean);
 
-    const candidates = await this.prisma.paymentNotification.findMany({
-      where: {
-        storeCode,
-        audioStatus: 'READY',
-        audioPath: { not: null },
-        expiresAt: { gt: new Date() },
-        ...(afterCreatedAt ? { createdAt: { gt: afterCreatedAt } } : {}),
-        ...(terminalNotificationIds.length > 0
-          ? { id: { notIn: terminalNotificationIds } }
-          : {}),
-      },
-      orderBy: { createdAt: 'asc' },
-      take: limit,
+      const readyNotifications = await tx.paymentNotification.findMany({
+        where: {
+          storeCode,
+          audioStatus: 'READY',
+          audioPath: { not: null },
+          expiresAt: { gt: new Date() },
+          ...(afterCreatedAt ? { createdAt: { gt: afterCreatedAt } } : {}),
+          ...(blockedNotificationIds.length > 0
+            ? { id: { notIn: blockedNotificationIds } }
+            : {}),
+        },
+        orderBy: { createdAt: 'asc' },
+        take: limit,
+      });
+
+      if (readyNotifications.length > 0) {
+        await tx.paymentNotificationDeliveryLog.createMany({
+          data: readyNotifications.map((notification) => ({
+            notificationId: notification.id,
+            transactionId: notification.transactionId,
+            storeCode: notification.storeCode,
+            clientId,
+            event: DELIVERY_CLAIM_EVENT,
+          })),
+        });
+      }
+
+      return {
+        readyNotifications,
+        blockedCount: blockedNotificationIds.length,
+      };
     });
 
-    if (terminalNotificationIds.length >= limit * 3) {
+    if (candidates.blockedCount >= limit * 3) {
       this.logger.debug(
-        `Payment ready query excluded ${terminalNotificationIds.length} terminal notifications for store=${storeCode} client=${this.safeClientLabel(clientId)}`,
+        `Payment ready query excluded ${candidates.blockedCount} delivered or terminal notifications for store=${storeCode} client=${this.safeClientLabel(clientId)}`,
       );
     }
 
-    const ready: Array<Record<string, unknown>> = candidates.map(
-      (notification) => ({
+    const ready: Array<Record<string, unknown>> =
+      candidates.readyNotifications.map((notification) => ({
         notificationId: notification.id,
         transactionId: notification.transactionId,
         storeCode: notification.storeCode,
@@ -146,8 +177,7 @@ export class PaymentNotificationsService {
         audioStatus: notification.audioStatus,
         audioUrl: `/payment-notifications/${notification.id}/audio`,
         createdAt: notification.createdAt.toISOString(),
-      }),
-    );
+      }));
 
     return { list: ready };
   }
@@ -362,7 +392,13 @@ export class PaymentNotificationsService {
   }
 
   private async assertUserCanAccessStore(user: any, storeCode: string) {
-    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE)) return;
+    if (
+      await this.policyService.canAccessPolicy(
+        user,
+        ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE,
+      )
+    )
+      return;
     const userStoreCode = await this.userStoreCode(user);
     if (!userStoreCode || userStoreCode !== storeCode) {
       throw new ForbiddenException('Không có quyền truy cập showroom này');
@@ -371,7 +407,12 @@ export class PaymentNotificationsService {
 
   private async resolveNotificationStore(user: any, requested?: string) {
     const normalized = requested?.trim().toUpperCase();
-    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE)) {
+    if (
+      await this.policyService.canAccessPolicy(
+        user,
+        ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE,
+      )
+    ) {
       if (!normalized) {
         throw new ForbiddenException('Vui lòng chọn showroom');
       }
@@ -386,7 +427,13 @@ export class PaymentNotificationsService {
 
   private async resolveAllowedLogStore(user: any, requested?: string) {
     const normalized = requested?.trim().toUpperCase();
-    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE)) return normalized || null;
+    if (
+      await this.policyService.canAccessPolicy(
+        user,
+        ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE,
+      )
+    )
+      return normalized || null;
     const userStoreCode = await this.userStoreCode(user);
     if (normalized && normalized !== userStoreCode) {
       throw new ForbiddenException('Không có quyền ghi log showroom này');
@@ -426,6 +473,21 @@ export class PaymentNotificationsService {
 
   private ttsTimeoutMs() {
     return this.readPositiveInt('TTS_TIMEOUT_MS', 20_000);
+  }
+
+  private deliveryClaimTtlSeconds() {
+    return this.readPositiveInt(
+      'PAYMENT_NOTIFICATION_CLAIM_TTL_SECONDS',
+      DEFAULT_DELIVERY_CLAIM_TTL_SECONDS,
+    );
+  }
+
+  private async lockReadyNotificationClient(
+    tx: Prisma.TransactionClient,
+    clientId: string,
+    storeCode: string,
+  ) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${clientId}), hashtext(${storeCode}))`;
   }
 
   private ttsVoiceId() {
