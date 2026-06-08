@@ -21,6 +21,7 @@ describe('PaymentNotificationsService', () => {
       },
       paymentNotificationDeliveryLog: {
         create: jest.fn(),
+        createMany: jest.fn(),
         deleteMany: jest.fn(),
         findFirst: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]),
@@ -35,15 +36,23 @@ describe('PaymentNotificationsService', () => {
       store: {
         findUnique: jest.fn(),
       },
+      $executeRaw: jest.fn(),
+      $transaction: jest.fn(async (callback: any) => callback(prisma)),
     };
     redis = { publishMessage: jest.fn().mockResolvedValue(undefined) };
     policyService = {
-      canAccessPolicy: jest.fn(async (user: any, code: string) =>
-        user?.role === 'SUPER_ADMIN' &&
-        String(code || '').toUpperCase() === ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE,
+      canAccessPolicy: jest.fn(
+        async (user: any, code: string) =>
+          user?.role === 'SUPER_ADMIN' &&
+          String(code || '').toUpperCase() ===
+            ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE,
       ),
     };
-    service = new PaymentNotificationsService(prisma, redis, policyService as any);
+    service = new PaymentNotificationsService(
+      prisma,
+      redis,
+      policyService as any,
+    );
   });
 
   afterEach(() => {
@@ -286,14 +295,18 @@ describe('PaymentNotificationsService', () => {
         },
       ],
     });
-    expect(
-      prisma.paymentNotificationDeliveryLog.findMany,
-    ).toHaveBeenCalledWith(
+    expect(prisma.paymentNotificationDeliveryLog.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           clientId: 'pc-1',
           storeCode: 'CP01',
-          event: { in: ['PLAYED', 'SILENCED', 'FAILED'] },
+          OR: expect.arrayContaining([
+            { event: { in: ['PLAYED', 'SILENCED', 'FAILED'] } },
+            expect.objectContaining({
+              event: 'DELIVERED',
+              createdAt: expect.any(Object),
+            }),
+          ]),
         }),
         select: { notificationId: true },
         distinct: ['notificationId'],
@@ -307,6 +320,19 @@ describe('PaymentNotificationsService', () => {
         take: 10,
       }),
     );
+    expect(
+      prisma.paymentNotificationDeliveryLog.createMany,
+    ).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          notificationId: 'note-ready',
+          transactionId: 'txn-ready',
+          storeCode: 'CP01',
+          clientId: 'pc-1',
+          event: 'DELIVERED',
+        }),
+      ],
+    });
   });
 
   it('does not let an old failed notification hide a newer ready notification', async () => {
