@@ -25,7 +25,7 @@ export const DEFAULT_FEATURE_DEFINITIONS = [
   { code: FEATURE_KEYS.ADMIN_PERSONNEL, displayName: 'Quản lý phòng ban/chức danh', description: 'Quản lý catalog nhân sự' },
   { code: FEATURE_KEYS.ADMIN_FEATURES, displayName: 'Quản lý tính năng', description: 'Bật/tắt tính năng theo rule' },
   { code: FEATURE_KEYS.FIFO, displayName: 'FIFO', description: 'Kiểm tra và sắp xếp FIFO' },
-  { code: FEATURE_KEYS.ADMIN_POLICIES, displayName: 'Qu?n l? policy', description: 'Qu?n l? rule quy?n v? c?u h?nh h? th?ng' },
+  { code: FEATURE_KEYS.ADMIN_POLICIES, displayName: 'Quản lý policy', description: 'Quản lý rule quyền và cấu hình hệ thống' },
   { code: FEATURE_KEYS.FIFO_IMPORT, displayName: 'Import tồn kho', description: 'Import tồn kho FIFO thủ công' },
   { code: FEATURE_KEYS.WARRANTY, displayName: 'BH / SC', description: 'Bảo hành và sửa chữa' },
   { code: FEATURE_KEYS.VIETQR, displayName: 'VietQR', description: 'Tạo QR chuyển khoản' },

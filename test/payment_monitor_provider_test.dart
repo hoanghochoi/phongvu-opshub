@@ -144,6 +144,7 @@ void main() {
     );
 
     expect(provider.isActive, isFalse);
+    expect(provider.errorMessage, contains('Phiên làm việc đã hết hạn'));
     expect(speaker.playCount, 0);
 
     provider.dispose();

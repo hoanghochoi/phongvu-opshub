@@ -12,12 +12,15 @@ import '../../../../core/logging/app_logger.dart';
 class AuthProvider extends ChangeNotifier {
   static const _secureStorage = FlutterSecureStorage();
   static const _jwtTokenKey = 'user_jwt_token';
+  static const _sessionExpiredMessage =
+      'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
 
   final AuthRepository _repository;
 
   User? _user;
   bool _isLoading = false;
   String? _errorMessage;
+  String? _sessionExpiredDialogMessage;
   bool _isInitialized = false;
 
   AuthProvider(this._repository) {
@@ -29,6 +32,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _user != null;
   String? get errorMessage => _errorMessage;
+  String? get sessionExpiredDialogMessage => _sessionExpiredDialogMessage;
   bool get isInitialized => _isInitialized;
 
   /// Load saved session from SharedPreferences
@@ -85,7 +89,7 @@ class AuthProvider extends ChangeNotifier {
         // Restore JWT token to ApiClient for authenticated API calls
         if (token != null) {
           ApiClient().setAuthToken(token);
-          _user = await _withFeatureAccess(_user!);
+          _user = await _withFeatureAccess(_user!, allowFallback: false);
           _queueDailyActivityLogUpload();
           if (kDebugMode) debugPrint('✅ [AuthProvider] Restored JWT token');
         }
@@ -214,6 +218,7 @@ class AuthProvider extends ChangeNotifier {
     await _clearSession();
     _user = null;
     _errorMessage = _friendlyAuthFailureMessage(exception.message);
+    _sessionExpiredDialogMessage = _errorMessage;
     _isLoading = false;
     notifyListeners();
   }
@@ -225,7 +230,20 @@ class AuthProvider extends ChangeNotifier {
         lower.contains('session')) {
       return 'Tài khoản đã đăng nhập trên thiết bị khác cùng nền tảng. Vui lòng đăng nhập lại.';
     }
-    return message;
+    if (lower.contains('unauthorized') ||
+        lower.contains('jwt expired') ||
+        lower.contains('invalid token') ||
+        lower.contains('phiên làm việc') ||
+        lower.contains('phiên đăng nhập')) {
+      return _sessionExpiredMessage;
+    }
+    return message.trim().isEmpty ? _sessionExpiredMessage : message;
+  }
+
+  void clearSessionExpiredDialogMessage() {
+    if (_sessionExpiredDialogMessage == null) return;
+    _sessionExpiredDialogMessage = null;
+    notifyListeners();
   }
 
   Future<void> _saveOptionalString(
@@ -262,7 +280,10 @@ class AuthProvider extends ChangeNotifier {
     );
   }
 
-  Future<User> _withFeatureAccess(User user) async {
+  Future<User> _withFeatureAccess(
+    User user, {
+    bool allowFallback = true,
+  }) async {
     try {
       final access = await _repository.getMyFeatureAccess();
       Map<String, bool> policyAccess = const {};
@@ -291,11 +312,16 @@ class AuthProvider extends ChangeNotifier {
       );
       return user.copyWith(featureAccess: access, policyAccess: policyAccess);
     } catch (e) {
+      if (e is ApiException && e.statusCode == 401) {
+        if (_user != null) await _handleRemoteAuthFailure(e);
+        rethrow;
+      }
       await AppLogger.instance.warn(
         'Auth',
         'Feature access load failed; using server response access only',
         context: {'email': user.email, 'error': e.toString()},
       );
+      if (!allowFallback) rethrow;
       return user;
     }
   }

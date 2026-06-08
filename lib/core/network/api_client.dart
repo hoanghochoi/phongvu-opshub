@@ -50,9 +50,26 @@ class ApiClient {
   }
 
   ApiException _exceptionForResponse(int statusCode, String body) {
-    final message = _messageFromBody(body) ?? _messageForStatus(statusCode);
+    final message = statusCode == 401
+        ? _messageForAuthFailure(body)
+        : _messageFromBody(body) ?? _messageForStatus(statusCode);
     if (statusCode >= 500) return ServerException(message, statusCode);
     return ApiException(message, statusCode);
+  }
+
+  String _messageForAuthFailure(String body) {
+    final message = _messageFromBody(body);
+    if (message == null || message.trim().isEmpty) {
+      return _messageForStatus(401);
+    }
+    final lower = message.trim().toLowerCase();
+    if (lower == 'unauthorized' ||
+        lower.contains('jwt expired') ||
+        lower.contains('invalid token') ||
+        lower.contains('expired')) {
+      return _messageForStatus(401);
+    }
+    return message;
   }
 
   String? _messageFromBody(String body) {
