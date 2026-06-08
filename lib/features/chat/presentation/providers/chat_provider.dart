@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/storage/app_storage_keys.dart';
 import '../../../../core/utils/validators.dart';
 import '../../data/repositories/chat_repository.dart';
 import '../../domain/entities/message.dart';
@@ -17,6 +18,7 @@ class ChatProvider extends ChangeNotifier {
 
   static const _storageKey = 'fifo_chat_history';
   static const _maxMessages = 20;
+  static String get _historyStorageKey => AppStorageKeys.shared(_storageKey);
 
   final List<Message> _messages = [];
   bool _isLoading = false;
@@ -34,7 +36,7 @@ class ChatProvider extends ChangeNotifier {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final jsonStr = prefs.getString(_storageKey);
+      final jsonStr = prefs.getString(_historyStorageKey);
 
       if (jsonStr != null) {
         final List<dynamic> jsonList = jsonDecode(jsonStr);
@@ -67,7 +69,7 @@ class ChatProvider extends ChangeNotifier {
           ? _messages.sublist(_messages.length - _maxMessages)
           : _messages;
       final jsonStr = jsonEncode(toSave.map((m) => m.toJson()).toList());
-      await prefs.setString(_storageKey, jsonStr);
+      await prefs.setString(_historyStorageKey, jsonStr);
       await AppLogger.instance.info(
         'FIFO',
         'Chat history saved',

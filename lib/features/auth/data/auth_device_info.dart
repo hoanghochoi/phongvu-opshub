@@ -3,6 +3,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/storage/app_storage_keys.dart';
+
 class AuthDevicePayload {
   const AuthDevicePayload({
     required this.platform,
@@ -41,6 +43,7 @@ class AuthDeviceInfoProvider {
        _isWebOverride = isWebOverride;
 
   static const deviceIdKey = 'auth_device_id';
+  static String get storageDeviceIdKey => AppStorageKeys.secure(deviceIdKey);
 
   final FlutterSecureStorage _storage;
   final Future<PackageInfo> Function() _packageInfoLoader;
@@ -53,10 +56,10 @@ class AuthDeviceInfoProvider {
       platform: _platformOverride,
       isWeb: _isWebOverride,
     );
-    var deviceId = await _storage.read(key: deviceIdKey);
+    var deviceId = await _storage.read(key: storageDeviceIdKey);
     if (deviceId == null || deviceId.isEmpty) {
       deviceId = _uuid.v4();
-      await _storage.write(key: deviceIdKey, value: deviceId);
+      await _storage.write(key: storageDeviceIdKey, value: deviceId);
     }
     final packageInfo = await _packageInfoOrNull();
     return AuthDevicePayload(

@@ -4,6 +4,7 @@ import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/core/platform/app_restart_service.dart';
+import 'package:phongvu_opshub/core/storage/app_storage_keys.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/payment_speaker.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/repositories/payment_monitor_repository.dart';
@@ -28,7 +29,9 @@ void main() {
   });
 
   test('keeps transaction sync running when speaker is muted', () async {
-    SharedPreferences.setMockInitialValues({'payment_monitor_enabled': false});
+    SharedPreferences.setMockInitialValues({
+      AppStorageKeys.shared('payment_monitor_enabled'): false,
+    });
     final repository = _FakePaymentMonitorRepository(
       notifications: [
         PaymentNotification.fromJson({

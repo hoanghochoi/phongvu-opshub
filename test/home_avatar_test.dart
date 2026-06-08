@@ -3,6 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/storage/app_storage_keys.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provider.dart';
 import 'package:phongvu_opshub/features/home/presentation/screens/home_screen.dart';
@@ -18,12 +19,12 @@ void main() {
     const avatarUrl = 'https://cdn.example.test/avatar.png';
 
     SharedPreferences.setMockInitialValues({
-      'user_email': 'dai.ca@example.com',
-      'user_name': 'Dai Ca',
-      'user_avatarUrl': avatarUrl,
-      'user_storeId': 'PV001',
-      'user_storeName': 'PV Test',
-      'user_workScopeType': 'STORE',
+      AppStorageKeys.shared('user_email'): 'dai.ca@example.com',
+      AppStorageKeys.shared('user_name'): 'Dai Ca',
+      AppStorageKeys.shared('user_avatarUrl'): avatarUrl,
+      AppStorageKeys.shared('user_storeId'): 'PV001',
+      AppStorageKeys.shared('user_storeName'): 'PV Test',
+      AppStorageKeys.shared('user_workScopeType'): 'STORE',
     });
     FlutterSecureStorage.setMockInitialValues({});
     PackageInfo.setMockInitialValues(
