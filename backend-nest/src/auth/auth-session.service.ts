@@ -33,6 +33,8 @@ export type AuthSessionClaims = {
 };
 
 const SESSION_TTL_DAYS = 7;
+const SESSION_EXPIRED_MESSAGE =
+  'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
 const SESSION_REPLACED_MESSAGE =
   'Tài khoản đã đăng nhập trên thiết bị khác cùng nền tảng. Vui lòng đăng nhập lại.';
 
@@ -103,13 +105,13 @@ export class AuthSessionService {
       this.logger.warn(
         `Auth session rejected: userId=${userId} reason=missing_claims`,
       );
-      throw new UnauthorizedException(SESSION_REPLACED_MESSAGE);
+      throw new UnauthorizedException(SESSION_EXPIRED_MESSAGE);
     }
     if (!this.isAllowedPlatform(platform)) {
       this.logger.warn(
         `Auth session rejected: userId=${userId} platform=${platform} reason=invalid_platform`,
       );
-      throw new UnauthorizedException(SESSION_REPLACED_MESSAGE);
+      throw new UnauthorizedException(SESSION_EXPIRED_MESSAGE);
     }
 
     const session = await this.prisma.userPlatformSession.findUnique({
@@ -125,7 +127,7 @@ export class AuthSessionService {
       this.logger.warn(
         `Auth session rejected: userId=${userId} platform=${platform} sessionId=${sessionId} reason=${reason}`,
       );
-      throw new UnauthorizedException(SESSION_REPLACED_MESSAGE);
+      throw new UnauthorizedException(this.messageForInvalidSession(reason));
     }
 
     return {
@@ -203,6 +205,11 @@ export class AuthSessionService {
     if (session.revokedAt) return 'revoked';
     if (session.expiresAt?.getTime?.() < Date.now()) return 'expired';
     return null;
+  }
+
+  private messageForInvalidSession(reason: string) {
+    if (reason === 'version_mismatch') return SESSION_REPLACED_MESSAGE;
+    return SESSION_EXPIRED_MESSAGE;
   }
 
   private sessionExpiresAt(now: Date) {

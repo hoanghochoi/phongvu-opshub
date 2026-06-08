@@ -130,6 +130,31 @@ describe('AuthSessionService', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
+  it('returns a clear message when the platform session has expired', async () => {
+    prisma.userPlatformSession.findUnique.mockResolvedValue({
+      id: 'session-1',
+      userId: 'user-1',
+      platform: 'windows',
+      sessionVersion: 1,
+      revokedAt: null,
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+
+    try {
+      await service.validateJwtSession('user-1', {
+        sessionId: 'session-1',
+        platform: 'windows',
+        sessionVersion: 1,
+      });
+      fail('Expected expired platform session to be rejected');
+    } catch (error) {
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect((error as UnauthorizedException).getResponse()).toMatchObject({
+        message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+      });
+    }
+  });
+
   it('rejects unsupported platforms before touching the database', async () => {
     expect(() =>
       service.normalizeDevice({

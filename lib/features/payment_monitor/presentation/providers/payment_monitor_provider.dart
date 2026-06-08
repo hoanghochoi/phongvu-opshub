@@ -283,7 +283,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _reconcile();
   }
 
-  void _stop({required String reason}) {
+  void _stop({required String reason, bool clearError = true}) {
     _timer?.cancel();
     _timer = null;
     if (!_isActive &&
@@ -301,7 +301,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _nextPollAllowedAt = null;
     _terminalNotificationIds.clear();
     _latestTransactions.clear();
-    _errorMessage = null;
+    if (clearError) _errorMessage = null;
     _speakerError = null;
     AppLogger.instance.info(
       'PaymentMonitor',
@@ -411,7 +411,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         },
       );
       if (pollError.isAuthFailure) {
-        _stop(reason: 'auth_failed');
+        _stop(reason: 'auth_failed', clearError: false);
       }
     } finally {
       _isLoading = false;

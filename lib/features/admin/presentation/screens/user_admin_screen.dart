@@ -376,12 +376,14 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (canResetPassword)
+                              if (canResetPassword) ...[
                                 AppIconAction(
                                   onPressed: () => _resetPassword(user),
                                   icon: Icons.lock_reset_outlined,
                                   tooltip: 'Reset mật khẩu',
                                 ),
+                                const SizedBox(width: 8),
+                              ],
                               AppIconAction(
                                 onPressed: () => _openEditor(user),
                                 icon: Icons.edit_outlined,

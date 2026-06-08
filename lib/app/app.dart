@@ -99,13 +99,72 @@ class _AppRouterGatewayState extends State<AppRouterGateway> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('vi', ''),
-        Locale('en', ''),
-      ],
+      supportedLocales: const [Locale('vi', ''), Locale('en', '')],
       builder: (context, child) {
-        return AppUpdateGate(child: child ?? const SizedBox());
+        return _SessionExpiredDialogGate(
+          router: _router,
+          child: AppUpdateGate(child: child ?? const SizedBox()),
+        );
       },
     );
+  }
+}
+
+class _SessionExpiredDialogGate extends StatefulWidget {
+  final GoRouter router;
+  final Widget child;
+
+  const _SessionExpiredDialogGate({required this.router, required this.child});
+
+  @override
+  State<_SessionExpiredDialogGate> createState() =>
+      _SessionExpiredDialogGateState();
+}
+
+class _SessionExpiredDialogGateState extends State<_SessionExpiredDialogGate> {
+  bool _dialogVisible = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = context.select<AuthProvider, String?>(
+      (auth) => auth.sessionExpiredDialogMessage,
+    );
+    _showDialogIfNeeded(message);
+    return widget.child;
+  }
+
+  void _showDialogIfNeeded(String? message) {
+    if (message == null || _dialogVisible) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || _dialogVisible) return;
+      final authProvider = context.read<AuthProvider>();
+      final currentMessage = authProvider.sessionExpiredDialogMessage;
+      if (currentMessage == null) return;
+
+      _dialogVisible = true;
+      try {
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Phiên đăng nhập đã hết hạn'),
+            content: Text(currentMessage),
+            actions: [
+              FilledButton.icon(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                icon: const Icon(Icons.login_rounded),
+                label: const Text('Đăng nhập lại'),
+              ),
+            ],
+          ),
+        );
+      } finally {
+        if (mounted) {
+          authProvider.clearSessionExpiredDialogMessage();
+          widget.router.go('/login');
+          _dialogVisible = false;
+        }
+      }
+    });
   }
 }
