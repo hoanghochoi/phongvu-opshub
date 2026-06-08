@@ -46,6 +46,7 @@ const CHATSALE_REGION_CODE = 'CHATSALE';
 const TELESALE_REGION_CODE = 'TELESALE';
 const ORG_ROOT_PHONGVU_ID = 'org-domain-phongvu-vn';
 const ORG_ROOT_ACARETEK_ID = 'org-domain-acaretek-vn';
+const ORG_SUBDOMAIN_PHONGVU_ID = 'org-subdomain-phongvu-vn';
 const ORG_TYPES = new Set([
   'ROOT_DOMAIN',
   'SUBDOMAIN',
@@ -714,9 +715,13 @@ export class UserService implements OnModuleInit {
       select: { code: true },
     });
     const found = new Set(features.map((feature) => feature.code));
-    const missing = featureCodes.filter((featureCode) => !found.has(featureCode));
+    const missing = featureCodes.filter(
+      (featureCode) => !found.has(featureCode),
+    );
     if (missing.length > 0) {
-      throw new BadRequestException('Tính năng không tồn tại: ' + missing.join(', '));
+      throw new BadRequestException(
+        'Tính năng không tồn tại: ' + missing.join(', '),
+      );
     }
   }
 
@@ -772,8 +777,14 @@ export class UserService implements OnModuleInit {
     if (!current) throw new NotFoundException('Không tìm thấy node tổ chức');
     const data = await this.normalizeOrganizationNodeInput(body, current);
     if (current.isSystem) {
-      if (data.code !== current.code || data.type !== current.type || data.parentId !== current.parentId) {
-        throw new BadRequestException('Không được đổi mã, loại hoặc cha của node hệ thống');
+      if (
+        data.code !== current.code ||
+        data.type !== current.type ||
+        data.parentId !== current.parentId
+      ) {
+        throw new BadRequestException(
+          'Không được đổi mã, loại hoặc cha của node hệ thống',
+        );
       }
     }
     if (data.parentId) await this.assertNoOrganizationCycle(id, data.parentId);
@@ -816,22 +827,33 @@ export class UserService implements OnModuleInit {
   }
 
   private async normalizeOrganizationNodeInput(input: any, current?: any) {
-    const type = this.normalizeOrganizationNodeType(input.type ?? current?.type);
+    const type = this.normalizeOrganizationNodeType(
+      input.type ?? current?.type,
+    );
     const displayName = this.normalizeRequiredText(
       input.displayName ?? current?.displayName,
       'Tên node tổ chức không được để trống',
       120,
     );
     const emailDomain = ['ROOT_DOMAIN', 'SUBDOMAIN'].includes(type)
-      ? this.normalizeRequiredEmailDomain(input.emailDomain ?? current?.emailDomain ?? displayName)
+      ? this.normalizeRequiredEmailDomain(
+          input.emailDomain ?? current?.emailDomain ?? displayName,
+        )
       : null;
     if (emailDomain === 'hoanghochoi.com') {
-      throw new BadRequestException('Domain break-glass không thuộc cây tổ chức');
+      throw new BadRequestException(
+        'Domain break-glass không thuộc cây tổ chức',
+      );
     }
-    const parentId = await this.resolveOrganizationParentId(type, input.parentId, current);
+    const parentId = await this.resolveOrganizationParentId(
+      type,
+      input.parentId,
+      current,
+    );
     const code = input.code
       ? this.normalizeOrganizationNodeCode(input.code)
-      : current?.code ?? this.organizationCodeFor(type, emailDomain ?? displayName);
+      : (current?.code ??
+        this.organizationCodeFor(type, emailDomain ?? displayName));
     return {
       code,
       displayName,
@@ -841,16 +863,20 @@ export class UserService implements OnModuleInit {
       loginAllowed: ['ROOT_DOMAIN', 'SUBDOMAIN'].includes(type)
         ? input.loginAllowed !== undefined
           ? input.loginAllowed === true
-          : current?.loginAllowed ?? true
+          : (current?.loginAllowed ?? true)
         : false,
       isActive:
-        input.isActive === undefined ? current?.isActive ?? true : input.isActive === true,
+        input.isActive === undefined
+          ? (current?.isActive ?? true)
+          : input.isActive === true,
       sortOrder: this.normalizeSortOrder(input.sortOrder ?? current?.sortOrder),
     };
   }
 
   private normalizeOrganizationNodeType(value: unknown) {
-    const type = String(value || '').trim().toUpperCase();
+    const type = String(value || '')
+      .trim()
+      .toUpperCase();
     if (!ORG_TYPES.has(type)) {
       throw new BadRequestException('Loại node tổ chức không hợp lệ');
     }
@@ -858,7 +884,10 @@ export class UserService implements OnModuleInit {
   }
 
   private normalizeOrganizationNodeCode(value: unknown) {
-    const code = String(value || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+    const code = String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]/g, '_');
     if (!/^[A-Z][A-Z0-9_]{1,79}$/.test(code)) {
       throw new BadRequestException('Mã node tổ chức không hợp lệ');
     }
@@ -873,11 +902,16 @@ export class UserService implements OnModuleInit {
 
   private normalizeRequiredEmailDomain(value: unknown) {
     const domain = this.normalizeOptionalEmailDomain(value);
-    if (!domain) throw new BadRequestException('Domain email không được để trống');
+    if (!domain)
+      throw new BadRequestException('Domain email không được để trống');
     return domain;
   }
 
-  private async resolveOrganizationParentId(type: string, parentIdInput: unknown, current?: any) {
+  private async resolveOrganizationParentId(
+    type: string,
+    parentIdInput: unknown,
+    current?: any,
+  ) {
     if (type === 'ROOT_DOMAIN') return null;
     const parentId = String(parentIdInput ?? current?.parentId ?? '').trim();
     if (!parentId) {
@@ -895,14 +929,15 @@ export class UserService implements OnModuleInit {
   }
 
   private async assertNoOrganizationCycle(id: string, parentId: string) {
-    if (id === parentId) throw new BadRequestException('Node không thể là cha của chính nó');
+    if (id === parentId)
+      throw new BadRequestException('Node không thể là cha của chính nó');
     let cursor: string | null = parentId;
     for (let i = 0; i < 50 && cursor; i += 1) {
       const parent: { id: string; parentId: string | null } | null =
         await this.prisma.organizationNode.findUnique({
-        where: { id: cursor },
-        select: { id: true, parentId: true },
-      });
+          where: { id: cursor },
+          select: { id: true, parentId: true },
+        });
       if (!parent) return;
       if (parent.id === id || parent.parentId === id) {
         throw new BadRequestException('Cây tổ chức không được tạo vòng lặp');
@@ -912,14 +947,21 @@ export class UserService implements OnModuleInit {
   }
 
   private async organizationNodeReferenceCount(id: string) {
-    const [users, stores, departments, jobRoles, regions, areas] = await Promise.all([
-      this.prisma.user.count({ where: { organizationNodeId: id } }),
-      this.prisma.store.count({ where: { organizationNodeId: id } }),
-      this.prisma.departmentDefinition.count({ where: { organizationNodeId: id } }),
-      this.prisma.jobRoleDefinition.count({ where: { organizationNodeId: id } }),
-      this.prisma.regionDefinition.count({ where: { organizationNodeId: id } }),
-      this.prisma.areaDefinition.count({ where: { organizationNodeId: id } }),
-    ]);
+    const [users, stores, departments, jobRoles, regions, areas] =
+      await Promise.all([
+        this.prisma.user.count({ where: { organizationNodeId: id } }),
+        this.prisma.store.count({ where: { organizationNodeId: id } }),
+        this.prisma.departmentDefinition.count({
+          where: { organizationNodeId: id },
+        }),
+        this.prisma.jobRoleDefinition.count({
+          where: { organizationNodeId: id },
+        }),
+        this.prisma.regionDefinition.count({
+          where: { organizationNodeId: id },
+        }),
+        this.prisma.areaDefinition.count({ where: { organizationNodeId: id } }),
+      ]);
     return users + stores + departments + jobRoles + regions + areas;
   }
 
@@ -947,7 +989,9 @@ export class UserService implements OnModuleInit {
   }
 
   private async assertAdmin(user: any) {
-    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.ADMIN)) {
+    if (
+      await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.ADMIN)
+    ) {
       return;
     }
     throw new ForbiddenException('Không có quyền quản trị user');
@@ -967,7 +1011,11 @@ export class UserService implements OnModuleInit {
     throw new ForbiddenException(message);
   }
 
-  private async assertRoleEditable(admin: any, role: string, currentRole?: string) {
+  private async assertRoleEditable(
+    admin: any,
+    role: string,
+    currentRole?: string,
+  ) {
     if (currentRole && role === currentRole) {
       return;
     }
@@ -1100,7 +1148,9 @@ export class UserService implements OnModuleInit {
     }
     const role = String(filters.role || '').trim();
     if (role) conditions.push({ role: this.normalizeRoleCode(role, true) });
-    const status = String(filters.status || '').trim().toLowerCase();
+    const status = String(filters.status || '')
+      .trim()
+      .toLowerCase();
     if (status === 'yes' || status === 'no') conditions.push({ status });
     const featureCode = String(filters.featureCode || '').trim();
     if (featureCode) {
@@ -1113,7 +1163,9 @@ export class UserService implements OnModuleInit {
         },
       });
     }
-    const orgNodeWhere = await this.userOrganizationNodeWhere(filters.orgNodeId);
+    const orgNodeWhere = await this.userOrganizationNodeWhere(
+      filters.orgNodeId,
+    );
     if (orgNodeWhere) conditions.push(orgNodeWhere);
     return conditions.length > 0 ? { AND: conditions } : {};
   }
@@ -1125,7 +1177,11 @@ export class UserService implements OnModuleInit {
     if (!orgNodeId) return null;
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.findMany) return { organizationNodeId: orgNodeId };
-    const nodes: Array<{ id: string; parentId: string | null; emailDomain: string | null }> = await organizationNode.findMany({
+    const nodes: Array<{
+      id: string;
+      parentId: string | null;
+      emailDomain: string | null;
+    }> = await organizationNode.findMany({
       select: { id: true, parentId: true, emailDomain: true },
     });
     const ids = new Set<string>([orgNodeId]);
@@ -1286,7 +1342,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminCreateRegion(admin: any, body: any) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_REGIONS, 'Không có quyền tạo Miền');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_REGIONS,
+      'Không có quyền tạo Miền',
+    );
     const code = this.normalizePersonnelCode(
       body.code || body.abbreviation,
       'Mã Miền không hợp lệ',
@@ -1336,7 +1396,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminUpdateRegion(admin: any, currentCodeInput: string, body: any) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_REGIONS, 'Không có quyền sửa Miền');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_REGIONS,
+      'Không có quyền sửa Miền',
+    );
     const currentCode = this.normalizePersonnelCode(
       currentCodeInput,
       'Mã Miền không hợp lệ',
@@ -1382,7 +1446,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminDeleteRegion(admin: any, codeInput: string) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_REGIONS, 'Không có quyền xóa Miền');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_REGIONS,
+      'Không có quyền xóa Miền',
+    );
     const code = this.normalizePersonnelCode(codeInput, 'Mã Miền không hợp lệ');
     if (!code) throw new BadRequestException('Mã Miền không hợp lệ');
     const region = await this.prisma.regionDefinition.findUnique({
@@ -1408,7 +1476,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminCreateArea(admin: any, body: any) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_REGIONS, 'Không có quyền tạo Vùng');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_REGIONS,
+      'Không có quyền tạo Vùng',
+    );
     const code = this.normalizePersonnelCode(
       body.code || body.abbreviation,
       'Mã Vùng không hợp lệ',
@@ -1441,7 +1513,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminUpdateArea(admin: any, currentCodeInput: string, body: any) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_REGIONS, 'Không có quyền sửa Vùng');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_REGIONS,
+      'Không có quyền sửa Vùng',
+    );
     const currentCode = this.normalizePersonnelCode(
       currentCodeInput,
       'Mã Vùng không hợp lệ',
@@ -1493,7 +1569,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminDeleteArea(admin: any, codeInput: string) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_REGIONS, 'Không có quyền xóa Vùng');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_REGIONS,
+      'Không có quyền xóa Vùng',
+    );
     const code = this.normalizePersonnelCode(codeInput, 'Mã Vùng không hợp lệ');
     if (!code) throw new BadRequestException('Mã Vùng không hợp lệ');
     const area = await this.prisma.areaDefinition.findUnique({
@@ -1519,7 +1599,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminCreateDepartment(admin: any, body: any) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_PERSONNEL, 'Không có quyền tạo phòng ban');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_PERSONNEL,
+      'Không có quyền tạo phòng ban',
+    );
     const code = this.normalizePersonnelCode(
       body.code,
       'Mã phòng ban không hợp lệ',
@@ -1546,7 +1630,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminUpdateDepartment(admin: any, currentCodeInput: string, body: any) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_PERSONNEL, 'Không có quyền sửa phòng ban');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_PERSONNEL,
+      'Không có quyền sửa phòng ban',
+    );
     const currentCode = this.normalizePersonnelCode(
       currentCodeInput,
       'Mã phòng ban không hợp lệ',
@@ -1589,7 +1677,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminDeleteDepartment(admin: any, codeInput: string) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_PERSONNEL, 'Không có quyền xóa phòng ban');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_PERSONNEL,
+      'Không có quyền xóa phòng ban',
+    );
     const code = this.normalizePersonnelCode(
       codeInput,
       'Mã phòng ban không hợp lệ',
@@ -1617,7 +1709,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminCreateJobRole(admin: any, body: any) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_PERSONNEL, 'Không có quyền tạo chức danh');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_PERSONNEL,
+      'Không có quyền tạo chức danh',
+    );
     const code = this.normalizePersonnelCode(
       body.code,
       'Mã chức danh không hợp lệ',
@@ -1649,7 +1745,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminUpdateJobRole(admin: any, currentCodeInput: string, body: any) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_PERSONNEL, 'Không có quyền sửa chức danh');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_PERSONNEL,
+      'Không có quyền sửa chức danh',
+    );
     const currentCode = this.normalizePersonnelCode(
       currentCodeInput,
       'Mã chức danh không hợp lệ',
@@ -1700,7 +1800,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminDeleteJobRole(admin: any, codeInput: string) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_PERSONNEL, 'Không có quyền xóa chức danh');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_PERSONNEL,
+      'Không có quyền xóa chức danh',
+    );
     const code = this.normalizePersonnelCode(
       codeInput,
       'Mã chức danh không hợp lệ',
@@ -1725,7 +1829,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminCreateRole(admin: any, body: any) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_ROLES, 'Không có quyền tạo role');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_ROLES,
+      'Không có quyền tạo role',
+    );
     const code = this.normalizeRoleCode(body.code, true);
     const existing = await this.prisma.roleDefinition.findUnique({
       where: { code },
@@ -1744,7 +1852,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminUpdateRole(admin: any, currentCode: string, body: any) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_ROLES, 'Không có quyền sửa role');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_ROLES,
+      'Không có quyền sửa role',
+    );
     const code = this.normalizeRoleCode(currentCode, true);
     const current = await this.prisma.roleDefinition.findUnique({
       where: { code },
@@ -1786,7 +1898,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminDeleteRole(admin: any, codeInput: string) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_ROLES, 'Không có quyền xóa role');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_ROLES,
+      'Không có quyền xóa role',
+    );
     const code = this.normalizeRoleCode(codeInput, true);
     const role = await this.prisma.roleDefinition.findUnique({
       where: { code },
@@ -1822,7 +1938,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminCreateStore(admin: any, body: any) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_STORE_CREATE, 'Không có quyền tạo SR');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_STORE_CREATE,
+      'Không có quyền tạo SR',
+    );
     const storeId = this.normalizeStoreCode(body.storeId);
     const storeName = this.normalizeRequiredText(
       body.storeName,
@@ -1938,7 +2058,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminDeleteStore(admin: any, storeIdInput: string) {
-    await this.assertPolicy(admin, ADMIN_POLICY_CODES.ADMIN_STORE_CREATE, 'Không có quyền xóa SR');
+    await this.assertPolicy(
+      admin,
+      ADMIN_POLICY_CODES.ADMIN_STORE_CREATE,
+      'Không có quyền xóa SR',
+    );
     const storeId = this.normalizeStoreCode(storeIdInput);
     const store = await this.prisma.store.findUnique({
       where: { storeId },
@@ -2058,20 +2182,31 @@ export class UserService implements OnModuleInit {
   private featureAccessMapForUser(user: any) {
     if (user.role === SUPER_ADMIN_ROLE) return undefined;
     return Object.fromEntries(
-      this.featureCodesForUser(user).map((featureCode: string) => [featureCode, true]),
+      this.featureCodesForUser(user).map((featureCode: string) => [
+        featureCode,
+        true,
+      ]),
     );
   }
 
   private emailDomainFromEmail(email: unknown) {
-    const value = String(email || '').trim().toLowerCase();
+    const value = String(email || '')
+      .trim()
+      .toLowerCase();
     const atIndex = value.lastIndexOf('@');
     return atIndex >= 0 ? value.slice(atIndex + 1) : null;
   }
 
   private normalizeOptionalEmailDomain(value: unknown) {
-    const domain = String(value || '').trim().replace(/^@+/, '').toLowerCase();
+    const domain = String(value || '')
+      .trim()
+      .replace(/^@+/, '')
+      .toLowerCase();
     if (!domain) return null;
-    if (domain.length > 120 || !/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(domain)) {
+    if (
+      domain.length > 120 ||
+      !/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(domain)
+    ) {
       throw new BadRequestException('Domain email không hợp lệ');
     }
     return domain;
@@ -2081,7 +2216,7 @@ export class UserService implements OnModuleInit {
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.upsert) return;
 
-    await organizationNode.upsert({
+    const phongVuRoot = await organizationNode.upsert({
       where: { code: 'DOMAIN_PHONGVU_VN' },
       update: {
         displayName: 'phongvu.vn',
@@ -2102,6 +2237,31 @@ export class UserService implements OnModuleInit {
         isSystem: true,
         isActive: true,
         sortOrder: 10,
+      },
+    });
+    await organizationNode.upsert({
+      where: { code: 'SUBDOMAIN_PHONGVU_VN' },
+      update: {
+        displayName: 'phongvu.vn',
+        type: 'SUBDOMAIN',
+        parentId: phongVuRoot.id,
+        emailDomain: 'phongvu.vn',
+        loginAllowed: true,
+        isSystem: true,
+        isActive: true,
+        sortOrder: 11,
+      },
+      create: {
+        id: ORG_SUBDOMAIN_PHONGVU_ID,
+        code: 'SUBDOMAIN_PHONGVU_VN',
+        displayName: 'phongvu.vn',
+        type: 'SUBDOMAIN',
+        parentId: phongVuRoot.id,
+        emailDomain: 'phongvu.vn',
+        loginAllowed: true,
+        isSystem: true,
+        isActive: true,
+        sortOrder: 11,
       },
     });
     await organizationNode.upsert({
@@ -2148,7 +2308,9 @@ export class UserService implements OnModuleInit {
           regionCode: null,
           areaCode: null,
           organizationNodeId: null,
-          ...(current.password ? {} : { password: BREAK_GLASS_SUPER_ADMIN_PASSWORD_HASH }),
+          ...(current.password
+            ? {}
+            : { password: BREAK_GLASS_SUPER_ADMIN_PASSWORD_HASH }),
         },
       });
       this.logger.log(
@@ -2199,7 +2361,8 @@ export class UserService implements OnModuleInit {
           where: { createdById: legacy.id },
         }),
       ]);
-    const blockerCount = warrantyCount + feedbackCount + fifoLogCount + vietQrCount;
+    const blockerCount =
+      warrantyCount + feedbackCount + fifoLogCount + vietQrCount;
     const now = new Date();
 
     await this.prisma.$transaction(async (tx) => {
@@ -2217,7 +2380,9 @@ export class UserService implements OnModuleInit {
       });
       await tx.adminPolicyRule.deleteMany({ where: { userId: legacy.id } });
       await tx.featureAccessRule.deleteMany({ where: { userId: legacy.id } });
-      await tx.userFeatureAssignment.deleteMany({ where: { userId: legacy.id } });
+      await tx.userFeatureAssignment.deleteMany({
+        where: { userId: legacy.id },
+      });
 
       if (blockerCount === 0) {
         await tx.user.delete({ where: { id: legacy.id } });
