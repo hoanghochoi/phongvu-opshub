@@ -8,12 +8,36 @@ import '../../data/repositories/auth_repository.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../../../core/storage/app_storage_keys.dart';
 
 class AuthProvider extends ChangeNotifier {
   static const _secureStorage = FlutterSecureStorage();
   static const _jwtTokenKey = 'user_jwt_token';
   static const _sessionExpiredMessage =
       'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+  static const _sessionPreferenceKeys = <String>[
+    'user_email',
+    'user_name',
+    'user_lastName',
+    'user_avatarUrl',
+    'user_storeId',
+    'user_storeName',
+    'user_role',
+    'user_status',
+    'user_departmentCode',
+    'user_jobRoleCode',
+    'user_workScopeType',
+    'user_regionCode',
+    'user_regionName',
+    'user_regionAbbreviation',
+    'user_areaCode',
+    'user_areaName',
+    'user_areaAbbreviation',
+    'user_personnelCode',
+  ];
+
+  static String _sharedKey(String key) => AppStorageKeys.shared(key);
+  static String _secureKey(String key) => AppStorageKeys.secure(key);
 
   final AuthRepository _repository;
 
@@ -39,24 +63,28 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _loadSavedSession() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final email = prefs.getString('user_email');
-      final name = prefs.getString('user_name');
-      final lastName = prefs.getString('user_lastName');
-      final avatarUrl = prefs.getString('user_avatarUrl');
-      final storeId = prefs.getString('user_storeId');
-      final storeName = prefs.getString('user_storeName');
-      final role = prefs.getString('user_role');
-      final status = prefs.getString('user_status');
-      final departmentCode = prefs.getString('user_departmentCode');
-      final jobRoleCode = prefs.getString('user_jobRoleCode');
-      final workScopeType = prefs.getString('user_workScopeType');
-      final regionCode = prefs.getString('user_regionCode');
-      final regionName = prefs.getString('user_regionName');
-      final regionAbbreviation = prefs.getString('user_regionAbbreviation');
-      final areaCode = prefs.getString('user_areaCode');
-      final areaName = prefs.getString('user_areaName');
-      final areaAbbreviation = prefs.getString('user_areaAbbreviation');
-      final personnelCode = prefs.getString('user_personnelCode');
+      final email = prefs.getString(_sharedKey('user_email'));
+      final name = prefs.getString(_sharedKey('user_name'));
+      final lastName = prefs.getString(_sharedKey('user_lastName'));
+      final avatarUrl = prefs.getString(_sharedKey('user_avatarUrl'));
+      final storeId = prefs.getString(_sharedKey('user_storeId'));
+      final storeName = prefs.getString(_sharedKey('user_storeName'));
+      final role = prefs.getString(_sharedKey('user_role'));
+      final status = prefs.getString(_sharedKey('user_status'));
+      final departmentCode = prefs.getString(_sharedKey('user_departmentCode'));
+      final jobRoleCode = prefs.getString(_sharedKey('user_jobRoleCode'));
+      final workScopeType = prefs.getString(_sharedKey('user_workScopeType'));
+      final regionCode = prefs.getString(_sharedKey('user_regionCode'));
+      final regionName = prefs.getString(_sharedKey('user_regionName'));
+      final regionAbbreviation = prefs.getString(
+        _sharedKey('user_regionAbbreviation'),
+      );
+      final areaCode = prefs.getString(_sharedKey('user_areaCode'));
+      final areaName = prefs.getString(_sharedKey('user_areaName'));
+      final areaAbbreviation = prefs.getString(
+        _sharedKey('user_areaAbbreviation'),
+      );
+      final personnelCode = prefs.getString(_sharedKey('user_personnelCode'));
       final token = await _readSavedToken(prefs);
 
       if (email != null) {
@@ -91,7 +119,24 @@ class AuthProvider extends ChangeNotifier {
           ApiClient().setAuthToken(token);
           _user = await _withFeatureAccess(_user!, allowFallback: false);
           _queueDailyActivityLogUpload();
+          await AppLogger.instance.info(
+            'Auth',
+            'Saved session token restored',
+            context: {
+              'email': email,
+              'storageEnvironment': AppStorageKeys.environment,
+            },
+          );
           if (kDebugMode) debugPrint('✅ [AuthProvider] Restored JWT token');
+        } else {
+          await AppLogger.instance.warn(
+            'Auth',
+            'Saved session found without namespaced token',
+            context: {
+              'email': email,
+              'storageEnvironment': AppStorageKeys.environment,
+            },
+          );
         }
 
         if (kDebugMode) debugPrint('✅ [AuthProvider] Loaded session: $email');
@@ -108,35 +153,35 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _saveSession(User user, {String? token}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_email', user.email);
+      await prefs.setString(_sharedKey('user_email'), user.email);
       if (user.name != null) {
-        await prefs.setString('user_name', user.name!);
+        await prefs.setString(_sharedKey('user_name'), user.name!);
       }
       if (user.lastName != null) {
-        await prefs.setString('user_lastName', user.lastName!);
+        await prefs.setString(_sharedKey('user_lastName'), user.lastName!);
       } else {
-        await prefs.remove('user_lastName');
+        await prefs.remove(_sharedKey('user_lastName'));
       }
       if (user.avatarUrl != null) {
-        await prefs.setString('user_avatarUrl', user.avatarUrl!);
+        await prefs.setString(_sharedKey('user_avatarUrl'), user.avatarUrl!);
       } else {
-        await prefs.remove('user_avatarUrl');
+        await prefs.remove(_sharedKey('user_avatarUrl'));
       }
       if (user.storeId != null) {
-        await prefs.setString('user_storeId', user.storeId!);
+        await prefs.setString(_sharedKey('user_storeId'), user.storeId!);
       } else {
-        await prefs.remove('user_storeId');
+        await prefs.remove(_sharedKey('user_storeId'));
       }
       if (user.storeName != null) {
-        await prefs.setString('user_storeName', user.storeName!);
+        await prefs.setString(_sharedKey('user_storeName'), user.storeName!);
       } else {
-        await prefs.remove('user_storeName');
+        await prefs.remove(_sharedKey('user_storeName'));
       }
       if (user.role != null) {
-        await prefs.setString('user_role', user.role!);
+        await prefs.setString(_sharedKey('user_role'), user.role!);
       }
       if (user.status != null) {
-        await prefs.setString('user_status', user.status!);
+        await prefs.setString(_sharedKey('user_status'), user.status!);
       }
       await _saveOptionalString(
         prefs,
@@ -169,8 +214,10 @@ class AuthProvider extends ChangeNotifier {
         user.personnelCode,
       );
       if (token != null) {
-        await _secureStorage.write(key: _jwtTokenKey, value: token);
+        await _secureStorage.write(key: _secureKey(_jwtTokenKey), value: token);
+        await prefs.remove(_sharedKey(_jwtTokenKey));
         await prefs.remove(_jwtTokenKey);
+        await _secureStorage.delete(key: _jwtTokenKey);
       }
     } catch (e) {
       if (kDebugMode) debugPrint('❌ [AuthProvider] Error saving session: $e');
@@ -181,25 +228,13 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _clearSession() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('user_email');
-      await prefs.remove('user_name');
-      await prefs.remove('user_lastName');
-      await prefs.remove('user_avatarUrl');
-      await prefs.remove('user_storeId');
-      await prefs.remove('user_storeName');
-      await prefs.remove('user_role');
-      await prefs.remove('user_status');
-      await prefs.remove('user_departmentCode');
-      await prefs.remove('user_jobRoleCode');
-      await prefs.remove('user_workScopeType');
-      await prefs.remove('user_regionCode');
-      await prefs.remove('user_regionName');
-      await prefs.remove('user_regionAbbreviation');
-      await prefs.remove('user_areaCode');
-      await prefs.remove('user_areaName');
-      await prefs.remove('user_areaAbbreviation');
-      await prefs.remove('user_personnelCode');
+      for (final key in _sessionPreferenceKeys) {
+        await prefs.remove(_sharedKey(key));
+        await prefs.remove(key);
+      }
+      await prefs.remove(_sharedKey(_jwtTokenKey));
       await prefs.remove(_jwtTokenKey);
+      await _secureStorage.delete(key: _secureKey(_jwtTokenKey));
       await _secureStorage.delete(key: _jwtTokenKey);
       ApiClient().setAuthToken(null);
     } catch (e) {
@@ -252,22 +287,27 @@ class AuthProvider extends ChangeNotifier {
     String? value,
   ) async {
     if (value != null && value.trim().isNotEmpty) {
-      await prefs.setString(key, value);
+      await prefs.setString(_sharedKey(key), value);
     } else {
-      await prefs.remove(key);
+      await prefs.remove(_sharedKey(key));
     }
   }
 
   Future<String?> _readSavedToken(SharedPreferences prefs) async {
-    final secureToken = await _secureStorage.read(key: _jwtTokenKey);
+    final secureToken = await _secureStorage.read(
+      key: _secureKey(_jwtTokenKey),
+    );
     if (secureToken != null) return secureToken;
 
-    final legacyToken = prefs.getString(_jwtTokenKey);
-    if (legacyToken != null) {
-      await _secureStorage.write(key: _jwtTokenKey, value: legacyToken);
-      await prefs.remove(_jwtTokenKey);
+    final sharedToken = prefs.getString(_sharedKey(_jwtTokenKey));
+    if (sharedToken != null) {
+      await _secureStorage.write(
+        key: _secureKey(_jwtTokenKey),
+        value: sharedToken,
+      );
+      await prefs.remove(_sharedKey(_jwtTokenKey));
     }
-    return legacyToken;
+    return sharedToken;
   }
 
   void _queueDailyActivityLogUpload() {

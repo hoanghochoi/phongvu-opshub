@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/api_constants.dart';
 import '../network/api_client.dart';
+import '../storage/app_storage_keys.dart';
 import 'daily_activity_log.dart';
 
 class AppLogger {
@@ -27,6 +28,8 @@ class AppLogger {
       'app_logger_daily_activity_last_success_date';
   static const _dailyUploadSuccessAtKey =
       'app_logger_daily_activity_last_success_at';
+
+  static String _sharedKey(String key) => AppStorageKeys.shared(key);
 
   @visibleForTesting
   void setUploadsEnabledForTesting(bool enabled) {
@@ -130,7 +133,9 @@ class AppLogger {
       targetDateKey = formatLogDate(targetDate);
       final prefs = await SharedPreferences.getInstance();
 
-      if (!force && prefs.getString(_dailyUploadSuccessKey) == targetDateKey) {
+      if (!force &&
+          prefs.getString(_sharedKey(_dailyUploadSuccessKey)) ==
+              targetDateKey) {
         return;
       }
       if (_apiClient.authToken == null) {
@@ -177,9 +182,9 @@ class AppLogger {
           'clientId': clientId,
         },
       );
-      await prefs.setString(_dailyUploadSuccessKey, targetDateKey);
+      await prefs.setString(_sharedKey(_dailyUploadSuccessKey), targetDateKey);
       await prefs.setString(
-        _dailyUploadSuccessAtKey,
+        _sharedKey(_dailyUploadSuccessAtKey),
         DateTime.now().toIso8601String(),
       );
       await info(
@@ -246,10 +251,10 @@ class AppLogger {
     final current = _clientId;
     if (current != null && current.isNotEmpty) return current;
     final prefs = await SharedPreferences.getInstance();
-    var value = prefs.getString(_clientIdPreferenceKey);
+    var value = prefs.getString(_sharedKey(_clientIdPreferenceKey));
     if (value == null || value.isEmpty) {
       value = 'pc-${DateTime.now().microsecondsSinceEpoch}';
-      await prefs.setString(_clientIdPreferenceKey, value);
+      await prefs.setString(_sharedKey(_clientIdPreferenceKey), value);
     }
     _clientId = value;
     if (_logFile == null) {

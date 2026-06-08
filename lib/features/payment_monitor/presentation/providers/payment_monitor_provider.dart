@@ -7,6 +7,7 @@ import '../../../../core/logging/app_logger.dart';
 import '../../../../core/platform/app_platform_capabilities.dart';
 import '../../../../core/network/api_exception.dart' as api;
 import '../../../../core/platform/app_restart_service.dart';
+import '../../../../core/storage/app_storage_keys.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../data/payment_speaker.dart';
 import '../../data/repositories/payment_monitor_repository.dart';
@@ -33,6 +34,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   static const _pollInterval = Duration(seconds: 5);
   static const _startupNotificationLookback = Duration(minutes: 15);
   static const _speakerEnabledPreferenceKey = 'payment_monitor_enabled';
+  static const _clientIdPreferenceKey = 'payment_monitor_client_id';
   static const _maxAudioPlaybackAttempts = 3;
   static const _defaultPlaybackRetryDelay = Duration(seconds: 10);
   static const _pollBackoffSchedule = <Duration>[
@@ -42,6 +44,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
     Duration(seconds: 40),
     Duration(minutes: 1),
   ];
+
+  static String _sharedKey(String key) => AppStorageKeys.shared(key);
 
   final PaymentMonitorRepository _repository;
   final PaymentSpeaker _speaker;
@@ -119,7 +123,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     notifyListeners();
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_speakerEnabledPreferenceKey, value);
+    await prefs.setBool(_sharedKey(_speakerEnabledPreferenceKey), value);
     await AppLogger.instance.info(
       'PaymentMonitor',
       value
@@ -222,7 +226,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   Future<void> _loadEnabledPreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final enabled = prefs.getBool(_speakerEnabledPreferenceKey);
+      final enabled = prefs.getBool(_sharedKey(_speakerEnabledPreferenceKey));
       _isSpeakerEnabled = enabled ?? true;
       _isSpeakerPreferenceLoaded = true;
       _reconcile();
@@ -428,10 +432,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
   Future<String> _ensureClientId() async {
     if (_clientId != null) return _clientId!;
     final prefs = await SharedPreferences.getInstance();
-    var value = prefs.getString('payment_monitor_client_id');
+    var value = prefs.getString(_sharedKey(_clientIdPreferenceKey));
     if (value == null || value.isEmpty) {
       value = 'pc-${DateTime.now().microsecondsSinceEpoch}';
-      await prefs.setString('payment_monitor_client_id', value);
+      await prefs.setString(_sharedKey(_clientIdPreferenceKey), value);
     }
     _clientId = value;
     await AppLogger.instance.initialize(clientId: value);
