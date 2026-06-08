@@ -4,13 +4,8 @@ class EmailDomainPolicy {
   EmailDomainPolicy._();
 
   static const _assetPath = 'data/email_domain.txt';
-  static const _fallbackDomains = <String>[
-    'phongvu-shop.vn',
-    'phongvu-mna.vn',
-    'phongvu-care.vn',
-    'phongvu-office.vn',
-    'acaretek.vn',
-  ];
+  static const _breakGlassEmails = <String>{'admin@hoanghochoi.com'};
+  static const _fallbackDomains = <String>['phongvu.vn', 'acaretek.vn'];
 
   static Future<List<String>> loadAllowedDomains() async {
     try {
@@ -35,7 +30,9 @@ class EmailDomainPolicy {
   }
 
   static bool isAllowedEmail(String email, List<String> domains) {
-    final parts = email.trim().toLowerCase().split('@');
+    final normalizedEmail = email.trim().toLowerCase();
+    if (_breakGlassEmails.contains(normalizedEmail)) return true;
+    final parts = normalizedEmail.split('@');
     if (parts.length != 2) return false;
     final effectiveDomains = _withFallbackDomains(domains);
     return effectiveDomains.contains(parts.last);

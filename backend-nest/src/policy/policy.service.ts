@@ -378,6 +378,9 @@ export class PolicyService implements OnModuleInit {
   }
 
   async getAllowedEmailDomains(fallback: string[]) {
+    const organizationDomains = await this.getOrganizationAllowedEmailDomains();
+    if (organizationDomains.length > 0) return organizationDomains;
+
     const value = await this.getSettingValue<unknown>(
       ADMIN_SETTING_KEYS.AUTH_ALLOWED_EMAIL_DOMAINS,
       fallback,
@@ -387,6 +390,35 @@ export class PolicyService implements OnModuleInit {
       .map((item) => this.normalizeOptionalDomain(item))
       .filter((domain): domain is string => Boolean(domain));
     return domains.length > 0 ? Array.from(new Set(domains)) : fallback;
+  }
+
+  private async getOrganizationAllowedEmailDomains() {
+    try {
+      const organizationNode = (this.prisma as any).organizationNode;
+      if (!organizationNode?.findMany) return [];
+      const nodes = await organizationNode.findMany({
+        where: {
+          type: { in: ['ROOT_DOMAIN', 'SUBDOMAIN'] },
+          isActive: true,
+          loginAllowed: true,
+          emailDomain: { not: null },
+        },
+        select: { emailDomain: true },
+        orderBy: [{ sortOrder: 'asc' }, { displayName: 'asc' }],
+      });
+      return Array.from(
+        new Set(
+          nodes
+            .map((node: { emailDomain?: string | null }) =>
+              this.normalizeOptionalDomain(node.emailDomain),
+            )
+            .filter((domain: string | null): domain is string => Boolean(domain)),
+        ),
+      );
+    } catch (error) {
+      this.logger.warn('Organization email-domain lookup failed; using policy setting fallback');
+      return [];
+    }
   }
 
   private defaultRuleWhere(rule: any) {

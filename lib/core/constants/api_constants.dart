@@ -1,4 +1,4 @@
-﻿class ApiConstants {
+class ApiConstants {
   ApiConstants._();
 
   // ──────────────────────────────────────────────────────────
@@ -36,8 +36,11 @@
   static const String adminRegionsEndpoint = '/admin/regions';
   static const String adminAreasEndpoint = '/admin/areas';
   static const String adminStoresEndpoint = '/admin/stores';
+  static const String adminOrgTreeEndpoint = '/admin/org-tree';
+  static const String adminOrgTreeNodesEndpoint = '/admin/org-tree/nodes';
   static const String featuresMeEndpoint = '/features/me';
   static const String adminFeaturesEndpoint = '/admin/features';
+  static const String adminFeaturesTreeEndpoint = '/admin/features/tree';
   static const String adminFeatureRulesEndpoint = '/admin/features/rules';
   static const String adminFeatureRulesBatchEndpoint =
       '/admin/features/rules/batch';

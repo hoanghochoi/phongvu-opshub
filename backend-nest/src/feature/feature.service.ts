@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 const ADMIN_ROLE = 'ADMIN';
 const ADMIN_ACARE_ROLE = 'ADMIN_ACARE';
 const VALID_WORK_SCOPES = new Set(['NATIONAL', 'REGION', 'AREA', 'STORE']);
+const USER_FEATURE_BACKFILL_SETTING_KEY = 'USER_FEATURE_ALLOWLIST_BACKFILLED_AT';
 
 type FeatureContext = {
   id?: string | null;
@@ -30,25 +32,41 @@ type FeatureContext = {
 
 @Injectable()
 export class FeatureService implements OnModuleInit {
+  private readonly logger = new Logger(FeatureService.name);
+
   constructor(private prisma: PrismaService, private policyService: PolicyService) {}
 
   async onModuleInit() {
     await this.seedDefaultFeatures();
+    await this.backfillUserFeatureAssignmentsOnce();
   }
 
   async seedDefaultFeatures() {
     await Promise.all(
       DEFAULT_FEATURE_DEFINITIONS.map((feature) =>
-        this.prisma.featureDefinition.upsert({
-          where: { code: feature.code },
+        {
+          const featureData = feature as any;
+          return this.prisma.featureDefinition.upsert({
+          where: { code: featureData.code },
           update: {
-            displayName: feature.displayName,
-            description: feature.description,
+            displayName: featureData.displayName,
+            description: featureData.description,
+            parentCode: featureData.parentCode ?? null,
+            sortOrder: featureData.sortOrder ?? 0,
+            visibleInUserPicker: featureData.visibleInUserPicker !== false,
             isSystem: true,
             isActive: true,
           },
-          create: { ...feature, isSystem: true, isActive: true },
-        }),
+          create: {
+            ...featureData,
+            parentCode: featureData.parentCode ?? null,
+            sortOrder: featureData.sortOrder ?? 0,
+            visibleInUserPicker: featureData.visibleInUserPicker !== false,
+            isSystem: true,
+            isActive: true,
+          },
+        });
+        },
       ),
     );
   }
@@ -78,8 +96,18 @@ export class FeatureService implements OnModuleInit {
     this.assertSuperAdmin(admin);
     await this.seedDefaultFeatures();
     return this.prisma.featureDefinition.findMany({
-      orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
+      orderBy: [{ isSystem: 'desc' }, { sortOrder: 'asc' }, { code: 'asc' }],
       include: { _count: { select: { rules: true } } },
+    });
+  }
+
+  async adminListFeatureTree(admin: any) {
+    this.assertSuperAdmin(admin);
+    await this.seedDefaultFeatures();
+    return this.prisma.featureDefinition.findMany({
+      where: { visibleInUserPicker: true },
+      orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+      include: { _count: { select: { rules: true, userAssignments: true } } },
     });
   }
 
@@ -99,6 +127,9 @@ export class FeatureService implements OnModuleInit {
           120,
         ),
         description: this.optionalText(body.description, 240),
+        parentCode: this.normalizeOptionalCode(body.parentCode),
+        sortOrder: this.normalizeSortOrder(body.sortOrder),
+        visibleInUserPicker: body.visibleInUserPicker !== false,
         isSystem: false,
         isActive: body.isActive !== false,
       },
@@ -136,6 +167,18 @@ export class FeatureService implements OnModuleInit {
           body.description === undefined
             ? current.description
             : this.optionalText(body.description, 240),
+        parentCode:
+          body.parentCode === undefined
+            ? current.parentCode
+            : this.normalizeOptionalCode(body.parentCode),
+        sortOrder:
+          body.sortOrder === undefined
+            ? current.sortOrder
+            : this.normalizeSortOrder(body.sortOrder),
+        visibleInUserPicker:
+          body.visibleInUserPicker === undefined
+            ? current.visibleInUserPicker
+            : body.visibleInUserPicker === true,
         isActive:
           body.isActive === undefined
             ? current.isActive
@@ -149,7 +192,7 @@ export class FeatureService implements OnModuleInit {
     const code = this.normalizeCode(codeInput, 'Mã tính năng không hợp lệ');
     const feature = await this.prisma.featureDefinition.findUnique({
       where: { code },
-      include: { _count: { select: { rules: true } } },
+      include: { _count: { select: { rules: true, userAssignments: true } } },
     });
     if (!feature) throw new NotFoundException('Không tìm thấy tính năng');
     if (feature.isSystem) {
@@ -157,6 +200,9 @@ export class FeatureService implements OnModuleInit {
     }
     if (feature._count.rules > 0) {
       throw new BadRequestException('Tính năng đang có rule, không thể xóa');
+    }
+    if (feature._count.userAssignments > 0) {
+      throw new BadRequestException('Tính năng đang được gán cho user, không thể xóa');
     }
     await this.prisma.featureDefinition.delete({ where: { code } });
     return { deleted: true, code };
@@ -233,6 +279,35 @@ export class FeatureService implements OnModuleInit {
       where: { code: featureCode },
       select: { isActive: true },
     });
+    if (!feature || !feature.isActive) return false;
+    if (!context.id) return false;
+
+    const assignment = await this.prisma.userFeatureAssignment.findUnique({
+      where: {
+        userId_featureCode: {
+          userId: context.id,
+          featureCode,
+        },
+      },
+      select: { enabled: true },
+    });
+    return assignment?.enabled === true;
+  }
+
+  private async legacyCanAccessFeatureWithContext(
+    context: FeatureContext,
+    featureCodeInput: string,
+  ) {
+    const featureCode = this.normalizeCode(
+      featureCodeInput,
+      'Mã tính năng không hợp lệ',
+    );
+    if (context.role === SUPER_ADMIN_ROLE) return true;
+
+    const feature = await this.prisma.featureDefinition.findUnique({
+      where: { code: featureCode },
+      select: { isActive: true },
+    });
     if (feature && !feature.isActive) return false;
 
     const rules = await this.prisma.featureAccessRule.findMany({
@@ -253,6 +328,70 @@ export class FeatureService implements OnModuleInit {
     const topRules = matches.filter((match) => match.score === topScore);
     if (topRules.some((match) => !match.rule.enabled)) return false;
     return policyAllowed && topRules.some((match) => match.rule.enabled);
+  }
+
+  private async backfillUserFeatureAssignmentsOnce() {
+    try {
+      const marker = await this.prisma.adminSetting.findUnique({
+        where: { key: USER_FEATURE_BACKFILL_SETTING_KEY },
+      });
+      if (marker) return;
+
+      await this.policyService.seedDefaultPolicies();
+      const features = await this.prisma.featureDefinition.findMany({
+        where: { isActive: true, visibleInUserPicker: true },
+        orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+      });
+      const users = await this.prisma.user.findMany({
+        where: { role: { not: SUPER_ADMIN_ROLE } },
+        select: { id: true },
+      });
+
+      const rows: Array<{
+        userId: string;
+        featureCode: string;
+        enabled: boolean;
+        note: string;
+      }> = [];
+      for (const user of users) {
+        const context = await this.resolveContext(user);
+        for (const feature of features) {
+          if (await this.legacyCanAccessFeatureWithContext(context, feature.code)) {
+            rows.push({
+              userId: user.id,
+              featureCode: feature.code,
+              enabled: true,
+              note: 'Backfilled from legacy feature and policy rules',
+            });
+          }
+        }
+      }
+
+      if (rows.length > 0) {
+        await this.prisma.userFeatureAssignment.createMany({
+          data: rows,
+          skipDuplicates: true,
+        });
+      }
+
+      await this.prisma.adminSetting.create({
+        data: {
+          key: USER_FEATURE_BACKFILL_SETTING_KEY,
+          displayName: 'User feature allowlist backfill',
+          description: 'Marker that legacy feature access was copied to user allowlists',
+          category: 'MIGRATION',
+          value: { completedAt: new Date().toISOString(), rows: rows.length },
+          isSystem: true,
+          isSensitive: false,
+        },
+      });
+      this.logger.log(
+        `User feature allowlist backfill completed: users=${users.length} rows=${rows.length}`,
+      );
+    } catch (error) {
+      this.logger.error('User feature allowlist backfill failed', error as any);
+      throw error;
+    }
   }
 
   private async normalizeRuleInput(input: any, current?: any) {
@@ -680,6 +819,12 @@ export class FeatureService implements OnModuleInit {
       return null;
     }
     return this.normalizeCode(value, 'Mã lọc rule không hợp lệ');
+  }
+
+  private normalizeSortOrder(value: unknown) {
+    const parsed = Number(value ?? 0);
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.max(0, Math.min(10000, Math.trunc(parsed)));
   }
 
   private normalizeOptionalDomain(value: unknown) {

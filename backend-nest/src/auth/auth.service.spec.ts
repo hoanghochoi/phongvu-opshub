@@ -75,7 +75,10 @@ describe('AuthService', () => {
       revokeCurrentSession: jest.fn().mockResolvedValue({ ok: true }),
     };
     policyService = {
-      getAllowedEmailDomains: jest.fn(async (fallback: string[]) => fallback),
+      getAllowedEmailDomains: jest.fn(async (fallback: string[]) => [
+        ...fallback,
+        'phongvu-shop.vn',
+      ]),
     };
     service = new AuthService(
       prisma as any,
@@ -230,6 +233,21 @@ describe('AuthService', () => {
     });
     expect(emailVerificationService.sendRegistrationCode).toHaveBeenCalledWith(
       'staff@acaretek.vn',
+    );
+  });
+
+  it('allows the break-glass super admin email outside the organization domain tree', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.sendRegistrationVerificationCode(' admin@hoanghochoi.com '),
+    ).resolves.toEqual({
+      ok: true,
+      expiresInMinutes: 10,
+    });
+    expect(policyService.getAllowedEmailDomains).not.toHaveBeenCalled();
+    expect(emailVerificationService.sendRegistrationCode).toHaveBeenCalledWith(
+      'admin@hoanghochoi.com',
     );
   });
 

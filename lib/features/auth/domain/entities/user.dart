@@ -1,6 +1,7 @@
 class User {
   final String? id;
   final String email;
+  final String? emailDomain;
   final String? name;
   final String? lastName;
   final String? avatarUrl;
@@ -17,6 +18,9 @@ class User {
   final String? areaCode;
   final String? areaName;
   final String? areaAbbreviation;
+  final String? organizationNodeId;
+  final String? organizationNodeName;
+  final List<String> featureCodes;
   final String? personnelCode;
   final Map<String, bool> featureAccess;
   final Map<String, bool> policyAccess;
@@ -25,6 +29,7 @@ class User {
   const User({
     this.id,
     required this.email,
+    this.emailDomain,
     this.name,
     this.lastName,
     this.avatarUrl,
@@ -41,6 +46,9 @@ class User {
     this.areaCode,
     this.areaName,
     this.areaAbbreviation,
+    this.organizationNodeId,
+    this.organizationNodeName,
+    this.featureCodes = const [],
     this.personnelCode,
     this.featureAccess = const {},
     this.policyAccess = const {},
@@ -56,6 +64,7 @@ class User {
     return User(
       id: json['id']?.toString(),
       email: json['email']?.toString() ?? fallbackEmail ?? '',
+      emailDomain: json['emailDomain']?.toString(),
       name: json['name']?.toString() ?? json['firstName']?.toString(),
       lastName: json['lastName']?.toString(),
       avatarUrl: json['avatarUrl']?.toString(),
@@ -72,6 +81,9 @@ class User {
       areaCode: json['areaCode']?.toString(),
       areaName: json['areaName']?.toString(),
       areaAbbreviation: json['areaAbbreviation']?.toString(),
+      organizationNodeId: json['organizationNodeId']?.toString(),
+      organizationNodeName: json['organizationNodeName']?.toString(),
+      featureCodes: _stringListFromJson(json['featureCodes']),
       personnelCode: json['personnelCode']?.toString(),
       featureAccess: _featureAccessFromJson(
         json['resolvedFeatureAccess'] ?? json['featureAccess'],
@@ -135,6 +147,7 @@ class User {
     return User(
       id: id,
       email: email,
+      emailDomain: emailDomain,
       name: name,
       lastName: lastName,
       avatarUrl: avatarUrl,
@@ -151,6 +164,9 @@ class User {
       areaCode: areaCode,
       areaName: areaName,
       areaAbbreviation: areaAbbreviation,
+      organizationNodeId: organizationNodeId,
+      organizationNodeName: organizationNodeName,
+      featureCodes: featureCodes,
       personnelCode: personnelCode,
       featureAccess: featureAccess ?? this.featureAccess,
       policyAccess: policyAccess ?? this.policyAccess,
@@ -185,6 +201,7 @@ class User {
 
     return other is User &&
         other.email == email &&
+        other.emailDomain == emailDomain &&
         other.name == name &&
         other.lastName == lastName &&
         other.avatarUrl == avatarUrl &&
@@ -201,6 +218,9 @@ class User {
         other.areaCode == areaCode &&
         other.areaName == areaName &&
         other.areaAbbreviation == areaAbbreviation &&
+        other.organizationNodeId == organizationNodeId &&
+        other.organizationNodeName == organizationNodeName &&
+        _listEquals(other.featureCodes, featureCodes) &&
         other.personnelCode == personnelCode &&
         _mapEquals(other.featureAccess, featureAccess) &&
         _mapEquals(other.policyAccess, policyAccess) &&
@@ -218,6 +238,7 @@ class User {
   @override
   int get hashCode =>
       email.hashCode ^
+      emailDomain.hashCode ^
       name.hashCode ^
       lastName.hashCode ^
       avatarUrl.hashCode ^
@@ -234,6 +255,9 @@ class User {
       areaCode.hashCode ^
       areaName.hashCode ^
       areaAbbreviation.hashCode ^
+      organizationNodeId.hashCode ^
+      organizationNodeName.hashCode ^
+      Object.hashAll(featureCodes) ^
       personnelCode.hashCode ^
       featureAccess.hashCode ^
       policyAccess.hashCode ^
@@ -242,4 +266,17 @@ class User {
   @override
   String toString() =>
       'User(email: $email, name: $name, storeId: $storeId, storeName: $storeName, role: $role, personnelCode: $personnelCode)';
+}
+
+List<String> _stringListFromJson(Object? value) {
+  if (value is! List) return const [];
+  return value.map((item) => item.toString()).toList(growable: false);
+}
+
+bool _listEquals(List<String> a, List<String> b) {
+  if (a.length != b.length) return false;
+  for (var index = 0; index < a.length; index += 1) {
+    if (a[index] != b[index]) return false;
+  }
+  return true;
 }

@@ -6,6 +6,7 @@ describe('FeatureService', () => {
   let prisma: any;
   let featureActive: boolean;
   let rules: any[];
+  let assignments: Record<string, boolean>;
   let policyAccess: Record<string, boolean>;
   let policyService: any;
 
@@ -28,6 +29,7 @@ describe('FeatureService', () => {
   beforeEach(() => {
     featureActive = true;
     rules = [];
+    assignments = {};
     policyAccess = {
       [ADMIN_POLICY_CODES.FIFO]: true,
       [ADMIN_POLICY_CODES.BANK_STATEMENTS]: false,
@@ -56,6 +58,18 @@ describe('FeatureService', () => {
           id: `rule-${data.userId ?? 'all'}`,
           ...data,
         })),
+      },
+      userFeatureAssignment: {
+        findUnique: jest.fn(async ({ where }: any) => {
+          const code = where.userId_featureCode.featureCode;
+          if (!(code in assignments)) return null;
+          return { enabled: assignments[code] };
+        }),
+        createMany: jest.fn(),
+      },
+      adminSetting: {
+        findUnique: jest.fn(async () => ({ key: 'USER_FEATURE_ALLOWLIST_BACKFILLED_AT' })),
+        create: jest.fn(),
       },
       roleDefinition: {
         findUnique: jest.fn(async ({ where }: any) => ({ code: where.code })),
@@ -90,121 +104,43 @@ describe('FeatureService', () => {
     service = new FeatureService(prisma, policyService);
   });
 
-  it('keeps legacy access when no feature rule matches', async () => {
-    await expect(
-      service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
-    ).resolves.toBe(true);
-    await expect(
-      service.canAccessFeature(
-        { ...storeUser, role: 'STAFF' },
-        'BANK_STATEMENTS',
-      ),
-    ).resolves.toBe(false);
-  });
-
-  it('applies explicit deny at API gate level', async () => {
-    rules = [{ featureCode: 'FIFO', enabled: false }];
-
-    await expect(
-      service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
-    ).resolves.toBe(false);
-  });
-
-  it('lets a more specific allow override a broader deny', async () => {
-    rules = [
-      { featureCode: 'FIFO', enabled: false },
-      { featureCode: 'FIFO', enabled: true, areaCode: 'HCM' },
-    ];
+  it('allows only features explicitly assigned to the user', async () => {
+    assignments = { FIFO: true };
 
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
     ).resolves.toBe(true);
-  });
-
-  it('does not let feature rules grant access beyond legacy authorization', async () => {
-    rules = [
-      { featureCode: 'BANK_STATEMENTS', enabled: true, userId: 'user-1' },
-    ];
-
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'BANK_STATEMENTS'),
     ).resolves.toBe(false);
   });
 
-  it('resolves STORE-scope feature context from the assigned SR area', async () => {
-    const staleRegion = { code: 'MIEN_CU', abbreviation: 'MC' };
-    const staleArea = {
-      code: 'VUNG_CU',
-      abbreviation: 'VC',
-      regionCode: staleRegion.code,
-      region: staleRegion,
-    };
-    prisma.user.findUnique.mockResolvedValueOnce({
-      ...storeUser,
-      regionCode: staleRegion.code,
-      areaCode: staleArea.code,
-      region: staleRegion,
-      area: staleArea,
-    });
-    rules = [
-      { featureCode: 'FIFO', enabled: false, regionCode: staleRegion.code },
-    ];
-
-    await expect(
-      service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
-    ).resolves.toBe(true);
-  });
-
-  it('makes disabled win when top matching rules have the same specificity', async () => {
-    rules = [
-      { featureCode: 'FIFO', enabled: true, areaCode: 'HCM' },
-      { featureCode: 'FIFO', enabled: false, areaCode: 'HCM' },
-    ];
+  it('denies legacy rule access without a user feature assignment', async () => {
+    rules = [{ featureCode: 'FIFO', enabled: true, userId: 'user-1' }];
+    policyAccess[ADMIN_POLICY_CODES.FIFO] = true;
 
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
     ).resolves.toBe(false);
   });
 
-  it('allows ADMIN_ACARE through admin-equivalent legacy gates', async () => {
-    await expect(
-      service.canAccessFeature({ role: 'ADMIN_ACARE' }, 'ADMIN_USERS'),
-    ).resolves.toBe(true);
-    await expect(
-      service.canAccessFeature({ role: 'ADMIN_ACARE' }, 'ADMIN_STORES'),
-    ).resolves.toBe(true);
-    await expect(
-      service.canAccessFeature({ role: 'ADMIN_ACARE' }, 'FIFO_IMPORT'),
-    ).resolves.toBe(true);
-    await expect(
-      service.canAccessFeature({ role: 'ADMIN_ACARE' }, 'ADMIN_FEATURES'),
-    ).resolves.toBe(false);
-  });
-
-  it('does not let a domain allow override policy authorization', async () => {
-    rules = [
-      {
-        featureCode: 'ADMIN_FEATURES',
-        enabled: true,
-        emailDomain: 'acaretek.vn',
-      },
-    ];
-
-    await expect(
-      service.canAccessFeature({ id: 'user-1' }, 'ADMIN_FEATURES'),
-    ).resolves.toBe(false);
-  });
-
-  it('lets a domain deny beat a user allow', async () => {
-    rules = [
-      { featureCode: 'FIFO', enabled: true, userId: 'user-1' },
-      { featureCode: 'FIFO', enabled: false, emailDomain: 'acaretek.vn' },
-    ];
+  it('denies disabled user feature assignments', async () => {
+    assignments = { FIFO: false };
 
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
     ).resolves.toBe(false);
   });
+
+  it('denies inactive features even when assigned', async () => {
+    featureActive = false;
+    assignments = { FIFO: true };
+
+    await expect(
+      service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
+    ).resolves.toBe(false);
+  });
+
   it('always bypasses feature gates for super admin', async () => {
     featureActive = false;
     rules = [{ featureCode: 'ADMIN_FEATURES', enabled: false }];

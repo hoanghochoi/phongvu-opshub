@@ -24,13 +24,18 @@ basic administration for privileged roles.
 ## Admin Management
 
 - Admin menu visibility is resolved through backend feature and policy maps.
-  If no feature rule matches, the backend feature gate falls back to the
-  resolved policy for the same code.
+  Runtime feature access uses a strict per-user allowlist; non-`SUPER_ADMIN`
+  users can open only active features explicitly assigned to them. Policy rules
+  still control capability and data scope, but they do not automatically open a
+  feature that is not assigned to the user.
 - The administration menu contains user management, role management, SR
-  management, region/area management, personnel catalog management, feature
-  management, and manual FIFO inventory import when the resolved feature map
-  allows them.
+  management, organization tree management, region/area management, personnel
+  catalog management, feature management, policy management, and manual FIFO
+  inventory import when the resolved feature map allows them.
 - Admin users can list, add, and edit users inside their permitted scope.
+- User management keeps name/email search and adds filters for domain,
+  organization node, feature/screen, role, and status. `SUPER_ADMIN` can assign
+  multiple allowed features from the user edit dialog.
 - `ADMIN_ACARE` has admin-equivalent user and store management access, but
   user management is limited to accounts whose email ends with
   `@acaretek.vn`.
@@ -49,12 +54,14 @@ basic administration for privileged roles.
 - Region/area management lets `SUPER_ADMIN` maintain Region (`Mien`) and Area
   (`Vung`) catalogs with display name, abbreviation, active state, and delete
   constraints.
-- Feature management lets `SUPER_ADMIN` manage feature definitions and
-  enabled/disabled rules by email domain, system role, department, job role,
-  work scope, region, area, SR, and optional user override. Feature rules are
-  enforced by API guards and Flutter only reflects the resolved state. An
-  explicit feature allow does not grant access beyond the matching admin policy;
-  a matching feature deny can still block access.
+- Organization management lets `SUPER_ADMIN` maintain a tree with root domain,
+  subdomain, block, department, area, showroom, job role, and virtual scope
+  nodes. Default root domains are `phongvu.vn` and `acaretek.vn`; subdomains are
+  created under those roots. Nodes with users, children, stores, rules, or other
+  references are deactivated instead of destructively removed.
+- Feature management keeps feature definitions and legacy feature rules for
+  reference/backfill, but the primary runtime gate is now the user feature
+  assignment allowlist. `SUPER_ADMIN` bypasses feature gates to avoid lockout.
 - Policy management lets `SUPER_ADMIN` manage admin policy definitions, policy
   rules, and system settings. Policy rules support the same detailed selectors
   as feature rules plus `scopeContains`, and batch creation supports multiple

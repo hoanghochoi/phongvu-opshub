@@ -17,21 +17,21 @@ export const FEATURE_KEYS = {
 } as const;
 
 export const DEFAULT_FEATURE_DEFINITIONS = [
-  { code: FEATURE_KEYS.ADMIN, displayName: 'Quản trị', description: 'Menu quản trị chung' },
-  { code: FEATURE_KEYS.ADMIN_USERS, displayName: 'Quản lý người dùng', description: 'Tạo và sửa tài khoản nhân sự' },
-  { code: FEATURE_KEYS.ADMIN_ROLES, displayName: 'Quản lý vai trò', description: 'Quản lý quyền hệ thống' },
-  { code: FEATURE_KEYS.ADMIN_STORES, displayName: 'Quản lý SR', description: 'Quản lý showroom/SR và tài khoản liên quan' },
-  { code: FEATURE_KEYS.ADMIN_REGIONS, displayName: 'Quản lý Vùng/Miền', description: 'Quản lý Miền, Vùng và scope ảo' },
-  { code: FEATURE_KEYS.ADMIN_PERSONNEL, displayName: 'Quản lý phòng ban/chức danh', description: 'Quản lý catalog nhân sự' },
-  { code: FEATURE_KEYS.ADMIN_FEATURES, displayName: 'Quản lý tính năng', description: 'Bật/tắt tính năng theo rule' },
-  { code: FEATURE_KEYS.FIFO, displayName: 'FIFO', description: 'Kiểm tra và sắp xếp FIFO' },
-  { code: FEATURE_KEYS.ADMIN_POLICIES, displayName: 'Quản lý policy', description: 'Quản lý rule quyền và cấu hình hệ thống' },
-  { code: FEATURE_KEYS.FIFO_IMPORT, displayName: 'Import tồn kho', description: 'Import tồn kho FIFO thủ công' },
-  { code: FEATURE_KEYS.WARRANTY, displayName: 'BH / SC', description: 'Bảo hành và sửa chữa' },
-  { code: FEATURE_KEYS.VIETQR, displayName: 'VietQR', description: 'Tạo QR chuyển khoản' },
-  { code: FEATURE_KEYS.BANK_STATEMENTS, displayName: 'Sao kê', description: 'Rà soát sao kê MAP/VietinBank' },
-  { code: FEATURE_KEYS.PAYMENT_MONITOR, displayName: 'Tiền vào', description: 'Theo dõi giao dịch tiền vào' },
-  { code: FEATURE_KEYS.FEEDBACK, displayName: 'Phản hồi', description: 'Gửi phản hồi nội bộ' },
+  { code: FEATURE_KEYS.ADMIN, displayName: 'Quản trị', description: 'Menu quản trị chung', sortOrder: 10 },
+  { code: FEATURE_KEYS.ADMIN_USERS, displayName: 'Quản lý người dùng', description: 'Tạo và sửa tài khoản nhân sự', parentCode: FEATURE_KEYS.ADMIN, sortOrder: 20 },
+  { code: FEATURE_KEYS.ADMIN_ROLES, displayName: 'Quản lý vai trò', description: 'Quản lý quyền hệ thống', parentCode: FEATURE_KEYS.ADMIN, sortOrder: 30 },
+  { code: FEATURE_KEYS.ADMIN_STORES, displayName: 'Quản lý SR', description: 'Quản lý showroom/SR và tài khoản liên quan', parentCode: FEATURE_KEYS.ADMIN, sortOrder: 40 },
+  { code: FEATURE_KEYS.ADMIN_REGIONS, displayName: 'Quản lý Vùng/Miền', description: 'Quản lý Miền, Vùng và scope ảo', parentCode: FEATURE_KEYS.ADMIN, sortOrder: 50 },
+  { code: FEATURE_KEYS.ADMIN_PERSONNEL, displayName: 'Quản lý phòng ban/chức danh', description: 'Quản lý catalog nhân sự', parentCode: FEATURE_KEYS.ADMIN, sortOrder: 60 },
+  { code: FEATURE_KEYS.ADMIN_FEATURES, displayName: 'Quản lý tính năng', description: 'Bật/tắt tính năng theo rule', parentCode: FEATURE_KEYS.ADMIN, sortOrder: 70 },
+  { code: FEATURE_KEYS.ADMIN_POLICIES, displayName: 'Quản lý policy', description: 'Quản lý rule quyền và cấu hình hệ thống', parentCode: FEATURE_KEYS.ADMIN, sortOrder: 80 },
+  { code: FEATURE_KEYS.FIFO, displayName: 'FIFO', description: 'Kiểm tra và sắp xếp FIFO', sortOrder: 100 },
+  { code: FEATURE_KEYS.FIFO_IMPORT, displayName: 'Import tồn kho', description: 'Import tồn kho FIFO thủ công', parentCode: FEATURE_KEYS.FIFO, sortOrder: 110 },
+  { code: FEATURE_KEYS.WARRANTY, displayName: 'BH / SC', description: 'Bảo hành và sửa chữa', sortOrder: 200 },
+  { code: FEATURE_KEYS.VIETQR, displayName: 'VietQR', description: 'Tạo QR chuyển khoản', sortOrder: 300 },
+  { code: FEATURE_KEYS.BANK_STATEMENTS, displayName: 'Sao kê', description: 'Rà soát sao kê MAP/VietinBank', sortOrder: 400 },
+  { code: FEATURE_KEYS.PAYMENT_MONITOR, displayName: 'Tiền vào', description: 'Theo dõi giao dịch tiền vào', sortOrder: 500 },
+  { code: FEATURE_KEYS.FEEDBACK, displayName: 'Phản hồi', description: 'Gửi phản hồi nội bộ', sortOrder: 600 },
 ] as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[keyof typeof FEATURE_KEYS];

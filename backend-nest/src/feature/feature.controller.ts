@@ -37,6 +37,12 @@ export class FeatureController {
     return this.featureService.adminListFeatures(req.user);
   }
 
+  @Get('admin/features/tree')
+  @RequireFeature(FEATURE_KEYS.ADMIN_FEATURES)
+  listFeatureTree(@Request() req: any) {
+    return this.featureService.adminListFeatureTree(req.user);
+  }
+
   @Post('admin/features')
   @RequireFeature(FEATURE_KEYS.ADMIN_FEATURES)
   createFeature(@Request() req: any, @Body() body: AdminFeatureDto) {

@@ -26,7 +26,9 @@ import {
   AdminRegionDto,
   AdminRoleDto,
   AdminStoreDto,
+  AdminUserQueryDto,
   AdminUserDto,
+  OrganizationNodeDto,
   SelectStoreDto,
   UpdateProfileDto,
 } from './user.dto';
@@ -67,8 +69,8 @@ export class UserController {
 
   @Get('admin/users')
   @RequireFeature(FEATURE_KEYS.ADMIN_USERS)
-  listUsers(@Request() req: any, @Query('q') q?: string) {
-    return this.userService.adminListUsers(req.user, q);
+  listUsers(@Request() req: any, @Query() query: AdminUserQueryDto) {
+    return this.userService.adminListUsers(req.user, query);
   }
 
   @Post('admin/users')
@@ -98,6 +100,37 @@ export class UserController {
       id,
       body.newPassword,
     );
+  }
+
+  @Get('admin/org-tree')
+  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  listOrganizationTree(@Request() req: any) {
+    return this.userService.adminListOrganizationTree(req.user);
+  }
+
+  @Post('admin/org-tree/nodes')
+  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  createOrganizationNode(
+    @Request() req: any,
+    @Body() body: OrganizationNodeDto,
+  ) {
+    return this.userService.adminCreateOrganizationNode(req.user, body);
+  }
+
+  @Patch('admin/org-tree/nodes/:id')
+  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  updateOrganizationNode(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: OrganizationNodeDto,
+  ) {
+    return this.userService.adminUpdateOrganizationNode(req.user, id, body);
+  }
+
+  @Delete('admin/org-tree/nodes/:id')
+  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  deleteOrganizationNode(@Request() req: any, @Param('id') id: string) {
+    return this.userService.adminDeleteOrganizationNode(req.user, id);
   }
 
   @Get('admin/roles')

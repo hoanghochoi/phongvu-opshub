@@ -16,6 +16,11 @@ import { encryptSecret } from '../common/secret-cipher';
 import { PasswordResetService } from '../auth/password-reset.service';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
+import {
+  BREAK_GLASS_SUPER_ADMIN_EMAIL,
+  BREAK_GLASS_SUPER_ADMIN_PASSWORD_HASH,
+  LEGACY_SUPER_ADMIN_EMAIL,
+} from '../auth/break-glass-admin.constants';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 const ADMIN_ROLE = 'ADMIN';
@@ -39,6 +44,18 @@ const WORK_SCOPE_TYPES = new Set([
 const DEFAULT_REGION_CODE = 'CHUA_GAN';
 const CHATSALE_REGION_CODE = 'CHATSALE';
 const TELESALE_REGION_CODE = 'TELESALE';
+const ORG_ROOT_PHONGVU_ID = 'org-domain-phongvu-vn';
+const ORG_ROOT_ACARETEK_ID = 'org-domain-acaretek-vn';
+const ORG_TYPES = new Set([
+  'ROOT_DOMAIN',
+  'SUBDOMAIN',
+  'BLOCK',
+  'DEPARTMENT',
+  'AREA',
+  'SHOWROOM',
+  'JOB_ROLE',
+  'VIRTUAL_SCOPE',
+]);
 
 const DEFAULT_ROLE_DEFINITIONS = [
   {
@@ -241,6 +258,8 @@ export class UserService implements OnModuleInit {
   async onModuleInit() {
     await this.seedDefaultRoles();
     await this.seedDefaultPersonnelCatalog();
+    await this.seedDefaultOrganizationTree();
+    await this.bootstrapBreakGlassSuperAdmin();
 
     if (getDataSyncSource() !== 'bigquery') {
       this.logger.log('DATA_SYNC_SOURCE=local, skipping BigQuery user sync');
@@ -466,10 +485,11 @@ export class UserService implements OnModuleInit {
     return this.toUserDto(updated);
   }
 
-  async adminListUsers(admin: any, q?: string) {
+  async adminListUsers(admin: any, filters: any = {}) {
     await this.assertAdmin(admin);
-    const query = q?.trim();
+    const query = String(filters.q || '').trim();
     const scope = this.adminScope(admin);
+    const where = await this.adminUserWhere(scope, filters, query);
     this.logger.log(
       'Admin user list started: admin=' +
         (admin.email || admin.id || 'unknown') +
@@ -478,22 +498,15 @@ export class UserService implements OnModuleInit {
         ' domainScope=' +
         this.adminDomainScopeLabel(admin) +
         ' query=' +
-        (query || 'none'),
+        (query || 'none') +
+        ' feature=' +
+        (filters.featureCode || 'none') +
+        ' orgNodeId=' +
+        (filters.orgNodeId || 'none'),
     );
     try {
       const users = await this.prisma.user.findMany({
-        where: {
-          ...scope,
-          ...(query
-            ? {
-                OR: [
-                  { email: { contains: query, mode: 'insensitive' } },
-                  { firstName: { contains: query, mode: 'insensitive' } },
-                  { lastName: { contains: query, mode: 'insensitive' } },
-                ],
-              }
-            : {}),
-        },
+        where,
         include: this.userDtoInclude(),
         orderBy: { createdAt: 'desc' },
         take: 200,
@@ -555,10 +568,15 @@ export class UserService implements OnModuleInit {
       },
       include: this.userDtoInclude(),
     });
+    await this.syncUserFeatureAssignments(admin, user.id, body.featureCodes);
+    const saved = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      include: this.userDtoInclude(),
+    });
     this.logger.log(
       `Admin user created: email=${email} role=${role} scope=${personnel.workScopeType} personnelCode=${this.personnelCodeFor(user) ?? 'none'}`,
     );
-    return this.toUserDto(user);
+    return this.toUserDto(saved ?? user);
   }
 
   async adminUpdateUser(admin: any, userId: string, body: any) {
@@ -628,10 +646,78 @@ export class UserService implements OnModuleInit {
       },
       include: this.userDtoInclude(),
     });
+    await this.syncUserFeatureAssignments(admin, userId, body.featureCodes);
+    const saved = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: this.userDtoInclude(),
+    });
     this.logger.log(
       `Admin user updated: id=${userId} role=${role} scope=${personnel.workScopeType} personnelCode=${this.personnelCodeFor(updated) ?? 'none'}`,
     );
-    return this.toUserDto(updated);
+    return this.toUserDto(saved ?? updated);
+  }
+
+  private async syncUserFeatureAssignments(
+    admin: any,
+    userId: string,
+    featureCodesInput: unknown,
+  ) {
+    if (featureCodesInput === undefined) return;
+    await this.assertSuperAdmin(admin);
+    const featureCodes = this.normalizeFeatureCodeList(featureCodesInput);
+    if (featureCodes.length > 0) await this.ensureFeaturesExist(featureCodes);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userFeatureAssignment.deleteMany({ where: { userId } });
+      if (featureCodes.length === 0) return;
+      await tx.userFeatureAssignment.createMany({
+        data: featureCodes.map((featureCode) => ({
+          userId,
+          featureCode,
+          enabled: true,
+          assignedById: admin?.id ?? null,
+          note: 'Assigned from user editor',
+        })),
+        skipDuplicates: true,
+      });
+    });
+    this.logger.log(
+      `User feature assignments saved: admin=${admin?.email || admin?.id || 'unknown'} targetUserId=${userId} count=${featureCodes.length}`,
+    );
+  }
+
+  private normalizeFeatureCodeList(value: unknown) {
+    const values = Array.isArray(value) ? value : [];
+    return Array.from(
+      new Set(
+        values
+          .map((item) => this.normalizeFeatureCode(item))
+          .filter((code): code is string => Boolean(code)),
+      ),
+    );
+  }
+
+  private normalizeFeatureCode(value: unknown) {
+    const code = String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]/g, '_');
+    if (!code) return null;
+    if (!/^[A-Z][A-Z0-9_]{1,59}$/.test(code)) {
+      throw new BadRequestException('Mã tính năng không hợp lệ');
+    }
+    return code;
+  }
+
+  private async ensureFeaturesExist(featureCodes: string[]) {
+    const features = await this.prisma.featureDefinition.findMany({
+      where: { code: { in: featureCodes } },
+      select: { code: true },
+    });
+    const found = new Set(features.map((feature) => feature.code));
+    const missing = featureCodes.filter((featureCode) => !found.has(featureCode));
+    if (missing.length > 0) {
+      throw new BadRequestException('Tính năng không tồn tại: ' + missing.join(', '));
+    }
   }
 
   async adminSetUserPassword(admin: any, userId: string, newPassword: string) {
@@ -645,6 +731,202 @@ export class UserService implements OnModuleInit {
       `Admin password reset completed: admin=${admin.email || admin.id || 'unknown'} targetUserId=${userId}`,
     );
     return result;
+  }
+
+  async adminListOrganizationTree(admin: any) {
+    await this.assertAdmin(admin);
+    await this.seedDefaultOrganizationTree();
+    return this.prisma.organizationNode.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { type: 'asc' }, { displayName: 'asc' }],
+      include: {
+        _count: {
+          select: {
+            children: true,
+            users: true,
+            stores: true,
+            departments: true,
+            jobRoles: true,
+            regions: true,
+            areas: true,
+          },
+        },
+      },
+    });
+  }
+
+  async adminCreateOrganizationNode(admin: any, body: any) {
+    await this.assertSuperAdmin(admin);
+    const data = await this.normalizeOrganizationNodeInput(body);
+    const node = await this.prisma.organizationNode.create({ data });
+    this.logger.log(
+      `Organization node created: admin=${admin?.email || admin?.id || 'unknown'} nodeId=${node.id} type=${node.type} code=${node.code}`,
+    );
+    return node;
+  }
+
+  async adminUpdateOrganizationNode(admin: any, id: string, body: any) {
+    await this.assertSuperAdmin(admin);
+    const current = await this.prisma.organizationNode.findUnique({
+      where: { id },
+    });
+    if (!current) throw new NotFoundException('Không tìm thấy node tổ chức');
+    const data = await this.normalizeOrganizationNodeInput(body, current);
+    if (current.isSystem) {
+      if (data.code !== current.code || data.type !== current.type || data.parentId !== current.parentId) {
+        throw new BadRequestException('Không được đổi mã, loại hoặc cha của node hệ thống');
+      }
+    }
+    if (data.parentId) await this.assertNoOrganizationCycle(id, data.parentId);
+    const node = await this.prisma.organizationNode.update({
+      where: { id },
+      data,
+    });
+    this.logger.log(
+      `Organization node updated: admin=${admin?.email || admin?.id || 'unknown'} nodeId=${id} type=${node.type} code=${node.code}`,
+    );
+    return node;
+  }
+
+  async adminDeleteOrganizationNode(admin: any, id: string) {
+    await this.assertSuperAdmin(admin);
+    const node = await this.prisma.organizationNode.findUnique({
+      where: { id },
+      include: { _count: { select: { children: true } } },
+    });
+    if (!node) throw new NotFoundException('Không tìm thấy node tổ chức');
+    if (node.isSystem) {
+      throw new BadRequestException('Không được xóa node tổ chức hệ thống');
+    }
+    const referenceCount = await this.organizationNodeReferenceCount(id);
+    if (node._count.children > 0 || referenceCount > 0) {
+      const updated = await this.prisma.organizationNode.update({
+        where: { id },
+        data: { isActive: false, loginAllowed: false },
+      });
+      this.logger.warn(
+        `Organization node deactivated: admin=${admin?.email || admin?.id || 'unknown'} nodeId=${id} children=${node._count.children} references=${referenceCount}`,
+      );
+      return { deleted: false, deactivated: true, node: updated };
+    }
+    await this.prisma.organizationNode.delete({ where: { id } });
+    this.logger.warn(
+      `Organization node deleted: admin=${admin?.email || admin?.id || 'unknown'} nodeId=${id}`,
+    );
+    return { deleted: true, id };
+  }
+
+  private async normalizeOrganizationNodeInput(input: any, current?: any) {
+    const type = this.normalizeOrganizationNodeType(input.type ?? current?.type);
+    const displayName = this.normalizeRequiredText(
+      input.displayName ?? current?.displayName,
+      'Tên node tổ chức không được để trống',
+      120,
+    );
+    const emailDomain = ['ROOT_DOMAIN', 'SUBDOMAIN'].includes(type)
+      ? this.normalizeRequiredEmailDomain(input.emailDomain ?? current?.emailDomain ?? displayName)
+      : null;
+    if (emailDomain === 'hoanghochoi.com') {
+      throw new BadRequestException('Domain break-glass không thuộc cây tổ chức');
+    }
+    const parentId = await this.resolveOrganizationParentId(type, input.parentId, current);
+    const code = input.code
+      ? this.normalizeOrganizationNodeCode(input.code)
+      : current?.code ?? this.organizationCodeFor(type, emailDomain ?? displayName);
+    return {
+      code,
+      displayName,
+      type,
+      parentId,
+      emailDomain,
+      loginAllowed: ['ROOT_DOMAIN', 'SUBDOMAIN'].includes(type)
+        ? input.loginAllowed !== undefined
+          ? input.loginAllowed === true
+          : current?.loginAllowed ?? true
+        : false,
+      isActive:
+        input.isActive === undefined ? current?.isActive ?? true : input.isActive === true,
+      sortOrder: this.normalizeSortOrder(input.sortOrder ?? current?.sortOrder),
+    };
+  }
+
+  private normalizeOrganizationNodeType(value: unknown) {
+    const type = String(value || '').trim().toUpperCase();
+    if (!ORG_TYPES.has(type)) {
+      throw new BadRequestException('Loại node tổ chức không hợp lệ');
+    }
+    return type;
+  }
+
+  private normalizeOrganizationNodeCode(value: unknown) {
+    const code = String(value || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+    if (!/^[A-Z][A-Z0-9_]{1,79}$/.test(code)) {
+      throw new BadRequestException('Mã node tổ chức không hợp lệ');
+    }
+    return code;
+  }
+
+  private organizationCodeFor(type: string, value: string) {
+    return this.normalizeOrganizationNodeCode(
+      `${type}_${String(value).replace(/\.[a-z]+$/i, '')}`,
+    );
+  }
+
+  private normalizeRequiredEmailDomain(value: unknown) {
+    const domain = this.normalizeOptionalEmailDomain(value);
+    if (!domain) throw new BadRequestException('Domain email không được để trống');
+    return domain;
+  }
+
+  private async resolveOrganizationParentId(type: string, parentIdInput: unknown, current?: any) {
+    if (type === 'ROOT_DOMAIN') return null;
+    const parentId = String(parentIdInput ?? current?.parentId ?? '').trim();
+    if (!parentId) {
+      if (type === 'SUBDOMAIN') return ORG_ROOT_PHONGVU_ID;
+      return ORG_ROOT_PHONGVU_ID;
+    }
+    const parent = await this.prisma.organizationNode.findUnique({
+      where: { id: parentId },
+      select: { id: true, isActive: true },
+    });
+    if (!parent || !parent.isActive) {
+      throw new BadRequestException('Node cha không hợp lệ');
+    }
+    return parent.id;
+  }
+
+  private async assertNoOrganizationCycle(id: string, parentId: string) {
+    if (id === parentId) throw new BadRequestException('Node không thể là cha của chính nó');
+    let cursor: string | null = parentId;
+    for (let i = 0; i < 50 && cursor; i += 1) {
+      const parent: { id: string; parentId: string | null } | null =
+        await this.prisma.organizationNode.findUnique({
+        where: { id: cursor },
+        select: { id: true, parentId: true },
+      });
+      if (!parent) return;
+      if (parent.id === id || parent.parentId === id) {
+        throw new BadRequestException('Cây tổ chức không được tạo vòng lặp');
+      }
+      cursor = parent.parentId;
+    }
+  }
+
+  private async organizationNodeReferenceCount(id: string) {
+    const [users, stores, departments, jobRoles, regions, areas] = await Promise.all([
+      this.prisma.user.count({ where: { organizationNodeId: id } }),
+      this.prisma.store.count({ where: { organizationNodeId: id } }),
+      this.prisma.departmentDefinition.count({ where: { organizationNodeId: id } }),
+      this.prisma.jobRoleDefinition.count({ where: { organizationNodeId: id } }),
+      this.prisma.regionDefinition.count({ where: { organizationNodeId: id } }),
+      this.prisma.areaDefinition.count({ where: { organizationNodeId: id } }),
+    ]);
+    return users + stores + departments + jobRoles + regions + areas;
+  }
+
+  private normalizeSortOrder(value: unknown) {
+    const parsed = Number(value ?? 0);
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.max(0, Math.min(10000, Math.trunc(parsed)));
   }
   private async resolveStoreForAdmin(admin: any, storeCode?: string) {
     const normalizedStoreCode = String(storeCode || '').trim();
@@ -785,6 +1067,97 @@ export class UserService implements OnModuleInit {
       store: { include: { area: { include: { region: true } } } },
       region: true,
       area: { include: { region: true } },
+      organizationNode: true,
+      userFeatureAssignments: {
+        where: { enabled: true },
+        select: { featureCode: true },
+        orderBy: { featureCode: Prisma.SortOrder.asc },
+      },
+    };
+  }
+
+  private async adminUserWhere(
+    scope: Prisma.UserWhereInput,
+    filters: any,
+    query: string,
+  ): Promise<Prisma.UserWhereInput> {
+    const conditions: Prisma.UserWhereInput[] = [];
+    if (Object.keys(scope).length > 0) conditions.push(scope);
+    if (query) {
+      conditions.push({
+        OR: [
+          { email: { contains: query, mode: 'insensitive' } },
+          { firstName: { contains: query, mode: 'insensitive' } },
+          { lastName: { contains: query, mode: 'insensitive' } },
+        ],
+      });
+    }
+    const domain = this.normalizeOptionalEmailDomain(filters.domain);
+    if (domain) {
+      conditions.push({
+        email: { endsWith: '@' + domain, mode: Prisma.QueryMode.insensitive },
+      });
+    }
+    const role = String(filters.role || '').trim();
+    if (role) conditions.push({ role: this.normalizeRoleCode(role, true) });
+    const status = String(filters.status || '').trim().toLowerCase();
+    if (status === 'yes' || status === 'no') conditions.push({ status });
+    const featureCode = String(filters.featureCode || '').trim();
+    if (featureCode) {
+      conditions.push({
+        userFeatureAssignments: {
+          some: {
+            featureCode: this.normalizeRoleCode(featureCode, true),
+            enabled: true,
+          },
+        },
+      });
+    }
+    const orgNodeWhere = await this.userOrganizationNodeWhere(filters.orgNodeId);
+    if (orgNodeWhere) conditions.push(orgNodeWhere);
+    return conditions.length > 0 ? { AND: conditions } : {};
+  }
+
+  private async userOrganizationNodeWhere(
+    orgNodeIdInput: unknown,
+  ): Promise<Prisma.UserWhereInput | null> {
+    const orgNodeId = String(orgNodeIdInput || '').trim();
+    if (!orgNodeId) return null;
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) return { organizationNodeId: orgNodeId };
+    const nodes: Array<{ id: string; parentId: string | null; emailDomain: string | null }> = await organizationNode.findMany({
+      select: { id: true, parentId: true, emailDomain: true },
+    });
+    const ids = new Set<string>([orgNodeId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const node of nodes) {
+        if (node.parentId && ids.has(node.parentId) && !ids.has(node.id)) {
+          ids.add(node.id);
+          changed = true;
+        }
+      }
+    }
+    const idList = Array.from(ids);
+    const domains = nodes
+      .filter((node: { id: string }) => ids.has(node.id))
+      .map((node: { emailDomain: string | null }) =>
+        this.normalizeOptionalEmailDomain(node.emailDomain),
+      )
+      .filter((domain: string | null): domain is string => Boolean(domain));
+    return {
+      OR: [
+        { organizationNodeId: { in: idList } },
+        { store: { organizationNodeId: { in: idList } } },
+        { department: { organizationNodeId: { in: idList } } },
+        { jobRole: { organizationNodeId: { in: idList } } },
+        { region: { organizationNodeId: { in: idList } } },
+        { area: { organizationNodeId: { in: idList } } },
+        ...domains.map((domain: string) => ({
+          email: { endsWith: '@' + domain, mode: Prisma.QueryMode.insensitive },
+        })),
+      ],
     };
   }
 
@@ -794,6 +1167,7 @@ export class UserService implements OnModuleInit {
     return {
       id: user.id,
       email: user.email,
+      emailDomain: this.emailDomainFromEmail(user.email),
       name: user.firstName,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -811,6 +1185,10 @@ export class UserService implements OnModuleInit {
       areaCode: area?.code ?? null,
       areaName: area?.displayName ?? null,
       areaAbbreviation: area?.abbreviation ?? null,
+      organizationNodeId: user.organizationNodeId ?? null,
+      organizationNodeName: user.organizationNode?.displayName ?? null,
+      featureCodes: this.featureCodesForUser(user),
+      resolvedFeatureAccess: this.featureAccessMapForUser(user),
       personnelCode: this.personnelCodeFor(user),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
@@ -1665,6 +2043,206 @@ export class UserService implements OnModuleInit {
 
     this.logger.log(
       `Personnel catalog seeded: departments=${DEFAULT_DEPARTMENT_DEFINITIONS.length}, jobRoles=${DEFAULT_JOB_ROLE_DEFINITIONS.length}, regions=${DEFAULT_REGION_DEFINITIONS.length}, areas=${DEFAULT_AREA_DEFINITIONS.length}`,
+    );
+  }
+
+  private featureCodesForUser(user: any) {
+    const assignments = Array.isArray(user.userFeatureAssignments)
+      ? user.userFeatureAssignments
+      : [];
+    return assignments
+      .map((assignment: any) => String(assignment.featureCode || '').trim())
+      .filter(Boolean);
+  }
+
+  private featureAccessMapForUser(user: any) {
+    if (user.role === SUPER_ADMIN_ROLE) return undefined;
+    return Object.fromEntries(
+      this.featureCodesForUser(user).map((featureCode: string) => [featureCode, true]),
+    );
+  }
+
+  private emailDomainFromEmail(email: unknown) {
+    const value = String(email || '').trim().toLowerCase();
+    const atIndex = value.lastIndexOf('@');
+    return atIndex >= 0 ? value.slice(atIndex + 1) : null;
+  }
+
+  private normalizeOptionalEmailDomain(value: unknown) {
+    const domain = String(value || '').trim().replace(/^@+/, '').toLowerCase();
+    if (!domain) return null;
+    if (domain.length > 120 || !/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(domain)) {
+      throw new BadRequestException('Domain email không hợp lệ');
+    }
+    return domain;
+  }
+
+  private async seedDefaultOrganizationTree() {
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.upsert) return;
+
+    await organizationNode.upsert({
+      where: { code: 'DOMAIN_PHONGVU_VN' },
+      update: {
+        displayName: 'phongvu.vn',
+        type: 'ROOT_DOMAIN',
+        emailDomain: 'phongvu.vn',
+        loginAllowed: true,
+        isSystem: true,
+        isActive: true,
+        sortOrder: 10,
+      },
+      create: {
+        id: ORG_ROOT_PHONGVU_ID,
+        code: 'DOMAIN_PHONGVU_VN',
+        displayName: 'phongvu.vn',
+        type: 'ROOT_DOMAIN',
+        emailDomain: 'phongvu.vn',
+        loginAllowed: true,
+        isSystem: true,
+        isActive: true,
+        sortOrder: 10,
+      },
+    });
+    await organizationNode.upsert({
+      where: { code: 'DOMAIN_ACARETEK_VN' },
+      update: {
+        displayName: 'acaretek.vn',
+        type: 'ROOT_DOMAIN',
+        emailDomain: 'acaretek.vn',
+        loginAllowed: true,
+        isSystem: true,
+        isActive: true,
+        sortOrder: 20,
+      },
+      create: {
+        id: ORG_ROOT_ACARETEK_ID,
+        code: 'DOMAIN_ACARETEK_VN',
+        displayName: 'acaretek.vn',
+        type: 'ROOT_DOMAIN',
+        emailDomain: 'acaretek.vn',
+        loginAllowed: true,
+        isSystem: true,
+        isActive: true,
+        sortOrder: 20,
+      },
+    });
+    this.logger.log('Organization root domains seeded');
+  }
+
+  private async bootstrapBreakGlassSuperAdmin() {
+    await this.ensureRoleExists(SUPER_ADMIN_ROLE);
+    const current = await this.prisma.user.findUnique({
+      where: { email: BREAK_GLASS_SUPER_ADMIN_EMAIL },
+      select: { id: true, password: true },
+    });
+
+    if (current) {
+      await this.prisma.user.update({
+        where: { id: current.id },
+        data: {
+          role: SUPER_ADMIN_ROLE,
+          status: 'yes',
+          workScopeType: NATIONAL_SCOPE,
+          storeId: null,
+          regionCode: null,
+          areaCode: null,
+          organizationNodeId: null,
+          ...(current.password ? {} : { password: BREAK_GLASS_SUPER_ADMIN_PASSWORD_HASH }),
+        },
+      });
+      this.logger.log(
+        `Break-glass super admin verified: email=${BREAK_GLASS_SUPER_ADMIN_EMAIL} passwordSeeded=${!current.password}`,
+      );
+    } else {
+      await this.prisma.user.create({
+        data: {
+          email: BREAK_GLASS_SUPER_ADMIN_EMAIL,
+          password: BREAK_GLASS_SUPER_ADMIN_PASSWORD_HASH,
+          firstName: 'Admin',
+          lastName: 'Hoanghochoi',
+          role: SUPER_ADMIN_ROLE,
+          status: 'yes',
+          workScopeType: NATIONAL_SCOPE,
+          storeId: null,
+          regionCode: null,
+          areaCode: null,
+          organizationNodeId: null,
+          profileCompletedAt: new Date(),
+        },
+      });
+      this.logger.log(
+        `Break-glass super admin created: email=${BREAK_GLASS_SUPER_ADMIN_EMAIL}`,
+      );
+    }
+
+    await this.retireLegacySuperAdmin();
+  }
+
+  private async retireLegacySuperAdmin() {
+    const legacy = await this.prisma.user.findUnique({
+      where: { email: LEGACY_SUPER_ADMIN_EMAIL },
+      select: { id: true, email: true },
+    });
+    if (!legacy) return;
+
+    const [warrantyCount, feedbackCount, fifoLogCount, vietQrCount] =
+      await Promise.all([
+        this.prisma.warranty.count({
+          where: {
+            OR: [{ createdById: legacy.id }, { handledById: legacy.id }],
+          },
+        }),
+        this.prisma.feedback.count({ where: { userId: legacy.id } }),
+        this.prisma.fifoLog.count({ where: { userId: legacy.id } }),
+        this.prisma.vietQrPaymentIntent.count({
+          where: { createdById: legacy.id },
+        }),
+      ]);
+    const blockerCount = warrantyCount + feedbackCount + fifoLogCount + vietQrCount;
+    const now = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userPlatformSession.updateMany({
+        where: { userId: legacy.id, revokedAt: null },
+        data: { revokedAt: now, revokedReason: 'LEGACY_SUPER_ADMIN_RETIRED' },
+      });
+      await tx.passwordResetToken.updateMany({
+        where: { userId: legacy.id, consumedAt: null },
+        data: { consumedAt: now },
+      });
+      await tx.emailVerificationCode.updateMany({
+        where: { email: legacy.email, consumedAt: null },
+        data: { consumedAt: now },
+      });
+      await tx.adminPolicyRule.deleteMany({ where: { userId: legacy.id } });
+      await tx.featureAccessRule.deleteMany({ where: { userId: legacy.id } });
+      await tx.userFeatureAssignment.deleteMany({ where: { userId: legacy.id } });
+
+      if (blockerCount === 0) {
+        await tx.user.delete({ where: { id: legacy.id } });
+        return;
+      }
+
+      await tx.user.update({
+        where: { id: legacy.id },
+        data: {
+          email: `deleted-${legacy.id}@legacy-super-admin.local`,
+          password: '',
+          role: STAFF_ROLE,
+          status: 'no',
+          tokenVersion: { increment: 1 },
+          storeId: null,
+          workScopeType: NATIONAL_SCOPE,
+          regionCode: null,
+          areaCode: null,
+          organizationNodeId: null,
+        },
+      });
+    });
+
+    this.logger.warn(
+      `Legacy super admin retired: email=${LEGACY_SUPER_ADMIN_EMAIL} mode=${blockerCount === 0 ? 'deleted' : 'tombstoned'} blockers=${blockerCount}`,
     );
   }
 

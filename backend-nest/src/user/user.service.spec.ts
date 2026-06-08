@@ -281,10 +281,14 @@ describe('UserService admin store management', () => {
     expect(prisma.user.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          email: {
-            endsWith: '@acaretek.vn',
-            mode: 'insensitive',
-          },
+          AND: expect.arrayContaining([
+            {
+              email: {
+                endsWith: '@acaretek.vn',
+                mode: 'insensitive',
+              },
+            },
+          ]),
         }),
       }),
     );

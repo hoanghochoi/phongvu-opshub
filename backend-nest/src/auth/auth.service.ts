@@ -22,6 +22,7 @@ import {
   allowedEmailDomainMessage,
   getAllowedEmailDomains,
 } from './email-domain-policy';
+import { BREAK_GLASS_SUPER_ADMIN_EMAIL } from './break-glass-admin.constants';
 
 const PASSWORD_SALT_ROUNDS = 12;
 const STORE_SCOPE = 'STORE';
@@ -271,6 +272,8 @@ export class AuthService {
   }
 
   private async assertAllowedDomain(email: string) {
+    if (email === BREAK_GLASS_SUPER_ADMIN_EMAIL) return;
+
     const fallbackDomains = getAllowedEmailDomains();
     const allowedDomains = await this.policyService.getAllowedEmailDomains(fallbackDomains);
     if (allowedDomains.length === 0) {

@@ -1,10 +1,12 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { FEATURE_KEY_METADATA } from './feature.decorator';
 import { FeatureService } from './feature.service';
 
 @Injectable()
 export class FeatureGuard implements CanActivate {
+  private readonly logger = new Logger(FeatureGuard.name);
+
   constructor(
     private readonly reflector: Reflector,
     private readonly featureService: FeatureService,
@@ -23,6 +25,9 @@ export class FeatureGuard implements CanActivate {
       featureKey,
     );
     if (!allowed) {
+      this.logger.warn(
+        `Feature access denied: feature=${featureKey} userId=${request.user?.id ?? 'unknown'} role=${request.user?.role ?? 'unknown'}`,
+      );
       throw new ForbiddenException('Tính năng đang bị tắt cho phạm vi của bạn');
     }
     return true;

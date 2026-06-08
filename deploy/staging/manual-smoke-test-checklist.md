@@ -10,6 +10,8 @@ Tài khoản staging có sẵn:
 - `staging.admin@phongvu.vn` / `<STAGING_TEST_PASSWORD>`
 - `staging.staff@phongvu.vn` / `<STAGING_TEST_PASSWORD>`
 - `staging.acare@acaretek.vn` / `<STAGING_TEST_PASSWORD>`
+- `admin@hoanghochoi.com` / `<BREAK_GLASS_PASSWORD>` cho smoke test quyền
+  `SUPER_ADMIN` khi cần. Không ghi mật khẩu thật vào checklist hoặc issue.
 
 Không commit mật khẩu staging thật. Lấy `STAGING_TEST_PASSWORD` từ người vận
 hành staging hoặc từ env runtime trên server khi cần smoke test.
@@ -55,6 +57,8 @@ rõ ràng.
 
 ## 3. Đăng Nhập, Session Và Đăng Xuất
 
+- [ ] Đăng nhập `admin@hoanghochoi.com` thành công dù email không thuộc cây domain vận hành.
+- [ ] `admin@hoanghochoi.com` có role `SUPER_ADMIN`, không bị ép chọn SR/showroom.
 - [ ] Đăng nhập `staging.admin@phongvu.vn` thành công.
 - [ ] Đăng xuất thành công và quay về màn hình đăng nhập.
 - [ ] Đăng nhập lại cùng tài khoản admin thành công.
@@ -80,11 +84,28 @@ rõ ràng.
 
 ## 5. Quản Trị Và Phân Quyền
 
+- [ ] `admin@hoanghochoi.com` thấy đầy đủ menu quản trị và không bị chặn feature.
 - [ ] `staging.admin@phongvu.vn` thấy card/menu `Quản trị`.
 - [ ] Danh sách người dùng tải được.
+- [ ] Filter người dùng theo tên/email vẫn hoạt động.
+- [ ] Filter người dùng theo domain hoạt động với `phongvu.vn` và `acaretek.vn`.
+- [ ] Filter người dùng theo cơ cấu tổ chức hoạt động hoặc empty state rõ ràng.
+- [ ] Filter người dùng theo màn hình/chức năng hoạt động hoặc empty state rõ ràng.
+- [ ] Filter người dùng theo role và trạng thái hoạt động.
 - [ ] Tạo user test tạm bằng email an toàn, ví dụ `smoke.user@phongvu.vn`.
 - [ ] Sửa role/store/scope của user test và lưu được.
+- [ ] Trong dialog sửa user, section `Chức năng được sử dụng` hiển thị dạng checkbox tree.
+- [ ] Tick nhiều chức năng cho user test và lưu được.
+- [ ] User test chỉ thấy/dùng được các màn hình đã tick sau khi đăng nhập lại.
+- [ ] Bỏ tick một chức năng của user test, đăng nhập lại và xác nhận route/API tương ứng bị chặn rõ ràng.
 - [ ] Reset mật khẩu user test từ màn admin.
+- [ ] Màn hình `Cơ cấu tổ chức` tải được dạng tree.
+- [ ] Root domain mặc định có `phongvu.vn` và `acaretek.vn`.
+- [ ] Tạo subdomain test dưới `phongvu.vn`, ví dụ `smoke-staging.phongvu.vn`, rồi thấy node xuất hiện đúng cấp.
+- [ ] Sửa tên/trạng thái node test và tải lại vẫn giữ dữ liệu.
+- [ ] Tạo node con dưới subdomain test, ví dụ phòng ban/showroom/chức danh, rồi thấy đúng cấp tree.
+- [ ] Xóa node đang có con hoặc có liên kết bị chặn hoặc chuyển inactive rõ ràng, không crash.
+- [ ] Xóa node test rỗng thành công, hoặc inactive nếu backend phát hiện đã từng được dùng.
 - [ ] Màn hình vai trò tải được.
 - [ ] Màn hình SR/store tải được và có `STG01` hoặc dữ liệu store staging.
 - [ ] Màn hình vùng/miền tải được.

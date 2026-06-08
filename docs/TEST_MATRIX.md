@@ -39,6 +39,22 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PROFILE-ADMIN-001/AUTH-001, 2026-06-08: refactored admin authorization to an
+  organization tree plus strict per-user feature allowlist. Backend now adds
+  `OrganizationNode`, `UserFeatureAssignment`, org-node links, `/admin/org-tree`
+  CRUD APIs, `/admin/features/tree`, user filters by search/domain/org
+  node/feature/role/status, active organization-domain login resolution,
+  strict feature assignment enforcement, and break-glass bootstrap for
+  `admin@hoanghochoi.com` while retiring `super_admin@phongvu-mna.vn` by delete
+  or tombstone depending on references. Flutter adds organization tree admin UI,
+  user-management filters, user feature checkbox tree, root-domain fallback
+  domains (`phongvu.vn`, `acaretek.vn`), and exact break-glass email allowance.
+  Validation: `npx prisma validate`, `npx prisma generate`, `npm run build`,
+  full backend `npm test -- --runInBand` (33 suites, 226 tests), `dart format
+  --output=none --set-exit-if-changed` on changed Dart files, `flutter analyze
+  --no-pub`, full `flutter test --no-pub --reporter expanded` (76 tests), and
+  `git diff --check`. Gap: local/prod DB migration apply smoke and live
+  `SUPER_ADMIN` admin-UI click-through remain manual.
 - PROFILE-ADMIN-001, 2026-06-07: added configurable admin policy core and UI contract. Backend now has policy definitions, policy rules, system settings, `/policies/me`, and `/admin/policies`/rules/settings APIs; feature fallback now resolves through policy rules and explicit feature allow does not grant access beyond policy authorization. Runtime policy checks cover admin user/store/catalog capability, FIFO import/log, warranty all-scope, bank statement scope, payment monitor all-scope, VietQR cross-store confirmation, auth allowed domains, and inventory sync feature guard metadata. Flutter loads `/policies/me`, parses `resolvedAdminPolicies`, exposes policy/rule/settings admin models, and keeps feature access dependent on backend-resolved maps except `SUPER_ADMIN` bypass. Validation: `npx prisma validate`, `npx prisma generate`, `npm run build`, focused backend policy/feature/user/auth/map-vietin/vietqr/payment/inventory/fifo-log Jest (9 suites, 115 tests), full backend `npm test -- --runInBand` (33 suites, 229 tests), focused Flutter admin policy/user tests (11 tests), `flutter analyze --no-pub`, and full `flutter test --no-pub --reporter expanded` (75 tests). Gap: live deployed admin policy click-through and direct API 403 smoke remain manual.
 - PROFILE-ADMIN-001, 2026-06-06: feature management now supports
   email-domain access rules. `SUPER_ADMIN` can create/update rule payloads with

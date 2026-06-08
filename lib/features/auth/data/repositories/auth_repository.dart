@@ -7,6 +7,7 @@ import '../../../../core/network/api_exception.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../admin/domain/admin_feature_definition.dart';
+import '../../../admin/domain/admin_organization_node.dart';
 import '../../../admin/domain/admin_personnel_definition.dart';
 import '../../../admin/domain/admin_policy_definition.dart';
 import '../../../admin/domain/admin_role_definition.dart';
@@ -496,12 +497,26 @@ class AuthRepository {
     return segments.isEmpty ? '' : segments.last;
   }
 
-  Future<List<User>> listUsers({String? query}) async {
+  Future<List<User>> listUsers({
+    String? query,
+    String? domain,
+    String? orgNodeId,
+    String? featureCode,
+    String? role,
+    String? status,
+  }) async {
+    final queryParameters = <String, String>{
+      if (query?.trim().isNotEmpty == true) 'q': query!.trim(),
+      if (domain?.trim().isNotEmpty == true) 'domain': domain!.trim(),
+      if (orgNodeId?.trim().isNotEmpty == true) 'orgNodeId': orgNodeId!.trim(),
+      if (featureCode?.trim().isNotEmpty == true)
+        'featureCode': featureCode!.trim(),
+      if (role?.trim().isNotEmpty == true) 'role': role!.trim(),
+      if (status?.trim().isNotEmpty == true) 'status': status!.trim(),
+    };
     final response = await _apiClient.get(
       ApiConstants.adminUsersEndpoint,
-      queryParameters: query != null && query.trim().isNotEmpty
-          ? {'q': query.trim()}
-          : null,
+      queryParameters: queryParameters.isEmpty ? null : queryParameters,
     );
     final data = jsonDecode(response.body) as List<dynamic>;
     final users = data
@@ -510,7 +525,15 @@ class AuthRepository {
     await AppLogger.instance.info(
       'Admin',
       'Admin users loaded',
-      context: {'query': query, 'count': users.length},
+      context: {
+        'query': query,
+        'domain': domain,
+        'orgNodeId': orgNodeId,
+        'featureCode': featureCode,
+        'role': role,
+        'status': status,
+        'count': users.length,
+      },
     );
     return users;
   }
@@ -749,6 +772,69 @@ class AuthRepository {
     await _apiClient.delete('${ApiConstants.adminAreasEndpoint}/$code');
   }
 
+  Future<List<AdminOrganizationNode>> listAdminOrganizationTree() async {
+    final response = await _apiClient.get(ApiConstants.adminOrgTreeEndpoint);
+    final data = jsonDecode(response.body) as List<dynamic>;
+    final nodes = data
+        .map(
+          (item) =>
+              AdminOrganizationNode.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+    await AppLogger.instance.info(
+      'AdminOrganization',
+      'Organization tree loaded',
+      context: {'count': nodes.length},
+    );
+    return nodes;
+  }
+
+  Future<AdminOrganizationNode> createAdminOrganizationNode(
+    AdminOrganizationNode node,
+  ) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminOrgTreeNodesEndpoint,
+      body: node.toJson(),
+    );
+    final created = AdminOrganizationNode.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+    await AppLogger.instance.info(
+      'AdminOrganization',
+      'Organization node created',
+      context: {'nodeId': created.id, 'type': created.type},
+    );
+    return created;
+  }
+
+  Future<AdminOrganizationNode> updateAdminOrganizationNode(
+    String id,
+    AdminOrganizationNode node,
+  ) async {
+    final response = await _apiClient.patch(
+      '${ApiConstants.adminOrgTreeNodesEndpoint}/$id',
+      body: node.toJson(),
+    );
+    final updated = AdminOrganizationNode.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+    await AppLogger.instance.info(
+      'AdminOrganization',
+      'Organization node updated',
+      context: {'nodeId': updated.id, 'type': updated.type},
+    );
+    return updated;
+  }
+
+  Future<void> deleteAdminOrganizationNode(String id) async {
+    await _apiClient.delete('${ApiConstants.adminOrgTreeNodesEndpoint}/$id');
+    await AppLogger.instance.warn(
+      'AdminOrganization',
+      'Organization node delete requested',
+      context: {'nodeId': id},
+    );
+  }
+
   Future<List<AdminFeatureDefinition>> listAdminFeatures() async {
     final response = await _apiClient.get(ApiConstants.adminFeaturesEndpoint);
     final data = jsonDecode(response.body) as List<dynamic>;
@@ -764,6 +850,19 @@ class AuthRepository {
       context: {'count': features.length},
     );
     return features;
+  }
+
+  Future<List<AdminFeatureDefinition>> listAdminFeatureTree() async {
+    final response = await _apiClient.get(
+      ApiConstants.adminFeaturesTreeEndpoint,
+    );
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map(
+          (item) =>
+              AdminFeatureDefinition.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
   }
 
   Future<AdminFeatureDefinition> createAdminFeature(
