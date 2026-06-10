@@ -16,6 +16,7 @@ class AdminMenuScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = context.select<AuthProvider, User?>((auth) => auth.user);
     bool canUse(String featureCode) => user?.canUseFeature(featureCode) == true;
+    final isSuperAdmin = user?.role == 'SUPER_ADMIN';
 
     final actions = [
       if (canUse('ADMIN_USERS'))
@@ -34,29 +35,13 @@ class AdminMenuScreen extends StatelessWidget {
           color: AppColors.violet600,
           onTap: () => context.push('/admin/roles'),
         ),
-      if (canUse('ADMIN_STORES'))
-        AppFeatureAction(
-          icon: Icons.store_mall_directory_outlined,
-          title: 'Quản lý SR',
-          description: 'Showroom và tài khoản',
-          color: AppColors.emerald600,
-          onTap: () => context.push('/admin/stores'),
-        ),
       if (canUse('ADMIN_REGIONS'))
         AppFeatureAction(
           icon: Icons.account_tree_outlined,
           title: 'Cơ cấu tổ chức',
-          description: 'Domain, khối, phòng ban, SR',
+          description: 'Miền, Vùng, showroom',
           color: AppColors.info,
           onTap: () => context.push('/admin/organization'),
-        ),
-      if (canUse('ADMIN_REGIONS'))
-        AppFeatureAction(
-          icon: Icons.map_outlined,
-          title: 'Quản lý Vùng/Miền',
-          description: 'Miền, Vùng, scope ảo',
-          color: AppColors.sky500,
-          onTap: () => context.push('/admin/regions'),
         ),
       if (canUse('ADMIN_PERSONNEL'))
         AppFeatureAction(
@@ -81,6 +66,14 @@ class AdminMenuScreen extends StatelessWidget {
           description: 'Quyền và cấu hình hệ thống',
           color: AppColors.warning,
           onTap: () => context.push('/admin/policies'),
+        ),
+      if (isSuperAdmin)
+        AppFeatureAction(
+          icon: Icons.feedback_outlined,
+          title: 'Danh sách phản hồi',
+          description: 'Phản hồi nội bộ',
+          color: AppColors.teal600,
+          onTap: () => context.push('/admin/feedback'),
         ),
     ];
 

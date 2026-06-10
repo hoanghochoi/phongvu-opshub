@@ -30,9 +30,13 @@ describe('FifoLogService', () => {
       },
     };
     policyService = {
-      canAccessPolicy: jest.fn(async (admin: any, code: string) =>
-        ['SUPER_ADMIN', 'ADMIN'].includes(String(admin?.role || '').toUpperCase()) &&
-        String(code || '').toUpperCase() === ADMIN_POLICY_CODES.FIFO_LOG_ADMIN,
+      canAccessPolicy: jest.fn(
+        async (admin: any, code: string) =>
+          ['SUPER_ADMIN', 'ADMIN_PHONGVU'].includes(
+            String(admin?.role || '').toUpperCase(),
+          ) &&
+          String(code || '').toUpperCase() ===
+            ADMIN_POLICY_CODES.FIFO_LOG_ADMIN,
       ),
     };
     service = new FifoLogService(prisma as any, policyService as any);
@@ -43,7 +47,7 @@ describe('FifoLogService', () => {
       .mockResolvedValueOnce({
         id: 'admin-1',
         email: 'admin@phongvu-shop.vn',
-        role: 'ADMIN',
+        role: 'ADMIN_PHONGVU',
         storeId: 'store-1',
       })
       .mockResolvedValueOnce({

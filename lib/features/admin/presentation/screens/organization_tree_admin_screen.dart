@@ -7,6 +7,7 @@ import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/admin_organization_node.dart';
@@ -24,6 +25,7 @@ class _OrganizationTreeAdminScreenState
   final _repository = AuthRepository(ApiClient());
   List<AdminOrganizationNode> _nodes = [];
   String? _selectedId;
+  final Set<String> _expandedIds = <String>{};
   bool _loading = true;
 
   @override
@@ -86,6 +88,8 @@ class _OrganizationTreeAdminScreenState
         nodes: _nodes,
         node: node,
         parentId: parentId,
+        canEditStructure:
+            context.read<AuthProvider>().user?.role == 'SUPER_ADMIN',
       ),
     );
     if (saved == true) await _load();
@@ -135,7 +139,12 @@ class _OrganizationTreeAdminScreenState
         upload: true,
         context: {'nodeId': node.id},
       );
-      if (mounted) _showMessage('Chưa xóa được node tổ chức.');
+      if (mounted) {
+        final message = error is ApiException
+            ? error.message
+            : 'Chưa xóa được node tổ chức.';
+        _showMessage(message);
+      }
     }
   }
 
@@ -147,9 +156,11 @@ class _OrganizationTreeAdminScreenState
 
   @override
   Widget build(BuildContext context) {
-    final canMutate = context.select<AuthProvider, bool>(
-      (auth) => auth.user?.role == 'SUPER_ADMIN',
+    final role = context.select<AuthProvider, String?>(
+      (auth) => auth.user?.role,
     );
+    final canEditStructure = role == 'SUPER_ADMIN';
+    final canEditMap = role == 'ADMIN_PHONGVU' || role == 'ADMIN_ACARE';
     final selected = _selectedNode;
     return Scaffold(
       appBar: GradientHeader(
@@ -161,7 +172,7 @@ class _OrganizationTreeAdminScreenState
             icon: const Icon(Icons.refresh_outlined),
             tooltip: 'Tải lại',
           ),
-          if (canMutate)
+          if (canEditStructure)
             IconButton(
               onPressed: _loading
                   ? null
@@ -179,11 +190,23 @@ class _OrganizationTreeAdminScreenState
                   final tree = _OrganizationTreeList(
                     nodes: _nodes,
                     selectedId: selected?.id,
+                    expandedIds: _expandedIds,
                     onSelect: (id) => setState(() => _selectedId = id),
+                    onExpansionChanged: (id, expanded) => setState(() {
+                      if (expanded) {
+                        _expandedIds.add(id);
+                      } else {
+                        _expandedIds.remove(id);
+                      }
+                    }),
                   );
                   final detail = _OrganizationNodeDetail(
                     node: selected,
-                    canMutate: canMutate,
+                    nodes: _nodes,
+                    canAddChild: canEditStructure,
+                    canEdit: canEditStructure ||
+                        (canEditMap && selected?.type == 'SHOWROOM'),
+                    canDelete: canEditStructure,
                     onAddChild: selected == null
                         ? null
                         : () => _openEditor(parentId: selected.id),
@@ -221,12 +244,16 @@ class _OrganizationTreeAdminScreenState
 class _OrganizationTreeList extends StatelessWidget {
   final List<AdminOrganizationNode> nodes;
   final String? selectedId;
+  final Set<String> expandedIds;
   final ValueChanged<String> onSelect;
+  final void Function(String id, bool expanded) onExpansionChanged;
 
   const _OrganizationTreeList({
     required this.nodes,
     required this.selectedId,
+    required this.expandedIds,
     required this.onSelect,
+    required this.onExpansionChanged,
   });
 
   @override
@@ -249,8 +276,10 @@ class _OrganizationTreeList extends StatelessWidget {
             node: node,
             byParent: byParent,
             selectedId: selectedId,
+            expandedIds: expandedIds,
             depth: 0,
             onSelect: onSelect,
+            onExpansionChanged: onExpansionChanged,
           ),
       ],
     );
@@ -261,15 +290,19 @@ class _TreeNodeTile extends StatelessWidget {
   final AdminOrganizationNode node;
   final Map<String?, List<AdminOrganizationNode>> byParent;
   final String? selectedId;
+  final Set<String> expandedIds;
   final int depth;
   final ValueChanged<String> onSelect;
+  final void Function(String id, bool expanded) onExpansionChanged;
 
   const _TreeNodeTile({
     required this.node,
     required this.byParent,
     required this.selectedId,
+    required this.expandedIds,
     required this.depth,
     required this.onSelect,
+    required this.onExpansionChanged,
   });
 
   @override
@@ -295,7 +328,8 @@ class _TreeNodeTile extends StatelessWidget {
     );
     if (children.isEmpty) return tile;
     return ExpansionTile(
-      initiallyExpanded: depth < 2,
+      initiallyExpanded: expandedIds.contains(node.id),
+      onExpansionChanged: (expanded) => onExpansionChanged(node.id, expanded),
       tilePadding: EdgeInsets.zero,
       childrenPadding: EdgeInsets.zero,
       title: tile,
@@ -305,8 +339,10 @@ class _TreeNodeTile extends StatelessWidget {
             node: child,
             byParent: byParent,
             selectedId: selectedId,
+            expandedIds: expandedIds,
             depth: depth + 1,
             onSelect: onSelect,
+            onExpansionChanged: onExpansionChanged,
           ),
       ],
     );
@@ -315,14 +351,20 @@ class _TreeNodeTile extends StatelessWidget {
 
 class _OrganizationNodeDetail extends StatelessWidget {
   final AdminOrganizationNode? node;
-  final bool canMutate;
+  final List<AdminOrganizationNode> nodes;
+  final bool canAddChild;
+  final bool canEdit;
+  final bool canDelete;
   final VoidCallback? onAddChild;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
   const _OrganizationNodeDetail({
     required this.node,
-    required this.canMutate,
+    required this.nodes,
+    required this.canAddChild,
+    required this.canEdit,
+    required this.canDelete,
     required this.onAddChild,
     required this.onEdit,
     required this.onDelete,
@@ -333,6 +375,13 @@ class _OrganizationNodeDetail extends StatelessWidget {
     final node = this.node;
     if (node == null) {
       return const Center(child: Text('Chọn node để xem chi tiết'));
+    }
+    AdminOrganizationNode? parent;
+    for (final item in nodes) {
+      if (item.id == node.parentId) {
+        parent = item;
+        break;
+      }
     }
     return SingleChildScrollView(
       child: AppFormColumn(
@@ -363,7 +412,46 @@ class _OrganizationNodeDetail extends StatelessWidget {
               if (node.loginAllowed) const Chip(label: Text('Cho đăng nhập')),
             ],
           ),
-          _DetailRow(label: 'Mã', value: node.code),
+          if (node.type == 'SHOWROOM') ...[
+            _DetailRow(
+              label: 'Mã showroom',
+              value: node.storeId ?? node.businessCode ?? node.code,
+            ),
+            _DetailRow(label: 'Tên showroom', value: node.storeName ?? node.title),
+            _DetailRow(
+              label: 'MAP username',
+              value: node.mapVietinUsername?.isNotEmpty == true
+                  ? node.mapVietinUsername!
+                  : 'Chưa cấu hình',
+            ),
+            _DetailRow(
+              label: 'MAP password',
+              value: node.hasMapVietinPassword ? 'Đã cấu hình' : 'Chưa cấu hình',
+            ),
+            _DetailRow(
+              label: 'Tài khoản nhận',
+              value: node.transferAccountNumber?.isNotEmpty == true
+                  ? node.transferAccountNumber!
+                  : 'Chưa cấu hình',
+            ),
+          ] else
+            _DetailRow(
+              label: 'Mã nghiệp vụ',
+              value: node.businessCode ?? node.code,
+            ),
+          if (node.abbreviation?.isNotEmpty == true)
+            _DetailRow(label: 'Viết tắt', value: node.abbreviation!),
+          if (node.description?.isNotEmpty == true)
+            _DetailRow(label: 'Mô tả', value: node.description!),
+          _DetailRow(label: 'Node cha', value: parent?.title ?? 'Không có'),
+          _DetailRow(
+            label: 'Loại node',
+            value: AdminOrganizationNodeTypes.titleOf(node.type),
+          ),
+          _DetailRow(
+            label: 'Trạng thái',
+            value: node.isActive ? 'Đang hoạt động' : 'Đã tắt',
+          ),
           _DetailRow(label: 'Node con', value: '${node.childCount}'),
           _DetailRow(label: 'User', value: '${node.userCount}'),
           _DetailRow(label: 'SR', value: '${node.storeCount}'),
@@ -371,24 +459,27 @@ class _OrganizationNodeDetail extends StatelessWidget {
             label: 'Danh mục liên kết',
             value: '${node.referenceCount}',
           ),
-          if (canMutate)
+          if (canAddChild || canEdit || canDelete)
             AppActionRow(
               children: [
-                AppSecondaryButton(
-                  onPressed: onAddChild,
-                  icon: Icons.add_outlined,
-                  label: 'Thêm con',
-                ),
-                AppSecondaryButton(
-                  onPressed: onEdit,
-                  icon: Icons.edit_outlined,
-                  label: 'Sửa',
-                ),
-                AppSecondaryButton(
-                  onPressed: onDelete,
-                  icon: Icons.delete_outline,
-                  label: 'Xóa',
-                ),
+                if (canAddChild)
+                  AppSecondaryButton(
+                    onPressed: onAddChild,
+                    icon: Icons.add_outlined,
+                    label: 'Thêm con',
+                  ),
+                if (canEdit)
+                  AppSecondaryButton(
+                    onPressed: onEdit,
+                    icon: Icons.edit_outlined,
+                    label: 'Sửa',
+                  ),
+                if (canDelete)
+                  AppSecondaryButton(
+                    onPressed: onDelete,
+                    icon: Icons.delete_outline,
+                    label: 'Xóa',
+                  ),
               ],
             ),
         ],
@@ -424,10 +515,12 @@ class _OrganizationNodeEditorDialog extends StatefulWidget {
   final List<AdminOrganizationNode> nodes;
   final AdminOrganizationNode? node;
   final String? parentId;
+  final bool canEditStructure;
 
   const _OrganizationNodeEditorDialog({
     required this.repository,
     required this.nodes,
+    required this.canEditStructure,
     this.node,
     this.parentId,
   });
@@ -441,8 +534,17 @@ class _OrganizationNodeEditorDialogState
     extends State<_OrganizationNodeEditorDialog> {
   final _titleController = TextEditingController();
   final _codeController = TextEditingController();
+  final _businessCodeController = TextEditingController();
+  final _abbreviationController = TextEditingController();
+  final _descriptionController = TextEditingController();
   final _emailDomainController = TextEditingController();
   final _sortOrderController = TextEditingController(text: '0');
+  final _transferAccountNumberController = TextEditingController();
+  final _transferAccountNameController = TextEditingController();
+  final _transferBankNameController = TextEditingController();
+  final _transferBankBinController = TextEditingController();
+  final _mapVietinUsernameController = TextEditingController();
+  final _mapVietinPasswordController = TextEditingController();
   String _type = 'BLOCK';
   String? _parentId;
   bool _loginAllowed = false;
@@ -455,8 +557,16 @@ class _OrganizationNodeEditorDialogState
     final node = widget.node;
     _titleController.text = node?.title ?? '';
     _codeController.text = node?.code ?? '';
+    _businessCodeController.text = node?.businessCode ?? node?.storeId ?? '';
+    _abbreviationController.text = node?.abbreviation ?? '';
+    _descriptionController.text = node?.description ?? '';
     _emailDomainController.text = node?.emailDomain ?? '';
     _sortOrderController.text = '${node?.sortOrder ?? 0}';
+    _transferAccountNumberController.text = node?.transferAccountNumber ?? '';
+    _transferAccountNameController.text = node?.transferAccountName ?? '';
+    _transferBankNameController.text = node?.transferBankName ?? '';
+    _transferBankBinController.text = node?.transferBankBin ?? '';
+    _mapVietinUsernameController.text = node?.mapVietinUsername ?? '';
     _type = node?.type ?? (widget.parentId == null ? 'ROOT_DOMAIN' : 'BLOCK');
     _parentId = node?.parentId ?? widget.parentId;
     _loginAllowed = node?.loginAllowed ?? _type == 'ROOT_DOMAIN';
@@ -467,8 +577,17 @@ class _OrganizationNodeEditorDialogState
   void dispose() {
     _titleController.dispose();
     _codeController.dispose();
+    _businessCodeController.dispose();
+    _abbreviationController.dispose();
+    _descriptionController.dispose();
     _emailDomainController.dispose();
     _sortOrderController.dispose();
+    _transferAccountNumberController.dispose();
+    _transferAccountNameController.dispose();
+    _transferBankNameController.dispose();
+    _transferBankBinController.dispose();
+    _mapVietinUsernameController.dispose();
+    _mapVietinPasswordController.dispose();
     super.dispose();
   }
 
@@ -478,6 +597,15 @@ class _OrganizationNodeEditorDialogState
       id: widget.node?.id ?? '',
       code: _codeController.text.trim(),
       title: _titleController.text.trim(),
+      businessCode: _businessCodeController.text.trim().isEmpty
+          ? null
+          : _businessCodeController.text.trim(),
+      abbreviation: _abbreviationController.text.trim().isEmpty
+          ? null
+          : _abbreviationController.text.trim(),
+      description: _descriptionController.text.trim().isEmpty
+          ? null
+          : _descriptionController.text.trim(),
       type: _type,
       parentId: _parentId,
       emailDomain: _emailDomainController.text.trim().isEmpty
@@ -486,7 +614,31 @@ class _OrganizationNodeEditorDialogState
       loginAllowed: _loginAllowed,
       isActive: _isActive,
       sortOrder: int.tryParse(_sortOrderController.text.trim()) ?? 0,
+      storeId: _businessCodeController.text.trim().isEmpty
+          ? null
+          : _businessCodeController.text.trim(),
+      storeName: _titleController.text.trim().isEmpty
+          ? null
+          : _titleController.text.trim(),
+      transferAccountNumber: _transferAccountNumberController.text.trim().isEmpty
+          ? null
+          : _transferAccountNumberController.text.trim(),
+      transferAccountName: _transferAccountNameController.text.trim().isEmpty
+          ? null
+          : _transferAccountNameController.text.trim(),
+      transferBankName: _transferBankNameController.text.trim().isEmpty
+          ? null
+          : _transferBankNameController.text.trim(),
+      transferBankBin: _transferBankBinController.text.trim().isEmpty
+          ? null
+          : _transferBankBinController.text.trim(),
+      mapVietinUsername: _mapVietinUsernameController.text.trim().isEmpty
+          ? null
+          : _mapVietinUsernameController.text.trim(),
     );
+    final body = node.toJson();
+    final mapPassword = _mapVietinPasswordController.text.trim();
+    if (mapPassword.isNotEmpty) body['mapVietinPassword'] = mapPassword;
     try {
       await AppLogger.instance.info(
         'AdminOrganization',
@@ -496,9 +648,9 @@ class _OrganizationNodeEditorDialogState
       if (widget.node == null) {
         await widget.repository.createAdminOrganizationNode(node);
       } else {
-        await widget.repository.updateAdminOrganizationNode(
+        await widget.repository.updateAdminOrganizationNodeBody(
           widget.node!.id,
-          node,
+          body,
         );
       }
       await AppLogger.instance.info(
@@ -529,6 +681,9 @@ class _OrganizationNodeEditorDialogState
   @override
   Widget build(BuildContext context) {
     final isDomain = _type == 'ROOT_DOMAIN' || _type == 'SUBDOMAIN';
+    final isShowroom = _type == 'SHOWROOM';
+    final canEditStructure = widget.canEditStructure;
+    final canEditMap = isShowroom;
     return AlertDialog(
       title: Text(widget.node == null ? 'Thêm node' : 'Sửa node'),
       content: SizedBox(
@@ -540,11 +695,32 @@ class _OrganizationNodeEditorDialogState
               TextField(
                 controller: _titleController,
                 decoration: const InputDecoration(labelText: 'Tên hiển thị'),
+                enabled: canEditStructure,
               ),
               TextField(
                 controller: _codeController,
-                decoration: const InputDecoration(labelText: 'Mã'),
+                decoration: const InputDecoration(labelText: 'Mã internal'),
+                enabled: canEditStructure,
               ),
+              TextField(
+                controller: _businessCodeController,
+                decoration: InputDecoration(
+                  labelText: isShowroom ? 'Mã SR' : 'Mã nghiệp vụ',
+                ),
+                enabled: canEditStructure,
+              ),
+              if (_type == 'REGION' || _type == 'AREA')
+                TextField(
+                  controller: _abbreviationController,
+                  decoration: const InputDecoration(labelText: 'Viết tắt'),
+                  enabled: canEditStructure,
+                ),
+              if (_type == 'REGION' || _type == 'AREA')
+                TextField(
+                  controller: _descriptionController,
+                  decoration: const InputDecoration(labelText: 'Mô tả'),
+                  enabled: canEditStructure,
+                ),
               DropdownButtonFormField<String>(
                 initialValue: _type,
                 decoration: const InputDecoration(labelText: 'Loại node'),
@@ -556,7 +732,7 @@ class _OrganizationNodeEditorDialogState
                       ),
                     )
                     .toList(),
-                onChanged: widget.node?.isSystem == true
+                onChanged: !canEditStructure || widget.node?.isSystem == true
                     ? null
                     : (value) => setState(() {
                         _type = value ?? 'BLOCK';
@@ -581,7 +757,7 @@ class _OrganizationNodeEditorDialogState
                         ),
                       ),
                 ],
-                onChanged: widget.node?.isSystem == true
+                onChanged: !canEditStructure || widget.node?.isSystem == true
                     ? null
                     : (value) => setState(() => _parentId = value),
               ),
@@ -589,24 +765,71 @@ class _OrganizationNodeEditorDialogState
                 TextField(
                   controller: _emailDomainController,
                   decoration: const InputDecoration(labelText: 'Email domain'),
+                  enabled: canEditStructure,
                 ),
+              if (isShowroom) ...[
+                TextField(
+                  controller: _mapVietinUsernameController,
+                  decoration: const InputDecoration(labelText: 'MAP username'),
+                  enabled: canEditMap,
+                ),
+                TextField(
+                  controller: _mapVietinPasswordController,
+                  decoration: InputDecoration(
+                    labelText: widget.node?.hasMapVietinPassword == true
+                        ? 'MAP password mới'
+                        : 'MAP password',
+                  ),
+                  obscureText: true,
+                  enabled: canEditMap,
+                ),
+                TextField(
+                  controller: _transferAccountNumberController,
+                  decoration: const InputDecoration(
+                    labelText: 'Số tài khoản nhận tiền',
+                  ),
+                  enabled: canEditStructure,
+                ),
+                TextField(
+                  controller: _transferAccountNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Tên tài khoản nhận tiền',
+                  ),
+                  enabled: canEditStructure,
+                ),
+                TextField(
+                  controller: _transferBankNameController,
+                  decoration: const InputDecoration(labelText: 'Ngân hàng'),
+                  enabled: canEditStructure,
+                ),
+                TextField(
+                  controller: _transferBankBinController,
+                  decoration: const InputDecoration(labelText: 'BIN'),
+                  enabled: canEditStructure,
+                ),
+              ],
               TextField(
                 controller: _sortOrderController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Thứ tự'),
+                enabled: canEditStructure,
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _isActive,
                 title: const Text('Đang hoạt động'),
-                onChanged: (value) => setState(() => _isActive = value),
+                onChanged: canEditStructure
+                    ? (value) => setState(() => _isActive = value)
+                    : null,
               ),
               if (isDomain)
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   value: _loginAllowed,
                   title: const Text('Cho phép đăng nhập'),
-                  onChanged: (value) => setState(() => _loginAllowed = value),
+                  onChanged: canEditStructure
+                      ? (value) => setState(() => _loginAllowed = value)
+                      : null,
                 ),
             ],
           ),
@@ -631,6 +854,7 @@ IconData _iconForType(String type) {
     'ROOT_DOMAIN' => Icons.language_outlined,
     'SUBDOMAIN' => Icons.alternate_email_outlined,
     'DEPARTMENT' => Icons.apartment_outlined,
+    'REGION' => Icons.public_outlined,
     'AREA' => Icons.map_outlined,
     'SHOWROOM' => Icons.store_mall_directory_outlined,
     'JOB_ROLE' => Icons.badge_outlined,
@@ -644,6 +868,7 @@ Color _colorForType(String type) {
     'ROOT_DOMAIN' => AppColors.info,
     'SUBDOMAIN' => AppColors.sky500,
     'DEPARTMENT' => AppColors.purple600,
+    'REGION' => AppColors.teal600,
     'AREA' => AppColors.emerald600,
     'SHOWROOM' => AppColors.success,
     'JOB_ROLE' => AppColors.violet600,

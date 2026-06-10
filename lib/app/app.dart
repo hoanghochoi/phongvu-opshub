@@ -33,8 +33,20 @@ class App extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => FifoProvider(FifoRepository(ApiClient())),
         ),
-        ChangeNotifierProvider(
+        ChangeNotifierProxyProvider<AuthProvider, WarrantyProvider>(
+          lazy: false,
           create: (_) => WarrantyProvider(WarrantyRepository(ApiClient())),
+          update: (_, auth, warranty) {
+            final provider =
+                warranty ?? WarrantyProvider(WarrantyRepository(ApiClient()));
+            Future.microtask(
+              () => provider.syncAuth(
+                auth.user,
+                isInitialized: auth.isInitialized,
+              ),
+            );
+            return provider;
+          },
         ),
         ChangeNotifierProvider(
           create: (_) => SortProvider(SortRepository(ApiClient())),

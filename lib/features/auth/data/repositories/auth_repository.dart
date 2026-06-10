@@ -811,9 +811,16 @@ class AuthRepository {
     String id,
     AdminOrganizationNode node,
   ) async {
+    return updateAdminOrganizationNodeBody(id, node.toJson());
+  }
+
+  Future<AdminOrganizationNode> updateAdminOrganizationNodeBody(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
     final response = await _apiClient.patch(
       '${ApiConstants.adminOrgTreeNodesEndpoint}/$id',
-      body: node.toJson(),
+      body: body,
     );
     final updated = AdminOrganizationNode.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,

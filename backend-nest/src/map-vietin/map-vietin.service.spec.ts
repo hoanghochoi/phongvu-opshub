@@ -54,7 +54,9 @@ describe('MapVietinService', () => {
         const role = String(user?.role || '').toUpperCase();
         const policyCode = String(code || '').toUpperCase();
         if (policyCode === ADMIN_POLICY_CODES.BANK_STATEMENTS) {
-          return ['ADMIN', 'ADMIN_ACARE', 'MANAGER', 'STAFF'].includes(role);
+          return ['ADMIN_PHONGVU', 'ADMIN_ACARE', 'MANAGER', 'STAFF'].includes(
+            role,
+          );
         }
         return false;
       }),
@@ -64,7 +66,11 @@ describe('MapVietinService', () => {
     jest
       .spyOn(Date, 'now')
       .mockReturnValue(new Date('2026-05-21T03:00:00.000Z').getTime());
-    service = new MapVietinService(prisma, policyService as any, paymentNotifications as any);
+    service = new MapVietinService(
+      prisma,
+      policyService as any,
+      paymentNotifications as any,
+    );
   });
 
   afterEach(() => {

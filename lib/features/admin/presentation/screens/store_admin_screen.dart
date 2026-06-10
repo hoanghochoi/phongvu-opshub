@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -64,6 +66,7 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
         repository: _repository,
         store: store,
         areas: _areas,
+        currentRole: context.read<AuthProvider>().user?.role,
       ),
     );
     if (updated == true) await _load();
@@ -123,7 +126,7 @@ class _StoreAdminScreenState extends State<StoreAdminScreen> {
     final canEditStores =
         role == 'SUPER_ADMIN' ||
         role == 'MANAGER' ||
-        role == 'ADMIN' ||
+        role == 'ADMIN_PHONGVU' ||
         role == 'ADMIN_ACARE';
 
     return Scaffold(
@@ -332,10 +335,12 @@ class _StoreEditorDialog extends StatefulWidget {
   final AuthRepository repository;
   final StoreBranch? store;
   final List<AdminAreaDefinition> areas;
+  final String? currentRole;
 
   const _StoreEditorDialog({
     required this.repository,
     required this.areas,
+    required this.currentRole,
     this.store,
   });
 
@@ -354,6 +359,11 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
   final _mapPasswordController = TextEditingController();
   String? _areaCode;
   bool _saving = false;
+
+  bool get _isScopedMapEditor =>
+      widget.store != null &&
+      (widget.currentRole == 'ADMIN_PHONGVU' ||
+          widget.currentRole == 'ADMIN_ACARE');
 
   @override
   void initState() {
@@ -384,34 +394,76 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
 
   Future<void> _save() async {
     setState(() => _saving = true);
+    final store = widget.store;
+    final mapPasswordProvided = _mapPasswordController.text.trim().isNotEmpty;
     try {
-      final body = {
-        'storeId': _storeIdController.text.trim().toUpperCase(),
-        'storeName': _storeNameController.text.trim(),
-        'areaCode': _areaCode,
-        'transferAccountNumber': _accountNumberController.text.trim(),
-        'transferAccountName': _accountNameController.text.trim(),
-        'transferBankName': _bankNameController.text.trim(),
-        'transferBankBin': _bankBinController.text.trim(),
-        'mapVietinUsername': _mapUsernameController.text.trim(),
-        if (_mapPasswordController.text.trim().isNotEmpty)
-          'mapVietinPassword': _mapPasswordController.text.trim(),
-      };
+      final body = _isScopedMapEditor
+          ? <String, dynamic>{
+              'mapVietinUsername': _mapUsernameController.text.trim(),
+              if (mapPasswordProvided)
+                'mapVietinPassword': _mapPasswordController.text.trim(),
+            }
+          : <String, dynamic>{
+              'storeId': _storeIdController.text.trim().toUpperCase(),
+              'storeName': _storeNameController.text.trim(),
+              'areaCode': _areaCode,
+              'transferAccountNumber': _accountNumberController.text.trim(),
+              'transferAccountName': _accountNameController.text.trim(),
+              'transferBankName': _bankNameController.text.trim(),
+              'transferBankBin': _bankBinController.text.trim(),
+              'mapVietinUsername': _mapUsernameController.text.trim(),
+              if (mapPasswordProvided)
+                'mapVietinPassword': _mapPasswordController.text.trim(),
+            };
 
-      final store = widget.store;
+      await AppLogger.instance.info(
+        'StoreAdmin',
+        'Store save started',
+        context: {
+          'role': widget.currentRole,
+          'storeId': store?.storeId ?? body['storeId'],
+          'mode': store == null ? 'create' : 'update',
+          'mapOnly': _isScopedMapEditor,
+          'mapUsernameChanged': body.containsKey('mapVietinUsername'),
+          'mapPasswordProvided': mapPasswordProvided,
+        },
+      );
+
       if (store == null) {
         await widget.repository.createAdminStore(body);
       } else {
         await widget.repository.updateAdminStore(store.storeId, body);
       }
+      await AppLogger.instance.info(
+        'StoreAdmin',
+        'Store save succeeded',
+        context: {
+          'role': widget.currentRole,
+          'storeId': store?.storeId ?? body['storeId'],
+          'mode': store == null ? 'create' : 'update',
+          'mapOnly': _isScopedMapEditor,
+        },
+      );
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
+      await AppLogger.instance.error(
+        'StoreAdmin',
+        'Store save failed',
+        error: error,
+        context: {
+          'role': widget.currentRole,
+          'storeId': store?.storeId,
+          'mode': store == null ? 'create' : 'update',
+          'mapOnly': _isScopedMapEditor,
+        },
+      );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Chưa lưu được showroom. Vui lòng thử lại.'),
-          ),
-        );
+        final message = error is ApiException
+            ? error.message
+            : 'Chưa lưu được showroom. Vui lòng thử lại.';
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -420,6 +472,7 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final lockStoreFields = _isScopedMapEditor;
     return AlertDialog(
       title: Text(widget.store == null ? 'Thêm showroom' : 'Sửa showroom'),
       content: SizedBox(
@@ -432,10 +485,12 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
                 controller: _storeIdController,
                 decoration: const InputDecoration(labelText: 'Mã showroom'),
                 textCapitalization: TextCapitalization.characters,
+                enabled: !lockStoreFields,
               ),
               TextField(
                 controller: _storeNameController,
                 decoration: const InputDecoration(labelText: 'Tên showroom'),
+                enabled: !lockStoreFields,
               ),
               DropdownButtonFormField<String?>(
                 initialValue: _areaCode,
@@ -452,7 +507,9 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
                     ),
                   ),
                 ],
-                onChanged: (value) => setState(() => _areaCode = value),
+                onChanged: lockStoreFields
+                    ? null
+                    : (value) => setState(() => _areaCode = value),
               ),
               TextField(
                 controller: _accountNumberController,
@@ -460,21 +517,25 @@ class _StoreEditorDialogState extends State<_StoreEditorDialog> {
                   labelText: 'Số tài khoản chuyển khoản',
                 ),
                 keyboardType: TextInputType.number,
+                enabled: !lockStoreFields,
               ),
               TextField(
                 controller: _accountNameController,
                 decoration: const InputDecoration(
                   labelText: 'Tên tài khoản chuyển khoản',
                 ),
+                enabled: !lockStoreFields,
               ),
               TextField(
                 controller: _bankNameController,
                 decoration: const InputDecoration(labelText: 'Ngân hàng'),
+                enabled: !lockStoreFields,
               ),
               TextField(
                 controller: _bankBinController,
                 decoration: const InputDecoration(labelText: 'BIN ngân hàng'),
                 keyboardType: TextInputType.number,
+                enabled: !lockStoreFields,
               ),
               const SizedBox(height: AppLayoutTokens.formInlineGap),
               TextField(

@@ -68,6 +68,8 @@ class AdminFeatureRule {
   final String? workScopeType;
   final String? regionCode;
   final String? areaCode;
+  final String? organizationNodeId;
+  final String? organizationNodeName;
   final String? storeCode;
   final String? userId;
   final String? userEmail;
@@ -84,6 +86,8 @@ class AdminFeatureRule {
     this.workScopeType,
     this.regionCode,
     this.areaCode,
+    this.organizationNodeId,
+    this.organizationNodeName,
     this.storeCode,
     this.userId,
     this.userEmail,
@@ -93,6 +97,9 @@ class AdminFeatureRule {
   factory AdminFeatureRule.fromJson(Map<String, dynamic> json) {
     final user = json['user'] is Map<String, dynamic>
         ? json['user'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final organizationNode = json['organizationNode'] is Map<String, dynamic>
+        ? json['organizationNode'] as Map<String, dynamic>
         : const <String, dynamic>{};
     return AdminFeatureRule(
       id: json['id']?.toString(),
@@ -105,6 +112,8 @@ class AdminFeatureRule {
       workScopeType: json['workScopeType']?.toString(),
       regionCode: json['regionCode']?.toString(),
       areaCode: json['areaCode']?.toString(),
+      organizationNodeId: json['organizationNodeId']?.toString(),
+      organizationNodeName: organizationNode['displayName']?.toString(),
       storeCode: json['storeCode']?.toString(),
       userId: json['userId']?.toString(),
       userEmail: user['email']?.toString(),
@@ -122,6 +131,7 @@ class AdminFeatureRule {
     'workScopeType': workScopeType,
     'regionCode': regionCode,
     'areaCode': areaCode,
+    'organizationNodeId': organizationNodeId,
     'storeCode': storeCode,
     'userId': userId,
     'note': note,
@@ -138,6 +148,7 @@ class AdminFeatureRuleBatchRequest {
   final List<String> workScopeTypes;
   final List<String> regionCodes;
   final List<String> areaCodes;
+  final List<String> organizationNodeIds;
   final List<String> storeCodes;
   final List<String> userIds;
   final String? note;
@@ -152,6 +163,7 @@ class AdminFeatureRuleBatchRequest {
     this.workScopeTypes = const [],
     this.regionCodes = const [],
     this.areaCodes = const [],
+    this.organizationNodeIds = const [],
     this.storeCodes = const [],
     this.userIds = const [],
     this.note,
@@ -167,6 +179,7 @@ class AdminFeatureRuleBatchRequest {
     'workScopeTypes': workScopeTypes,
     'regionCodes': regionCodes,
     'areaCodes': areaCodes,
+    'organizationNodeIds': organizationNodeIds,
     'storeCodes': storeCodes,
     'userIds': userIds,
     'note': note,

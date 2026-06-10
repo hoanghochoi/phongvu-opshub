@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -42,17 +44,27 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   String? _roleFilter;
   String? _statusFilter;
   bool _loading = true;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(_onSearchChanged);
     _load();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) _load();
+    });
   }
 
   Future<void> _load() async {
@@ -315,6 +327,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         regions: _regions,
         areas: _areas,
         features: _features,
+        orgNodes: _orgNodes,
         user: user,
         canEditRole: canEditRole,
         canEditFeatures: canEditFeatures,
@@ -375,8 +388,11 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentRole = context.watch<AuthProvider>().user?.role;
     final canResetPassword =
-        context.watch<AuthProvider>().user?.role == 'SUPER_ADMIN';
+        currentRole == 'SUPER_ADMIN' ||
+        currentRole == 'ADMIN_PHONGVU' ||
+        currentRole == 'ADMIN_ACARE';
     return Scaffold(
       appBar: GradientHeader(
         title: 'Quản lý người dùng',
@@ -597,6 +613,7 @@ class _UserEditorDialog extends StatefulWidget {
   final List<AdminRegionDefinition> regions;
   final List<AdminAreaDefinition> areas;
   final List<AdminFeatureDefinition> features;
+  final List<AdminOrganizationNode> orgNodes;
   final User? user;
   final bool canEditRole;
   final bool canEditFeatures;
@@ -610,6 +627,7 @@ class _UserEditorDialog extends StatefulWidget {
     required this.regions,
     required this.areas,
     required this.features,
+    required this.orgNodes,
     required this.canEditRole,
     required this.canEditFeatures,
     this.user,
@@ -631,6 +649,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   String _workScopeType = 'STORE';
   String? _regionCode;
   String? _areaCode;
+  String? _organizationNodeId;
   final Set<String> _featureCodes = <String>{};
   bool _saving = false;
 
@@ -649,6 +668,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     _workScopeType = user?.workScopeType ?? _defaultScopeForRole(_role);
     _regionCode = user?.regionCode;
     _areaCode = user?.areaCode;
+    _organizationNodeId = user?.organizationNodeId;
     _featureCodes.addAll(user?.featureCodes ?? const []);
   }
 
@@ -661,33 +681,180 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   }
 
   Future<void> _save() async {
+    final body = _buildBody();
+    final user = widget.user;
+    if (user != null) {
+      final changes = _changeSummary(user, body);
+      if (changes.isEmpty) {
+        Navigator.of(context).pop(false);
+        return;
+      }
+      final confirmed = await _confirmSave(changes);
+      if (confirmed != true) {
+        _resetToOriginal();
+        return;
+      }
+    }
+
     setState(() => _saving = true);
     try {
-      final body = {
-        'email': _emailController.text.trim(),
-        'firstName': _firstNameController.text.trim(),
-        'lastName': _lastNameController.text.trim(),
-        'status': _status,
-        'storeId': _storeId,
-        'departmentCode': _departmentCode,
-        'jobRoleCode': _jobRoleCode,
-        'workScopeType': _workScopeType,
-        'regionCode': _regionCode,
-        'areaCode': _areaCode,
-        if (widget.canEditRole) 'role': _role,
-        if (widget.canEditFeatures)
-          'featureCodes': _featureCodes.toList()..sort(),
-      };
-      final user = widget.user;
+      await AppLogger.instance.info(
+        'Admin',
+        'Admin user editor save started',
+        context: {
+          'mode': user == null ? 'create' : 'update',
+          'targetUserId': user?.id,
+          'targetEmail': user?.email ?? body['email'],
+          'featureCount': _featureCodes.length,
+        },
+      );
       if (user == null) {
         await widget.repository.createAdminUser(body);
       } else {
         await widget.repository.updateAdminUser(user.id ?? '', body);
       }
+      await AppLogger.instance.info(
+        'Admin',
+        'Admin user editor save succeeded',
+        context: {
+          'mode': user == null ? 'create' : 'update',
+          'targetUserId': user?.id,
+          'targetEmail': user?.email ?? body['email'],
+        },
+      );
       if (mounted) Navigator.of(context).pop(true);
+    } catch (error) {
+      await AppLogger.instance.error(
+        'Admin',
+        'Admin user editor save failed',
+        error: error,
+        upload: true,
+        context: {
+          'mode': user == null ? 'create' : 'update',
+          'targetUserId': user?.id,
+          'targetEmail': user?.email ?? body['email'],
+        },
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không lưu được người dùng')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Map<String, dynamic> _buildBody() {
+    return {
+      'email': _emailController.text.trim(),
+      'firstName': _firstNameController.text.trim(),
+      'lastName': _lastNameController.text.trim(),
+      'status': _status,
+      'storeId': _storeId,
+      'departmentCode': _departmentCode,
+      'jobRoleCode': _jobRoleCode,
+      'workScopeType': _workScopeType,
+      'regionCode': _regionCode,
+      'areaCode': _areaCode,
+      'organizationNodeId': _organizationNodeId,
+      if (widget.canEditRole) 'role': _role,
+      if (widget.canEditFeatures) 'featureCodes': _sortedFeatureCodes(),
+    };
+  }
+
+  List<String> _sortedFeatureCodes() => _featureCodes.toList()..sort();
+
+  bool _sameStringList(List<String> left, List<String> right) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index += 1) {
+      if (left[index] != right[index]) return false;
+    }
+    return true;
+  }
+
+  List<String> _changeSummary(User user, Map<String, dynamic> body) {
+    final changes = <String>[];
+    void addIfChanged(String key, Object? oldValue, String label) {
+      final nextValue = body[key];
+      if ((oldValue ?? '').toString() != (nextValue ?? '').toString()) {
+        changes.add(label);
+      }
+    }
+
+    addIfChanged('firstName', user.name, 'Tên');
+    addIfChanged('lastName', user.lastName, 'Họ');
+    addIfChanged('status', user.status, 'Trạng thái');
+    addIfChanged('storeId', user.storeId, 'Chi nhánh');
+    addIfChanged('departmentCode', user.departmentCode, 'Phòng ban');
+    addIfChanged('jobRoleCode', user.jobRoleCode, 'Chức danh');
+    addIfChanged('workScopeType', user.workScopeType, 'Phạm vi');
+    addIfChanged('regionCode', user.regionCode, 'Miền');
+    addIfChanged('areaCode', user.areaCode, 'Vùng');
+    addIfChanged('organizationNodeId', user.organizationNodeId, 'Node tổ chức');
+    if (widget.canEditRole) addIfChanged('role', user.role, 'Quyền hệ thống');
+    if (widget.canEditFeatures) {
+      final oldCodes = user.featureCodes.toList()..sort();
+      final newCodes = _sortedFeatureCodes();
+      if (!_sameStringList(oldCodes, newCodes)) {
+        changes.add('Chức năng được dùng');
+      }
+    }
+    return changes;
+  }
+
+  Future<bool?> _confirmSave(List<String> changes) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận lưu'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final change in changes)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.check_circle_outline, size: 18),
+                title: Text(change),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Hủy thay đổi'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Xác nhận lưu'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _resetToOriginal() {
+    final user = widget.user;
+    if (user == null) return;
+    setState(() {
+      _emailController.text = user.email;
+      _firstNameController.text = user.name ?? '';
+      _lastNameController.text = user.lastName ?? '';
+      _role = user.role ?? 'STAFF';
+      _status = user.status ?? 'yes';
+      _storeId = user.storeId;
+      _departmentCode = user.departmentCode;
+      _jobRoleCode = user.jobRoleCode;
+      _workScopeType = user.workScopeType ?? _defaultScopeForRole(_role);
+      _regionCode = user.regionCode;
+      _areaCode = user.areaCode;
+      _organizationNodeId = user.organizationNodeId;
+      _featureCodes
+        ..clear()
+        ..addAll(user.featureCodes);
+    });
   }
 
   String _roleTitle(String value) {
@@ -801,6 +968,64 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     return result;
   }
 
+  String? _organizationNodeValue() {
+    final items = _scopeNodeItems().map((item) => item.$1.id).toSet();
+    return items.contains(_organizationNodeId) ? _organizationNodeId : null;
+  }
+
+  List<(AdminOrganizationNode, String)> _scopeNodeItems() {
+    final type = switch (_workScopeType) {
+      'REGION' => 'REGION',
+      'AREA' => 'AREA',
+      'STORE' => 'SHOWROOM',
+      _ => '',
+    };
+    if (type.isEmpty) return const [];
+    return widget.orgNodes
+        .where((node) => node.type == type)
+        .map(
+          (node) => (
+            node,
+            '${node.businessCode ?? node.storeId ?? node.code} • ${node.title}',
+          ),
+        )
+        .toList();
+  }
+
+  void _applyOrganizationNode(String? nodeId) {
+    setState(() {
+      _organizationNodeId = nodeId;
+      if (nodeId == null) return;
+      final node = widget.orgNodes.firstWhere((item) => item.id == nodeId);
+      final code = node.businessCode ?? node.storeId ?? node.code;
+      if (_workScopeType == 'REGION') {
+        _regionCode = code;
+        _areaCode = null;
+        _storeId = null;
+      } else if (_workScopeType == 'AREA') {
+        _areaCode = code;
+        _regionCode = _ancestorBusinessCode(node, 'REGION');
+        _storeId = null;
+      } else if (_workScopeType == 'STORE') {
+        _storeId = node.storeId ?? node.businessCode;
+        _areaCode = _ancestorBusinessCode(node, 'AREA');
+        _regionCode = _ancestorBusinessCode(node, 'REGION');
+      }
+    });
+  }
+
+  String? _ancestorBusinessCode(AdminOrganizationNode node, String type) {
+    var parentId = node.parentId;
+    for (var guard = 0; parentId != null && guard < 50; guard += 1) {
+      final parent = widget.orgNodes.where((item) => item.id == parentId);
+      if (parent.isEmpty) return null;
+      final value = parent.first;
+      if (value.type == type) return value.businessCode ?? value.code;
+      parentId = value.parentId;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -895,11 +1120,30 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                     .toList(),
                 onChanged: (value) => setState(() {
                   _workScopeType = value ?? 'STORE';
+                  _organizationNodeId = null;
                   if (_workScopeType != 'REGION') _regionCode = null;
                   if (_workScopeType != 'AREA') _areaCode = null;
                   if (_workScopeType != 'STORE') _storeId = null;
                 }),
               ),
+              if (_workScopeType != 'NATIONAL')
+                DropdownButtonFormField<String?>(
+                  initialValue: _organizationNodeValue(),
+                  decoration: const InputDecoration(labelText: 'Node tổ chức'),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Chưa gán'),
+                    ),
+                    ..._scopeNodeItems().map(
+                      (item) => DropdownMenuItem<String?>(
+                        value: item.$1.id,
+                        child: Text(item.$2, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                  ],
+                  onChanged: _applyOrganizationNode,
+                ),
               if (_workScopeType == 'REGION')
                 DropdownButtonFormField<String?>(
                   initialValue: _regionCode,
@@ -916,7 +1160,10 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                       ),
                     ),
                   ],
-                  onChanged: (value) => setState(() => _regionCode = value),
+                  onChanged: (value) => setState(() {
+                    _organizationNodeId = null;
+                    _regionCode = value;
+                  }),
                 ),
               if (_workScopeType == 'AREA')
                 DropdownButtonFormField<String?>(
@@ -935,6 +1182,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                     ),
                   ],
                   onChanged: (value) => setState(() {
+                    _organizationNodeId = null;
                     _areaCode = value;
                     _regionCode = null;
                     for (final area in widget.areas) {
@@ -984,7 +1232,10 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                       ),
                     ),
                   ],
-                  onChanged: (value) => setState(() => _storeId = value),
+                  onChanged: (value) => setState(() {
+                    _organizationNodeId = null;
+                    _storeId = value;
+                  }),
                 ),
             ],
           ),

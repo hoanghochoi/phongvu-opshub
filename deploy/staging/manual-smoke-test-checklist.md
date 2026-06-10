@@ -33,36 +33,36 @@ rõ ràng.
 
 ## 1. Cài Đặt Và Định Danh App
 
-- [ ] Mở `https://opshub.hoanghochoi.com/staging-download`.
-- [ ] Trang tải hiển thị rõ `PhongVu OpsHub Staging`.
-- [ ] Tải được bộ cài Windows.
-- [ ] Cài Windows staging cạnh production, không ghi đè production.
-- [ ] Tên app, shortcut, thư mục cài đặt Windows là `PhongVu OpsHub Staging`.
-- [ ] Tải được APK Android.
-- [ ] Cài Android staging cạnh production, không ghi đè production.
-- [ ] Nhãn app Android là `PhongVu OpsHub Staging`.
-- [ ] Package Android là `com.example.phongvu_opshub.staging`.
-- [ ] Mở app staging không làm mất session hoặc dữ liệu của app production.
+- [x] Mở `https://opshub.hoanghochoi.com/staging-download`.
+- [x] Trang tải hiển thị rõ `PhongVu OpsHub Staging`.
+- [x] Tải được bộ cài Windows.
+- [x] Cài Windows staging cạnh production, không ghi đè production.
+- [x] Tên app, shortcut, thư mục cài đặt Windows là `PhongVu OpsHub Staging`.
+- [x] Tải được APK Android.
+- [x] Cài Android staging cạnh production, không ghi đè production.
+- [x] Nhãn app Android là `PhongVu OpsHub Staging`.
+- [x] Package Android là `com.example.phongvu_opshub.staging`.
+- [x] Mở app staging không làm mất session hoặc dữ liệu của app production.
 
 ## 2. Endpoint Và Thông Tin Cập Nhật
 
-- [ ] App mở được, không báo lỗi kết nối API.
-- [ ] Nếu có prompt cập nhật, link cập nhật trỏ về `/staging-download/downloads/...`.
-- [ ] Không có link tải/cập nhật nào trỏ về `/download` production.
-- [ ] `https://opshub-staging.hoanghochoi.com/health` trả `ok`.
-- [ ] `https://opshub-staging.hoanghochoi.com/api/health` trả JSON health của backend.
-- [ ] `https://opshub-staging.hoanghochoi.com/api/app-version?platform=android` trỏ về `/staging-download/downloads/`.
-- [ ] `https://opshub-staging.hoanghochoi.com/api/app-version?platform=windows` trỏ về `/staging-download/downloads/`.
-- [ ] `https://opshub.hoanghochoi.com/staging-download/downloads/latest.json` chỉ chứa URL artifact staging.
+- [x] App mở được, không báo lỗi kết nối API.
+- [x] Nếu có prompt cập nhật, link cập nhật trỏ về `/staging-download/downloads/...`.
+- [x] Không có link tải/cập nhật nào trỏ về `/download` production.
+- [x] `https://opshub-staging.hoanghochoi.com/health` trả `ok`.
+- [x] `https://opshub-staging.hoanghochoi.com/api/health` trả JSON health của backend.
+- [x] `https://opshub-staging.hoanghochoi.com/api/app-version?platform=android` trỏ về `/staging-download/downloads/`.
+- [x] `https://opshub-staging.hoanghochoi.com/api/app-version?platform=windows` trỏ về `/staging-download/downloads/`.
+- [x] `https://opshub.hoanghochoi.com/staging-download/downloads/latest.json` chỉ chứa URL artifact staging.
 
 ## 3. Đăng Nhập, Session Và Đăng Xuất
 
-- [ ] Đăng nhập `admin@hoanghochoi.com` thành công dù email không thuộc cây domain vận hành.
-- [ ] `admin@hoanghochoi.com` có role `SUPER_ADMIN`, không bị ép chọn SR/showroom.
-- [ ] Đăng nhập `staging.admin@phongvu.vn` thành công.
-- [ ] Đăng xuất thành công và quay về màn hình đăng nhập.
-- [ ] Đăng nhập lại cùng tài khoản admin thành công.
-- [ ] Nhập sai mật khẩu thì app báo lỗi rõ ràng.
+- [x] Đăng nhập `admin@hoanghochoi.com` thành công dù email không thuộc cây domain vận hành.
+- [x] `admin@hoanghochoi.com` có role `SUPER_ADMIN`, không bị ép chọn SR/showroom.
+- [x] Đăng nhập `staging.admin@phongvu.vn` thành công.
+- [x] Đăng xuất thành công và quay về màn hình đăng nhập.
+- [x] Đăng nhập lại cùng tài khoản admin thành công.
+- [x] Nhập sai mật khẩu thì app báo lỗi rõ ràng.
 - [ ] Đăng nhập `staging.staff@phongvu.vn` thành công.
 - [ ] User staff hiển thị store/scope `STG01` khi có thông tin store.
 - [ ] Đăng nhập `staging.acare@acaretek.vn` thành công.

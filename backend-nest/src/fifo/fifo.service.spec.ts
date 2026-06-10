@@ -88,7 +88,11 @@ describe('FifoService', () => {
       item({ id: 'newer', serialNumber: 'S2', importDate: date('2026-03-21') }),
     );
     inventory.findOldestActiveForSku.mockResolvedValue(
-      item({ id: 'oldest', serialNumber: 'S1', importDate: date('2026-03-01') }),
+      item({
+        id: 'oldest',
+        serialNumber: 'S1',
+        importDate: date('2026-03-01'),
+      }),
     );
 
     await expect(service.check(user, { text: 'S2' })).resolves.toMatchObject({
@@ -105,7 +109,11 @@ describe('FifoService', () => {
       item({ id: 'newer', serialNumber: 'S2', importDate: date('2026-03-22') }),
     );
     inventory.findOldestActiveForSku.mockResolvedValue(
-      item({ id: 'oldest', serialNumber: 'S1', importDate: date('2026-03-01') }),
+      item({
+        id: 'oldest',
+        serialNumber: 'S1',
+        importDate: date('2026-03-01'),
+      }),
     );
 
     await expect(service.check(user, { text: 'S2' })).resolves.toMatchObject({
@@ -123,7 +131,11 @@ describe('FifoService', () => {
       item({ id: 'newer', serialNumber: 'S2', importDate: null }),
     );
     inventory.findOldestActiveForSku.mockResolvedValue(
-      item({ id: 'oldest', serialNumber: 'S1', importDate: date('2026-03-01') }),
+      item({
+        id: 'oldest',
+        serialNumber: 'S1',
+        importDate: date('2026-03-01'),
+      }),
     );
 
     await expect(service.check(user, { text: 'S2' })).resolves.toMatchObject({
@@ -215,7 +227,7 @@ describe('FifoService', () => {
     expect(inventory.findByBin).toHaveBeenCalledWith('CP01', 'BIN-A', false);
   });
 
-  it('allows ADMIN users to import manual inventory', async () => {
+  it('allows ADMIN_PHONGVU users to import manual inventory', async () => {
     inventory.importManualInventory.mockResolvedValue({
       importedRows: 2,
       deactivatedRows: 0,
@@ -224,7 +236,7 @@ describe('FifoService', () => {
 
     await expect(
       service.importManualInventory(
-        { ...user, role: 'ADMIN' },
+        { ...user, role: 'ADMIN_PHONGVU' },
         [canonicalItem({ itemKey: 'CP62:S1', branchId: 'CP62' })],
         { fileName: 'inventory.xlsx', totalRows: 2, skippedRows: 0 },
       ),

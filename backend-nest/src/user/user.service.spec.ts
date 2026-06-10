@@ -13,7 +13,11 @@ describe('UserService admin store management', () => {
     email: 'admin@phongvu.vn',
     role: 'SUPER_ADMIN',
   };
-  const admin = { role: 'ADMIN' };
+  const admin = {
+    id: 'admin-phongvu',
+    email: 'admin@phongvu.vn',
+    role: 'ADMIN_PHONGVU',
+  };
   const adminAcare = {
     id: 'admin-acare',
     email: 'admin@acaretek.vn',
@@ -183,10 +187,10 @@ describe('UserService admin store management', () => {
         const role = String(user?.role || '').toUpperCase();
         const policyCode = String(code || '').toUpperCase();
         if (policyCode === ADMIN_POLICY_CODES.ADMIN) {
-          return ['ADMIN', 'ADMIN_ACARE', 'MANAGER'].includes(role);
+          return ['ADMIN_PHONGVU', 'ADMIN_ACARE', 'MANAGER'].includes(role);
         }
         if (policyCode === ADMIN_POLICY_CODES.ADMIN_STORES) {
-          return ['ADMIN', 'ADMIN_ACARE', 'MANAGER'].includes(role);
+          return ['ADMIN_PHONGVU', 'ADMIN_ACARE', 'MANAGER'].includes(role);
         }
         return false;
       }),
@@ -196,6 +200,67 @@ describe('UserService admin store management', () => {
       {} as any,
       passwordResetService as any,
       policyService,
+    );
+  });
+
+  function installOrganizationNodeMock() {
+    const nodesByCode = new Map<string, any>();
+    const nodesById = new Map<string, any>();
+    const nodeIdForCode = (code: string) =>
+      'org-' + code.toLowerCase().replace(/_/g, '-');
+    const saveNode = (node: any) => {
+      nodesById.set(node.id, node);
+      nodesByCode.set(node.code, node);
+      return node;
+    };
+
+    prisma.organizationNode = {
+      upsert: jest.fn(async ({ where, update, create }: any) => {
+        const current = nodesByCode.get(where.code);
+        if (current) {
+          nodesByCode.delete(current.code);
+          return saveNode({ ...current, ...update, id: current.id });
+        }
+        return saveNode({
+          id: create.id ?? nodeIdForCode(where.code),
+          ...create,
+        });
+      }),
+      findUnique: jest.fn(async ({ where }: any) => {
+        if (where.id) return nodesById.get(where.id) ?? null;
+        if (where.code) return nodesByCode.get(where.code) ?? null;
+        return null;
+      }),
+      update: jest.fn(async ({ where, data }: any) => {
+        const current = where.id
+          ? nodesById.get(where.id)
+          : nodesByCode.get(where.code);
+        if (!current) return null;
+        nodesByCode.delete(current.code);
+        return saveNode({ ...current, ...data, id: current.id });
+      }),
+      findMany: jest.fn(async () =>
+        Array.from(nodesById.values()).map((node) => ({
+          ...node,
+          _count: {
+            children: 0,
+            users: 0,
+            stores: node.type === 'SHOWROOM' ? 1 : 0,
+            departments: 0,
+            jobRoles: 0,
+            regions: node.type === 'REGION' ? 1 : 0,
+            areas: node.type === 'AREA' ? 1 : 0,
+          },
+        })),
+      ),
+      delete: jest.fn(),
+    };
+
+    return { nodesByCode, nodesById, saveNode };
+  }
+  it('normalizes legacy ADMIN role input to ADMIN_PHONGVU', () => {
+    expect((service as any).normalizeRoleCode('ADMIN', true)).toBe(
+      'ADMIN_PHONGVU',
     );
   });
 
@@ -246,6 +311,40 @@ describe('UserService admin store management', () => {
         }),
       }),
     );
+  });
+
+  it('lets ADMIN_PHONGVU update only SR MAP credentials', async () => {
+    await expect(
+      service.adminUpdateStore(admin, 'CP01', {
+        mapVietinUsername: 'pv-map',
+        mapVietinPassword: 'new-secret',
+      }),
+    ).resolves.toMatchObject({
+      storeId: 'CP01',
+      mapVietinUsername: 'pv-map',
+      hasMapVietinPassword: true,
+    });
+
+    const updateArg = prisma.store.update.mock.calls[0][0];
+    expect(updateArg.data).toEqual(
+      expect.objectContaining({
+        mapVietinUsername: 'pv-map',
+        mapVietinPasswordCipher: expect.stringMatching(/^v1:/),
+      }),
+    );
+    expect(updateArg.data.transferAccountNumber).toBeUndefined();
+    expect(updateArg.data.transferAccountName).toBeUndefined();
+    expect(updateArg.data.transferBankName).toBeUndefined();
+    expect(updateArg.data.transferBankBin).toBeUndefined();
+  });
+
+  it('blocks ADMIN_ACARE from changing SR transfer account fields', async () => {
+    await expect(
+      service.adminUpdateStore(adminAcare, 'CP01', {
+        transferAccountNumber: '999999',
+      }),
+    ).rejects.toThrow('số tài khoản nhận tiền');
+    expect(prisma.store.update).not.toHaveBeenCalled();
   });
 
   it('blocks a manager from changing user roles', async () => {
@@ -529,7 +628,18 @@ describe('UserService admin store management', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('lets only super admin set a user password directly', async () => {
+  it('lets super admin and scoped domain admins set user passwords', async () => {
+    const targetUser = {
+      id: 'user-1',
+      email: 'staff@phongvu.vn',
+      firstName: 'Staff',
+      role: 'STAFF',
+      status: 'yes',
+      storeId: null,
+      store: null,
+    };
+    prisma.user.findUnique.mockResolvedValue(targetUser);
+
     await expect(
       service.adminSetUserPassword(superAdmin, 'user-1', 'Password2!'),
     ).resolves.toEqual({ ok: true });
@@ -539,9 +649,29 @@ describe('UserService admin store management', () => {
       { id: 'admin-1', email: 'admin@phongvu.vn' },
     );
 
+    prisma.user.count.mockResolvedValueOnce(1);
+    await expect(
+      service.adminSetUserPassword(admin, 'user-1', 'Password3!'),
+    ).resolves.toEqual({ ok: true });
+    expect(passwordResetService.setPasswordForUserId).toHaveBeenCalledWith(
+      'user-1',
+      'Password3!',
+      { id: 'admin-phongvu', email: 'admin@phongvu.vn' },
+    );
+
     await expect(
       service.adminSetUserPassword(manager, 'user-1', 'Password2!'),
     ).rejects.toBeInstanceOf(ForbiddenException);
+
+    prisma.user.findUnique.mockResolvedValueOnce({
+      ...targetUser,
+      id: 'super-1',
+      role: 'SUPER_ADMIN',
+    });
+    await expect(
+      service.adminSetUserPassword(admin, 'super-1', 'Password2!'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(passwordResetService.setPasswordForUserId).toHaveBeenCalledTimes(2);
   });
 
   it('blocks branch admin from mutating stores', async () => {
@@ -568,6 +698,92 @@ describe('UserService admin store management', () => {
     expect(prisma.store.delete).not.toHaveBeenCalled();
   });
 
+  it('backfills missing SR organization nodes under Miền and Vùng when listing the tree', async () => {
+    const org = installOrganizationNodeMock();
+    prisma.store.findMany.mockResolvedValueOnce([
+      {
+        ...store,
+        organizationNodeId: null,
+        _count: { users: 0 },
+      },
+    ]);
+
+    const nodes = await service.adminListOrganizationTree(superAdmin);
+
+    const regionNode = org.nodesByCode.get('REGION_PHONGVU_MIEN_NAM');
+    const areaNode = org.nodesByCode.get('AREA_PHONGVU_HCM');
+    const storeNode = org.nodesByCode.get('STORE_CP62');
+    expect(regionNode).toMatchObject({
+      type: 'REGION',
+      parentId: 'org-subdomain-phongvu-vn',
+    });
+    expect(areaNode).toMatchObject({
+      type: 'AREA',
+      parentId: regionNode.id,
+    });
+    expect(storeNode).toMatchObject({
+      type: 'SHOWROOM',
+      parentId: areaNode.id,
+    });
+    expect(prisma.store.update).toHaveBeenCalledWith({
+      where: { id: 'store-62' },
+      data: { organizationNodeId: storeNode.id },
+    });
+    expect(nodes).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'STORE_CP62' })]),
+    );
+  });
+
+  it('moves the linked showroom organization node when an SR changes Vùng', async () => {
+    const org = installOrganizationNodeMock();
+    org.saveNode({
+      id: 'org-store-cp01',
+      code: 'STORE_CP01',
+      displayName: 'CP01',
+      type: 'SHOWROOM',
+      parentId: 'org-area-old',
+      isSystem: false,
+      isActive: true,
+      sortOrder: 10300,
+    });
+    prisma.store.findUnique.mockResolvedValueOnce({
+      id: 'store-1',
+      storeId: 'CP01',
+      storeName: 'CP01',
+      areaCode: area.code,
+      area,
+      organizationNodeId: 'org-store-cp01',
+      _count: { users: 1 },
+    });
+
+    await expect(
+      service.adminUpdateStore(superAdmin, 'CP01', {
+        areaCode: defaultArea.code,
+      }),
+    ).resolves.toMatchObject({
+      storeId: 'CP01',
+      areaCode: defaultArea.code,
+      organizationNodeId: 'org-store-cp01',
+    });
+
+    const areaNode = org.nodesByCode.get('AREA_PHONGVU_CHUA_GAN');
+    const storeNode = org.nodesById.get('org-store-cp01');
+    expect(storeNode.parentId).toBe(areaNode.id);
+    expect(prisma.organizationNode.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'org-store-cp01' },
+        data: expect.objectContaining({
+          code: 'STORE_CP01',
+          type: 'SHOWROOM',
+          parentId: areaNode.id,
+        }),
+      }),
+    );
+    expect(prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { storeId: 'store-1', workScopeType: 'STORE' },
+      data: { areaCode: defaultArea.code, regionCode: defaultArea.regionCode },
+    });
+  });
   it('seeds phongvu.vn as a root domain and selectable subdomain', async () => {
     prisma.organizationNode = {
       upsert: jest.fn(async ({ where, create }: any) => ({

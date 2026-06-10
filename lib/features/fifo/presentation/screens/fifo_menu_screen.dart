@@ -20,7 +20,9 @@ class FifoMenuScreen extends StatelessWidget {
     final canImportInventory = user?.canUseFeature('FIFO_IMPORT') == true;
     final canViewHistory =
         canUseFifo &&
-        (role == 'ADMIN' || role == 'ADMIN_ACARE' || role == 'SUPER_ADMIN');
+        (role == 'ADMIN_PHONGVU' ||
+            role == 'ADMIN_ACARE' ||
+            role == 'SUPER_ADMIN');
     final actions = [
       if (canUseFifo)
         AppFeatureAction(

@@ -85,6 +85,11 @@ export class AdminPolicyRuleDto {
   @IsOptional()
   @IsString()
   @MaxLength(80)
+  organizationNodeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
   storeCode?: string;
 
   @IsOptional()
@@ -145,6 +150,12 @@ export class AdminPolicyRuleBatchDto extends AdminPolicyRuleDto {
   @IsString({ each: true })
   @MaxLength(80, { each: true })
   areaCodes?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(80, { each: true })
+  organizationNodeIds?: string[];
 
   @IsOptional()
   @IsArray()

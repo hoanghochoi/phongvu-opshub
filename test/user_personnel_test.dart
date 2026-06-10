@@ -57,10 +57,7 @@ void main() {
         'FIFO_IMPORT': true,
         'ADMIN_FEATURES': false,
       },
-      'resolvedAdminPolicies': {
-        'ADMIN': true,
-        'ADMIN_POLICIES': false,
-      },
+      'resolvedAdminPolicies': {'ADMIN': true, 'ADMIN_POLICIES': false},
     });
 
     expect(user.isAdmin, isTrue);
@@ -82,16 +79,19 @@ void main() {
     expect(values, isNot(contains('MULTI_STORE')));
   });
 
-  test('User does not infer FIFO access from CP62 scope without backend map', () {
-    final user = User.fromJson({
-      'email': 'staff@phongvu.vn',
-      'role': 'STAFF',
-      'storeName': 'Showroom CP62',
-    });
+  test(
+    'User does not infer FIFO access from CP62 scope without backend map',
+    () {
+      final user = User.fromJson({
+        'email': 'staff@phongvu.vn',
+        'role': 'STAFF',
+        'storeName': 'Showroom CP62',
+      });
 
-    expect(user.belongsToCp62, isTrue);
-    expect(user.canUseCp62RestrictedFlows, isFalse);
-  });
+      expect(user.belongsToCp62, isTrue);
+      expect(user.canUseCp62RestrictedFlows, isFalse);
+    },
+  );
 
   test('User allows super admin through CP62 restricted flows', () {
     final user = User.fromJson({

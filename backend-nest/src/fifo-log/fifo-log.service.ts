@@ -8,7 +8,10 @@ import { FifoLogType } from '@prisma/client';
 export class FifoLogService {
   private readonly logger = new Logger(FifoLogService.name);
 
-  constructor(private prisma: PrismaService, private policyService: PolicyService) {}
+  constructor(
+    private prisma: PrismaService,
+    private policyService: PolicyService,
+  ) {}
 
   // -------------------------------------------------------
   // Create a FIFO log entry
@@ -88,7 +91,12 @@ export class FifoLogService {
 
     if (!admin) throw new ForbiddenException('User not found');
 
-    if (!(await this.policyService.canAccessPolicy(admin, ADMIN_POLICY_CODES.FIFO_LOG_ADMIN))) {
+    if (
+      !(await this.policyService.canAccessPolicy(
+        admin,
+        ADMIN_POLICY_CODES.FIFO_LOG_ADMIN,
+      ))
+    ) {
       throw new ForbiddenException('Không có quyền xem lịch sử');
     }
 
@@ -107,8 +115,8 @@ export class FifoLogService {
 
     let allowedUserIds: string[] | undefined;
 
-    // ADMIN: only see users in same store
-    if (admin.role === 'ADMIN') {
+    // ADMIN_PHONGVU: only see users in same store
+    if (admin.role === 'ADMIN_PHONGVU') {
       if (!admin.storeId) {
         return { data: [], total: 0, page, limit };
       }

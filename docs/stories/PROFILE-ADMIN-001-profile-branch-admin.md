@@ -11,9 +11,10 @@ payment account import from CSV, and administration for privileged roles.
 - Backend can import store account rows into `Store`.
 - First-login users without a branch must choose one and see a lock warning.
 - Users can edit profile display names and upload an avatar.
-- `ADMIN` and `SUPER_ADMIN` can open administration from the app.
-- `ADMIN_ACARE` can open user/store administration like `ADMIN`, but can list,
-  create, and edit only users in the `@acaretek.vn` email domain.
+- `ADMIN_PHONGVU`, `ADMIN_ACARE`, and `SUPER_ADMIN` can open administration
+  from the app when their resolved feature map allows it.
+- `ADMIN_PHONGVU` is scoped to the `phongvu.vn` organization root;
+  `ADMIN_ACARE` is scoped to the `acaretek.vn` root and `@acaretek.vn` users.
 - Forbidden admin API responses do not log the user out; only unauthorized
   session responses clear the local session.
 - Administration contains user management, role management, SR management,
@@ -22,15 +23,18 @@ payment account import from CSV, and administration for privileged roles.
   manual inventory import when the resolved feature map allows them.
 - Role management supports adding, editing, and deleting custom roles.
 - System roles are protected from deletion.
-- Store management supports adding, editing, and deleting stores.
+- Store management supports adding, editing, and deleting stores for
+  `SUPER_ADMIN`; `ADMIN_PHONGVU` and `ADMIN_ACARE` can edit only MAP username
+  and MAP password for SRs inside their scope.
 - Stores assigned to users are protected from deletion.
 - SR management assigns each SR to an Area; Region is derived from Area.
 - Store-scoped users derive Region/Area from their assigned SR and do not need
   a direct Region/Area assignment.
 - Organization management supports root domain, subdomain, block, department,
   area, showroom, job role, and virtual scope nodes. Default root domains are
-  `phongvu.vn` and `acaretek.vn`; subdomains are created below root domains by
-  `SUPER_ADMIN`.
+  `phongvu.vn` and `acaretek.vn`; root nodes start collapsed in the app, and
+  delete is blocked with explicit reasons when a node has children, users, SRs,
+  or other references.
 - Runtime feature access is a strict per-user allowlist. `SUPER_ADMIN` can
   assign multiple active features from user management; non-`SUPER_ADMIN` users
   cannot open unassigned features even when a policy rule would allow the
@@ -50,7 +54,8 @@ payment account import from CSV, and administration for privileged roles.
   showroom.
 - Store settings include VietinBank MAP username/password fields for future
   bank-web reconciliation. Passwords are encrypted at rest and are never sent
-  back to the app.
+  back to the app. Scoped admins must not edit transfer account number/name,
+  bank, BIN, SR code/name, or Region/Area through the MAP credential flow.
 - User self-service branch changes are rejected after the first selection.
 - VietQR uses the selected store's configured transfer account when available.
 

@@ -7,12 +7,17 @@ ideas reach the backend.
 
 ## Current Shape
 
-- Flutter feedback UI lives under `lib/features/feedback/`.
+- Flutter feedback submission UI lives under `lib/features/feedback/`.
+- Flutter feedback administration UI lives under `lib/features/admin/` and is
+  visible only to `SUPER_ADMIN`.
 - NestJS feedback API lives under `backend-nest/src/feedback/`.
 
 ## Contract Notes
 
 - Feedback payload validation should happen at API boundaries.
+- Submitting feedback requires the `FEEDBACK` feature. Listing all feedback uses
+  `/feedback/admin`, requires `ADMIN_FEEDBACK`, and the service still enforces
+  `SUPER_ADMIN` even if a non-super user gets that feature by mistake.
 - If feedback becomes user-identifying or sensitive, update auth and privacy
   expectations before implementation.
 

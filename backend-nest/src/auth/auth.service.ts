@@ -30,6 +30,10 @@ const AREA_SCOPE = 'AREA';
 const REGION_SCOPE = 'REGION';
 const NATIONAL_SCOPE = 'NATIONAL';
 const DEFAULT_REGION_CODE = 'CHUA_GAN';
+const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
+const LEGACY_ADMIN_ROLE = 'ADMIN';
+const ADMIN_PHONGVU_ROLE = 'ADMIN_PHONGVU';
+const ADMIN_ACARE_ROLE = 'ADMIN_ACARE';
 const WORK_SCOPE_TYPES = new Set([
   STORE_SCOPE,
   AREA_SCOPE,
@@ -238,6 +242,8 @@ export class AuthService {
 
     if (!user) throw new UnauthorizedException('User not found');
 
+    const role = this.normalizeRoleForOutput(user.role);
+
     return {
       name: user.firstName,
       firstName: user.firstName,
@@ -245,7 +251,7 @@ export class AuthService {
       avatarUrl: user.avatarUrl,
       storeId: user.store?.storeId ?? null,
       storeName: user.store?.storeName ?? null,
-      role: user.role,
+      role,
       status: user.status,
       departmentCode: user.departmentCode ?? null,
       jobRoleCode: user.jobRoleCode ?? null,
@@ -275,7 +281,8 @@ export class AuthService {
     if (email === BREAK_GLASS_SUPER_ADMIN_EMAIL) return;
 
     const fallbackDomains = getAllowedEmailDomains();
-    const allowedDomains = await this.policyService.getAllowedEmailDomains(fallbackDomains);
+    const allowedDomains =
+      await this.policyService.getAllowedEmailDomains(fallbackDomains);
     if (allowedDomains.length === 0) {
       throw new ForbiddenException('Chưa cấu hình domain email Phong Vũ');
     }
@@ -326,10 +333,11 @@ export class AuthService {
     },
     session: AuthSessionClaims,
   ) {
+    const role = this.normalizeRoleForOutput(user.role);
     const jwtPayload = {
       email: user.email,
       sub: user.id,
-      role: user.role,
+      role,
       storeUuid: user.storeId ?? null,
       storeCode: user.store?.storeId ?? null,
       tokenVersion: user.tokenVersion ?? 0,
@@ -347,7 +355,7 @@ export class AuthService {
       avatarUrl: user.avatarUrl,
       storeId: user.store?.storeId ?? null,
       storeName: user.store?.storeName ?? null,
-      role: user.role,
+      role,
       status: user.status,
       departmentCode: user.departmentCode ?? null,
       jobRoleCode: user.jobRoleCode ?? null,
@@ -385,14 +393,23 @@ export class AuthService {
       .trim()
       .toUpperCase();
     if (WORK_SCOPE_TYPES.has(scope)) return scope;
+    const role = this.normalizeRoleForOutput(user.role);
     if (
-      user.role === 'SUPER_ADMIN' ||
-      user.role === 'ADMIN' ||
-      user.role === 'ADMIN_ACARE'
+      role === SUPER_ADMIN_ROLE ||
+      role === ADMIN_PHONGVU_ROLE ||
+      role === ADMIN_ACARE_ROLE
     ) {
       return NATIONAL_SCOPE;
     }
     return STORE_SCOPE;
+  }
+
+  private normalizeRoleForOutput(role: string | null | undefined) {
+    const code = String(role || '')
+      .trim()
+      .toUpperCase();
+    if (code === LEGACY_ADMIN_ROLE) return ADMIN_PHONGVU_ROLE;
+    return role ?? '';
   }
 
   private personnelCodeFor(user: {

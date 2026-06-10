@@ -56,7 +56,7 @@ class User {
   });
 
   static bool isAdminRole(String? role) =>
-      role == 'ADMIN' || role == 'ADMIN_ACARE' || role == 'SUPER_ADMIN';
+      role == 'ADMIN_PHONGVU' || role == 'ADMIN_ACARE' || role == 'SUPER_ADMIN';
 
   static bool isAdminMenuRole(String? role) =>
       isAdminRole(role) || role == 'MANAGER';

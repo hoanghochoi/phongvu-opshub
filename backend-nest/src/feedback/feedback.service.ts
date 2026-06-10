@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class FeedbackService {
+  private readonly logger = new Logger(FeedbackService.name);
+
   constructor(
     private prisma: PrismaService,
     private uploadService: UploadService,
@@ -38,11 +40,33 @@ export class FeedbackService {
     });
   }
 
-  async getAll() {
-    return this.prisma.feedback.findMany({
+  async getAll(admin: any) {
+    if (admin?.role !== 'SUPER_ADMIN') {
+      this.logger.warn(
+        'Feedback admin list blocked: user=' +
+          (admin?.email || admin?.id || 'unknown') +
+          ' role=' +
+          (admin?.role || 'unknown'),
+      );
+      throw new ForbiddenException(
+        'Chỉ SUPER_ADMIN được xem danh sách phản hồi',
+      );
+    }
+    this.logger.log(
+      'Feedback admin list started: admin=' +
+        (admin?.email || admin?.id || 'unknown'),
+    );
+    const feedback = await this.prisma.feedback.findMany({
       orderBy: { createdAt: 'desc' },
       include: { user: { select: { email: true, firstName: true } } },
     });
+    this.logger.log(
+      'Feedback admin list completed: admin=' +
+        (admin?.email || admin?.id || 'unknown') +
+        ' count=' +
+        feedback.length,
+    );
+    return feedback;
   }
 
   private buildContent(data: {
