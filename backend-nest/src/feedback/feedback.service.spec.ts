@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { FeedbackService } from './feedback.service';
 
 describe('FeedbackService', () => {
@@ -73,5 +74,25 @@ describe('FeedbackService', () => {
           'Raw content\nHình ảnh: https://img.example.com/feedback/feedback-1/feedback-1-0.jpg',
       },
     });
+  });
+
+  it('lists feedback only for SUPER_ADMIN', async () => {
+    const feedback = [{ id: 'feedback-1', user: { email: 'a@phongvu.vn' } }];
+    prisma.feedback.findMany.mockResolvedValue(feedback);
+
+    await expect(
+      service.getAll({ id: 'admin-1', role: 'SUPER_ADMIN' }),
+    ).resolves.toBe(feedback);
+    expect(prisma.feedback.findMany).toHaveBeenCalledWith({
+      orderBy: { createdAt: 'desc' },
+      include: { user: { select: { email: true, firstName: true } } },
+    });
+  });
+
+  it('blocks feedback admin list for non-super admins', async () => {
+    await expect(
+      service.getAll({ id: 'admin-2', role: 'ADMIN_PHONGVU' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.feedback.findMany).not.toHaveBeenCalled();
   });
 });

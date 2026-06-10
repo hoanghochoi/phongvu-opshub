@@ -69,12 +69,14 @@ class ApiConstants {
   static const String paymentNotificationsReadyEndpoint =
       '/payment-notifications/ready';
   static const String appLogsEndpoint = '/app-logs';
-  static String realtimeWsUrl({String? storeId}) {
+  static String realtimeWsUrl({String? storeId, String? accessToken}) {
     final base = Uri.parse(baseUrl);
     final scheme = base.scheme == 'https' ? 'wss' : 'ws';
     final query = {
       if (storeId != null && storeId.trim().isNotEmpty)
         'store_id': storeId.trim().toUpperCase(),
+      if (accessToken != null && accessToken.trim().isNotEmpty)
+        'access_token': accessToken.trim(),
     };
     return base
         .replace(
@@ -97,6 +99,7 @@ class ApiConstants {
 
   // Feedback endpoint
   static const String feedbackEndpoint = '/feedback';
+  static const String adminFeedbackEndpoint = '/feedback/admin';
 
   // VietQR endpoint
   static const String vietQrEndpoint = '/vietqr';

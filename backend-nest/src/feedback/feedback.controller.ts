@@ -19,11 +19,11 @@ import { CreateFeedbackDto } from './feedback.dto';
 
 @Controller('feedback')
 @UseGuards(AuthGuard('jwt'), FeatureGuard)
-@RequireFeature(FEATURE_KEYS.FEEDBACK)
 export class FeedbackController {
   constructor(private readonly feedbackService: FeedbackService) {}
 
   @Post()
+  @RequireFeature(FEATURE_KEYS.FEEDBACK)
   @UseInterceptors(FilesInterceptor('images', 10, imageUploadOptions))
   async create(
     @Request() req: any,
@@ -42,8 +42,9 @@ export class FeedbackController {
     );
   }
 
-  @Get()
-  async getAll() {
-    return this.feedbackService.getAll();
+  @Get('admin')
+  @RequireFeature(FEATURE_KEYS.ADMIN_FEEDBACK)
+  async getAll(@Request() req: any) {
+    return this.feedbackService.getAll(req.user);
   }
 }

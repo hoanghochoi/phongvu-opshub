@@ -28,7 +28,12 @@ export type FifoCheckResult =
       mode: 'serial';
       query: string;
       srCode: string;
-      status: 'correct' | 'wrong' | 'display_reserved' | 'exported' | 'not_found';
+      status:
+        | 'correct'
+        | 'wrong'
+        | 'display_reserved'
+        | 'exported'
+        | 'not_found';
       message: string;
       fifoDateDeltaDays?: number | null;
       fifoToleranceDays?: number;
@@ -305,7 +310,7 @@ export class FifoService {
   }
 
   private assertInventoryImportAdmin(user: any) {
-    if (user?.role !== 'ADMIN' && user?.role !== 'SUPER_ADMIN') {
+    if (user?.role !== 'ADMIN_PHONGVU' && user?.role !== 'SUPER_ADMIN') {
       throw new ForbiddenException('Chỉ ADMIN trở lên được cập nhật tồn kho');
     }
   }

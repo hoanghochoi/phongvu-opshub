@@ -60,6 +60,8 @@ class AdminPolicyRule {
   final String? workScopeType;
   final String? regionCode;
   final String? areaCode;
+  final String? organizationNodeId;
+  final String? organizationNodeName;
   final String? storeCode;
   final String? userId;
   final String? scopeContains;
@@ -76,6 +78,8 @@ class AdminPolicyRule {
     this.workScopeType,
     this.regionCode,
     this.areaCode,
+    this.organizationNodeId,
+    this.organizationNodeName,
     this.storeCode,
     this.userId,
     this.scopeContains,
@@ -83,6 +87,9 @@ class AdminPolicyRule {
   });
 
   factory AdminPolicyRule.fromJson(Map<String, dynamic> json) {
+    final organizationNode = json['organizationNode'] is Map<String, dynamic>
+        ? json['organizationNode'] as Map<String, dynamic>
+        : const <String, dynamic>{};
     return AdminPolicyRule(
       id: json['id']?.toString(),
       policyCode: json['policyCode']?.toString() ?? '',
@@ -94,6 +101,8 @@ class AdminPolicyRule {
       workScopeType: json['workScopeType']?.toString(),
       regionCode: json['regionCode']?.toString(),
       areaCode: json['areaCode']?.toString(),
+      organizationNodeId: json['organizationNodeId']?.toString(),
+      organizationNodeName: organizationNode['displayName']?.toString(),
       storeCode: json['storeCode']?.toString(),
       userId: json['userId']?.toString(),
       scopeContains: json['scopeContains']?.toString(),
@@ -111,6 +120,7 @@ class AdminPolicyRule {
     'workScopeType': workScopeType,
     'regionCode': regionCode,
     'areaCode': areaCode,
+    'organizationNodeId': organizationNodeId,
     'storeCode': storeCode,
     'userId': userId,
     'scopeContains': scopeContains,
@@ -128,6 +138,7 @@ class AdminPolicyRuleBatchRequest {
   final List<String> workScopeTypes;
   final List<String> regionCodes;
   final List<String> areaCodes;
+  final List<String> organizationNodeIds;
   final List<String> storeCodes;
   final List<String> userIds;
   final List<String> scopeContainsValues;
@@ -143,6 +154,7 @@ class AdminPolicyRuleBatchRequest {
     this.workScopeTypes = const [],
     this.regionCodes = const [],
     this.areaCodes = const [],
+    this.organizationNodeIds = const [],
     this.storeCodes = const [],
     this.userIds = const [],
     this.scopeContainsValues = const [],
@@ -159,6 +171,7 @@ class AdminPolicyRuleBatchRequest {
     'workScopeTypes': workScopeTypes,
     'regionCodes': regionCodes,
     'areaCodes': areaCodes,
+    'organizationNodeIds': organizationNodeIds,
     'storeCodes': storeCodes,
     'userIds': userIds,
     'scopeContainsValues': scopeContainsValues,

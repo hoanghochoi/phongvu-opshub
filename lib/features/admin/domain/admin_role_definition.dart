@@ -43,7 +43,7 @@ class AdminRoleDefinition {
   static IconData _iconFor(String code) {
     return switch (code) {
       'SUPER_ADMIN' => Icons.verified_user_outlined,
-      'ADMIN' => Icons.admin_panel_settings_outlined,
+      'ADMIN_PHONGVU' => Icons.admin_panel_settings_outlined,
       'ADMIN_ACARE' => Icons.admin_panel_settings_outlined,
       'MANAGER' => Icons.manage_accounts_outlined,
       'STAFF' => Icons.badge_outlined,
@@ -54,7 +54,7 @@ class AdminRoleDefinition {
   static Color _colorFor(String code) {
     return switch (code) {
       'SUPER_ADMIN' => AppColors.violet600,
-      'ADMIN' => AppColors.info,
+      'ADMIN_PHONGVU' => AppColors.info,
       'ADMIN_ACARE' => AppColors.sky500,
       'MANAGER' => AppColors.teal600,
       'STAFF' => AppColors.neutral600,
@@ -75,9 +75,9 @@ class AdminRoles {
       color: AppColors.violet600,
     ),
     AdminRoleDefinition(
-      value: 'ADMIN',
-      title: 'Admin',
-      description: 'Quản lý người dùng theo phạm vi',
+      value: 'ADMIN_PHONGVU',
+      title: 'Admin Phong Vũ',
+      description: 'Quản lý người dùng và SR thuộc Phong Vũ',
       icon: Icons.admin_panel_settings_outlined,
       color: AppColors.info,
     ),

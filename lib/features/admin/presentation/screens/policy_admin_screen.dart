@@ -7,6 +7,7 @@ import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
+import '../../domain/admin_organization_node.dart';
 import '../../domain/admin_policy_definition.dart';
 
 class PolicyAdminScreen extends StatefulWidget {
@@ -21,6 +22,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
   List<AdminPolicyDefinition> _policies = [];
   List<AdminPolicyRule> _rules = [];
   List<AdminSettingDefinition> _settings = [];
+  List<AdminOrganizationNode> _organizationNodes = [];
   String? _rulePolicyFilter;
   bool _loading = true;
 
@@ -43,12 +45,14 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
         _repository.listAdminPolicies(),
         _repository.listAdminPolicyRules(policyCode: _rulePolicyFilter),
         _repository.listAdminSettings(),
+        _repository.listAdminOrganizationTree(),
       ]);
       if (!mounted) return;
       setState(() {
         _policies = results[0] as List<AdminPolicyDefinition>;
         _rules = results[1] as List<AdminPolicyRule>;
         _settings = results[2] as List<AdminSettingDefinition>;
+        _organizationNodes = results[3] as List<AdminOrganizationNode>;
       });
       await AppLogger.instance.info(
         'AdminPolicies',
@@ -57,6 +61,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
           'policies': _policies.length,
           'rules': _rules.length,
           'settings': _settings.length,
+          'organizationNodes': _organizationNodes.length,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
@@ -90,6 +95,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
         repository: _repository,
         rule: rule,
         policies: _policies,
+        organizationNodes: _organizationNodes,
       ),
     );
     if (updated == true) await _load();
@@ -380,6 +386,11 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
         'phòng=${rule.departmentCode}',
       if (rule.jobRoleCode?.isNotEmpty == true) 'chức=${rule.jobRoleCode}',
       if (rule.workScopeType?.isNotEmpty == true) 'scope=${rule.workScopeType}',
+      if (rule.organizationNodeName?.isNotEmpty == true)
+        'node=${rule.organizationNodeName}',
+      if (rule.organizationNodeId?.isNotEmpty == true &&
+          rule.organizationNodeName == null)
+        'node=${rule.organizationNodeId}',
       if (rule.regionCode?.isNotEmpty == true) 'miền=${rule.regionCode}',
       if (rule.areaCode?.isNotEmpty == true) 'vùng=${rule.areaCode}',
       if (rule.storeCode?.isNotEmpty == true) 'SR=${rule.storeCode}',
@@ -539,10 +550,12 @@ class _PolicyRuleEditorDialog extends StatefulWidget {
   final AuthRepository repository;
   final AdminPolicyRule? rule;
   final List<AdminPolicyDefinition> policies;
+  final List<AdminOrganizationNode> organizationNodes;
 
   const _PolicyRuleEditorDialog({
     required this.repository,
     required this.policies,
+    required this.organizationNodes,
     this.rule,
   });
 
@@ -561,6 +574,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
   late final TextEditingController _workScopeTypes;
   late final TextEditingController _regionCodes;
   late final TextEditingController _areaCodes;
+  late final TextEditingController _organizationNodeIds;
   late final TextEditingController _storeCodes;
   late final TextEditingController _userIds;
   late final TextEditingController _scopeContains;
@@ -582,6 +596,9 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
     _workScopeTypes = TextEditingController(text: rule?.workScopeType ?? '');
     _regionCodes = TextEditingController(text: rule?.regionCode ?? '');
     _areaCodes = TextEditingController(text: rule?.areaCode ?? '');
+    _organizationNodeIds = TextEditingController(
+      text: rule?.organizationNodeId ?? '',
+    );
     _storeCodes = TextEditingController(text: rule?.storeCode ?? '');
     _userIds = TextEditingController(text: rule?.userId ?? '');
     _scopeContains = TextEditingController(text: rule?.scopeContains ?? '');
@@ -598,6 +615,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
       _workScopeTypes,
       _regionCodes,
       _areaCodes,
+      _organizationNodeIds,
       _storeCodes,
       _userIds,
       _scopeContains,
@@ -639,6 +657,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
             workScopeTypes: _csv(_workScopeTypes),
             regionCodes: _csv(_regionCodes),
             areaCodes: _csv(_areaCodes),
+            organizationNodeIds: _csv(_organizationNodeIds),
             storeCodes: _csv(_storeCodes),
             userIds: _csv(_userIds),
             scopeContainsValues: _csv(_scopeContains),
@@ -658,6 +677,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
             workScopeType: _firstCsv(_workScopeTypes),
             regionCode: _firstCsv(_regionCodes),
             areaCode: _firstCsv(_areaCodes),
+            organizationNodeId: _firstCsv(_organizationNodeIds),
             storeCode: _firstCsv(_storeCodes),
             userId: _firstCsv(_userIds),
             scopeContains: _firstCsv(_scopeContains),
@@ -722,6 +742,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
             _csvField(_departmentCodes, 'Phòng ban'),
             _csvField(_jobRoleCodes, 'Chức danh'),
             _csvField(_workScopeTypes, 'Phạm vi'),
+            _organizationNodePicker(),
             _csvField(_regionCodes, 'Miền'),
             _csvField(_areaCodes, 'Vùng'),
             _csvField(_storeCodes, 'SR'),
@@ -755,6 +776,51 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
         helperText: 'Có thể nhập nhiều mã, phân tách bằng dấu phẩy',
       ),
     );
+  }
+
+  Widget _organizationNodePicker() {
+    final items = _organizationNodeItems();
+    final current = _organizationNodeIds.text.trim().isEmpty
+        ? null
+        : _organizationNodeIds.text.trim().split(',').first.trim();
+    return DropdownButtonFormField<String?>(
+      initialValue: items.any((item) => item.$1 == current) ? current : null,
+      decoration: const InputDecoration(labelText: 'Node tổ chức'),
+      items: [
+        const DropdownMenuItem<String?>(
+          value: null,
+          child: Text('Không áp dụng'),
+        ),
+        ...items.map(
+          (item) => DropdownMenuItem<String?>(
+            value: item.$1,
+            child: Text(item.$2, overflow: TextOverflow.ellipsis),
+          ),
+        ),
+      ],
+      onChanged: (value) => setState(() {
+        _organizationNodeIds.text = value ?? '';
+      }),
+    );
+  }
+
+  List<(String, String)> _organizationNodeItems() {
+    const allowedTypes = {
+      'ROOT_DOMAIN',
+      'SUBDOMAIN',
+      'REGION',
+      'AREA',
+      'SHOWROOM',
+    };
+    return widget.organizationNodes
+        .where((node) => allowedTypes.contains(node.type))
+        .map(
+          (node) => (
+            node.id,
+            '${AdminOrganizationNodeTypes.titleOf(node.type)} • ${node.businessCode ?? node.storeId ?? node.code} • ${node.title}',
+          ),
+        )
+        .toList();
   }
 }
 

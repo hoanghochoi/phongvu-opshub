@@ -11,10 +11,12 @@ import { PolicyService } from '../policy/policy.service';
 import { DEFAULT_FEATURE_DEFINITIONS } from './feature.constants';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
-const ADMIN_ROLE = 'ADMIN';
+const LEGACY_ADMIN_ROLE = 'ADMIN';
+const ADMIN_PHONGVU_ROLE = 'ADMIN_PHONGVU';
 const ADMIN_ACARE_ROLE = 'ADMIN_ACARE';
 const VALID_WORK_SCOPES = new Set(['NATIONAL', 'REGION', 'AREA', 'STORE']);
-const USER_FEATURE_BACKFILL_SETTING_KEY = 'USER_FEATURE_ALLOWLIST_BACKFILLED_AT';
+const USER_FEATURE_BACKFILL_SETTING_KEY =
+  'USER_FEATURE_ALLOWLIST_BACKFILLED_AT';
 
 type FeatureContext = {
   id?: string | null;
@@ -27,6 +29,8 @@ type FeatureContext = {
   regionCode?: string | null;
   areaCode?: string | null;
   storeCode?: string | null;
+  organizationNodeId?: string | null;
+  organizationNodeIds?: string[];
   storeName?: string | null;
 };
 
@@ -34,7 +38,10 @@ type FeatureContext = {
 export class FeatureService implements OnModuleInit {
   private readonly logger = new Logger(FeatureService.name);
 
-  constructor(private prisma: PrismaService, private policyService: PolicyService) {}
+  constructor(
+    private prisma: PrismaService,
+    private policyService: PolicyService,
+  ) {}
 
   async onModuleInit() {
     await this.seedDefaultFeatures();
@@ -43,10 +50,9 @@ export class FeatureService implements OnModuleInit {
 
   async seedDefaultFeatures() {
     await Promise.all(
-      DEFAULT_FEATURE_DEFINITIONS.map((feature) =>
-        {
-          const featureData = feature as any;
-          return this.prisma.featureDefinition.upsert({
+      DEFAULT_FEATURE_DEFINITIONS.map((feature) => {
+        const featureData = feature as any;
+        return this.prisma.featureDefinition.upsert({
           where: { code: featureData.code },
           update: {
             displayName: featureData.displayName,
@@ -66,8 +72,7 @@ export class FeatureService implements OnModuleInit {
             isActive: true,
           },
         });
-        },
-      ),
+      }),
     );
   }
 
@@ -202,7 +207,9 @@ export class FeatureService implements OnModuleInit {
       throw new BadRequestException('Tính năng đang có rule, không thể xóa');
     }
     if (feature._count.userAssignments > 0) {
-      throw new BadRequestException('Tính năng đang được gán cho user, không thể xóa');
+      throw new BadRequestException(
+        'Tính năng đang được gán cho user, không thể xóa',
+      );
     }
     await this.prisma.featureDefinition.delete({ where: { code } });
     return { deleted: true, code };
@@ -224,6 +231,7 @@ export class FeatureService implements OnModuleInit {
         jobRole: true,
         region: true,
         area: true,
+        organizationNode: true,
         store: true,
         user: {
           select: { id: true, email: true, firstName: true, lastName: true },
@@ -356,7 +364,9 @@ export class FeatureService implements OnModuleInit {
       for (const user of users) {
         const context = await this.resolveContext(user);
         for (const feature of features) {
-          if (await this.legacyCanAccessFeatureWithContext(context, feature.code)) {
+          if (
+            await this.legacyCanAccessFeatureWithContext(context, feature.code)
+          ) {
             rows.push({
               userId: user.id,
               featureCode: feature.code,
@@ -378,7 +388,8 @@ export class FeatureService implements OnModuleInit {
         data: {
           key: USER_FEATURE_BACKFILL_SETTING_KEY,
           displayName: 'User feature allowlist backfill',
-          description: 'Marker that legacy feature access was copied to user allowlists',
+          description:
+            'Marker that legacy feature access was copied to user allowlists',
           category: 'MIGRATION',
           value: { completedAt: new Date().toISOString(), rows: rows.length },
           isSystem: true,
@@ -413,12 +424,13 @@ export class FeatureService implements OnModuleInit {
       featureCode,
       enabled,
       emailDomain: this.normalizeOptionalDomain(input.emailDomain),
-      systemRole: this.normalizeOptionalCode(input.systemRole),
+      systemRole: this.normalizeSystemRole(input.systemRole),
       departmentCode: this.normalizeOptionalCode(input.departmentCode),
       jobRoleCode: this.normalizeOptionalCode(input.jobRoleCode),
       workScopeType,
       regionCode: this.normalizeOptionalCode(input.regionCode),
       areaCode: this.normalizeOptionalCode(input.areaCode),
+      organizationNodeId: this.optionalText(input.organizationNodeId, 80),
       storeCode: this.normalizeOptionalCode(input.storeCode),
       userId: this.optionalText(input.userId, 80),
       note: this.optionalText(input.note, 240),
@@ -443,7 +455,7 @@ export class FeatureService implements OnModuleInit {
     const systemRoles = this.normalizeCodeOptions(
       input.systemRoles,
       input.systemRole,
-    );
+    ).map((role) => this.normalizeSystemRole(role));
     const departmentCodes = this.normalizeCodeOptions(
       input.departmentCodes,
       input.departmentCode,
@@ -467,6 +479,11 @@ export class FeatureService implements OnModuleInit {
       this.normalizeCodeOptions(input.regionCodes, input.regionCode),
       this.normalizeCodeOptions(input.areaCodes, input.areaCode),
     );
+    const organizationNodeIds = this.normalizeTextOptions(
+      input.organizationNodeIds,
+      input.organizationNodeId,
+      80,
+    );
     const storeCodes = this.normalizeCodeOptions(
       input.storeCodes,
       input.storeCode,
@@ -483,6 +500,7 @@ export class FeatureService implements OnModuleInit {
       jobRoleCodes,
       workScopeTypes,
       locations,
+      organizationNodeIds,
       storeCodes,
       userIds,
     });
@@ -592,6 +610,7 @@ export class FeatureService implements OnModuleInit {
     jobRoleCodes: Array<string | null>;
     workScopeTypes: Array<string | null>;
     locations: Array<{ regionCode: string | null; areaCode: string | null }>;
+    organizationNodeIds: Array<string | null>;
     storeCodes: Array<string | null>;
     userIds: Array<string | null>;
   }) {
@@ -602,22 +621,25 @@ export class FeatureService implements OnModuleInit {
           for (const jobRoleCode of input.jobRoleCodes) {
             for (const workScopeType of input.workScopeTypes) {
               for (const location of input.locations) {
-                for (const storeCode of input.storeCodes) {
-                  for (const userId of input.userIds) {
-                    dataList.push({
-                      featureCode: input.featureCode,
-                      enabled: input.enabled,
-                      emailDomain,
-                      systemRole,
-                      departmentCode,
-                      jobRoleCode,
-                      workScopeType,
-                      regionCode: location.regionCode,
-                      areaCode: location.areaCode,
-                      storeCode,
-                      userId,
-                      note: input.note,
-                    });
+                for (const organizationNodeId of input.organizationNodeIds) {
+                  for (const storeCode of input.storeCodes) {
+                    for (const userId of input.userIds) {
+                      dataList.push({
+                        featureCode: input.featureCode,
+                        enabled: input.enabled,
+                        emailDomain,
+                        systemRole,
+                        departmentCode,
+                        jobRoleCode,
+                        workScopeType,
+                        regionCode: location.regionCode,
+                        areaCode: location.areaCode,
+                        organizationNodeId,
+                        storeCode,
+                        userId,
+                        note: input.note,
+                      });
+                    }
                   }
                 }
               }
@@ -635,6 +657,7 @@ export class FeatureService implements OnModuleInit {
     jobRoleCode: string | null;
     regionCode: string | null;
     areaCode: string | null;
+    organizationNodeId: string | null;
     storeCode: string | null;
     userId: string | null;
   }) {
@@ -672,6 +695,15 @@ export class FeatureService implements OnModuleInit {
         throw new BadRequestException('Vùng không thuộc Miền đã chọn');
       }
     }
+    if (data.organizationNodeId) {
+      const organizationNode = await this.prisma.organizationNode.findUnique({
+        where: { id: data.organizationNodeId },
+        select: { id: true, isActive: true },
+      });
+      if (!organizationNode || !organizationNode.isActive) {
+        throw new BadRequestException('Node tổ chức không tồn tại hoặc đã tắt');
+      }
+    }
     if (data.storeCode) {
       const store = await this.prisma.store.findUnique({
         where: { storeId: data.storeCode },
@@ -699,7 +731,7 @@ export class FeatureService implements OnModuleInit {
         id: user?.id ?? null,
         email: user?.email ?? null,
         emailDomain: this.emailDomainFromEmail(user?.email),
-        role: user?.role ?? null,
+        role: this.normalizeSystemRole(user?.role),
         departmentCode: user?.departmentCode ?? null,
         jobRoleCode: user?.jobRoleCode ?? null,
         workScopeType: this.effectiveScope(user),
@@ -709,27 +741,99 @@ export class FeatureService implements OnModuleInit {
     const full = await this.prisma.user.findUnique({
       where: { id: user.id },
       include: {
-        store: { include: { area: { include: { region: true } } } },
+        organizationNode: true,
+        store: {
+          include: {
+            area: { include: { region: true } },
+            organizationNode: true,
+          },
+        },
         region: true,
         area: { include: { region: true } },
       },
     });
     const source = full ?? user;
+    const scopeNodeId =
+      this.effectiveScope(source) === 'STORE'
+        ? (source.store?.organizationNodeId ?? source.organizationNodeId)
+        : (source.organizationNodeId ?? source.store?.organizationNodeId);
+    const organizationContext = await this.resolveOrganizationRuleContext(
+      scopeNodeId,
+    );
     const area = this.areaForContextSource(source);
     const region = this.regionForContextSource(source);
     return {
       id: source.id ?? null,
       email: source.email ?? null,
       emailDomain: this.emailDomainFromEmail(source.email),
-      role: source.role ?? null,
+      role: this.normalizeSystemRole(source.role),
       departmentCode: source.departmentCode ?? null,
       jobRoleCode: source.jobRoleCode ?? null,
       workScopeType: this.effectiveScope(source),
-      regionCode: region?.code ?? source.regionCode ?? null,
-      areaCode: area?.code ?? source.areaCode ?? null,
-      storeCode: source.store?.storeId ?? null,
+      regionCode:
+        organizationContext.regionCode ?? region?.code ?? source.regionCode ?? null,
+      areaCode:
+        organizationContext.areaCode ?? area?.code ?? source.areaCode ?? null,
+      organizationNodeId: organizationContext.organizationNodeId,
+      organizationNodeIds: organizationContext.organizationNodeIds,
+      storeCode: organizationContext.storeCode ?? source.store?.storeId ?? null,
       storeName: source.store?.storeName ?? null,
     };
+  }
+
+  private async resolveOrganizationRuleContext(nodeId?: string | null) {
+    const empty = {
+      organizationNodeId: nodeId ?? null,
+      organizationNodeIds: [] as string[],
+      regionCode: null as string | null,
+      areaCode: null as string | null,
+      storeCode: null as string | null,
+    };
+    if (!nodeId) return empty;
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) return empty;
+    const nodes: Array<{
+      id: string;
+      parentId: string | null;
+      type: string;
+      code: string;
+      businessCode: string | null;
+    }> = await organizationNode.findMany({
+      select: {
+        id: true,
+        parentId: true,
+        type: true,
+        code: true,
+        businessCode: true,
+      },
+    });
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const ancestors: typeof nodes = [];
+    let cursor = byId.get(nodeId) ?? null;
+    for (let guard = 0; cursor && guard < 50; guard += 1) {
+      ancestors.push(cursor);
+      cursor = cursor.parentId ? (byId.get(cursor.parentId) ?? null) : null;
+    }
+    const businessCodeFor = (type: string) => {
+      const node = ancestors.find((item) => item.type === type);
+      if (!node) return null;
+      return node.businessCode || this.legacyCodeFromOrganizationCode(node.code);
+    };
+    return {
+      organizationNodeId: nodeId,
+      organizationNodeIds: ancestors.map((node) => node.id),
+      regionCode: businessCodeFor('REGION'),
+      areaCode: businessCodeFor('AREA'),
+      storeCode: businessCodeFor('SHOWROOM'),
+    };
+  }
+
+  private legacyCodeFromOrganizationCode(code: string) {
+    return String(code || '')
+      .replace(/^(REGION|AREA)_(PHONGVU|ACARE)_/i, '')
+      .replace(/^STORE_/i, '')
+      .trim()
+      .toUpperCase();
   }
 
   private areaForContextSource(source: any) {
@@ -757,14 +861,23 @@ export class FeatureService implements OnModuleInit {
       .trim()
       .toUpperCase();
     if (VALID_WORK_SCOPES.has(scope)) return scope;
+    const role = this.normalizeSystemRole(user?.role);
     if (
-      user?.role === SUPER_ADMIN_ROLE ||
-      user?.role === ADMIN_ROLE ||
-      user?.role === ADMIN_ACARE_ROLE
+      role === SUPER_ADMIN_ROLE ||
+      role === ADMIN_PHONGVU_ROLE ||
+      role === ADMIN_ACARE_ROLE
     ) {
       return 'NATIONAL';
     }
     return 'STORE';
+  }
+
+  private normalizeSystemRole(role: unknown) {
+    const code = String(role || '')
+      .trim()
+      .toUpperCase();
+    if (code === LEGACY_ADMIN_ROLE) return ADMIN_PHONGVU_ROLE;
+    return code || null;
   }
 
   private ruleMatches(rule: any, context: FeatureContext) {
@@ -772,6 +885,7 @@ export class FeatureService implements OnModuleInit {
       this.matches(rule.emailDomain, context.emailDomain) &&
       this.matches(rule.userId, context.id) &&
       this.matches(rule.storeCode, context.storeCode) &&
+      this.organizationNodeMatches(rule.organizationNodeId, context) &&
       this.matches(rule.areaCode, context.areaCode) &&
       this.matches(rule.regionCode, context.regionCode) &&
       this.matches(rule.workScopeType, context.workScopeType) &&
@@ -779,6 +893,15 @@ export class FeatureService implements OnModuleInit {
       this.matches(rule.departmentCode, context.departmentCode) &&
       this.matches(rule.systemRole, context.role)
     );
+  }
+
+  private organizationNodeMatches(
+    ruleValue?: string | null,
+    context?: FeatureContext,
+  ) {
+    if (!ruleValue) return true;
+    const ids = context?.organizationNodeIds ?? [];
+    return ids.includes(ruleValue);
   }
 
   private matches(ruleValue?: string | null, contextValue?: string | null) {
@@ -793,6 +916,7 @@ export class FeatureService implements OnModuleInit {
     return (
       (rule.emailDomain ? 256 : 0) +
       (rule.userId ? 128 : 0) +
+      (rule.organizationNodeId ? 96 : 0) +
       (rule.storeCode ? 64 : 0) +
       (rule.areaCode ? 32 : 0) +
       (rule.regionCode ? 16 : 0) +

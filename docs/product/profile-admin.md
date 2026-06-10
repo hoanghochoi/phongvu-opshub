@@ -36,11 +36,12 @@ basic administration for privileged roles.
 - User management keeps name/email search and adds filters for domain,
   organization node, feature/screen, role, and status. `SUPER_ADMIN` can assign
   multiple allowed features from the user edit dialog.
-- `ADMIN_ACARE` has admin-equivalent user and store management access, but
-  user management is limited to accounts whose email ends with
-  `@acaretek.vn`.
-- The backend migration seeds `ADMIN_ACARE` as a system role and moves
-  `admin@acaretek.vn` from `ADMIN` to `ADMIN_ACARE` when that account exists.
+- `ADMIN_PHONGVU` manages users and SRs under the `phongvu.vn` organization
+  root. `ADMIN_ACARE` manages users and SRs under the `acaretek.vn` root,
+  including accounts whose email ends with `@acaretek.vn`.
+- The backend migration renames the legacy system role `ADMIN` to
+  `ADMIN_PHONGVU`, keeps `ADMIN_ACARE` separate, and repairs the known `AC001`
+  store/org link when that data exists.
 - Admin API `403 Forbidden` responses do not clear the local login session;
   only `401 Unauthorized` is treated as an auth failure.
 - Role management lists roles from the backend role catalog.
@@ -56,9 +57,10 @@ basic administration for privileged roles.
   constraints.
 - Organization management lets `SUPER_ADMIN` maintain a tree with root domain,
   subdomain, block, department, area, showroom, job role, and virtual scope
-  nodes. Default root domains are `phongvu.vn` and `acaretek.vn`; subdomains are
-  created under those roots. Nodes with users, children, stores, rules, or other
-  references are deactivated instead of destructively removed.
+  nodes. Default root domains are `phongvu.vn` and `acaretek.vn`; the app shows
+  only root nodes by default and expands children on click. Nodes with children,
+  users, SRs, or other references are blocked from deletion and the API returns
+  the blocking counts/reasons.
 - Feature management keeps feature definitions and legacy feature rules for
   reference/backfill, but the primary runtime gate is now the user feature
   assignment allowlist. `SUPER_ADMIN` bypasses feature gates to avoid lockout.
@@ -68,15 +70,18 @@ basic administration for privileged roles.
   selected users, domains, roles, departments, job roles, scopes, Regions,
   Areas, SRs, and scope text values. Auth domain, password policy, and OTP
   policy settings are managed from the policy settings tab.
-- `ADMIN` is scoped to users in the same store and cannot assign
-  `SUPER_ADMIN`.
+- `ADMIN_PHONGVU` and `ADMIN_ACARE` can reset passwords only for users inside
+  their organization scope and cannot reset `SUPER_ADMIN`.
 - `SUPER_ADMIN` can manage all users.
 - `MANAGER` can open administration for their own showroom scope.
 - `SUPER_ADMIN` can assign or change user roles and personnel scope after
   registration; users do not choose role, Region, Area, Chatsale, or Telesale
   during registration.
 - Store administration can keep a VietinBank MAP username plus an encrypted MAP
-  password for later transaction reconciliation. The API returns whether a MAP
+  password for later transaction reconciliation. `ADMIN_PHONGVU` and
+  `ADMIN_ACARE` may edit only those MAP credential fields for SRs in scope;
+  they cannot edit transfer account number/name, bank, BIN, SR code/name, or
+  Region/Area without separate privileges. The API returns whether a MAP
   password exists, but never returns the password itself.
 
 ## Personnel Scope And Catalogs

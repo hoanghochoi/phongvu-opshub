@@ -23,7 +23,8 @@ import {
 } from '../auth/break-glass-admin.constants';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
-const ADMIN_ROLE = 'ADMIN';
+const LEGACY_ADMIN_ROLE = 'ADMIN';
+const ADMIN_PHONGVU_ROLE = 'ADMIN_PHONGVU';
 const ADMIN_ACARE_ROLE = 'ADMIN_ACARE';
 const MANAGER_ROLE = 'MANAGER';
 const STAFF_ROLE = 'STAFF';
@@ -51,6 +52,7 @@ const ORG_TYPES = new Set([
   'ROOT_DOMAIN',
   'SUBDOMAIN',
   'BLOCK',
+  'REGION',
   'DEPARTMENT',
   'AREA',
   'SHOWROOM',
@@ -65,9 +67,9 @@ const DEFAULT_ROLE_DEFINITIONS = [
     description: 'Toàn quyền hệ thống',
   },
   {
-    code: ADMIN_ROLE,
-    displayName: 'Admin',
-    description: 'Quản lý người dùng theo phạm vi',
+    code: ADMIN_PHONGVU_ROLE,
+    displayName: 'Admin Phong Vũ',
+    description: 'Quản lý user và SR thuộc Phong Vũ',
   },
   {
     code: ADMIN_ACARE_ROLE,
@@ -260,6 +262,8 @@ export class UserService implements OnModuleInit {
     await this.seedDefaultRoles();
     await this.seedDefaultPersonnelCatalog();
     await this.seedDefaultOrganizationTree();
+    await this.syncCatalogOrganizationNodes('module-init');
+    await this.syncStoreOrganizationNodes('module-init');
     await this.bootstrapBreakGlassSuperAdmin();
 
     if (getDataSyncSource() !== 'bigquery') {
@@ -388,6 +392,9 @@ export class UserService implements OnModuleInit {
       this.logger.log(
         `User sync complete: ${syncedCount} users synced, ${storeCreatedCount} new stores created`,
       );
+      if (storeCreatedCount > 0) {
+        await this.syncStoreOrganizationNodes('bigquery-user-sync');
+      }
     } catch (error) {
       this.logger.error('User sync from BigQuery failed:', error);
     }
@@ -478,6 +485,7 @@ export class UserService implements OnModuleInit {
         storeId: store.id,
         areaCode: store.areaCode ?? DEFAULT_REGION_CODE,
         regionCode: store.area?.regionCode ?? DEFAULT_REGION_CODE,
+        organizationNodeId: store.organizationNodeId ?? null,
         branchLockedAt: new Date(),
         profileCompletedAt: new Date(),
       },
@@ -489,7 +497,7 @@ export class UserService implements OnModuleInit {
   async adminListUsers(admin: any, filters: any = {}) {
     await this.assertAdmin(admin);
     const query = String(filters.q || '').trim();
-    const scope = this.adminScope(admin);
+    const scope = await this.adminScope(admin);
     const where = await this.adminUserWhere(scope, filters, query);
     this.logger.log(
       'Admin user list started: admin=' +
@@ -543,7 +551,7 @@ export class UserService implements OnModuleInit {
       .trim()
       .toLowerCase();
     if (!email) throw new BadRequestException('Email không được để trống');
-    this.assertEmailWithinAdminDomain(admin, email);
+    await this.assertEmailWithinAdminDomain(admin, email);
 
     const role = await this.resolveAssignableRole(body.role || STAFF_ROLE);
     await this.assertRoleEditable(admin, role);
@@ -590,7 +598,7 @@ export class UserService implements OnModuleInit {
 
     if (
       this.isScopedAdmin(admin) &&
-      !this.userWithinAdminScope(admin, current)
+      !(await this.userWithinAdminScope(admin, current))
     ) {
       this.logger.warn(
         'Admin user update blocked by scope: admin=' +
@@ -726,14 +734,49 @@ export class UserService implements OnModuleInit {
   }
 
   async adminSetUserPassword(admin: any, userId: string, newPassword: string) {
-    await this.assertSuperAdmin(admin);
+    await this.assertAdmin(admin);
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: this.userDtoInclude(),
+    });
+    if (!target) throw new NotFoundException('Không tìm thấy user');
+
+    if (target.role === SUPER_ADMIN_ROLE && admin.role !== SUPER_ADMIN_ROLE) {
+      throw new ForbiddenException('Không được reset mật khẩu SUPER_ADMIN');
+    }
+    if (admin.role !== SUPER_ADMIN_ROLE) {
+      if (!this.isDomainAdmin(admin)) {
+        throw new ForbiddenException('Không có quyền reset mật khẩu user');
+      }
+      if (!(await this.userWithinAdminScope(admin, target))) {
+        throw new ForbiddenException(
+          'Không có quyền reset mật khẩu user ngoài phạm vi quản lý',
+        );
+      }
+    }
+
+    this.logger.log(
+      'Admin password reset started: admin=' +
+        (admin.email || admin.id || 'unknown') +
+        ' role=' +
+        admin.role +
+        ' targetUserId=' +
+        userId +
+        ' targetRole=' +
+        target.role,
+    );
     const result = await this.passwordResetService.setPasswordForUserId(
       userId,
       newPassword,
       { id: admin.id, email: admin.email },
     );
     this.logger.log(
-      `Admin password reset completed: admin=${admin.email || admin.id || 'unknown'} targetUserId=${userId}`,
+      'Admin password reset completed: admin=' +
+        (admin.email || admin.id || 'unknown') +
+        ' role=' +
+        admin.role +
+        ' targetUserId=' +
+        userId,
     );
     return result;
   }
@@ -741,9 +784,14 @@ export class UserService implements OnModuleInit {
   async adminListOrganizationTree(admin: any) {
     await this.assertAdmin(admin);
     await this.seedDefaultOrganizationTree();
-    return this.prisma.organizationNode.findMany({
+    await this.syncCatalogOrganizationNodes('admin-list-organization-tree');
+    await this.syncStoreOrganizationNodes('admin-list-organization-tree');
+    const where = await this.adminOrganizationNodeScopeWhere(admin);
+    const nodes = await this.prisma.organizationNode.findMany({
+      where,
       orderBy: [{ sortOrder: 'asc' }, { type: 'asc' }, { displayName: 'asc' }],
       include: {
+        stores: { take: 1, orderBy: { storeId: 'asc' } },
         _count: {
           select: {
             children: true,
@@ -757,12 +805,22 @@ export class UserService implements OnModuleInit {
         },
       },
     });
+    return nodes.map((node) => this.toOrganizationNodeDto(node));
   }
 
   async adminCreateOrganizationNode(admin: any, body: any) {
     await this.assertSuperAdmin(admin);
     const data = await this.normalizeOrganizationNodeInput(body);
-    const node = await this.prisma.organizationNode.create({ data });
+    const node = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.organizationNode.create({ data });
+      if (['REGION', 'AREA'].includes(created.type)) {
+        await this.syncLegacyCatalogFromOrganizationNode(tx, created);
+      }
+      if (created.type === 'SHOWROOM') {
+        await this.syncShowroomStoreFromNode(tx, created, body, null);
+      }
+      return this.findOrganizationNodeForDto(tx, created.id);
+    });
     this.logger.log(
       `Organization node created: admin=${admin?.email || admin?.id || 'unknown'} nodeId=${node.id} type=${node.type} code=${node.code}`,
     );
@@ -770,11 +828,17 @@ export class UserService implements OnModuleInit {
   }
 
   async adminUpdateOrganizationNode(admin: any, id: string, body: any) {
-    await this.assertSuperAdmin(admin);
     const current = await this.prisma.organizationNode.findUnique({
       where: { id },
+      include: { stores: { take: 1, orderBy: { storeId: 'asc' } } },
     });
     if (!current) throw new NotFoundException('Không tìm thấy node tổ chức');
+
+    if (this.isDomainAdmin(admin) && current.type === 'SHOWROOM') {
+      return this.updateShowroomMapCredentialFromTree(admin, current, body);
+    }
+
+    await this.assertSuperAdmin(admin);
     const data = await this.normalizeOrganizationNodeInput(body, current);
     if (current.isSystem) {
       if (
@@ -788,9 +852,18 @@ export class UserService implements OnModuleInit {
       }
     }
     if (data.parentId) await this.assertNoOrganizationCycle(id, data.parentId);
-    const node = await this.prisma.organizationNode.update({
-      where: { id },
-      data,
+    const node = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.organizationNode.update({
+        where: { id },
+        data,
+      });
+      if (['REGION', 'AREA'].includes(updated.type)) {
+        await this.syncLegacyCatalogFromOrganizationNode(tx, updated);
+      }
+      if (updated.type === 'SHOWROOM') {
+        await this.syncShowroomStoreFromNode(tx, updated, body, current);
+      }
+      return this.findOrganizationNodeForDto(tx, id);
     });
     this.logger.log(
       `Organization node updated: admin=${admin?.email || admin?.id || 'unknown'} nodeId=${id} type=${node.type} code=${node.code}`,
@@ -808,20 +881,46 @@ export class UserService implements OnModuleInit {
     if (node.isSystem) {
       throw new BadRequestException('Không được xóa node tổ chức hệ thống');
     }
-    const referenceCount = await this.organizationNodeReferenceCount(id);
-    if (node._count.children > 0 || referenceCount > 0) {
-      const updated = await this.prisma.organizationNode.update({
-        where: { id },
-        data: { isActive: false, loginAllowed: false },
-      });
+    const references = await this.organizationNodeReferenceCounts(id);
+    const blockers: string[] = [];
+    if (node._count.children > 0) {
+      blockers.push(node._count.children + ' node con');
+    }
+    if (references.users > 0) blockers.push(references.users + ' user');
+    if (references.stores > 0) blockers.push(references.stores + ' SR');
+    if (references.departments > 0) {
+      blockers.push(references.departments + ' phòng ban');
+    }
+    if (references.jobRoles > 0) {
+      blockers.push(references.jobRoles + ' chức danh');
+    }
+    if (references.regions > 0) blockers.push(references.regions + ' Miền');
+    if (references.areas > 0) blockers.push(references.areas + ' Vùng');
+    if (references.featureRules > 0) {
+      blockers.push(references.featureRules + ' rule tính năng');
+    }
+    if (references.policyRules > 0) {
+      blockers.push(references.policyRules + ' rule policy');
+    }
+    if (blockers.length > 0) {
       this.logger.warn(
-        `Organization node deactivated: admin=${admin?.email || admin?.id || 'unknown'} nodeId=${id} children=${node._count.children} references=${referenceCount}`,
+        'Organization node delete blocked: admin=' +
+          (admin?.email || admin?.id || 'unknown') +
+          ' nodeId=' +
+          id +
+          ' blockers=' +
+          blockers.join('|'),
       );
-      return { deleted: false, deactivated: true, node: updated };
+      throw new BadRequestException(
+        'Không thể xóa node tổ chức vì còn ' + blockers.join(', '),
+      );
     }
     await this.prisma.organizationNode.delete({ where: { id } });
     this.logger.warn(
-      `Organization node deleted: admin=${admin?.email || admin?.id || 'unknown'} nodeId=${id}`,
+      'Organization node deleted: admin=' +
+        (admin?.email || admin?.id || 'unknown') +
+        ' nodeId=' +
+        id,
     );
     return { deleted: true, id };
   }
@@ -831,7 +930,7 @@ export class UserService implements OnModuleInit {
       input.type ?? current?.type,
     );
     const displayName = this.normalizeRequiredText(
-      input.displayName ?? current?.displayName,
+      input.displayName ?? input.storeName ?? current?.displayName,
       'Tên node tổ chức không được để trống',
       120,
     );
@@ -850,13 +949,30 @@ export class UserService implements OnModuleInit {
       input.parentId,
       current,
     );
+    const businessCode = this.normalizeOrganizationBusinessCode(
+      input.businessCode ?? input.storeId ?? current?.businessCode ?? input.code,
+      type,
+    );
     const code = input.code
       ? this.normalizeOrganizationNodeCode(input.code)
       : (current?.code ??
-        this.organizationCodeFor(type, emailDomain ?? displayName));
+        (await this.organizationCodeFor(
+          type,
+          businessCode ?? emailDomain ?? displayName,
+          parentId,
+        )));
     return {
       code,
       displayName,
+      businessCode,
+      abbreviation: this.normalizeOptionalText(
+        input.abbreviation ?? current?.abbreviation,
+        40,
+      ),
+      description: this.normalizeOptionalText(
+        input.description ?? current?.description,
+        180,
+      ),
       type,
       parentId,
       emailDomain,
@@ -894,10 +1010,48 @@ export class UserService implements OnModuleInit {
     return code;
   }
 
-  private organizationCodeFor(type: string, value: string) {
-    return this.normalizeOrganizationNodeCode(
-      `${type}_${String(value).replace(/\.[a-z]+$/i, '')}`,
+  private normalizeOrganizationBusinessCode(value: unknown, type: string) {
+    const text = String(value || '').trim();
+    if (!text) {
+      if (['REGION', 'AREA', 'SHOWROOM'].includes(type)) {
+        throw new BadRequestException('Mã nghiệp vụ không được để trống');
+      }
+      return null;
+    }
+    const maxLength = type === 'SHOWROOM' ? 40 : 80;
+    return text.slice(0, maxLength);
+  }
+
+  private async organizationCodeFor(
+    type: string,
+    value: string,
+    parentId?: string | null,
+  ) {
+    const normalized = this.normalizeOrganizationNodeCode(
+      String(value).replace(/\.[a-z]+$/i, ''),
     );
+    if (type === 'SHOWROOM') return 'STORE_' + normalized;
+    if (['REGION', 'AREA'].includes(type)) {
+      const prefix = await this.organizationDomainPrefixForParent(parentId);
+      return `${type}_${prefix}_${normalized}`;
+    }
+    return this.normalizeOrganizationNodeCode(`${type}_${normalized}`);
+  }
+
+  private async organizationDomainPrefixForParent(parentId?: string | null) {
+    if (!parentId) return 'PHONGVU';
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) return 'PHONGVU';
+    const nodes: Array<{ id: string; parentId: string | null }> =
+      await organizationNode.findMany({ select: { id: true, parentId: true } });
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    let cursor = byId.get(parentId) ?? null;
+    for (let guard = 0; cursor && guard < 50; guard += 1) {
+      if (cursor.id === ORG_ROOT_ACARETEK_ID) return 'ACARE';
+      if (cursor.id === ORG_ROOT_PHONGVU_ID) return 'PHONGVU';
+      cursor = cursor.parentId ? (byId.get(cursor.parentId) ?? null) : null;
+    }
+    return parentId === ORG_ROOT_ACARETEK_ID ? 'ACARE' : 'PHONGVU';
   }
 
   private normalizeRequiredEmailDomain(value: unknown) {
@@ -916,16 +1070,45 @@ export class UserService implements OnModuleInit {
     const parentId = String(parentIdInput ?? current?.parentId ?? '').trim();
     if (!parentId) {
       if (type === 'SUBDOMAIN') return ORG_ROOT_PHONGVU_ID;
-      return ORG_ROOT_PHONGVU_ID;
+      if (type === 'REGION') return ORG_SUBDOMAIN_PHONGVU_ID;
+      throw new BadRequestException('Node cha không được để trống');
     }
     const parent = await this.prisma.organizationNode.findUnique({
       where: { id: parentId },
-      select: { id: true, isActive: true },
+      select: { id: true, type: true, isActive: true },
     });
     if (!parent || !parent.isActive) {
       throw new BadRequestException('Node cha không hợp lệ');
     }
+    this.assertOrganizationParentType(type, parent.type);
     return parent.id;
+  }
+
+  private assertOrganizationParentType(type: string, parentType: string) {
+    const allowedParents: Record<string, string[]> = {
+      SUBDOMAIN: ['ROOT_DOMAIN'],
+      REGION: ['ROOT_DOMAIN', 'SUBDOMAIN'],
+      AREA: ['REGION'],
+      SHOWROOM: ['AREA'],
+    };
+    const allowed = allowedParents[type];
+    if (!allowed || allowed.includes(parentType)) return;
+    throw new BadRequestException(
+      `${this.organizationNodeTypeLabel(type)} phải nằm dưới ${allowed
+        .map((item) => this.organizationNodeTypeLabel(item))
+        .join(' hoặc ')}`,
+    );
+  }
+
+  private organizationNodeTypeLabel(type: string) {
+    const labels: Record<string, string> = {
+      ROOT_DOMAIN: 'Domain gốc',
+      SUBDOMAIN: 'Sub domain',
+      REGION: 'Miền',
+      AREA: 'Vùng',
+      SHOWROOM: 'Showroom',
+    };
+    return labels[type] ?? type;
   }
 
   private async assertNoOrganizationCycle(id: string, parentId: string) {
@@ -946,8 +1129,17 @@ export class UserService implements OnModuleInit {
     }
   }
 
-  private async organizationNodeReferenceCount(id: string) {
-    const [users, stores, departments, jobRoles, regions, areas] =
+  private async organizationNodeReferenceCounts(id: string) {
+    const [
+      users,
+      stores,
+      departments,
+      jobRoles,
+      regions,
+      areas,
+      featureRules,
+      policyRules,
+    ] =
       await Promise.all([
         this.prisma.user.count({ where: { organizationNodeId: id } }),
         this.prisma.store.count({ where: { organizationNodeId: id } }),
@@ -961,8 +1153,426 @@ export class UserService implements OnModuleInit {
           where: { organizationNodeId: id },
         }),
         this.prisma.areaDefinition.count({ where: { organizationNodeId: id } }),
+        this.prisma.featureAccessRule.count({
+          where: { organizationNodeId: id },
+        }),
+        this.prisma.adminPolicyRule.count({
+          where: { organizationNodeId: id },
+        }),
       ]);
-    return users + stores + departments + jobRoles + regions + areas;
+    return {
+      users,
+      stores,
+      departments,
+      jobRoles,
+      regions,
+      areas,
+      featureRules,
+      policyRules,
+    };
+  }
+
+  private toOrganizationNodeDto(node: any) {
+    const store = Array.isArray(node.stores) ? node.stores[0] : null;
+    return {
+      id: node.id,
+      code: node.code,
+      displayName: node.displayName,
+      businessCode: node.businessCode ?? null,
+      abbreviation: node.abbreviation ?? null,
+      description: node.description ?? null,
+      type: node.type,
+      parentId: node.parentId ?? null,
+      emailDomain: node.emailDomain ?? null,
+      loginAllowed: node.loginAllowed === true,
+      isSystem: node.isSystem === true,
+      isActive: node.isActive !== false,
+      sortOrder: node.sortOrder ?? 0,
+      storeId: store?.storeId ?? node.businessCode ?? null,
+      storeName: store?.storeName ?? (node.type === 'SHOWROOM' ? node.displayName : null),
+      transferAccountNumber: store?.transferAccountNumber ?? null,
+      transferAccountName: store?.transferAccountName ?? null,
+      transferBankName: store?.transferBankName ?? null,
+      transferBankBin: store?.transferBankBin ?? null,
+      mapVietinUsername: store?.mapVietinUsername ?? null,
+      hasMapVietinPassword: Boolean(store?.mapVietinPasswordCipher),
+      _count: node._count,
+    };
+  }
+
+  private async toRegionShimDto(node: any) {
+    const descendantIds = await this.organizationDescendantIds(node.id);
+    const [areaCount, storeCount, userCount, featureRules] = await Promise.all([
+      this.prisma.organizationNode.count({
+        where: { parentId: node.id, type: 'AREA' },
+      }),
+      this.prisma.store.count({
+        where: { organizationNodeId: { in: descendantIds } },
+      }),
+      this.prisma.user.count({
+        where:
+          (await this.userOrganizationNodeWhere(node.id)) ?? {
+            organizationNodeId: node.id,
+          },
+      }),
+      this.prisma.featureAccessRule.count({
+        where: { organizationNodeId: node.id },
+      }),
+    ]);
+    const code = node.businessCode ?? this.legacyCodeFromOrganizationCode(node.code);
+    return {
+      id: node.id,
+      code,
+      displayName: node.displayName,
+      abbreviation: node.abbreviation ?? code,
+      description: node.description ?? '',
+      organizationNodeId: node.id,
+      isSystem: node.isSystem === true,
+      isActive: node.isActive !== false,
+      _count: {
+        areas: areaCount,
+        stores: storeCount,
+        users: userCount,
+        featureAccessRules: featureRules,
+      },
+    };
+  }
+
+  private async toAreaShimDto(node: any) {
+    const parent = node.parentId
+      ? await this.prisma.organizationNode.findUnique({ where: { id: node.parentId } })
+      : null;
+    const code = node.businessCode ?? this.legacyCodeFromOrganizationCode(node.code);
+    const regionCode = parent
+      ? (parent.businessCode ?? this.legacyCodeFromOrganizationCode(parent.code))
+      : '';
+    const [storeCount, userCount, featureRules] = await Promise.all([
+      this.prisma.store.count({ where: { organizationNodeId: node.id } }),
+      this.prisma.user.count({
+        where:
+          (await this.userOrganizationNodeWhere(node.id)) ?? {
+            organizationNodeId: node.id,
+          },
+      }),
+      this.prisma.featureAccessRule.count({
+        where: { organizationNodeId: node.id },
+      }),
+    ]);
+    return {
+      id: node.id,
+      code,
+      displayName: node.displayName,
+      abbreviation: node.abbreviation ?? code,
+      description: node.description ?? '',
+      regionCode,
+      region: parent
+        ? {
+            id: parent.id,
+            code: regionCode,
+            displayName: parent.displayName,
+            abbreviation: parent.abbreviation ?? regionCode,
+          }
+        : null,
+      organizationNodeId: node.id,
+      isSystem: node.isSystem === true,
+      isActive: node.isActive !== false,
+      _count: {
+        stores: storeCount,
+        users: userCount,
+        featureAccessRules: featureRules,
+      },
+    };
+  }
+
+  private async findOrganizationNodeForDto(client: any, id: string) {
+    const node = await client.organizationNode.findUnique({
+      where: { id },
+      include: {
+        stores: { take: 1, orderBy: { storeId: 'asc' } },
+        _count: {
+          select: {
+            children: true,
+            users: true,
+            stores: true,
+            departments: true,
+            jobRoles: true,
+            regions: true,
+            areas: true,
+          },
+        },
+      },
+    });
+    if (!node) throw new NotFoundException('Không tìm thấy node tổ chức');
+    return this.toOrganizationNodeDto(node);
+  }
+
+  private async syncShowroomStoreFromNode(
+    client: any,
+    node: any,
+    body: any,
+    previousNode?: any | null,
+  ) {
+    const location = await this.organizationLocationForShowroomNode(
+      client,
+      node,
+    );
+    const storeCode = this.normalizeStoreCode(
+      body.storeId || body.businessCode || node.businessCode,
+    );
+    const storeName = this.normalizeRequiredText(
+      body.storeName || body.displayName || node.displayName,
+      'Tên store không được để trống',
+      120,
+    );
+    let currentStore = Array.isArray(previousNode?.stores)
+      ? previousNode.stores[0]
+      : null;
+    if (!currentStore) {
+      currentStore = await client.store.findFirst({
+        where: { organizationNodeId: node.id },
+      });
+    }
+    if (!currentStore) {
+      const existing = await client.store.findUnique({
+        where: { storeId: storeCode },
+      });
+      if (existing?.organizationNodeId && existing.organizationNodeId !== node.id) {
+        throw new BadRequestException('SR đã được gắn với node tổ chức khác');
+      }
+      currentStore = existing;
+    }
+    if (currentStore && currentStore.storeId !== storeCode) {
+      const duplicate = await client.store.findUnique({
+        where: { storeId: storeCode },
+      });
+      if (duplicate && duplicate.id !== currentStore.id) {
+        throw new BadRequestException('Store đã tồn tại');
+      }
+    }
+
+    const data = {
+      storeId: storeCode,
+      storeName,
+      areaCode: location.areaCode,
+      organizationNodeId: node.id,
+      ...this.normalizeStorePaymentFields(body),
+      ...this.normalizeMapVietinFields(body),
+    };
+    const store = currentStore
+      ? await client.store.update({
+          where: { id: currentStore.id },
+          data,
+        })
+      : await client.store.create({ data });
+
+    await client.user.updateMany({
+      where: { storeId: store.id, workScopeType: STORE_SCOPE },
+      data: {
+        organizationNodeId: node.id,
+        areaCode: location.areaCode,
+        regionCode: location.regionCode,
+      },
+    });
+    return store;
+  }
+
+  private async syncLegacyCatalogFromOrganizationNode(client: any, node: any) {
+    const businessCode = this.normalizePersonnelCode(
+      node.businessCode || this.legacyCodeFromOrganizationCode(node.code),
+      'Mã nghiệp vụ không hợp lệ',
+    );
+    if (!businessCode) throw new BadRequestException('Mã nghiệp vụ không hợp lệ');
+    const displayName = this.normalizeRequiredText(
+      node.displayName,
+      'Tên node tổ chức không được để trống',
+      120,
+    );
+    const abbreviation = this.normalizeCatalogAbbreviation(
+      node.abbreviation || businessCode,
+    );
+    if (node.type === 'REGION') {
+      await client.regionDefinition.upsert({
+        where: { code: businessCode },
+        update: {
+          displayName,
+          abbreviation,
+          description: node.description ?? null,
+          organizationNodeId: node.id,
+          isActive: node.isActive !== false,
+        },
+        create: {
+          code: businessCode,
+          displayName,
+          abbreviation,
+          description: node.description ?? null,
+          organizationNodeId: node.id,
+          isSystem: node.isSystem === true,
+          isActive: node.isActive !== false,
+        },
+      });
+      return;
+    }
+    if (node.type !== 'AREA') return;
+    const parent = node.parentId
+      ? await client.organizationNode.findUnique({ where: { id: node.parentId } })
+      : null;
+    if (!parent || parent.type !== 'REGION') {
+      throw new BadRequestException('Vùng phải nằm dưới Miền');
+    }
+    await this.syncLegacyCatalogFromOrganizationNode(client, parent);
+    const regionCode = this.normalizePersonnelCode(
+      parent.businessCode || this.legacyCodeFromOrganizationCode(parent.code),
+      'Mã Miền không hợp lệ',
+    );
+    if (!regionCode) throw new BadRequestException('Mã Miền không hợp lệ');
+    await client.areaDefinition.upsert({
+      where: { code: businessCode },
+      update: {
+        displayName,
+        abbreviation,
+        description: node.description ?? null,
+        regionCode,
+        organizationNodeId: node.id,
+        isActive: node.isActive !== false,
+      },
+      create: {
+        code: businessCode,
+        displayName,
+        abbreviation,
+        description: node.description ?? null,
+        regionCode,
+        organizationNodeId: node.id,
+        isSystem: node.isSystem === true,
+        isActive: node.isActive !== false,
+      },
+    });
+  }
+
+  private async updateShowroomMapCredentialFromTree(
+    admin: any,
+    node: any,
+    body: any,
+  ) {
+    const store = Array.isArray(node.stores) ? node.stores[0] : null;
+    if (!store) throw new BadRequestException('Showroom chưa được gắn SR');
+    if (!(await this.storeWithinAdminScope(admin, store))) {
+      throw new ForbiddenException('Không có quyền sửa showroom khác');
+    }
+    const protectedChanges = this.scopedShowroomProtectedChanges(
+      body,
+      node,
+      store,
+    );
+    if (protectedChanges.length > 0) {
+      throw new ForbiddenException(
+        'ADMIN_PHONGVU/ADMIN_ACARE chỉ được sửa tài khoản/pass MAP; không được sửa ' +
+          protectedChanges.join(', '),
+      );
+    }
+    const mapData = this.normalizeMapVietinFields(body);
+    if (Object.keys(mapData).length > 0) {
+      await this.prisma.store.update({
+        where: { id: store.id },
+        data: mapData,
+      });
+    }
+    this.logger.log(
+      'Showroom MAP credential updated from tree: admin=' +
+        (admin.email || admin.id || 'unknown') +
+        ' role=' +
+        admin.role +
+        ' nodeId=' +
+        node.id +
+        ' store=' +
+        store.storeId +
+        ' mapUsernameChanged=' +
+        (body.mapVietinUsername !== undefined) +
+        ' mapPasswordProvided=' +
+        Boolean(String(body.mapVietinPassword || '').trim()),
+    );
+    return this.findOrganizationNodeForDto(this.prisma, node.id);
+  }
+
+  private scopedShowroomProtectedChanges(body: any, node: any, store: any) {
+    const changes: string[] = [];
+    const compareText = (
+      key: string,
+      currentValue: unknown,
+      label: string,
+      maxLength: number,
+    ) => {
+      if (body[key] === undefined) return;
+      const nextValue = this.normalizeOptionalText(body[key], maxLength) ?? null;
+      const currentText = currentValue === undefined ? null : currentValue;
+      if (nextValue !== currentText) changes.push(label);
+    };
+    compareText('code', node.code, 'mã node', 80);
+    compareText('businessCode', node.businessCode, 'mã SR', 80);
+    compareText('storeId', store.storeId, 'mã SR', 80);
+    compareText('displayName', node.displayName, 'tên showroom', 120);
+    compareText('storeName', store.storeName, 'tên SR', 120);
+    compareText('parentId', node.parentId, 'Vùng/Miền', 80);
+    compareText('transferAccountNumber', store.transferAccountNumber, 'số tài khoản nhận tiền', 80);
+    compareText('transferAccountName', store.transferAccountName, 'tên tài khoản nhận tiền', 120);
+    compareText('transferBankName', store.transferBankName, 'ngân hàng nhận tiền', 80);
+    compareText('transferBankBin', store.transferBankBin, 'BIN ngân hàng', 20);
+    if (body.isActive !== undefined && (body.isActive === true) !== node.isActive) {
+      changes.push('trạng thái');
+    }
+    if (body.sortOrder !== undefined) {
+      const sortOrder = this.normalizeSortOrder(body.sortOrder);
+      if (sortOrder !== (node.sortOrder ?? 0)) changes.push('thứ tự');
+    }
+    return Array.from(new Set(changes));
+  }
+
+  private async organizationLocationForShowroomNode(client: any, node: any) {
+    if (node.type !== 'SHOWROOM') {
+      return { areaCode: null as string | null, regionCode: null as string | null };
+    }
+    const nodes: Array<{
+      id: string;
+      parentId: string | null;
+      type: string;
+      code: string;
+      businessCode: string | null;
+    }> = await client.organizationNode.findMany({
+      select: {
+        id: true,
+        parentId: true,
+        type: true,
+        code: true,
+        businessCode: true,
+      },
+    });
+    const byId = new Map(nodes.map((item) => [item.id, item]));
+    const ancestors: typeof nodes = [];
+    let cursor = byId.get(node.id) ?? node;
+    for (let guard = 0; cursor && guard < 50; guard += 1) {
+      ancestors.push(cursor);
+      cursor = cursor.parentId ? (byId.get(cursor.parentId) ?? null) : null;
+    }
+    const areaNode = ancestors.find((item) => item.type === 'AREA');
+    const regionNode = ancestors.find((item) => item.type === 'REGION');
+    if (!areaNode) {
+      throw new BadRequestException('Showroom phải nằm dưới Vùng');
+    }
+    return {
+      areaCode:
+        areaNode.businessCode ?? this.legacyCodeFromOrganizationCode(areaNode.code),
+      regionCode: regionNode
+        ? (regionNode.businessCode ??
+          this.legacyCodeFromOrganizationCode(regionNode.code))
+        : null,
+    };
+  }
+
+  private legacyCodeFromOrganizationCode(code: string) {
+    return String(code || '')
+      .replace(/^(REGION|AREA)_(PHONGVU|ACARE)_/i, '')
+      .replace(/^STORE_/i, '')
+      .trim()
+      .toUpperCase();
   }
 
   private normalizeSortOrder(value: unknown) {
@@ -981,7 +1591,7 @@ export class UserService implements OnModuleInit {
     if (!store) throw new BadRequestException('Chi nhánh không hợp lệ');
     if (
       this.isScopedAdmin(admin) &&
-      !this.storeWithinAdminScope(admin, store)
+      !(await this.storeWithinAdminScope(admin, store))
     ) {
       throw new ForbiddenException('Chỉ được gán user trong phạm vi quản lý');
     }
@@ -1029,11 +1639,19 @@ export class UserService implements OnModuleInit {
     );
   }
 
-  private adminScope(admin: any) {
+  private async adminScope(admin: any) {
     if (this.isScopedAdmin(admin)) {
       const scope = this.effectiveWorkScope(admin);
-      const domainScope = this.adminDomainScope(admin);
+      const domainScope = await this.adminDomainScope(admin);
       if (scope === NATIONAL_SCOPE) return domainScope;
+      if (admin.organizationNodeId) {
+        const organizationScope = await this.userOrganizationNodeWhere(
+          admin.organizationNodeId,
+        );
+        if (organizationScope) {
+          return this.combineUserScope(domainScope, organizationScope);
+        }
+      }
       if (scope === REGION_SCOPE) {
         const locationScope = admin.regionCode
           ? {
@@ -1065,16 +1683,123 @@ export class UserService implements OnModuleInit {
   }
 
   private isScopedAdmin(user: any) {
+    return this.isDomainAdmin(user) || user.role === MANAGER_ROLE;
+  }
+
+  private isDomainAdmin(user: any) {
+    return this.isPhongVuAdmin(user) || this.isAcareAdmin(user);
+  }
+
+  private isPhongVuAdmin(user: any) {
     return (
-      user.role === ADMIN_ROLE ||
-      user.role === ADMIN_ACARE_ROLE ||
-      user.role === MANAGER_ROLE
+      user?.role === ADMIN_PHONGVU_ROLE || user?.role === LEGACY_ADMIN_ROLE
     );
   }
 
-  private storeWithinAdminScope(admin: any, store: any) {
+  private adminOrgRootId(admin: any) {
+    if (this.isPhongVuAdmin(admin)) return ORG_ROOT_PHONGVU_ID;
+    if (this.isAcareAdmin(admin)) return ORG_ROOT_ACARETEK_ID;
+    return null;
+  }
+
+  private async organizationDescendantIds(rootId: string) {
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) return [rootId];
+    const nodes: Array<{ id: string; parentId: string | null }> =
+      await organizationNode.findMany({ select: { id: true, parentId: true } });
+    const ids = new Set<string>([rootId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const node of nodes) {
+        if (node.parentId && ids.has(node.parentId) && !ids.has(node.id)) {
+          ids.add(node.id);
+          changed = true;
+        }
+      }
+    }
+    return Array.from(ids);
+  }
+
+  private async organizationUserScopeForRoot(rootId: string) {
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany)
+      return this.fallbackUserDomainScope(rootId);
+    return (
+      (await this.userOrganizationNodeWhere(rootId)) ??
+      this.fallbackUserDomainScope(rootId)
+    );
+  }
+
+  private fallbackUserDomainScope(rootId: string): Prisma.UserWhereInput {
+    const insensitive = Prisma.QueryMode.insensitive;
+    if (rootId === ORG_ROOT_ACARETEK_ID) {
+      return {
+        email: { endsWith: '@' + ACARETEK_EMAIL_DOMAIN, mode: insensitive },
+      };
+    }
+    if (rootId === ORG_ROOT_PHONGVU_ID) {
+      return {
+        OR: [
+          { email: { endsWith: '@phongvu.vn', mode: insensitive } },
+          { email: { contains: '@phongvu-', mode: insensitive } },
+        ],
+      };
+    }
+    return {};
+  }
+
+  private async adminStoreOrganizationScope(
+    admin: any,
+  ): Promise<Prisma.StoreWhereInput | undefined> {
+    const rootId = this.adminOrgRootId(admin);
+    if (!rootId) return undefined;
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) return undefined;
+    const organizationNodeIds = await this.organizationDescendantIds(rootId);
+    return { organizationNodeId: { in: organizationNodeIds } };
+  }
+
+  private async adminOrganizationNodeScopeWhere(
+    admin: any,
+  ): Promise<Prisma.OrganizationNodeWhereInput | undefined> {
+    const rootId = this.adminOrgRootId(admin);
+    if (!rootId) return undefined;
+    const organizationNodeIds = await this.organizationDescendantIds(rootId);
+    return { id: { in: organizationNodeIds } };
+  }
+
+  private combineStoreScope(
+    organizationScope: Prisma.StoreWhereInput | undefined,
+    locationScope: Prisma.StoreWhereInput | undefined,
+  ): Prisma.StoreWhereInput | undefined {
+    if (organizationScope && locationScope) {
+      return { AND: [organizationScope, locationScope] };
+    }
+    return organizationScope || locationScope;
+  }
+
+  private async storeWithinAdminScope(admin: any, store: any) {
+    const organizationScope = await this.adminStoreOrganizationScope(admin);
+    if (organizationScope) {
+      const organizationNodeIds = (organizationScope.organizationNodeId as any)
+        ?.in as string[] | undefined;
+      if (
+        !store?.organizationNodeId ||
+        !organizationNodeIds?.includes(store.organizationNodeId)
+      ) {
+        return false;
+      }
+    }
+
     const scope = this.effectiveWorkScope(admin);
     if (scope === NATIONAL_SCOPE) return true;
+    if (admin.organizationNodeId && store?.organizationNodeId) {
+      const organizationNodeIds = await this.organizationDescendantIds(
+        admin.organizationNodeId,
+      );
+      return organizationNodeIds.includes(store.organizationNodeId);
+    }
     if (scope === REGION_SCOPE) {
       return Boolean(
         admin.regionCode && store.area?.regionCode === admin.regionCode,
@@ -1086,28 +1811,13 @@ export class UserService implements OnModuleInit {
     return Boolean(admin.storeId && admin.storeId === store.id);
   }
 
-  private userWithinAdminScope(admin: any, user: any) {
-    if (this.isAcareAdmin(admin) && !this.isAcaretekEmail(user.email)) {
-      return false;
-    }
-    const scope = this.effectiveWorkScope(admin);
-    if (scope === NATIONAL_SCOPE) return true;
-    const userArea = this.areaForUser(user);
-    const userRegion = this.regionForUser(user);
-    if (scope === REGION_SCOPE) {
-      return Boolean(
-        admin.regionCode &&
-        (user.regionCode === admin.regionCode ||
-          userRegion?.code === admin.regionCode),
-      );
-    }
-    if (scope === AREA_SCOPE) {
-      return Boolean(
-        admin.areaCode &&
-        (user.areaCode === admin.areaCode || userArea?.code === admin.areaCode),
-      );
-    }
-    return Boolean(admin.storeId && user.storeId === admin.storeId);
+  private async userWithinAdminScope(admin: any, user: any) {
+    const scope = await this.adminScope(admin);
+    if (Object.keys(scope).length === 0) return true;
+    const count = await this.prisma.user.count({
+      where: { AND: [{ id: user.id }, scope] },
+    });
+    return count > 0;
   }
 
   private userDtoInclude() {
@@ -1154,14 +1864,17 @@ export class UserService implements OnModuleInit {
     if (status === 'yes' || status === 'no') conditions.push({ status });
     const featureCode = String(filters.featureCode || '').trim();
     if (featureCode) {
-      conditions.push({
-        userFeatureAssignments: {
-          some: {
-            featureCode: this.normalizeRoleCode(featureCode, true),
-            enabled: true,
+      const normalizedFeatureCode = this.normalizeFeatureCode(featureCode);
+      if (normalizedFeatureCode) {
+        conditions.push({
+          userFeatureAssignments: {
+            some: {
+              featureCode: normalizedFeatureCode,
+              enabled: true,
+            },
           },
-        },
-      });
+        });
+      }
     }
     const orgNodeWhere = await this.userOrganizationNodeWhere(
       filters.orgNodeId,
@@ -1295,6 +2008,65 @@ export class UserService implements OnModuleInit {
   async adminListRegions(admin: any) {
     await this.assertAdmin(admin);
     await this.seedDefaultPersonnelCatalog();
+    await this.seedDefaultOrganizationTree();
+    await this.syncCatalogOrganizationNodes('admin-regions-shim');
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) {
+      return this.adminListRegionsLegacy();
+    }
+    this.logger.warn(
+      'Deprecated admin regions route used: deprecatedRoute=true admin=' +
+        (admin?.email || admin?.id || 'unknown'),
+    );
+    const scopeWhere = await this.adminOrganizationNodeScopeWhere(admin);
+    const nodes = await this.prisma.organizationNode.findMany({
+      where: { AND: [{ type: 'REGION' }, ...(scopeWhere ? [scopeWhere] : [])] },
+      orderBy: [{ isSystem: 'desc' }, { businessCode: 'asc' }],
+    });
+    return Promise.all(nodes.map((node) => this.toRegionShimDto(node)));
+  }
+
+  async adminListAreas(admin: any, regionCodeInput?: string) {
+    await this.assertAdmin(admin);
+    await this.seedDefaultPersonnelCatalog();
+    await this.seedDefaultOrganizationTree();
+    await this.syncCatalogOrganizationNodes('admin-areas-shim');
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) {
+      return this.adminListAreasLegacy(regionCodeInput);
+    }
+    this.logger.warn(
+      'Deprecated admin areas route used: deprecatedRoute=true admin=' +
+        (admin?.email || admin?.id || 'unknown'),
+    );
+    const regionCode = regionCodeInput
+      ? this.normalizePersonnelCode(regionCodeInput, 'Mã Miền không hợp lệ')
+      : null;
+    const scopeWhere = await this.adminOrganizationNodeScopeWhere(admin);
+    const regionNode = regionCode
+      ? await this.prisma.organizationNode.findFirst({
+          where: {
+            AND: [
+              { type: 'REGION', businessCode: regionCode },
+              ...(scopeWhere ? [scopeWhere] : []),
+            ],
+          },
+        })
+      : null;
+    const nodes = await this.prisma.organizationNode.findMany({
+      where: {
+        AND: [
+          { type: 'AREA' },
+          ...(regionCode ? [{ parentId: regionNode?.id ?? '__NO_REGION__' }] : []),
+          ...(scopeWhere ? [scopeWhere] : []),
+        ],
+      },
+      orderBy: [{ isSystem: 'desc' }, { businessCode: 'asc' }],
+    });
+    return Promise.all(nodes.map((node) => this.toAreaShimDto(node)));
+  }
+
+  private async adminListRegionsLegacy() {
     const regions = await this.prisma.regionDefinition.findMany({
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
       include: {
@@ -1314,9 +2086,7 @@ export class UserService implements OnModuleInit {
     }));
   }
 
-  async adminListAreas(admin: any, regionCodeInput?: string) {
-    await this.assertAdmin(admin);
-    await this.seedDefaultPersonnelCatalog();
+  private async adminListAreasLegacy(regionCodeInput?: string) {
     const regionCode = regionCodeInput
       ? this.normalizePersonnelCode(regionCodeInput, 'Mã Miền không hợp lệ')
       : null;
@@ -1346,6 +2116,10 @@ export class UserService implements OnModuleInit {
       admin,
       ADMIN_POLICY_CODES.ADMIN_REGIONS,
       'Không có quyền tạo Miền',
+    );
+    this.logger.warn(
+      'Deprecated admin region create route used: deprecatedRoute=true admin=' +
+        (admin?.email || admin?.id || 'unknown'),
     );
     const code = this.normalizePersonnelCode(
       body.code || body.abbreviation,
@@ -1406,6 +2180,12 @@ export class UserService implements OnModuleInit {
       'Mã Miền không hợp lệ',
     );
     if (!currentCode) throw new BadRequestException('Mã Miền không hợp lệ');
+    this.logger.warn(
+      'Deprecated admin region update route used: deprecatedRoute=true admin=' +
+        (admin?.email || admin?.id || 'unknown') +
+        ' region=' +
+        currentCode,
+    );
     const current = await this.prisma.regionDefinition.findUnique({
       where: { code: currentCode },
     });
@@ -1453,6 +2233,12 @@ export class UserService implements OnModuleInit {
     );
     const code = this.normalizePersonnelCode(codeInput, 'Mã Miền không hợp lệ');
     if (!code) throw new BadRequestException('Mã Miền không hợp lệ');
+    this.logger.warn(
+      'Deprecated admin region delete route used: deprecatedRoute=true admin=' +
+        (admin?.email || admin?.id || 'unknown') +
+        ' region=' +
+        code,
+    );
     const region = await this.prisma.regionDefinition.findUnique({
       where: { code },
       include: {
@@ -1486,6 +2272,12 @@ export class UserService implements OnModuleInit {
       'Mã Vùng không hợp lệ',
     );
     if (!code) throw new BadRequestException('Mã Vùng không được để trống');
+    this.logger.warn(
+      'Deprecated admin area create route used: deprecatedRoute=true admin=' +
+        (admin?.email || admin?.id || 'unknown') +
+        ' area=' +
+        code,
+    );
     const regionCode = await this.resolveRegionCode(body.regionCode, null);
     if (!regionCode) throw new BadRequestException('Vui lòng chọn Miền');
     const existing = await this.prisma.areaDefinition.findUnique({
@@ -1523,6 +2315,12 @@ export class UserService implements OnModuleInit {
       'Mã Vùng không hợp lệ',
     );
     if (!currentCode) throw new BadRequestException('Mã Vùng không hợp lệ');
+    this.logger.warn(
+      'Deprecated admin area update route used: deprecatedRoute=true admin=' +
+        (admin?.email || admin?.id || 'unknown') +
+        ' area=' +
+        currentCode,
+    );
     const current = await this.prisma.areaDefinition.findUnique({
       where: { code: currentCode },
     });
@@ -1576,6 +2374,12 @@ export class UserService implements OnModuleInit {
     );
     const code = this.normalizePersonnelCode(codeInput, 'Mã Vùng không hợp lệ');
     if (!code) throw new BadRequestException('Mã Vùng không hợp lệ');
+    this.logger.warn(
+      'Deprecated admin area delete route used: deprecatedRoute=true admin=' +
+        (admin?.email || admin?.id || 'unknown') +
+        ' area=' +
+        code,
+    );
     const area = await this.prisma.areaDefinition.findUnique({
       where: { code },
       include: {
@@ -1925,9 +2729,13 @@ export class UserService implements OnModuleInit {
 
   async adminListStores(admin: any, q?: string) {
     await this.assertAdmin(admin);
+    this.logger.warn(
+      'Deprecated admin stores route used: deprecatedRoute=true admin=' +
+        (admin?.email || admin?.id || 'unknown'),
+    );
     const query = q?.trim();
     const stores = await this.prisma.store.findMany({
-      where: this.adminStoreScope(admin, query),
+      where: await this.adminStoreScope(admin, query),
       orderBy: { storeId: 'asc' },
       include: {
         area: { include: { region: true } },
@@ -1944,6 +2752,12 @@ export class UserService implements OnModuleInit {
       'Không có quyền tạo SR',
     );
     const storeId = this.normalizeStoreCode(body.storeId);
+    this.logger.warn(
+      'Deprecated admin store create route used: deprecatedRoute=true admin=' +
+        (admin?.email || admin?.id || 'unknown') +
+        ' store=' +
+        storeId,
+    );
     const storeName = this.normalizeRequiredText(
       body.storeName,
       'Tên store không được để trống',
@@ -1957,27 +2771,52 @@ export class UserService implements OnModuleInit {
 
     const areaCode = await this.resolveAreaCodeForStore(body.areaCode);
 
-    const store = await this.prisma.store.create({
-      data: {
-        storeId,
-        storeName,
-        areaCode,
-        ...this.normalizeStorePaymentFields(body),
-        ...this.normalizeMapVietinFields(body),
-      },
-      include: {
-        area: { include: { region: true } },
-        _count: { select: { users: true } },
-      },
+    const store = await this.prisma.$transaction(async (tx) => {
+      const createdStore = await tx.store.create({
+        data: {
+          storeId,
+          storeName,
+          areaCode,
+          ...this.normalizeStorePaymentFields(body),
+          ...this.normalizeMapVietinFields(body),
+        },
+        include: {
+          area: { include: { region: true } },
+          _count: { select: { users: true } },
+        },
+      });
+      const syncResult = await this.syncStoreOrganizationNode(
+        tx,
+        createdStore,
+        'admin-create-store',
+      );
+      return syncResult.store;
     });
+    this.logger.log(
+      'Store created: admin=' +
+        (admin.email || admin.id || 'unknown') +
+        ' role=' +
+        admin.role +
+        ' store=' +
+        store.storeId,
+    );
     return this.toStoreDto(store);
   }
 
   async adminUpdateStore(admin: any, currentStoreId: string, body: any) {
     const currentCode = this.normalizeStoreCode(currentStoreId);
+    this.logger.warn(
+      'Deprecated admin store update route used: deprecatedRoute=true admin=' +
+        (admin?.email || admin?.id || 'unknown') +
+        ' store=' +
+        currentCode,
+    );
     const current = await this.prisma.store.findUnique({
       where: { storeId: currentCode },
-      include: { area: true },
+      include: {
+        area: { include: { region: true } },
+        _count: { select: { users: true } },
+      },
     });
     if (!current) throw new NotFoundException('Không tìm thấy store');
     await this.assertPolicy(
@@ -1988,9 +2827,47 @@ export class UserService implements OnModuleInit {
 
     if (
       this.isScopedAdmin(admin) &&
-      !this.storeWithinAdminScope(admin, current)
+      !(await this.storeWithinAdminScope(admin, current))
     ) {
       throw new ForbiddenException('Không có quyền sửa showroom khác');
+    }
+
+    if (this.isDomainAdmin(admin)) {
+      const protectedChanges = await this.scopedStoreProtectedChanges(
+        body,
+        current,
+      );
+      if (protectedChanges.length > 0) {
+        throw new ForbiddenException(
+          'ADMIN_PHONGVU/ADMIN_ACARE chỉ được sửa tài khoản/pass MAP; không được sửa ' +
+            protectedChanges.join(', '),
+        );
+      }
+      const mapData = this.normalizeMapVietinFields(body);
+      if (Object.keys(mapData).length === 0) {
+        return this.toStoreDto(current);
+      }
+      const updatedStore = await this.prisma.store.update({
+        where: { storeId: current.storeId },
+        data: mapData,
+        include: {
+          area: { include: { region: true } },
+          _count: { select: { users: true } },
+        },
+      });
+      this.logger.log(
+        'Store MAP credential updated: admin=' +
+          (admin.email || admin.id || 'unknown') +
+          ' role=' +
+          admin.role +
+          ' store=' +
+          updatedStore.storeId +
+          ' mapUsernameChanged=' +
+          (body.mapVietinUsername !== undefined) +
+          ' mapPasswordProvided=' +
+          Boolean(String(body.mapVietinPassword || '').trim()),
+      );
+      return this.toStoreDto(updatedStore);
     }
 
     const nextCode = body.storeId
@@ -2018,7 +2895,7 @@ export class UserService implements OnModuleInit {
       );
     }
 
-    const store = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const updatedStore = await tx.store.update({
         where: { storeId: current.storeId },
         data: {
@@ -2048,12 +2925,46 @@ export class UserService implements OnModuleInit {
           data: { areaCode: updatedStore.areaCode, regionCode },
         });
         this.logger.log(
-          `Store area changed: store=${updatedStore.storeId} area=${current.areaCode || 'null'}->${updatedStore.areaCode || 'null'} region=${regionCode} syncedUsers=${syncResult.count}`,
+          'Store area changed: store=' +
+            updatedStore.storeId +
+            ' area=' +
+            (current.areaCode || 'null') +
+            '->' +
+            (updatedStore.areaCode || 'null') +
+            ' region=' +
+            regionCode +
+            ' syncedUsers=' +
+            syncResult.count,
         );
       }
 
-      return updatedStore;
+      const organizationSync = await this.syncStoreOrganizationNode(
+        tx,
+        {
+          ...updatedStore,
+          organizationNodeId:
+            updatedStore.organizationNodeId ?? current.organizationNodeId,
+        },
+        'admin-update-store',
+      );
+      if (organizationSync.nodeId) {
+        await tx.user.updateMany({
+          where: { storeId: current.id, workScopeType: STORE_SCOPE },
+          data: { organizationNodeId: organizationSync.nodeId },
+        });
+      }
+      return { store: organizationSync.store, organizationSync };
     });
+    const store = result.store;
+
+    this.logger.log(
+      'Store updated: admin=' +
+        (admin.email || admin.id || 'unknown') +
+        ' role=' +
+        admin.role +
+        ' store=' +
+        store.storeId,
+    );
     return this.toStoreDto(store);
   }
 
@@ -2064,6 +2975,12 @@ export class UserService implements OnModuleInit {
       'Không có quyền xóa SR',
     );
     const storeId = this.normalizeStoreCode(storeIdInput);
+    this.logger.warn(
+      'Deprecated admin store delete route used: deprecatedRoute=true admin=' +
+        (admin?.email || admin?.id || 'unknown') +
+        ' store=' +
+        storeId,
+    );
     const store = await this.prisma.store.findUnique({
       where: { storeId },
       include: {
@@ -2212,6 +3129,387 @@ export class UserService implements OnModuleInit {
     return domain;
   }
 
+  private async syncCatalogOrganizationNodes(source: string) {
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.upsert) return;
+
+    const startedAt = Date.now();
+    this.logger.log('Catalog organization sync started: source=' + source);
+    const [regions, areas] = await Promise.all([
+      this.prisma.regionDefinition.findMany({ orderBy: { code: 'asc' } }),
+      this.prisma.areaDefinition.findMany({
+        orderBy: { code: 'asc' },
+        include: { region: true },
+      }),
+    ]);
+    let syncedRegions = 0;
+    let syncedAreas = 0;
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const regionNodeIds = new Map<string, string>();
+        for (const region of regions) {
+          const node = await this.upsertStoreCatalogOrganizationNode(tx, {
+            code: this.scopedOrganizationNodeCode(
+              'REGION',
+              'PHONGVU',
+              region.code,
+            ),
+            businessCode: region.code,
+            displayName: region.displayName || region.code,
+            abbreviation: region.abbreviation ?? region.code,
+            description: region.description ?? null,
+            type: 'REGION',
+            parentId: ORG_SUBDOMAIN_PHONGVU_ID,
+            isActive: region.isActive !== false,
+            sortOrder: 10100,
+          });
+          if (node?.id) {
+            regionNodeIds.set(region.code, node.id);
+            if (tx.regionDefinition?.update) {
+              await tx.regionDefinition.update({
+                where: { code: region.code },
+                data: { organizationNodeId: node.id },
+              });
+            }
+            syncedRegions += 1;
+          }
+        }
+
+        for (const area of areas) {
+          const parentId =
+            regionNodeIds.get(area.regionCode) ??
+            area.region?.organizationNodeId ??
+            ORG_SUBDOMAIN_PHONGVU_ID;
+          const node = await this.upsertStoreCatalogOrganizationNode(tx, {
+            code: this.scopedOrganizationNodeCode(
+              'AREA',
+              'PHONGVU',
+              area.code,
+            ),
+            businessCode: area.code,
+            displayName: area.displayName || area.code,
+            abbreviation: area.abbreviation ?? area.code,
+            description: area.description ?? null,
+            type: 'AREA',
+            parentId,
+            isActive: area.isActive !== false,
+            sortOrder: 10200,
+          });
+          if (node?.id) {
+            if (tx.areaDefinition?.update) {
+              await tx.areaDefinition.update({
+                where: { code: area.code },
+                data: { organizationNodeId: node.id },
+              });
+            }
+            syncedAreas += 1;
+          }
+        }
+      });
+      this.logger.log(
+        'Catalog organization sync completed: source=' +
+          source +
+          ' regions=' +
+          syncedRegions +
+          ' areas=' +
+          syncedAreas +
+          ' durationMs=' +
+          (Date.now() - startedAt),
+      );
+    } catch (error) {
+      this.logger.error(
+        'Catalog organization sync failed: source=' + source,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw error;
+    }
+  }
+
+  private async syncStoreOrganizationNodes(source: string) {
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.upsert || !this.prisma.store?.findMany) return;
+
+    const startedAt = Date.now();
+    this.logger.log('Store organization sync started: source=' + source);
+    const stores =
+      (await this.prisma.store.findMany({
+        orderBy: { storeId: 'asc' },
+        include: { area: { include: { region: true } } },
+      })) ?? [];
+    let syncedCount = 0;
+
+    try {
+      for (const store of stores) {
+        await this.prisma.$transaction(async (tx) => {
+          const syncResult = await this.syncStoreOrganizationNode(
+            tx,
+            store,
+            source,
+          );
+          if (syncResult.nodeId) {
+            await tx.user.updateMany({
+              where: { storeId: store.id, workScopeType: STORE_SCOPE },
+              data: {
+                organizationNodeId: syncResult.nodeId,
+                areaCode: store.areaCode ?? null,
+                regionCode: store.area?.regionCode ?? null,
+              },
+            });
+          }
+        });
+        syncedCount += 1;
+      }
+      this.logger.log(
+        'Store organization sync completed: source=' +
+          source +
+          ' stores=' +
+          stores.length +
+          ' synced=' +
+          syncedCount +
+          ' durationMs=' +
+          (Date.now() - startedAt),
+      );
+    } catch (error) {
+      this.logger.error(
+        'Store organization sync failed: source=' +
+          source +
+          ' stores=' +
+          stores.length +
+          ' synced=' +
+          syncedCount,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw error;
+    }
+  }
+
+  private async syncStoreOrganizationNode(
+    client: any,
+    store: any,
+    source: string,
+  ) {
+    const organizationNode = client.organizationNode;
+    if (!organizationNode?.upsert || !client.store?.update) {
+      return {
+        store,
+        nodeId: null,
+        parentId: null,
+        linked: false,
+        moved: false,
+      };
+    }
+
+    const domain = this.organizationDomainForStore(store);
+    const parentId = await this.ensureStoreOrganizationParent(
+      client,
+      store,
+      domain,
+    );
+    const storeCode = this.normalizeStoreCode(store.storeId);
+    const nodeCode = this.normalizeOrganizationNodeCode('STORE_' + storeCode);
+    const displayName = this.normalizeRequiredText(
+      store.storeName || storeCode,
+      'Tên store không được để trống',
+      120,
+    );
+    const nodeData = {
+      code: nodeCode,
+      displayName,
+      businessCode: storeCode,
+      abbreviation: storeCode,
+      description: displayName,
+      type: 'SHOWROOM',
+      parentId,
+      emailDomain: null,
+      loginAllowed: false,
+      isSystem: false,
+      isActive: true,
+      sortOrder: domain.sortBase + 300,
+    };
+
+    let existingNode: any = null;
+    if (store.organizationNodeId && organizationNode.findUnique) {
+      existingNode = await organizationNode.findUnique({
+        where: { id: store.organizationNodeId },
+        select: { id: true, parentId: true, type: true, isSystem: true },
+      });
+      if (
+        existingNode &&
+        (existingNode.isSystem || existingNode.type !== 'SHOWROOM')
+      ) {
+        existingNode = null;
+      }
+    }
+    if (!existingNode && organizationNode.findUnique) {
+      existingNode = await organizationNode.findUnique({
+        where: { code: nodeCode },
+        select: { id: true, parentId: true, type: true, isSystem: true },
+      });
+      if (
+        existingNode &&
+        (existingNode.isSystem || existingNode.type !== 'SHOWROOM')
+      ) {
+        existingNode = null;
+      }
+    }
+
+    const node = existingNode?.id
+      ? await organizationNode.update({
+          where: { id: existingNode.id },
+          data: nodeData,
+        })
+      : await organizationNode.upsert({
+          where: { code: nodeCode },
+          update: nodeData,
+          create: nodeData,
+        });
+
+    const linked = store.organizationNodeId !== node.id;
+    if (linked && store.id) {
+      await client.store.update({
+        where: { id: store.id },
+        data: { organizationNodeId: node.id },
+      });
+    }
+
+    if (
+      source !== 'admin-list-organization-tree' &&
+      (linked || existingNode?.parentId !== parentId)
+    ) {
+      this.logger.log(
+        'Store organization node synced: source=' +
+          source +
+          ' store=' +
+          storeCode +
+          ' nodeId=' +
+          node.id +
+          ' parentId=' +
+          parentId +
+          ' linked=' +
+          linked +
+          ' moved=' +
+          (existingNode?.parentId !== parentId),
+      );
+    }
+
+    return {
+      store: { ...store, organizationNodeId: node.id },
+      nodeId: node.id,
+      parentId,
+      linked,
+      moved: existingNode?.parentId !== parentId,
+    };
+  }
+
+  private async ensureStoreOrganizationParent(
+    client: any,
+    store: any,
+    domain: { codePrefix: string; baseParentId: string; sortBase: number },
+  ) {
+    const area = store.area ?? null;
+    const region = area?.region ?? null;
+    let parentId = domain.baseParentId;
+
+    if (region?.code) {
+      const regionNode = await this.upsertStoreCatalogOrganizationNode(client, {
+        code: this.scopedOrganizationNodeCode(
+          'REGION',
+          domain.codePrefix,
+          region.code,
+        ),
+        businessCode: region.code,
+        displayName: region.displayName || region.code,
+        abbreviation: region.abbreviation ?? region.code,
+        description: region.description ?? null,
+        type: 'REGION',
+        parentId: domain.baseParentId,
+        isActive: region.isActive !== false,
+        sortOrder: domain.sortBase + 100,
+      });
+      parentId = regionNode?.id ?? parentId;
+    }
+
+    if (area?.code) {
+      const areaNode = await this.upsertStoreCatalogOrganizationNode(client, {
+        code: this.scopedOrganizationNodeCode(
+          'AREA',
+          domain.codePrefix,
+          area.code,
+        ),
+        businessCode: area.code,
+        displayName: area.displayName || area.code,
+        abbreviation: area.abbreviation ?? area.code,
+        description: area.description ?? null,
+        type: 'AREA',
+        parentId,
+        isActive: area.isActive !== false,
+        sortOrder: domain.sortBase + 200,
+      });
+      parentId = areaNode?.id ?? parentId;
+    }
+
+    return parentId;
+  }
+
+  private async upsertStoreCatalogOrganizationNode(
+    client: any,
+    data: {
+      code: string;
+      businessCode?: string | null;
+      displayName: string;
+      abbreviation?: string | null;
+      description?: string | null;
+      type: string;
+      parentId: string;
+      isActive: boolean;
+      sortOrder: number;
+    },
+  ) {
+    const organizationNode = client.organizationNode;
+    if (!organizationNode?.upsert) return null;
+    const nodeData = {
+      code: data.code,
+      displayName: data.displayName,
+      businessCode: data.businessCode ?? null,
+      abbreviation: data.abbreviation ?? null,
+      description: data.description ?? null,
+      type: data.type,
+      parentId: data.parentId,
+      emailDomain: null,
+      loginAllowed: false,
+      isSystem: false,
+      isActive: data.isActive,
+      sortOrder: data.sortOrder,
+    };
+    return organizationNode.upsert({
+      where: { code: data.code },
+      update: nodeData,
+      create: nodeData,
+    });
+  }
+
+  private organizationDomainForStore(store: any) {
+    const storeCode = String(store?.storeId || '')
+      .trim()
+      .toUpperCase();
+    const isAcare = storeCode.startsWith('AC');
+    return {
+      codePrefix: isAcare ? 'ACARE' : 'PHONGVU',
+      baseParentId: isAcare ? ORG_ROOT_ACARETEK_ID : ORG_SUBDOMAIN_PHONGVU_ID,
+      sortBase: isAcare ? 20000 : 10000,
+    };
+  }
+
+  private scopedOrganizationNodeCode(
+    kind: string,
+    domainPrefix: string,
+    code: string,
+  ) {
+    return this.normalizeOrganizationNodeCode(
+      kind + '_' + domainPrefix + '_' + code,
+    );
+  }
   private async seedDefaultOrganizationTree() {
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.upsert) return;
@@ -2220,6 +3518,9 @@ export class UserService implements OnModuleInit {
       where: { code: 'DOMAIN_PHONGVU_VN' },
       update: {
         displayName: 'phongvu.vn',
+        businessCode: 'phongvu.vn',
+        abbreviation: 'PV',
+        description: 'Domain đăng nhập Phong Vũ',
         type: 'ROOT_DOMAIN',
         emailDomain: 'phongvu.vn',
         loginAllowed: true,
@@ -2231,6 +3532,9 @@ export class UserService implements OnModuleInit {
         id: ORG_ROOT_PHONGVU_ID,
         code: 'DOMAIN_PHONGVU_VN',
         displayName: 'phongvu.vn',
+        businessCode: 'phongvu.vn',
+        abbreviation: 'PV',
+        description: 'Domain đăng nhập Phong Vũ',
         type: 'ROOT_DOMAIN',
         emailDomain: 'phongvu.vn',
         loginAllowed: true,
@@ -2243,6 +3547,9 @@ export class UserService implements OnModuleInit {
       where: { code: 'SUBDOMAIN_PHONGVU_VN' },
       update: {
         displayName: 'phongvu.vn',
+        businessCode: 'phongvu.vn',
+        abbreviation: 'PV',
+        description: 'Subdomain Phong Vũ',
         type: 'SUBDOMAIN',
         parentId: phongVuRoot.id,
         emailDomain: 'phongvu.vn',
@@ -2255,6 +3562,9 @@ export class UserService implements OnModuleInit {
         id: ORG_SUBDOMAIN_PHONGVU_ID,
         code: 'SUBDOMAIN_PHONGVU_VN',
         displayName: 'phongvu.vn',
+        businessCode: 'phongvu.vn',
+        abbreviation: 'PV',
+        description: 'Subdomain Phong Vũ',
         type: 'SUBDOMAIN',
         parentId: phongVuRoot.id,
         emailDomain: 'phongvu.vn',
@@ -2268,6 +3578,9 @@ export class UserService implements OnModuleInit {
       where: { code: 'DOMAIN_ACARETEK_VN' },
       update: {
         displayName: 'acaretek.vn',
+        businessCode: 'acaretek.vn',
+        abbreviation: 'ACARE',
+        description: 'Domain đăng nhập A Care',
         type: 'ROOT_DOMAIN',
         emailDomain: 'acaretek.vn',
         loginAllowed: true,
@@ -2279,6 +3592,9 @@ export class UserService implements OnModuleInit {
         id: ORG_ROOT_ACARETEK_ID,
         code: 'DOMAIN_ACARETEK_VN',
         displayName: 'acaretek.vn',
+        businessCode: 'acaretek.vn',
+        abbreviation: 'ACARE',
+        description: 'Domain đăng nhập A Care',
         type: 'ROOT_DOMAIN',
         emailDomain: 'acaretek.vn',
         loginAllowed: true,
@@ -2446,19 +3762,30 @@ export class UserService implements OnModuleInit {
     },
   ) {
     if (options.workScopeType === NATIONAL_SCOPE) {
-      return { regionCode: null, areaCode: null };
+      return { regionCode: null, areaCode: null, organizationNodeId: null };
     }
 
     if (options.workScopeType === STORE_SCOPE) {
       const store = options.storeUuid
         ? await this.prisma.store.findUnique({
             where: { id: options.storeUuid },
-            include: { area: { include: { region: true } } },
+            include: { area: { include: { region: true } }, organizationNode: true },
           })
         : null;
       const areaCode = store?.areaCode ?? DEFAULT_REGION_CODE;
       const regionCode = store?.area?.regionCode ?? DEFAULT_REGION_CODE;
-      return { regionCode, areaCode };
+      return {
+        regionCode,
+        areaCode,
+        organizationNodeId: store?.organizationNodeId ?? null,
+      };
+    }
+
+    if (body.organizationNodeId !== undefined) {
+      return this.resolveScopeLocationFromOrganizationNode(
+        body.organizationNodeId,
+        options.workScopeType,
+      );
     }
 
     if (options.workScopeType === AREA_SCOPE) {
@@ -2471,7 +3798,11 @@ export class UserService implements OnModuleInit {
         where: { code: areaCode },
       });
       if (!area) throw new BadRequestException('Vùng không tồn tại');
-      return { regionCode: area.regionCode, areaCode: area.code };
+      return {
+        regionCode: area.regionCode,
+        areaCode: area.code,
+        organizationNodeId: area.organizationNodeId ?? null,
+      };
     }
 
     const regionCode = await this.resolveRegionCode(
@@ -2484,7 +3815,76 @@ export class UserService implements OnModuleInit {
       options.current?.areaCode ?? null,
       regionCode,
     );
-    return { regionCode, areaCode };
+    const region = await this.prisma.regionDefinition.findUnique({
+      where: { code: regionCode },
+    });
+    return { regionCode, areaCode, organizationNodeId: region?.organizationNodeId ?? null };
+  }
+
+  private async resolveScopeLocationFromOrganizationNode(
+    nodeIdInput: unknown,
+    workScopeType: string,
+  ) {
+    const nodeId = String(nodeIdInput || '').trim();
+    if (!nodeId) throw new BadRequestException('Vui lòng chọn node tổ chức');
+    const context = await this.organizationScopeContext(nodeId);
+    if (workScopeType === REGION_SCOPE && context.nodeType !== 'REGION') {
+      throw new BadRequestException('Vui lòng chọn node Miền');
+    }
+    if (workScopeType === AREA_SCOPE && context.nodeType !== 'AREA') {
+      throw new BadRequestException('Vui lòng chọn node Vùng');
+    }
+    if (workScopeType === STORE_SCOPE && context.nodeType !== 'SHOWROOM') {
+      throw new BadRequestException('Vui lòng chọn node showroom');
+    }
+    return {
+      regionCode: context.regionCode,
+      areaCode: context.areaCode,
+      organizationNodeId: context.organizationNodeId,
+    };
+  }
+
+  private async organizationScopeContext(nodeId: string) {
+    const nodes: Array<{
+      id: string;
+      parentId: string | null;
+      type: string;
+      code: string;
+      businessCode: string | null;
+      isActive: boolean;
+    }> = await this.prisma.organizationNode.findMany({
+      select: {
+        id: true,
+        parentId: true,
+        type: true,
+        code: true,
+        businessCode: true,
+        isActive: true,
+      },
+    });
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const node = byId.get(nodeId);
+    if (!node || !node.isActive) {
+      throw new BadRequestException('Node tổ chức không tồn tại hoặc đã tắt');
+    }
+    const ancestors: typeof nodes = [];
+    let cursor: (typeof nodes)[number] | null = node;
+    for (let guard = 0; cursor && guard < 50; guard += 1) {
+      ancestors.push(cursor);
+      cursor = cursor.parentId ? (byId.get(cursor.parentId) ?? null) : null;
+    }
+    const businessCodeFor = (type: string) => {
+      const item = ancestors.find((ancestor) => ancestor.type === type);
+      if (!item) return null;
+      return item.businessCode ?? this.legacyCodeFromOrganizationCode(item.code);
+    };
+    return {
+      organizationNodeId: node.id,
+      nodeType: node.type,
+      regionCode: businessCodeFor('REGION'),
+      areaCode: businessCodeFor('AREA'),
+      storeCode: businessCodeFor('SHOWROOM'),
+    };
   }
 
   private async resolveDepartmentCode(input: unknown, current?: string | null) {
@@ -2660,7 +4060,8 @@ export class UserService implements OnModuleInit {
   private defaultWorkScopeForRole(role: string) {
     if (
       role === SUPER_ADMIN_ROLE ||
-      role === ADMIN_ROLE ||
+      role === LEGACY_ADMIN_ROLE ||
+      role === ADMIN_PHONGVU_ROLE ||
       role === ADMIN_ACARE_ROLE
     ) {
       return NATIONAL_SCOPE;
@@ -2752,6 +4153,7 @@ export class UserService implements OnModuleInit {
       }
       return STAFF_ROLE;
     }
+    if (code === LEGACY_ADMIN_ROLE) return ADMIN_PHONGVU_ROLE;
     return code;
   }
 
@@ -2812,14 +4214,10 @@ export class UserService implements OnModuleInit {
       .endsWith('@' + ACARETEK_EMAIL_DOMAIN);
   }
 
-  private adminDomainScope(admin: any): Prisma.UserWhereInput {
-    if (!this.isAcareAdmin(admin)) return {};
-    return {
-      email: {
-        endsWith: '@' + ACARETEK_EMAIL_DOMAIN,
-        mode: Prisma.QueryMode.insensitive,
-      },
-    };
+  private async adminDomainScope(admin: any): Promise<Prisma.UserWhereInput> {
+    const rootId = this.adminOrgRootId(admin);
+    if (!rootId) return {};
+    return this.organizationUserScopeForRoot(rootId);
   }
 
   private combineUserScope(
@@ -2831,21 +4229,62 @@ export class UserService implements OnModuleInit {
   }
 
   private adminDomainScopeLabel(admin: any) {
-    return this.isAcareAdmin(admin) ? ACARETEK_EMAIL_DOMAIN : 'all';
+    if (this.isPhongVuAdmin(admin)) return 'phongvu.vn';
+    if (this.isAcareAdmin(admin)) return ACARETEK_EMAIL_DOMAIN;
+    return 'all';
   }
 
-  private assertEmailWithinAdminDomain(admin: any, email: string) {
-    if (!this.isAcareAdmin(admin) || this.isAcaretekEmail(email)) return;
+  private async emailDomainBelongsToRoot(domain: unknown, rootId: string) {
+    const normalizedDomain = this.normalizeOptionalEmailDomain(domain);
+    if (!normalizedDomain) return false;
+
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) {
+      if (rootId === ORG_ROOT_ACARETEK_ID) {
+        return normalizedDomain === ACARETEK_EMAIL_DOMAIN;
+      }
+      if (rootId === ORG_ROOT_PHONGVU_ID) {
+        return (
+          normalizedDomain === 'phongvu.vn' ||
+          normalizedDomain.startsWith('phongvu-')
+        );
+      }
+      return false;
+    }
+
+    const ids = new Set(await this.organizationDescendantIds(rootId));
+    const nodes: Array<{ id: string; emailDomain: string | null }> =
+      await organizationNode.findMany({
+        select: { id: true, emailDomain: true },
+      });
+    return nodes.some((node) => {
+      if (!ids.has(node.id)) return false;
+      const nodeDomain = this.normalizeOptionalEmailDomain(node.emailDomain);
+      return nodeDomain === normalizedDomain;
+    });
+  }
+
+  private async assertEmailWithinAdminDomain(admin: any, email: string) {
+    if (!this.isDomainAdmin(admin)) return;
+    const rootId = this.adminOrgRootId(admin);
+    const emailDomain = this.emailDomainFromEmail(email);
+    if (rootId && (await this.emailDomainBelongsToRoot(emailDomain, rootId))) {
+      return;
+    }
+
+    const scopeLabel = this.adminDomainScopeLabel(admin);
     this.logger.warn(
       'Admin user create blocked by email domain: admin=' +
         (admin.email || admin.id || 'unknown') +
         ' role=' +
         admin.role +
         ' targetDomain=' +
-        (email.split('@').pop() || 'invalid'),
+        (emailDomain || 'invalid') +
+        ' allowedScope=' +
+        scopeLabel,
     );
     throw new ForbiddenException(
-      'ADMIN_ACARE chi duoc quan ly user domain acaretek.vn',
+      admin.role + ' chỉ được quản lý user thuộc ' + scopeLabel,
     );
   }
 
@@ -2907,10 +4346,47 @@ export class UserService implements OnModuleInit {
     return data;
   }
 
-  private adminStoreScope(
+  private async scopedStoreProtectedChanges(body: any, current: any) {
+    const changes: string[] = [];
+    if (body.storeId !== undefined) {
+      const nextCode = this.normalizeStoreCode(body.storeId);
+      if (nextCode !== current.storeId) changes.push('mã SR');
+    }
+    if (body.storeName !== undefined) {
+      const nextName = this.normalizeRequiredText(
+        body.storeName,
+        'Tên store không được để trống',
+        120,
+      );
+      if (nextName !== current.storeName) changes.push('tên SR');
+    }
+    if (body.areaCode !== undefined) {
+      const nextAreaCode = await this.resolveAreaCodeForStore(body.areaCode);
+      if (nextAreaCode !== current.areaCode) changes.push('Vùng/Miền');
+    }
+
+    const optionalTextChanged = (
+      key: string,
+      label: string,
+      maxLength: number,
+    ) => {
+      if (body[key] === undefined) return;
+      const nextValue =
+        this.normalizeOptionalText(body[key], maxLength) ?? null;
+      const currentValue = current[key] ?? null;
+      if (nextValue !== currentValue) changes.push(label);
+    };
+    optionalTextChanged('transferAccountNumber', 'số tài khoản nhận tiền', 80);
+    optionalTextChanged('transferAccountName', 'tên tài khoản nhận tiền', 120);
+    optionalTextChanged('transferBankName', 'ngân hàng nhận tiền', 80);
+    optionalTextChanged('transferBankBin', 'BIN ngân hàng', 20);
+    return changes;
+  }
+
+  private async adminStoreScope(
     admin: any,
     query?: string,
-  ): Prisma.StoreWhereInput | undefined {
+  ): Promise<Prisma.StoreWhereInput | undefined> {
     const insensitive = Prisma.QueryMode.insensitive;
     const queryWhere = query
       ? {
@@ -2929,27 +4405,44 @@ export class UserService implements OnModuleInit {
           ],
         }
       : undefined;
-    const scopeWhere = this.adminStoreScopeWhere(admin);
+    const scopeWhere = await this.adminStoreScopeWhere(admin);
 
     if (queryWhere && scopeWhere) return { AND: [scopeWhere, queryWhere] };
     return queryWhere || scopeWhere;
   }
 
-  private adminStoreScopeWhere(admin: any): Prisma.StoreWhereInput | undefined {
+  private async adminStoreScopeWhere(
+    admin: any,
+  ): Promise<Prisma.StoreWhereInput | undefined> {
     if (!this.isScopedAdmin(admin)) return undefined;
+    const organizationScope = await this.adminStoreOrganizationScope(admin);
     const scope = this.effectiveWorkScope(admin);
-    if (scope === NATIONAL_SCOPE) return undefined;
+    if (scope === NATIONAL_SCOPE) {
+      return this.combineStoreScope(organizationScope, undefined);
+    }
+    if (admin.organizationNodeId) {
+      const organizationNodeIds = await this.organizationDescendantIds(
+        admin.organizationNodeId,
+      );
+      return this.combineStoreScope(organizationScope, {
+        organizationNodeId: { in: organizationNodeIds },
+      });
+    }
     if (scope === REGION_SCOPE) {
-      return admin.regionCode
+      const locationScope = admin.regionCode
         ? { area: { regionCode: admin.regionCode } }
         : { id: '__NO_REGION__' };
+      return this.combineStoreScope(organizationScope, locationScope);
     }
     if (scope === AREA_SCOPE) {
-      return admin.areaCode
+      const locationScope = admin.areaCode
         ? { areaCode: admin.areaCode }
         : { id: '__NO_AREA__' };
+      return this.combineStoreScope(organizationScope, locationScope);
     }
-    return { id: admin.storeId || '__NO_STORE__' };
+    return this.combineStoreScope(organizationScope, {
+      id: admin.storeId || '__NO_STORE__',
+    });
   }
 
   private toStoreDto(store: any) {
@@ -2971,6 +4464,7 @@ export class UserService implements OnModuleInit {
       transferBankBin: store.transferBankBin,
       mapVietinUsername: store.mapVietinUsername,
       hasMapVietinPassword: Boolean(store.mapVietinPasswordCipher),
+      organizationNodeId: store.organizationNodeId ?? null,
       userCount: store._count?.users ?? 0,
     };
   }

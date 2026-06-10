@@ -86,6 +86,11 @@ export class AdminFeatureRuleDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(80)
+  organizationNodeId?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(60)
   storeCode?: string;
 
@@ -142,6 +147,12 @@ export class AdminFeatureRuleBatchDto extends AdminFeatureRuleDto {
   @IsString({ each: true })
   @MaxLength(60, { each: true })
   areaCodes?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(80, { each: true })
+  organizationNodeIds?: string[];
 
   @IsOptional()
   @IsArray()

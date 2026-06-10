@@ -1,8 +1,15 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
 import '../../data/repositories/warranty_repository.dart';
+import '../../../../core/constants/api_constants.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../../auth/domain/entities/user.dart';
 
 class WarrantyProvider extends ChangeNotifier {
   final WarrantyRepository _repository;
@@ -11,6 +18,10 @@ class WarrantyProvider extends ChangeNotifier {
   String? _errorMessage;
   List<Map<String, dynamic>> _receipts = [];
   Map<String, dynamic>? _currentDetails;
+  StreamSubscription<dynamic>? _realtimeSubscription;
+  WebSocketChannel? _realtimeChannel;
+  User? _user;
+  String? _realtimeKey;
 
   WarrantyProvider(this._repository);
 
@@ -18,6 +29,185 @@ class WarrantyProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   List<Map<String, dynamic>> get receipts => _receipts;
   Map<String, dynamic>? get currentDetails => _currentDetails;
+
+  void syncAuth(User? user, {required bool isInitialized}) {
+    _user = user;
+    if (!isInitialized || user == null || !user.canUseFeature('WARRANTY')) {
+      _disconnectRealtime('auth_or_feature_unavailable');
+      return;
+    }
+    _connectRealtime(user);
+  }
+
+  void _connectRealtime(User user) {
+    final token = ApiClient().authToken;
+    if (token == null || token.trim().isEmpty) {
+      _disconnectRealtime('missing_token');
+      return;
+    }
+    final nextKey = '${user.email}|${user.storeId ?? ''}|$token';
+    if (_realtimeKey == nextKey && _realtimeChannel != null) return;
+    _disconnectRealtime('reconnect');
+
+    final url = ApiConstants.realtimeWsUrl(
+      storeId: user.storeId,
+      accessToken: token,
+    );
+    try {
+      final channel = WebSocketChannel.connect(Uri.parse(url));
+      _realtimeChannel = channel;
+      _realtimeKey = nextKey;
+      _realtimeSubscription = channel.stream.listen(
+        _handleRealtimeMessage,
+        onError: (Object error, StackTrace stackTrace) {
+          unawaited(
+            AppLogger.instance.error(
+              'WarrantyRealtime',
+              'Warranty realtime error',
+              error: error,
+              stackTrace: stackTrace,
+              context: {'storeId': user.storeId},
+            ),
+          );
+        },
+        onDone: () {
+          unawaited(
+            AppLogger.instance.info(
+              'WarrantyRealtime',
+              'Warranty realtime disconnected',
+              context: {'storeId': user.storeId},
+            ),
+          );
+          _realtimeSubscription = null;
+          _realtimeChannel = null;
+          _realtimeKey = null;
+        },
+      );
+      unawaited(
+        AppLogger.instance.info(
+          'WarrantyRealtime',
+          'Warranty realtime connected',
+          context: {'storeId': user.storeId},
+        ),
+      );
+    } catch (error, stackTrace) {
+      unawaited(
+        AppLogger.instance.error(
+          'WarrantyRealtime',
+          'Warranty realtime connect failed',
+          error: error,
+          stackTrace: stackTrace,
+          context: {'storeId': user.storeId},
+        ),
+      );
+      _disconnectRealtime('connect_failed');
+    }
+  }
+
+  void _disconnectRealtime(String reason) {
+    final hadConnection = _realtimeChannel != null || _realtimeKey != null;
+    unawaited(_realtimeSubscription?.cancel());
+    _realtimeSubscription = null;
+    unawaited(_realtimeChannel?.sink.close());
+    _realtimeChannel = null;
+    _realtimeKey = null;
+    if (hadConnection) {
+      unawaited(
+        AppLogger.instance.info(
+          'WarrantyRealtime',
+          'Warranty realtime disconnected',
+          context: {'reason': reason},
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleRealtimeMessage(dynamic message) async {
+    try {
+      final decoded = jsonDecode(message.toString());
+      if (decoded is! Map<String, dynamic>) return;
+      if (decoded['type']?.toString() != 'WARRANTY_EVENT') return;
+      final rawPayload = decoded['payload'];
+      final payload = rawPayload is String
+          ? jsonDecode(rawPayload) as Map<String, dynamic>
+          : rawPayload is Map<String, dynamic>
+          ? rawPayload
+          : null;
+      if (payload == null) return;
+      final warrantyId = payload['warrantyId']?.toString();
+      final newStatus = payload['newStatus']?.toString();
+      if (warrantyId == null || warrantyId.isEmpty || newStatus == null) {
+        return;
+      }
+      await AppLogger.instance.info(
+        'WarrantyRealtime',
+        'Warranty realtime event received',
+        context: {'warrantyId': warrantyId, 'status': newStatus},
+      );
+      final changed = _applyRealtimeStatus(warrantyId, newStatus);
+      if (changed) notifyListeners();
+      if (_receipts.isNotEmpty && _user != null) {
+        unawaited(_refreshListFromRealtime(warrantyId));
+      }
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'WarrantyRealtime',
+        'Warranty realtime event parse failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  bool _applyRealtimeStatus(String warrantyId, String newStatus) {
+    var changed = false;
+    _receipts = _receipts
+        .map((receipt) {
+          if (!_recordMatchesWarrantyId(receipt, warrantyId)) return receipt;
+          changed = true;
+          return {...receipt, 'status': newStatus};
+        })
+        .toList(growable: false);
+    final details = _currentDetails;
+    if (details != null && _recordMatchesWarrantyId(details, warrantyId)) {
+      _currentDetails = {...details, 'status': newStatus};
+      changed = true;
+    }
+    return changed;
+  }
+
+  bool _recordMatchesWarrantyId(
+    Map<String, dynamic> record,
+    String warrantyId,
+  ) {
+    for (final key in const ['id', 'warrantyId', '_id']) {
+      if (record[key]?.toString() == warrantyId) return true;
+    }
+    return false;
+  }
+
+  Future<void> _refreshListFromRealtime(String warrantyId) async {
+    final user = _user;
+    if (user == null) return;
+    try {
+      final receipts = await _repository.showAllWarranty(user.email);
+      _receipts = receipts;
+      notifyListeners();
+      await AppLogger.instance.info(
+        'WarrantyRealtime',
+        'Warranty realtime list refresh succeeded',
+        context: {'warrantyId': warrantyId, 'count': receipts.length},
+      );
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'WarrantyRealtime',
+        'Warranty realtime list refresh failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {'warrantyId': warrantyId},
+      );
+    }
+  }
 
   Future<bool> saveWarranty({
     required String userEmail,
@@ -216,5 +406,11 @@ class WarrantyProvider extends ChangeNotifier {
   void clearReceipts() {
     _receipts = [];
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disconnectRealtime('provider_disposed');
+    super.dispose();
   }
 }

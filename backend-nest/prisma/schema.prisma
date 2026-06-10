@@ -382,6 +382,9 @@ model OrganizationNode {
   id               String   @id @default(uuid())
   code             String   @unique
   displayName      String
+  businessCode     String?
+  abbreviation     String?
+  description      String?
   type             String
   parentId         String?
   parent           OrganizationNode? @relation("OrganizationNodeChildren", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -401,9 +404,12 @@ model OrganizationNode {
   jobRoles     JobRoleDefinition[]
   regions      RegionDefinition[]
   areas        AreaDefinition[]
+  featureAccessRules FeatureAccessRule[]
+  adminPolicyRules AdminPolicyRule[]
 
   @@index([parentId])
   @@index([type])
+  @@index([businessCode])
   @@index([emailDomain])
   @@index([isActive])
 }
@@ -461,6 +467,8 @@ model FeatureAccessRule {
   regionCode     String?
   region         RegionDefinition? @relation(fields: [regionCode], references: [code], onUpdate: Cascade)
   areaCode       String?
+  organizationNodeId String?
+  organizationNode   OrganizationNode? @relation(fields: [organizationNodeId], references: [id], onUpdate: Cascade)
   area           AreaDefinition? @relation(fields: [areaCode], references: [code], onUpdate: Cascade)
   storeCode      String?
   store          Store? @relation(fields: [storeCode], references: [storeId], onUpdate: Cascade)
@@ -478,6 +486,7 @@ model FeatureAccessRule {
   @@index([workScopeType])
   @@index([regionCode])
   @@index([areaCode])
+  @@index([organizationNodeId])
   @@index([storeCode])
   @@index([userId])
 }
@@ -509,6 +518,8 @@ model AdminPolicyRule {
   workScopeType  String?
   regionCode     String?
   areaCode       String?
+  organizationNodeId String?
+  organizationNode   OrganizationNode? @relation(fields: [organizationNodeId], references: [id], onUpdate: Cascade)
   storeCode      String?
   userId         String?
   scopeContains  String?
@@ -525,6 +536,7 @@ model AdminPolicyRule {
   @@index([workScopeType])
   @@index([regionCode])
   @@index([areaCode])
+  @@index([organizationNodeId])
   @@index([storeCode])
   @@index([userId])
 }

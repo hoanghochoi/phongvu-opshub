@@ -267,7 +267,7 @@ describe('AuthService', () => {
       email: 'staff@phongvu-shop.vn',
       firstName: 'An',
       password,
-      role: 'ADMIN',
+      role: 'ADMIN_PHONGVU',
       status: 'yes',
       storeId: 'store-1',
       store: { storeId: 'CP01', storeName: 'Chi nhanh 1' },
@@ -281,12 +281,12 @@ describe('AuthService', () => {
       email: 'staff@phongvu-shop.vn',
       firstName: 'An',
       storeId: 'CP01',
-      role: 'ADMIN',
+      role: 'ADMIN_PHONGVU',
     });
     expect(jwtService.sign).toHaveBeenCalledWith({
       email: 'staff@phongvu-shop.vn',
       sub: 'user-1',
-      role: 'ADMIN',
+      role: 'ADMIN_PHONGVU',
       storeUuid: 'store-1',
       storeCode: 'CP01',
       tokenVersion: 0,
@@ -297,6 +297,34 @@ describe('AuthService', () => {
     expect(authSessionService.replacePlatformSession).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'user-1' }),
       loginDevice,
+    );
+  });
+
+  it('normalizes legacy ADMIN role to ADMIN_PHONGVU in login response and token', async () => {
+    const password = await bcrypt.hash('Password1!', 4);
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-legacy-admin',
+      email: 'legacy@phongvu-shop.vn',
+      firstName: 'Legacy',
+      password,
+      role: 'ADMIN',
+      status: 'yes',
+      storeId: null,
+      store: null,
+    });
+
+    await expect(
+      service.passwordLogin(
+        'legacy@phongvu-shop.vn',
+        'Password1!',
+        loginDevice,
+      ),
+    ).resolves.toMatchObject({
+      role: 'ADMIN_PHONGVU',
+      workScopeType: 'NATIONAL',
+    });
+    expect(jwtService.sign).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'ADMIN_PHONGVU' }),
     );
   });
 
@@ -427,7 +455,7 @@ describe('AuthService', () => {
     prisma.user.findUnique.mockResolvedValue({
       storeId: 'store-1',
       firstName: 'An',
-      role: 'ADMIN',
+      role: 'ADMIN_PHONGVU',
       store: { storeId: 'CP01', storeName: 'Chi nhanh 1' },
     });
 
@@ -438,7 +466,7 @@ describe('AuthService', () => {
       firstName: 'An',
       storeId: 'CP01',
       storeName: 'Chi nhanh 1',
-      role: 'ADMIN',
+      role: 'ADMIN_PHONGVU',
       mustSelectStore: false,
     });
   });

@@ -15,6 +15,7 @@ import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/store_selection_screen.dart';
 import '../../features/admin/presentation/screens/admin_menu_screen.dart';
 import '../../features/admin/presentation/screens/feature_admin_screen.dart';
+import '../../features/admin/presentation/screens/feedback_admin_screen.dart';
 import '../../features/admin/presentation/screens/inventory_import_screen.dart';
 import '../../features/admin/presentation/screens/organization_tree_admin_screen.dart';
 import '../../features/admin/presentation/screens/personnel_catalog_admin_screen.dart';
@@ -71,6 +72,11 @@ class AppRouter {
         if (needsStore) {
           if (location == '/select-store') return null;
           return '/select-store';
+        }
+
+        if (location == '/admin/feedback' &&
+            authProvider.user?.role != 'SUPER_ADMIN') {
+          return '/home';
         }
 
         final routeFeature = _featureForRoute(location);
@@ -163,6 +169,10 @@ class AppRouter {
           builder: (context, state) => const InventoryImportScreen(),
         ),
         GoRoute(
+          path: '/admin/feedback',
+          builder: (context, state) => const FeedbackAdminScreen(),
+        ),
+        GoRoute(
           path: '/fifo-menu',
           builder: (context, state) => const FifoMenuScreen(),
         ),
@@ -235,6 +245,7 @@ class AppRouter {
       '/admin/features' => 'ADMIN_FEATURES',
       '/admin/policies' => 'ADMIN_POLICIES',
       '/admin/inventory-import' => 'FIFO_IMPORT',
+      '/admin/feedback' => 'ADMIN_FEEDBACK',
       '/fifo-check' => 'FIFO',
       '/fifo-history' => 'FIFO',
       '/fifo/inventory-import' => 'FIFO_IMPORT',

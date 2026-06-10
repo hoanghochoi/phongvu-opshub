@@ -9,6 +9,7 @@ import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../domain/admin_feature_definition.dart';
+import '../../domain/admin_organization_node.dart';
 import '../../domain/admin_personnel_definition.dart';
 import '../../domain/admin_role_definition.dart';
 
@@ -29,6 +30,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
   List<AdminRegionDefinition> _regions = [];
   List<AdminAreaDefinition> _areas = [];
   List<StoreBranch> _stores = [];
+  List<AdminOrganizationNode> _organizationNodes = [];
   List<User> _users = [];
   String? _ruleFeatureFilter;
   bool _loading = true;
@@ -57,6 +59,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
         _repository.listAdminRegions(),
         _repository.listAdminAreas(),
         _repository.listAdminStores(),
+        _repository.listAdminOrganizationTree(),
         _repository.listUsers(),
       ]);
       if (!mounted) return;
@@ -69,7 +72,8 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
         _regions = results[5] as List<AdminRegionDefinition>;
         _areas = results[6] as List<AdminAreaDefinition>;
         _stores = results[7] as List<StoreBranch>;
-        _users = results[8] as List<User>;
+        _organizationNodes = results[8] as List<AdminOrganizationNode>;
+        _users = results[9] as List<User>;
       });
       await AppLogger.instance.info(
         'AdminFeatures',
@@ -79,6 +83,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
           'rules': _rules.length,
           'users': _users.length,
           'stores': _stores.length,
+          'organizationNodes': _organizationNodes.length,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
@@ -119,8 +124,9 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
         jobRoles: _jobRoles,
         regions: _regions,
         areas: _areas,
-        stores: _stores,
-        users: _users,
+          stores: _stores,
+          organizationNodes: _organizationNodes,
+          users: _users,
       ),
     );
     if (updated == true) await _load();
@@ -608,6 +614,11 @@ class _RuleCard extends StatelessWidget {
       if (rule.userEmail?.isNotEmpty == true) 'User ${rule.userEmail}',
       if (rule.userId?.isNotEmpty == true && rule.userEmail == null)
         'User ${rule.userId}',
+      if (rule.organizationNodeName?.isNotEmpty == true)
+        'Node ${rule.organizationNodeName}',
+      if (rule.organizationNodeId?.isNotEmpty == true &&
+          rule.organizationNodeName == null)
+        'Node ${rule.organizationNodeId}',
       if (rule.storeCode?.isNotEmpty == true) 'SR ${rule.storeCode}',
       if (rule.areaCode?.isNotEmpty == true) 'Vùng ${rule.areaCode}',
       if (rule.regionCode?.isNotEmpty == true) 'Miền ${rule.regionCode}',
@@ -767,6 +778,7 @@ class _FeatureRuleEditorDialog extends StatefulWidget {
   final List<AdminRegionDefinition> regions;
   final List<AdminAreaDefinition> areas;
   final List<StoreBranch> stores;
+  final List<AdminOrganizationNode> organizationNodes;
   final List<User> users;
 
   const _FeatureRuleEditorDialog({
@@ -778,6 +790,7 @@ class _FeatureRuleEditorDialog extends StatefulWidget {
     required this.regions,
     required this.areas,
     required this.stores,
+    required this.organizationNodes,
     required this.users,
     this.rule,
   });
@@ -798,6 +811,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
   String? _workScopeType;
   String? _regionCode;
   String? _areaCode;
+  String? _organizationNodeId;
   String? _storeCode;
   String? _userId;
   final Set<String> _systemRoles = {};
@@ -806,6 +820,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
   final Set<String> _workScopeTypes = {};
   final Set<String> _regionCodes = {};
   final Set<String> _areaCodes = {};
+  final Set<String> _organizationNodeIds = {};
   final Set<String> _storeCodes = {};
   final Set<String> _userIds = {};
   bool _saving = false;
@@ -824,6 +839,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
     _workScopeType = rule?.workScopeType;
     _regionCode = rule?.regionCode;
     _areaCode = rule?.areaCode;
+    _organizationNodeId = rule?.organizationNodeId;
     _storeCode = rule?.storeCode;
     _userId = rule?.userId;
     _emailDomainsController.text = rule?.emailDomain ?? '';
@@ -833,6 +849,9 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
     if (_workScopeType != null) _workScopeTypes.add(_workScopeType!);
     if (_regionCode != null) _regionCodes.add(_regionCode!);
     if (_areaCode != null) _areaCodes.add(_areaCode!);
+    if (_organizationNodeId != null) {
+      _organizationNodeIds.add(_organizationNodeId!);
+    }
     if (_storeCode != null) _storeCodes.add(_storeCode!);
     if (_userId != null) _userIds.add(_userId!);
     _noteController.text = rule?.note ?? '';
@@ -868,6 +887,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
       workScopeType: _workScopeType,
       regionCode: _regionCode,
       areaCode: _areaCode,
+      organizationNodeId: _organizationNodeId,
       storeCode: _storeCode,
       userId: _userId,
       note: note,
@@ -882,6 +902,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
       workScopeTypes: _sortedValues(_workScopeTypes),
       regionCodes: _sortedValues(_regionCodes),
       areaCodes: _sortedValues(_areaCodes),
+      organizationNodeIds: _sortedValues(_organizationNodeIds),
       storeCodes: _sortedValues(_storeCodes),
       userIds: _sortedValues(_userIds),
       note: note,
@@ -900,6 +921,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
           'scopeCount': _workScopeTypes.length,
           'regionCount': _regionCodes.length,
           'areaCount': _areaCodes.length,
+          'organizationNodeCount': _organizationNodeIds.length,
           'storeCount': _storeCodes.length,
           'userCount': _userIds.length,
           'domainCount': domainValues.length,
@@ -1117,6 +1139,26 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
                 ),
               if (isEditing)
                 _optionalDropdown(
+                  label: 'Node tổ chức',
+                  value: _organizationNodeId,
+                  items: _organizationNodeItems(),
+                  onChanged: (value) => setState(
+                    () => _organizationNodeId = value,
+                  ),
+                )
+              else
+                _multiSelectField(
+                  label: 'Node tổ chức',
+                  selectedValues: _organizationNodeIds,
+                  items: _organizationNodeItems(),
+                  onChanged: (values) => setState(() {
+                    _organizationNodeIds
+                      ..clear()
+                      ..addAll(values);
+                  }),
+                ),
+              if (isEditing)
+                _optionalDropdown(
                   label: 'Miền',
                   value: _regionCode,
                   items: widget.regions
@@ -1291,6 +1333,25 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
       ],
       onChanged: onChanged,
     );
+  }
+
+  List<(String, String)> _organizationNodeItems() {
+    const allowedTypes = {
+      'ROOT_DOMAIN',
+      'SUBDOMAIN',
+      'REGION',
+      'AREA',
+      'SHOWROOM',
+    };
+    return widget.organizationNodes
+        .where((node) => allowedTypes.contains(node.type))
+        .map(
+          (node) => (
+            node.id,
+            '${AdminOrganizationNodeTypes.titleOf(node.type)} • ${node.businessCode ?? node.storeId ?? node.code} • ${node.title}',
+          ),
+        )
+        .toList();
   }
 
   Widget _multiSelectField({

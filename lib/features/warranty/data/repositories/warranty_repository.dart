@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/logging/app_logger.dart';
 
 class WarrantyRepository {
   final ApiClient _apiClient;
@@ -20,13 +22,35 @@ class WarrantyRepository {
     required List<File> images,
   }) async {
     try {
+      await AppLogger.instance.info(
+        'WarrantyUpload',
+        'Warranty upload started',
+        context: {
+          'imageCount': images.length,
+          'receiptLength': receiptNumber.length,
+        },
+      );
       final List<http.MultipartFile> multipartFiles = [];
       for (int i = 0; i < images.length; i++) {
         final file = images[i];
+        final fileName = _lastPathSegment(file.path);
+        final mimeType = warrantyMimeTypeFor(
+          fileName: fileName,
+          path: file.path,
+        );
+        if (mimeType == null) {
+          await AppLogger.instance.warn(
+            'WarrantyUpload',
+            'Warranty upload rejected invalid image type',
+            context: {'index': i, 'extension': _extensionFor(fileName)},
+          );
+          throw ApiException('Chỉ hỗ trợ ảnh JPG, PNG, WebP, HEIC hoặc HEIF.');
+        }
         final multipartFile = await http.MultipartFile.fromPath(
-          'images', // New backend uses 'images' (FilesInterceptor)
+          'images',
           file.path,
-          filename: 'image_$i.jpg',
+          filename: _safeUploadFileName(i, fileName, mimeType),
+          contentType: MediaType.parse(mimeType),
         );
         multipartFiles.add(multipartFile);
       }
@@ -55,12 +79,74 @@ class WarrantyRepository {
         throw ApiException('Dữ liệu biên nhận chưa hợp lệ. Vui lòng thử lại.');
       }
 
+      await AppLogger.instance.info(
+        'WarrantyUpload',
+        'Warranty upload succeeded',
+        context: {'imageCount': images.length},
+      );
       return responseData;
-    } on ApiException {
+    } on ApiException catch (e) {
+      await AppLogger.instance.warn(
+        'WarrantyUpload',
+        'Warranty upload rejected',
+        context: {'message': e.message, 'imageCount': images.length},
+      );
       rethrow;
     } catch (e) {
+      await AppLogger.instance.error(
+        'WarrantyUpload',
+        'Warranty upload failed',
+        error: e,
+        upload: true,
+        context: {'imageCount': images.length},
+      );
       throw ApiException('Chưa lưu được biên nhận. Vui lòng thử lại.');
     }
+  }
+
+  static String? warrantyMimeTypeFor({required String fileName, String? path}) {
+    final extension = _extensionFor(fileName).isNotEmpty
+        ? _extensionFor(fileName)
+        : _extensionFor(path ?? '');
+    return switch (extension) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      'heic' => 'image/heic',
+      'heif' => 'image/heif',
+      _ => null,
+    };
+  }
+
+  static String _safeUploadFileName(
+    int index,
+    String fileName,
+    String mimeType,
+  ) {
+    final trimmed = fileName.trim();
+    if (trimmed.isNotEmpty) return trimmed;
+    final extension = switch (mimeType) {
+      'image/jpeg' => 'jpg',
+      'image/png' => 'png',
+      'image/webp' => 'webp',
+      'image/heic' => 'heic',
+      'image/heif' => 'heif',
+      _ => 'jpg',
+    };
+    return 'image_$index.$extension';
+  }
+
+  static String _extensionFor(String value) {
+    final name = _lastPathSegment(value).toLowerCase();
+    final dotIndex = name.lastIndexOf('.');
+    if (dotIndex < 0 || dotIndex == name.length - 1) return '';
+    return name.substring(dotIndex + 1).split('?').first;
+  }
+
+  static String _lastPathSegment(String value) {
+    final normalized = value.replaceAll('\\', '/');
+    final segments = normalized.split('/').where((part) => part.isNotEmpty);
+    return segments.isEmpty ? '' : segments.last;
   }
 
   /// GET /warranties  (show all - filtered server-side by JWT user or storeId)

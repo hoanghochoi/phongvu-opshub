@@ -2,6 +2,9 @@ class AdminOrganizationNode {
   final String id;
   final String code;
   final String title;
+  final String? businessCode;
+  final String? abbreviation;
+  final String? description;
   final String type;
   final String? parentId;
   final String? emailDomain;
@@ -16,11 +19,22 @@ class AdminOrganizationNode {
   final int jobRoleCount;
   final int regionCount;
   final int areaCount;
+  final String? storeId;
+  final String? storeName;
+  final String? transferAccountNumber;
+  final String? transferAccountName;
+  final String? transferBankName;
+  final String? transferBankBin;
+  final String? mapVietinUsername;
+  final bool hasMapVietinPassword;
 
   const AdminOrganizationNode({
     required this.id,
     required this.code,
     required this.title,
+    this.businessCode,
+    this.abbreviation,
+    this.description,
     required this.type,
     this.parentId,
     this.emailDomain,
@@ -35,6 +49,14 @@ class AdminOrganizationNode {
     this.jobRoleCount = 0,
     this.regionCount = 0,
     this.areaCount = 0,
+    this.storeId,
+    this.storeName,
+    this.transferAccountNumber,
+    this.transferAccountName,
+    this.transferBankName,
+    this.transferBankBin,
+    this.mapVietinUsername,
+    this.hasMapVietinPassword = false,
   });
 
   factory AdminOrganizationNode.fromJson(Map<String, dynamic> json) {
@@ -45,6 +67,9 @@ class AdminOrganizationNode {
       id: json['id']?.toString() ?? '',
       code: json['code']?.toString() ?? '',
       title: json['displayName']?.toString() ?? json['code']?.toString() ?? '',
+      businessCode: json['businessCode']?.toString(),
+      abbreviation: json['abbreviation']?.toString(),
+      description: json['description']?.toString(),
       type: json['type']?.toString() ?? 'BLOCK',
       parentId: json['parentId']?.toString(),
       emailDomain: json['emailDomain']?.toString(),
@@ -60,18 +85,36 @@ class AdminOrganizationNode {
       jobRoleCount: int.tryParse(counts['jobRoles']?.toString() ?? '') ?? 0,
       regionCount: int.tryParse(counts['regions']?.toString() ?? '') ?? 0,
       areaCount: int.tryParse(counts['areas']?.toString() ?? '') ?? 0,
+      storeId: json['storeId']?.toString(),
+      storeName: json['storeName']?.toString(),
+      transferAccountNumber: json['transferAccountNumber']?.toString(),
+      transferAccountName: json['transferAccountName']?.toString(),
+      transferBankName: json['transferBankName']?.toString(),
+      transferBankBin: json['transferBankBin']?.toString(),
+      mapVietinUsername: json['mapVietinUsername']?.toString(),
+      hasMapVietinPassword: json['hasMapVietinPassword'] == true,
     );
   }
 
   Map<String, dynamic> toJson() => {
     'code': code,
     'displayName': title,
+    'businessCode': businessCode,
+    'abbreviation': abbreviation,
+    'description': description,
     'type': type,
     'parentId': parentId,
     'emailDomain': emailDomain,
     'loginAllowed': loginAllowed,
     'isActive': isActive,
     'sortOrder': sortOrder,
+    'storeId': storeId,
+    'storeName': storeName,
+    'transferAccountNumber': transferAccountNumber,
+    'transferAccountName': transferAccountName,
+    'transferBankName': transferBankName,
+    'transferBankBin': transferBankBin,
+    'mapVietinUsername': mapVietinUsername,
   };
 
   int get referenceCount =>
@@ -90,6 +133,7 @@ class AdminOrganizationNodeTypes {
     ('ROOT_DOMAIN', 'Domain gốc'),
     ('SUBDOMAIN', 'Sub domain'),
     ('BLOCK', 'Khối'),
+    ('REGION', 'Miền'),
     ('DEPARTMENT', 'Phòng ban'),
     ('AREA', 'Vùng'),
     ('SHOWROOM', 'Showroom'),

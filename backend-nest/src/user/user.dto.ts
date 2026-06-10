@@ -220,6 +220,21 @@ export class OrganizationNodeDto {
   @MaxLength(120)
   displayName!: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  businessCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  abbreviation?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  description?: string;
+
   @IsString()
   @MaxLength(40)
   type!: string;
@@ -242,4 +257,44 @@ export class OrganizationNodeDto {
 
   @IsOptional()
   sortOrder?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  storeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  storeName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  transferAccountNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  transferAccountName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  transferBankName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  transferBankBin?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  mapVietinUsername?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  mapVietinPassword?: string;
 }

@@ -17,7 +17,8 @@ import {
 } from './policy.constants';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
-const ADMIN_ROLE = 'ADMIN';
+const LEGACY_ADMIN_ROLE = 'ADMIN';
+const ADMIN_PHONGVU_ROLE = 'ADMIN_PHONGVU';
 const ADMIN_ACARE_ROLE = 'ADMIN_ACARE';
 const VALID_WORK_SCOPES = new Set(['NATIONAL', 'REGION', 'AREA', 'STORE']);
 
@@ -31,8 +32,11 @@ export type PolicyContext = {
   workScopeType?: string | null;
   regionCode?: string | null;
   areaCode?: string | null;
+  organizationNodeId?: string | null;
+  organizationNodeIds?: string[];
   storeCode?: string | null;
   storeName?: string | null;
+  organizationScopeNames?: string[];
 };
 
 type NormalizedRuleInput = {
@@ -45,6 +49,7 @@ type NormalizedRuleInput = {
   workScopeType: string | null;
   regionCode: string | null;
   areaCode: string | null;
+  organizationNodeId: string | null;
   storeCode: string | null;
   userId: string | null;
   scopeContains: string | null;
@@ -127,6 +132,7 @@ export class PolicyService implements OnModuleInit {
           workScopeType: rule.workScopeType ?? null,
           regionCode: rule.regionCode ?? null,
           areaCode: rule.areaCode ?? null,
+          organizationNodeId: rule.organizationNodeId ?? null,
           storeCode: rule.storeCode ?? null,
           userId: rule.userId ?? null,
           scopeContains: rule.scopeContains ?? null,
@@ -158,7 +164,10 @@ export class PolicyService implements OnModuleInit {
     return this.canAccessPolicyWithContext(context, policyCode);
   }
 
-  async canAccessPolicyWithContext(context: PolicyContext, policyCodeInput: string) {
+  async canAccessPolicyWithContext(
+    context: PolicyContext,
+    policyCodeInput: string,
+  ) {
     const policyCode = this.normalizeCode(
       policyCodeInput,
       'Ma policy khong hop le',
@@ -206,7 +215,11 @@ export class PolicyService implements OnModuleInit {
     return this.prisma.adminPolicyDefinition.create({
       data: {
         code,
-        displayName: this.requiredText(body.displayName, 'Ten policy khong duoc de trong', 120),
+        displayName: this.requiredText(
+          body.displayName,
+          'Ten policy khong duoc de trong',
+          120,
+        ),
         description: this.optionalText(body.description, 240),
         category: this.normalizeOptionalCode(body.category) ?? 'GENERAL',
         defaultAllowed: body.defaultAllowed === true,
@@ -236,7 +249,11 @@ export class PolicyService implements OnModuleInit {
         displayName:
           body.displayName === undefined
             ? current.displayName
-            : this.requiredText(body.displayName, 'Ten policy khong duoc de trong', 120),
+            : this.requiredText(
+                body.displayName,
+                'Ten policy khong duoc de trong',
+                120,
+              ),
         description:
           body.description === undefined
             ? current.description
@@ -250,7 +267,9 @@ export class PolicyService implements OnModuleInit {
             ? current.defaultAllowed
             : body.defaultAllowed === true,
         isActive:
-          body.isActive === undefined ? current.isActive : body.isActive === true,
+          body.isActive === undefined
+            ? current.isActive
+            : body.isActive === true,
       },
     });
   }
@@ -281,7 +300,7 @@ export class PolicyService implements OnModuleInit {
     return this.prisma.adminPolicyRule.findMany({
       where: policyCode ? { policyCode } : undefined,
       orderBy: { updatedAt: 'desc' },
-      include: { policy: true },
+      include: { policy: true, organizationNode: true },
     });
   }
 
@@ -301,9 +320,14 @@ export class PolicyService implements OnModuleInit {
 
   async adminUpdateRule(admin: any, id: string, body: any) {
     await this.assertCanManagePolicies(admin);
-    const current = await this.prisma.adminPolicyRule.findUnique({ where: { id } });
+    const current = await this.prisma.adminPolicyRule.findUnique({
+      where: { id },
+    });
     if (!current) throw new NotFoundException('Khong tim thay policy rule');
-    const data = await this.normalizeRuleInput({ ...current, ...body }, current);
+    const data = await this.normalizeRuleInput(
+      { ...current, ...body },
+      current,
+    );
     return this.prisma.adminPolicyRule.update({ where: { id }, data });
   }
 
@@ -324,12 +348,18 @@ export class PolicyService implements OnModuleInit {
   async adminCreateSetting(admin: any, body: any) {
     await this.assertCanManagePolicies(admin);
     const key = this.normalizeCode(body.key, 'Ma cau hinh khong hop le');
-    const existing = await this.prisma.adminSetting.findUnique({ where: { key } });
+    const existing = await this.prisma.adminSetting.findUnique({
+      where: { key },
+    });
     if (existing) throw new BadRequestException('Cau hinh da ton tai');
     return this.prisma.adminSetting.create({
       data: {
         key,
-        displayName: this.requiredText(body.displayName, 'Ten cau hinh khong duoc de trong', 120),
+        displayName: this.requiredText(
+          body.displayName,
+          'Ten cau hinh khong duoc de trong',
+          120,
+        ),
         description: this.optionalText(body.description, 240),
         category: this.normalizeOptionalCode(body.category) ?? 'GENERAL',
         value: this.normalizeSettingValue(key, body.value),
@@ -342,7 +372,9 @@ export class PolicyService implements OnModuleInit {
   async adminUpdateSetting(admin: any, keyInput: string, body: any) {
     await this.assertCanManagePolicies(admin);
     const key = this.normalizeCode(keyInput, 'Ma cau hinh khong hop le');
-    const current = await this.prisma.adminSetting.findUnique({ where: { key } });
+    const current = await this.prisma.adminSetting.findUnique({
+      where: { key },
+    });
     if (!current) throw new NotFoundException('Khong tim thay cau hinh');
     return this.prisma.adminSetting.update({
       where: { key },
@@ -350,7 +382,11 @@ export class PolicyService implements OnModuleInit {
         displayName:
           body.displayName === undefined
             ? current.displayName
-            : this.requiredText(body.displayName, 'Ten cau hinh khong duoc de trong', 120),
+            : this.requiredText(
+                body.displayName,
+                'Ten cau hinh khong duoc de trong',
+                120,
+              ),
         description:
           body.description === undefined
             ? current.description
@@ -368,7 +404,9 @@ export class PolicyService implements OnModuleInit {
 
   async getSettingValue<T>(key: string, fallback: T): Promise<T> {
     try {
-      const setting = await this.prisma.adminSetting.findUnique({ where: { key } });
+      const setting = await this.prisma.adminSetting.findUnique({
+        where: { key },
+      });
       if (!setting) return fallback;
       return setting.value as T;
     } catch (error) {
@@ -412,11 +450,15 @@ export class PolicyService implements OnModuleInit {
             .map((node: { emailDomain?: string | null }) =>
               this.normalizeOptionalDomain(node.emailDomain),
             )
-            .filter((domain: string | null): domain is string => Boolean(domain)),
+            .filter((domain: string | null): domain is string =>
+              Boolean(domain),
+            ),
         ),
       );
     } catch (error) {
-      this.logger.warn('Organization email-domain lookup failed; using policy setting fallback');
+      this.logger.warn(
+        'Organization email-domain lookup failed; using policy setting fallback',
+      );
       return [];
     }
   }
@@ -432,6 +474,7 @@ export class PolicyService implements OnModuleInit {
       workScopeType: rule.workScopeType ?? null,
       regionCode: rule.regionCode ?? null,
       areaCode: rule.areaCode ?? null,
+      organizationNodeId: rule.organizationNodeId ?? null,
       storeCode: rule.storeCode ?? null,
       userId: rule.userId ?? null,
       scopeContains: rule.scopeContains ?? null,
@@ -441,18 +484,24 @@ export class PolicyService implements OnModuleInit {
 
   private async assertCanManagePolicies(admin: any) {
     if (admin?.role === SUPER_ADMIN_ROLE) return;
-    if (await this.canAccessPolicy(admin, ADMIN_POLICY_CODES.ADMIN_POLICIES)) return;
+    if (await this.canAccessPolicy(admin, ADMIN_POLICY_CODES.ADMIN_POLICIES))
+      return;
     throw new ForbiddenException('Khong co quyen quan ly policy');
   }
 
-  private async normalizeRuleInput(input: any, current?: any): Promise<NormalizedRuleInput> {
+  private async normalizeRuleInput(
+    input: any,
+    current?: any,
+  ): Promise<NormalizedRuleInput> {
     const policyCode = this.normalizeCode(
       input.policyCode ?? current?.policyCode,
       'Ma policy khong hop le',
     );
     await this.ensurePolicy(policyCode);
     const allowed =
-      input.allowed === undefined ? current?.allowed === true : input.allowed === true;
+      input.allowed === undefined
+        ? current?.allowed === true
+        : input.allowed === true;
     const workScopeType = this.normalizeOptionalCode(input.workScopeType);
     if (workScopeType && !VALID_WORK_SCOPES.has(workScopeType)) {
       throw new BadRequestException('Pham vi policy khong hop le');
@@ -462,12 +511,13 @@ export class PolicyService implements OnModuleInit {
       policyCode,
       allowed,
       emailDomain: this.normalizeOptionalDomain(input.emailDomain),
-      systemRole: this.normalizeOptionalCode(input.systemRole),
+      systemRole: this.normalizeSystemRole(input.systemRole),
       departmentCode: this.normalizeOptionalCode(input.departmentCode),
       jobRoleCode: this.normalizeOptionalCode(input.jobRoleCode),
       workScopeType,
       regionCode: this.normalizeOptionalCode(input.regionCode),
       areaCode: this.normalizeOptionalCode(input.areaCode),
+      organizationNodeId: this.optionalText(input.organizationNodeId, 80),
       storeCode: this.normalizeOptionalCode(input.storeCode),
       userId: this.optionalText(input.userId, 80),
       scopeContains: this.optionalText(input.scopeContains, 120),
@@ -478,15 +528,33 @@ export class PolicyService implements OnModuleInit {
   }
 
   private async normalizeRuleBatchInput(input: any) {
-    const policyCode = this.normalizeCode(input.policyCode, 'Ma policy khong hop le');
+    const policyCode = this.normalizeCode(
+      input.policyCode,
+      'Ma policy khong hop le',
+    );
     await this.ensurePolicy(policyCode);
     const allowed = input.allowed === true;
     const note = this.optionalText(input.note, 240);
-    const emailDomains = this.normalizeDomainOptions(input.emailDomains, input.emailDomain);
-    const systemRoles = this.normalizeCodeOptions(input.systemRoles, input.systemRole);
-    const departmentCodes = this.normalizeCodeOptions(input.departmentCodes, input.departmentCode);
-    const jobRoleCodes = this.normalizeCodeOptions(input.jobRoleCodes, input.jobRoleCode);
-    const workScopeTypes = this.normalizeCodeOptions(input.workScopeTypes, input.workScopeType);
+    const emailDomains = this.normalizeDomainOptions(
+      input.emailDomains,
+      input.emailDomain,
+    );
+    const systemRoles = this.normalizeCodeOptions(
+      input.systemRoles,
+      input.systemRole,
+    ).map((role) => this.normalizeSystemRole(role));
+    const departmentCodes = this.normalizeCodeOptions(
+      input.departmentCodes,
+      input.departmentCode,
+    );
+    const jobRoleCodes = this.normalizeCodeOptions(
+      input.jobRoleCodes,
+      input.jobRoleCode,
+    );
+    const workScopeTypes = this.normalizeCodeOptions(
+      input.workScopeTypes,
+      input.workScopeType,
+    );
     for (const workScopeType of workScopeTypes) {
       if (workScopeType && !VALID_WORK_SCOPES.has(workScopeType)) {
         throw new BadRequestException('Pham vi policy khong hop le');
@@ -496,7 +564,15 @@ export class PolicyService implements OnModuleInit {
       this.normalizeCodeOptions(input.regionCodes, input.regionCode),
       this.normalizeCodeOptions(input.areaCodes, input.areaCode),
     );
-    const storeCodes = this.normalizeCodeOptions(input.storeCodes, input.storeCode);
+    const organizationNodeIds = this.normalizeTextOptions(
+      input.organizationNodeIds,
+      input.organizationNodeId,
+      80,
+    );
+    const storeCodes = this.normalizeCodeOptions(
+      input.storeCodes,
+      input.storeCode,
+    );
     const userIds = this.normalizeTextOptions(input.userIds, input.userId, 80);
     const scopeContainsValues = this.normalizeTextOptions(
       input.scopeContainsValues,
@@ -514,6 +590,7 @@ export class PolicyService implements OnModuleInit {
       jobRoleCodes,
       workScopeTypes,
       locations,
+      organizationNodeIds,
       storeCodes,
       userIds,
       scopeContainsValues,
@@ -532,7 +609,11 @@ export class PolicyService implements OnModuleInit {
     );
   }
 
-  private normalizeTextOptions(listValue: unknown, singleValue: unknown, maxLength: number) {
+  private normalizeTextOptions(
+    listValue: unknown,
+    singleValue: unknown,
+    maxLength: number,
+  ) {
     const values = Array.isArray(listValue) ? listValue : [];
     return this.normalizeOptions(values, singleValue, (value) =>
       this.optionalText(value, maxLength),
@@ -570,13 +651,20 @@ export class PolicyService implements OnModuleInit {
     regionCodes: Array<string | null>,
     areaCodes: Array<string | null>,
   ) {
-    const selectedRegions = regionCodes.filter((code): code is string => Boolean(code));
-    const selectedAreas = areaCodes.filter((code): code is string => Boolean(code));
+    const selectedRegions = regionCodes.filter((code): code is string =>
+      Boolean(code),
+    );
+    const selectedAreas = areaCodes.filter((code): code is string =>
+      Boolean(code),
+    );
     if (selectedRegions.length === 0 && selectedAreas.length === 0) {
       return [{ regionCode: null, areaCode: null }];
     }
     if (selectedAreas.length === 0) {
-      return selectedRegions.map((regionCode) => ({ regionCode, areaCode: null }));
+      return selectedRegions.map((regionCode) => ({
+        regionCode,
+        areaCode: null,
+      }));
     }
     if (selectedRegions.length === 0) {
       return selectedAreas.map((areaCode) => ({ regionCode: null, areaCode }));
@@ -584,7 +672,9 @@ export class PolicyService implements OnModuleInit {
 
     const locations: Array<{ regionCode: string; areaCode: string }> = [];
     for (const areaCode of selectedAreas) {
-      const area = await this.prisma.areaDefinition.findUnique({ where: { code: areaCode } });
+      const area = await this.prisma.areaDefinition.findUnique({
+        where: { code: areaCode },
+      });
       if (!area) throw new BadRequestException('Vung khong ton tai');
       if (selectedRegions.includes(area.regionCode)) {
         locations.push({ regionCode: area.regionCode, areaCode });
@@ -606,6 +696,7 @@ export class PolicyService implements OnModuleInit {
     jobRoleCodes: Array<string | null>;
     workScopeTypes: Array<string | null>;
     locations: Array<{ regionCode: string | null; areaCode: string | null }>;
+    organizationNodeIds: Array<string | null>;
     storeCodes: Array<string | null>;
     userIds: Array<string | null>;
     scopeContainsValues: Array<string | null>;
@@ -617,24 +708,27 @@ export class PolicyService implements OnModuleInit {
           for (const jobRoleCode of input.jobRoleCodes) {
             for (const workScopeType of input.workScopeTypes) {
               for (const location of input.locations) {
-                for (const storeCode of input.storeCodes) {
-                  for (const userId of input.userIds) {
-                    for (const scopeContains of input.scopeContainsValues) {
-                      dataList.push({
-                        policyCode: input.policyCode,
-                        allowed: input.allowed,
-                        emailDomain,
-                        systemRole,
-                        departmentCode,
-                        jobRoleCode,
-                        workScopeType,
-                        regionCode: location.regionCode,
-                        areaCode: location.areaCode,
-                        storeCode,
-                        userId,
-                        scopeContains,
-                        note: input.note,
-                      });
+                for (const organizationNodeId of input.organizationNodeIds) {
+                  for (const storeCode of input.storeCodes) {
+                    for (const userId of input.userIds) {
+                      for (const scopeContains of input.scopeContainsValues) {
+                        dataList.push({
+                          policyCode: input.policyCode,
+                          allowed: input.allowed,
+                          emailDomain,
+                          systemRole,
+                          departmentCode,
+                          jobRoleCode,
+                          workScopeType,
+                          regionCode: location.regionCode,
+                          areaCode: location.areaCode,
+                          organizationNodeId,
+                          storeCode,
+                          userId,
+                          scopeContains,
+                          note: input.note,
+                        });
+                      }
                     }
                   }
                 }
@@ -653,6 +747,7 @@ export class PolicyService implements OnModuleInit {
     jobRoleCode: string | null;
     regionCode: string | null;
     areaCode: string | null;
+    organizationNodeId: string | null;
     storeCode: string | null;
     userId: string | null;
   }) {
@@ -689,6 +784,15 @@ export class PolicyService implements OnModuleInit {
         throw new BadRequestException('Vung khong thuoc Mien da chon');
       }
     }
+    if (data.organizationNodeId) {
+      const organizationNode = await this.prisma.organizationNode.findUnique({
+        where: { id: data.organizationNodeId },
+        select: { id: true, isActive: true },
+      });
+      if (!organizationNode || !organizationNode.isActive) {
+        throw new BadRequestException('Node to chuc khong ton tai hoac da tat');
+      }
+    }
     if (data.storeCode) {
       const store = await this.prisma.store.findUnique({
         where: { storeId: data.storeCode },
@@ -696,7 +800,9 @@ export class PolicyService implements OnModuleInit {
       if (!store) throw new BadRequestException('SR khong ton tai');
     }
     if (data.userId) {
-      const user = await this.prisma.user.findUnique({ where: { id: data.userId } });
+      const user = await this.prisma.user.findUnique({
+        where: { id: data.userId },
+      });
       if (!user) throw new BadRequestException('User khong ton tai');
     }
   }
@@ -714,7 +820,7 @@ export class PolicyService implements OnModuleInit {
         id: user?.id ?? null,
         email: user?.email ?? null,
         emailDomain: this.emailDomainFromEmail(user?.email),
-        role: user?.role ?? null,
+        role: this.normalizeSystemRole(user?.role),
         departmentCode: user?.departmentCode ?? null,
         jobRoleCode: user?.jobRoleCode ?? null,
         workScopeType: this.effectiveScope(user),
@@ -728,27 +834,111 @@ export class PolicyService implements OnModuleInit {
     const full = await this.prisma.user.findUnique({
       where: { id: user.id },
       include: {
-        store: { include: { area: { include: { region: true } } } },
+        organizationNode: true,
+        store: {
+          include: {
+            area: { include: { region: true } },
+            organizationNode: true,
+          },
+        },
         region: true,
         area: { include: { region: true } },
       },
     });
     const source = full ?? user;
+    const scopeNodeId =
+      this.effectiveScope(source) === 'STORE'
+        ? (source.store?.organizationNodeId ?? source.organizationNodeId)
+        : (source.organizationNodeId ?? source.store?.organizationNodeId);
+    const organizationContext = await this.resolveOrganizationRuleContext(
+      scopeNodeId,
+    );
     const area = this.areaForContextSource(source);
     const region = this.regionForContextSource(source);
     return {
       id: source.id ?? null,
       email: source.email ?? null,
       emailDomain: this.emailDomainFromEmail(source.email),
-      role: source.role ?? null,
+      role: this.normalizeSystemRole(source.role),
       departmentCode: source.departmentCode ?? null,
       jobRoleCode: source.jobRoleCode ?? null,
       workScopeType: this.effectiveScope(source),
-      regionCode: region?.code ?? source.regionCode ?? null,
-      areaCode: area?.code ?? source.areaCode ?? null,
-      storeCode: source.store?.storeId ?? source.storeCode ?? null,
+      regionCode:
+        organizationContext.regionCode ?? region?.code ?? source.regionCode ?? null,
+      areaCode:
+        organizationContext.areaCode ?? area?.code ?? source.areaCode ?? null,
+      organizationNodeId: organizationContext.organizationNodeId,
+      organizationNodeIds: organizationContext.organizationNodeIds,
+      storeCode:
+        organizationContext.storeCode ?? source.store?.storeId ?? source.storeCode ?? null,
       storeName: source.store?.storeName ?? source.storeName ?? null,
+      organizationScopeNames: organizationContext.scopeNames,
     };
+  }
+
+  private async resolveOrganizationRuleContext(nodeId?: string | null) {
+    const empty = {
+      organizationNodeId: nodeId ?? null,
+      organizationNodeIds: [] as string[],
+      regionCode: null as string | null,
+      areaCode: null as string | null,
+      storeCode: null as string | null,
+      scopeNames: [] as string[],
+    };
+    if (!nodeId) return empty;
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) return empty;
+    const nodes: Array<{
+      id: string;
+      parentId: string | null;
+      type: string;
+      code: string;
+      businessCode: string | null;
+      displayName: string;
+      abbreviation: string | null;
+    }> = await organizationNode.findMany({
+      select: {
+        id: true,
+        parentId: true,
+        type: true,
+        code: true,
+        businessCode: true,
+        displayName: true,
+        abbreviation: true,
+      },
+    });
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const ancestors: typeof nodes = [];
+    let cursor = byId.get(nodeId) ?? null;
+    for (let guard = 0; cursor && guard < 50; guard += 1) {
+      ancestors.push(cursor);
+      cursor = cursor.parentId ? (byId.get(cursor.parentId) ?? null) : null;
+    }
+    const businessCodeFor = (type: string) => {
+      const node = ancestors.find((item) => item.type === type);
+      if (!node) return null;
+      return node.businessCode || this.legacyCodeFromOrganizationCode(node.code);
+    };
+    return {
+      organizationNodeId: nodeId,
+      organizationNodeIds: ancestors.map((node) => node.id),
+      regionCode: businessCodeFor('REGION'),
+      areaCode: businessCodeFor('AREA'),
+      storeCode: businessCodeFor('SHOWROOM'),
+      scopeNames: ancestors.flatMap((node) =>
+        [node.businessCode, node.displayName, node.abbreviation].filter(
+          (value): value is string => Boolean(value),
+        ),
+      ),
+    };
+  }
+
+  private legacyCodeFromOrganizationCode(code: string) {
+    return String(code || '')
+      .replace(/^(REGION|AREA)_(PHONGVU|ACARE)_/i, '')
+      .replace(/^STORE_/i, '')
+      .trim()
+      .toUpperCase();
   }
 
   private areaForContextSource(source: any) {
@@ -761,19 +951,38 @@ export class PolicyService implements OnModuleInit {
   private regionForContextSource(source: any) {
     if (this.effectiveScope(source) === 'STORE') {
       const storeArea = source?.store?.area ?? null;
-      return storeArea?.region ?? source?.region ?? source?.area?.region ?? null;
+      return (
+        storeArea?.region ?? source?.region ?? source?.area?.region ?? null
+      );
     }
     const area = this.areaForContextSource(source);
-    return source?.region ?? area?.region ?? source?.store?.area?.region ?? null;
+    return (
+      source?.region ?? area?.region ?? source?.store?.area?.region ?? null
+    );
   }
 
   private effectiveScope(user: any) {
-    const scope = String(user?.workScopeType || '').trim().toUpperCase();
+    const scope = String(user?.workScopeType || '')
+      .trim()
+      .toUpperCase();
     if (VALID_WORK_SCOPES.has(scope)) return scope;
-    if ([SUPER_ADMIN_ROLE, ADMIN_ROLE, ADMIN_ACARE_ROLE].includes(user?.role)) {
+    const role = this.normalizeSystemRole(user?.role);
+    if (
+      [SUPER_ADMIN_ROLE, ADMIN_PHONGVU_ROLE, ADMIN_ACARE_ROLE].includes(
+        role || '',
+      )
+    ) {
       return 'NATIONAL';
     }
     return 'STORE';
+  }
+
+  private normalizeSystemRole(role: unknown) {
+    const code = String(role || '')
+      .trim()
+      .toUpperCase();
+    if (code === LEGACY_ADMIN_ROLE) return ADMIN_PHONGVU_ROLE;
+    return code || null;
   }
 
   private ruleMatches(rule: any, context: PolicyContext) {
@@ -781,6 +990,7 @@ export class PolicyService implements OnModuleInit {
       this.matches(rule.emailDomain, context.emailDomain) &&
       this.matches(rule.userId, context.id) &&
       this.matches(rule.storeCode, context.storeCode) &&
+      this.organizationNodeMatches(rule.organizationNodeId, context) &&
       this.matches(rule.areaCode, context.areaCode) &&
       this.matches(rule.regionCode, context.regionCode) &&
       this.matches(rule.workScopeType, context.workScopeType) &&
@@ -791,15 +1001,36 @@ export class PolicyService implements OnModuleInit {
     );
   }
 
-  private matches(ruleValue?: string | null, contextValue?: string | null) {
+  private organizationNodeMatches(
+    ruleValue?: string | null,
+    context?: PolicyContext,
+  ) {
     if (!ruleValue) return true;
-    return String(ruleValue).toUpperCase() === String(contextValue || '').toUpperCase();
+    const ids = context?.organizationNodeIds ?? [];
+    return ids.includes(ruleValue);
   }
 
-  private scopeContainsMatches(ruleValue: string | null | undefined, context: PolicyContext) {
+  private matches(ruleValue?: string | null, contextValue?: string | null) {
+    if (!ruleValue) return true;
+    return (
+      String(ruleValue).toUpperCase() ===
+      String(contextValue || '').toUpperCase()
+    );
+  }
+
+  private scopeContainsMatches(
+    ruleValue: string | null | undefined,
+    context: PolicyContext,
+  ) {
     if (!ruleValue) return true;
     const needle = String(ruleValue).trim().toUpperCase();
-    return [context.storeCode, context.storeName, context.regionCode, context.areaCode]
+    return [
+      context.storeCode,
+      context.storeName,
+      context.regionCode,
+      context.areaCode,
+      ...(context.organizationScopeNames ?? []),
+    ]
       .filter(Boolean)
       .some((value) => String(value).toUpperCase().includes(needle));
   }
@@ -808,6 +1039,7 @@ export class PolicyService implements OnModuleInit {
     return (
       (rule.emailDomain ? 512 : 0) +
       (rule.userId ? 256 : 0) +
+      (rule.organizationNodeId ? 192 : 0) +
       (rule.storeCode ? 128 : 0) +
       (rule.areaCode ? 64 : 0) +
       (rule.regionCode ? 32 : 0) +
@@ -819,7 +1051,10 @@ export class PolicyService implements OnModuleInit {
     );
   }
 
-  private normalizeSettingValue(key: string, value: unknown): Prisma.InputJsonValue {
+  private normalizeSettingValue(
+    key: string,
+    value: unknown,
+  ): Prisma.InputJsonValue {
     if (key === ADMIN_SETTING_KEYS.AUTH_ALLOWED_EMAIL_DOMAINS) {
       const values = Array.isArray(value) ? value : [];
       const domains = values
@@ -831,13 +1066,18 @@ export class PolicyService implements OnModuleInit {
       return Array.from(new Set(domains));
     }
     if (value === null || value === undefined || typeof value !== 'object') {
-      throw new BadRequestException('Gia tri cau hinh phai la object hoac array');
+      throw new BadRequestException(
+        'Gia tri cau hinh phai la object hoac array',
+      );
     }
     return value as Prisma.InputJsonValue;
   }
 
   private normalizeCode(value: unknown, message: string) {
-    const code = String(value || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+    const code = String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]/g, '_');
     if (!/^[A-Z][A-Z0-9_]{1,79}$/.test(code)) {
       throw new BadRequestException(message);
     }
@@ -845,12 +1085,14 @@ export class PolicyService implements OnModuleInit {
   }
 
   private normalizeOptionalCode(value: unknown) {
-    if (value === undefined || value === null || String(value).trim() === '') return null;
+    if (value === undefined || value === null || String(value).trim() === '')
+      return null;
     return this.normalizeCode(value, 'Ma loc rule khong hop le');
   }
 
   private normalizeOptionalDomain(value: unknown) {
-    if (value === undefined || value === null || String(value).trim() === '') return null;
+    if (value === undefined || value === null || String(value).trim() === '')
+      return null;
     const domain = String(value).trim().replace(/^@+/, '').toLowerCase();
     if (domain.length > 120 || !this.isValidEmailDomain(domain)) {
       throw new BadRequestException('Domain email khong hop le');
@@ -859,7 +1101,9 @@ export class PolicyService implements OnModuleInit {
   }
 
   private emailDomainFromEmail(email: unknown) {
-    const value = String(email || '').trim().toLowerCase();
+    const value = String(email || '')
+      .trim()
+      .toLowerCase();
     const atIndex = value.lastIndexOf('@');
     if (atIndex < 0) return null;
     const domain = value.slice(atIndex + 1);
@@ -879,6 +1123,8 @@ export class PolicyService implements OnModuleInit {
   }
 
   private isValidEmailDomain(domain: string) {
-    return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(domain);
+    return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(
+      domain,
+    );
   }
 }

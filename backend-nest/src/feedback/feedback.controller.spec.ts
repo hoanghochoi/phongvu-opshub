@@ -39,9 +39,13 @@ describe('FeedbackController', () => {
     );
   });
 
-  it('returns all feedback records', async () => {
+  it('passes the current admin to feedback list service', async () => {
     feedbackService.getAll.mockResolvedValue([{ id: 'feedback-1' }]);
+    const request = { user: { id: 'admin-1', role: 'SUPER_ADMIN' } };
 
-    await expect(controller.getAll()).resolves.toEqual([{ id: 'feedback-1' }]);
+    await expect(controller.getAll(request)).resolves.toEqual([
+      { id: 'feedback-1' },
+    ]);
+    expect(feedbackService.getAll).toHaveBeenCalledWith(request.user);
   });
 });
