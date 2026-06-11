@@ -47,7 +47,6 @@ const CHATSALE_REGION_CODE = 'CHATSALE';
 const TELESALE_REGION_CODE = 'TELESALE';
 const ORG_ROOT_PHONGVU_ID = 'org-domain-phongvu-vn';
 const ORG_ROOT_ACARETEK_ID = 'org-domain-acaretek-vn';
-const ORG_SUBDOMAIN_PHONGVU_ID = 'org-subdomain-phongvu-vn';
 const ORG_TYPES = new Set([
   'ROOT_DOMAIN',
   'SUBDOMAIN',
@@ -262,7 +261,6 @@ export class UserService implements OnModuleInit {
     await this.seedDefaultRoles();
     await this.seedDefaultPersonnelCatalog();
     await this.seedDefaultOrganizationTree();
-    await this.syncCatalogOrganizationNodes('module-init');
     await this.syncStoreOrganizationNodes('module-init');
     await this.bootstrapBreakGlassSuperAdmin();
 
@@ -784,7 +782,6 @@ export class UserService implements OnModuleInit {
   async adminListOrganizationTree(admin: any) {
     await this.assertAdmin(admin);
     await this.seedDefaultOrganizationTree();
-    await this.syncCatalogOrganizationNodes('admin-list-organization-tree');
     await this.syncStoreOrganizationNodes('admin-list-organization-tree');
     const where = await this.adminOrganizationNodeScopeWhere(admin);
     const nodes = await this.prisma.organizationNode.findMany({
@@ -1070,7 +1067,7 @@ export class UserService implements OnModuleInit {
     const parentId = String(parentIdInput ?? current?.parentId ?? '').trim();
     if (!parentId) {
       if (type === 'SUBDOMAIN') return ORG_ROOT_PHONGVU_ID;
-      if (type === 'REGION') return ORG_SUBDOMAIN_PHONGVU_ID;
+      if (type === 'REGION') return ORG_ROOT_PHONGVU_ID;
       throw new BadRequestException('Node cha không được để trống');
     }
     const parent = await this.prisma.organizationNode.findUnique({
@@ -1089,7 +1086,7 @@ export class UserService implements OnModuleInit {
       SUBDOMAIN: ['ROOT_DOMAIN'],
       REGION: ['ROOT_DOMAIN', 'SUBDOMAIN'],
       AREA: ['REGION'],
-      SHOWROOM: ['AREA'],
+      SHOWROOM: ['ROOT_DOMAIN', 'AREA'],
     };
     const allowed = allowedParents[type];
     if (!allowed || allowed.includes(parentType)) return;
@@ -1554,12 +1551,10 @@ export class UserService implements OnModuleInit {
     }
     const areaNode = ancestors.find((item) => item.type === 'AREA');
     const regionNode = ancestors.find((item) => item.type === 'REGION');
-    if (!areaNode) {
-      throw new BadRequestException('Showroom phải nằm dưới Vùng');
-    }
     return {
       areaCode:
-        areaNode.businessCode ?? this.legacyCodeFromOrganizationCode(areaNode.code),
+        areaNode?.businessCode ??
+        (areaNode ? this.legacyCodeFromOrganizationCode(areaNode.code) : null),
       regionCode: regionNode
         ? (regionNode.businessCode ??
           this.legacyCodeFromOrganizationCode(regionNode.code))
@@ -2009,7 +2004,6 @@ export class UserService implements OnModuleInit {
     await this.assertAdmin(admin);
     await this.seedDefaultPersonnelCatalog();
     await this.seedDefaultOrganizationTree();
-    await this.syncCatalogOrganizationNodes('admin-regions-shim');
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.findMany) {
       return this.adminListRegionsLegacy();
@@ -2030,7 +2024,6 @@ export class UserService implements OnModuleInit {
     await this.assertAdmin(admin);
     await this.seedDefaultPersonnelCatalog();
     await this.seedDefaultOrganizationTree();
-    await this.syncCatalogOrganizationNodes('admin-areas-shim');
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.findMany) {
       return this.adminListAreasLegacy(regionCodeInput);
@@ -2920,21 +2913,15 @@ export class UserService implements OnModuleInit {
 
       if (nextAreaCode !== current.areaCode) {
         const regionCode = updatedStore.area?.regionCode ?? DEFAULT_REGION_CODE;
-        const syncResult = await tx.user.updateMany({
-          where: { storeId: current.id, workScopeType: STORE_SCOPE },
-          data: { areaCode: updatedStore.areaCode, regionCode },
-        });
         this.logger.log(
-          'Store area changed: store=' +
+          'Store legacy area changed: store=' +
             updatedStore.storeId +
             ' area=' +
             (current.areaCode || 'null') +
             '->' +
             (updatedStore.areaCode || 'null') +
             ' region=' +
-            regionCode +
-            ' syncedUsers=' +
-            syncResult.count,
+            regionCode,
         );
       }
 
@@ -2950,7 +2937,11 @@ export class UserService implements OnModuleInit {
       if (organizationSync.nodeId) {
         await tx.user.updateMany({
           where: { storeId: current.id, workScopeType: STORE_SCOPE },
-          data: { organizationNodeId: organizationSync.nodeId },
+          data: {
+            organizationNodeId: organizationSync.nodeId,
+            areaCode: organizationSync.location.areaCode,
+            regionCode: organizationSync.location.regionCode,
+          },
         });
       }
       return { store: organizationSync.store, organizationSync };
@@ -3129,103 +3120,6 @@ export class UserService implements OnModuleInit {
     return domain;
   }
 
-  private async syncCatalogOrganizationNodes(source: string) {
-    const organizationNode = (this.prisma as any).organizationNode;
-    if (!organizationNode?.upsert) return;
-
-    const startedAt = Date.now();
-    this.logger.log('Catalog organization sync started: source=' + source);
-    const [regions, areas] = await Promise.all([
-      this.prisma.regionDefinition.findMany({ orderBy: { code: 'asc' } }),
-      this.prisma.areaDefinition.findMany({
-        orderBy: { code: 'asc' },
-        include: { region: true },
-      }),
-    ]);
-    let syncedRegions = 0;
-    let syncedAreas = 0;
-
-    try {
-      await this.prisma.$transaction(async (tx) => {
-        const regionNodeIds = new Map<string, string>();
-        for (const region of regions) {
-          const node = await this.upsertStoreCatalogOrganizationNode(tx, {
-            code: this.scopedOrganizationNodeCode(
-              'REGION',
-              'PHONGVU',
-              region.code,
-            ),
-            businessCode: region.code,
-            displayName: region.displayName || region.code,
-            abbreviation: region.abbreviation ?? region.code,
-            description: region.description ?? null,
-            type: 'REGION',
-            parentId: ORG_SUBDOMAIN_PHONGVU_ID,
-            isActive: region.isActive !== false,
-            sortOrder: 10100,
-          });
-          if (node?.id) {
-            regionNodeIds.set(region.code, node.id);
-            if (tx.regionDefinition?.update) {
-              await tx.regionDefinition.update({
-                where: { code: region.code },
-                data: { organizationNodeId: node.id },
-              });
-            }
-            syncedRegions += 1;
-          }
-        }
-
-        for (const area of areas) {
-          const parentId =
-            regionNodeIds.get(area.regionCode) ??
-            area.region?.organizationNodeId ??
-            ORG_SUBDOMAIN_PHONGVU_ID;
-          const node = await this.upsertStoreCatalogOrganizationNode(tx, {
-            code: this.scopedOrganizationNodeCode(
-              'AREA',
-              'PHONGVU',
-              area.code,
-            ),
-            businessCode: area.code,
-            displayName: area.displayName || area.code,
-            abbreviation: area.abbreviation ?? area.code,
-            description: area.description ?? null,
-            type: 'AREA',
-            parentId,
-            isActive: area.isActive !== false,
-            sortOrder: 10200,
-          });
-          if (node?.id) {
-            if (tx.areaDefinition?.update) {
-              await tx.areaDefinition.update({
-                where: { code: area.code },
-                data: { organizationNodeId: node.id },
-              });
-            }
-            syncedAreas += 1;
-          }
-        }
-      });
-      this.logger.log(
-        'Catalog organization sync completed: source=' +
-          source +
-          ' regions=' +
-          syncedRegions +
-          ' areas=' +
-          syncedAreas +
-          ' durationMs=' +
-          (Date.now() - startedAt),
-      );
-    } catch (error) {
-      this.logger.error(
-        'Catalog organization sync failed: source=' + source,
-        error instanceof Error ? error.stack : String(error),
-      );
-      throw error;
-    }
-  }
-
   private async syncStoreOrganizationNodes(source: string) {
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.upsert || !this.prisma.store?.findMany) return;
@@ -3252,8 +3146,8 @@ export class UserService implements OnModuleInit {
               where: { storeId: store.id, workScopeType: STORE_SCOPE },
               data: {
                 organizationNodeId: syncResult.nodeId,
-                areaCode: store.areaCode ?? null,
-                regionCode: store.area?.regionCode ?? null,
+                areaCode: syncResult.location.areaCode,
+                regionCode: syncResult.location.regionCode,
               },
             });
           }
@@ -3297,37 +3191,16 @@ export class UserService implements OnModuleInit {
         parentId: null,
         linked: false,
         moved: false,
+        location: {
+          areaCode: null as string | null,
+          regionCode: null as string | null,
+        },
       };
     }
 
-    const domain = this.organizationDomainForStore(store);
-    const parentId = await this.ensureStoreOrganizationParent(
-      client,
-      store,
-      domain,
-    );
     const storeCode = this.normalizeStoreCode(store.storeId);
     const nodeCode = this.normalizeOrganizationNodeCode('STORE_' + storeCode);
-    const displayName = this.normalizeRequiredText(
-      store.storeName || storeCode,
-      'Tên store không được để trống',
-      120,
-    );
-    const nodeData = {
-      code: nodeCode,
-      displayName,
-      businessCode: storeCode,
-      abbreviation: storeCode,
-      description: displayName,
-      type: 'SHOWROOM',
-      parentId,
-      emailDomain: null,
-      loginAllowed: false,
-      isSystem: false,
-      isActive: true,
-      sortOrder: domain.sortBase + 300,
-    };
-
+    const domain = this.organizationDomainForStore(store);
     let existingNode: any = null;
     if (store.organizationNodeId && organizationNode.findUnique) {
       existingNode = await organizationNode.findUnique({
@@ -3353,6 +3226,26 @@ export class UserService implements OnModuleInit {
         existingNode = null;
       }
     }
+    const parentId = existingNode?.parentId ?? domain.baseParentId;
+    const displayName = this.normalizeRequiredText(
+      store.storeName || storeCode,
+      'Tên store không được để trống',
+      120,
+    );
+    const nodeData = {
+      code: nodeCode,
+      displayName,
+      businessCode: storeCode,
+      abbreviation: storeCode,
+      description: displayName,
+      type: 'SHOWROOM',
+      parentId,
+      emailDomain: null,
+      loginAllowed: false,
+      isSystem: false,
+      isActive: true,
+      sortOrder: domain.sortBase + 300,
+    };
 
     const node = existingNode?.id
       ? await organizationNode.update({
@@ -3399,94 +3292,8 @@ export class UserService implements OnModuleInit {
       parentId,
       linked,
       moved: existingNode?.parentId !== parentId,
+      location: await this.organizationLocationForShowroomNode(client, node),
     };
-  }
-
-  private async ensureStoreOrganizationParent(
-    client: any,
-    store: any,
-    domain: { codePrefix: string; baseParentId: string; sortBase: number },
-  ) {
-    const area = store.area ?? null;
-    const region = area?.region ?? null;
-    let parentId = domain.baseParentId;
-
-    if (region?.code) {
-      const regionNode = await this.upsertStoreCatalogOrganizationNode(client, {
-        code: this.scopedOrganizationNodeCode(
-          'REGION',
-          domain.codePrefix,
-          region.code,
-        ),
-        businessCode: region.code,
-        displayName: region.displayName || region.code,
-        abbreviation: region.abbreviation ?? region.code,
-        description: region.description ?? null,
-        type: 'REGION',
-        parentId: domain.baseParentId,
-        isActive: region.isActive !== false,
-        sortOrder: domain.sortBase + 100,
-      });
-      parentId = regionNode?.id ?? parentId;
-    }
-
-    if (area?.code) {
-      const areaNode = await this.upsertStoreCatalogOrganizationNode(client, {
-        code: this.scopedOrganizationNodeCode(
-          'AREA',
-          domain.codePrefix,
-          area.code,
-        ),
-        businessCode: area.code,
-        displayName: area.displayName || area.code,
-        abbreviation: area.abbreviation ?? area.code,
-        description: area.description ?? null,
-        type: 'AREA',
-        parentId,
-        isActive: area.isActive !== false,
-        sortOrder: domain.sortBase + 200,
-      });
-      parentId = areaNode?.id ?? parentId;
-    }
-
-    return parentId;
-  }
-
-  private async upsertStoreCatalogOrganizationNode(
-    client: any,
-    data: {
-      code: string;
-      businessCode?: string | null;
-      displayName: string;
-      abbreviation?: string | null;
-      description?: string | null;
-      type: string;
-      parentId: string;
-      isActive: boolean;
-      sortOrder: number;
-    },
-  ) {
-    const organizationNode = client.organizationNode;
-    if (!organizationNode?.upsert) return null;
-    const nodeData = {
-      code: data.code,
-      displayName: data.displayName,
-      businessCode: data.businessCode ?? null,
-      abbreviation: data.abbreviation ?? null,
-      description: data.description ?? null,
-      type: data.type,
-      parentId: data.parentId,
-      emailDomain: null,
-      loginAllowed: false,
-      isSystem: false,
-      isActive: data.isActive,
-      sortOrder: data.sortOrder,
-    };
-    return organizationNode.upsert({
-      where: { code: data.code },
-      update: nodeData,
-      create: nodeData,
-    });
   }
 
   private organizationDomainForStore(store: any) {
@@ -3495,26 +3302,16 @@ export class UserService implements OnModuleInit {
       .toUpperCase();
     const isAcare = storeCode.startsWith('AC');
     return {
-      codePrefix: isAcare ? 'ACARE' : 'PHONGVU',
-      baseParentId: isAcare ? ORG_ROOT_ACARETEK_ID : ORG_SUBDOMAIN_PHONGVU_ID,
+      baseParentId: isAcare ? ORG_ROOT_ACARETEK_ID : ORG_ROOT_PHONGVU_ID,
       sortBase: isAcare ? 20000 : 10000,
     };
   }
 
-  private scopedOrganizationNodeCode(
-    kind: string,
-    domainPrefix: string,
-    code: string,
-  ) {
-    return this.normalizeOrganizationNodeCode(
-      kind + '_' + domainPrefix + '_' + code,
-    );
-  }
   private async seedDefaultOrganizationTree() {
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.upsert) return;
 
-    const phongVuRoot = await organizationNode.upsert({
+    await organizationNode.upsert({
       where: { code: 'DOMAIN_PHONGVU_VN' },
       update: {
         displayName: 'phongvu.vn',
@@ -3541,37 +3338,6 @@ export class UserService implements OnModuleInit {
         isSystem: true,
         isActive: true,
         sortOrder: 10,
-      },
-    });
-    await organizationNode.upsert({
-      where: { code: 'SUBDOMAIN_PHONGVU_VN' },
-      update: {
-        displayName: 'phongvu.vn',
-        businessCode: 'phongvu.vn',
-        abbreviation: 'PV',
-        description: 'Subdomain Phong Vũ',
-        type: 'SUBDOMAIN',
-        parentId: phongVuRoot.id,
-        emailDomain: 'phongvu.vn',
-        loginAllowed: true,
-        isSystem: true,
-        isActive: true,
-        sortOrder: 11,
-      },
-      create: {
-        id: ORG_SUBDOMAIN_PHONGVU_ID,
-        code: 'SUBDOMAIN_PHONGVU_VN',
-        displayName: 'phongvu.vn',
-        businessCode: 'phongvu.vn',
-        abbreviation: 'PV',
-        description: 'Subdomain Phong Vũ',
-        type: 'SUBDOMAIN',
-        parentId: phongVuRoot.id,
-        emailDomain: 'phongvu.vn',
-        loginAllowed: true,
-        isSystem: true,
-        isActive: true,
-        sortOrder: 11,
       },
     });
     await organizationNode.upsert({

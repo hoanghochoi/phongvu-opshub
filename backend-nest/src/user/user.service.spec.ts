@@ -585,7 +585,7 @@ describe('UserService admin store management', () => {
     });
   });
 
-  it('syncs existing STORE-scope users when an SR moves to another area', async () => {
+  it('does not sync STORE-scope users from legacy SR area without an organization node', async () => {
     prisma.user.updateMany.mockResolvedValueOnce({ count: 3 });
 
     await expect(
@@ -598,10 +598,7 @@ describe('UserService admin store management', () => {
       regionCode: defaultArea.regionCode,
     });
 
-    expect(prisma.user.updateMany).toHaveBeenCalledWith({
-      where: { storeId: 'store-1', workScopeType: 'STORE' },
-      data: { areaCode: defaultArea.code, regionCode: defaultArea.regionCode },
-    });
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
   });
 
   it('rejects legacy ONLINE and MULTI_STORE scopes after migration', async () => {
@@ -698,7 +695,7 @@ describe('UserService admin store management', () => {
     expect(prisma.store.delete).not.toHaveBeenCalled();
   });
 
-  it('backfills missing SR organization nodes under Miền and Vùng when listing the tree', async () => {
+  it('backfills missing SR organization nodes directly under the root domain when listing the tree', async () => {
     const org = installOrganizationNodeMock();
     prisma.store.findMany.mockResolvedValueOnce([
       {
@@ -710,20 +707,12 @@ describe('UserService admin store management', () => {
 
     const nodes = await service.adminListOrganizationTree(superAdmin);
 
-    const regionNode = org.nodesByCode.get('REGION_PHONGVU_MIEN_NAM');
-    const areaNode = org.nodesByCode.get('AREA_PHONGVU_HCM');
     const storeNode = org.nodesByCode.get('STORE_CP62');
-    expect(regionNode).toMatchObject({
-      type: 'REGION',
-      parentId: 'org-subdomain-phongvu-vn',
-    });
-    expect(areaNode).toMatchObject({
-      type: 'AREA',
-      parentId: regionNode.id,
-    });
+    expect(org.nodesByCode.get('REGION_PHONGVU_MIEN_NAM')).toBeUndefined();
+    expect(org.nodesByCode.get('AREA_PHONGVU_HCM')).toBeUndefined();
     expect(storeNode).toMatchObject({
       type: 'SHOWROOM',
-      parentId: areaNode.id,
+      parentId: 'org-domain-phongvu-vn',
     });
     expect(prisma.store.update).toHaveBeenCalledWith({
       where: { id: 'store-62' },
@@ -734,7 +723,7 @@ describe('UserService admin store management', () => {
     );
   });
 
-  it('moves the linked showroom organization node when an SR changes Vùng', async () => {
+  it('keeps the linked showroom organization node in place when legacy SR area changes', async () => {
     const org = installOrganizationNodeMock();
     org.saveNode({
       id: 'org-store-cp01',
@@ -766,25 +755,64 @@ describe('UserService admin store management', () => {
       organizationNodeId: 'org-store-cp01',
     });
 
-    const areaNode = org.nodesByCode.get('AREA_PHONGVU_CHUA_GAN');
     const storeNode = org.nodesById.get('org-store-cp01');
-    expect(storeNode.parentId).toBe(areaNode.id);
+    expect(storeNode.parentId).toBe('org-area-old');
     expect(prisma.organizationNode.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'org-store-cp01' },
         data: expect.objectContaining({
           code: 'STORE_CP01',
           type: 'SHOWROOM',
-          parentId: areaNode.id,
+          parentId: 'org-area-old',
         }),
       }),
     );
     expect(prisma.user.updateMany).toHaveBeenCalledWith({
       where: { storeId: 'store-1', workScopeType: 'STORE' },
-      data: { areaCode: defaultArea.code, regionCode: defaultArea.regionCode },
+      data: {
+        organizationNodeId: 'org-store-cp01',
+        areaCode: null,
+        regionCode: null,
+      },
     });
   });
-  it('seeds phongvu.vn as a root domain and selectable subdomain', async () => {
+
+  it('allows showroom organization nodes directly under a root domain', async () => {
+    const org = installOrganizationNodeMock();
+    org.saveNode({
+      id: 'org-domain-phongvu-vn',
+      code: 'DOMAIN_PHONGVU_VN',
+      displayName: 'phongvu.vn',
+      type: 'ROOT_DOMAIN',
+      parentId: null,
+      isSystem: true,
+      isActive: true,
+      sortOrder: 10,
+    });
+    const showroom = org.saveNode({
+      id: 'org-store-cp88',
+      code: 'STORE_CP88',
+      businessCode: 'CP88',
+      displayName: 'CP88',
+      type: 'SHOWROOM',
+      parentId: 'org-domain-phongvu-vn',
+      isSystem: false,
+      isActive: true,
+      sortOrder: 10300,
+    });
+
+    await expect(
+      (service as any).resolveOrganizationParentId(
+        'SHOWROOM',
+        'org-domain-phongvu-vn',
+      ),
+    ).resolves.toBe('org-domain-phongvu-vn');
+    await expect(
+      (service as any).organizationLocationForShowroomNode(prisma, showroom),
+    ).resolves.toEqual({ areaCode: null, regionCode: null });
+  });
+
+  it('seeds root domains without recreating the legacy phongvu.vn subdomain', async () => {
     prisma.organizationNode = {
       upsert: jest.fn(async ({ where, create }: any) => ({
         id:
@@ -807,17 +835,8 @@ describe('UserService admin store management', () => {
         }),
       }),
     );
-    expect(prisma.organizationNode.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { code: 'SUBDOMAIN_PHONGVU_VN' },
-        create: expect.objectContaining({
-          id: 'org-subdomain-phongvu-vn',
-          type: 'SUBDOMAIN',
-          parentId: 'org-domain-phongvu-vn',
-          emailDomain: 'phongvu.vn',
-          loginAllowed: true,
-        }),
-      }),
+    expect(prisma.organizationNode.upsert).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: { code: 'SUBDOMAIN_PHONGVU_VN' } }),
     );
   });
 });
