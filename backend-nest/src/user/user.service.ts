@@ -1694,14 +1694,32 @@ export class UserService implements OnModuleInit {
       this.isLegacyRegionNodeType(item.type),
     );
     return {
-      areaCode:
-        areaNode?.businessCode ??
-        (areaNode ? this.legacyCodeFromOrganizationCode(areaNode.code) : null),
-      regionCode: regionNode
-        ? (regionNode.businessCode ??
-          this.legacyCodeFromOrganizationCode(regionNode.code))
-        : null,
+      areaCode: this.legacyPersonnelCodeFromOrganizationNode(
+        areaNode,
+        'Mã Vùng không hợp lệ',
+      ),
+      regionCode: this.legacyPersonnelCodeFromOrganizationNode(
+        regionNode,
+        'Mã Miền không hợp lệ',
+      ),
     };
+  }
+
+  private legacyPersonnelCodeFromOrganizationNode(
+    node:
+      | {
+          businessCode?: string | null;
+          code: string;
+        }
+      | null
+      | undefined,
+    message: string,
+  ) {
+    if (!node) return null;
+    return this.normalizePersonnelCode(
+      node.businessCode || this.legacyCodeFromOrganizationCode(node.code),
+      message,
+    );
   }
 
   private legacyCodeFromOrganizationCode(code: string) {
@@ -3816,7 +3834,15 @@ export class UserService implements OnModuleInit {
         this.normalizeOrganizationNodeType(ancestor.type) === type,
       );
       if (!item) return null;
-      return item.businessCode ?? this.legacyCodeFromOrganizationCode(item.code);
+      if (type === ORG_TYPE_LV4_STORE) {
+        return this.normalizeStoreCode(
+          item.businessCode ?? this.legacyCodeFromOrganizationCode(item.code),
+        );
+      }
+      return this.legacyPersonnelCodeFromOrganizationNode(
+        item,
+        'Mã nghiệp vụ không hợp lệ',
+      );
     };
     const storeNode = ancestors.find(
       (ancestor) =>

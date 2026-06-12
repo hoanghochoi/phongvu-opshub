@@ -836,6 +836,67 @@ describe('UserService admin store management', () => {
     );
   });
 
+  it('normalizes legacy region code when moving a showroom under a tree area', async () => {
+    const org = installUserScopeTreeMock();
+    org.saveNode({
+      id: 'org-region-hcm-bd',
+      code: 'HCM_BD',
+      businessCode: 'HCM-BD',
+      displayName: 'Ho Chi Minh - Binh Duong',
+      type: 'REGION',
+      parentId: 'org-domain-phongvu-vn',
+      isSystem: false,
+      isActive: true,
+      sortOrder: 100,
+    });
+    org.saveNode({
+      id: 'org-area-hcm1',
+      code: 'HCM1',
+      businessCode: 'HCM1',
+      displayName: 'Ho Chi Minh 1',
+      type: 'AREA',
+      parentId: 'org-region-hcm-bd',
+      isSystem: false,
+      isActive: true,
+      sortOrder: 200,
+    });
+
+    await expect(
+      service.adminUpdateOrganizationNode(superAdmin, 'org-store-cp62', {
+        displayName: 'CP62',
+        code: 'STORE_CP62',
+        businessCode: 'CP62',
+        storeId: 'CP62',
+        type: 'LV4_STORE',
+        parentId: 'org-area-hcm1',
+        isActive: true,
+        sortOrder: 300,
+      }),
+    ).resolves.toMatchObject({
+      id: 'org-store-cp62',
+      parentId: 'org-area-hcm1',
+      type: 'LV4_STORE',
+    });
+
+    expect(prisma.store.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'store-62' },
+        data: expect.objectContaining({
+          areaCode: 'HCM1',
+          organizationNodeId: 'org-store-cp62',
+        }),
+      }),
+    );
+    expect(prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { storeId: expect.any(String), workScopeType: 'STORE' },
+      data: {
+        organizationNodeId: 'org-store-cp62',
+        areaCode: 'HCM1',
+        regionCode: 'HCM_BD',
+      },
+    });
+  });
+
   it('generates personnel codes from SR, area, and region scope', async () => {
     installUserScopeTreeMock();
     await expect(
