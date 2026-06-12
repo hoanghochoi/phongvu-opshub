@@ -58,6 +58,12 @@ const ORG_TYPES = new Set([
   'JOB_ROLE',
   'VIRTUAL_SCOPE',
 ]);
+const ORG_ALLOWED_PARENT_TYPES: Record<string, string[]> = {
+  SUBDOMAIN: ['ROOT_DOMAIN'],
+  REGION: ['ROOT_DOMAIN', 'SUBDOMAIN', 'BLOCK'],
+  AREA: ['REGION'],
+  SHOWROOM: ['ROOT_DOMAIN', 'AREA', 'BLOCK'],
+};
 
 const DEFAULT_ROLE_DEFINITIONS = [
   {
@@ -1149,13 +1155,7 @@ export class UserService implements OnModuleInit {
   }
 
   private assertOrganizationParentType(type: string, parentType: string) {
-    const allowedParents: Record<string, string[]> = {
-      SUBDOMAIN: ['ROOT_DOMAIN'],
-      REGION: ['ROOT_DOMAIN', 'SUBDOMAIN'],
-      AREA: ['REGION'],
-      SHOWROOM: ['ROOT_DOMAIN', 'AREA'],
-    };
-    const allowed = allowedParents[type];
+    const allowed = ORG_ALLOWED_PARENT_TYPES[type];
     if (!allowed || allowed.includes(parentType)) return;
     throw new BadRequestException(
       `${this.organizationNodeTypeLabel(type)} phải nằm dưới ${allowed

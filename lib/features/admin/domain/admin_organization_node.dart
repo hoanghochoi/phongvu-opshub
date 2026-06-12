@@ -96,26 +96,30 @@ class AdminOrganizationNode {
     );
   }
 
-  Map<String, dynamic> toJson() => {
-    'code': code,
-    'displayName': title,
-    'businessCode': businessCode,
-    'abbreviation': abbreviation,
-    'description': description,
-    'type': type,
-    'parentId': parentId,
-    'emailDomain': emailDomain,
-    'loginAllowed': loginAllowed,
-    'isActive': isActive,
-    'sortOrder': sortOrder,
-    'storeId': storeId,
-    'storeName': storeName,
-    'transferAccountNumber': transferAccountNumber,
-    'transferAccountName': transferAccountName,
-    'transferBankName': transferBankName,
-    'transferBankBin': transferBankBin,
-    'mapVietinUsername': mapVietinUsername,
-  };
+  Map<String, dynamic> toJson() {
+    final isDomain = type == 'ROOT_DOMAIN' || type == 'SUBDOMAIN';
+    final isShowroom = type == 'SHOWROOM';
+    return {
+      'code': code,
+      'displayName': title,
+      'businessCode': businessCode,
+      'abbreviation': abbreviation,
+      'description': description,
+      'type': type,
+      'parentId': parentId,
+      'isActive': isActive,
+      'sortOrder': sortOrder,
+      if (isDomain) 'emailDomain': emailDomain,
+      if (isDomain) 'loginAllowed': loginAllowed,
+      if (isShowroom) 'storeId': storeId,
+      if (isShowroom) 'storeName': storeName,
+      if (isShowroom) 'transferAccountNumber': transferAccountNumber,
+      if (isShowroom) 'transferAccountName': transferAccountName,
+      if (isShowroom) 'transferBankName': transferBankName,
+      if (isShowroom) 'transferBankBin': transferBankBin,
+      if (isShowroom) 'mapVietinUsername': mapVietinUsername,
+    };
+  }
 
   int get referenceCount =>
       userCount +

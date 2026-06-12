@@ -204,7 +204,8 @@ class _OrganizationTreeAdminScreenState
                     node: selected,
                     nodes: _nodes,
                     canAddChild: canEditStructure,
-                    canEdit: canEditStructure ||
+                    canEdit:
+                        canEditStructure ||
                         (canEditMap && selected?.type == 'SHOWROOM'),
                     canDelete: canEditStructure,
                     onAddChild: selected == null
@@ -417,7 +418,10 @@ class _OrganizationNodeDetail extends StatelessWidget {
               label: 'Mã showroom',
               value: node.storeId ?? node.businessCode ?? node.code,
             ),
-            _DetailRow(label: 'Tên showroom', value: node.storeName ?? node.title),
+            _DetailRow(
+              label: 'Tên showroom',
+              value: node.storeName ?? node.title,
+            ),
             _DetailRow(
               label: 'MAP username',
               value: node.mapVietinUsername?.isNotEmpty == true
@@ -426,7 +430,9 @@ class _OrganizationNodeDetail extends StatelessWidget {
             ),
             _DetailRow(
               label: 'MAP password',
-              value: node.hasMapVietinPassword ? 'Đã cấu hình' : 'Chưa cấu hình',
+              value: node.hasMapVietinPassword
+                  ? 'Đã cấu hình'
+                  : 'Chưa cấu hình',
             ),
             _DetailRow(
               label: 'Tài khoản nhận',
@@ -593,6 +599,7 @@ class _OrganizationNodeEditorDialogState
 
   Future<void> _save() async {
     setState(() => _saving = true);
+    final effectiveParentId = _effectiveParentId();
     final node = AdminOrganizationNode(
       id: widget.node?.id ?? '',
       code: _codeController.text.trim(),
@@ -607,7 +614,7 @@ class _OrganizationNodeEditorDialogState
           ? null
           : _descriptionController.text.trim(),
       type: _type,
-      parentId: _parentId,
+      parentId: effectiveParentId,
       emailDomain: _emailDomainController.text.trim().isEmpty
           ? null
           : _emailDomainController.text.trim(),
@@ -620,7 +627,8 @@ class _OrganizationNodeEditorDialogState
       storeName: _titleController.text.trim().isEmpty
           ? null
           : _titleController.text.trim(),
-      transferAccountNumber: _transferAccountNumberController.text.trim().isEmpty
+      transferAccountNumber:
+          _transferAccountNumberController.text.trim().isEmpty
           ? null
           : _transferAccountNumberController.text.trim(),
       transferAccountName: _transferAccountNameController.text.trim().isEmpty
@@ -643,10 +651,14 @@ class _OrganizationNodeEditorDialogState
       await AppLogger.instance.info(
         'AdminOrganization',
         'Organization node save started',
-        context: {'nodeId': widget.node?.id, 'type': _type},
+        context: {
+          'nodeId': widget.node?.id,
+          'type': _type,
+          'parentId': effectiveParentId,
+        },
       );
       if (widget.node == null) {
-        await widget.repository.createAdminOrganizationNode(node);
+        await widget.repository.createAdminOrganizationNodeBody(body);
       } else {
         await widget.repository.updateAdminOrganizationNodeBody(
           widget.node!.id,
@@ -669,9 +681,12 @@ class _OrganizationNodeEditorDialogState
         context: {'nodeId': widget.node?.id, 'type': _type},
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chưa lưu được node tổ chức.')),
-        );
+        final message = error is ApiException
+            ? error.message
+            : 'Chưa lưu được node tổ chức.';
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -684,6 +699,8 @@ class _OrganizationNodeEditorDialogState
     final isShowroom = _type == 'SHOWROOM';
     final canEditStructure = widget.canEditStructure;
     final canEditMap = isShowroom;
+    final parentOptions = _parentOptions();
+    final parentValue = _validParentId(parentOptions);
     return AlertDialog(
       title: Text(widget.node == null ? 'Thêm node' : 'Sửa node'),
       content: SizedBox(
@@ -734,28 +751,24 @@ class _OrganizationNodeEditorDialogState
                     .toList(),
                 onChanged: !canEditStructure || widget.node?.isSystem == true
                     ? null
-                    : (value) => setState(() {
-                        _type = value ?? 'BLOCK';
-                        _loginAllowed =
-                            _type == 'ROOT_DOMAIN' || _type == 'SUBDOMAIN';
-                      }),
+                    : (value) => setState(() => _setType(value ?? 'BLOCK')),
               ),
               DropdownButtonFormField<String?>(
-                initialValue: _parentId,
+                key: ValueKey('parent-$_type-${parentValue ?? 'none'}'),
+                initialValue: parentValue,
                 decoration: const InputDecoration(labelText: 'Node cha'),
                 items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('Không có'),
+                  if (_allowsEmptyParent(_type))
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Không có'),
+                    ),
+                  ...parentOptions.map(
+                    (node) => DropdownMenuItem<String?>(
+                      value: node.id,
+                      child: Text(node.title),
+                    ),
                   ),
-                  ...widget.nodes
-                      .where((node) => node.id != widget.node?.id)
-                      .map(
-                        (node) => DropdownMenuItem<String?>(
-                          value: node.id,
-                          child: Text(node.title),
-                        ),
-                      ),
                 ],
                 onChanged: !canEditStructure || widget.node?.isSystem == true
                     ? null
@@ -846,6 +859,57 @@ class _OrganizationNodeEditorDialogState
         ),
       ],
     );
+  }
+
+  void _setType(String type) {
+    _type = type;
+    _loginAllowed = _type == 'ROOT_DOMAIN' || _type == 'SUBDOMAIN';
+    final parentOptions = _parentOptions();
+    _parentId = _validParentId(parentOptions);
+    if (_parentId == null && !_allowsEmptyParent(_type)) {
+      _parentId = parentOptions.isEmpty ? null : parentOptions.first.id;
+    }
+  }
+
+  List<AdminOrganizationNode> _parentOptions() {
+    return widget.nodes
+        .where(
+          (node) =>
+              node.id != widget.node?.id && _canUseParentForType(node, _type),
+        )
+        .toList();
+  }
+
+  String? _validParentId(List<AdminOrganizationNode> parentOptions) {
+    if (_parentId == null) return null;
+    for (final node in parentOptions) {
+      if (node.id == _parentId) return _parentId;
+    }
+    return null;
+  }
+
+  String? _effectiveParentId() {
+    final parentOptions = _parentOptions();
+    final validParentId = _validParentId(parentOptions);
+    if (validParentId != null || _allowsEmptyParent(_type)) {
+      return validParentId;
+    }
+    return parentOptions.isEmpty ? null : parentOptions.first.id;
+  }
+
+  bool _allowsEmptyParent(String type) {
+    return type == 'ROOT_DOMAIN' || type == 'SUBDOMAIN' || type == 'REGION';
+  }
+
+  bool _canUseParentForType(AdminOrganizationNode parent, String type) {
+    final allowedTypes = switch (type) {
+      'SUBDOMAIN' => const {'ROOT_DOMAIN'},
+      'REGION' => const {'ROOT_DOMAIN', 'SUBDOMAIN', 'BLOCK'},
+      'AREA' => const {'REGION'},
+      'SHOWROOM' => const {'ROOT_DOMAIN', 'AREA', 'BLOCK'},
+      _ => null,
+    };
+    return allowedTypes == null || allowedTypes.contains(parent.type);
   }
 }
 

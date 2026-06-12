@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/api_exception.dart';
+import 'package:phongvu_opshub/features/admin/domain/admin_organization_node.dart';
 import 'package:phongvu_opshub/features/admin/domain/admin_user_editor_payload.dart';
 import 'package:phongvu_opshub/features/admin/presentation/screens/user_admin_screen.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -69,6 +70,41 @@ void main() {
     expect(body, isNot(contains('regionCode')));
     expect(body, isNot(contains('areaCode')));
   });
+
+  test(
+    'AdminOrganizationNode payload only sends showroom fields for showroom nodes',
+    () {
+      const region = AdminOrganizationNode(
+        id: '',
+        code: 'HCM-BD',
+        title: 'Ho Chi Minh - Binh Duong',
+        businessCode: 'HCM-BD',
+        type: 'REGION',
+        parentId: 'org-block-sales',
+        storeId: 'HCM-BD',
+        storeName: 'Ho Chi Minh - Binh Duong',
+      );
+      final regionJson = region.toJson();
+
+      expect(regionJson['businessCode'], 'HCM-BD');
+      expect(regionJson['parentId'], 'org-block-sales');
+      expect(regionJson, isNot(contains('storeId')));
+      expect(regionJson, isNot(contains('storeName')));
+
+      const showroom = AdminOrganizationNode(
+        id: '',
+        code: 'STORE_CP62',
+        title: 'CP62',
+        businessCode: 'CP62',
+        type: 'SHOWROOM',
+        parentId: 'org-area-hcm',
+        storeId: 'CP62',
+        storeName: 'CP62',
+      );
+      expect(showroom.toJson(), containsPair('storeId', 'CP62'));
+      expect(showroom.toJson(), containsPair('storeName', 'CP62'));
+    },
+  );
 
   test(
     'Admin user editor snackbar message keeps backend ApiException text',

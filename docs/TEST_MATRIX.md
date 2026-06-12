@@ -39,6 +39,17 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PROFILE-ADMIN-001, 2026-06-12: fixed organization node creation for Region
+  nodes under Block parents such as `Kinh Doanh`. Backend parent validation now
+  allows `REGION` under `BLOCK`, preserves existing showroom-under-block trees,
+  and regression-covers creating `HCM-BD` under a block. Flutter organization
+  node payloads now send showroom-only fields only for `SHOWROOM` nodes, filter
+  parent choices by selected node type, use the prepared body for both create
+  and update, and show backend `ApiException.message` instead of a generic save
+  failure. Validation: focused backend user Jest, focused Flutter admin tree
+  test, backend `npm run build`, `flutter analyze --no-pub`, full Flutter
+  `flutter test --no-pub --reporter expanded` (84 tests), full backend Jest
+  (35 suites, 250 tests), and `git diff --check`.
 - PROFILE-ADMIN-001, 2026-06-12: changed user feature assignment and admin
   rule editing to tree-first payloads. Flutter user management now sends
   `featureTreeCodes` from the feature tree instead of `featureCodes`; backend
