@@ -39,6 +39,20 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PROFILE-ADMIN-001, 2026-06-12: completed tree-only user work-scope assignment.
+  Backend user create/update now accepts `organizationNodeId` as the assignment
+  input, derives legacy `storeId`/`regionCode`/`areaCode`, keeps SUPER_ADMIN
+  global NATIONAL scope as null, blocks scoped admins from editing SUPER_ADMIN,
+  and limits ADMIN_PHONGVU/ADMIN_ACARE assignments plus `/admin/users/scope-tree`
+  to their organization roots. Flutter user management now loads the user
+  scope tree through the ADMIN_USERS endpoint, uses only root/showroom/active
+  region/area tree nodes in the editor, sends tree-only payloads, and shows
+  backend `ApiException.message` in save snackbars. Validation: focused backend
+  user Jest, focused Flutter user tree-scope test, `npx prisma validate`,
+  `npx prisma generate`, `npm run build`, full backend `npm test --
+  --runInBand` (34 suites, 243 tests), `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter expanded` (82 tests), and `git diff
+  --check`. Gap: live staging user-editor click-through remains manual.
 - PROFILE-ADMIN-001/FEEDBACK-001/WARRANTY-001, 2026-06-09: renamed the legacy `ADMIN` system role to `ADMIN_PHONGVU` with backend alias/migration support; scoped `ADMIN_PHONGVU` and `ADMIN_ACARE` user/SR management to their organization roots; allowed scoped admins to reset in-scope user passwords and edit only SR MAP username/password while blocking transfer-account/SR identity/scope edits; changed org-node deletion to return explicit blockers; added debounced user search and user-edit confirmation; added super-admin-only feedback list UI/API; fixed warranty image MIME upload; and wired Flutter warranty realtime WebSocket subscription to `WARRANTY_STATUS_UPDATED`. Validation: `npx prisma validate`, `npx prisma generate`, `npm run build`, full backend `npm test -- --runInBand` (33 suites, 233 tests), `flutter analyze --no-pub`, full `flutter test --no-pub --reporter expanded` (79 tests), `go test ./...`, and `git diff --check`. Gap: live staging smoke for org scope, MAP credential edit, feedback list visibility, warranty upload, and realtime event remains manual.
 - PROFILE-ADMIN-001/AUTH-001, 2026-06-08: refactored admin authorization to an
   organization tree plus strict per-user feature allowlist. Backend now adds

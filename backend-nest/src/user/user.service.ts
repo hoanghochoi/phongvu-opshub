@@ -553,10 +553,18 @@ export class UserService implements OnModuleInit {
 
     const role = await this.resolveAssignableRole(body.role || STAFF_ROLE);
     await this.assertRoleEditable(admin, role);
-    const storeUuid = await this.resolveStoreForAdmin(admin, body.storeId);
-    const personnel = await this.resolvePersonnelAssignment(body, {
+    const workScopeType = this.resolveWorkScopeType(
+      body.workScopeType,
+      null,
+      role,
+    );
+    const storeUuid = await this.resolveUserAssignmentStoreUuid(admin, body, {
+      workScopeType,
+    });
+    const personnel = await this.resolvePersonnelAssignment(admin, body, {
       role,
       storeUuid,
+      workScopeType,
     });
 
     const user = await this.prisma.user.create({
@@ -594,6 +602,12 @@ export class UserService implements OnModuleInit {
     });
     if (!current) throw new NotFoundException('Không tìm thấy user');
 
+    if (this.isScopedAdmin(admin) && current.role === SUPER_ADMIN_ROLE) {
+      throw new ForbiddenException(
+        'Không có quyền sửa tài khoản SUPER_ADMIN',
+      );
+    }
+
     if (
       this.isScopedAdmin(admin) &&
       !(await this.userWithinAdminScope(admin, current))
@@ -617,14 +631,20 @@ export class UserService implements OnModuleInit {
       ? await this.resolveAssignableRole(body.role)
       : current.role;
     await this.assertRoleEditable(admin, role, current.role);
-    const storeUuid =
-      body.storeId !== undefined
-        ? await this.resolveStoreForAdmin(admin, body.storeId)
-        : current.storeId;
-    const personnel = await this.resolvePersonnelAssignment(body, {
+    const workScopeType = this.resolveWorkScopeType(
+      body.workScopeType,
+      current.workScopeType,
+      role,
+    );
+    const storeUuid = await this.resolveUserAssignmentStoreUuid(admin, body, {
+      current,
+      workScopeType,
+    });
+    const personnel = await this.resolvePersonnelAssignment(admin, body, {
       current,
       role,
       storeUuid,
+      workScopeType,
     });
 
     const updated = await this.prisma.user.update({
@@ -781,8 +801,20 @@ export class UserService implements OnModuleInit {
 
   async adminListOrganizationTree(admin: any) {
     await this.assertAdmin(admin);
+    return this.listOrganizationTreeForAdmin(
+      admin,
+      'admin-list-organization-tree',
+    );
+  }
+
+  async adminListUserScopeTree(admin: any) {
+    await this.assertAdmin(admin);
+    return this.listOrganizationTreeForAdmin(admin, 'admin-list-user-scope-tree');
+  }
+
+  private async listOrganizationTreeForAdmin(admin: any, source: string) {
     await this.seedDefaultOrganizationTree();
-    await this.syncStoreOrganizationNodes('admin-list-organization-tree');
+    await this.syncStoreOrganizationNodes(source);
     const where = await this.adminOrganizationNodeScopeWhere(admin);
     const nodes = await this.prisma.organizationNode.findMany({
       where,
@@ -3493,9 +3525,49 @@ export class UserService implements OnModuleInit {
     );
   }
 
-  private async resolvePersonnelAssignment(
+  private async resolveUserAssignmentStoreUuid(
+    admin: any,
     body: any,
-    options: { current?: any; role: string; storeUuid?: string | null },
+    options: { current?: any; workScopeType: string },
+  ) {
+    if (options.workScopeType !== STORE_SCOPE) return null;
+    if (body.organizationNodeId === undefined) {
+      if (options.current && body.workScopeType === undefined) {
+        return options.current.storeId ?? null;
+      }
+      throw new BadRequestException('Vui lòng chọn showroom trên cây tổ chức');
+    }
+
+    const scopeLocation = await this.resolveScopeLocationFromOrganizationNode(
+      admin,
+      body.organizationNodeId,
+      STORE_SCOPE,
+    );
+    const store = await this.prisma.store.findFirst({
+      where: { organizationNodeId: scopeLocation.organizationNodeId },
+      include: { area: { include: { region: true } } },
+    });
+    if (!store) {
+      throw new BadRequestException('Showroom chưa được gắn SR');
+    }
+    if (
+      this.isScopedAdmin(admin) &&
+      !(await this.storeWithinAdminScope(admin, store))
+    ) {
+      throw new ForbiddenException('Chỉ được gán user trong phạm vi quản lý');
+    }
+    return store.id;
+  }
+
+  private async resolvePersonnelAssignment(
+    admin: any,
+    body: any,
+    options: {
+      current?: any;
+      role: string;
+      storeUuid?: string | null;
+      workScopeType: string;
+    },
   ) {
     const departmentCode = await this.resolveDepartmentCode(
       body.departmentCode,
@@ -3505,30 +3577,59 @@ export class UserService implements OnModuleInit {
       body.jobRoleCode,
       options.current?.jobRoleCode ?? null,
     );
-    const workScopeType = this.resolveWorkScopeType(
-      body.workScopeType,
-      options.current?.workScopeType,
-      options.role,
-    );
-    const scopeLocation = await this.resolveScopeLocation(body, {
+    const scopeLocation = await this.resolveScopeLocation(admin, body, {
       current: options.current,
       storeUuid: options.storeUuid,
-      workScopeType,
+      role: options.role,
+      workScopeType: options.workScopeType,
     });
 
-    return { departmentCode, jobRoleCode, workScopeType, ...scopeLocation };
+    return {
+      departmentCode,
+      jobRoleCode,
+      workScopeType: options.workScopeType,
+      ...scopeLocation,
+    };
   }
 
   private async resolveScopeLocation(
+    admin: any,
     body: any,
     options: {
       current?: any;
+      role: string;
       storeUuid?: string | null;
       workScopeType: string;
     },
   ) {
     if (options.workScopeType === NATIONAL_SCOPE) {
-      return { regionCode: null, areaCode: null, organizationNodeId: null };
+      if (body.organizationNodeId === undefined) {
+        if (options.current && body.workScopeType === undefined) {
+          return {
+            regionCode: null,
+            areaCode: null,
+            organizationNodeId: options.current.organizationNodeId ?? null,
+          };
+        }
+        if (options.role === SUPER_ADMIN_ROLE) {
+          return { regionCode: null, areaCode: null, organizationNodeId: null };
+        }
+        throw new BadRequestException('Vui lòng chọn domain gốc');
+      }
+
+      const nodeId = String(body.organizationNodeId || '').trim();
+      if (!nodeId) {
+        if (options.role === SUPER_ADMIN_ROLE) {
+          return { regionCode: null, areaCode: null, organizationNodeId: null };
+        }
+        throw new BadRequestException('Vui lòng chọn domain gốc');
+      }
+
+      return this.resolveScopeLocationFromOrganizationNode(
+        admin,
+        nodeId,
+        NATIONAL_SCOPE,
+      );
     }
 
     if (options.workScopeType === STORE_SCOPE) {
@@ -3547,53 +3648,35 @@ export class UserService implements OnModuleInit {
       };
     }
 
-    if (body.organizationNodeId !== undefined) {
-      return this.resolveScopeLocationFromOrganizationNode(
-        body.organizationNodeId,
-        options.workScopeType,
-      );
+    if (body.organizationNodeId === undefined) {
+      if (options.current && body.workScopeType === undefined) {
+        return {
+          regionCode: options.current.regionCode ?? null,
+          areaCode: options.current.areaCode ?? null,
+          organizationNodeId: options.current.organizationNodeId ?? null,
+        };
+      }
+      throw new BadRequestException('Vui lòng chọn node tổ chức');
     }
 
-    if (options.workScopeType === AREA_SCOPE) {
-      const areaCode = await this.resolveAreaCode(
-        body.areaCode,
-        options.current?.areaCode ?? null,
-      );
-      if (!areaCode) throw new BadRequestException('Vui lòng chọn Vùng');
-      const area = await this.prisma.areaDefinition.findUnique({
-        where: { code: areaCode },
-      });
-      if (!area) throw new BadRequestException('Vùng không tồn tại');
-      return {
-        regionCode: area.regionCode,
-        areaCode: area.code,
-        organizationNodeId: area.organizationNodeId ?? null,
-      };
-    }
-
-    const regionCode = await this.resolveRegionCode(
-      body.regionCode,
-      options.current?.regionCode ?? null,
+    return this.resolveScopeLocationFromOrganizationNode(
+      admin,
+      body.organizationNodeId,
+      options.workScopeType,
     );
-    if (!regionCode) throw new BadRequestException('Vui lòng chọn Miền');
-    const areaCode = await this.resolveOptionalAreaForRegion(
-      body.areaCode,
-      options.current?.areaCode ?? null,
-      regionCode,
-    );
-    const region = await this.prisma.regionDefinition.findUnique({
-      where: { code: regionCode },
-    });
-    return { regionCode, areaCode, organizationNodeId: region?.organizationNodeId ?? null };
   }
 
   private async resolveScopeLocationFromOrganizationNode(
+    admin: any,
     nodeIdInput: unknown,
     workScopeType: string,
   ) {
     const nodeId = String(nodeIdInput || '').trim();
     if (!nodeId) throw new BadRequestException('Vui lòng chọn node tổ chức');
     const context = await this.organizationScopeContext(nodeId);
+    if (workScopeType === NATIONAL_SCOPE && context.nodeType !== 'ROOT_DOMAIN') {
+      throw new BadRequestException('Vui lòng chọn domain gốc');
+    }
     if (workScopeType === REGION_SCOPE && context.nodeType !== 'REGION') {
       throw new BadRequestException('Vui lòng chọn node Miền');
     }
@@ -3603,11 +3686,43 @@ export class UserService implements OnModuleInit {
     if (workScopeType === STORE_SCOPE && context.nodeType !== 'SHOWROOM') {
       throw new BadRequestException('Vui lòng chọn node showroom');
     }
+    await this.assertOrganizationNodeAssignableByAdmin(
+      admin,
+      context.organizationNodeId,
+    );
+    if (workScopeType === NATIONAL_SCOPE) {
+      return {
+        regionCode: null,
+        areaCode: null,
+        organizationNodeId: context.organizationNodeId,
+      };
+    }
     return {
       regionCode: context.regionCode,
       areaCode: context.areaCode,
       organizationNodeId: context.organizationNodeId,
     };
+  }
+
+  private async assertOrganizationNodeAssignableByAdmin(
+    admin: any,
+    nodeId: string,
+  ) {
+    const rootId = this.adminOrgRootId(admin);
+    if (!rootId) return;
+    const organizationNodeIds = await this.organizationDescendantIds(rootId);
+    if (organizationNodeIds.includes(nodeId)) return;
+    this.logger.warn(
+      'Admin user scope assignment blocked by domain: admin=' +
+        (admin?.email || admin?.id || 'unknown') +
+        ' role=' +
+        admin?.role +
+        ' nodeId=' +
+        nodeId +
+        ' allowedRootId=' +
+        rootId,
+    );
+    throw new ForbiddenException('Chỉ được gán user trong phạm vi quản lý');
   }
 
   private async organizationScopeContext(nodeId: string) {

@@ -26,42 +26,42 @@ Quy ước test:
 
 ## 1. Deploy Và Endpoint
 
-- [ ] GitHub workflow `Deploy OpsHub Staging` hoàn tất thành công cho commit cần test.
-- [ ] `https://opshub-staging.hoanghochoi.com/health` trả `ok`.
-- [ ] `https://opshub-staging.hoanghochoi.com/api/health` trả JSON có `status: ok` và `service: backend-nest`.
-- [ ] `https://opshub-staging.hoanghochoi.com/api/app-version?platform=android` trỏ về `/staging-download/downloads/`.
-- [ ] `https://opshub-staging.hoanghochoi.com/api/app-version?platform=windows` trỏ về `/staging-download/downloads/`.
-- [ ] `https://opshub.hoanghochoi.com/staging-download/downloads/latest.json` chỉ chứa URL staging.
-- [ ] Tải được APK Android staging mới.
-- [ ] Tải được bộ cài Windows staging mới.
-- [ ] App staging cài cạnh production, không ghi đè app production.
+- [x] GitHub workflow `Deploy OpsHub Staging` hoàn tất thành công cho commit cần test.
+- [x] `https://opshub-staging.hoanghochoi.com/health` trả `ok`.
+- [x] `https://opshub-staging.hoanghochoi.com/api/health` trả JSON có `status: ok` và `service: backend-nest`.
+- [x] `https://opshub-staging.hoanghochoi.com/api/app-version?platform=android` trỏ về `/staging-download/downloads/`.
+- [x] `https://opshub-staging.hoanghochoi.com/api/app-version?platform=windows` trỏ về `/staging-download/downloads/`.
+- [x] `https://opshub.hoanghochoi.com/staging-download/downloads/latest.json` chỉ chứa URL staging.
+- [x] Tải được APK Android staging mới.
+- [x] Tải được bộ cài Windows staging mới.
+- [x] App staging cài cạnh production, không ghi đè app production.
 
 ## 2. Đăng Nhập Và Role
 
-- [ ] `admin@hoanghochoi.com` đăng nhập được, role `SUPER_ADMIN`, không bị ép scope domain/store.
-- [ ] `staging.admin@phongvu.vn` đăng nhập được, role hiển thị/resolve là `ADMIN_PHONGVU` hoặc `Admin Phong Vũ`.
-- [ ] `staging.acare@acaretek.vn` đăng nhập được, role `ADMIN_ACARE`.
-- [ ] `staging.staff@phongvu.vn` đăng nhập được và chỉ thấy các chức năng được cấp.
-- [ ] Đăng xuất rồi đăng nhập lại không mất quyền hoặc giữ nhầm session user cũ.
-- [ ] Nhập sai mật khẩu báo lỗi rõ ràng, không clear session hợp lệ của user khác.
+- [x] `admin@hoanghochoi.com` đăng nhập được, role `SUPER_ADMIN`, không bị ép scope domain/store.
+- [x] `staging.admin@phongvu.vn` đăng nhập được, role hiển thị/resolve là `ADMIN_PHONGVU` hoặc `Admin Phong Vũ`.
+- [x] `staging.acare@acaretek.vn` đăng nhập được, role `ADMIN_ACARE`.
+- [x] `staging.staff@phongvu.vn` đăng nhập được và chỉ thấy các chức năng được cấp.
+- [x] Đăng xuất rồi đăng nhập lại không mất quyền hoặc giữ nhầm session user cũ.
+- [x] Nhập sai mật khẩu báo lỗi rõ ràng, không clear session hợp lệ của user khác.
 
 ## 3. Navigation Quản Trị
 
-- [ ] `SUPER_ADMIN` thấy menu `Quản trị` và màn `Cơ cấu tổ chức`.
-- [ ] `ADMIN_PHONGVU` thấy các màn quản trị đúng quyền trong scope Phong Vũ.
-- [ ] `ADMIN_ACARE` thấy các màn quản trị đúng quyền trong scope A Care.
-- [ ] User không có quyền admin không thấy route admin, hoặc bị chặn/điều hướng rõ ràng.
-- [ ] Menu `Quản lý Vùng/Miền` không còn là luồng chỉnh sửa riêng, hoặc redirect về `Cơ cấu tổ chức`.
-- [ ] Menu `Quản lý SR` không còn là luồng chỉnh sửa riêng, hoặc redirect về `Cơ cấu tổ chức`.
-- [ ] Không còn hai nơi độc lập cùng sửa Miền/Vùng/SR làm lệch dữ liệu.
+- [x] `SUPER_ADMIN` thấy menu `Quản trị` và màn `Cơ cấu tổ chức`.
+- [x] `ADMIN_PHONGVU` thấy các màn quản trị đúng quyền trong scope Phong Vũ.
+- [ ] `ADMIN_ACARE` thấy các màn quản trị đúng quyền trong scope A Care. -> có tick quyền quản lý SR nhưng không thấy trong Quản trị
+- [x] User không có quyền admin không thấy route admin, hoặc bị chặn/điều hướng rõ ràng.
+- [x] Menu `Quản lý Vùng/Miền` không còn là luồng chỉnh sửa riêng, hoặc redirect về `Cơ cấu tổ chức`.
+- [x] Menu `Quản lý SR` không còn là luồng chỉnh sửa riêng, hoặc redirect về `Cơ cấu tổ chức`.
+- [x] Không còn hai nơi độc lập cùng sửa Miền/Vùng/SR làm lệch dữ liệu.
 
 ## 4. Cơ Cấu Tổ Chức Là Source Of Truth
 
-- [ ] Tree mặc định chỉ hiện root `phongvu.vn` và `acaretek.vn`.
-- [ ] Click root mới expand, trạng thái expand được giữ trong phiên màn hình.
-- [ ] Dưới `phongvu.vn` thấy Miền, Vùng, SR theo dữ liệu staging đã backfill.
-- [ ] Dưới `acaretek.vn` thấy Miền, Vùng, SR A Care, gồm `AC001` nếu staging DB có dữ liệu này.
-- [ ] Một SR đang có trong danh sách/quyền nghiệp vụ cũng xuất hiện là node type `SHOWROOM` trong tree.
+- [x] Tree mặc định chỉ hiện root `phongvu.vn` và `acaretek.vn`.
+- [x] Click root mới expand, trạng thái expand được giữ trong phiên màn hình.
+- [x] Dưới `phongvu.vn` thấy Miền, Vùng, SR theo dữ liệu staging đã backfill.
+- [x] Dưới `acaretek.vn` thấy Miền, Vùng, SR A Care, gồm `AC001` nếu staging DB có dữ liệu này.
+- [x] Một SR đang có trong danh sách/quyền nghiệp vụ cũng xuất hiện là node type `SHOWROOM` trong tree.
 - [ ] Node `REGION` hiển thị/sửa được mã nghiệp vụ, tên, viết tắt, trạng thái theo quyền.
 - [ ] Node `AREA` hiển thị/sửa được mã nghiệp vụ, tên, viết tắt, parent Miền, trạng thái theo quyền.
 - [ ] Node `SHOWROOM` hiển thị `Mã showroom`, `Tên showroom`, `Node cha`, type, trạng thái, user count/store info.

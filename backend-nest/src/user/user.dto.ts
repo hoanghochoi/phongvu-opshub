@@ -71,6 +71,11 @@ export class AdminUserDto extends UpdateProfileDto {
   areaCode?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  organizationNodeId?: string;
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   @MaxLength(60, { each: true })

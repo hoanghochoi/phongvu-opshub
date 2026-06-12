@@ -90,6 +90,11 @@ basic administration for privileged roles.
   `User.role` continues to control app/admin permissions.
 - Admin user management can assign department, job role, and work scope for
   future task assignment.
+- User work-scope assignment uses the organization tree as the source of truth:
+  `NATIONAL` selects a root domain unless `SUPER_ADMIN` is intentionally global,
+  `STORE` selects a showroom node, and `REGION`/`AREA` select active tree nodes
+  only when those node types exist. Legacy `storeId`, `regionCode`, and
+  `areaCode` remain derived backend/runtime fields, not user-editor inputs.
 - Default departments are management, sales, cashier, technical, warehouse,
   back office, and executive.
 - Default job roles include `STORE_MANAGER`, `SALE`, `CHATSALE`, `TELESALE`,
