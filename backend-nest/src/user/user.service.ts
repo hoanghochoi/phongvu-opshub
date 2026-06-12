@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  GoneException,
   Injectable,
   Logger,
   NotFoundException,
@@ -23,7 +24,8 @@ import {
 } from '../auth/break-glass-admin.constants';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
-const LEGACY_ADMIN_ROLE = 'ADMIN';
+const ADMIN_ROLE = 'ADMIN';
+const USER_ROLE = 'USER';
 const ADMIN_PHONGVU_ROLE = 'ADMIN_PHONGVU';
 const ADMIN_ACARE_ROLE = 'ADMIN_ACARE';
 const MANAGER_ROLE = 'MANAGER';
@@ -47,22 +49,50 @@ const CHATSALE_REGION_CODE = 'CHATSALE';
 const TELESALE_REGION_CODE = 'TELESALE';
 const ORG_ROOT_PHONGVU_ID = 'org-domain-phongvu-vn';
 const ORG_ROOT_ACARE_ID = 'org-domain-acaretek-vn';
+const ORG_TYPE_LV0_DOMAIN = 'LV0_DOMAIN';
+const ORG_TYPE_LV1_BLOCK = 'LV1_BLOCK';
+const ORG_TYPE_LV2_DEPARTMENT = 'LV2_DEPARTMENT';
+const ORG_TYPE_LV2_REGION = 'LV2_REGION';
+const ORG_TYPE_LV3_AREA = 'LV3_AREA';
+const ORG_TYPE_LV3_UNIT = 'LV3_UNIT';
+const ORG_TYPE_LV4_STORE = 'LV4_STORE';
+const ORG_TYPE_LV5_POSITION = 'LV5_POSITION';
 const ORG_TYPES = new Set([
-  'ROOT_DOMAIN',
-  'SUBDOMAIN',
-  'BLOCK',
-  'REGION',
-  'DEPARTMENT',
-  'AREA',
-  'SHOWROOM',
-  'JOB_ROLE',
-  'VIRTUAL_SCOPE',
+  ORG_TYPE_LV0_DOMAIN,
+  ORG_TYPE_LV1_BLOCK,
+  ORG_TYPE_LV2_DEPARTMENT,
+  ORG_TYPE_LV2_REGION,
+  ORG_TYPE_LV3_AREA,
+  ORG_TYPE_LV3_UNIT,
+  ORG_TYPE_LV4_STORE,
+  ORG_TYPE_LV5_POSITION,
 ]);
-const ORG_ALLOWED_PARENT_TYPES: Record<string, string[]> = {
-  SUBDOMAIN: ['ROOT_DOMAIN'],
-  REGION: ['ROOT_DOMAIN', 'SUBDOMAIN', 'BLOCK'],
-  AREA: ['REGION'],
-  SHOWROOM: ['ROOT_DOMAIN', 'AREA', 'BLOCK'],
+const ORG_TYPE_LEVELS: Record<string, number> = {
+  [ORG_TYPE_LV0_DOMAIN]: 0,
+  [ORG_TYPE_LV1_BLOCK]: 1,
+  [ORG_TYPE_LV2_DEPARTMENT]: 2,
+  [ORG_TYPE_LV2_REGION]: 2,
+  [ORG_TYPE_LV3_AREA]: 3,
+  [ORG_TYPE_LV3_UNIT]: 3,
+  [ORG_TYPE_LV4_STORE]: 4,
+  [ORG_TYPE_LV5_POSITION]: 5,
+};
+const LEGACY_ORG_TYPE_ALIASES: Record<string, string | null> = {
+  ROOT_DOMAIN: ORG_TYPE_LV0_DOMAIN,
+  BLOCK: ORG_TYPE_LV1_BLOCK,
+  DEPARTMENT: ORG_TYPE_LV2_DEPARTMENT,
+  REGION: ORG_TYPE_LV2_REGION,
+  AREA: ORG_TYPE_LV3_AREA,
+  VIRTUAL_SCOPE: ORG_TYPE_LV3_UNIT,
+  SHOWROOM: ORG_TYPE_LV4_STORE,
+  JOB_ROLE: ORG_TYPE_LV5_POSITION,
+  SUBDOMAIN: null,
+};
+const ROLE_ALIASES: Record<string, string> = {
+  [ADMIN_PHONGVU_ROLE]: ADMIN_ROLE,
+  [ADMIN_ACARE_ROLE]: ADMIN_ROLE,
+  [MANAGER_ROLE]: ADMIN_ROLE,
+  [STAFF_ROLE]: USER_ROLE,
 };
 
 const DEFAULT_ROLE_DEFINITIONS = [
@@ -72,23 +102,13 @@ const DEFAULT_ROLE_DEFINITIONS = [
     description: 'Toàn quyền hệ thống',
   },
   {
-    code: ADMIN_PHONGVU_ROLE,
-    displayName: 'Admin Phong Vũ',
-    description: 'Quản lý user và SR thuộc Phong Vũ',
+    code: ADMIN_ROLE,
+    displayName: 'Admin',
+    description: 'Quản trị theo phạm vi cây tổ chức',
   },
   {
-    code: ADMIN_ACARE_ROLE,
-    displayName: 'Admin ACare',
-    description: 'Quan ly user thuoc domain acare.vn',
-  },
-  {
-    code: MANAGER_ROLE,
-    displayName: 'Manager',
-    description: 'Nhóm quyền quản lý vận hành',
-  },
-  {
-    code: STAFF_ROLE,
-    displayName: 'Staff',
+    code: USER_ROLE,
+    displayName: 'User',
     description: 'Quyền thao tác hằng ngày',
   },
 ];
@@ -323,7 +343,7 @@ export class UserService implements OnModuleInit {
         const firstName = String(row.first_name || '').trim();
         const lastName = String(row.last_name || '').trim();
         const role = this.normalizeRoleCode(
-          String(row.role || 'STAFF')
+          String(row.role || USER_ROLE)
             .trim()
             .toUpperCase(),
         );
@@ -557,10 +577,10 @@ export class UserService implements OnModuleInit {
     if (!email) throw new BadRequestException('Email không được để trống');
     await this.assertEmailWithinAdminDomain(admin, email);
 
-    const role = await this.resolveAssignableRole(body.role || STAFF_ROLE);
+    const role = await this.resolveAssignableRole(body.role || USER_ROLE);
     await this.assertRoleEditable(admin, role);
-    const workScopeType = this.resolveWorkScopeType(
-      body.workScopeType,
+    const workScopeType = await this.resolveWorkScopeTypeForAssignment(
+      body,
       null,
       role,
     );
@@ -608,7 +628,10 @@ export class UserService implements OnModuleInit {
     });
     if (!current) throw new NotFoundException('Không tìm thấy user');
 
-    if (this.isScopedAdmin(admin) && current.role === SUPER_ADMIN_ROLE) {
+    if (
+      this.isScopedAdmin(admin) &&
+      this.normalizeRoleCode(current.role) === SUPER_ADMIN_ROLE
+    ) {
       throw new ForbiddenException(
         'Không có quyền sửa tài khoản SUPER_ADMIN',
       );
@@ -635,11 +658,11 @@ export class UserService implements OnModuleInit {
 
     const role = body.role
       ? await this.resolveAssignableRole(body.role)
-      : current.role;
+      : this.normalizeRoleCode(current.role, true);
     await this.assertRoleEditable(admin, role, current.role);
-    const workScopeType = this.resolveWorkScopeType(
-      body.workScopeType,
-      current.workScopeType,
+    const workScopeType = await this.resolveWorkScopeTypeForAssignment(
+      body,
+      current,
       role,
     );
     const storeUuid = await this.resolveUserAssignmentStoreUuid(admin, body, {
@@ -772,10 +795,13 @@ export class UserService implements OnModuleInit {
     });
     if (!target) throw new NotFoundException('Không tìm thấy user');
 
-    if (target.role === SUPER_ADMIN_ROLE && admin.role !== SUPER_ADMIN_ROLE) {
+    if (
+      this.normalizeRoleCode(target.role) === SUPER_ADMIN_ROLE &&
+      this.normalizeRoleCode(admin.role) !== SUPER_ADMIN_ROLE
+    ) {
       throw new ForbiddenException('Không được reset mật khẩu SUPER_ADMIN');
     }
-    if (admin.role !== SUPER_ADMIN_ROLE) {
+    if (this.normalizeRoleCode(admin.role) !== SUPER_ADMIN_ROLE) {
       if (!this.isDomainAdmin(admin)) {
         throw new ForbiddenException('Không có quyền reset mật khẩu user');
       }
@@ -858,7 +884,13 @@ export class UserService implements OnModuleInit {
     await this.syncStoreOrganizationNodes(source);
     const where = await this.adminOrganizationNodeScopeWhere(admin);
     const nodes = await this.prisma.organizationNode.findMany({
-      where,
+      where: {
+        AND: [
+          { isActive: true },
+          { type: { not: 'SUBDOMAIN' } },
+          ...(where ? [where] : []),
+        ],
+      },
       orderBy: [{ sortOrder: 'asc' }, { type: 'asc' }, { displayName: 'asc' }],
       include: {
         stores: { take: 1, orderBy: { storeId: 'asc' } },
@@ -883,10 +915,10 @@ export class UserService implements OnModuleInit {
     const data = await this.normalizeOrganizationNodeInput(body);
     const node = await this.prisma.$transaction(async (tx) => {
       const created = await tx.organizationNode.create({ data });
-      if (['REGION', 'AREA'].includes(created.type)) {
+      if (this.isLegacyRegionNodeType(created.type) || this.isLegacyAreaNodeType(created.type)) {
         await this.syncLegacyCatalogFromOrganizationNode(tx, created);
       }
-      if (created.type === 'SHOWROOM') {
+      if (this.isStoreNodeType(created.type)) {
         await this.syncShowroomStoreFromNode(tx, created, body, null);
       }
       return this.findOrganizationNodeForDto(tx, created.id);
@@ -904,7 +936,7 @@ export class UserService implements OnModuleInit {
     });
     if (!current) throw new NotFoundException('Không tìm thấy node tổ chức');
 
-    if (this.isDomainAdmin(admin) && current.type === 'SHOWROOM') {
+    if (this.isDomainAdmin(admin) && this.isStoreNodeType(current.type)) {
       return this.updateShowroomMapCredentialFromTree(admin, current, body);
     }
 
@@ -927,10 +959,10 @@ export class UserService implements OnModuleInit {
         where: { id },
         data,
       });
-      if (['REGION', 'AREA'].includes(updated.type)) {
+      if (this.isLegacyRegionNodeType(updated.type) || this.isLegacyAreaNodeType(updated.type)) {
         await this.syncLegacyCatalogFromOrganizationNode(tx, updated);
       }
-      if (updated.type === 'SHOWROOM') {
+      if (this.isStoreNodeType(updated.type)) {
         await this.syncShowroomStoreFromNode(tx, updated, body, current);
       }
       return this.findOrganizationNodeForDto(tx, id);
@@ -1004,7 +1036,7 @@ export class UserService implements OnModuleInit {
       'Tên node tổ chức không được để trống',
       120,
     );
-    const emailDomain = ['ROOT_DOMAIN', 'SUBDOMAIN'].includes(type)
+    const emailDomain = this.isDomainNodeType(type)
       ? this.normalizeRequiredEmailDomain(
           input.emailDomain ?? current?.emailDomain ?? displayName,
         )
@@ -1046,7 +1078,7 @@ export class UserService implements OnModuleInit {
       type,
       parentId,
       emailDomain,
-      loginAllowed: ['ROOT_DOMAIN', 'SUBDOMAIN'].includes(type)
+      loginAllowed: this.isDomainNodeType(type)
         ? input.loginAllowed !== undefined
           ? input.loginAllowed === true
           : (current?.loginAllowed ?? true)
@@ -1060,13 +1092,42 @@ export class UserService implements OnModuleInit {
   }
 
   private normalizeOrganizationNodeType(value: unknown) {
-    const type = String(value || '')
+    const rawType = String(value || '')
       .trim()
       .toUpperCase();
+    const type = LEGACY_ORG_TYPE_ALIASES.hasOwnProperty(rawType)
+      ? LEGACY_ORG_TYPE_ALIASES[rawType]
+      : rawType;
+    if (!type) {
+      throw new BadRequestException(
+        'Sub-domain đã được gộp vào Lv0 domain, vui lòng chọn node Lv0-Lv5',
+      );
+    }
     if (!ORG_TYPES.has(type)) {
       throw new BadRequestException('Loại node tổ chức không hợp lệ');
     }
     return type;
+  }
+
+  private organizationNodeLevel(type: string) {
+    const normalizedType = this.normalizeOrganizationNodeType(type);
+    return ORG_TYPE_LEVELS[normalizedType];
+  }
+
+  private isDomainNodeType(type: string) {
+    return this.normalizeOrganizationNodeType(type) === ORG_TYPE_LV0_DOMAIN;
+  }
+
+  private isStoreNodeType(type: string) {
+    return this.normalizeOrganizationNodeType(type) === ORG_TYPE_LV4_STORE;
+  }
+
+  private isLegacyRegionNodeType(type: string) {
+    return this.normalizeOrganizationNodeType(type) === ORG_TYPE_LV2_REGION;
+  }
+
+  private isLegacyAreaNodeType(type: string) {
+    return this.normalizeOrganizationNodeType(type) === ORG_TYPE_LV3_AREA;
   }
 
   private normalizeOrganizationNodeCode(value: unknown) {
@@ -1083,12 +1144,18 @@ export class UserService implements OnModuleInit {
   private normalizeOrganizationBusinessCode(value: unknown, type: string) {
     const text = String(value || '').trim();
     if (!text) {
-      if (['REGION', 'AREA', 'SHOWROOM'].includes(type)) {
+      if (
+        [
+          ORG_TYPE_LV2_REGION,
+          ORG_TYPE_LV3_AREA,
+          ORG_TYPE_LV4_STORE,
+        ].includes(type)
+      ) {
         throw new BadRequestException('Mã nghiệp vụ không được để trống');
       }
       return null;
     }
-    const maxLength = type === 'SHOWROOM' ? 40 : 80;
+    const maxLength = type === ORG_TYPE_LV4_STORE ? 40 : 80;
     return text.slice(0, maxLength);
   }
 
@@ -1100,8 +1167,8 @@ export class UserService implements OnModuleInit {
     const normalized = this.normalizeOrganizationNodeCode(
       String(value).replace(/\.[a-z]+$/i, ''),
     );
-    if (type === 'SHOWROOM') return 'STORE_' + normalized;
-    if (['REGION', 'AREA'].includes(type)) {
+    if (type === ORG_TYPE_LV4_STORE) return 'STORE_' + normalized;
+    if ([ORG_TYPE_LV2_REGION, ORG_TYPE_LV3_AREA].includes(type)) {
       const prefix = await this.organizationDomainPrefixForParent(parentId);
       return `${type}_${prefix}_${normalized}`;
     }
@@ -1136,11 +1203,9 @@ export class UserService implements OnModuleInit {
     parentIdInput: unknown,
     current?: any,
   ) {
-    if (type === 'ROOT_DOMAIN') return null;
+    if (type === ORG_TYPE_LV0_DOMAIN) return null;
     const parentId = String(parentIdInput ?? current?.parentId ?? '').trim();
     if (!parentId) {
-      if (type === 'SUBDOMAIN') return ORG_ROOT_PHONGVU_ID;
-      if (type === 'REGION') return ORG_ROOT_PHONGVU_ID;
       throw new BadRequestException('Node cha không được để trống');
     }
     const parent = await this.prisma.organizationNode.findUnique({
@@ -1155,24 +1220,27 @@ export class UserService implements OnModuleInit {
   }
 
   private assertOrganizationParentType(type: string, parentType: string) {
-    const allowed = ORG_ALLOWED_PARENT_TYPES[type];
-    if (!allowed || allowed.includes(parentType)) return;
+    const childLevel = this.organizationNodeLevel(type);
+    const parentLevel = this.organizationNodeLevel(parentType);
+    if (parentLevel < childLevel) return;
     throw new BadRequestException(
-      `${this.organizationNodeTypeLabel(type)} phải nằm dưới ${allowed
-        .map((item) => this.organizationNodeTypeLabel(item))
-        .join(' hoặc ')}`,
+      `${this.organizationNodeTypeLabel(type)} phải nằm dưới node cấp cao hơn`,
     );
   }
 
   private organizationNodeTypeLabel(type: string) {
     const labels: Record<string, string> = {
-      ROOT_DOMAIN: 'Domain gốc',
-      SUBDOMAIN: 'Sub domain',
-      REGION: 'Miền',
-      AREA: 'Vùng',
-      SHOWROOM: 'Showroom',
+      [ORG_TYPE_LV0_DOMAIN]: 'Lv0 Domain',
+      [ORG_TYPE_LV1_BLOCK]: 'Lv1 Khối',
+      [ORG_TYPE_LV2_DEPARTMENT]: 'Lv2 Phòng/Bộ phận',
+      [ORG_TYPE_LV2_REGION]: 'Lv2 Miền',
+      [ORG_TYPE_LV3_AREA]: 'Lv3 Vùng',
+      [ORG_TYPE_LV3_UNIT]: 'Lv3 Bộ phận',
+      [ORG_TYPE_LV4_STORE]: 'Lv4 Cửa hàng',
+      [ORG_TYPE_LV5_POSITION]: 'Lv5 Vị trí',
     };
-    return labels[type] ?? type;
+    const normalizedType = this.normalizeOrganizationNodeType(type);
+    return labels[normalizedType] ?? normalizedType;
   }
 
   private async assertNoOrganizationCycle(id: string, parentId: string) {
@@ -1238,6 +1306,8 @@ export class UserService implements OnModuleInit {
 
   private toOrganizationNodeDto(node: any) {
     const store = Array.isArray(node.stores) ? node.stores[0] : null;
+    const type = this.normalizeOrganizationNodeType(node.type);
+    const isStore = type === ORG_TYPE_LV4_STORE;
     return {
       id: node.id,
       code: node.code,
@@ -1245,15 +1315,16 @@ export class UserService implements OnModuleInit {
       businessCode: node.businessCode ?? null,
       abbreviation: node.abbreviation ?? null,
       description: node.description ?? null,
-      type: node.type,
+      type,
+      level: this.organizationNodeLevel(type),
       parentId: node.parentId ?? null,
       emailDomain: node.emailDomain ?? null,
       loginAllowed: node.loginAllowed === true,
       isSystem: node.isSystem === true,
       isActive: node.isActive !== false,
       sortOrder: node.sortOrder ?? 0,
-      storeId: store?.storeId ?? node.businessCode ?? null,
-      storeName: store?.storeName ?? (node.type === 'SHOWROOM' ? node.displayName : null),
+      storeId: isStore ? (store?.storeId ?? node.businessCode ?? null) : null,
+      storeName: isStore ? (store?.storeName ?? node.displayName) : null,
       transferAccountNumber: store?.transferAccountNumber ?? null,
       transferAccountName: store?.transferAccountName ?? null,
       transferBankName: store?.transferBankName ?? null,
@@ -1268,7 +1339,7 @@ export class UserService implements OnModuleInit {
     const descendantIds = await this.organizationDescendantIds(node.id);
     const [areaCount, storeCount, userCount, featureRules] = await Promise.all([
       this.prisma.organizationNode.count({
-        where: { parentId: node.id, type: 'AREA' },
+        where: { parentId: node.id, type: ORG_TYPE_LV3_AREA },
       }),
       this.prisma.store.count({
         where: { organizationNodeId: { in: descendantIds } },
@@ -1417,7 +1488,7 @@ export class UserService implements OnModuleInit {
     const data = {
       storeId: storeCode,
       storeName,
-      areaCode: location.areaCode,
+      areaCode: location.areaCode ?? currentStore?.areaCode ?? null,
       organizationNodeId: node.id,
       ...this.normalizeStorePaymentFields(body),
       ...this.normalizeMapVietinFields(body),
@@ -1433,7 +1504,7 @@ export class UserService implements OnModuleInit {
       where: { storeId: store.id, workScopeType: STORE_SCOPE },
       data: {
         organizationNodeId: node.id,
-        areaCode: location.areaCode,
+        areaCode: location.areaCode ?? store.areaCode ?? null,
         regionCode: location.regionCode,
       },
     });
@@ -1454,7 +1525,7 @@ export class UserService implements OnModuleInit {
     const abbreviation = this.normalizeCatalogAbbreviation(
       node.abbreviation || businessCode,
     );
-    if (node.type === 'REGION') {
+    if (this.isLegacyRegionNodeType(node.type)) {
       await client.regionDefinition.upsert({
         where: { code: businessCode },
         update: {
@@ -1476,11 +1547,11 @@ export class UserService implements OnModuleInit {
       });
       return;
     }
-    if (node.type !== 'AREA') return;
+    if (!this.isLegacyAreaNodeType(node.type)) return;
     const parent = node.parentId
       ? await client.organizationNode.findUnique({ where: { id: node.parentId } })
       : null;
-    if (!parent || parent.type !== 'REGION') {
+    if (!parent || !this.isLegacyRegionNodeType(parent.type)) {
       throw new BadRequestException('Vùng phải nằm dưới Miền');
     }
     await this.syncLegacyCatalogFromOrganizationNode(client, parent);
@@ -1529,7 +1600,7 @@ export class UserService implements OnModuleInit {
     );
     if (protectedChanges.length > 0) {
       throw new ForbiddenException(
-        'ADMIN_PHONGVU/ADMIN_ACARE chỉ được sửa tài khoản/pass MAP; không được sửa ' +
+        'ADMIN theo phạm vi chỉ được sửa tài khoản/pass MAP; không được sửa ' +
           protectedChanges.join(', '),
       );
     }
@@ -1591,7 +1662,7 @@ export class UserService implements OnModuleInit {
   }
 
   private async organizationLocationForShowroomNode(client: any, node: any) {
-    if (node.type !== 'SHOWROOM') {
+    if (!this.isStoreNodeType(node.type)) {
       return { areaCode: null as string | null, regionCode: null as string | null };
     }
     const nodes: Array<{
@@ -1616,8 +1687,12 @@ export class UserService implements OnModuleInit {
       ancestors.push(cursor);
       cursor = cursor.parentId ? (byId.get(cursor.parentId) ?? null) : null;
     }
-    const areaNode = ancestors.find((item) => item.type === 'AREA');
-    const regionNode = ancestors.find((item) => item.type === 'REGION');
+    const areaNode = ancestors.find((item) =>
+      this.isLegacyAreaNodeType(item.type),
+    );
+    const regionNode = ancestors.find((item) =>
+      this.isLegacyRegionNodeType(item.type),
+    );
     return {
       areaCode:
         areaNode?.businessCode ??
@@ -1631,7 +1706,7 @@ export class UserService implements OnModuleInit {
 
   private legacyCodeFromOrganizationCode(code: string) {
     return String(code || '')
-      .replace(/^(REGION|AREA)_(PHONGVU|ACARE)_/i, '')
+      .replace(/^(LV2_REGION|LV3_AREA|REGION|AREA)_(PHONGVU|ACARE)_/i, '')
       .replace(/^STORE_/i, '')
       .trim()
       .toUpperCase();
@@ -1688,10 +1763,11 @@ export class UserService implements OnModuleInit {
     role: string,
     currentRole?: string,
   ) {
-    if (currentRole && role === currentRole) {
+    const current = currentRole ? this.normalizeRoleCode(currentRole) : null;
+    if (current && role === current) {
       return;
     }
-    if (!currentRole && role === STAFF_ROLE) {
+    if (!currentRole && role === USER_ROLE) {
       return;
     }
     await this.assertPolicy(
@@ -1745,23 +1821,23 @@ export class UserService implements OnModuleInit {
   }
 
   private isScopedAdmin(user: any) {
-    return this.isDomainAdmin(user) || user.role === MANAGER_ROLE;
+    return this.isDomainAdmin(user);
   }
 
   private isDomainAdmin(user: any) {
-    return this.isPhongVuAdmin(user) || this.isAcareAdmin(user);
+    return this.normalizeRoleCode(user?.role) === ADMIN_ROLE;
   }
 
   private isPhongVuAdmin(user: any) {
-    return (
-      user?.role === ADMIN_PHONGVU_ROLE || user?.role === LEGACY_ADMIN_ROLE
-    );
+    return this.adminOrgRootId(user) === ORG_ROOT_PHONGVU_ID;
   }
 
   private adminOrgRootId(admin: any) {
-    if (this.isPhongVuAdmin(admin)) return ORG_ROOT_PHONGVU_ID;
-    if (this.isAcareAdmin(admin)) return ORG_ROOT_ACARE_ID;
-    return null;
+    if (this.normalizeRoleCode(admin?.role) !== ADMIN_ROLE) return null;
+    if (admin?.organizationNodeId === ORG_ROOT_ACARE_ID) return ORG_ROOT_ACARE_ID;
+    if (admin?.organizationNodeId === ORG_ROOT_PHONGVU_ID) return ORG_ROOT_PHONGVU_ID;
+    if (this.isAcaretekEmail(admin?.email)) return ORG_ROOT_ACARE_ID;
+    return ORG_ROOT_PHONGVU_ID;
   }
 
   private async organizationDescendantIds(rootId: string) {
@@ -2041,6 +2117,7 @@ export class UserService implements OnModuleInit {
     await this.assertAdmin(admin);
     await this.seedDefaultRoles();
     return this.prisma.roleDefinition.findMany({
+      where: { code: { in: [SUPER_ADMIN_ROLE, ADMIN_ROLE, USER_ROLE] } },
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
     });
   }
@@ -2065,6 +2142,20 @@ export class UserService implements OnModuleInit {
         _count: { select: { users: true, featureAccessRules: true } },
       },
     });
+  }
+
+  adminRetiredTreeApi(admin: any, route: string) {
+    this.logger.warn(
+      'Retired admin tree API hit: route=' +
+        route +
+        ' admin=' +
+        (admin?.email || admin?.id || 'unknown') +
+        ' role=' +
+        (admin?.role || 'unknown'),
+    );
+    throw new GoneException(
+      'API Vùng/Miền/SR cũ đã ngưng sử dụng. Vui lòng dùng /admin/org-tree.',
+    );
   }
 
   async adminListRegions(admin: any) {
@@ -2698,21 +2789,9 @@ export class UserService implements OnModuleInit {
       ADMIN_POLICY_CODES.ADMIN_ROLES,
       'Không có quyền tạo role',
     );
-    const code = this.normalizeRoleCode(body.code, true);
-    const existing = await this.prisma.roleDefinition.findUnique({
-      where: { code },
-    });
-    if (existing) {
-      throw new BadRequestException('Role đã tồn tại');
-    }
-    return this.prisma.roleDefinition.create({
-      data: {
-        code,
-        displayName: this.normalizeRoleDisplayName(body.displayName, code),
-        description: this.normalizeRoleDescription(body.description),
-        isSystem: false,
-      },
-    });
+    throw new GoneException(
+      'Quyền hệ thống cố định: SUPER_ADMIN, ADMIN, USER',
+    );
   }
 
   async adminUpdateRole(admin: any, currentCode: string, body: any) {
@@ -2721,44 +2800,9 @@ export class UserService implements OnModuleInit {
       ADMIN_POLICY_CODES.ADMIN_ROLES,
       'Không có quyền sửa role',
     );
-    const code = this.normalizeRoleCode(currentCode, true);
-    const current = await this.prisma.roleDefinition.findUnique({
-      where: { code },
-    });
-    if (!current) throw new NotFoundException('Không tìm thấy role');
-
-    const nextCode = body.code
-      ? this.normalizeRoleCode(body.code, true)
-      : current.code;
-    if (current.isSystem && nextCode !== current.code) {
-      throw new BadRequestException('Không được đổi mã role hệ thống');
-    }
-
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.roleDefinition.update({
-        where: { code: current.code },
-        data: {
-          code: nextCode,
-          displayName: this.normalizeRoleDisplayName(
-            body.displayName ?? current.displayName,
-            nextCode,
-          ),
-          description:
-            body.description === undefined
-              ? current.description
-              : this.normalizeRoleDescription(body.description),
-        },
-      });
-
-      if (nextCode !== current.code) {
-        await tx.user.updateMany({
-          where: { role: current.code },
-          data: { role: nextCode },
-        });
-      }
-
-      return updated;
-    });
+    throw new GoneException(
+      'Quyền hệ thống cố định: SUPER_ADMIN, ADMIN, USER',
+    );
   }
 
   async adminDeleteRole(admin: any, codeInput: string) {
@@ -2767,24 +2811,9 @@ export class UserService implements OnModuleInit {
       ADMIN_POLICY_CODES.ADMIN_ROLES,
       'Không có quyền xóa role',
     );
-    const code = this.normalizeRoleCode(codeInput, true);
-    const role = await this.prisma.roleDefinition.findUnique({
-      where: { code },
-    });
-    if (!role) throw new NotFoundException('Không tìm thấy role');
-    if (role.isSystem) {
-      throw new BadRequestException('Không được xóa role hệ thống');
-    }
-
-    const assignedUsers = await this.prisma.user.count({
-      where: { role: code },
-    });
-    if (assignedUsers > 0) {
-      throw new BadRequestException('Role đang được gán cho người dùng');
-    }
-
-    await this.prisma.roleDefinition.delete({ where: { code } });
-    return { deleted: true, code };
+    throw new GoneException(
+      'Quyền hệ thống cố định: SUPER_ADMIN, ADMIN, USER',
+    );
   }
 
   async adminListStores(admin: any, q?: string) {
@@ -2899,7 +2928,7 @@ export class UserService implements OnModuleInit {
       );
       if (protectedChanges.length > 0) {
         throw new ForbiddenException(
-          'ADMIN_PHONGVU/ADMIN_ACARE chỉ được sửa tài khoản/pass MAP; không được sửa ' +
+          'ADMIN theo phạm vi chỉ được sửa tài khoản/pass MAP; không được sửa ' +
             protectedChanges.join(', '),
         );
       }
@@ -3276,7 +3305,7 @@ export class UserService implements OnModuleInit {
       });
       if (
         existingNode &&
-        (existingNode.isSystem || existingNode.type !== 'SHOWROOM')
+        (existingNode.isSystem || !this.isStoreNodeType(existingNode.type))
       ) {
         existingNode = null;
       }
@@ -3288,7 +3317,7 @@ export class UserService implements OnModuleInit {
       });
       if (
         existingNode &&
-        (existingNode.isSystem || existingNode.type !== 'SHOWROOM')
+        (existingNode.isSystem || !this.isStoreNodeType(existingNode.type))
       ) {
         existingNode = null;
       }
@@ -3305,7 +3334,7 @@ export class UserService implements OnModuleInit {
       businessCode: storeCode,
       abbreviation: storeCode,
       description: displayName,
-      type: 'SHOWROOM',
+      type: ORG_TYPE_LV4_STORE,
       parentId,
       emailDomain: null,
       loginAllowed: false,
@@ -3385,7 +3414,7 @@ export class UserService implements OnModuleInit {
         businessCode: 'phongvu.vn',
         abbreviation: 'PV',
         description: 'Domain đăng nhập Phong Vũ',
-        type: 'ROOT_DOMAIN',
+        type: ORG_TYPE_LV0_DOMAIN,
         emailDomain: 'phongvu.vn',
         loginAllowed: true,
         isSystem: true,
@@ -3399,7 +3428,7 @@ export class UserService implements OnModuleInit {
         businessCode: 'phongvu.vn',
         abbreviation: 'PV',
         description: 'Domain đăng nhập Phong Vũ',
-        type: 'ROOT_DOMAIN',
+        type: ORG_TYPE_LV0_DOMAIN,
         emailDomain: 'phongvu.vn',
         loginAllowed: true,
         isSystem: true,
@@ -3414,7 +3443,7 @@ export class UserService implements OnModuleInit {
         businessCode: 'acare.vn',
         abbreviation: 'ACARE',
         description: 'Domain đăng nhập A Care',
-        type: 'ROOT_DOMAIN',
+        type: ORG_TYPE_LV0_DOMAIN,
         emailDomain: 'acare.vn',
         loginAllowed: true,
         isSystem: true,
@@ -3428,7 +3457,7 @@ export class UserService implements OnModuleInit {
         businessCode: 'acare.vn',
         abbreviation: 'ACARE',
         description: 'Domain đăng nhập A Care',
-        type: 'ROOT_DOMAIN',
+        type: ORG_TYPE_LV0_DOMAIN,
         emailDomain: 'acare.vn',
         loginAllowed: true,
         isSystem: true,
@@ -3543,7 +3572,7 @@ export class UserService implements OnModuleInit {
         data: {
           email: `deleted-${legacy.id}@legacy-super-admin.local`,
           password: '',
-          role: STAFF_ROLE,
+          role: USER_ROLE,
           status: 'no',
           tokenVersion: { increment: 1 },
           storeId: null,
@@ -3579,7 +3608,7 @@ export class UserService implements OnModuleInit {
       STORE_SCOPE,
     );
     const store = await this.prisma.store.findFirst({
-      where: { organizationNodeId: scopeLocation.organizationNodeId },
+      where: { organizationNodeId: scopeLocation.storeNodeId },
       include: { area: { include: { region: true } } },
     });
     if (!store) {
@@ -3709,33 +3738,26 @@ export class UserService implements OnModuleInit {
     const nodeId = String(nodeIdInput || '').trim();
     if (!nodeId) throw new BadRequestException('Vui lòng chọn node tổ chức');
     const context = await this.organizationScopeContext(nodeId);
-    if (workScopeType === NATIONAL_SCOPE && context.nodeType !== 'ROOT_DOMAIN') {
-      throw new BadRequestException('Vui lòng chọn domain gốc');
-    }
-    if (workScopeType === REGION_SCOPE && context.nodeType !== 'REGION') {
-      throw new BadRequestException('Vui lòng chọn node Miền');
-    }
-    if (workScopeType === AREA_SCOPE && context.nodeType !== 'AREA') {
-      throw new BadRequestException('Vui lòng chọn node Vùng');
-    }
-    if (workScopeType === STORE_SCOPE && context.nodeType !== 'SHOWROOM') {
+    if (workScopeType === STORE_SCOPE && !context.storeNodeId) {
       throw new BadRequestException('Vui lòng chọn node showroom');
     }
     await this.assertOrganizationNodeAssignableByAdmin(
       admin,
       context.organizationNodeId,
     );
-    if (workScopeType === NATIONAL_SCOPE) {
+    if (workScopeType === NATIONAL_SCOPE && !context.regionCode && !context.areaCode) {
       return {
         regionCode: null,
         areaCode: null,
         organizationNodeId: context.organizationNodeId,
+        storeNodeId: context.storeNodeId,
       };
     }
     return {
       regionCode: context.regionCode,
       areaCode: context.areaCode,
       organizationNodeId: context.organizationNodeId,
+      storeNodeId: context.storeNodeId,
     };
   }
 
@@ -3790,16 +3812,23 @@ export class UserService implements OnModuleInit {
       cursor = cursor.parentId ? (byId.get(cursor.parentId) ?? null) : null;
     }
     const businessCodeFor = (type: string) => {
-      const item = ancestors.find((ancestor) => ancestor.type === type);
+      const item = ancestors.find((ancestor) =>
+        this.normalizeOrganizationNodeType(ancestor.type) === type,
+      );
       if (!item) return null;
       return item.businessCode ?? this.legacyCodeFromOrganizationCode(item.code);
     };
+    const storeNode = ancestors.find(
+      (ancestor) =>
+        this.normalizeOrganizationNodeType(ancestor.type) === ORG_TYPE_LV4_STORE,
+    );
     return {
       organizationNodeId: node.id,
-      nodeType: node.type,
-      regionCode: businessCodeFor('REGION'),
-      areaCode: businessCodeFor('AREA'),
-      storeCode: businessCodeFor('SHOWROOM'),
+      nodeType: this.normalizeOrganizationNodeType(node.type),
+      regionCode: businessCodeFor(ORG_TYPE_LV2_REGION),
+      areaCode: businessCodeFor(ORG_TYPE_LV3_AREA),
+      storeCode: businessCodeFor(ORG_TYPE_LV4_STORE),
+      storeNodeId: storeNode?.id ?? null,
     };
   }
 
@@ -3961,6 +3990,48 @@ export class UserService implements OnModuleInit {
     return scope;
   }
 
+  private async resolveWorkScopeTypeForAssignment(
+    body: any,
+    current: any | null,
+    role: string,
+  ) {
+    if (body.workScopeType !== undefined) {
+      return this.resolveWorkScopeType(body.workScopeType, current?.workScopeType, role);
+    }
+    if (body.organizationNodeId !== undefined) {
+      const nodeId = String(body.organizationNodeId || '').trim();
+      if (!nodeId) return this.defaultWorkScopeForRole(role);
+      const context = await this.organizationScopeContext(nodeId);
+      return this.workScopeTypeFromOrganizationContext(context);
+    }
+    return this.resolveWorkScopeType(undefined, current?.workScopeType, role);
+  }
+
+  private workScopeTypeFromOrganizationContext(context: {
+    nodeType: string;
+    regionCode?: string | null;
+    areaCode?: string | null;
+    storeNodeId?: string | null;
+  }) {
+    if (context.storeNodeId || context.nodeType === ORG_TYPE_LV4_STORE) {
+      return STORE_SCOPE;
+    }
+    if (context.nodeType === ORG_TYPE_LV5_POSITION && context.storeNodeId) {
+      return STORE_SCOPE;
+    }
+    if (context.nodeType === ORG_TYPE_LV3_AREA || context.areaCode) {
+      return AREA_SCOPE;
+    }
+    if (
+      context.nodeType === ORG_TYPE_LV2_REGION ||
+      context.nodeType === ORG_TYPE_LV2_DEPARTMENT ||
+      context.regionCode
+    ) {
+      return REGION_SCOPE;
+    }
+    return NATIONAL_SCOPE;
+  }
+
   private normalizePersonnelCode(input: unknown, message: string) {
     const code = String(input || '')
       .trim()
@@ -3974,12 +4045,8 @@ export class UserService implements OnModuleInit {
   }
 
   private defaultWorkScopeForRole(role: string) {
-    if (
-      role === SUPER_ADMIN_ROLE ||
-      role === LEGACY_ADMIN_ROLE ||
-      role === ADMIN_PHONGVU_ROLE ||
-      role === ADMIN_ACARE_ROLE
-    ) {
+    const normalizedRole = this.normalizeRoleCode(role);
+    if (normalizedRole === SUPER_ADMIN_ROLE || normalizedRole === ADMIN_ROLE) {
       return NATIONAL_SCOPE;
     }
     return STORE_SCOPE;
@@ -4067,10 +4134,19 @@ export class UserService implements OnModuleInit {
           'Mã role phải bắt đầu bằng chữ, tối đa 40 ký tự',
         );
       }
-      return STAFF_ROLE;
+      return USER_ROLE;
     }
-    if (code === LEGACY_ADMIN_ROLE) return ADMIN_PHONGVU_ROLE;
-    return code;
+    const normalized = ROLE_ALIASES[code] ?? code;
+    if (![SUPER_ADMIN_ROLE, ADMIN_ROLE, USER_ROLE].includes(normalized)) {
+      if (strict) throw new BadRequestException('Role hệ thống không hợp lệ');
+      return USER_ROLE;
+    }
+    if (normalized !== code) {
+      this.logger.warn(
+        `Legacy role alias normalized: input=${code} normalized=${normalized}`,
+      );
+    }
+    return normalized;
   }
 
   private normalizeRoleDisplayName(value: string, fallback: string) {
@@ -4096,14 +4172,15 @@ export class UserService implements OnModuleInit {
   }
 
   private async ensureRoleExists(code: string) {
+    const normalizedCode = this.normalizeRoleCode(code, true);
     await this.prisma.roleDefinition.upsert({
-      where: { code },
+      where: { code: normalizedCode },
       update: {},
       create: {
-        code,
-        displayName: code,
+        code: normalizedCode,
+        displayName: normalizedCode,
         description: null,
-        isSystem: false,
+        isSystem: true,
       },
     });
   }
@@ -4120,7 +4197,7 @@ export class UserService implements OnModuleInit {
   }
 
   private isAcareAdmin(user: any) {
-    return user?.role === ADMIN_ACARE_ROLE;
+    return this.adminOrgRootId(user) === ORG_ROOT_ACARE_ID;
   }
 
   private isAcaretekEmail(email: unknown) {
@@ -4145,8 +4222,9 @@ export class UserService implements OnModuleInit {
   }
 
   private adminDomainScopeLabel(admin: any) {
-    if (this.isPhongVuAdmin(admin)) return 'phongvu.vn';
-    if (this.isAcareAdmin(admin)) return ACARE_EMAIL_DOMAIN;
+    const rootId = this.adminOrgRootId(admin);
+    if (rootId === ORG_ROOT_PHONGVU_ID) return 'phongvu.vn';
+    if (rootId === ORG_ROOT_ACARE_ID) return ACARE_EMAIL_DOMAIN;
     return 'all';
   }
 

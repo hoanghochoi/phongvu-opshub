@@ -11,32 +11,37 @@ payment account import from CSV, and administration for privileged roles.
 - Backend can import store account rows into `Store`.
 - First-login users without a branch must choose one and see a lock warning.
 - Users can edit profile display names and upload an avatar.
-- `ADMIN_PHONGVU`, `ADMIN_ACARE`, and `SUPER_ADMIN` can open administration
-  from the app when their resolved feature map allows it.
-- `ADMIN_PHONGVU` is scoped to the `phongvu.vn` organization root;
-  `ADMIN_ACARE` is scoped to the `acare.vn` root and `@acare.vn` users.
+- `SUPER_ADMIN` and scoped `ADMIN` users can open administration from the app
+  when their resolved feature map allows it.
+- `ADMIN` is scoped by its assigned organization root, with email-domain
+  fallback during rollout. Legacy role aliases `ADMIN_PHONGVU`, `ADMIN_ACARE`,
+  `MANAGER`, and `STAFF` are normalized to `ADMIN` or `USER`.
 - Forbidden admin API responses do not log the user out; only unauthorized
   session responses clear the local session.
-- Administration contains user management, role management, SR management,
-  organization tree management, Region/Area management, personnel catalog
-  management, feature management, policy management, settings management, and
-  manual inventory import when the resolved feature map allows them.
-- Role management supports adding, editing, and deleting custom roles.
-- System roles are protected from deletion.
-- Store management supports adding, editing, and deleting stores for
-  `SUPER_ADMIN`; `ADMIN_PHONGVU` and `ADMIN_ACARE` can edit only MAP username
-  and MAP password for SRs inside their scope.
-- Stores assigned to users are protected from deletion.
-- SR management assigns each SR to an Area; Region is derived from Area.
+- Administration contains user management, read-only system role management,
+  Lv0-Lv5 organization tree management, personnel catalog management, feature
+  management, policy management, settings management, and manual inventory
+  import when the resolved feature map allows them. Legacy Region/Area/SR admin
+  screens are retired.
+- System roles are fixed to `SUPER_ADMIN`, `ADMIN`, and `USER`; role create,
+  update, and delete requests are rejected with a fixed-role message.
+- Legacy admin APIs `/admin/regions`, `/admin/areas`, and `/admin/stores`
+  return `410 Gone`. Runtime `/stores`, `Store`, payment/MAP fields, FIFO,
+  VietQR, and store selection remain compatible.
+- Lv4 store nodes in the organization tree are the admin surface for SR/store
+  metadata. Tree saves sync the related `Store` row without overwriting existing
+  SR identity, payment, transfer, or MAP fields unless those fields are
+  explicitly edited in the Lv4 store editor.
 - Store-scoped users derive Region/Area from their assigned SR and do not need
   a direct Region/Area assignment.
-- Admin user editing uses the organization tree for work-scope assignment:
-  root domain for `NATIONAL`, showroom node for `STORE`, and active
-  `REGION`/`AREA` nodes only when those node types exist. Legacy store/region
-  columns are backend-derived compatibility fields, not editor inputs.
-- Organization management supports root domain, subdomain, block, department,
-  area, showroom, job role, and virtual scope nodes. Default root domains are
-  `phongvu.vn` and `acare.vn`; root nodes start collapsed in the app, and
+- Admin user editing uses the organization tree for assignment. The app sends
+  `organizationNodeId`; legacy work scope, store, region, and area columns are
+  backend-derived compatibility fields, not editor inputs.
+- Organization management supports `LV0_DOMAIN`, `LV1_BLOCK`,
+  `LV2_DEPARTMENT`, `LV2_REGION`, `LV3_AREA`, `LV3_UNIT`, `LV4_STORE`, and
+  `LV5_POSITION`. Lv0 is the only parentless root. Other nodes can attach to
+  any active parent with a lower level, including skipped-level paths such as
+  `Lv0 -> Lv2 -> Lv3`. Subdomain nodes are retired from active responses, and
   delete is blocked with explicit reasons when a node has children, users, SRs,
   or other references.
 - Runtime feature access is a strict per-user allowlist. `SUPER_ADMIN` can
@@ -54,11 +59,12 @@ payment account import from CSV, and administration for privileged roles.
   instead of legacy Region/Area/SR selectors, while the backend keeps legacy
   rule fields for compatibility/backfill. Settings can save JSON object or
   array values.
-- User assignment uses the backend role catalog.
+- User assignment uses the fixed backend role catalog.
 - `SUPER_ADMIN` can change user roles after registration; registration itself
-  does not expose role, Region, or Area selection.
-- `MANAGER` can manage users and store settings only inside their assigned
-  showroom.
+  does not expose role, organization node, Region, or Area selection.
+- Scoped `ADMIN` can manage users and Lv4 store MAP settings only inside their
+  organization scope. Legacy `MANAGER` users normalize to `ADMIN` during
+  rollout; new assignments should use `ADMIN` or `USER`.
 - Store settings include VietinBank MAP username/password fields for future
   bank-web reconciliation. Passwords are encrypted at rest and are never sent
   back to the app. Scoped admins must not edit transfer account number/name,

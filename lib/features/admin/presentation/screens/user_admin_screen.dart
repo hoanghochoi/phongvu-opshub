@@ -76,7 +76,6 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     final canUseRoles = currentUser?.canUseFeature('ADMIN_ROLES') == true;
     final canUsePersonnel =
         currentUser?.canUseFeature('ADMIN_PERSONNEL') == true;
-    final canUseRegions = currentUser?.canUseFeature('ADMIN_REGIONS') == true;
     final canUseUserScopeTree =
         currentUser?.role == 'SUPER_ADMIN' ||
         currentUser?.canUseFeature('ADMIN_USERS') == true;
@@ -91,7 +90,6 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         'email': currentUser?.email,
         'canUseRoles': canUseRoles,
         'canUsePersonnel': canUsePersonnel,
-        'canUseRegions': canUseRegions,
         'canUseUserScopeTree': canUseUserScopeTree,
         'canUseFeatures': canUseFeatures,
       },
@@ -115,12 +113,6 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         canUsePersonnel
             ? _repository.listAdminJobRoles()
             : Future.value(<AdminPersonnelDefinition>[]),
-        canUseRegions
-            ? _repository.listAdminRegions()
-            : Future.value(<AdminRegionDefinition>[]),
-        canUseRegions
-            ? _repository.listAdminAreas()
-            : Future.value(<AdminAreaDefinition>[]),
         canUseFeatures
             ? _repository.listAdminFeatureTree()
             : Future.value(<AdminFeatureDefinition>[]),
@@ -134,10 +126,10 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         _roles = results[1] as List<AdminRoleDefinition>;
         _departments = results[2] as List<AdminPersonnelDefinition>;
         _jobRoles = results[3] as List<AdminPersonnelDefinition>;
-        _regions = results[4] as List<AdminRegionDefinition>;
-        _areas = results[5] as List<AdminAreaDefinition>;
-        _features = results[6] as List<AdminFeatureDefinition>;
-        _orgNodes = results[7] as List<AdminOrganizationNode>;
+        _regions = const <AdminRegionDefinition>[];
+        _areas = const <AdminAreaDefinition>[];
+        _features = results[4] as List<AdminFeatureDefinition>;
+        _orgNodes = results[5] as List<AdminOrganizationNode>;
       });
       await AppLogger.instance.info(
         'Admin',
@@ -389,9 +381,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   Widget build(BuildContext context) {
     final currentRole = context.watch<AuthProvider>().user?.role;
     final canResetPassword =
-        currentRole == 'SUPER_ADMIN' ||
-        currentRole == 'ADMIN_PHONGVU' ||
-        currentRole == 'ADMIN_ACARE';
+        currentRole == 'SUPER_ADMIN' || User.isAdminRole(currentRole);
     return Scaffold(
       appBar: GradientHeader(
         title: 'Quản lý người dùng',
@@ -638,7 +628,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   final _emailController = TextEditingController();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
-  String _role = 'STAFF';
+  String _role = 'USER';
   String _status = 'yes';
   String? _storeId;
   String? _departmentCode;
@@ -657,7 +647,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     _emailController.text = user?.email ?? '';
     _firstNameController.text = user?.name ?? '';
     _lastNameController.text = user?.lastName ?? '';
-    _role = user?.role ?? 'STAFF';
+    _role = User.normalizeRole(user?.role);
     _status = user?.status ?? 'yes';
     _storeId = user?.storeId;
     _departmentCode = user?.departmentCode;
@@ -766,7 +756,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       role: _role,
       departmentCode: _departmentCode,
       jobRoleCode: _jobRoleCode,
-      workScopeType: _workScopeType,
       organizationNodeId: _organizationNodeId,
       canEditRole: widget.canEditRole,
       canEditFeatures: widget.canEditFeatures,
@@ -798,7 +787,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     addIfChanged('status', user.status, 'Trạng thái');
     addIfChanged('departmentCode', user.departmentCode, 'Phòng ban');
     addIfChanged('jobRoleCode', user.jobRoleCode, 'Chức danh');
-    addIfChanged('workScopeType', user.workScopeType, 'Phạm vi');
     addIfChanged('organizationNodeId', user.organizationNodeId, 'Node tổ chức');
     if (widget.canEditRole) addIfChanged('role', user.role, 'Quyền hệ thống');
     if (widget.canEditFeatures) {
@@ -850,7 +838,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       _emailController.text = user.email;
       _firstNameController.text = user.name ?? '';
       _lastNameController.text = user.lastName ?? '';
-      _role = user.role ?? 'STAFF';
+      _role = User.normalizeRole(user.role);
       _status = user.status ?? 'yes';
       _storeId = user.storeId;
       _departmentCode = user.departmentCode;
@@ -879,9 +867,9 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
 
   void _setRole(String value) {
     setState(() {
-      _role = value;
+      _role = User.normalizeRole(value);
       if (widget.user?.workScopeType == null) {
-        _workScopeType = _defaultScopeForRole(value);
+        _workScopeType = _defaultScopeForRole(_role);
       }
     });
   }
@@ -971,62 +959,33 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   bool get _allowsGlobalNationalScope =>
       _workScopeType == 'NATIONAL' && _role == 'SUPER_ADMIN';
 
-  List<AdminWorkScopeDefinition> _workScopeOptions() {
-    return AdminWorkScopes.definitions.where((scope) {
-      final value = scope.value;
-      if (value == 'NATIONAL') return true;
-      if (value == _workScopeType) return true;
-      final nodeType = _nodeTypeForScope(value);
-      if (nodeType == null) return false;
-      return widget.orgNodes.any(
-        (node) => node.type == nodeType && node.isActive,
-      );
-    }).toList();
-  }
-
   String? _nodeTypeForScope(String scope) {
     return switch (scope) {
-      'NATIONAL' => 'ROOT_DOMAIN',
-      'REGION' => 'REGION',
-      'AREA' => 'AREA',
-      'STORE' => 'SHOWROOM',
+      'NATIONAL' => 'LV0_DOMAIN',
+      'REGION' => 'LV2_REGION',
+      'AREA' => 'LV3_AREA',
+      'STORE' => 'LV4_STORE',
       _ => null,
     };
   }
 
   List<(AdminOrganizationNode, String)> _scopeNodeItems() {
-    final type = _nodeTypeForScope(_workScopeType);
-    if (type == null) return const [];
     return widget.orgNodes
-        .where((node) => node.type == type && node.isActive)
+        .where((node) => node.isActive)
         .map(
           (node) => (
             node,
-            '${node.businessCode ?? node.storeId ?? node.code} • ${node.title}',
+            '${AdminOrganizationNodeTypes.titleOf(node.type)} • ${node.businessCode ?? node.storeId ?? node.code} • ${node.title}',
           ),
         )
         .toList();
   }
 
-  String _scopeNodeLabel() {
-    return switch (_workScopeType) {
-      'NATIONAL' => 'Domain gốc',
-      'REGION' => 'Miền',
-      'AREA' => 'Vùng',
-      'STORE' => 'Showroom',
-      _ => 'Node tổ chức',
-    };
-  }
+  String _scopeNodeLabel() => 'Node tổ chức';
 
   String _scopeNodeHint() {
     if (_allowsGlobalNationalScope) return 'Toàn hệ thống';
-    return switch (_workScopeType) {
-      'NATIONAL' => 'Chọn domain gốc',
-      'REGION' => 'Chọn miền',
-      'AREA' => 'Chọn vùng',
-      'STORE' => 'Chọn showroom',
-      _ => 'Chọn node tổ chức',
-    };
+    return 'Chọn Lv0-Lv5';
   }
 
   AdminOrganizationNode? _selectedOrganizationNode() =>
@@ -1042,9 +1001,10 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
 
   AdminOrganizationNode? _scopeNodeByBusinessCode(String type, String? code) {
     if (code == null || code.isEmpty) return null;
+    final canonicalType = AdminOrganizationNode.canonicalType(type);
     for (final node in widget.orgNodes) {
       final nodeCode = node.businessCode ?? node.storeId ?? node.code;
-      if (node.type == type && nodeCode == code) return node;
+      if (node.type == canonicalType && nodeCode == code) return node;
     }
     return null;
   }
@@ -1073,26 +1033,49 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     _storeId = null;
     _regionCode = null;
     _areaCode = null;
+    _workScopeType = _defaultScopeForRole(_role);
     if (node == null) return;
+    _workScopeType = _scopeForNode(node);
     final code = node.businessCode ?? node.storeId ?? node.code;
-    if (_workScopeType == 'REGION') {
+    if (node.type == 'LV2_REGION') {
       _regionCode = code;
-    } else if (_workScopeType == 'AREA') {
+    } else if (node.type == 'LV3_AREA') {
       _areaCode = code;
-      _regionCode = _ancestorBusinessCode(node, 'REGION');
-    } else if (_workScopeType == 'STORE') {
-      _storeId = node.storeId ?? node.businessCode;
-      _areaCode = _ancestorBusinessCode(node, 'AREA');
-      _regionCode = _ancestorBusinessCode(node, 'REGION');
+      _regionCode = _ancestorBusinessCode(node, 'LV2_REGION');
+    } else if (node.type == 'LV4_STORE' || node.type == 'LV5_POSITION') {
+      final storeNode = node.type == 'LV5_POSITION'
+          ? _ancestorNode(node, 'LV4_STORE')
+          : node;
+      _storeId = storeNode?.storeId ?? storeNode?.businessCode;
+      _areaCode = _ancestorBusinessCode(node, 'LV3_AREA');
+      _regionCode = _ancestorBusinessCode(node, 'LV2_REGION');
     }
   }
 
+  String _scopeForNode(AdminOrganizationNode node) {
+    if (node.type == 'LV4_STORE' || node.type == 'LV5_POSITION') {
+      return 'STORE';
+    }
+    if (node.type == 'LV3_AREA' || node.level == 3) return 'AREA';
+    if (node.level == 2) return 'REGION';
+    return 'NATIONAL';
+  }
+
   String? _ancestorBusinessCode(AdminOrganizationNode node, String type) {
+    final value = _ancestorNode(node, type);
+    return value?.businessCode ?? value?.code;
+  }
+
+  AdminOrganizationNode? _ancestorNode(
+    AdminOrganizationNode node,
+    String type,
+  ) {
+    final canonicalType = AdminOrganizationNode.canonicalType(type);
     var parentId = node.parentId;
     for (var guard = 0; parentId != null && guard < 50; guard += 1) {
       final value = _nodeById(parentId);
       if (value == null) return null;
-      if (value.type == type) return value.businessCode ?? value.code;
+      if (value.type == canonicalType) return value;
       parentId = value.parentId;
     }
     return null;
@@ -1135,7 +1118,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                         ),
                       )
                       .toList(),
-                  onChanged: (value) => _setRole(value ?? 'STAFF'),
+                  onChanged: (value) => _setRole(value ?? 'USER'),
                 )
               else
                 TextFormField(
@@ -1178,23 +1161,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                   ),
                 ],
                 onChanged: (value) => setState(() => _jobRoleCode = value),
-              ),
-              DropdownButtonFormField<String>(
-                initialValue: _workScopeType,
-                decoration: const InputDecoration(labelText: 'Phạm vi'),
-                items: _workScopeOptions()
-                    .map(
-                      (scope) => DropdownMenuItem(
-                        value: scope.value,
-                        child: Text(scope.title),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() {
-                  _workScopeType = value ?? 'STORE';
-                  _organizationNodeId = null;
-                  _applyOrganizationNodeToState(null);
-                }),
               ),
               DropdownButtonFormField<String?>(
                 initialValue: _organizationNodeValue(),

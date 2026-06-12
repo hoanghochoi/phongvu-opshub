@@ -6,6 +6,7 @@ class AdminOrganizationNode {
   final String? abbreviation;
   final String? description;
   final String type;
+  final int level;
   final String? parentId;
   final String? emailDomain;
   final bool loginAllowed;
@@ -36,6 +37,7 @@ class AdminOrganizationNode {
     this.abbreviation,
     this.description,
     required this.type,
+    this.level = 0,
     this.parentId,
     this.emailDomain,
     this.loginAllowed = false,
@@ -70,7 +72,10 @@ class AdminOrganizationNode {
       businessCode: json['businessCode']?.toString(),
       abbreviation: json['abbreviation']?.toString(),
       description: json['description']?.toString(),
-      type: json['type']?.toString() ?? 'BLOCK',
+      type: canonicalType(json['type']?.toString() ?? 'LV1_BLOCK'),
+      level:
+          int.tryParse(json['level']?.toString() ?? '') ??
+          levelOf(json['type']?.toString() ?? 'LV1_BLOCK'),
       parentId: json['parentId']?.toString(),
       emailDomain: json['emailDomain']?.toString(),
       loginAllowed: json['loginAllowed'] == true,
@@ -97,8 +102,8 @@ class AdminOrganizationNode {
   }
 
   Map<String, dynamic> toJson() {
-    final isDomain = type == 'ROOT_DOMAIN' || type == 'SUBDOMAIN';
-    final isShowroom = type == 'SHOWROOM';
+    final isDomain = type == 'LV0_DOMAIN';
+    final isShowroom = type == 'LV4_STORE';
     return {
       'code': code,
       'displayName': title,
@@ -128,27 +133,57 @@ class AdminOrganizationNode {
       jobRoleCount +
       regionCount +
       areaCount;
+
+  bool get isStoreNode => type == 'LV4_STORE';
+
+  bool get isDomainNode => type == 'LV0_DOMAIN';
+
+  static String canonicalType(String value) {
+    return switch (value.toUpperCase()) {
+      'ROOT_DOMAIN' => 'LV0_DOMAIN',
+      'BLOCK' => 'LV1_BLOCK',
+      'DEPARTMENT' => 'LV2_DEPARTMENT',
+      'REGION' => 'LV2_REGION',
+      'AREA' => 'LV3_AREA',
+      'VIRTUAL_SCOPE' => 'LV3_UNIT',
+      'SHOWROOM' => 'LV4_STORE',
+      'JOB_ROLE' => 'LV5_POSITION',
+      _ => value.toUpperCase(),
+    };
+  }
+
+  static int levelOf(String value) {
+    return switch (canonicalType(value)) {
+      'LV0_DOMAIN' => 0,
+      'LV1_BLOCK' => 1,
+      'LV2_DEPARTMENT' || 'LV2_REGION' => 2,
+      'LV3_AREA' || 'LV3_UNIT' => 3,
+      'LV4_STORE' => 4,
+      'LV5_POSITION' => 5,
+      _ => 0,
+    };
+  }
 }
 
 class AdminOrganizationNodeTypes {
   AdminOrganizationNodeTypes._();
 
   static const definitions = [
-    ('ROOT_DOMAIN', 'Domain gốc'),
-    ('SUBDOMAIN', 'Sub domain'),
-    ('BLOCK', 'Khối'),
-    ('REGION', 'Miền'),
-    ('DEPARTMENT', 'Phòng ban'),
-    ('AREA', 'Vùng'),
-    ('SHOWROOM', 'Showroom'),
-    ('JOB_ROLE', 'Chức danh'),
-    ('VIRTUAL_SCOPE', 'Scope ảo'),
+    ('LV0_DOMAIN', 'Lv0 Domain'),
+    ('LV1_BLOCK', 'Lv1 Khối'),
+    ('LV2_DEPARTMENT', 'Lv2 Phòng'),
+    ('LV2_REGION', 'Lv2 Miền'),
+    ('LV3_AREA', 'Lv3 Vùng'),
+    ('LV3_UNIT', 'Lv3 Bộ phận'),
+    ('LV4_STORE', 'Lv4 Cửa hàng'),
+    ('LV5_POSITION', 'Lv5 Vị trí'),
   ];
 
   static String titleOf(String type) {
+    final canonical = AdminOrganizationNode.canonicalType(type);
     for (final definition in definitions) {
-      if (definition.$1 == type) return definition.$2;
+      if (definition.$1 == canonical) return definition.$2;
     }
-    return type;
+    return canonical;
   }
 }

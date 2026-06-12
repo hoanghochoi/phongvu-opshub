@@ -200,7 +200,7 @@ model User {
   tokenVersion       Int       @default(0)
   firstName          String
   lastName           String?
-  role               String    @default("STAFF")
+  role               String    @default("USER")
   status             String    @default("yes") // "yes" = active, "no" = locked
   avatarUrl          String?
   profileCompletedAt DateTime?

@@ -210,13 +210,13 @@ export class UserController {
   @Get('admin/regions')
   @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
   listRegions(@Request() req: any) {
-    return this.userService.adminListRegions(req.user);
+    return this.userService.adminRetiredTreeApi(req.user, 'GET /admin/regions');
   }
 
   @Post('admin/regions')
   @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
   createRegion(@Request() req: any, @Body() body: AdminRegionDto) {
-    return this.userService.adminCreateRegion(req.user, body);
+    return this.userService.adminRetiredTreeApi(req.user, 'POST /admin/regions');
   }
 
   @Patch('admin/regions/:code')
@@ -226,25 +226,31 @@ export class UserController {
     @Param('code') code: string,
     @Body() body: AdminRegionDto,
   ) {
-    return this.userService.adminUpdateRegion(req.user, code, body);
+    return this.userService.adminRetiredTreeApi(
+      req.user,
+      'PATCH /admin/regions/:code',
+    );
   }
 
   @Delete('admin/regions/:code')
   @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
   deleteRegion(@Request() req: any, @Param('code') code: string) {
-    return this.userService.adminDeleteRegion(req.user, code);
+    return this.userService.adminRetiredTreeApi(
+      req.user,
+      'DELETE /admin/regions/:code',
+    );
   }
 
   @Get('admin/areas')
   @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
   listAreas(@Request() req: any, @Query('regionCode') regionCode?: string) {
-    return this.userService.adminListAreas(req.user, regionCode);
+    return this.userService.adminRetiredTreeApi(req.user, 'GET /admin/areas');
   }
 
   @Post('admin/areas')
   @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
   createArea(@Request() req: any, @Body() body: AdminAreaDto) {
-    return this.userService.adminCreateArea(req.user, body);
+    return this.userService.adminRetiredTreeApi(req.user, 'POST /admin/areas');
   }
 
   @Patch('admin/areas/:code')
@@ -254,13 +260,19 @@ export class UserController {
     @Param('code') code: string,
     @Body() body: AdminAreaDto,
   ) {
-    return this.userService.adminUpdateArea(req.user, code, body);
+    return this.userService.adminRetiredTreeApi(
+      req.user,
+      'PATCH /admin/areas/:code',
+    );
   }
 
   @Delete('admin/areas/:code')
   @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
   deleteArea(@Request() req: any, @Param('code') code: string) {
-    return this.userService.adminDeleteArea(req.user, code);
+    return this.userService.adminRetiredTreeApi(
+      req.user,
+      'DELETE /admin/areas/:code',
+    );
   }
 
   @Post('admin/roles')
@@ -288,13 +300,13 @@ export class UserController {
   @Get('admin/stores')
   @RequireFeature(FEATURE_KEYS.ADMIN_STORES)
   listAdminStores(@Request() req: any, @Query('q') q?: string) {
-    return this.userService.adminListStores(req.user, q);
+    return this.userService.adminRetiredTreeApi(req.user, 'GET /admin/stores');
   }
 
   @Post('admin/stores')
   @RequireFeature(FEATURE_KEYS.ADMIN_STORES)
   createStore(@Request() req: any, @Body() body: AdminStoreDto) {
-    return this.userService.adminCreateStore(req.user, body);
+    return this.userService.adminRetiredTreeApi(req.user, 'POST /admin/stores');
   }
 
   @Patch('admin/stores/:storeId')
@@ -304,12 +316,18 @@ export class UserController {
     @Param('storeId') storeId: string,
     @Body() body: AdminStoreDto,
   ) {
-    return this.userService.adminUpdateStore(req.user, storeId, body);
+    return this.userService.adminRetiredTreeApi(
+      req.user,
+      'PATCH /admin/stores/:storeId',
+    );
   }
 
   @Delete('admin/stores/:storeId')
   @RequireFeature(FEATURE_KEYS.ADMIN_STORES)
   deleteStore(@Request() req: any, @Param('storeId') storeId: string) {
-    return this.userService.adminDeleteStore(req.user, storeId);
+    return this.userService.adminRetiredTreeApi(
+      req.user,
+      'DELETE /admin/stores/:storeId',
+    );
   }
 }

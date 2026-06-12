@@ -20,9 +20,7 @@ import '../../features/admin/presentation/screens/inventory_import_screen.dart';
 import '../../features/admin/presentation/screens/organization_tree_admin_screen.dart';
 import '../../features/admin/presentation/screens/personnel_catalog_admin_screen.dart';
 import '../../features/admin/presentation/screens/policy_admin_screen.dart';
-import '../../features/admin/presentation/screens/region_admin_screen.dart';
 import '../../features/admin/presentation/screens/role_admin_screen.dart';
-import '../../features/admin/presentation/screens/store_admin_screen.dart';
 import '../../features/admin/presentation/screens/user_admin_screen.dart';
 import '../../features/warranty/presentation/screens/warranty_screen.dart';
 import '../../features/warranty/presentation/screens/warranty_main_screen.dart';
@@ -141,10 +139,6 @@ class AppRouter {
           builder: (context, state) => const RoleAdminScreen(),
         ),
         GoRoute(
-          path: '/admin/regions',
-          builder: (context, state) => const RegionAdminScreen(),
-        ),
-        GoRoute(
           path: '/admin/organization',
           builder: (context, state) => const OrganizationTreeAdminScreen(),
         ),
@@ -159,10 +153,6 @@ class AppRouter {
         GoRoute(
           path: '/admin/policies',
           builder: (context, state) => const PolicyAdminScreen(),
-        ),
-        GoRoute(
-          path: '/admin/stores',
-          builder: (context, state) => const StoreAdminScreen(),
         ),
         GoRoute(
           path: '/admin/inventory-import',
@@ -238,8 +228,6 @@ class AppRouter {
       '/admin' => 'ADMIN',
       '/admin/users' => 'ADMIN_USERS',
       '/admin/roles' => 'ADMIN_ROLES',
-      '/admin/stores' => 'ADMIN_STORES',
-      '/admin/regions' => 'ADMIN_REGIONS',
       '/admin/organization' => 'ADMIN_REGIONS',
       '/admin/personnel' => 'ADMIN_PERSONNEL',
       '/admin/features' => 'ADMIN_FEATURES',
