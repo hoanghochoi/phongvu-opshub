@@ -32,6 +32,10 @@ organization tree and fixed system-role rollout.
 - [ ] Create/edit a Lv2 or Lv3 node under a skipped-level parent.
 - [ ] Create/edit a Lv4 store node and confirm existing SR identity/payment
   fields are not changed unexpectedly.
+- [ ] Expand a Lv4 store and confirm it has exactly five fixed Lv5 positions:
+  `STORE_MANAGER`, `SA`, `TECHNICIAN`, `CASH`, and `WAREHOUSE`.
+- [ ] Create a new Lv4 store test node and confirm the five fixed Lv5 positions
+  are created automatically.
 - [ ] Edit Lv4 MAP username/password fields only when intentionally testing MAP.
 - [ ] Open user management; role dropdown has only `SUPER_ADMIN`, `ADMIN`,
   `USER`.
@@ -65,6 +69,9 @@ organization tree and fixed system-role rollout.
 - [ ] Manual FIFO inventory import remains gated by admin import permission.
 - [ ] VietQR generation still uses the existing SR transfer account data.
 - [ ] MAP/payment monitor still reads existing store MAP configuration.
+- [ ] Payment speaker ready/audio/ack works for Lv5 `SA` or `CASH`.
+- [ ] Payment speaker ready list is empty, and audio/ack is forbidden, for a
+  non-speaker Lv5 position such as `WAREHOUSE`.
 - [ ] Bank statement store filter still lists the expected SRs.
 - [ ] Warranty list/detail remains scoped to the user's SR.
 

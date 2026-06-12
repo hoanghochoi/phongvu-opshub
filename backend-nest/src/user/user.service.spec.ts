@@ -214,23 +214,28 @@ describe('UserService admin store management', () => {
         findMany: jest.fn(async () => []),
         count: jest.fn(async () => 0),
         create: jest.fn(async ({ data }: any) => ({
-          id: `user-${data.jobRoleCode}`,
+          id: `user-${data.jobRole?.connect?.code ?? 'NO_ROLE'}`,
           email: data.email,
           firstName: data.firstName,
           lastName: data.lastName,
           role: data.role,
           status: data.status,
-          departmentCode: data.departmentCode,
-          jobRoleCode: data.jobRoleCode,
+          departmentCode: data.department?.connect?.code ?? null,
+          jobRoleCode: data.jobRole?.connect?.code ?? null,
           workScopeType: data.workScopeType,
-          storeId: data.storeId,
-          regionCode: data.regionCode,
-          areaCode: data.areaCode,
-          store: data.storeId ? store : null,
+          storeId: data.store?.connect?.id ?? null,
+          regionCode: data.region?.connect?.code ?? null,
+          areaCode: data.area?.connect?.code ?? null,
+          store: data.store?.connect?.id ? store : null,
           region:
-            data.regionCode === chatsaleRegion.code ? chatsaleRegion : null,
-          area: data.areaCode === area.code ? area : null,
-          organizationNodeId: data.organizationNodeId,
+            data.region?.connect?.code === chatsaleRegion.code
+              ? chatsaleRegion
+              : null,
+          area: data.area?.connect?.code === area.code ? area : null,
+          organizationNodeId: data.organizationNode?.connect?.id ?? null,
+          organizationNode: data.organizationNode?.connect?.id
+            ? { id: data.organizationNode.connect.id, displayName: 'Node' }
+            : null,
         })),
         update: jest.fn(),
         updateMany: jest.fn(async () => ({ count: 0 })),
@@ -296,6 +301,25 @@ describe('UserService admin store management', () => {
         if (where.id) return nodesById.get(where.id) ?? null;
         if (where.code) return nodesByCode.get(where.code) ?? null;
         return null;
+      }),
+      findFirst: jest.fn(async ({ where }: any) => {
+        return (
+          Array.from(nodesById.values()).find((node) => {
+            if (where.parentId !== undefined && node.parentId !== where.parentId) {
+              return false;
+            }
+            if (where.type !== undefined && node.type !== canonicalType(where.type)) {
+              return false;
+            }
+            if (
+              where.businessCode !== undefined &&
+              node.businessCode !== where.businessCode
+            ) {
+              return false;
+            }
+            return true;
+          }) ?? null
+        );
       }),
       update: jest.fn(async ({ where, data }: any) => {
         const current = where.id
@@ -699,16 +723,17 @@ describe('UserService admin store management', () => {
       areaCode: 'HCM',
       regionCode: 'MIEN_NAM',
       organizationNodeId: 'org-store-cp62',
-      personnelCode: 'SALE_CP62_HCM_MN',
+      jobRoleCode: null,
+      personnelCode: null,
     });
 
     expect(prisma.user.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          storeId: 'store-62',
-          areaCode: 'HCM',
-          regionCode: 'MIEN_NAM',
-          organizationNodeId: 'org-store-cp62',
+          store: { connect: { id: 'store-62' } },
+          area: { connect: { code: 'HCM' } },
+          region: { connect: { code: 'MIEN_NAM' } },
+          organizationNode: { connect: { id: 'org-store-cp62' } },
         }),
       }),
     );
@@ -729,7 +754,7 @@ describe('UserService admin store management', () => {
     });
 
     expect(prisma.userFeatureAssignment.deleteMany).toHaveBeenCalledWith({
-      where: { userId: 'user-SALE' },
+      where: { userId: 'user-NO_ROLE' },
     });
     expect(prisma.userFeatureAssignment.createMany).toHaveBeenCalledWith({
       data: expect.arrayContaining([
@@ -887,8 +912,28 @@ describe('UserService admin store management', () => {
         }),
       }),
     );
+    const storeSubtreeIds = Array.from(org.nodesById.values())
+      .filter(
+        (node) => node.id === 'org-store-cp62' || node.parentId === 'org-store-cp62',
+      )
+      .map((node) => node.id);
+    expect(storeSubtreeIds).toEqual(
+      expect.arrayContaining([
+        'org-store-cp62',
+        'org-store-cp62-pos-sa',
+        'org-store-cp62-pos-cash',
+        'org-store-cp62-pos-warehouse',
+      ]),
+    );
     expect(prisma.user.updateMany).toHaveBeenCalledWith({
-      where: { storeId: expect.any(String), workScopeType: 'STORE' },
+      where: {
+        storeId: expect.any(String),
+        workScopeType: 'STORE',
+        OR: [
+          { organizationNodeId: null },
+          { organizationNodeId: { notIn: storeSubtreeIds } },
+        ],
+      },
       data: {
         organizationNodeId: 'org-store-cp62',
         areaCode: 'HCM1',
@@ -898,7 +943,52 @@ describe('UserService admin store management', () => {
   });
 
   it('generates personnel codes from SR, area, and region scope', async () => {
-    installUserScopeTreeMock();
+    const org = installUserScopeTreeMock();
+    org.saveNode({
+      id: 'org-store-cp62-pos-sa',
+      code: 'STORE_CP62_POS_SA',
+      businessCode: 'SA',
+      displayName: 'Nhân viên Bán hàng',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 20,
+    });
+    org.saveNode({
+      id: 'org-store-cp62-pos-manager',
+      code: 'STORE_CP62_POS_STORE_MANAGER',
+      businessCode: 'STORE_MANAGER',
+      displayName: 'Quản lý Cửa hàng',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 10,
+    });
+    org.saveNode({
+      id: 'org-area-hcm-pos-manager',
+      code: 'AREA_HCM_POS_AREA_MANAGER',
+      businessCode: 'AREA_MANAGER',
+      displayName: 'Quản lý Vùng',
+      type: 'JOB_ROLE',
+      parentId: 'org-area-hcm',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 10,
+    });
+    org.saveNode({
+      id: 'org-region-chatsale-pos-chatsale',
+      code: 'REGION_CHATSALE_POS_CHATSALE',
+      businessCode: 'CHATSALE',
+      displayName: 'Chatsale',
+      type: 'JOB_ROLE',
+      parentId: 'org-region-chatsale',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 10,
+    });
+
     await expect(
       service.adminCreateUser(superAdmin, {
         email: 'sale@phongvu.vn',
@@ -907,13 +997,13 @@ describe('UserService admin store management', () => {
         departmentCode: 'SALES',
         jobRoleCode: 'SALE',
         workScopeType: 'STORE',
-        organizationNodeId: 'org-store-cp62',
+        organizationNodeId: 'org-store-cp62-pos-sa',
       }),
     ).resolves.toMatchObject({
-      personnelCode: 'SALE_CP62_HCM_MN',
+      personnelCode: 'SA_CP62_HCM_MN',
       areaCode: 'HCM',
       regionCode: 'MIEN_NAM',
-      organizationNodeId: 'org-store-cp62',
+      organizationNodeId: 'org-store-cp62-pos-sa',
     });
 
     await expect(
@@ -924,7 +1014,7 @@ describe('UserService admin store management', () => {
         departmentCode: 'MANAGEMENT',
         jobRoleCode: 'STORE_MANAGER',
         workScopeType: 'STORE',
-        organizationNodeId: 'org-store-cp62',
+        organizationNodeId: 'org-store-cp62-pos-manager',
       }),
     ).resolves.toMatchObject({ personnelCode: 'STORE_MANAGER_CP62_HCM_MN' });
 
@@ -936,7 +1026,7 @@ describe('UserService admin store management', () => {
         departmentCode: 'MANAGEMENT',
         jobRoleCode: 'AREA_MANAGER',
         workScopeType: 'AREA',
-        organizationNodeId: 'org-area-hcm',
+        organizationNodeId: 'org-area-hcm-pos-manager',
       }),
     ).resolves.toMatchObject({ personnelCode: 'AREA_MANAGER_HCM_HCM_MN' });
 
@@ -948,7 +1038,7 @@ describe('UserService admin store management', () => {
         departmentCode: 'SALES',
         jobRoleCode: 'CHATSALE',
         workScopeType: 'REGION',
-        organizationNodeId: 'org-region-chatsale',
+        organizationNodeId: 'org-region-chatsale-pos-chatsale',
       }),
     ).resolves.toMatchObject({
       personnelCode: 'CHATSALE_CHATSALE_CHATSALE_CHATSALE',
@@ -1186,6 +1276,65 @@ describe('UserService admin store management', () => {
     expect(nodes).toEqual(
       expect.arrayContaining([expect.objectContaining({ code: 'STORE_CP62' })]),
     );
+    expect(
+      ['STORE_MANAGER', 'SA', 'TECHNICIAN', 'CASH', 'WAREHOUSE'].map(
+        (code) =>
+          Array.from(org.nodesById.values()).find(
+            (node) =>
+              node.parentId === storeNode.id &&
+              node.type === 'LV5_POSITION' &&
+              node.businessCode === code,
+          )?.displayName,
+      ),
+    ).toEqual([
+      'Quản lý Cửa hàng',
+      'Nhân viên Bán hàng',
+      'Kỹ thuật viên',
+      'Nhân viên Thu ngân',
+      'Nhân viên Kho',
+    ]);
+  });
+
+  it('keeps the selected Lv5 position as the user organization node', async () => {
+    const org = installUserScopeTreeMock();
+    const positionNode = org.saveNode({
+      id: 'org-store-cp62-pos-sa',
+      code: 'STORE_CP62_POS_SA',
+      businessCode: 'SA',
+      displayName: 'Nhân viên Bán hàng',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 20,
+    });
+
+    await expect(
+      service.adminCreateUser(superAdmin, {
+        email: 'sa@phongvu.vn',
+        firstName: 'Sale',
+        role: 'USER',
+        organizationNodeId: positionNode.id,
+        featureTreeCodes: [],
+      }),
+    ).resolves.toMatchObject({
+      departmentCode: 'SALES',
+      jobRoleCode: 'SA',
+      storeId: 'CP62',
+      organizationNodeId: positionNode.id,
+      personnelCode: 'SA_CP62_HCM_MN',
+    });
+
+    expect(prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          store: { connect: { id: 'store-62' } },
+          department: { connect: { code: 'SALES' } },
+          jobRole: { connect: { code: 'SA' } },
+          organizationNode: { connect: { id: positionNode.id } },
+        }),
+      }),
+    );
   });
 
   it('keeps the linked showroom organization node in place when legacy SR area changes', async () => {
@@ -1232,8 +1381,28 @@ describe('UserService admin store management', () => {
         }),
       }),
     );
+    const storeSubtreeIds = Array.from(org.nodesById.values())
+      .filter(
+        (node) => node.id === 'org-store-cp01' || node.parentId === 'org-store-cp01',
+      )
+      .map((node) => node.id);
+    expect(storeSubtreeIds).toEqual(
+      expect.arrayContaining([
+        'org-store-cp01',
+        'org-store-cp01-pos-sa',
+        'org-store-cp01-pos-cash',
+        'org-store-cp01-pos-warehouse',
+      ]),
+    );
     expect(prisma.user.updateMany).toHaveBeenCalledWith({
-      where: { storeId: 'store-1', workScopeType: 'STORE' },
+      where: {
+        storeId: 'store-1',
+        workScopeType: 'STORE',
+        OR: [
+          { organizationNodeId: null },
+          { organizationNodeId: { notIn: storeSubtreeIds } },
+        ],
+      },
       data: {
         organizationNodeId: 'org-store-cp01',
         areaCode: null,

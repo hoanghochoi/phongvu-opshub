@@ -69,6 +69,11 @@ basic administration for privileged roles.
   the related `Store` row without overwriting existing SR identity, payment,
   transfer, or MAP fields unless those fields are explicitly edited in the Lv4
   store editor.
+- Each active Lv4 store has five fixed Lv5 position children: `STORE_MANAGER`
+  (`Quản lý Cửa hàng`), `SA` (`Nhân viên Bán hàng`), `TECHNICIAN` (`Kỹ thuật
+  viên`), `CASH` (`Nhân viên Thu ngân`), and `WAREHOUSE` (`Nhân viên Kho`).
+  New store nodes create these positions automatically; existing store nodes are
+  backfilled when the store tree sync runs.
 - Feature management keeps feature definitions and legacy feature rules for
   reference/backfill, but the primary runtime gate is now the user feature
   assignment allowlist. Feature rule create/edit in the app uses organization
@@ -108,10 +113,15 @@ basic administration for privileged roles.
   not user-editor inputs.
 - Default departments are management, sales, cashier, technical, warehouse,
   back office, and executive.
-- Default job roles include `STORE_MANAGER`, `SALE`, `CHATSALE`, `TELESALE`,
-  `CASHIER`, `TECHNICIAN`, `WAREHOUSE`, `AREA_MANAGER`, `REGIONAL_MANAGER`,
-  back office, BOD, and CEO. These are operational personnel roles, separate
-  from the three fixed system access roles.
+- Default job roles include the fixed store positions `STORE_MANAGER`, `SA`,
+  `TECHNICIAN`, `CASH`, and `WAREHOUSE`, plus rollout compatibility roles such
+  as `CHATSALE`, `TELESALE`, `AREA_MANAGER`, `REGIONAL_MANAGER`, back office,
+  BOD, and CEO. These are operational personnel roles, separate from the three
+  fixed system access roles.
+- Payment speaker polling/audio/ack is limited to staff assigned directly to
+  active Lv5 positions with business code `SA` or `CASH`. Other positions can
+  still use allowed store/runtime views but do not receive or acknowledge
+  payment audio notifications.
 - Work scope values are `NATIONAL`, `REGION`, `AREA`, and `STORE`.
   `MULTI_STORE` is not accepted. Legacy `ONLINE` is migrated to
   `REGION + CHATSALE` and is not exposed in the public contract.
@@ -121,7 +131,7 @@ basic administration for privileged roles.
 - `CHATSALE` and `TELESALE` are virtual Region-level scopes.
 - The API returns a generated `personnelCode` for debugging and future task
   routing in the format `JOBROLE_SR_AREA_REGION`. Examples:
-  `SALE_CP62_HCM_MN`, `STORE_MANAGER_CP62_HCM_MN`,
+  `SA_CP62_HCM_MN`, `STORE_MANAGER_CP62_HCM_MN`,
   `AREA_MANAGER_HCM_HCM_MN`, `CHATSALE_CHATSALE_CHATSALE_CHATSALE`, and
   `OPS_NATIONAL_NATIONAL_NATIONAL`.
 - Task assignment itself is not implemented in this slice. This slice only

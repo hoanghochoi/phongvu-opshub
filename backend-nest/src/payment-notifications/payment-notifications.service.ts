@@ -33,6 +33,10 @@ const DEFAULT_TTS_PITCH = 1.0;
 const DEFAULT_DELIVERY_CLAIM_TTL_SECONDS = 120;
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
+const PAYMENT_SPEAKER_ORG_TYPE = 'LV5_POSITION';
+const PAYMENT_SPEAKER_POSITION_CODES = new Set(['SA', 'CASH']);
+const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE =
+  'Chỉ vị trí SA hoặc CASH mới được dùng đọc loa tiền vào';
 
 type StoredTransaction = {
   id: string;
@@ -94,6 +98,9 @@ export class PaymentNotificationsService {
     const clientId = query.clientId?.trim();
     if (!clientId) {
       throw new ForbiddenException('Thiếu mã thiết bị');
+    }
+    if (!(await this.userCanUsePaymentSpeaker(user, 'ready'))) {
+      return { list: [] };
     }
     const storeCode = await this.resolveNotificationStore(
       user,
@@ -187,6 +194,7 @@ export class PaymentNotificationsService {
       where: { id: notificationId },
     });
     if (!notification) throw new NotFoundException('Không tìm thấy thông báo');
+    await this.assertUserCanUsePaymentSpeaker(user, 'audio');
     await this.assertUserCanAccessStore(user, notification.storeCode);
     if (notification.audioStatus !== 'READY' || !notification.audioPath) {
       throw new NotFoundException('Audio chưa sẵn sàng');
@@ -208,6 +216,7 @@ export class PaymentNotificationsService {
       where: { id: notificationId },
     });
     if (!notification) throw new NotFoundException('Không tìm thấy thông báo');
+    await this.assertUserCanUsePaymentSpeaker(user, 'ack');
     await this.assertUserCanAccessStore(user, notification.storeCode);
     await this.logDeliveryEvent({
       notificationId,
@@ -391,6 +400,53 @@ export class PaymentNotificationsService {
     });
   }
 
+  private async assertUserCanUsePaymentSpeaker(user: any, source: string) {
+    if (await this.userCanUsePaymentSpeaker(user, source)) return;
+    throw new ForbiddenException(PAYMENT_SPEAKER_FORBIDDEN_MESSAGE);
+  }
+
+  private async userCanUsePaymentSpeaker(user: any, source: string) {
+    const organizationNodeId =
+      typeof user?.organizationNodeId === 'string'
+        ? user.organizationNodeId.trim()
+        : '';
+    if (!organizationNodeId) {
+      this.logger.debug(
+        `Payment speaker denied source=${source} user=${this.safeUserLabel(user)} reason=missing_org_node`,
+      );
+      return false;
+    }
+
+    const organizationNode = await this.prisma.organizationNode.findUnique({
+      where: { id: organizationNodeId },
+      select: {
+        id: true,
+        type: true,
+        businessCode: true,
+        code: true,
+        isActive: true,
+      },
+    });
+    const positionCode = this.normalizeSpeakerPositionCode(
+      organizationNode?.businessCode || organizationNode?.code,
+    );
+    const allowed =
+      organizationNode?.isActive === true &&
+      organizationNode.type === PAYMENT_SPEAKER_ORG_TYPE &&
+      PAYMENT_SPEAKER_POSITION_CODES.has(positionCode);
+
+    this.logger.debug(
+      `Payment speaker ${allowed ? 'allowed' : 'denied'} source=${source} user=${this.safeUserLabel(user)} orgNode=${organizationNode?.id ?? 'none'} type=${organizationNode?.type ?? 'none'} position=${positionCode || 'none'}`,
+    );
+    return allowed;
+  }
+
+  private normalizeSpeakerPositionCode(value: unknown) {
+    return String(value || '')
+      .trim()
+      .toUpperCase();
+  }
+
   private async assertUserCanAccessStore(user: any, storeCode: string) {
     if (
       await this.policyService.canAccessPolicy(
@@ -560,5 +616,11 @@ export class PaymentNotificationsService {
     const normalized = clientId.trim();
     if (normalized.length <= 12) return normalized;
     return `${normalized.slice(0, 8)}...${normalized.slice(-4)}`;
+  }
+
+  private safeUserLabel(user: any) {
+    const raw = String(user?.id || user?.email || 'unknown').trim();
+    if (raw.length <= 16) return raw;
+    return `${raw.slice(0, 8)}...${raw.slice(-4)}`;
   }
 }

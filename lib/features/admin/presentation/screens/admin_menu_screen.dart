@@ -35,29 +35,13 @@ class AdminMenuScreen extends StatelessWidget {
           color: AppColors.violet600,
           onTap: () => context.push('/admin/roles'),
         ),
-      if (canUse('ADMIN_REGIONS'))
+      if (canUse('ADMIN_USERS'))
         AppFeatureAction(
           icon: Icons.account_tree_outlined,
           title: 'Cơ cấu tổ chức',
           description: 'Logic tree Lv0-Lv5',
           color: AppColors.info,
           onTap: () => context.push('/admin/organization'),
-        ),
-      if (canUse('ADMIN_PERSONNEL'))
-        AppFeatureAction(
-          icon: Icons.badge_outlined,
-          title: 'Phòng ban & Chức danh',
-          description: 'Catalog nhân sự',
-          color: AppColors.purple600,
-          onTap: () => context.push('/admin/personnel'),
-        ),
-      if (canUse('ADMIN_FEATURES'))
-        AppFeatureAction(
-          icon: Icons.rule_folder_outlined,
-          title: 'Quản lý tính năng',
-          description: 'Bật/tắt theo rule',
-          color: AppColors.error,
-          onTap: () => context.push('/admin/features'),
         ),
       if (canUse('ADMIN_POLICIES'))
         AppFeatureAction(

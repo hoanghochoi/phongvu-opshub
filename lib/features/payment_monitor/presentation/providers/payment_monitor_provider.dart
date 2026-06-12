@@ -74,6 +74,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
   int _pollFailureCount = 0;
   DateTime? _nextPollAllowedAt;
   PaymentSpeakerError? _speakerError;
+  bool _listOnlyLoadRequested = false;
+  String? _lastSpeakerEligibilityLogKey;
 
   PaymentMonitorProvider(
     this._repository,
@@ -102,11 +104,19 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool get canGoNextPage => (_pageIndex + 1) * _pageSize < _totalTransactions;
   bool get canMonitorOnThisDevice => _canMonitorOnThisDevice;
   bool get hasMonitorScope => _hasMonitorScope;
+  bool get canUsePaymentSpeaker => _canUsePaymentSpeaker;
   List<MapPaymentTransaction> get latestTransactions =>
       List.unmodifiable(_latestTransactions);
 
   void syncAuth(User? user, {required bool isInitialized}) {
+    final previousUserKey = _userSessionKey(_user);
+    final nextUserKey = _userSessionKey(user);
     _user = user;
+    if (previousUserKey != nextUserKey) {
+      _listOnlyLoadRequested = false;
+      _lastSpeakerEligibilityLogKey = null;
+      _latestTransactions.clear();
+    }
     if (!_isSpeakerPreferenceLoaded) return;
     if (!isInitialized || user == null || !_canMonitorOnThisDevice) {
       _stop(reason: 'auth_or_device_unavailable');
@@ -116,6 +126,18 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   Future<void> setSpeakerEnabled(bool value) async {
+    if (!_canUsePaymentSpeaker) {
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment speaker preference change ignored for ineligible job role',
+        context: {
+          'storeId': _requestStoreId ?? _user?.storeId,
+          'jobRoleCode': _normalizedJobRoleCode(_user),
+          'speakerEligible': false,
+        },
+      );
+      return;
+    }
     if (_isSpeakerEnabled == value) return;
     _isSpeakerEnabled = value;
     _isSpeakerPreferenceLoaded = true;
@@ -246,6 +268,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool get _canMonitorOnThisDevice =>
       AppPlatformCapabilities.isPaymentMonitorSupported();
 
+  bool get _canUsePaymentSpeaker {
+    final jobRoleCode = _normalizedJobRoleCode(_user);
+    return jobRoleCode == 'SA' || jobRoleCode == 'CASH';
+  }
+
   bool get _hasMonitorScope {
     final user = _user;
     if (user == null) return false;
@@ -259,6 +286,55 @@ class PaymentMonitorProvider extends ChangeNotifier {
     return null;
   }
 
+  static String? _normalizedJobRoleCode(User? user) {
+    final value = user?.jobRoleCode?.trim().toUpperCase();
+    if (value == null || value.isEmpty) return null;
+    return value;
+  }
+
+  static String? _userSessionKey(User? user) {
+    if (user == null) return null;
+    return [
+      user.id ?? user.email,
+      user.storeId ?? '',
+      user.role ?? '',
+      _normalizedJobRoleCode(user) ?? '',
+    ].join('|');
+  }
+
+  void _logSpeakerEligibility({
+    required bool eligible,
+    required String reason,
+  }) {
+    final jobRoleCode = _normalizedJobRoleCode(_user);
+    final storeId = _requestStoreId ?? _user?.storeId;
+    final key = [
+      eligible,
+      reason,
+      _user?.id ?? _user?.email ?? '',
+      storeId ?? '',
+      jobRoleCode ?? '',
+    ].join('|');
+    if (_lastSpeakerEligibilityLogKey == key) return;
+    _lastSpeakerEligibilityLogKey = key;
+    unawaited(
+      AppLogger.instance.info(
+        'PaymentMonitor',
+        eligible
+            ? 'Payment speaker polling eligible'
+            : 'Payment speaker polling skipped for ineligible job role',
+        context: {
+          'speakerEligible': eligible,
+          'reason': reason,
+          'storeId': storeId,
+          'hasScope': _hasMonitorScope,
+          'jobRoleCode': jobRoleCode,
+          'listOnly': !eligible,
+        },
+      ),
+    );
+  }
+
   void _reconcile() {
     if (!_canMonitorOnThisDevice) {
       _stop(reason: 'unsupported_device');
@@ -268,6 +344,16 @@ class PaymentMonitorProvider extends ChangeNotifier {
       _stop(reason: 'missing_scope');
       return;
     }
+    if (!_canUsePaymentSpeaker) {
+      _stopSpeakerPolling(reason: 'ineligible_job_role');
+      _logSpeakerEligibility(eligible: false, reason: 'ineligible_job_role');
+      if (!_listOnlyLoadRequested && !_isLoading) {
+        _listOnlyLoadRequested = true;
+        _poll(force: true);
+      }
+      return;
+    }
+    _logSpeakerEligibility(eligible: true, reason: 'eligible_job_role');
     if (_isActive) return;
     _isActive = true;
     _notificationCheckpointAt = DateTime.now().toUtc().subtract(
@@ -283,8 +369,34 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   void _restart() {
+    _listOnlyLoadRequested = false;
     _stop(reason: 'restart');
     _reconcile();
+  }
+
+  void _stopSpeakerPolling({required String reason}) {
+    _timer?.cancel();
+    _timer = null;
+    final shouldNotify = _isActive || _speakerError != null;
+    _isActive = false;
+    _notificationCheckpointAt = null;
+    _loggedMonitorStarted = false;
+    _pollFailureCount = 0;
+    _nextPollAllowedAt = null;
+    _terminalNotificationIds.clear();
+    _speakerError = null;
+    if (shouldNotify) {
+      AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment speaker polling stopped',
+        context: {
+          'reason': reason,
+          'storeId': _requestStoreId ?? _user?.storeId,
+          'jobRoleCode': _normalizedJobRoleCode(_user),
+        },
+      );
+      notifyListeners();
+    }
   }
 
   void _stop({required String reason, bool clearError = true}) {
@@ -303,6 +415,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _loggedMonitorStarted = false;
     _pollFailureCount = 0;
     _nextPollAllowedAt = null;
+    _listOnlyLoadRequested = false;
+    _lastSpeakerEligibilityLogKey = null;
     _terminalNotificationIds.clear();
     _latestTransactions.clear();
     if (clearError) _errorMessage = null;
@@ -326,19 +440,26 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    var phase = 'client_id';
+    var phase = 'stored_transactions';
     try {
-      final clientId = await _ensureClientId();
-      if (!_loggedMonitorStarted) {
-        _loggedMonitorStarted = true;
-        await AppLogger.instance.info(
-          'PaymentMonitor',
-          'Payment monitor started',
-          context: {
-            'storeId': _requestStoreId ?? _user?.storeId,
-            'checkpointAt': _notificationCheckpointAt?.toIso8601String(),
-          },
-        );
+      final speakerEligible = _canUsePaymentSpeaker;
+      String? clientId;
+      if (speakerEligible) {
+        phase = 'client_id';
+        clientId = await _ensureClientId();
+        if (!_loggedMonitorStarted) {
+          _loggedMonitorStarted = true;
+          await AppLogger.instance.info(
+            'PaymentMonitor',
+            'Payment monitor started',
+            context: {
+              'storeId': _requestStoreId ?? _user?.storeId,
+              'checkpointAt': _notificationCheckpointAt?.toIso8601String(),
+              'jobRoleCode': _normalizedJobRoleCode(_user),
+              'speakerEligible': true,
+            },
+          );
+        }
       }
       phase = 'stored_transactions';
       final transactionPage = await _repository.fetchStoredTransactions(
@@ -348,34 +469,36 @@ class PaymentMonitorProvider extends ChangeNotifier {
         page: _pageIndex,
         limit: _pageSize,
       );
-      phase = 'ready_notifications';
-      final notifications = await _repository.fetchReadyNotifications(
-        clientId: clientId,
-        storeId: _requestStoreId,
-        afterCreatedAt: _notificationCheckpointAt,
-        limit: 3,
-      );
-      if (notifications.isNotEmpty) {
-        await AppLogger.instance.info(
-          'PaymentMonitor',
-          'Payment notifications fetched',
-          context: {
-            'count': notifications.length,
-            'notificationIds': notifications
-                .map((notification) => notification.notificationId)
-                .toList(),
-          },
+      if (speakerEligible) {
+        phase = 'ready_notifications';
+        final notifications = await _repository.fetchReadyNotifications(
+          clientId: clientId!,
+          storeId: _requestStoreId,
+          afterCreatedAt: _notificationCheckpointAt,
+          limit: 3,
         );
-        await AppLogger.instance.uploadLog(
-          'info',
-          'PaymentMonitor',
-          'Payment notifications fetched',
-          context: {'count': notifications.length},
-          storeCode: _requestStoreId,
-        );
+        if (notifications.isNotEmpty) {
+          await AppLogger.instance.info(
+            'PaymentMonitor',
+            'Payment notifications fetched',
+            context: {
+              'count': notifications.length,
+              'notificationIds': notifications
+                  .map((notification) => notification.notificationId)
+                  .toList(),
+            },
+          );
+          await AppLogger.instance.uploadLog(
+            'info',
+            'PaymentMonitor',
+            'Payment notifications fetched',
+            context: {'count': notifications.length},
+            storeCode: _requestStoreId,
+          );
+        }
+        phase = 'playback';
+        await _handleReadyNotifications(notifications, clientId);
       }
-      phase = 'playback';
-      await _handleReadyNotifications(notifications, clientId);
 
       _lastCheckedAt = DateTime.now();
       _pollFailureCount = 0;
@@ -447,6 +570,19 @@ class PaymentMonitorProvider extends ChangeNotifier {
     String clientId,
   ) async {
     if (notifications.isEmpty) return;
+    if (!_canUsePaymentSpeaker) {
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment notifications ignored because job role is not speaker eligible',
+        context: {
+          'count': notifications.length,
+          'clientId': clientId,
+          'storeCode': _requestStoreId ?? _user?.storeId,
+          'jobRoleCode': _normalizedJobRoleCode(_user),
+        },
+      );
+      return;
+    }
     if (!_isSpeakerEnabled) {
       await _silenceReadyNotifications(notifications, clientId);
       return;

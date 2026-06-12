@@ -50,8 +50,6 @@ void main() {
       lastName: ' Nguyen ',
       status: 'yes',
       role: 'USER',
-      departmentCode: 'SALES',
-      jobRoleCode: 'SALE',
       organizationNodeId: 'org-store-cp62',
       canEditRole: true,
       canEditFeatures: true,
@@ -64,6 +62,8 @@ void main() {
     expect(body['organizationNodeId'], 'org-store-cp62');
     expect(body['featureTreeCodes'], ['FIFO', 'ADMIN_USERS']);
     expect(body, isNot(contains('featureCodes')));
+    expect(body, isNot(contains('departmentCode')));
+    expect(body, isNot(contains('jobRoleCode')));
     expect(body, isNot(contains('storeId')));
     expect(body, isNot(contains('regionCode')));
     expect(body, isNot(contains('areaCode')));

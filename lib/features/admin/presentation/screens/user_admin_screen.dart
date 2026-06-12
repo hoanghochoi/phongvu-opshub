@@ -35,7 +35,6 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   final _searchController = TextEditingController();
   List<User> _users = [];
   List<AdminRoleDefinition> _roles = AdminRoles.definitions;
-  List<AdminPersonnelDefinition> _departments = [];
   List<AdminPersonnelDefinition> _jobRoles = [];
   List<AdminRegionDefinition> _regions = [];
   List<AdminAreaDefinition> _areas = [];
@@ -74,8 +73,6 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     setState(() => _loading = true);
     final currentUser = context.read<AuthProvider>().user;
     final canUseRoles = currentUser?.canUseFeature('ADMIN_ROLES') == true;
-    final canUsePersonnel =
-        currentUser?.canUseFeature('ADMIN_PERSONNEL') == true;
     final canUseUserScopeTree =
         currentUser?.role == 'SUPER_ADMIN' ||
         currentUser?.canUseFeature('ADMIN_USERS') == true;
@@ -89,7 +86,6 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         'role': currentUser?.role,
         'email': currentUser?.email,
         'canUseRoles': canUseRoles,
-        'canUsePersonnel': canUsePersonnel,
         'canUseUserScopeTree': canUseUserScopeTree,
         'canUseFeatures': canUseFeatures,
       },
@@ -107,12 +103,6 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         canUseRoles
             ? _repository.listAdminRoles()
             : Future.value(AdminRoles.definitions),
-        canUsePersonnel
-            ? _repository.listAdminDepartments()
-            : Future.value(<AdminPersonnelDefinition>[]),
-        canUsePersonnel
-            ? _repository.listAdminJobRoles()
-            : Future.value(<AdminPersonnelDefinition>[]),
         canUseFeatures
             ? _repository.listAdminFeatureTree()
             : Future.value(<AdminFeatureDefinition>[]),
@@ -124,12 +114,11 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       setState(() {
         _users = results[0] as List<User>;
         _roles = results[1] as List<AdminRoleDefinition>;
-        _departments = results[2] as List<AdminPersonnelDefinition>;
-        _jobRoles = results[3] as List<AdminPersonnelDefinition>;
+        _jobRoles = const <AdminPersonnelDefinition>[];
         _regions = const <AdminRegionDefinition>[];
         _areas = const <AdminAreaDefinition>[];
-        _features = results[4] as List<AdminFeatureDefinition>;
-        _orgNodes = results[5] as List<AdminOrganizationNode>;
+        _features = results[2] as List<AdminFeatureDefinition>;
+        _orgNodes = results[3] as List<AdminOrganizationNode>;
       });
       await AppLogger.instance.info(
         'Admin',
@@ -313,8 +302,6 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       builder: (context) => _UserEditorDialog(
         repository: _repository,
         roles: _roles,
-        departments: _departments,
-        jobRoles: _jobRoles,
         regions: _regions,
         areas: _areas,
         features: _features,
@@ -596,8 +583,6 @@ class _FilterDropdown<T> extends StatelessWidget {
 class _UserEditorDialog extends StatefulWidget {
   final AuthRepository repository;
   final List<AdminRoleDefinition> roles;
-  final List<AdminPersonnelDefinition> departments;
-  final List<AdminPersonnelDefinition> jobRoles;
   final List<AdminRegionDefinition> regions;
   final List<AdminAreaDefinition> areas;
   final List<AdminFeatureDefinition> features;
@@ -609,8 +594,6 @@ class _UserEditorDialog extends StatefulWidget {
   const _UserEditorDialog({
     required this.repository,
     required this.roles,
-    required this.departments,
-    required this.jobRoles,
     required this.regions,
     required this.areas,
     required this.features,
@@ -754,8 +737,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       lastName: _lastNameController.text,
       status: _status,
       role: _role,
-      departmentCode: _departmentCode,
-      jobRoleCode: _jobRoleCode,
       organizationNodeId: _organizationNodeId,
       canEditRole: widget.canEditRole,
       canEditFeatures: widget.canEditFeatures,
@@ -785,8 +766,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     addIfChanged('firstName', user.name, 'Tên');
     addIfChanged('lastName', user.lastName, 'Họ');
     addIfChanged('status', user.status, 'Trạng thái');
-    addIfChanged('departmentCode', user.departmentCode, 'Phòng ban');
-    addIfChanged('jobRoleCode', user.jobRoleCode, 'Chức danh');
     addIfChanged('organizationNodeId', user.organizationNodeId, 'Node tổ chức');
     if (widget.canEditRole) addIfChanged('role', user.role, 'Quyền hệ thống');
     if (widget.canEditFeatures) {
@@ -1031,12 +1010,22 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
 
   void _applyOrganizationNodeToState(AdminOrganizationNode? node) {
     _storeId = null;
+    _departmentCode = null;
+    _jobRoleCode = null;
     _regionCode = null;
     _areaCode = null;
     _workScopeType = _defaultScopeForRole(_role);
     if (node == null) return;
     _workScopeType = _scopeForNode(node);
     final code = node.businessCode ?? node.storeId ?? node.code;
+    if (node.type == 'LV2_DEPARTMENT') {
+      _departmentCode = code;
+    } else {
+      _departmentCode = _ancestorBusinessCode(node, 'LV2_DEPARTMENT');
+    }
+    if (node.type == 'LV5_POSITION') {
+      _jobRoleCode = code;
+    }
     if (node.type == 'LV2_REGION') {
       _regionCode = code;
     } else if (node.type == 'LV3_AREA') {
@@ -1079,6 +1068,29 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       parentId = value.parentId;
     }
     return null;
+  }
+
+  String _derivedDepartmentTitle() {
+    final node = _selectedOrganizationNode();
+    final departmentNode = node?.type == 'LV2_DEPARTMENT'
+        ? node
+        : node == null
+        ? null
+        : _ancestorNode(node, 'LV2_DEPARTMENT');
+    if (departmentNode != null) return _nodePersonnelTitle(departmentNode);
+    return _departmentCode?.isNotEmpty == true ? _departmentCode! : 'Chưa gán';
+  }
+
+  String _derivedJobRoleTitle() {
+    final node = _selectedOrganizationNode();
+    if (node?.type == 'LV5_POSITION') return _nodePersonnelTitle(node!);
+    return _jobRoleCode?.isNotEmpty == true ? _jobRoleCode! : 'Chưa gán';
+  }
+
+  String _nodePersonnelTitle(AdminOrganizationNode node) {
+    final code = node.businessCode ?? node.code;
+    if (code.isEmpty) return node.title;
+    return '${node.title} ($code)';
   }
 
   @override
@@ -1128,39 +1140,17 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                     labelText: 'Quyền hệ thống',
                   ),
                 ),
-              DropdownButtonFormField<String?>(
-                initialValue: _departmentCode,
+              TextFormField(
+                key: ValueKey('department-$_organizationNodeId'),
+                initialValue: _derivedDepartmentTitle(),
+                enabled: false,
                 decoration: const InputDecoration(labelText: 'Phòng ban'),
-                items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('Chưa gán'),
-                  ),
-                  ...widget.departments.map(
-                    (department) => DropdownMenuItem<String?>(
-                      value: department.code,
-                      child: Text(department.title),
-                    ),
-                  ),
-                ],
-                onChanged: (value) => setState(() => _departmentCode = value),
               ),
-              DropdownButtonFormField<String?>(
-                initialValue: _jobRoleCode,
+              TextFormField(
+                key: ValueKey('job-role-$_organizationNodeId'),
+                initialValue: _derivedJobRoleTitle(),
+                enabled: false,
                 decoration: const InputDecoration(labelText: 'Chức danh'),
-                items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('Chưa gán'),
-                  ),
-                  ...widget.jobRoles.map(
-                    (jobRole) => DropdownMenuItem<String?>(
-                      value: jobRole.code,
-                      child: Text(jobRole.title),
-                    ),
-                  ),
-                ],
-                onChanged: (value) => setState(() => _jobRoleCode = value),
               ),
               DropdownButtonFormField<String?>(
                 initialValue: _organizationNodeValue(),
