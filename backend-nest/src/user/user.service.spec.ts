@@ -274,6 +274,12 @@ describe('UserService admin store management', () => {
           ...create,
         });
       }),
+      create: jest.fn(async ({ data }: any) =>
+        saveNode({
+          id: data.id ?? nodeIdForCode(data.code),
+          ...data,
+        }),
+      ),
       findUnique: jest.fn(async ({ where }: any) => {
         if (where.id) return nodesById.get(where.id) ?? null;
         if (where.code) return nodesByCode.get(where.code) ?? null;
@@ -757,6 +763,49 @@ describe('UserService admin store management', () => {
       expect.arrayContaining(['org-domain-phongvu-vn', 'org-store-cp62']),
     );
   });
+
+  it('creates a region under a block organization node', async () => {
+    const org = installUserScopeTreeMock();
+    org.saveNode({
+      id: 'org-block-sales',
+      code: 'BLOCK_KINH_DOANH',
+      businessCode: 'KINH_DOANH',
+      displayName: 'Kinh Doanh',
+      type: 'BLOCK',
+      parentId: 'org-domain-phongvu-vn',
+      isSystem: false,
+      isActive: true,
+      sortOrder: 50,
+    });
+
+    await expect(
+      service.adminCreateOrganizationNode(superAdmin, {
+        displayName: 'Hồ Chí Minh - Bình Dương',
+        code: 'HCM-BD',
+        businessCode: 'HCM-BD',
+        type: 'REGION',
+        parentId: 'org-block-sales',
+        isActive: true,
+        sortOrder: 0,
+      }),
+    ).resolves.toMatchObject({
+      code: 'HCM_BD',
+      businessCode: 'HCM-BD',
+      type: 'REGION',
+      parentId: 'org-block-sales',
+    });
+
+    expect(prisma.regionDefinition.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: 'HCM_BD' },
+        create: expect.objectContaining({
+          code: 'HCM_BD',
+          organizationNodeId: 'org-hcm-bd',
+        }),
+      }),
+    );
+  });
+
   it('generates personnel codes from SR, area, and region scope', async () => {
     installUserScopeTreeMock();
     await expect(

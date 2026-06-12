@@ -811,9 +811,15 @@ class AuthRepository {
   Future<AdminOrganizationNode> createAdminOrganizationNode(
     AdminOrganizationNode node,
   ) async {
+    return createAdminOrganizationNodeBody(node.toJson());
+  }
+
+  Future<AdminOrganizationNode> createAdminOrganizationNodeBody(
+    Map<String, dynamic> body,
+  ) async {
     final response = await _apiClient.post(
       ApiConstants.adminOrgTreeNodesEndpoint,
-      body: node.toJson(),
+      body: body,
     );
     final created = AdminOrganizationNode.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,

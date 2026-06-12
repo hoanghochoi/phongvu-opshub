@@ -64,6 +64,9 @@ basic administration for privileged roles.
   only root nodes by default and expands children on click. Nodes with children,
   users, SRs, or other references are blocked from deletion and the API returns
   the blocking counts/reasons.
+- Region (`Mien`) nodes can be created under a root domain, subdomain, or block
+  node so the live tree can group sales blocks such as `Kinh Doanh` before
+  splitting into Region and Area nodes.
 - Feature management keeps feature definitions and legacy feature rules for
   reference/backfill, but the primary runtime gate is now the user feature
   assignment allowlist. Feature rule create/edit in the app uses organization
