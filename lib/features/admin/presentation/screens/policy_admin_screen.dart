@@ -820,18 +820,18 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
 
   String? _legacyNodeIdFor(AdminPolicyRule? rule) {
     if (rule == null) return null;
-    final storeNode = _nodeIdByTypeAndCode('SHOWROOM', rule.storeCode);
+    final storeNode = _nodeIdByTypeAndCode('LV4_STORE', rule.storeCode);
     if (storeNode != null) return storeNode;
-    final areaNode = _nodeIdByTypeAndCode('AREA', rule.areaCode);
+    final areaNode = _nodeIdByTypeAndCode('LV3_AREA', rule.areaCode);
     if (areaNode != null) return areaNode;
-    return _nodeIdByTypeAndCode('REGION', rule.regionCode);
+    return _nodeIdByTypeAndCode('LV2_REGION', rule.regionCode);
   }
 
   String? _nodeIdByTypeAndCode(String type, String? code) {
     final normalized = _normalizeLegacyCode(code);
     if (normalized == null) return null;
     for (final node in widget.organizationNodes) {
-      if (node.type != type) continue;
+      if (node.type != AdminOrganizationNode.canonicalType(type)) continue;
       final candidates = [
         node.businessCode,
         node.storeId,
@@ -852,21 +852,17 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
 
   String _legacyCodeFromNodeCode(String code) {
     return code
-        .replaceFirst(RegExp(r'^(REGION|AREA)_(PHONGVU|ACARE)_'), '')
+        .replaceFirst(
+          RegExp(r'^(LV2_REGION|LV3_AREA|REGION|AREA)_(PHONGVU|ACARE)_'),
+          '',
+        )
         .replaceFirst(RegExp(r'^STORE_'), '')
         .toUpperCase();
   }
 
   List<(String, String)> _organizationNodeItems() {
-    const allowedTypes = {
-      'ROOT_DOMAIN',
-      'SUBDOMAIN',
-      'REGION',
-      'AREA',
-      'SHOWROOM',
-    };
     return widget.organizationNodes
-        .where((node) => allowedTypes.contains(node.type))
+        .where((node) => node.isActive)
         .map(
           (node) => (
             node.id,

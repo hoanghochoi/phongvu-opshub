@@ -34,9 +34,6 @@ class ApiConstants {
   static const String adminRolesEndpoint = '/admin/roles';
   static const String adminDepartmentsEndpoint = '/admin/departments';
   static const String adminJobRolesEndpoint = '/admin/job-roles';
-  static const String adminRegionsEndpoint = '/admin/regions';
-  static const String adminAreasEndpoint = '/admin/areas';
-  static const String adminStoresEndpoint = '/admin/stores';
   static const String adminOrgTreeEndpoint = '/admin/org-tree';
   static const String adminOrgTreeNodesEndpoint = '/admin/org-tree/nodes';
   static const String featuresMeEndpoint = '/features/me';

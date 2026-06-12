@@ -39,7 +39,7 @@ class AdminMenuScreen extends StatelessWidget {
         AppFeatureAction(
           icon: Icons.account_tree_outlined,
           title: 'Cơ cấu tổ chức',
-          description: 'Miền, Vùng, showroom',
+          description: 'Logic tree Lv0-Lv5',
           color: AppColors.info,
           onTap: () => context.push('/admin/organization'),
         ),

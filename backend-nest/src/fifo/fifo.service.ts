@@ -9,6 +9,7 @@ import { FifoLogService } from '../fifo-log/fifo-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
+import { isAdminRole, isSuperAdminRole } from '../common/system-role';
 import {
   DISPLAY_RESERVED_BIN_TYPE,
   FifoInventoryItem,
@@ -310,7 +311,7 @@ export class FifoService {
   }
 
   private assertInventoryImportAdmin(user: any) {
-    if (user?.role !== 'ADMIN_PHONGVU' && user?.role !== 'SUPER_ADMIN') {
+    if (!isAdminRole(user?.role) && !isSuperAdminRole(user?.role)) {
       throw new ForbiddenException('Chỉ ADMIN trở lên được cập nhật tồn kho');
     }
   }

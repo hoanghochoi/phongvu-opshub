@@ -98,7 +98,7 @@ describe('AuthService', () => {
       firstName: data.firstName,
       lastName: data.lastName,
       password: data.password,
-      role: 'STAFF',
+      role: 'USER',
       status: 'yes',
       storeId: null,
       store: null,
@@ -119,7 +119,7 @@ describe('AuthService', () => {
       email: 'staff@phongvu-shop.vn',
       firstName: 'An',
       lastName: 'Nguyen',
-      role: 'STAFF',
+      role: 'USER',
     });
 
     expect(prisma.user.create).toHaveBeenCalledWith(
@@ -267,7 +267,7 @@ describe('AuthService', () => {
       email: 'staff@phongvu-shop.vn',
       firstName: 'An',
       password,
-      role: 'ADMIN_PHONGVU',
+      role: 'ADMIN',
       status: 'yes',
       storeId: 'store-1',
       store: { storeId: 'CP01', storeName: 'Chi nhanh 1' },
@@ -281,12 +281,12 @@ describe('AuthService', () => {
       email: 'staff@phongvu-shop.vn',
       firstName: 'An',
       storeId: 'CP01',
-      role: 'ADMIN_PHONGVU',
+      role: 'ADMIN',
     });
     expect(jwtService.sign).toHaveBeenCalledWith({
       email: 'staff@phongvu-shop.vn',
       sub: 'user-1',
-      role: 'ADMIN_PHONGVU',
+      role: 'ADMIN',
       storeUuid: 'store-1',
       storeCode: 'CP01',
       tokenVersion: 0,
@@ -300,7 +300,7 @@ describe('AuthService', () => {
     );
   });
 
-  it('normalizes legacy ADMIN role to ADMIN_PHONGVU in login response and token', async () => {
+  it('normalizes legacy ADMIN role to ADMIN in login response and token', async () => {
     const password = await bcrypt.hash('Password1!', 4);
     prisma.user.findUnique.mockResolvedValue({
       id: 'user-legacy-admin',
@@ -320,11 +320,11 @@ describe('AuthService', () => {
         loginDevice,
       ),
     ).resolves.toMatchObject({
-      role: 'ADMIN_PHONGVU',
+      role: 'ADMIN',
       workScopeType: 'NATIONAL',
     });
     expect(jwtService.sign).toHaveBeenCalledWith(
-      expect.objectContaining({ role: 'ADMIN_PHONGVU' }),
+      expect.objectContaining({ role: 'ADMIN' }),
     );
   });
 
@@ -455,7 +455,7 @@ describe('AuthService', () => {
     prisma.user.findUnique.mockResolvedValue({
       storeId: 'store-1',
       firstName: 'An',
-      role: 'ADMIN_PHONGVU',
+      role: 'ADMIN',
       store: { storeId: 'CP01', storeName: 'Chi nhanh 1' },
     });
 
@@ -466,7 +466,7 @@ describe('AuthService', () => {
       firstName: 'An',
       storeId: 'CP01',
       storeName: 'Chi nhanh 1',
-      role: 'ADMIN_PHONGVU',
+      role: 'ADMIN',
       mustSelectStore: false,
     });
   });

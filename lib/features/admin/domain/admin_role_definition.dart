@@ -22,7 +22,7 @@ class AdminRoleDefinition {
   });
 
   factory AdminRoleDefinition.fromJson(Map<String, dynamic> json) {
-    final code = json['code']?.toString() ?? 'STAFF';
+    final code = AdminRoles.normalize(json['code']?.toString());
     return AdminRoleDefinition(
       id: json['id']?.toString(),
       value: code,
@@ -43,10 +43,8 @@ class AdminRoleDefinition {
   static IconData _iconFor(String code) {
     return switch (code) {
       'SUPER_ADMIN' => Icons.verified_user_outlined,
-      'ADMIN_PHONGVU' => Icons.admin_panel_settings_outlined,
-      'ADMIN_ACARE' => Icons.admin_panel_settings_outlined,
-      'MANAGER' => Icons.manage_accounts_outlined,
-      'STAFF' => Icons.badge_outlined,
+      'ADMIN' => Icons.admin_panel_settings_outlined,
+      'USER' => Icons.badge_outlined,
       _ => Icons.security_outlined,
     };
   }
@@ -54,10 +52,8 @@ class AdminRoleDefinition {
   static Color _colorFor(String code) {
     return switch (code) {
       'SUPER_ADMIN' => AppColors.violet600,
-      'ADMIN_PHONGVU' => AppColors.info,
-      'ADMIN_ACARE' => AppColors.sky500,
-      'MANAGER' => AppColors.teal600,
-      'STAFF' => AppColors.neutral600,
+      'ADMIN' => AppColors.info,
+      'USER' => AppColors.neutral600,
       _ => AppColors.purple600,
     };
   }
@@ -75,29 +71,15 @@ class AdminRoles {
       color: AppColors.violet600,
     ),
     AdminRoleDefinition(
-      value: 'ADMIN_PHONGVU',
-      title: 'Admin Phong Vũ',
-      description: 'Quản lý người dùng và SR thuộc Phong Vũ',
+      value: 'ADMIN',
+      title: 'Admin',
+      description: 'Quản trị theo phạm vi cây tổ chức',
       icon: Icons.admin_panel_settings_outlined,
       color: AppColors.info,
     ),
     AdminRoleDefinition(
-      value: 'ADMIN_ACARE',
-      title: 'Admin ACare',
-      description: 'Quan ly user thuoc domain acare.vn',
-      icon: Icons.admin_panel_settings_outlined,
-      color: AppColors.sky500,
-    ),
-    AdminRoleDefinition(
-      value: 'MANAGER',
-      title: 'Manager',
-      description: 'Nhóm quyền quản lý vận hành',
-      icon: Icons.manage_accounts_outlined,
-      color: AppColors.teal600,
-    ),
-    AdminRoleDefinition(
-      value: 'STAFF',
-      title: 'Staff',
+      value: 'USER',
+      title: 'User',
       description: 'Quyền thao tác hằng ngày',
       icon: Icons.badge_outlined,
       color: AppColors.neutral600,
@@ -106,4 +88,13 @@ class AdminRoles {
 
   static List<String> get values =>
       definitions.map((definition) => definition.value).toList();
+
+  static String normalize(String? value) {
+    return switch ((value ?? '').trim().toUpperCase()) {
+      'SUPER_ADMIN' => 'SUPER_ADMIN',
+      'ADMIN' || 'ADMIN_PHONGVU' || 'ADMIN_ACARE' || 'MANAGER' => 'ADMIN',
+      'USER' || 'STAFF' => 'USER',
+      _ => 'USER',
+    };
+  }
 }

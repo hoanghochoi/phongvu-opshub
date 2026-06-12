@@ -28,10 +28,12 @@ basic administration for privileged roles.
   users can open only active features explicitly assigned to them. Policy rules
   still control capability and data scope, but they do not automatically open a
   feature that is not assigned to the user.
-- The administration menu contains user management, role management, SR
-  management, organization tree management, region/area management, personnel
-  catalog management, feature management, policy management, and manual FIFO
-  inventory import when the resolved feature map allows them.
+- The administration menu contains user management, read-only system role
+  management, Lv0-Lv5 organization tree management, personnel catalog
+  management, feature management, policy management, and manual FIFO inventory
+  import when the resolved feature map allows them. Legacy Region/Area/SR
+  administration screens are not exposed; their data is maintained through the
+  organization tree or runtime store flows.
 - Admin users can list, add, and edit users inside their permitted scope.
 - User management keeps name/email search and adds filters for domain,
   organization node, feature/screen, role, and status. `SUPER_ADMIN` can assign
@@ -39,34 +41,34 @@ basic administration for privileged roles.
   is submitted as `featureTreeCodes`; the backend expands selected child nodes
   to include their feature-tree ancestors before saving `UserFeatureAssignment`
   rows.
-- `ADMIN_PHONGVU` manages users and SRs under the `phongvu.vn` organization
-  root. `ADMIN_ACARE` manages users and SRs under the `acare.vn` root,
-  including accounts whose email ends with `@acare.vn`.
-- The backend migration renames the legacy system role `ADMIN` to
-  `ADMIN_PHONGVU`, keeps `ADMIN_ACARE` separate, and repairs the known `AC001`
-  store/org link when that data exists.
+- System access roles are fixed to `SUPER_ADMIN`, `ADMIN`, and `USER`.
+  `SUPER_ADMIN` can manage all roots. `ADMIN` is scoped by its assigned
+  organization root, with email-domain fallback during rollout. `USER` has no
+  administration surface by role alone.
+- The backend migration normalizes legacy role aliases during rollout:
+  `ADMIN`, `ADMIN_PHONGVU`, `ADMIN_ACARE`, and `MANAGER` become `ADMIN`;
+  `STAFF` becomes `USER`. Login, JWT, feature, and policy checks normalize
+  aliases so old tokens/imports do not break immediately.
 - Admin API `403 Forbidden` responses do not clear the local login session;
   only `401 Unauthorized` is treated as an auth failure.
-- Role management lists roles from the backend role catalog.
-- `SUPER_ADMIN` can add, edit, and delete custom roles.
-- System roles are seeded by the backend and cannot be deleted from the app.
-- Custom roles cannot be deleted while assigned to users.
-- SR management lists store code, store name, transfer account configuration,
-  and assigned area/region.
-- `SUPER_ADMIN` can add, edit, and delete SR rows.
-- SR rows cannot be deleted while assigned to users or feature rules.
-- Region/area management lets `SUPER_ADMIN` maintain Region (`Mien`) and Area
-  (`Vung`) catalogs with display name, abbreviation, active state, and delete
-  constraints.
-- Organization management lets `SUPER_ADMIN` maintain a tree with root domain,
-  subdomain, block, department, area, showroom, job role, and virtual scope
-  nodes. Default root domains are `phongvu.vn` and `acare.vn`; the app shows
-  only root nodes by default and expands children on click. Nodes with children,
-  users, SRs, or other references are blocked from deletion and the API returns
-  the blocking counts/reasons.
-- Region (`Mien`) nodes can be created under a root domain, subdomain, or block
-  node so the live tree can group sales blocks such as `Kinh Doanh` before
-  splitting into Region and Area nodes.
+- Role management lists the three fixed system roles from the backend role
+  catalog. Role create, update, and delete requests are rejected with a fixed
+  role message.
+- Legacy admin APIs `/admin/regions`, `/admin/areas`, and `/admin/stores`
+  return `410 Gone`. Runtime `/stores`, the `Store` table, payment account
+  fields, MAP credentials, FIFO, VietQR, and store selection remain compatible.
+- Organization management lets `SUPER_ADMIN` maintain the source-of-truth tree:
+  `LV0_DOMAIN`, `LV1_BLOCK`, `LV2_DEPARTMENT`, `LV2_REGION`, `LV3_AREA`,
+  `LV3_UNIT`, `LV4_STORE`, and `LV5_POSITION`. Lv0 is the highest level and
+  the only node without a parent; other nodes may attach to any active parent
+  with a lower level, so skipped levels such as `Lv0 -> Lv2 -> Lv3` are valid.
+  Subdomain nodes are retired from the active tree instead of hard-deleted.
+  Nodes with children, users, SRs, or other references are blocked from
+  deletion and the API returns the blocking counts/reasons.
+- Lv4 store nodes are the admin surface for SR/store metadata. Tree saves sync
+  the related `Store` row without overwriting existing SR identity, payment,
+  transfer, or MAP fields unless those fields are explicitly edited in the Lv4
+  store editor.
 - Feature management keeps feature definitions and legacy feature rules for
   reference/backfill, but the primary runtime gate is now the user feature
   assignment allowlist. Feature rule create/edit in the app uses organization
@@ -78,37 +80,38 @@ basic administration for privileged roles.
   organization tree nodes instead of legacy Region/Area/SR selectors. Auth
   domain, password policy, and OTP policy settings are managed from the policy
   settings tab and can store JSON object or array values.
-- `ADMIN_PHONGVU` and `ADMIN_ACARE` can reset passwords only for users inside
-  their organization scope and cannot reset `SUPER_ADMIN`.
+- `ADMIN` can reset passwords only for users inside their organization scope
+  and cannot reset `SUPER_ADMIN`.
 - `SUPER_ADMIN` can manage all users.
-- `MANAGER` can open administration for their own showroom scope.
+- Legacy `MANAGER` users normalize to `ADMIN` during rollout; new system role
+  assignment uses only `SUPER_ADMIN`, `ADMIN`, or `USER`.
 - `SUPER_ADMIN` can assign or change user roles and personnel scope after
-  registration; users do not choose role, Region, Area, Chatsale, or Telesale
-  during registration.
+  registration; users do not choose role, organization node, Region, Area,
+  Chatsale, or Telesale during registration.
 - Store administration can keep a VietinBank MAP username plus an encrypted MAP
-  password for later transaction reconciliation. `ADMIN_PHONGVU` and
-  `ADMIN_ACARE` may edit only those MAP credential fields for SRs in scope;
-  they cannot edit transfer account number/name, bank, BIN, SR code/name, or
-  Region/Area without separate privileges. The API returns whether a MAP
-  password exists, but never returns the password itself.
+  password for later transaction reconciliation. Scoped `ADMIN` users may edit
+  only those MAP credential fields for Lv4 stores in scope; they cannot edit
+  transfer account number/name, bank, BIN, SR code/name, or Region/Area without
+  separate privileges. The API returns whether a MAP password exists, but never
+  returns the password itself.
 
 ## Personnel Scope And Catalogs
 
 - System access role remains separate from operational personnel assignment.
   `User.role` continues to control app/admin permissions.
-- Admin user management can assign department, job role, and work scope for
-  future task assignment.
+- Admin user management can assign department, job role, and organization node
+  for future task assignment. The editor sends `organizationNodeId` as the
+  primary assignment input.
 - User work-scope assignment uses the organization tree as the source of truth:
-  `NATIONAL` selects a root domain unless `SUPER_ADMIN` is intentionally global,
-  `STORE` selects a showroom node, and `REGION`/`AREA` select active tree nodes
-  only when those node types exist. Legacy `storeId`, `regionCode`, and
-  `areaCode` remain derived backend/runtime fields, not user-editor inputs.
+  any active Lv0-Lv5 node can contain users/staff. Legacy `workScopeType`,
+  `storeId`, `regionCode`, and `areaCode` remain derived backend/runtime fields,
+  not user-editor inputs.
 - Default departments are management, sales, cashier, technical, warehouse,
   back office, and executive.
 - Default job roles include `STORE_MANAGER`, `SALE`, `CHATSALE`, `TELESALE`,
   `CASHIER`, `TECHNICIAN`, `WAREHOUSE`, `AREA_MANAGER`, `REGIONAL_MANAGER`,
-  back office, BOD, and CEO. The system access role code `MANAGER` is not
-  renamed.
+  back office, BOD, and CEO. These are operational personnel roles, separate
+  from the three fixed system access roles.
 - Work scope values are `NATIONAL`, `REGION`, `AREA`, and `STORE`.
   `MULTI_STORE` is not accepted. Legacy `ONLINE` is migrated to
   `REGION + CHATSALE` and is not exposed in the public contract.

@@ -55,11 +55,21 @@ class User {
     this.mustSelectStore = false,
   });
 
-  static bool isAdminRole(String? role) =>
-      role == 'ADMIN_PHONGVU' || role == 'ADMIN_ACARE' || role == 'SUPER_ADMIN';
+  static String normalizeRole(String? role) {
+    return switch ((role ?? '').trim().toUpperCase()) {
+      'SUPER_ADMIN' => 'SUPER_ADMIN',
+      'ADMIN' || 'ADMIN_PHONGVU' || 'ADMIN_ACARE' || 'MANAGER' => 'ADMIN',
+      'USER' || 'STAFF' => 'USER',
+      _ => 'USER',
+    };
+  }
 
-  static bool isAdminMenuRole(String? role) =>
-      isAdminRole(role) || role == 'MANAGER';
+  static bool isAdminRole(String? role) {
+    final normalized = normalizeRole(role);
+    return normalized == 'SUPER_ADMIN' || normalized == 'ADMIN';
+  }
+
+  static bool isAdminMenuRole(String? role) => isAdminRole(role);
   factory User.fromJson(Map<String, dynamic> json, {String? fallbackEmail}) {
     return User(
       id: json['id']?.toString(),
@@ -70,7 +80,7 @@ class User {
       avatarUrl: json['avatarUrl']?.toString(),
       storeId: json['storeId']?.toString(),
       storeName: json['storeName']?.toString(),
-      role: json['role']?.toString(),
+      role: normalizeRole(json['role']?.toString()),
       status: json['status']?.toString(),
       departmentCode: json['departmentCode']?.toString(),
       jobRoleCode: json['jobRoleCode']?.toString(),

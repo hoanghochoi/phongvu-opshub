@@ -39,7 +39,7 @@ void main() {
 
       expect(paths.single, endsWith('/admin/users/scope-tree'));
       expect(nodes.single.id, 'org-domain-phongvu-vn');
-      expect(nodes.single.type, 'ROOT_DOMAIN');
+      expect(nodes.single.type, 'LV0_DOMAIN');
     },
   );
 
@@ -49,10 +49,9 @@ void main() {
       firstName: ' An ',
       lastName: ' Nguyen ',
       status: 'yes',
-      role: 'STAFF',
+      role: 'USER',
       departmentCode: 'SALES',
       jobRoleCode: 'SALE',
-      workScopeType: 'STORE',
       organizationNodeId: 'org-store-cp62',
       canEditRole: true,
       canEditFeatures: true,
@@ -62,7 +61,6 @@ void main() {
     expect(body['email'], 'staff@phongvu.vn');
     expect(body['firstName'], 'An');
     expect(body['lastName'], 'Nguyen');
-    expect(body['workScopeType'], 'STORE');
     expect(body['organizationNodeId'], 'org-store-cp62');
     expect(body['featureTreeCodes'], ['FIFO', 'ADMIN_USERS']);
     expect(body, isNot(contains('featureCodes')));
@@ -79,7 +77,7 @@ void main() {
         code: 'HCM-BD',
         title: 'Ho Chi Minh - Binh Duong',
         businessCode: 'HCM-BD',
-        type: 'REGION',
+        type: 'LV2_REGION',
         parentId: 'org-block-sales',
         storeId: 'HCM-BD',
         storeName: 'Ho Chi Minh - Binh Duong',
@@ -96,7 +94,7 @@ void main() {
         code: 'STORE_CP62',
         title: 'CP62',
         businessCode: 'CP62',
-        type: 'SHOWROOM',
+        type: 'LV4_STORE',
         parentId: 'org-area-hcm',
         storeId: 'CP62',
         storeName: 'CP62',

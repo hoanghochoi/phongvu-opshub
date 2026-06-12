@@ -25,6 +25,17 @@ describe('UserService admin store management', () => {
     workScopeType: 'NATIONAL',
   };
   const manager = { role: 'MANAGER', storeId: 'store-1' };
+  const canonicalType = (type: string) =>
+    ({
+      ROOT_DOMAIN: 'LV0_DOMAIN',
+      BLOCK: 'LV1_BLOCK',
+      DEPARTMENT: 'LV2_DEPARTMENT',
+      REGION: 'LV2_REGION',
+      AREA: 'LV3_AREA',
+      VIRTUAL_SCOPE: 'LV3_UNIT',
+      SHOWROOM: 'LV4_STORE',
+      JOB_ROLE: 'LV5_POSITION',
+    })[type] ?? type;
   const region = {
     code: 'MIEN_NAM',
     displayName: 'Mien Nam',
@@ -257,9 +268,10 @@ describe('UserService admin store management', () => {
     const nodeIdForCode = (code: string) =>
       'org-' + code.toLowerCase().replace(/_/g, '-');
     const saveNode = (node: any) => {
-      nodesById.set(node.id, node);
-      nodesByCode.set(node.code, node);
-      return node;
+      const saved = { ...node, type: canonicalType(node.type) };
+      nodesById.set(saved.id, saved);
+      nodesByCode.set(saved.code, saved);
+      return saved;
     };
 
     prisma.organizationNode = {
@@ -294,21 +306,36 @@ describe('UserService admin store management', () => {
         return saveNode({ ...current, ...data, id: current.id });
       }),
       findMany: jest.fn(async (args?: any) => {
-        const allowedIds = args?.where?.id?.in
-          ? new Set<string>(args.where.id.in)
+        const clauses = [
+          args?.where,
+          ...((args?.where?.AND as any[] | undefined) ?? []),
+        ].filter(Boolean);
+        const idClause = clauses.find((clause: any) => clause?.id?.in);
+        const typeNotClause = clauses.find((clause: any) => clause?.type?.not);
+        const activeClause = clauses.find(
+          (clause: any) => clause?.isActive !== undefined,
+        );
+        const allowedIds = idClause?.id?.in
+          ? new Set<string>(idClause.id.in)
           : null;
+        const disallowedType = typeNotClause?.type?.not;
+        const activeValue = activeClause?.isActive;
         return Array.from(nodesById.values())
           .filter((node) => !allowedIds || allowedIds.has(node.id))
+          .filter((node) => !disallowedType || node.type !== disallowedType)
+          .filter(
+            (node) => activeValue === undefined || node.isActive === activeValue,
+          )
           .map((node) => ({
             ...node,
             _count: {
               children: 0,
               users: 0,
-              stores: node.type === 'SHOWROOM' ? 1 : 0,
+              stores: node.type === 'LV4_STORE' ? 1 : 0,
               departments: 0,
               jobRoles: 0,
-              regions: node.type === 'REGION' ? 1 : 0,
-              areas: node.type === 'AREA' ? 1 : 0,
+              regions: node.type === 'LV2_REGION' ? 1 : 0,
+              areas: node.type === 'LV3_AREA' ? 1 : 0,
             },
           }));
       }),
@@ -410,10 +437,13 @@ describe('UserService admin store management', () => {
     });
     return org;
   }
-  it('normalizes legacy ADMIN role input to ADMIN_PHONGVU', () => {
-    expect((service as any).normalizeRoleCode('ADMIN', true)).toBe(
-      'ADMIN_PHONGVU',
+  it('normalizes legacy admin role aliases to ADMIN', () => {
+    expect((service as any).normalizeRoleCode('ADMIN', true)).toBe('ADMIN');
+    expect((service as any).normalizeRoleCode('ADMIN_PHONGVU', true)).toBe(
+      'ADMIN',
     );
+    expect((service as any).normalizeRoleCode('MANAGER', true)).toBe('ADMIN');
+    expect((service as any).normalizeRoleCode('STAFF', true)).toBe('USER');
   });
 
   it('creates a store with normalized payment fields and default area', async () => {
@@ -562,7 +592,7 @@ describe('UserService admin store management', () => {
         workScopeType: 'STORE',
         organizationNodeId: 'org-store-ac001',
       }),
-    ).resolves.toMatchObject({ email: 'new@acare.vn', role: 'STAFF' });
+    ).resolves.toMatchObject({ email: 'new@acare.vn', role: 'USER' });
 
     await expect(
       service.adminCreateUser(adminAcare, {
@@ -791,7 +821,7 @@ describe('UserService admin store management', () => {
     ).resolves.toMatchObject({
       code: 'HCM_BD',
       businessCode: 'HCM-BD',
-      type: 'REGION',
+      type: 'LV2_REGION',
       parentId: 'org-block-sales',
     });
 
@@ -1085,7 +1115,7 @@ describe('UserService admin store management', () => {
     expect(org.nodesByCode.get('REGION_PHONGVU_MIEN_NAM')).toBeUndefined();
     expect(org.nodesByCode.get('AREA_PHONGVU_HCM')).toBeUndefined();
     expect(storeNode).toMatchObject({
-      type: 'SHOWROOM',
+      type: 'LV4_STORE',
       parentId: 'org-domain-phongvu-vn',
     });
     expect(prisma.store.update).toHaveBeenCalledWith({
@@ -1136,7 +1166,7 @@ describe('UserService admin store management', () => {
         where: { id: 'org-store-cp01' },
         data: expect.objectContaining({
           code: 'STORE_CP01',
-          type: 'SHOWROOM',
+          type: 'LV4_STORE',
           parentId: 'org-area-old',
         }),
       }),
@@ -1204,7 +1234,7 @@ describe('UserService admin store management', () => {
         where: { code: 'DOMAIN_PHONGVU_VN' },
         create: expect.objectContaining({
           id: 'org-domain-phongvu-vn',
-          type: 'ROOT_DOMAIN',
+          type: 'LV0_DOMAIN',
           emailDomain: 'phongvu.vn',
         }),
       }),

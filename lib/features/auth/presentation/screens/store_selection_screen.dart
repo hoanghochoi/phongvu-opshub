@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../domain/entities/store_branch.dart';
@@ -47,10 +48,30 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
 
   Future<void> _loadStores() async {
     final sequence = ++_loadSequence;
+    final startedAt = DateTime.now();
+    final query = _searchController.text.trim();
     setState(() => _loading = true);
+    await AppLogger.instance.info(
+      'StoreSelection',
+      'Store selection load started',
+      context: {'query': query.isEmpty ? null : query, 'sequence': sequence},
+    );
     try {
-      final stores = await _repository.getStores(query: _searchController.text);
-      if (!mounted || sequence != _loadSequence) return;
+      final stores = await _repository.getStores(query: query);
+      if (!mounted || sequence != _loadSequence) {
+        await AppLogger.instance.info(
+          'StoreSelection',
+          'Store selection load ignored',
+          context: {
+            'query': query.isEmpty ? null : query,
+            'sequence': sequence,
+            'activeSequence': _loadSequence,
+            'count': stores.length,
+            'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+          },
+        );
+        return;
+      }
       setState(() {
         _stores = stores;
         if (_selected != null &&
@@ -58,6 +79,31 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
           _selected = null;
         }
       });
+      await AppLogger.instance.info(
+        'StoreSelection',
+        'Store selection load succeeded',
+        context: {
+          'query': query.isEmpty ? null : query,
+          'sequence': sequence,
+          'count': stores.length,
+          'selectedStoreId': _selected?.storeId,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'StoreSelection',
+        'Store selection load failed',
+        error: error,
+        stackTrace: stackTrace,
+        upload: true,
+        context: {
+          'query': query.isEmpty ? null : query,
+          'sequence': sequence,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      rethrow;
     } finally {
       if (mounted && sequence == _loadSequence) {
         setState(() => _loading = false);

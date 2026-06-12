@@ -6,6 +6,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 class FifoMenuScreen extends StatelessWidget {
@@ -18,11 +19,7 @@ class FifoMenuScreen extends StatelessWidget {
     final role = user?.role ?? '';
     final canUseFifo = user?.canUseFeature('FIFO') == true;
     final canImportInventory = user?.canUseFeature('FIFO_IMPORT') == true;
-    final canViewHistory =
-        canUseFifo &&
-        (role == 'ADMIN_PHONGVU' ||
-            role == 'ADMIN_ACARE' ||
-            role == 'SUPER_ADMIN');
+    final canViewHistory = canUseFifo && User.isAdminRole(role);
     final actions = [
       if (canUseFifo)
         AppFeatureAction(

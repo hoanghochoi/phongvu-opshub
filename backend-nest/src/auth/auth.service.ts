@@ -23,6 +23,11 @@ import {
   getAllowedEmailDomains,
 } from './email-domain-policy';
 import { BREAK_GLASS_SUPER_ADMIN_EMAIL } from './break-glass-admin.constants';
+import {
+  SYSTEM_ROLE_ADMIN,
+  SYSTEM_ROLE_SUPER_ADMIN,
+  normalizeSystemRoleCode,
+} from '../common/system-role';
 
 const PASSWORD_SALT_ROUNDS = 12;
 const STORE_SCOPE = 'STORE';
@@ -30,10 +35,8 @@ const AREA_SCOPE = 'AREA';
 const REGION_SCOPE = 'REGION';
 const NATIONAL_SCOPE = 'NATIONAL';
 const DEFAULT_REGION_CODE = 'CHUA_GAN';
-const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
-const LEGACY_ADMIN_ROLE = 'ADMIN';
-const ADMIN_PHONGVU_ROLE = 'ADMIN_PHONGVU';
-const ADMIN_ACARE_ROLE = 'ADMIN_ACARE';
+const SUPER_ADMIN_ROLE = SYSTEM_ROLE_SUPER_ADMIN;
+const ADMIN_ROLE = SYSTEM_ROLE_ADMIN;
 const WORK_SCOPE_TYPES = new Set([
   STORE_SCOPE,
   AREA_SCOPE,
@@ -396,8 +399,7 @@ export class AuthService {
     const role = this.normalizeRoleForOutput(user.role);
     if (
       role === SUPER_ADMIN_ROLE ||
-      role === ADMIN_PHONGVU_ROLE ||
-      role === ADMIN_ACARE_ROLE
+      role === ADMIN_ROLE
     ) {
       return NATIONAL_SCOPE;
     }
@@ -405,11 +407,7 @@ export class AuthService {
   }
 
   private normalizeRoleForOutput(role: string | null | undefined) {
-    const code = String(role || '')
-      .trim()
-      .toUpperCase();
-    if (code === LEGACY_ADMIN_ROLE) return ADMIN_PHONGVU_ROLE;
-    return role ?? '';
+    return normalizeSystemRoleCode(role) ?? '';
   }
 
   private personnelCodeFor(user: {

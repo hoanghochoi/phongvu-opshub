@@ -9,11 +9,15 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { PolicyService } from '../policy/policy.service';
 import { DEFAULT_FEATURE_DEFINITIONS } from './feature.constants';
+import {
+  SYSTEM_ROLE_ADMIN,
+  SYSTEM_ROLE_SUPER_ADMIN,
+  normalizeSystemRoleCode,
+  isSuperAdminRole,
+} from '../common/system-role';
 
-const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
-const LEGACY_ADMIN_ROLE = 'ADMIN';
-const ADMIN_PHONGVU_ROLE = 'ADMIN_PHONGVU';
-const ADMIN_ACARE_ROLE = 'ADMIN_ACARE';
+const SUPER_ADMIN_ROLE = SYSTEM_ROLE_SUPER_ADMIN;
+const ADMIN_ROLE = SYSTEM_ROLE_ADMIN;
 const VALID_WORK_SCOPES = new Set(['NATIONAL', 'REGION', 'AREA', 'STORE']);
 const USER_FEATURE_BACKFILL_SETTING_KEY =
   'USER_FEATURE_ALLOWLIST_BACKFILLED_AT';
@@ -281,7 +285,7 @@ export class FeatureService implements OnModuleInit {
       featureCodeInput,
       'Mã tính năng không hợp lệ',
     );
-    if (context.role === SUPER_ADMIN_ROLE) return true;
+    if (this.normalizeSystemRole(context.role) === SUPER_ADMIN_ROLE) return true;
 
     const feature = await this.prisma.featureDefinition.findUnique({
       where: { code: featureCode },
@@ -310,7 +314,7 @@ export class FeatureService implements OnModuleInit {
       featureCodeInput,
       'Mã tính năng không hợp lệ',
     );
-    if (context.role === SUPER_ADMIN_ROLE) return true;
+    if (this.normalizeSystemRole(context.role) === SUPER_ADMIN_ROLE) return true;
 
     const feature = await this.prisma.featureDefinition.findUnique({
       where: { code: featureCode },
@@ -814,23 +818,23 @@ export class FeatureService implements OnModuleInit {
       ancestors.push(cursor);
       cursor = cursor.parentId ? (byId.get(cursor.parentId) ?? null) : null;
     }
-    const businessCodeFor = (type: string) => {
-      const node = ancestors.find((item) => item.type === type);
+    const businessCodeFor = (...types: string[]) => {
+      const node = ancestors.find((item) => types.includes(item.type));
       if (!node) return null;
       return node.businessCode || this.legacyCodeFromOrganizationCode(node.code);
     };
     return {
       organizationNodeId: nodeId,
       organizationNodeIds: ancestors.map((node) => node.id),
-      regionCode: businessCodeFor('REGION'),
-      areaCode: businessCodeFor('AREA'),
-      storeCode: businessCodeFor('SHOWROOM'),
+      regionCode: businessCodeFor('LV2_REGION', 'REGION'),
+      areaCode: businessCodeFor('LV3_AREA', 'AREA'),
+      storeCode: businessCodeFor('LV4_STORE', 'SHOWROOM'),
     };
   }
 
   private legacyCodeFromOrganizationCode(code: string) {
     return String(code || '')
-      .replace(/^(REGION|AREA)_(PHONGVU|ACARE)_/i, '')
+      .replace(/^(LV2_REGION|LV3_AREA|REGION|AREA)_(PHONGVU|ACARE)_/i, '')
       .replace(/^STORE_/i, '')
       .trim()
       .toUpperCase();
@@ -864,8 +868,7 @@ export class FeatureService implements OnModuleInit {
     const role = this.normalizeSystemRole(user?.role);
     if (
       role === SUPER_ADMIN_ROLE ||
-      role === ADMIN_PHONGVU_ROLE ||
-      role === ADMIN_ACARE_ROLE
+      role === ADMIN_ROLE
     ) {
       return 'NATIONAL';
     }
@@ -873,11 +876,7 @@ export class FeatureService implements OnModuleInit {
   }
 
   private normalizeSystemRole(role: unknown) {
-    const code = String(role || '')
-      .trim()
-      .toUpperCase();
-    if (code === LEGACY_ADMIN_ROLE) return ADMIN_PHONGVU_ROLE;
-    return code || null;
+    return normalizeSystemRoleCode(role);
   }
 
   private ruleMatches(rule: any, context: FeatureContext) {
@@ -891,7 +890,10 @@ export class FeatureService implements OnModuleInit {
       this.matches(rule.workScopeType, context.workScopeType) &&
       this.matches(rule.jobRoleCode, context.jobRoleCode) &&
       this.matches(rule.departmentCode, context.departmentCode) &&
-      this.matches(rule.systemRole, context.role)
+      this.matches(
+        this.normalizeSystemRole(rule.systemRole),
+        this.normalizeSystemRole(context.role),
+      )
     );
   }
 
@@ -991,7 +993,7 @@ export class FeatureService implements OnModuleInit {
   }
 
   private assertSuperAdmin(user: any) {
-    if (user?.role !== SUPER_ADMIN_ROLE) {
+    if (!isSuperAdminRole(user?.role)) {
       throw new ForbiddenException('Chỉ SUPER_ADMIN được quản lý tính năng');
     }
   }

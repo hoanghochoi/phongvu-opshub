@@ -9,6 +9,7 @@ import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
+import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/admin_organization_node.dart';
 
@@ -160,7 +161,7 @@ class _OrganizationTreeAdminScreenState
       (auth) => auth.user?.role,
     );
     final canEditStructure = role == 'SUPER_ADMIN';
-    final canEditMap = role == 'ADMIN_PHONGVU' || role == 'ADMIN_ACARE';
+    final canEditMap = User.isAdminRole(role);
     final selected = _selectedNode;
     return Scaffold(
       appBar: GradientHeader(
@@ -174,7 +175,7 @@ class _OrganizationTreeAdminScreenState
           ),
           if (canEditStructure)
             IconButton(
-              onPressed: _loading
+              onPressed: _loading || (selected?.level ?? -1) >= 5
                   ? null
                   : () => _openEditor(parentId: selected?.id),
               icon: const Icon(Icons.add_outlined),
@@ -203,10 +204,10 @@ class _OrganizationTreeAdminScreenState
                   final detail = _OrganizationNodeDetail(
                     node: selected,
                     nodes: _nodes,
-                    canAddChild: canEditStructure,
+                    canAddChild: canEditStructure && (selected?.level ?? 0) < 5,
                     canEdit:
                         canEditStructure ||
-                        (canEditMap && selected?.type == 'SHOWROOM'),
+                        (canEditMap && selected?.type == 'LV4_STORE'),
                     canDelete: canEditStructure,
                     onAddChild: selected == null
                         ? null
@@ -413,13 +414,13 @@ class _OrganizationNodeDetail extends StatelessWidget {
               if (node.loginAllowed) const Chip(label: Text('Cho đăng nhập')),
             ],
           ),
-          if (node.type == 'SHOWROOM') ...[
+          if (node.type == 'LV4_STORE') ...[
             _DetailRow(
-              label: 'Mã showroom',
+              label: 'Mã cửa hàng',
               value: node.storeId ?? node.businessCode ?? node.code,
             ),
             _DetailRow(
-              label: 'Tên showroom',
+              label: 'Tên cửa hàng',
               value: node.storeName ?? node.title,
             ),
             _DetailRow(
@@ -573,9 +574,11 @@ class _OrganizationNodeEditorDialogState
     _transferBankNameController.text = node?.transferBankName ?? '';
     _transferBankBinController.text = node?.transferBankBin ?? '';
     _mapVietinUsernameController.text = node?.mapVietinUsername ?? '';
-    _type = node?.type ?? (widget.parentId == null ? 'ROOT_DOMAIN' : 'BLOCK');
+    _type =
+        node?.type ??
+        _defaultChildType(widget.parentId == null ? null : _parentNode());
     _parentId = node?.parentId ?? widget.parentId;
-    _loginAllowed = node?.loginAllowed ?? _type == 'ROOT_DOMAIN';
+    _loginAllowed = node?.loginAllowed ?? _type == 'LV0_DOMAIN';
     _isActive = node?.isActive ?? true;
   }
 
@@ -695,8 +698,8 @@ class _OrganizationNodeEditorDialogState
 
   @override
   Widget build(BuildContext context) {
-    final isDomain = _type == 'ROOT_DOMAIN' || _type == 'SUBDOMAIN';
-    final isShowroom = _type == 'SHOWROOM';
+    final isDomain = _type == 'LV0_DOMAIN';
+    final isShowroom = _type == 'LV4_STORE';
     final canEditStructure = widget.canEditStructure;
     final canEditMap = isShowroom;
     final parentOptions = _parentOptions();
@@ -726,13 +729,13 @@ class _OrganizationNodeEditorDialogState
                 ),
                 enabled: canEditStructure,
               ),
-              if (_type == 'REGION' || _type == 'AREA')
+              if (_type == 'LV2_REGION' || _type == 'LV3_AREA')
                 TextField(
                   controller: _abbreviationController,
                   decoration: const InputDecoration(labelText: 'Viết tắt'),
                   enabled: canEditStructure,
                 ),
-              if (_type == 'REGION' || _type == 'AREA')
+              if (_type == 'LV2_REGION' || _type == 'LV3_AREA')
                 TextField(
                   controller: _descriptionController,
                   decoration: const InputDecoration(labelText: 'Mô tả'),
@@ -751,7 +754,7 @@ class _OrganizationNodeEditorDialogState
                     .toList(),
                 onChanged: !canEditStructure || widget.node?.isSystem == true
                     ? null
-                    : (value) => setState(() => _setType(value ?? 'BLOCK')),
+                    : (value) => setState(() => _setType(value ?? 'LV1_BLOCK')),
               ),
               DropdownButtonFormField<String?>(
                 key: ValueKey('parent-$_type-${parentValue ?? 'none'}'),
@@ -862,13 +865,33 @@ class _OrganizationNodeEditorDialogState
   }
 
   void _setType(String type) {
-    _type = type;
-    _loginAllowed = _type == 'ROOT_DOMAIN' || _type == 'SUBDOMAIN';
+    _type = AdminOrganizationNode.canonicalType(type);
+    _loginAllowed = _type == 'LV0_DOMAIN';
     final parentOptions = _parentOptions();
     _parentId = _validParentId(parentOptions);
     if (_parentId == null && !_allowsEmptyParent(_type)) {
       _parentId = parentOptions.isEmpty ? null : parentOptions.first.id;
     }
+  }
+
+  AdminOrganizationNode? _parentNode() {
+    final parentId = widget.parentId;
+    if (parentId == null) return null;
+    for (final node in widget.nodes) {
+      if (node.id == parentId) return node;
+    }
+    return null;
+  }
+
+  String _defaultChildType(AdminOrganizationNode? parent) {
+    if (parent == null) return 'LV0_DOMAIN';
+    return switch (parent.level) {
+      0 => 'LV1_BLOCK',
+      1 => 'LV2_DEPARTMENT',
+      2 => 'LV3_UNIT',
+      3 => 'LV4_STORE',
+      _ => 'LV5_POSITION',
+    };
   }
 
   List<AdminOrganizationNode> _parentOptions() {
@@ -898,45 +921,40 @@ class _OrganizationNodeEditorDialogState
   }
 
   bool _allowsEmptyParent(String type) {
-    return type == 'ROOT_DOMAIN' || type == 'SUBDOMAIN' || type == 'REGION';
+    return AdminOrganizationNode.canonicalType(type) == 'LV0_DOMAIN';
   }
 
   bool _canUseParentForType(AdminOrganizationNode parent, String type) {
-    final allowedTypes = switch (type) {
-      'SUBDOMAIN' => const {'ROOT_DOMAIN'},
-      'REGION' => const {'ROOT_DOMAIN', 'SUBDOMAIN', 'BLOCK'},
-      'AREA' => const {'REGION'},
-      'SHOWROOM' => const {'ROOT_DOMAIN', 'AREA', 'BLOCK'},
-      _ => null,
-    };
-    return allowedTypes == null || allowedTypes.contains(parent.type);
+    final childLevel = AdminOrganizationNode.levelOf(type);
+    if (childLevel == 0) return false;
+    return parent.isActive && parent.level < childLevel;
   }
 }
 
 IconData _iconForType(String type) {
-  return switch (type) {
-    'ROOT_DOMAIN' => Icons.language_outlined,
-    'SUBDOMAIN' => Icons.alternate_email_outlined,
-    'DEPARTMENT' => Icons.apartment_outlined,
-    'REGION' => Icons.public_outlined,
-    'AREA' => Icons.map_outlined,
-    'SHOWROOM' => Icons.store_mall_directory_outlined,
-    'JOB_ROLE' => Icons.badge_outlined,
-    'VIRTUAL_SCOPE' => Icons.hub_outlined,
+  return switch (AdminOrganizationNode.canonicalType(type)) {
+    'LV0_DOMAIN' => Icons.language_outlined,
+    'LV1_BLOCK' => Icons.account_tree_outlined,
+    'LV2_DEPARTMENT' => Icons.apartment_outlined,
+    'LV2_REGION' => Icons.public_outlined,
+    'LV3_AREA' => Icons.map_outlined,
+    'LV3_UNIT' => Icons.hub_outlined,
+    'LV4_STORE' => Icons.store_mall_directory_outlined,
+    'LV5_POSITION' => Icons.badge_outlined,
     _ => Icons.account_tree_outlined,
   };
 }
 
 Color _colorForType(String type) {
-  return switch (type) {
-    'ROOT_DOMAIN' => AppColors.info,
-    'SUBDOMAIN' => AppColors.sky500,
-    'DEPARTMENT' => AppColors.purple600,
-    'REGION' => AppColors.teal600,
-    'AREA' => AppColors.emerald600,
-    'SHOWROOM' => AppColors.success,
-    'JOB_ROLE' => AppColors.violet600,
-    'VIRTUAL_SCOPE' => AppColors.warning,
+  return switch (AdminOrganizationNode.canonicalType(type)) {
+    'LV0_DOMAIN' => AppColors.info,
+    'LV1_BLOCK' => AppColors.sky500,
+    'LV2_DEPARTMENT' => AppColors.purple600,
+    'LV2_REGION' => AppColors.teal600,
+    'LV3_AREA' => AppColors.emerald600,
+    'LV3_UNIT' => AppColors.warning,
+    'LV4_STORE' => AppColors.success,
+    'LV5_POSITION' => AppColors.violet600,
     _ => AppColors.neutral500,
   };
 }

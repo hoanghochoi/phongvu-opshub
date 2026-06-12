@@ -181,47 +181,17 @@ export const DEFAULT_ADMIN_POLICY_RULES = [
   {
     policyCode: ADMIN_POLICY_CODES.ADMIN,
     allowed: true,
-    systemRole: 'ADMIN_PHONGVU',
-  },
-  {
-    policyCode: ADMIN_POLICY_CODES.ADMIN,
-    allowed: true,
-    systemRole: 'ADMIN_ACARE',
-  },
-  {
-    policyCode: ADMIN_POLICY_CODES.ADMIN,
-    allowed: true,
-    systemRole: 'MANAGER',
+    systemRole: 'ADMIN',
   },
   {
     policyCode: ADMIN_POLICY_CODES.ADMIN_USERS,
     allowed: true,
-    systemRole: 'ADMIN_PHONGVU',
-  },
-  {
-    policyCode: ADMIN_POLICY_CODES.ADMIN_USERS,
-    allowed: true,
-    systemRole: 'ADMIN_ACARE',
-  },
-  {
-    policyCode: ADMIN_POLICY_CODES.ADMIN_USERS,
-    allowed: true,
-    systemRole: 'MANAGER',
+    systemRole: 'ADMIN',
   },
   {
     policyCode: ADMIN_POLICY_CODES.ADMIN_STORES,
     allowed: true,
-    systemRole: 'ADMIN_PHONGVU',
-  },
-  {
-    policyCode: ADMIN_POLICY_CODES.ADMIN_STORES,
-    allowed: true,
-    systemRole: 'ADMIN_ACARE',
-  },
-  {
-    policyCode: ADMIN_POLICY_CODES.ADMIN_STORES,
-    allowed: true,
-    systemRole: 'MANAGER',
+    systemRole: 'ADMIN',
   },
   { policyCode: ADMIN_POLICY_CODES.FIFO, allowed: true, scopeContains: 'CP62' },
   {
@@ -232,17 +202,12 @@ export const DEFAULT_ADMIN_POLICY_RULES = [
   {
     policyCode: ADMIN_POLICY_CODES.FIFO_IMPORT,
     allowed: true,
-    systemRole: 'ADMIN_PHONGVU',
-  },
-  {
-    policyCode: ADMIN_POLICY_CODES.FIFO_IMPORT,
-    allowed: true,
-    systemRole: 'ADMIN_ACARE',
+    systemRole: 'ADMIN',
   },
   {
     policyCode: ADMIN_POLICY_CODES.BANK_STATEMENTS,
     allowed: true,
-    systemRole: 'MANAGER',
+    systemRole: 'ADMIN',
   },
   {
     policyCode: ADMIN_POLICY_CODES.ADMIN_USER_ROLE_EDIT,
@@ -267,7 +232,7 @@ export const DEFAULT_ADMIN_POLICY_RULES = [
   {
     policyCode: ADMIN_POLICY_CODES.FIFO_LOG_ADMIN,
     allowed: true,
-    systemRole: 'ADMIN_PHONGVU',
+    systemRole: 'ADMIN',
   },
   {
     policyCode: ADMIN_POLICY_CODES.WARRANTY_ALL_SCOPE,

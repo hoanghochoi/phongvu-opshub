@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
 import { FifoLogType } from '@prisma/client';
+import { isAdminRole } from '../common/system-role';
 
 @Injectable()
 export class FifoLogService {
@@ -115,8 +116,8 @@ export class FifoLogService {
 
     let allowedUserIds: string[] | undefined;
 
-    // ADMIN_PHONGVU: only see users in same store
-    if (admin.role === 'ADMIN_PHONGVU') {
+    // ADMIN: only see users in same store unless an all-scope policy is granted.
+    if (isAdminRole(admin.role)) {
       if (!admin.storeId) {
         return { data: [], total: 0, page, limit };
       }

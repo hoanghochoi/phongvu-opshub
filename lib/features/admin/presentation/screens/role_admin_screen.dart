@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/admin_role_definition.dart';
 
 class RoleAdminScreen extends StatefulWidget {
@@ -38,69 +35,10 @@ class _RoleAdminScreenState extends State<RoleAdminScreen> {
     }
   }
 
-  Future<void> _openEditor([AdminRoleDefinition? role]) async {
-    final updated = await showDialog<bool>(
-      context: context,
-      builder: (context) =>
-          _RoleEditorDialog(repository: _repository, role: role),
-    );
-    if (updated == true) await _load();
-  }
-
-  Future<void> _deleteRole(AdminRoleDefinition role) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xóa vai trò'),
-        content: Text('Xóa vai trò ${role.value}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(
-              'Hủy',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-            ),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(
-              'Xóa',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
-    await _repository.deleteAdminRole(role.value);
-    await _load();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final canManageRoles = context.select<AuthProvider, bool>(
-      (auth) => auth.user?.role == 'SUPER_ADMIN',
-    );
-
     return Scaffold(
-      appBar: GradientHeader(
-        title: 'Quản lý vai trò',
-        showBack: true,
-        actions: canManageRoles
-            ? [
-                IconButton(
-                  onPressed: () => _openEditor(),
-                  icon: const Icon(Icons.add_moderator_outlined),
-                  tooltip: 'Thêm vai trò',
-                ),
-              ]
-            : null,
-      ),
+      appBar: const GradientHeader(title: 'Quản lý vai trò', showBack: true),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : AppResponsiveContent(
@@ -116,13 +54,7 @@ class _RoleAdminScreenState extends State<RoleAdminScreen> {
                       const SizedBox(height: AppLayoutTokens.cardGap),
                   itemBuilder: (context, index) {
                     final role = _roles[index];
-                    return _RoleCard(
-                      role: role,
-                      onEdit: canManageRoles ? () => _openEditor(role) : null,
-                      onDelete: canManageRoles && !role.isSystem
-                          ? () => _deleteRole(role)
-                          : null,
-                    );
+                    return _RoleCard(role: role);
                   },
                 ),
               ),
@@ -133,14 +65,8 @@ class _RoleAdminScreenState extends State<RoleAdminScreen> {
 
 class _RoleCard extends StatelessWidget {
   final AdminRoleDefinition role;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDelete;
 
-  const _RoleCard({
-    required this.role,
-    required this.onEdit,
-    required this.onDelete,
-  });
+  const _RoleCard({required this.role});
 
   @override
   Widget build(BuildContext context) {
@@ -151,7 +77,9 @@ class _RoleCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -201,131 +129,10 @@ class _RoleCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            AppIconAction(
-              onPressed: onEdit,
-              icon: Icons.edit_outlined,
-              tooltip: 'Sửa vai trò',
-            ),
-            const SizedBox(width: 8),
-            AppIconAction(
-              onPressed: onDelete,
-              icon: Icons.delete_outline,
-              tooltip: role.isSystem ? 'Vai trò hệ thống' : 'Xóa vai trò',
-            ),
+            const Icon(Icons.lock_outline, size: 20),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _RoleEditorDialog extends StatefulWidget {
-  final AuthRepository repository;
-  final AdminRoleDefinition? role;
-
-  const _RoleEditorDialog({required this.repository, this.role});
-
-  @override
-  State<_RoleEditorDialog> createState() => _RoleEditorDialogState();
-}
-
-class _RoleEditorDialogState extends State<_RoleEditorDialog> {
-  final _codeController = TextEditingController();
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final role = widget.role;
-    _codeController.text = role?.value ?? '';
-    _titleController.text = role?.title ?? '';
-    _descriptionController.text = role?.description ?? '';
-  }
-
-  @override
-  void dispose() {
-    _codeController.dispose();
-    _titleController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    try {
-      final role = AdminRoleDefinition(
-        value: _codeController.text.trim().toUpperCase(),
-        title: _titleController.text.trim(),
-        description: _descriptionController.text.trim(),
-        icon: Icons.security_outlined,
-        color: const Color(0xFF9333EA),
-      );
-
-      final current = widget.role;
-      if (current == null) {
-        await widget.repository.createAdminRole(role);
-      } else {
-        await widget.repository.updateAdminRole(current.value, role);
-      }
-      if (mounted) Navigator.of(context).pop(true);
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isSystem = widget.role?.isSystem == true;
-
-    return AlertDialog(
-      title: Text(widget.role == null ? 'Thêm vai trò' : 'Sửa vai trò'),
-      content: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
-          child: AppFormColumn(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _codeController,
-                enabled: !isSystem,
-                decoration: const InputDecoration(labelText: 'Mã vai trò'),
-                textCapitalization: TextCapitalization.characters,
-              ),
-              TextField(
-                controller: _titleController,
-                decoration: const InputDecoration(labelText: 'Tên hiển thị'),
-              ),
-              TextField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(labelText: 'Mô tả'),
-                maxLines: 2,
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text(
-            'Hủy',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            softWrap: false,
-          ),
-        ),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: Text(
-            _saving ? 'Đang lưu...' : 'Lưu',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            softWrap: false,
-          ),
-        ),
-      ],
     );
   }
 }

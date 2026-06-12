@@ -15,11 +15,15 @@ import {
   DEFAULT_ADMIN_POLICY_RULES,
   DEFAULT_ADMIN_SETTINGS,
 } from './policy.constants';
+import {
+  SYSTEM_ROLE_ADMIN,
+  SYSTEM_ROLE_SUPER_ADMIN,
+  normalizeSystemRoleCode,
+  isSuperAdminRole,
+} from '../common/system-role';
 
-const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
-const LEGACY_ADMIN_ROLE = 'ADMIN';
-const ADMIN_PHONGVU_ROLE = 'ADMIN_PHONGVU';
-const ADMIN_ACARE_ROLE = 'ADMIN_ACARE';
+const SUPER_ADMIN_ROLE = SYSTEM_ROLE_SUPER_ADMIN;
+const ADMIN_ROLE = SYSTEM_ROLE_ADMIN;
 const VALID_WORK_SCOPES = new Set(['NATIONAL', 'REGION', 'AREA', 'STORE']);
 
 export type PolicyContext = {
@@ -126,7 +130,7 @@ export class PolicyService implements OnModuleInit {
           policyCode: rule.policyCode,
           allowed: rule.allowed === true,
           emailDomain: rule.emailDomain ?? null,
-          systemRole: rule.systemRole ?? null,
+          systemRole: this.normalizeSystemRole(rule.systemRole),
           departmentCode: rule.departmentCode ?? null,
           jobRoleCode: rule.jobRoleCode ?? null,
           workScopeType: rule.workScopeType ?? null,
@@ -172,7 +176,7 @@ export class PolicyService implements OnModuleInit {
       policyCodeInput,
       'Ma policy khong hop le',
     );
-    if (context.role === SUPER_ADMIN_ROLE) return true;
+    if (this.normalizeSystemRole(context.role) === SUPER_ADMIN_ROLE) return true;
 
     const policy = await this.prisma.adminPolicyDefinition.findUnique({
       where: { code: policyCode },
@@ -436,7 +440,7 @@ export class PolicyService implements OnModuleInit {
       if (!organizationNode?.findMany) return [];
       const nodes = await organizationNode.findMany({
         where: {
-          type: { in: ['ROOT_DOMAIN', 'SUBDOMAIN'] },
+          type: { in: ['LV0_DOMAIN', 'ROOT_DOMAIN'] },
           isActive: true,
           loginAllowed: true,
           emailDomain: { not: null },
@@ -468,7 +472,7 @@ export class PolicyService implements OnModuleInit {
       policyCode: rule.policyCode,
       allowed: rule.allowed === true,
       emailDomain: rule.emailDomain ?? null,
-      systemRole: rule.systemRole ?? null,
+      systemRole: this.normalizeSystemRole(rule.systemRole),
       departmentCode: rule.departmentCode ?? null,
       jobRoleCode: rule.jobRoleCode ?? null,
       workScopeType: rule.workScopeType ?? null,
@@ -483,7 +487,7 @@ export class PolicyService implements OnModuleInit {
   }
 
   private async assertCanManagePolicies(admin: any) {
-    if (admin?.role === SUPER_ADMIN_ROLE) return;
+    if (isSuperAdminRole(admin?.role)) return;
     if (await this.canAccessPolicy(admin, ADMIN_POLICY_CODES.ADMIN_POLICIES))
       return;
     throw new ForbiddenException('Khong co quyen quan ly policy');
@@ -914,17 +918,17 @@ export class PolicyService implements OnModuleInit {
       ancestors.push(cursor);
       cursor = cursor.parentId ? (byId.get(cursor.parentId) ?? null) : null;
     }
-    const businessCodeFor = (type: string) => {
-      const node = ancestors.find((item) => item.type === type);
+    const businessCodeFor = (...types: string[]) => {
+      const node = ancestors.find((item) => types.includes(item.type));
       if (!node) return null;
       return node.businessCode || this.legacyCodeFromOrganizationCode(node.code);
     };
     return {
       organizationNodeId: nodeId,
       organizationNodeIds: ancestors.map((node) => node.id),
-      regionCode: businessCodeFor('REGION'),
-      areaCode: businessCodeFor('AREA'),
-      storeCode: businessCodeFor('SHOWROOM'),
+      regionCode: businessCodeFor('LV2_REGION', 'REGION'),
+      areaCode: businessCodeFor('LV3_AREA', 'AREA'),
+      storeCode: businessCodeFor('LV4_STORE', 'SHOWROOM'),
       scopeNames: ancestors.flatMap((node) =>
         [node.businessCode, node.displayName, node.abbreviation].filter(
           (value): value is string => Boolean(value),
@@ -935,7 +939,7 @@ export class PolicyService implements OnModuleInit {
 
   private legacyCodeFromOrganizationCode(code: string) {
     return String(code || '')
-      .replace(/^(REGION|AREA)_(PHONGVU|ACARE)_/i, '')
+      .replace(/^(LV2_REGION|LV3_AREA|REGION|AREA)_(PHONGVU|ACARE)_/i, '')
       .replace(/^STORE_/i, '')
       .trim()
       .toUpperCase();
@@ -968,9 +972,7 @@ export class PolicyService implements OnModuleInit {
     if (VALID_WORK_SCOPES.has(scope)) return scope;
     const role = this.normalizeSystemRole(user?.role);
     if (
-      [SUPER_ADMIN_ROLE, ADMIN_PHONGVU_ROLE, ADMIN_ACARE_ROLE].includes(
-        role || '',
-      )
+      [SUPER_ADMIN_ROLE, ADMIN_ROLE].includes(role || '')
     ) {
       return 'NATIONAL';
     }
@@ -978,11 +980,7 @@ export class PolicyService implements OnModuleInit {
   }
 
   private normalizeSystemRole(role: unknown) {
-    const code = String(role || '')
-      .trim()
-      .toUpperCase();
-    if (code === LEGACY_ADMIN_ROLE) return ADMIN_PHONGVU_ROLE;
-    return code || null;
+    return normalizeSystemRoleCode(role);
   }
 
   private ruleMatches(rule: any, context: PolicyContext) {
@@ -996,7 +994,10 @@ export class PolicyService implements OnModuleInit {
       this.matches(rule.workScopeType, context.workScopeType) &&
       this.matches(rule.jobRoleCode, context.jobRoleCode) &&
       this.matches(rule.departmentCode, context.departmentCode) &&
-      this.matches(rule.systemRole, context.role) &&
+      this.matches(
+        this.normalizeSystemRole(rule.systemRole),
+        this.normalizeSystemRole(context.role),
+      ) &&
       this.scopeContainsMatches(rule.scopeContains, context)
     );
   }

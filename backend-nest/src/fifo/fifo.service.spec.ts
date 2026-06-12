@@ -252,7 +252,7 @@ describe('FifoService', () => {
   it('blocks non-admin users from importing manual inventory', async () => {
     await expect(
       service.importManualInventory(
-        { ...user, role: 'MANAGER' },
+        { ...user, role: 'USER' },
         [canonicalItem({ itemKey: 'CP62:S1', branchId: 'CP62' })],
         { fileName: 'inventory.xlsx', totalRows: 1, skippedRows: 0 },
       ),
