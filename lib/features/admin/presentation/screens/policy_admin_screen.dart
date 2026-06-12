@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
@@ -572,10 +572,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
   late final TextEditingController _departmentCodes;
   late final TextEditingController _jobRoleCodes;
   late final TextEditingController _workScopeTypes;
-  late final TextEditingController _regionCodes;
-  late final TextEditingController _areaCodes;
   late final TextEditingController _organizationNodeIds;
-  late final TextEditingController _storeCodes;
   late final TextEditingController _userIds;
   late final TextEditingController _scopeContains;
   late final TextEditingController _note;
@@ -594,12 +591,9 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
     _departmentCodes = TextEditingController(text: rule?.departmentCode ?? '');
     _jobRoleCodes = TextEditingController(text: rule?.jobRoleCode ?? '');
     _workScopeTypes = TextEditingController(text: rule?.workScopeType ?? '');
-    _regionCodes = TextEditingController(text: rule?.regionCode ?? '');
-    _areaCodes = TextEditingController(text: rule?.areaCode ?? '');
     _organizationNodeIds = TextEditingController(
-      text: rule?.organizationNodeId ?? '',
+      text: rule?.organizationNodeId ?? _legacyNodeIdFor(rule) ?? '',
     );
-    _storeCodes = TextEditingController(text: rule?.storeCode ?? '');
     _userIds = TextEditingController(text: rule?.userId ?? '');
     _scopeContains = TextEditingController(text: rule?.scopeContains ?? '');
     _note = TextEditingController(text: rule?.note ?? '');
@@ -613,10 +607,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
       _departmentCodes,
       _jobRoleCodes,
       _workScopeTypes,
-      _regionCodes,
-      _areaCodes,
       _organizationNodeIds,
-      _storeCodes,
       _userIds,
       _scopeContains,
       _note,
@@ -632,36 +623,48 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
       .where((value) => value.isNotEmpty)
       .toList();
 
-  String? _firstCsv(TextEditingController controller) {
-    final values = _csv(controller);
-    return values.isEmpty ? null : values.first;
-  }
-
   Future<void> _save() async {
     setState(() => _saving = true);
+    final emailDomains = _csv(_emailDomains);
+    final systemRoles = _csv(_systemRoles);
+    final departmentCodes = _csv(_departmentCodes);
+    final jobRoleCodes = _csv(_jobRoleCodes);
+    final workScopeTypes = _csv(_workScopeTypes);
+    final organizationNodeIds = _csv(_organizationNodeIds);
+    final userIds = _csv(_userIds);
+    final scopeContainsValues = _csv(_scopeContains);
+    final note = _note.text.trim().isEmpty ? null : _note.text.trim();
     try {
       await AppLogger.instance.info(
         'AdminPolicies',
         'Policy rule save started',
-        context: {'policyCode': _policyCode, 'isEdit': widget.rule != null},
+        context: {
+          'policyCode': _policyCode,
+          'isEdit': widget.rule != null,
+          'domainCount': emailDomains.length,
+          'roleCount': systemRoles.length,
+          'departmentCount': departmentCodes.length,
+          'jobRoleCount': jobRoleCodes.length,
+          'scopeCount': workScopeTypes.length,
+          'organizationNodeCount': organizationNodeIds.length,
+          'userCount': userIds.length,
+          'scopeContainsCount': scopeContainsValues.length,
+        },
       );
       if (widget.rule?.id == null) {
         await widget.repository.createAdminPolicyRulesBatch(
           AdminPolicyRuleBatchRequest(
             policyCode: _policyCode,
             allowed: _allowed,
-            emailDomains: _csv(_emailDomains),
-            systemRoles: _csv(_systemRoles),
-            departmentCodes: _csv(_departmentCodes),
-            jobRoleCodes: _csv(_jobRoleCodes),
-            workScopeTypes: _csv(_workScopeTypes),
-            regionCodes: _csv(_regionCodes),
-            areaCodes: _csv(_areaCodes),
-            organizationNodeIds: _csv(_organizationNodeIds),
-            storeCodes: _csv(_storeCodes),
-            userIds: _csv(_userIds),
-            scopeContainsValues: _csv(_scopeContains),
-            note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+            emailDomains: emailDomains,
+            systemRoles: systemRoles,
+            departmentCodes: departmentCodes,
+            jobRoleCodes: jobRoleCodes,
+            workScopeTypes: workScopeTypes,
+            organizationNodeIds: organizationNodeIds,
+            userIds: userIds,
+            scopeContainsValues: scopeContainsValues,
+            note: note,
           ),
         );
       } else {
@@ -670,25 +673,35 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
           AdminPolicyRule(
             policyCode: _policyCode,
             allowed: _allowed,
-            emailDomain: _firstCsv(_emailDomains),
-            systemRole: _firstCsv(_systemRoles),
-            departmentCode: _firstCsv(_departmentCodes),
-            jobRoleCode: _firstCsv(_jobRoleCodes),
-            workScopeType: _firstCsv(_workScopeTypes),
-            regionCode: _firstCsv(_regionCodes),
-            areaCode: _firstCsv(_areaCodes),
-            organizationNodeId: _firstCsv(_organizationNodeIds),
-            storeCode: _firstCsv(_storeCodes),
-            userId: _firstCsv(_userIds),
-            scopeContains: _firstCsv(_scopeContains),
-            note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+            emailDomain: emailDomains.isEmpty ? null : emailDomains.first,
+            systemRole: systemRoles.isEmpty ? null : systemRoles.first,
+            departmentCode: departmentCodes.isEmpty
+                ? null
+                : departmentCodes.first,
+            jobRoleCode: jobRoleCodes.isEmpty ? null : jobRoleCodes.first,
+            workScopeType: workScopeTypes.isEmpty ? null : workScopeTypes.first,
+            regionCode: null,
+            areaCode: null,
+            organizationNodeId: organizationNodeIds.isEmpty
+                ? null
+                : organizationNodeIds.first,
+            storeCode: null,
+            userId: userIds.isEmpty ? null : userIds.first,
+            scopeContains: scopeContainsValues.isEmpty
+                ? null
+                : scopeContainsValues.first,
+            note: note,
           ),
         );
       }
       await AppLogger.instance.info(
         'AdminPolicies',
         'Policy rule save succeeded',
-        context: {'policyCode': _policyCode},
+        context: {
+          'policyCode': _policyCode,
+          'isEdit': widget.rule != null,
+          'organizationNodeCount': organizationNodeIds.length,
+        },
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (error, stackTrace) {
@@ -698,7 +711,11 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
         error: error,
         stackTrace: stackTrace,
         upload: true,
-        context: {'policyCode': _policyCode},
+        context: {
+          'policyCode': _policyCode,
+          'isEdit': widget.rule != null,
+          'organizationNodeCount': organizationNodeIds.length,
+        },
       );
       if (mounted) {
         ScaffoldMessenger.of(
@@ -743,9 +760,6 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
             _csvField(_jobRoleCodes, 'Chức danh'),
             _csvField(_workScopeTypes, 'Phạm vi'),
             _organizationNodePicker(),
-            _csvField(_regionCodes, 'Miền'),
-            _csvField(_areaCodes, 'Vùng'),
-            _csvField(_storeCodes, 'SR'),
             _csvField(_userIds, 'User ID'),
             _csvField(_scopeContains, 'Scope chứa chuỗi'),
             TextField(
@@ -802,6 +816,45 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
         _organizationNodeIds.text = value ?? '';
       }),
     );
+  }
+
+  String? _legacyNodeIdFor(AdminPolicyRule? rule) {
+    if (rule == null) return null;
+    final storeNode = _nodeIdByTypeAndCode('SHOWROOM', rule.storeCode);
+    if (storeNode != null) return storeNode;
+    final areaNode = _nodeIdByTypeAndCode('AREA', rule.areaCode);
+    if (areaNode != null) return areaNode;
+    return _nodeIdByTypeAndCode('REGION', rule.regionCode);
+  }
+
+  String? _nodeIdByTypeAndCode(String type, String? code) {
+    final normalized = _normalizeLegacyCode(code);
+    if (normalized == null) return null;
+    for (final node in widget.organizationNodes) {
+      if (node.type != type) continue;
+      final candidates = [
+        node.businessCode,
+        node.storeId,
+        node.code,
+        _legacyCodeFromNodeCode(node.code),
+      ];
+      if (candidates.any((item) => _normalizeLegacyCode(item) == normalized)) {
+        return node.id;
+      }
+    }
+    return null;
+  }
+
+  String? _normalizeLegacyCode(String? value) {
+    final normalized = value?.trim().toUpperCase();
+    return normalized == null || normalized.isEmpty ? null : normalized;
+  }
+
+  String _legacyCodeFromNodeCode(String code) {
+    return code
+        .replaceFirst(RegExp(r'^(REGION|AREA)_(PHONGVU|ACARE)_'), '')
+        .replaceFirst(RegExp(r'^STORE_'), '')
+        .toUpperCase();
   }
 
   List<(String, String)> _organizationNodeItems() {

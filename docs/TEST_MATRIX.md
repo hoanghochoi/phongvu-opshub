@@ -39,6 +39,21 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PROFILE-ADMIN-001, 2026-06-12: changed user feature assignment and admin
+  rule editing to tree-first payloads. Flutter user management now sends
+  `featureTreeCodes` from the feature tree instead of `featureCodes`; backend
+  create/update user accepts `featureTreeCodes`, expands selected child feature
+  nodes to include ancestors, and keeps legacy `featureCodes` as a
+  compatibility fallback. Feature-rule and policy-rule editors in the app now
+  use organization tree nodes instead of legacy Region/Area/SR selectors, while
+  preserving display/backfill support for old rules. Policy settings validation
+  now accepts JSON arrays as well as objects so array-valued settings can be
+  saved. Validation: focused backend user/feature/policy Jest (5 suites, 48
+  tests), focused Flutter admin tests (9 tests), backend `npm run build`,
+  `flutter analyze --no-pub`, full backend `npm test -- --runInBand` (35
+  suites, 249 tests), and full `flutter test --no-pub --reporter expanded`
+  (83 tests). Gap: live staging click-through for saving user feature
+  assignments, feature/policy rules, and settings remains manual.
 - PROFILE-ADMIN-001, 2026-06-12: completed tree-only user work-scope assignment.
   Backend user create/update now accepts `organizationNodeId` as the assignment
   input, derives legacy `storeId`/`regionCode`/`areaCode`, keeps SUPER_ADMIN

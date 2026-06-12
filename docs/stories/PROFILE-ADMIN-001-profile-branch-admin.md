@@ -40,17 +40,20 @@ payment account import from CSV, and administration for privileged roles.
   delete is blocked with explicit reasons when a node has children, users, SRs,
   or other references.
 - Runtime feature access is a strict per-user allowlist. `SUPER_ADMIN` can
-  assign multiple active features from user management; non-`SUPER_ADMIN` users
-  cannot open unassigned features even when a policy rule would allow the
-  capability. Legacy feature rules remain for reference and backfill.
+  assign multiple active features from user management through the feature tree;
+  the app sends `featureTreeCodes` and the backend saves selected descendants
+  with their ancestors. Non-`SUPER_ADMIN` users cannot open unassigned features
+  even when a policy rule would allow the capability. Legacy feature rules
+  remain for reference and backfill.
 - `SUPER_ADMIN` bypasses feature gates to avoid lockout.
 - User management supports filters by name/email search, domain,
   organization node, feature/screen, role, and status.
 - Policy management supports configurable policy definitions, detailed policy
   rules, and system settings for login domains, password policy, and OTP
-  policies. Policy batch creation supports multiple selected users, email
-  domains, system roles, departments, job roles, scopes, Regions, Areas, SRs,
-  and scope text selectors.
+  policies. App policy and feature rule editing uses organization tree nodes
+  instead of legacy Region/Area/SR selectors, while the backend keeps legacy
+  rule fields for compatibility/backfill. Settings can save JSON object or
+  array values.
 - User assignment uses the backend role catalog.
 - `SUPER_ADMIN` can change user roles after registration; registration itself
   does not expose role, Region, or Area selection.

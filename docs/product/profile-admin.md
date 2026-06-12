@@ -35,7 +35,10 @@ basic administration for privileged roles.
 - Admin users can list, add, and edit users inside their permitted scope.
 - User management keeps name/email search and adds filters for domain,
   organization node, feature/screen, role, and status. `SUPER_ADMIN` can assign
-  multiple allowed features from the user edit dialog.
+  multiple allowed features from the user edit dialog. User feature assignment
+  is submitted as `featureTreeCodes`; the backend expands selected child nodes
+  to include their feature-tree ancestors before saving `UserFeatureAssignment`
+  rows.
 - `ADMIN_PHONGVU` manages users and SRs under the `phongvu.vn` organization
   root. `ADMIN_ACARE` manages users and SRs under the `acare.vn` root,
   including accounts whose email ends with `@acare.vn`.
@@ -63,13 +66,15 @@ basic administration for privileged roles.
   the blocking counts/reasons.
 - Feature management keeps feature definitions and legacy feature rules for
   reference/backfill, but the primary runtime gate is now the user feature
-  assignment allowlist. `SUPER_ADMIN` bypasses feature gates to avoid lockout.
+  assignment allowlist. Feature rule create/edit in the app uses organization
+  tree nodes instead of legacy Region/Area/SR selectors. `SUPER_ADMIN` bypasses
+  feature gates to avoid lockout.
 - Policy management lets `SUPER_ADMIN` manage admin policy definitions, policy
   rules, and system settings. Policy rules support the same detailed selectors
-  as feature rules plus `scopeContains`, and batch creation supports multiple
-  selected users, domains, roles, departments, job roles, scopes, Regions,
-  Areas, SRs, and scope text values. Auth domain, password policy, and OTP
-  policy settings are managed from the policy settings tab.
+  as feature rules plus `scopeContains`, and app rule create/edit uses
+  organization tree nodes instead of legacy Region/Area/SR selectors. Auth
+  domain, password policy, and OTP policy settings are managed from the policy
+  settings tab and can store JSON object or array values.
 - `ADMIN_PHONGVU` and `ADMIN_ACARE` can reset passwords only for users inside
   their organization scope and cannot reset `SUPER_ADMIN`.
 - `SUPER_ADMIN` can manage all users.

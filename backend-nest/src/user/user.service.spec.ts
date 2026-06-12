@@ -66,6 +66,12 @@ describe('UserService admin store management', () => {
     area,
     organizationNodeId: 'org-store-cp62',
   };
+  const featureDefinitions = [
+    { code: 'ADMIN', parentCode: null },
+    { code: 'FIFO', parentCode: null },
+    { code: 'FIFO_IMPORT', parentCode: 'FIFO' },
+    { code: 'ADMIN_USERS', parentCode: 'ADMIN' },
+  ];
 
   beforeEach(() => {
     prisma = {
@@ -176,6 +182,21 @@ describe('UserService admin store management', () => {
           }
           return null;
         }),
+      },
+      featureDefinition: {
+        findMany: jest.fn(async (args?: any) => {
+          const codes = args?.where?.code?.in;
+          if (Array.isArray(codes)) {
+            return featureDefinitions.filter((feature) =>
+              codes.includes(feature.code),
+            );
+          }
+          return featureDefinitions;
+        }),
+      },
+      userFeatureAssignment: {
+        deleteMany: jest.fn(async () => ({ count: 0 })),
+        createMany: jest.fn(async ({ data }: any) => ({ count: data.length })),
       },
       user: {
         findUnique: jest.fn(),
@@ -655,6 +676,34 @@ describe('UserService admin store management', () => {
         }),
       }),
     );
+  });
+
+  it('saves user feature assignments from featureTreeCodes with ancestors', async () => {
+    installUserScopeTreeMock();
+
+    await service.adminCreateUser(superAdmin, {
+      email: 'features@phongvu.vn',
+      firstName: 'Feature',
+      role: 'STAFF',
+      departmentCode: 'SALES',
+      jobRoleCode: 'SALE',
+      workScopeType: 'STORE',
+      organizationNodeId: 'org-store-cp62',
+      featureTreeCodes: ['FIFO_IMPORT', 'ADMIN_USERS'],
+    });
+
+    expect(prisma.userFeatureAssignment.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user-SALE' },
+    });
+    expect(prisma.userFeatureAssignment.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ featureCode: 'FIFO' }),
+        expect.objectContaining({ featureCode: 'FIFO_IMPORT' }),
+        expect.objectContaining({ featureCode: 'ADMIN' }),
+        expect.objectContaining({ featureCode: 'ADMIN_USERS' }),
+      ]),
+      skipDuplicates: true,
+    });
   });
 
   it('keeps the ROOT_DOMAIN organization node for NATIONAL scope', async () => {

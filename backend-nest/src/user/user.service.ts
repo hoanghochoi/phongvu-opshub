@@ -583,7 +583,7 @@ export class UserService implements OnModuleInit {
       },
       include: this.userDtoInclude(),
     });
-    await this.syncUserFeatureAssignments(admin, user.id, body.featureCodes);
+    await this.syncUserFeatureAssignments(admin, user.id, body);
     const saved = await this.prisma.user.findUnique({
       where: { id: user.id },
       include: this.userDtoInclude(),
@@ -673,7 +673,7 @@ export class UserService implements OnModuleInit {
       },
       include: this.userDtoInclude(),
     });
-    await this.syncUserFeatureAssignments(admin, userId, body.featureCodes);
+    await this.syncUserFeatureAssignments(admin, userId, body);
     const saved = await this.prisma.user.findUnique({
       where: { id: userId },
       include: this.userDtoInclude(),
@@ -687,11 +687,18 @@ export class UserService implements OnModuleInit {
   private async syncUserFeatureAssignments(
     admin: any,
     userId: string,
-    featureCodesInput: unknown,
+    body: any,
   ) {
+    const featureCodesInput =
+      body?.featureTreeCodes !== undefined
+        ? body.featureTreeCodes
+        : body?.featureCodes;
     if (featureCodesInput === undefined) return;
     await this.assertSuperAdmin(admin);
-    const featureCodes = this.normalizeFeatureCodeList(featureCodesInput);
+    const featureCodes =
+      body?.featureTreeCodes !== undefined
+        ? await this.normalizeFeatureTreeCodeList(featureCodesInput)
+        : this.normalizeFeatureCodeList(featureCodesInput);
     if (featureCodes.length > 0) await this.ensureFeaturesExist(featureCodes);
     await this.prisma.$transaction(async (tx) => {
       await tx.userFeatureAssignment.deleteMany({ where: { userId } });
@@ -805,6 +812,34 @@ export class UserService implements OnModuleInit {
       admin,
       'admin-list-organization-tree',
     );
+  }
+
+  private async normalizeFeatureTreeCodeList(value: unknown) {
+    const requestedCodes = this.normalizeFeatureCodeList(value);
+    if (requestedCodes.length === 0) return [];
+
+    const features = await this.prisma.featureDefinition.findMany({
+      select: { code: true, parentCode: true },
+    });
+    const byCode = new Map(
+      features.map((feature) => [feature.code, feature.parentCode ?? null]),
+    );
+    const missing = requestedCodes.filter((code) => !byCode.has(code));
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        'Tính năng không tồn tại: ' + missing.join(', '),
+      );
+    }
+
+    const expanded = new Set<string>();
+    for (const code of requestedCodes) {
+      let cursor: string | null = code;
+      for (let guard = 0; cursor && guard < 50; guard += 1) {
+        expanded.add(cursor);
+        cursor = byCode.get(cursor) ?? null;
+      }
+    }
+    return Array.from(expanded).sort();
   }
 
   async adminListUserScopeTree(admin: any) {

@@ -55,7 +55,7 @@ void main() {
       organizationNodeId: 'org-store-cp62',
       canEditRole: true,
       canEditFeatures: true,
-      featureCodes: const ['FIFO', 'ADMIN_USERS'],
+      featureTreeCodes: const ['FIFO', 'ADMIN_USERS'],
     );
 
     expect(body['email'], 'staff@phongvu.vn');
@@ -63,6 +63,8 @@ void main() {
     expect(body['lastName'], 'Nguyen');
     expect(body['workScopeType'], 'STORE');
     expect(body['organizationNodeId'], 'org-store-cp62');
+    expect(body['featureTreeCodes'], ['FIFO', 'ADMIN_USERS']);
+    expect(body, isNot(contains('featureCodes')));
     expect(body, isNot(contains('storeId')));
     expect(body, isNot(contains('regionCode')));
     expect(body, isNot(contains('areaCode')));

@@ -39,6 +39,11 @@ describe('PolicyService', () => {
         defaultAllowed: false,
         isActive: true,
       },
+      [ADMIN_POLICY_CODES.ADMIN_USERS]: {
+        code: ADMIN_POLICY_CODES.ADMIN_USERS,
+        defaultAllowed: false,
+        isActive: true,
+      },
     };
     rules = [];
     settings = {};
@@ -82,6 +87,14 @@ describe('PolicyService', () => {
       },
       areaDefinition: {
         findUnique: jest.fn(async ({ where }: any) => ({ code: where.code, regionCode: 'MIEN_NAM' })),
+      },
+      organizationNode: {
+        findMany: jest.fn(async () => []),
+        findUnique: jest.fn(async ({ where }: any) =>
+          where.id === 'org-store-cp62'
+            ? { id: 'org-store-cp62', isActive: true }
+            : null,
+        ),
       },
       store: {
         findUnique: jest.fn(async ({ where }: any) => ({ storeId: where.storeId })),
@@ -199,5 +212,51 @@ describe('PolicyService', () => {
         note: 'temporary policy block',
       }),
     });
+  });
+
+  it('creates policy rules from organization tree nodes without legacy location selectors', async () => {
+    const result = await service.adminCreateRules(
+      { role: 'SUPER_ADMIN' },
+      {
+        policyCode: ADMIN_POLICY_CODES.ADMIN_USERS,
+        allowed: true,
+        organizationNodeIds: ['org-store-cp62'],
+        note: 'tree-only policy',
+      },
+    );
+
+    expect(result).toHaveLength(1);
+    expect(prisma.adminPolicyRule.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        policyCode: ADMIN_POLICY_CODES.ADMIN_USERS,
+        allowed: true,
+        organizationNodeId: 'org-store-cp62',
+        regionCode: null,
+        areaCode: null,
+        storeCode: null,
+      }),
+    });
+  });
+
+  it('updates array-valued settings', async () => {
+    settings[ADMIN_SETTING_KEYS.AUTH_ALLOWED_EMAIL_DOMAINS] = {
+      key: ADMIN_SETTING_KEYS.AUTH_ALLOWED_EMAIL_DOMAINS,
+      displayName: 'Allowed domains',
+      description: '',
+      category: 'AUTH',
+      value: ['phongvu.vn'],
+    };
+    prisma.adminSetting.update.mockImplementation(async ({ data }: any) => ({
+      ...settings[ADMIN_SETTING_KEYS.AUTH_ALLOWED_EMAIL_DOMAINS],
+      ...data,
+    }));
+
+    await expect(
+      service.adminUpdateSetting(
+        { role: 'SUPER_ADMIN' },
+        ADMIN_SETTING_KEYS.AUTH_ALLOWED_EMAIL_DOMAINS,
+        { value: ['@acare.vn', 'phongvu.vn'] },
+      ),
+    ).resolves.toMatchObject({ value: ['acare.vn', 'phongvu.vn'] });
   });
 });

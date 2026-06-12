@@ -27,26 +27,31 @@ void main() {
     expect(rule.toJson(), containsPair('scopeContains', 'CP'));
   });
 
-  test('AdminPolicyRuleBatchRequest writes multi-select selectors', () {
-    final request = AdminPolicyRuleBatchRequest(
-      policyCode: 'FIFO',
-      allowed: false,
-      emailDomains: const ['acare.vn'],
-      systemRoles: const ['STAFF'],
-      departmentCodes: const ['SALES', 'TECHNICAL'],
-      regionCodes: const ['MIEN_NAM'],
-      areaCodes: const ['HCM'],
-      storeCodes: const ['CP62'],
-      userIds: const ['user-1', 'user-2'],
-      scopeContainsValues: const ['CP'],
-      note: 'temporary block',
-    );
+  test(
+    'AdminPolicyRuleBatchRequest writes tree-only organization selectors',
+    () {
+      final request = AdminPolicyRuleBatchRequest(
+        policyCode: 'FIFO',
+        allowed: false,
+        emailDomains: const ['acare.vn'],
+        systemRoles: const ['STAFF'],
+        departmentCodes: const ['SALES', 'TECHNICAL'],
+        organizationNodeIds: const ['org-store-cp62'],
+        userIds: const ['user-1', 'user-2'],
+        scopeContainsValues: const ['CP'],
+        note: 'temporary block',
+      );
 
-    final json = request.toJson();
-    expect(json['departmentCodes'], ['SALES', 'TECHNICAL']);
-    expect(json['userIds'], ['user-1', 'user-2']);
-    expect(json['scopeContainsValues'], ['CP']);
-  });
+      final json = request.toJson();
+      expect(json['departmentCodes'], ['SALES', 'TECHNICAL']);
+      expect(json['organizationNodeIds'], ['org-store-cp62']);
+      expect(json, isNot(contains('regionCodes')));
+      expect(json, isNot(contains('areaCodes')));
+      expect(json, isNot(contains('storeCodes')));
+      expect(json['userIds'], ['user-1', 'user-2']);
+      expect(json['scopeContainsValues'], ['CP']);
+    },
+  );
 
   test('AdminSettingDefinition parses and writes configurable values', () {
     final setting = AdminSettingDefinition.fromJson({
