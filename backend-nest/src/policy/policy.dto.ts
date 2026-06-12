@@ -1,7 +1,6 @@
 import {
   IsArray,
   IsBoolean,
-  IsObject,
   IsOptional,
   IsString,
   MaxLength,
@@ -198,6 +197,5 @@ export class AdminSettingDto {
   category?: string;
 
   @IsOptional()
-  @IsObject()
   value?: Record<string, unknown> | unknown[];
 }

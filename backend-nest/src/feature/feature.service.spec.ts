@@ -88,6 +88,13 @@ describe('FeatureService', () => {
           where.code === 'HCM' ? { code: 'HCM', regionCode: 'MIEN_NAM' } : null,
         ),
       },
+      organizationNode: {
+        findUnique: jest.fn(async ({ where }: any) =>
+          where.id === 'org-store-cp62'
+            ? { id: 'org-store-cp62', isActive: true }
+            : null,
+        ),
+      },
       store: {
         findUnique: jest.fn(async ({ where }: any) => ({
           storeId: where.storeId,
@@ -204,6 +211,30 @@ describe('FeatureService', () => {
         enabled: true,
         emailDomain: 'phongvu.vn',
         note: 'domain access',
+      }),
+    });
+  });
+
+  it('creates feature rules from organization tree nodes without legacy location selectors', async () => {
+    const result = await service.adminCreateRules(
+      { role: 'SUPER_ADMIN' },
+      {
+        featureCode: 'ADMIN_USERS',
+        enabled: true,
+        organizationNodeIds: ['org-store-cp62'],
+        note: 'tree-only access',
+      },
+    );
+
+    expect(result).toHaveLength(1);
+    expect(prisma.featureAccessRule.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        featureCode: 'ADMIN_USERS',
+        enabled: true,
+        organizationNodeId: 'org-store-cp62',
+        regionCode: null,
+        areaCode: null,
+        storeCode: null,
       }),
     });
   });

@@ -80,6 +80,12 @@ export class AdminUserDto extends UpdateProfileDto {
   @IsString({ each: true })
   @MaxLength(60, { each: true })
   featureCodes?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(60, { each: true })
+  featureTreeCodes?: string[];
 }
 
 export class AdminUserQueryDto {

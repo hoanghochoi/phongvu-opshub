@@ -169,13 +169,13 @@ class AdminPolicyRuleBatchRequest {
     'departmentCodes': departmentCodes,
     'jobRoleCodes': jobRoleCodes,
     'workScopeTypes': workScopeTypes,
-    'regionCodes': regionCodes,
-    'areaCodes': areaCodes,
     'organizationNodeIds': organizationNodeIds,
-    'storeCodes': storeCodes,
     'userIds': userIds,
     'scopeContainsValues': scopeContainsValues,
     'note': note,
+    if (regionCodes.isNotEmpty) 'regionCodes': regionCodes,
+    if (areaCodes.isNotEmpty) 'areaCodes': areaCodes,
+    if (storeCodes.isNotEmpty) 'storeCodes': storeCodes,
   };
 }
 

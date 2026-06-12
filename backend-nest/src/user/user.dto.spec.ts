@@ -12,4 +12,14 @@ describe('AdminUserDto', () => {
 
     await expect(validate(dto)).resolves.toHaveLength(0);
   });
+
+  it('accepts featureTreeCodes for tree-only feature assignment', async () => {
+    const dto = Object.assign(new AdminUserDto(), {
+      email: 'staff@phongvu.vn',
+      firstName: 'Staff',
+      featureTreeCodes: ['FIFO', 'FIFO_IMPORT'],
+    });
+
+    await expect(validate(dto)).resolves.toHaveLength(0);
+  });
 });

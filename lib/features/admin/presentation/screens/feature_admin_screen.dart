@@ -6,7 +6,6 @@ import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
-import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../domain/admin_feature_definition.dart';
 import '../../domain/admin_organization_node.dart';
@@ -27,9 +26,6 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
   List<AdminRoleDefinition> _roles = [];
   List<AdminPersonnelDefinition> _departments = [];
   List<AdminPersonnelDefinition> _jobRoles = [];
-  List<AdminRegionDefinition> _regions = [];
-  List<AdminAreaDefinition> _areas = [];
-  List<StoreBranch> _stores = [];
   List<AdminOrganizationNode> _organizationNodes = [];
   List<User> _users = [];
   String? _ruleFeatureFilter;
@@ -56,9 +52,6 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
         _repository.listAdminRoles(),
         _repository.listAdminDepartments(),
         _repository.listAdminJobRoles(),
-        _repository.listAdminRegions(),
-        _repository.listAdminAreas(),
-        _repository.listAdminStores(),
         _repository.listAdminOrganizationTree(),
         _repository.listUsers(),
       ]);
@@ -69,11 +62,8 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
         _roles = results[2] as List<AdminRoleDefinition>;
         _departments = results[3] as List<AdminPersonnelDefinition>;
         _jobRoles = results[4] as List<AdminPersonnelDefinition>;
-        _regions = results[5] as List<AdminRegionDefinition>;
-        _areas = results[6] as List<AdminAreaDefinition>;
-        _stores = results[7] as List<StoreBranch>;
-        _organizationNodes = results[8] as List<AdminOrganizationNode>;
-        _users = results[9] as List<User>;
+        _organizationNodes = results[5] as List<AdminOrganizationNode>;
+        _users = results[6] as List<User>;
       });
       await AppLogger.instance.info(
         'AdminFeatures',
@@ -82,7 +72,6 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
           'features': _features.length,
           'rules': _rules.length,
           'users': _users.length,
-          'stores': _stores.length,
           'organizationNodes': _organizationNodes.length,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
@@ -122,11 +111,8 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
         roles: _roles,
         departments: _departments,
         jobRoles: _jobRoles,
-        regions: _regions,
-        areas: _areas,
-          stores: _stores,
-          organizationNodes: _organizationNodes,
-          users: _users,
+        organizationNodes: _organizationNodes,
+        users: _users,
       ),
     );
     if (updated == true) await _load();
@@ -775,9 +761,6 @@ class _FeatureRuleEditorDialog extends StatefulWidget {
   final List<AdminRoleDefinition> roles;
   final List<AdminPersonnelDefinition> departments;
   final List<AdminPersonnelDefinition> jobRoles;
-  final List<AdminRegionDefinition> regions;
-  final List<AdminAreaDefinition> areas;
-  final List<StoreBranch> stores;
   final List<AdminOrganizationNode> organizationNodes;
   final List<User> users;
 
@@ -787,9 +770,6 @@ class _FeatureRuleEditorDialog extends StatefulWidget {
     required this.roles,
     required this.departments,
     required this.jobRoles,
-    required this.regions,
-    required this.areas,
-    required this.stores,
     required this.organizationNodes,
     required this.users,
     this.rule,
@@ -809,19 +789,13 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
   String? _departmentCode;
   String? _jobRoleCode;
   String? _workScopeType;
-  String? _regionCode;
-  String? _areaCode;
   String? _organizationNodeId;
-  String? _storeCode;
   String? _userId;
   final Set<String> _systemRoles = {};
   final Set<String> _departmentCodes = {};
   final Set<String> _jobRoleCodes = {};
   final Set<String> _workScopeTypes = {};
-  final Set<String> _regionCodes = {};
-  final Set<String> _areaCodes = {};
   final Set<String> _organizationNodeIds = {};
-  final Set<String> _storeCodes = {};
   final Set<String> _userIds = {};
   bool _saving = false;
 
@@ -837,22 +811,16 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
     _departmentCode = rule?.departmentCode;
     _jobRoleCode = rule?.jobRoleCode;
     _workScopeType = rule?.workScopeType;
-    _regionCode = rule?.regionCode;
-    _areaCode = rule?.areaCode;
-    _organizationNodeId = rule?.organizationNodeId;
-    _storeCode = rule?.storeCode;
+    _organizationNodeId = rule?.organizationNodeId ?? _legacyNodeIdFor(rule);
     _userId = rule?.userId;
     _emailDomainsController.text = rule?.emailDomain ?? '';
     if (_systemRole != null) _systemRoles.add(_systemRole!);
     if (_departmentCode != null) _departmentCodes.add(_departmentCode!);
     if (_jobRoleCode != null) _jobRoleCodes.add(_jobRoleCode!);
     if (_workScopeType != null) _workScopeTypes.add(_workScopeType!);
-    if (_regionCode != null) _regionCodes.add(_regionCode!);
-    if (_areaCode != null) _areaCodes.add(_areaCode!);
     if (_organizationNodeId != null) {
       _organizationNodeIds.add(_organizationNodeId!);
     }
-    if (_storeCode != null) _storeCodes.add(_storeCode!);
     if (_userId != null) _userIds.add(_userId!);
     _noteController.text = rule?.note ?? '';
   }
@@ -885,10 +853,10 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
       departmentCode: _departmentCode,
       jobRoleCode: _jobRoleCode,
       workScopeType: _workScopeType,
-      regionCode: _regionCode,
-      areaCode: _areaCode,
+      regionCode: null,
+      areaCode: null,
       organizationNodeId: _organizationNodeId,
-      storeCode: _storeCode,
+      storeCode: null,
       userId: _userId,
       note: note,
     );
@@ -900,10 +868,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
       departmentCodes: _sortedValues(_departmentCodes),
       jobRoleCodes: _sortedValues(_jobRoleCodes),
       workScopeTypes: _sortedValues(_workScopeTypes),
-      regionCodes: _sortedValues(_regionCodes),
-      areaCodes: _sortedValues(_areaCodes),
       organizationNodeIds: _sortedValues(_organizationNodeIds),
-      storeCodes: _sortedValues(_storeCodes),
       userIds: _sortedValues(_userIds),
       note: note,
     );
@@ -919,10 +884,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
           'departmentCount': _departmentCodes.length,
           'jobRoleCount': _jobRoleCodes.length,
           'scopeCount': _workScopeTypes.length,
-          'regionCount': _regionCodes.length,
-          'areaCount': _areaCodes.length,
           'organizationNodeCount': _organizationNodeIds.length,
-          'storeCount': _storeCodes.length,
           'userCount': _userIds.length,
           'domainCount': domainValues.length,
         },
@@ -997,17 +959,6 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.rule != null;
-    final filteredAreas = isEditing
-        ? (_regionCode == null
-              ? widget.areas
-              : widget.areas
-                    .where((area) => area.regionCode == _regionCode)
-                    .toList())
-        : (_regionCodes.isEmpty
-              ? widget.areas
-              : widget.areas
-                    .where((area) => _regionCodes.contains(area.regionCode))
-                    .toList());
     return AlertDialog(
       title: Text(widget.rule == null ? 'Thêm rule' : 'Sửa rule'),
       content: SizedBox(
@@ -1039,9 +990,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
                 controller: _emailDomainsController,
                 decoration: InputDecoration(
                   labelText: 'Domain email',
-                  hintText: isEditing
-                      ? 'acare.vn'
-                      : 'acare.vn, phongvu.vn',
+                  hintText: isEditing ? 'acare.vn' : 'acare.vn, phongvu.vn',
                 ),
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: isEditing
@@ -1142,9 +1091,8 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
                   label: 'Node tổ chức',
                   value: _organizationNodeId,
                   items: _organizationNodeItems(),
-                  onChanged: (value) => setState(
-                    () => _organizationNodeId = value,
-                  ),
+                  onChanged: (value) =>
+                      setState(() => _organizationNodeId = value),
                 )
               else
                 _multiSelectField(
@@ -1153,115 +1101,6 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
                   items: _organizationNodeItems(),
                   onChanged: (values) => setState(() {
                     _organizationNodeIds
-                      ..clear()
-                      ..addAll(values);
-                  }),
-                ),
-              if (isEditing)
-                _optionalDropdown(
-                  label: 'Miền',
-                  value: _regionCode,
-                  items: widget.regions
-                      .map(
-                        (region) => (
-                          region.code,
-                          '${region.abbreviation} - ${region.title}',
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) => setState(() {
-                    _regionCode = value;
-                    if (value == null) return;
-                    final areaMatchesRegion = widget.areas.any(
-                      (area) =>
-                          area.code == _areaCode && area.regionCode == value,
-                    );
-                    if (!areaMatchesRegion) _areaCode = null;
-                  }),
-                )
-              else
-                _multiSelectField(
-                  label: 'Miền',
-                  selectedValues: _regionCodes,
-                  items: widget.regions
-                      .map(
-                        (region) => (
-                          region.code,
-                          '${region.abbreviation} - ${region.title}',
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (values) => setState(() {
-                    _regionCodes
-                      ..clear()
-                      ..addAll(values);
-                    if (_regionCodes.isEmpty) return;
-                    _areaCodes.removeWhere((areaCode) {
-                      final area = widget.areas.where(
-                        (item) => item.code == areaCode,
-                      );
-                      return area.isEmpty ||
-                          !_regionCodes.contains(area.first.regionCode);
-                    });
-                  }),
-                ),
-              if (isEditing)
-                _optionalDropdown(
-                  label: 'Vùng',
-                  value: _areaCode,
-                  items: filteredAreas
-                      .map(
-                        (area) =>
-                            (area.code, '${area.abbreviation} - ${area.title}'),
-                      )
-                      .toList(),
-                  onChanged: (value) => setState(() {
-                    _areaCode = value;
-                    if (value == null) return;
-                    for (final area in widget.areas) {
-                      if (area.code == value) _regionCode = area.regionCode;
-                    }
-                  }),
-                )
-              else
-                _multiSelectField(
-                  label: 'Vùng',
-                  selectedValues: _areaCodes,
-                  items: filteredAreas
-                      .map(
-                        (area) =>
-                            (area.code, '${area.abbreviation} - ${area.title}'),
-                      )
-                      .toList(),
-                  onChanged: (values) => setState(() {
-                    _areaCodes
-                      ..clear()
-                      ..addAll(values);
-                    for (final area in widget.areas) {
-                      if (_areaCodes.contains(area.code)) {
-                        _regionCodes.add(area.regionCode);
-                      }
-                    }
-                  }),
-                ),
-              if (isEditing)
-                _optionalDropdown(
-                  label: 'SR',
-                  value: _storeCode,
-                  items: widget.stores
-                      .map((store) => (store.storeId, store.displayName))
-                      .toList(),
-                  onChanged: (value) => setState(() => _storeCode = value),
-                )
-              else
-                _multiSelectField(
-                  label: 'SR',
-                  selectedValues: _storeCodes,
-                  items: widget.stores
-                      .map((store) => (store.storeId, store.displayName))
-                      .toList(),
-                  onChanged: (values) => setState(() {
-                    _storeCodes
                       ..clear()
                       ..addAll(values);
                   }),
@@ -1333,6 +1172,45 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
       ],
       onChanged: onChanged,
     );
+  }
+
+  String? _legacyNodeIdFor(AdminFeatureRule? rule) {
+    if (rule == null) return null;
+    final storeNode = _nodeIdByTypeAndCode('SHOWROOM', rule.storeCode);
+    if (storeNode != null) return storeNode;
+    final areaNode = _nodeIdByTypeAndCode('AREA', rule.areaCode);
+    if (areaNode != null) return areaNode;
+    return _nodeIdByTypeAndCode('REGION', rule.regionCode);
+  }
+
+  String? _nodeIdByTypeAndCode(String type, String? code) {
+    final normalized = _normalizeLegacyCode(code);
+    if (normalized == null) return null;
+    for (final node in widget.organizationNodes) {
+      if (node.type != type) continue;
+      final candidates = [
+        node.businessCode,
+        node.storeId,
+        node.code,
+        _legacyCodeFromNodeCode(node.code),
+      ];
+      if (candidates.any((item) => _normalizeLegacyCode(item) == normalized)) {
+        return node.id;
+      }
+    }
+    return null;
+  }
+
+  String? _normalizeLegacyCode(String? value) {
+    final normalized = value?.trim().toUpperCase();
+    return normalized == null || normalized.isEmpty ? null : normalized;
+  }
+
+  String _legacyCodeFromNodeCode(String code) {
+    return code
+        .replaceFirst(RegExp(r'^(REGION|AREA)_(PHONGVU|ACARE)_'), '')
+        .replaceFirst(RegExp(r'^STORE_'), '')
+        .toUpperCase();
   }
 
   List<(String, String)> _organizationNodeItems() {

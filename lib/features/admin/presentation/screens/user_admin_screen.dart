@@ -770,7 +770,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       organizationNodeId: _organizationNodeId,
       canEditRole: widget.canEditRole,
       canEditFeatures: widget.canEditFeatures,
-      featureCodes: _sortedFeatureCodes(),
+      featureTreeCodes: _sortedFeatureCodes(),
     );
   }
 

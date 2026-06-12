@@ -23,4 +23,21 @@ void main() {
 
     expect(request.toJson()['emailDomains'], ['acare.vn', 'phongvu.vn']);
   });
+
+  test(
+    'AdminFeatureRuleBatchRequest supports tree-only organization nodes',
+    () {
+      const request = AdminFeatureRuleBatchRequest(
+        featureCode: 'ADMIN_USERS',
+        enabled: true,
+        organizationNodeIds: ['org-store-cp62'],
+      );
+
+      final json = request.toJson();
+      expect(json['organizationNodeIds'], ['org-store-cp62']);
+      expect(json, isNot(contains('regionCodes')));
+      expect(json, isNot(contains('areaCodes')));
+      expect(json, isNot(contains('storeCodes')));
+    },
+  );
 }

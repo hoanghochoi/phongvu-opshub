@@ -10,7 +10,7 @@ class AdminUserEditorPayload {
     required String role,
     required bool canEditRole,
     required bool canEditFeatures,
-    required List<String> featureCodes,
+    required List<String> featureTreeCodes,
     String? departmentCode,
     String? jobRoleCode,
     String? organizationNodeId,
@@ -25,7 +25,7 @@ class AdminUserEditorPayload {
       'workScopeType': workScopeType,
       'organizationNodeId': organizationNodeId,
       if (canEditRole) 'role': role,
-      if (canEditFeatures) 'featureCodes': featureCodes,
+      if (canEditFeatures) 'featureTreeCodes': featureTreeCodes,
     };
   }
 }
