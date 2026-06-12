@@ -3,12 +3,25 @@
 
 ALTER TABLE "User" ALTER COLUMN "role" SET DEFAULT 'USER';
 
+DELETE FROM "RoleDefinition"
+WHERE "id" <> 'role-super-admin'
+  AND "code" = 'SUPER_ADMIN';
+
+DELETE FROM "RoleDefinition"
+WHERE "id" <> 'role-admin'
+  AND "code" IN ('ADMIN', 'ADMIN_PHONGVU', 'ADMIN_ACARE', 'MANAGER');
+
+DELETE FROM "RoleDefinition"
+WHERE "id" <> 'role-user'
+  AND "code" IN ('USER', 'STAFF');
+
 INSERT INTO "RoleDefinition" ("id", "code", "displayName", "description", "isSystem", "createdAt", "updatedAt")
 VALUES
   ('role-super-admin', 'SUPER_ADMIN', 'Super Admin', 'Toàn quyền hệ thống', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   ('role-admin', 'ADMIN', 'Admin', 'Quản trị theo phạm vi cây tổ chức', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   ('role-user', 'USER', 'User', 'Quyền thao tác hằng ngày', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-ON CONFLICT ("code") DO UPDATE SET
+ON CONFLICT ("id") DO UPDATE SET
+  "code" = EXCLUDED."code",
   "displayName" = EXCLUDED."displayName",
   "description" = EXCLUDED."description",
   "isSystem" = true,
