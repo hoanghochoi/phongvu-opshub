@@ -10,8 +10,8 @@ describe('PolicyService', () => {
 
   const context = {
     id: 'user-1',
-    email: 'staff@acaretek.vn',
-    emailDomain: 'acaretek.vn',
+    email: 'staff@acare.vn',
+    emailDomain: 'acare.vn',
     role: 'STAFF',
     departmentCode: 'SALES',
     jobRoleCode: 'SALE',
@@ -161,11 +161,11 @@ describe('PolicyService', () => {
   it('normalizes configured login domains', async () => {
     settings[ADMIN_SETTING_KEYS.AUTH_ALLOWED_EMAIL_DOMAINS] = {
       key: ADMIN_SETTING_KEYS.AUTH_ALLOWED_EMAIL_DOMAINS,
-      value: ['@Acaretek.vn', 'phongvu.vn', 'acaretek.vn'],
+      value: ['@acare.vn', 'phongvu.vn', 'acare.vn'],
     };
 
     await expect(service.getAllowedEmailDomains(['fallback.vn'])).resolves.toEqual([
-      'acaretek.vn',
+      'acare.vn',
       'phongvu.vn',
     ]);
   });

@@ -79,7 +79,7 @@ void main() {
         isTrue,
       );
       expect(
-        EmailDomainPolicy.isAllowedEmail('staff@acaretek.vn', const []),
+        EmailDomainPolicy.isAllowedEmail('staff@acare.vn', const []),
         isTrue,
       );
       expect(
@@ -103,7 +103,7 @@ void main() {
 
       expect(
         EmailDomainPolicy.isAllowedEmail(
-          'admin@acaretek.vn',
+          'admin@acare.vn',
           staleAssetDomains,
         ),
         isTrue,

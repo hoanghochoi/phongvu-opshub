@@ -23,8 +23,8 @@ describe('email domain policy', () => {
       `missing-domain-file-${Date.now()}.txt`,
     );
 
-    expect(getAllowedEmailDomains()).toContain('acaretek.vn');
-    expect(isAllowedEmailDomain('admin@acaretek.vn')).toBe(true);
+    expect(getAllowedEmailDomains()).toContain('acare.vn');
+    expect(isAllowedEmailDomain('admin@acare.vn')).toBe(true);
   });
 
   it('keeps built-in domains when the configured file is stale', () => {
@@ -34,8 +34,8 @@ describe('email domain policy', () => {
     process.env.EMAIL_DOMAIN_FILE = file;
 
     expect(getAllowedEmailDomains()).toEqual(
-      expect.arrayContaining(['phongvu.vn', 'teko.vn', 'acaretek.vn']),
+      expect.arrayContaining(['phongvu.vn', 'teko.vn', 'acare.vn']),
     );
-    expect(isAllowedEmailDomain('admin@acaretek.vn')).toBe(true);
+    expect(isAllowedEmailDomain('admin@acare.vn')).toBe(true);
   });
 });

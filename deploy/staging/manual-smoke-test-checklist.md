@@ -9,7 +9,7 @@ Tài khoản staging có sẵn:
 
 - `staging.admin@phongvu.vn` / `<STAGING_TEST_PASSWORD>`
 - `staging.staff@phongvu.vn` / `<STAGING_TEST_PASSWORD>`
-- `staging.acare@acaretek.vn` / `<STAGING_TEST_PASSWORD>`
+- `staging.acare@acare.vn` / `<STAGING_TEST_PASSWORD>`
 - `admin@hoanghochoi.com` / `<BREAK_GLASS_PASSWORD>` cho smoke test quyền
   `SUPER_ADMIN` khi cần. Không ghi mật khẩu thật vào checklist hoặc issue.
 
@@ -65,7 +65,7 @@ rõ ràng.
 - [x] Nhập sai mật khẩu thì app báo lỗi rõ ràng.
 - [ ] Đăng nhập `staging.staff@phongvu.vn` thành công.
 - [ ] User staff hiển thị store/scope `STG01` khi có thông tin store.
-- [ ] Đăng nhập `staging.acare@acaretek.vn` thành công.
+- [ ] Đăng nhập `staging.acare@acare.vn` thành công.
 - [ ] User ACare vào được app, không bị ép vào luồng chọn store sai.
 - [ ] Đăng nhập cùng một user trên Windows và Android không đá session sai nền tảng.
 - [ ] Sau khi logout, nút back/navigation không mở lại màn hình đã đăng nhập.
@@ -88,7 +88,7 @@ rõ ràng.
 - [ ] `staging.admin@phongvu.vn` thấy card/menu `Quản trị`.
 - [ ] Danh sách người dùng tải được.
 - [ ] Filter người dùng theo tên/email vẫn hoạt động.
-- [ ] Filter người dùng theo domain hoạt động với `phongvu.vn` và `acaretek.vn`.
+- [ ] Filter người dùng theo domain hoạt động với `phongvu.vn` và `acare.vn`.
 - [ ] Filter người dùng theo cơ cấu tổ chức hoạt động hoặc empty state rõ ràng.
 - [ ] Filter người dùng theo màn hình/chức năng hoạt động hoặc empty state rõ ràng.
 - [ ] Filter người dùng theo role và trạng thái hoạt động.
@@ -100,7 +100,7 @@ rõ ràng.
 - [ ] Bỏ tick một chức năng của user test, đăng nhập lại và xác nhận route/API tương ứng bị chặn rõ ràng.
 - [ ] Reset mật khẩu user test từ màn admin.
 - [ ] Màn hình `Cơ cấu tổ chức` tải được dạng tree.
-- [ ] Root domain mặc định có `phongvu.vn` và `acaretek.vn`.
+- [ ] Root domain mặc định có `phongvu.vn` và `acare.vn`.
 - [ ] Tạo subdomain test dưới `phongvu.vn`, ví dụ `smoke-staging.phongvu.vn`, rồi thấy node xuất hiện đúng cấp.
 - [ ] Sửa tên/trạng thái node test và tải lại vẫn giữ dữ liệu.
 - [ ] Tạo node con dưới subdomain test, ví dụ phòng ban/showroom/chức danh, rồi thấy đúng cấp tree.

@@ -30,7 +30,7 @@ Build kỳ vọng: `2026.06.08.7+200007` - release notes `Staging GitHub 8cef0a0
 ## 3. Cơ cấu tổ chức dạng tree
 
 - [x] Vào Admin -> Cơ cấu tổ chức.
-- [ ] Kiểm tra cây có root domain `phongvu.vn` và `acaretek.vn`. -> chỗ này vừa vào thì tree mở rộng hết, sửa lại khi mới vào màn hình chỉ thấy root, click xổ ra thì mới xổ.
+- [ ] Kiểm tra cây có root domain `phongvu.vn` và `acare.vn`. -> chỗ này vừa vào thì tree mở rộng hết, sửa lại khi mới vào màn hình chỉ thấy root, click xổ ra thì mới xổ.
 - [x] Mở root `phongvu.vn`; kỳ vọng có node con sub-domain `phongvu.vn`.
 - [x] Kiểm tra các sub-domain/khối/phòng ban/showroom/chức danh hiển thị theo dạng tree, không bị lẫn thành list phẳng khó đọc.
 - [ ] Chọn node showroom bất kỳ; kỳ vọng panel chi tiết bên phải hiển thị đúng mã showroom/tên showroom/node cha. -> chưa đúng, chỉ đang hiển thị Mã, Node con, User, SR, Danh mục liên kết

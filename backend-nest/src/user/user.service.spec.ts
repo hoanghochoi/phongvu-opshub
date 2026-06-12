@@ -20,7 +20,7 @@ describe('UserService admin store management', () => {
   };
   const adminAcare = {
     id: 'admin-acare',
-    email: 'admin@acaretek.vn',
+    email: 'admin@acare.vn',
     role: 'ADMIN_ACARE',
     workScopeType: 'NATIONAL',
   };
@@ -307,10 +307,10 @@ describe('UserService admin store management', () => {
     org.saveNode({
       id: 'org-domain-acaretek-vn',
       code: 'DOMAIN_ACARETEK_VN',
-      displayName: 'acaretek.vn',
+      displayName: 'acare.vn',
       type: 'ROOT_DOMAIN',
       parentId: null,
-      emailDomain: 'acaretek.vn',
+      emailDomain: 'acare.vn',
       isSystem: true,
       isActive: true,
       sortOrder: 20,
@@ -489,12 +489,12 @@ describe('UserService admin store management', () => {
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
-  it('scopes ADMIN_ACARE user management to the acaretek.vn email domain', async () => {
+  it('scopes ADMIN_ACARE user management to the acare.vn email domain', async () => {
     installUserScopeTreeMock();
     prisma.user.findMany.mockResolvedValueOnce([
       {
         id: 'acare-user',
-        email: 'staff@acaretek.vn',
+        email: 'staff@acare.vn',
         firstName: 'ACare',
         lastName: null,
         role: 'STAFF',
@@ -506,7 +506,7 @@ describe('UserService admin store management', () => {
     ]);
 
     await expect(service.adminListUsers(adminAcare)).resolves.toEqual([
-      expect.objectContaining({ email: 'staff@acaretek.vn' }),
+      expect.objectContaining({ email: 'staff@acare.vn' }),
     ]);
     expect(prisma.user.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -516,7 +516,7 @@ describe('UserService admin store management', () => {
               OR: expect.arrayContaining([
                 {
                   email: {
-                    endsWith: '@acaretek.vn',
+                    endsWith: '@acare.vn',
                     mode: 'insensitive',
                   },
                 },
@@ -529,13 +529,13 @@ describe('UserService admin store management', () => {
 
     await expect(
       service.adminCreateUser(adminAcare, {
-        email: 'new@acaretek.vn',
+        email: 'new@acare.vn',
         firstName: 'New',
         role: 'STAFF',
         workScopeType: 'STORE',
         organizationNodeId: 'org-store-ac001',
       }),
-    ).resolves.toMatchObject({ email: 'new@acaretek.vn', role: 'STAFF' });
+    ).resolves.toMatchObject({ email: 'new@acare.vn', role: 'STAFF' });
 
     await expect(
       service.adminCreateUser(adminAcare, {
@@ -546,7 +546,7 @@ describe('UserService admin store management', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('blocks ADMIN_ACARE from updating users outside acaretek.vn', async () => {
+  it('blocks ADMIN_ACARE from updating users outside acare.vn', async () => {
     prisma.user.findUnique.mockResolvedValueOnce({
       id: 'phongvu-user',
       email: 'staff@phongvu.vn',
@@ -600,21 +600,21 @@ describe('UserService admin store management', () => {
 
     await expect(
       service.adminCreateUser(adminAcare, {
-        email: 'national@acaretek.vn',
+        email: 'national@acare.vn',
         firstName: 'National',
         role: 'STAFF',
         workScopeType: 'NATIONAL',
         organizationNodeId: 'org-domain-acaretek-vn',
       }),
     ).resolves.toMatchObject({
-      email: 'national@acaretek.vn',
+      email: 'national@acare.vn',
       workScopeType: 'NATIONAL',
       organizationNodeId: 'org-domain-acaretek-vn',
     });
 
     await expect(
       service.adminCreateUser(adminAcare, {
-        email: 'wrong-root@acaretek.vn',
+        email: 'wrong-root@acare.vn',
         firstName: 'Wrong Root',
         role: 'STAFF',
         workScopeType: 'NATIONAL',

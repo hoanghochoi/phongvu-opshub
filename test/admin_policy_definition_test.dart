@@ -7,7 +7,7 @@ void main() {
       'id': 'rule-1',
       'policyCode': 'FIFO',
       'allowed': false,
-      'emailDomain': 'acaretek.vn',
+      'emailDomain': 'acare.vn',
       'systemRole': 'STAFF',
       'departmentCode': 'SALES',
       'jobRoleCode': 'SALE',
@@ -23,7 +23,7 @@ void main() {
     expect(rule.policyCode, 'FIFO');
     expect(rule.allowed, isFalse);
     expect(rule.scopeContains, 'CP');
-    expect(rule.toJson(), containsPair('emailDomain', 'acaretek.vn'));
+    expect(rule.toJson(), containsPair('emailDomain', 'acare.vn'));
     expect(rule.toJson(), containsPair('scopeContains', 'CP'));
   });
 
@@ -31,7 +31,7 @@ void main() {
     final request = AdminPolicyRuleBatchRequest(
       policyCode: 'FIFO',
       allowed: false,
-      emailDomains: const ['acaretek.vn'],
+      emailDomains: const ['acare.vn'],
       systemRoles: const ['STAFF'],
       departmentCodes: const ['SALES', 'TECHNICAL'],
       regionCodes: const ['MIEN_NAM'],
@@ -54,12 +54,12 @@ void main() {
       'displayName': 'Domain dang nhap',
       'description': 'Allowed domains',
       'category': 'AUTH',
-      'value': ['phongvu.vn', 'acaretek.vn'],
+      'value': ['phongvu.vn', 'acare.vn'],
       'isSystem': true,
     });
 
     expect(setting.key, 'AUTH_ALLOWED_EMAIL_DOMAINS');
-    expect(setting.value, ['phongvu.vn', 'acaretek.vn']);
-    expect(setting.toJson()['value'], ['phongvu.vn', 'acaretek.vn']);
+    expect(setting.value, ['phongvu.vn', 'acare.vn']);
+    expect(setting.toJson()['value'], ['phongvu.vn', 'acare.vn']);
   });
 }

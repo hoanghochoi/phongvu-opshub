@@ -5,7 +5,7 @@ const DEFAULT_DOMAIN_FILE = 'data/email_domain.txt';
 const DOMAIN_FILE_KEY = 'EMAIL_DOMAIN_FILE';
 const DEFAULT_ALLOWED_DOMAINS = [
   'phongvu.vn',
-  'acaretek.vn',
+  'acare.vn',
 ];
 
 function normalizeDomain(domain: string): string {

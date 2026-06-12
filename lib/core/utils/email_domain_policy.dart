@@ -5,7 +5,7 @@ class EmailDomainPolicy {
 
   static const _assetPath = 'data/email_domain.txt';
   static const _breakGlassEmails = <String>{'admin@hoanghochoi.com'};
-  static const _fallbackDomains = <String>['phongvu.vn', 'acaretek.vn'];
+  static const _fallbackDomains = <String>['phongvu.vn', 'acare.vn'];
 
   static Future<List<String>> loadAllowedDomains() async {
     try {

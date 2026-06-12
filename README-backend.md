@@ -67,7 +67,7 @@ Expected responses:
 - Set `DATABASE_URL` to the production PostgreSQL database.
 - Set `REDIS_HOST` and `REDIS_PORT` consistently for NestJS and Go.
 - Keep `data/email_domain.txt` limited to accepted root fallback domains
-  (`phongvu.vn`, `acaretek.vn` by default). Operational subdomains should be
+  (`phongvu.vn`, `acare.vn` by default). Operational subdomains should be
   managed as active organization tree nodes in OpsHub admin; `EMAIL_DOMAIN_FILE`
   is only the fallback file path when the tree is unavailable.
 - Set all `BIGQUERY_*` values and place the service-account JSON outside git.

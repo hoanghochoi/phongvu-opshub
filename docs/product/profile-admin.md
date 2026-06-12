@@ -37,8 +37,8 @@ basic administration for privileged roles.
   organization node, feature/screen, role, and status. `SUPER_ADMIN` can assign
   multiple allowed features from the user edit dialog.
 - `ADMIN_PHONGVU` manages users and SRs under the `phongvu.vn` organization
-  root. `ADMIN_ACARE` manages users and SRs under the `acaretek.vn` root,
-  including accounts whose email ends with `@acaretek.vn`.
+  root. `ADMIN_ACARE` manages users and SRs under the `acare.vn` root,
+  including accounts whose email ends with `@acare.vn`.
 - The backend migration renames the legacy system role `ADMIN` to
   `ADMIN_PHONGVU`, keeps `ADMIN_ACARE` separate, and repairs the known `AC001`
   store/org link when that data exists.
@@ -57,7 +57,7 @@ basic administration for privileged roles.
   constraints.
 - Organization management lets `SUPER_ADMIN` maintain a tree with root domain,
   subdomain, block, department, area, showroom, job role, and virtual scope
-  nodes. Default root domains are `phongvu.vn` and `acaretek.vn`; the app shows
+  nodes. Default root domains are `phongvu.vn` and `acare.vn`; the app shows
   only root nodes by default and expands children on click. Nodes with children,
   users, SRs, or other references are blocked from deletion and the API returns
   the blocking counts/reasons.

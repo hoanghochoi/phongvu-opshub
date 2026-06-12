@@ -7,20 +7,20 @@ void main() {
       'id': 'rule-1',
       'featureCode': 'ADMIN_FEATURES',
       'enabled': true,
-      'emailDomain': 'acaretek.vn',
+      'emailDomain': 'acare.vn',
     });
 
-    expect(rule.emailDomain, 'acaretek.vn');
-    expect(rule.toJson()['emailDomain'], 'acaretek.vn');
+    expect(rule.emailDomain, 'acare.vn');
+    expect(rule.toJson()['emailDomain'], 'acare.vn');
   });
 
   test('AdminFeatureRuleBatchRequest writes email domains', () {
     final request = AdminFeatureRuleBatchRequest(
       featureCode: 'ADMIN_FEATURES',
       enabled: false,
-      emailDomains: const ['acaretek.vn', 'phongvu.vn'],
+      emailDomains: const ['acare.vn', 'phongvu.vn'],
     );
 
-    expect(request.toJson()['emailDomains'], ['acaretek.vn', 'phongvu.vn']);
+    expect(request.toJson()['emailDomains'], ['acare.vn', 'phongvu.vn']);
   });
 }

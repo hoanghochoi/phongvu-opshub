@@ -11,7 +11,7 @@ Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
   and an OpsHub password before signing in.
 - NestJS validates allowed staff email domains from active organization tree
   domain nodes first. The default root domains are `phongvu.vn` and
-  `acaretek.vn`; `SUPER_ADMIN` can add login-enabled subdomain nodes such as
+  `acare.vn`; `SUPER_ADMIN` can add login-enabled subdomain nodes such as
   `phongvu-shop.vn` under the root tree.
 - `data/email_domain.txt` and `EMAIL_DOMAIN_FILE` remain fallback inputs when
   the organization tree is unavailable, but they should contain only accepted

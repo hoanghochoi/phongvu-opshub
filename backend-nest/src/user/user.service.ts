@@ -1,4 +1,4 @@
-﻿import {
+import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -28,7 +28,7 @@ const ADMIN_PHONGVU_ROLE = 'ADMIN_PHONGVU';
 const ADMIN_ACARE_ROLE = 'ADMIN_ACARE';
 const MANAGER_ROLE = 'MANAGER';
 const STAFF_ROLE = 'STAFF';
-const ACARETEK_EMAIL_DOMAIN = 'acaretek.vn';
+const ACARE_EMAIL_DOMAIN = 'acare.vn';
 
 const STORE_SCOPE = 'STORE';
 const AREA_SCOPE = 'AREA';
@@ -46,7 +46,7 @@ const DEFAULT_REGION_CODE = 'CHUA_GAN';
 const CHATSALE_REGION_CODE = 'CHATSALE';
 const TELESALE_REGION_CODE = 'TELESALE';
 const ORG_ROOT_PHONGVU_ID = 'org-domain-phongvu-vn';
-const ORG_ROOT_ACARETEK_ID = 'org-domain-acaretek-vn';
+const ORG_ROOT_ACARE_ID = 'org-domain-acaretek-vn';
 const ORG_TYPES = new Set([
   'ROOT_DOMAIN',
   'SUBDOMAIN',
@@ -73,7 +73,7 @@ const DEFAULT_ROLE_DEFINITIONS = [
   {
     code: ADMIN_ACARE_ROLE,
     displayName: 'Admin ACare',
-    description: 'Quan ly user thuoc domain acaretek.vn',
+    description: 'Quan ly user thuoc domain acare.vn',
   },
   {
     code: MANAGER_ROLE,
@@ -1076,11 +1076,11 @@ export class UserService implements OnModuleInit {
     const byId = new Map(nodes.map((node) => [node.id, node]));
     let cursor = byId.get(parentId) ?? null;
     for (let guard = 0; cursor && guard < 50; guard += 1) {
-      if (cursor.id === ORG_ROOT_ACARETEK_ID) return 'ACARE';
+      if (cursor.id === ORG_ROOT_ACARE_ID) return 'ACARE';
       if (cursor.id === ORG_ROOT_PHONGVU_ID) return 'PHONGVU';
       cursor = cursor.parentId ? (byId.get(cursor.parentId) ?? null) : null;
     }
-    return parentId === ORG_ROOT_ACARETEK_ID ? 'ACARE' : 'PHONGVU';
+    return parentId === ORG_ROOT_ACARE_ID ? 'ACARE' : 'PHONGVU';
   }
 
   private normalizeRequiredEmailDomain(value: unknown) {
@@ -1725,7 +1725,7 @@ export class UserService implements OnModuleInit {
 
   private adminOrgRootId(admin: any) {
     if (this.isPhongVuAdmin(admin)) return ORG_ROOT_PHONGVU_ID;
-    if (this.isAcareAdmin(admin)) return ORG_ROOT_ACARETEK_ID;
+    if (this.isAcareAdmin(admin)) return ORG_ROOT_ACARE_ID;
     return null;
   }
 
@@ -1760,9 +1760,9 @@ export class UserService implements OnModuleInit {
 
   private fallbackUserDomainScope(rootId: string): Prisma.UserWhereInput {
     const insensitive = Prisma.QueryMode.insensitive;
-    if (rootId === ORG_ROOT_ACARETEK_ID) {
+    if (rootId === ORG_ROOT_ACARE_ID) {
       return {
-        email: { endsWith: '@' + ACARETEK_EMAIL_DOMAIN, mode: insensitive },
+        email: { endsWith: '@' + ACARE_EMAIL_DOMAIN, mode: insensitive },
       };
     }
     if (rootId === ORG_ROOT_PHONGVU_ID) {
@@ -3334,7 +3334,7 @@ export class UserService implements OnModuleInit {
       .toUpperCase();
     const isAcare = storeCode.startsWith('AC');
     return {
-      baseParentId: isAcare ? ORG_ROOT_ACARETEK_ID : ORG_ROOT_PHONGVU_ID,
+      baseParentId: isAcare ? ORG_ROOT_ACARE_ID : ORG_ROOT_PHONGVU_ID,
       sortBase: isAcare ? 20000 : 10000,
     };
   }
@@ -3375,26 +3375,26 @@ export class UserService implements OnModuleInit {
     await organizationNode.upsert({
       where: { code: 'DOMAIN_ACARETEK_VN' },
       update: {
-        displayName: 'acaretek.vn',
-        businessCode: 'acaretek.vn',
+        displayName: 'acare.vn',
+        businessCode: 'acare.vn',
         abbreviation: 'ACARE',
         description: 'Domain đăng nhập A Care',
         type: 'ROOT_DOMAIN',
-        emailDomain: 'acaretek.vn',
+        emailDomain: 'acare.vn',
         loginAllowed: true,
         isSystem: true,
         isActive: true,
         sortOrder: 20,
       },
       create: {
-        id: ORG_ROOT_ACARETEK_ID,
+        id: ORG_ROOT_ACARE_ID,
         code: 'DOMAIN_ACARETEK_VN',
-        displayName: 'acaretek.vn',
-        businessCode: 'acaretek.vn',
+        displayName: 'acare.vn',
+        businessCode: 'acare.vn',
         abbreviation: 'ACARE',
         description: 'Domain đăng nhập A Care',
         type: 'ROOT_DOMAIN',
-        emailDomain: 'acaretek.vn',
+        emailDomain: 'acare.vn',
         loginAllowed: true,
         isSystem: true,
         isActive: true,
@@ -4092,7 +4092,7 @@ export class UserService implements OnModuleInit {
     return String(email || '')
       .trim()
       .toLowerCase()
-      .endsWith('@' + ACARETEK_EMAIL_DOMAIN);
+      .endsWith('@' + ACARE_EMAIL_DOMAIN);
   }
 
   private async adminDomainScope(admin: any): Promise<Prisma.UserWhereInput> {
@@ -4111,7 +4111,7 @@ export class UserService implements OnModuleInit {
 
   private adminDomainScopeLabel(admin: any) {
     if (this.isPhongVuAdmin(admin)) return 'phongvu.vn';
-    if (this.isAcareAdmin(admin)) return ACARETEK_EMAIL_DOMAIN;
+    if (this.isAcareAdmin(admin)) return ACARE_EMAIL_DOMAIN;
     return 'all';
   }
 
@@ -4121,8 +4121,8 @@ export class UserService implements OnModuleInit {
 
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.findMany) {
-      if (rootId === ORG_ROOT_ACARETEK_ID) {
-        return normalizedDomain === ACARETEK_EMAIL_DOMAIN;
+      if (rootId === ORG_ROOT_ACARE_ID) {
+        return normalizedDomain === ACARE_EMAIL_DOMAIN;
       }
       if (rootId === ORG_ROOT_PHONGVU_ID) {
         return (
