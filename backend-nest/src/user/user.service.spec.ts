@@ -64,6 +64,7 @@ describe('UserService admin store management', () => {
     storeName: 'CP62',
     areaCode: area.code,
     area,
+    organizationNodeId: 'org-store-cp62',
   };
 
   beforeEach(() => {
@@ -71,6 +72,30 @@ describe('UserService admin store management', () => {
       $transaction: jest.fn(async (handler: any) => handler(prisma)),
       store: {
         findMany: jest.fn(),
+        findFirst: jest.fn(async ({ where }: any) => {
+          if (where.organizationNodeId === 'org-store-cp62') return store;
+          if (where.organizationNodeId === 'org-store-cp01') {
+            return {
+              id: 'store-1',
+              storeId: 'CP01',
+              storeName: 'CP01',
+              areaCode: area.code,
+              area,
+              organizationNodeId: 'org-store-cp01',
+            };
+          }
+          if (where.organizationNodeId === 'org-store-ac001') {
+            return {
+              id: 'store-ac001',
+              storeId: 'AC001',
+              storeName: 'AC001',
+              areaCode: area.code,
+              area,
+              organizationNodeId: 'org-store-ac001',
+            };
+          }
+          return null;
+        }),
         findUnique: jest.fn(async ({ where }: any) => {
           if (where.storeId === 'CP62' || where.id === 'store-62') return store;
           if (where.storeId === 'CP01' || where.id === 'store-1') {
@@ -80,6 +105,7 @@ describe('UserService admin store management', () => {
               storeName: 'CP01',
               areaCode: area.code,
               area,
+              organizationNodeId: 'org-store-cp01',
             };
           }
           return null;
@@ -172,6 +198,7 @@ describe('UserService admin store management', () => {
           region:
             data.regionCode === chatsaleRegion.code ? chatsaleRegion : null,
           area: data.areaCode === area.code ? area : null,
+          organizationNodeId: data.organizationNodeId,
         })),
         update: jest.fn(),
         updateMany: jest.fn(async () => ({ count: 0 })),
@@ -239,24 +266,122 @@ describe('UserService admin store management', () => {
         nodesByCode.delete(current.code);
         return saveNode({ ...current, ...data, id: current.id });
       }),
-      findMany: jest.fn(async () =>
-        Array.from(nodesById.values()).map((node) => ({
-          ...node,
-          _count: {
-            children: 0,
-            users: 0,
-            stores: node.type === 'SHOWROOM' ? 1 : 0,
-            departments: 0,
-            jobRoles: 0,
-            regions: node.type === 'REGION' ? 1 : 0,
-            areas: node.type === 'AREA' ? 1 : 0,
-          },
-        })),
-      ),
+      findMany: jest.fn(async (args?: any) => {
+        const allowedIds = args?.where?.id?.in
+          ? new Set<string>(args.where.id.in)
+          : null;
+        return Array.from(nodesById.values())
+          .filter((node) => !allowedIds || allowedIds.has(node.id))
+          .map((node) => ({
+            ...node,
+            _count: {
+              children: 0,
+              users: 0,
+              stores: node.type === 'SHOWROOM' ? 1 : 0,
+              departments: 0,
+              jobRoles: 0,
+              regions: node.type === 'REGION' ? 1 : 0,
+              areas: node.type === 'AREA' ? 1 : 0,
+            },
+          }));
+      }),
       delete: jest.fn(),
     };
 
     return { nodesByCode, nodesById, saveNode };
+  }
+
+  function installUserScopeTreeMock() {
+    const org = installOrganizationNodeMock();
+    org.saveNode({
+      id: 'org-domain-phongvu-vn',
+      code: 'DOMAIN_PHONGVU_VN',
+      displayName: 'phongvu.vn',
+      type: 'ROOT_DOMAIN',
+      parentId: null,
+      emailDomain: 'phongvu.vn',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 10,
+    });
+    org.saveNode({
+      id: 'org-domain-acaretek-vn',
+      code: 'DOMAIN_ACARETEK_VN',
+      displayName: 'acaretek.vn',
+      type: 'ROOT_DOMAIN',
+      parentId: null,
+      emailDomain: 'acaretek.vn',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 20,
+    });
+    org.saveNode({
+      id: 'org-region-mien-nam',
+      code: 'REGION_PHONGVU_MIEN_NAM',
+      businessCode: region.code,
+      displayName: region.displayName,
+      type: 'REGION',
+      parentId: 'org-domain-phongvu-vn',
+      isSystem: false,
+      isActive: true,
+      sortOrder: 100,
+    });
+    org.saveNode({
+      id: 'org-area-hcm',
+      code: 'AREA_PHONGVU_HCM',
+      businessCode: area.code,
+      displayName: area.displayName,
+      type: 'AREA',
+      parentId: 'org-region-mien-nam',
+      isSystem: false,
+      isActive: true,
+      sortOrder: 200,
+    });
+    org.saveNode({
+      id: 'org-store-cp62',
+      code: 'STORE_CP62',
+      businessCode: 'CP62',
+      displayName: 'CP62',
+      type: 'SHOWROOM',
+      parentId: 'org-area-hcm',
+      isSystem: false,
+      isActive: true,
+      sortOrder: 300,
+    });
+    org.saveNode({
+      id: 'org-store-cp01',
+      code: 'STORE_CP01',
+      businessCode: 'CP01',
+      displayName: 'CP01',
+      type: 'SHOWROOM',
+      parentId: 'org-area-hcm',
+      isSystem: false,
+      isActive: true,
+      sortOrder: 301,
+    });
+    org.saveNode({
+      id: 'org-region-chatsale',
+      code: 'REGION_PHONGVU_CHATSALE',
+      businessCode: chatsaleRegion.code,
+      displayName: chatsaleRegion.displayName,
+      type: 'REGION',
+      parentId: 'org-domain-phongvu-vn',
+      isSystem: false,
+      isActive: true,
+      sortOrder: 110,
+    });
+    org.saveNode({
+      id: 'org-store-ac001',
+      code: 'STORE_AC001',
+      businessCode: 'AC001',
+      displayName: 'AC001',
+      type: 'SHOWROOM',
+      parentId: 'org-domain-acaretek-vn',
+      isSystem: false,
+      isActive: true,
+      sortOrder: 400,
+    });
+    return org;
   }
   it('normalizes legacy ADMIN role input to ADMIN_PHONGVU', () => {
     expect((service as any).normalizeRoleCode('ADMIN', true)).toBe(
@@ -365,6 +490,7 @@ describe('UserService admin store management', () => {
   });
 
   it('scopes ADMIN_ACARE user management to the acaretek.vn email domain', async () => {
+    installUserScopeTreeMock();
     prisma.user.findMany.mockResolvedValueOnce([
       {
         id: 'acare-user',
@@ -386,12 +512,16 @@ describe('UserService admin store management', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           AND: expect.arrayContaining([
-            {
-              email: {
-                endsWith: '@acaretek.vn',
-                mode: 'insensitive',
-              },
-            },
+            expect.objectContaining({
+              OR: expect.arrayContaining([
+                {
+                  email: {
+                    endsWith: '@acaretek.vn',
+                    mode: 'insensitive',
+                  },
+                },
+              ]),
+            }),
           ]),
         }),
       }),
@@ -402,6 +532,8 @@ describe('UserService admin store management', () => {
         email: 'new@acaretek.vn',
         firstName: 'New',
         role: 'STAFF',
+        workScopeType: 'STORE',
+        organizationNodeId: 'org-store-ac001',
       }),
     ).resolves.toMatchObject({ email: 'new@acaretek.vn', role: 'STAFF' });
 
@@ -434,21 +566,165 @@ describe('UserService admin store management', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
+
+  it('lets ADMIN_PHONGVU assign the Phong Vu root but not the A Care root', async () => {
+    installUserScopeTreeMock();
+
+    await expect(
+      service.adminCreateUser(admin, {
+        email: 'national@phongvu.vn',
+        firstName: 'National',
+        role: 'STAFF',
+        workScopeType: 'NATIONAL',
+        organizationNodeId: 'org-domain-phongvu-vn',
+      }),
+    ).resolves.toMatchObject({
+      email: 'national@phongvu.vn',
+      workScopeType: 'NATIONAL',
+      organizationNodeId: 'org-domain-phongvu-vn',
+    });
+
+    await expect(
+      service.adminCreateUser(admin, {
+        email: 'wrong-root@phongvu.vn',
+        firstName: 'Wrong Root',
+        role: 'STAFF',
+        workScopeType: 'NATIONAL',
+        organizationNodeId: 'org-domain-acaretek-vn',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('lets ADMIN_ACARE assign the A Care root but not the Phong Vu root', async () => {
+    installUserScopeTreeMock();
+
+    await expect(
+      service.adminCreateUser(adminAcare, {
+        email: 'national@acaretek.vn',
+        firstName: 'National',
+        role: 'STAFF',
+        workScopeType: 'NATIONAL',
+        organizationNodeId: 'org-domain-acaretek-vn',
+      }),
+    ).resolves.toMatchObject({
+      email: 'national@acaretek.vn',
+      workScopeType: 'NATIONAL',
+      organizationNodeId: 'org-domain-acaretek-vn',
+    });
+
+    await expect(
+      service.adminCreateUser(adminAcare, {
+        email: 'wrong-root@acaretek.vn',
+        firstName: 'Wrong Root',
+        role: 'STAFF',
+        workScopeType: 'NATIONAL',
+        organizationNodeId: 'org-domain-phongvu-vn',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('derives STORE scope from the selected showroom organization node', async () => {
+    installUserScopeTreeMock();
+
+    await expect(
+      service.adminCreateUser(superAdmin, {
+        email: 'store@phongvu.vn',
+        firstName: 'Store',
+        role: 'STAFF',
+        storeId: 'CP01',
+        departmentCode: 'SALES',
+        jobRoleCode: 'SALE',
+        workScopeType: 'STORE',
+        organizationNodeId: 'org-store-cp62',
+      }),
+    ).resolves.toMatchObject({
+      storeId: 'CP62',
+      areaCode: 'HCM',
+      regionCode: 'MIEN_NAM',
+      organizationNodeId: 'org-store-cp62',
+      personnelCode: 'SALE_CP62_HCM_MN',
+    });
+
+    expect(prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          storeId: 'store-62',
+          areaCode: 'HCM',
+          regionCode: 'MIEN_NAM',
+          organizationNodeId: 'org-store-cp62',
+        }),
+      }),
+    );
+  });
+
+  it('keeps the ROOT_DOMAIN organization node for NATIONAL scope', async () => {
+    installUserScopeTreeMock();
+
+    await expect(
+      service.adminCreateUser(superAdmin, {
+        email: 'national@phongvu.vn',
+        firstName: 'National',
+        role: 'STAFF',
+        workScopeType: 'NATIONAL',
+        organizationNodeId: 'org-domain-phongvu-vn',
+      }),
+    ).resolves.toMatchObject({
+      workScopeType: 'NATIONAL',
+      organizationNodeId: 'org-domain-phongvu-vn',
+      areaCode: null,
+      regionCode: null,
+    });
+  });
+
+  it('blocks scoped admins from editing SUPER_ADMIN users', async () => {
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'super-1',
+      email: 'root@phongvu.vn',
+      firstName: 'Root',
+      lastName: null,
+      role: 'SUPER_ADMIN',
+      status: 'yes',
+      workScopeType: 'NATIONAL',
+      storeId: null,
+      store: null,
+    });
+
+    await expect(
+      service.adminUpdateUser(admin, 'super-1', { firstName: 'Blocked' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('returns only in-domain nodes from the user scope tree endpoint', async () => {
+    installUserScopeTreeMock();
+    prisma.store.findMany.mockResolvedValueOnce([]);
+
+    const nodes = await service.adminListUserScopeTree(adminAcare);
+
+    expect(nodes.map((node: any) => node.id)).toEqual(
+      expect.arrayContaining(['org-domain-acaretek-vn', 'org-store-ac001']),
+    );
+    expect(nodes.map((node: any) => node.id)).not.toEqual(
+      expect.arrayContaining(['org-domain-phongvu-vn', 'org-store-cp62']),
+    );
+  });
   it('generates personnel codes from SR, area, and region scope', async () => {
+    installUserScopeTreeMock();
     await expect(
       service.adminCreateUser(superAdmin, {
         email: 'sale@phongvu.vn',
         firstName: 'Sale',
         role: 'STAFF',
-        storeId: 'CP62',
         departmentCode: 'SALES',
         jobRoleCode: 'SALE',
         workScopeType: 'STORE',
+        organizationNodeId: 'org-store-cp62',
       }),
     ).resolves.toMatchObject({
       personnelCode: 'SALE_CP62_HCM_MN',
       areaCode: 'HCM',
       regionCode: 'MIEN_NAM',
+      organizationNodeId: 'org-store-cp62',
     });
 
     await expect(
@@ -456,10 +732,10 @@ describe('UserService admin store management', () => {
         email: 'manager@phongvu.vn',
         firstName: 'Manager',
         role: 'STAFF',
-        storeId: 'CP62',
         departmentCode: 'MANAGEMENT',
         jobRoleCode: 'STORE_MANAGER',
         workScopeType: 'STORE',
+        organizationNodeId: 'org-store-cp62',
       }),
     ).resolves.toMatchObject({ personnelCode: 'STORE_MANAGER_CP62_HCM_MN' });
 
@@ -471,7 +747,7 @@ describe('UserService admin store management', () => {
         departmentCode: 'MANAGEMENT',
         jobRoleCode: 'AREA_MANAGER',
         workScopeType: 'AREA',
-        areaCode: 'HCM',
+        organizationNodeId: 'org-area-hcm',
       }),
     ).resolves.toMatchObject({ personnelCode: 'AREA_MANAGER_HCM_HCM_MN' });
 
@@ -483,7 +759,7 @@ describe('UserService admin store management', () => {
         departmentCode: 'SALES',
         jobRoleCode: 'CHATSALE',
         workScopeType: 'REGION',
-        regionCode: 'CHATSALE',
+        organizationNodeId: 'org-region-chatsale',
       }),
     ).resolves.toMatchObject({
       personnelCode: 'CHATSALE_CHATSALE_CHATSALE_CHATSALE',

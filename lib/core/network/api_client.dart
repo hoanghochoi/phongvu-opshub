@@ -10,9 +10,12 @@ typedef AuthFailureHandler = Future<void> Function(ApiException exception);
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
   factory ApiClient() => _instance;
-  ApiClient._internal();
+  ApiClient._internal() : _client = http.Client();
 
-  final http.Client _client = http.Client();
+  @visibleForTesting
+  ApiClient.test(this._client);
+
+  final http.Client _client;
   String? _authToken;
   AuthFailureHandler? _authFailureHandler;
   bool _handlingAuthFailure = false;

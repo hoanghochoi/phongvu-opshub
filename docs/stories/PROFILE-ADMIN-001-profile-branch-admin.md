@@ -30,6 +30,10 @@ payment account import from CSV, and administration for privileged roles.
 - SR management assigns each SR to an Area; Region is derived from Area.
 - Store-scoped users derive Region/Area from their assigned SR and do not need
   a direct Region/Area assignment.
+- Admin user editing uses the organization tree for work-scope assignment:
+  root domain for `NATIONAL`, showroom node for `STORE`, and active
+  `REGION`/`AREA` nodes only when those node types exist. Legacy store/region
+  columns are backend-derived compatibility fields, not editor inputs.
 - Organization management supports root domain, subdomain, block, department,
   area, showroom, job role, and virtual scope nodes. Default root domains are
   `phongvu.vn` and `acaretek.vn`; root nodes start collapsed in the app, and
