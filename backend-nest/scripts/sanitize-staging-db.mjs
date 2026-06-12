@@ -19,7 +19,7 @@ const KNOWN_USERS = [
     storeScoped: true,
   },
   {
-    email: 'staging.acare@acaretek.vn',
+    email: 'staging.acare@acare.vn',
     firstName: 'Staging ACare',
     lastName: 'Admin',
     role: 'ADMIN_ACARE',
@@ -215,7 +215,7 @@ async function sanitizeUsers(passwordHash) {
   for (const user of users) {
     if (knownEmails.has(user.email)) continue;
     const suffix = String(index).padStart(4, '0');
-    const emailDomain = user.role === 'ADMIN_ACARE' ? 'acaretek.vn' : 'phongvu.vn';
+    const emailDomain = user.role === 'ADMIN_ACARE' ? 'acare.vn' : 'phongvu.vn';
     await prisma.user.update({
       where: { id: user.id },
       data: {

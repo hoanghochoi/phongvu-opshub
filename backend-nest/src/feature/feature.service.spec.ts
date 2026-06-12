@@ -18,7 +18,7 @@ describe('FeatureService', () => {
   };
   const storeUser = {
     id: 'user-1',
-    email: 'staff@acaretek.vn',
+    email: 'staff@acare.vn',
     role: 'STAFF',
     departmentCode: 'SALES',
     jobRoleCode: 'SALE',
@@ -184,7 +184,7 @@ describe('FeatureService', () => {
       {
         featureCode: 'ADMIN_FEATURES',
         enabled: true,
-        emailDomains: ['@Acaretek.vn', 'phongvu.vn'],
+        emailDomains: ['@acare.vn', 'phongvu.vn'],
         note: 'domain access',
       },
     );
@@ -194,7 +194,7 @@ describe('FeatureService', () => {
       data: expect.objectContaining({
         featureCode: 'ADMIN_FEATURES',
         enabled: true,
-        emailDomain: 'acaretek.vn',
+        emailDomain: 'acare.vn',
         note: 'domain access',
       }),
     });

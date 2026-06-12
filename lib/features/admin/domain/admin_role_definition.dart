@@ -84,7 +84,7 @@ class AdminRoles {
     AdminRoleDefinition(
       value: 'ADMIN_ACARE',
       title: 'Admin ACare',
-      description: 'Quan ly user thuoc domain acaretek.vn',
+      description: 'Quan ly user thuoc domain acare.vn',
       icon: Icons.admin_panel_settings_outlined,
       color: AppColors.sky500,
     ),

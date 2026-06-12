@@ -63,7 +63,7 @@ This file maps product behavior to proof. Existing flows are marked
   `admin@hoanghochoi.com` while retiring `super_admin@phongvu-mna.vn` by delete
   or tombstone depending on references. Flutter adds organization tree admin UI,
   user-management filters, user feature checkbox tree, root-domain fallback
-  domains (`phongvu.vn`, `acaretek.vn`), and exact break-glass email allowance.
+  domains (`phongvu.vn`, `acare.vn`), and exact break-glass email allowance.
   Validation: `npx prisma validate`, `npx prisma generate`, `npm run build`,
   full backend `npm test -- --runInBand` (33 suites, 226 tests), `dart format
   --output=none --set-exit-if-changed` on changed Dart files, `flutter analyze
@@ -84,23 +84,23 @@ This file maps product behavior to proof. Existing flows are marked
   test -- --runInBand` (32 suites, 221 tests), `flutter analyze --no-pub`, and
   full `flutter test --no-pub --reporter expanded` (72 tests). Gap: live
   admin feature-management click-through after migration remains manual.- PROFILE-ADMIN-001, 2026-06-06: added system role `ADMIN_ACARE`, seeded it
-  through migration, moved `admin@acaretek.vn` from `ADMIN` to `ADMIN_ACARE`
-  when present, scoped `ADMIN_ACARE` user management to `@acaretek.vn`, and
+  through migration, moved `admin@acare.vn` from `ADMIN` to `ADMIN_ACARE`
+  when present, scoped `ADMIN_ACARE` user management to `@acare.vn`, and
   changed Flutter API handling so `403 Forbidden` no longer clears the login
   session. Validation: focused backend user/feature Jest (2 suites, 22 tests),
   focused Flutter `test/user_personnel_test.dart` (6 tests), `npx prisma
   validate`, `npm run build`, full backend `npm test -- --runInBand` (32
   suites, 218 tests), `flutter analyze --no-pub`, and full `flutter test
   --no-pub --reporter expanded` (70 tests). Gap: live deployed
-  `admin@acaretek.vn` user-management smoke after migration remains manual.
-- AUTH-001, 2026-06-06: added `acaretek.vn` to the accepted OpsHub staff
+  `admin@acare.vn` user-management smoke after migration remains manual.
+- AUTH-001, 2026-06-06: added `acare.vn` to the accepted OpsHub staff
   domain list and updated Flutter/backend validation copy so ACareTek users are
   not rejected as non-Phong Vu staff. Validation: focused backend auth/VietQR
   Jest (3 suites, 48 tests), focused Flutter validators/brand test (13 tests),
   `npm run build`, full backend `npm test -- --runInBand` (31 suites, 213
   tests), `flutter analyze --no-pub`, and full `flutter test --no-pub
   --reporter expanded` (68 tests). Gap: live registration/reset-code smoke for
-  an `acaretek.vn` mailbox remains manual.
+  an `acare.vn` mailbox remains manual.
 - VIETQR-001, 2026-06-06: VietQR responses now include `qrBrand`; stores in
   the ACareTek Region render/export QR images with title `ACareTek` and
   `assets/icon/acare_logo.png`, while other stores keep title `Phong Vũ` and

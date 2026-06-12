@@ -31,7 +31,7 @@ export const ADMIN_SETTING_KEYS = {
   AUTH_RESET_OTP_POLICY: 'AUTH_RESET_OTP_POLICY',
 } as const;
 
-export const DEFAULT_AUTH_DOMAINS = ['phongvu.vn', 'acaretek.vn'];
+export const DEFAULT_AUTH_DOMAINS = ['phongvu.vn', 'acare.vn'];
 
 export const DEFAULT_ADMIN_POLICY_DEFINITIONS = [
   {

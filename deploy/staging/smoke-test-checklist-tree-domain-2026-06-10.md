@@ -11,7 +11,7 @@ Quy ước test:
 - Chỉ tick `[x]` khi bước đã pass thật trên staging.
 - Mục chưa pass ghi note ngay sau dòng checklist, kèm user, nền tảng, thời điểm, ảnh/log nếu có.
 - Không ghi mật khẩu staging, token, MAP password, hoặc thông tin tài khoản thật vào file này.
-- Dùng tài khoản staging đã thống nhất: `admin@hoanghochoi.com`, `staging.admin@phongvu.vn`, `staging.acare@acaretek.vn`, `staging.staff@phongvu.vn`.
+- Dùng tài khoản staging đã thống nhất: `admin@hoanghochoi.com`, `staging.admin@phongvu.vn`, `staging.acare@acare.vn`, `staging.staff@phongvu.vn`.
 
 ## 0. Thông Tin Lần Test
 
@@ -40,7 +40,7 @@ Quy ước test:
 
 - [x] `admin@hoanghochoi.com` đăng nhập được, role `SUPER_ADMIN`, không bị ép scope domain/store.
 - [x] `staging.admin@phongvu.vn` đăng nhập được, role hiển thị/resolve là `ADMIN_PHONGVU` hoặc `Admin Phong Vũ`.
-- [x] `staging.acare@acaretek.vn` đăng nhập được, role `ADMIN_ACARE`.
+- [x] `staging.acare@acare.vn` đăng nhập được, role `ADMIN_ACARE`.
 - [x] `staging.staff@phongvu.vn` đăng nhập được và chỉ thấy các chức năng được cấp.
 - [x] Đăng xuất rồi đăng nhập lại không mất quyền hoặc giữ nhầm session user cũ.
 - [x] Nhập sai mật khẩu báo lỗi rõ ràng, không clear session hợp lệ của user khác.
@@ -57,10 +57,10 @@ Quy ước test:
 
 ## 4. Cơ Cấu Tổ Chức Là Source Of Truth
 
-- [x] Tree mặc định chỉ hiện root `phongvu.vn` và `acaretek.vn`.
+- [x] Tree mặc định chỉ hiện root `phongvu.vn` và `acare.vn`.
 - [x] Click root mới expand, trạng thái expand được giữ trong phiên màn hình.
 - [x] Dưới `phongvu.vn` thấy Miền, Vùng, SR theo dữ liệu staging đã backfill.
-- [x] Dưới `acaretek.vn` thấy Miền, Vùng, SR A Care, gồm `AC001` nếu staging DB có dữ liệu này.
+- [x] Dưới `acare.vn` thấy Miền, Vùng, SR A Care, gồm `AC001` nếu staging DB có dữ liệu này.
 - [x] Một SR đang có trong danh sách/quyền nghiệp vụ cũng xuất hiện là node type `SHOWROOM` trong tree.
 - [ ] Node `REGION` hiển thị/sửa được mã nghiệp vụ, tên, viết tắt, trạng thái theo quyền.
 - [ ] Node `AREA` hiển thị/sửa được mã nghiệp vụ, tên, viết tắt, parent Miền, trạng thái theo quyền.
@@ -86,13 +86,13 @@ Quy ước test:
 
 - [ ] Search user theo tên realtime debounce khoảng 300ms, giữ các filter hiện tại.
 - [ ] Search user theo email realtime debounce khoảng 300ms, giữ các filter hiện tại.
-- [ ] Filter user theo domain hoạt động với `phongvu.vn` và `acaretek.vn`.
+- [ ] Filter user theo domain hoạt động với `phongvu.vn` và `acare.vn`.
 - [ ] Filter user theo node tree hoạt động cho Miền, Vùng, SR.
 - [ ] User editor dùng tree picker cho scope, không dùng dropdown Vùng/Miền/SR legacy như source chính.
 - [ ] Sửa user/tick chức năng mở dialog tóm tắt thay đổi trước khi lưu.
 - [ ] `Xác nhận lưu` gọi API và lưu đúng thay đổi.
 - [ ] `Hủy thay đổi` quay về trạng thái trước sửa.
-- [ ] `ADMIN_ACARE` chỉ thấy/sửa/reset mật khẩu user trong scope A Care hoặc domain `@acaretek.vn` theo rule staging.
+- [ ] `ADMIN_ACARE` chỉ thấy/sửa/reset mật khẩu user trong scope A Care hoặc domain `@acare.vn` theo rule staging.
 - [ ] `ADMIN_PHONGVU` chỉ thấy/sửa/reset mật khẩu user trong scope Phong Vũ.
 - [ ] Cả hai admin domain không thao tác được lên `SUPER_ADMIN`.
 

@@ -48,7 +48,7 @@ void main() {
 
   test('User treats ADMIN_ACARE as admin scoped role with resolved access', () {
     final user = User.fromJson({
-      'email': 'admin@acaretek.vn',
+      'email': 'admin@acare.vn',
       'role': 'ADMIN_ACARE',
       'resolvedFeatureAccess': {
         'ADMIN': true,

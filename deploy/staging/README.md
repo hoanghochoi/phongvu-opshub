@@ -91,6 +91,6 @@ The sanitizer creates these known users with the password above:
 
 - `staging.admin@phongvu.vn`
 - `staging.staff@phongvu.vn`
-- `staging.acare@acaretek.vn`
+- `staging.acare@acare.vn`
 
 After deploy or refresh, run `deploy/staging/smoke-checklist.md`.

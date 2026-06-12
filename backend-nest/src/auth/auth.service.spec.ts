@@ -226,13 +226,13 @@ describe('AuthService', () => {
     prisma.user.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.sendRegistrationVerificationCode(' Staff@ACareTek.vn '),
+      service.sendRegistrationVerificationCode(' Staff@acare.vn '),
     ).resolves.toEqual({
       ok: true,
       expiresInMinutes: 10,
     });
     expect(emailVerificationService.sendRegistrationCode).toHaveBeenCalledWith(
-      'staff@acaretek.vn',
+      'staff@acare.vn',
     );
   });
 

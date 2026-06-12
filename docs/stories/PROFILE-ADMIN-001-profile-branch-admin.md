@@ -14,7 +14,7 @@ payment account import from CSV, and administration for privileged roles.
 - `ADMIN_PHONGVU`, `ADMIN_ACARE`, and `SUPER_ADMIN` can open administration
   from the app when their resolved feature map allows it.
 - `ADMIN_PHONGVU` is scoped to the `phongvu.vn` organization root;
-  `ADMIN_ACARE` is scoped to the `acaretek.vn` root and `@acaretek.vn` users.
+  `ADMIN_ACARE` is scoped to the `acare.vn` root and `@acare.vn` users.
 - Forbidden admin API responses do not log the user out; only unauthorized
   session responses clear the local session.
 - Administration contains user management, role management, SR management,
@@ -36,7 +36,7 @@ payment account import from CSV, and administration for privileged roles.
   columns are backend-derived compatibility fields, not editor inputs.
 - Organization management supports root domain, subdomain, block, department,
   area, showroom, job role, and virtual scope nodes. Default root domains are
-  `phongvu.vn` and `acaretek.vn`; root nodes start collapsed in the app, and
+  `phongvu.vn` and `acare.vn`; root nodes start collapsed in the app, and
   delete is blocked with explicit reasons when a node has children, users, SRs,
   or other references.
 - Runtime feature access is a strict per-user allowlist. `SUPER_ADMIN` can

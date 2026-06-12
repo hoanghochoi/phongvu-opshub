@@ -1040,8 +1040,8 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
                 decoration: InputDecoration(
                   labelText: 'Domain email',
                   hintText: isEditing
-                      ? 'acaretek.vn'
-                      : 'acaretek.vn, phongvu.vn',
+                      ? 'acare.vn'
+                      : 'acare.vn, phongvu.vn',
                 ),
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: isEditing
