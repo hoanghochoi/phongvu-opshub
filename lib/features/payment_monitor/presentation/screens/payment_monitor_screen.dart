@@ -34,6 +34,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
     final user = context.watch<AuthProvider>().user;
     final monitor = context.watch<PaymentMonitorProvider>();
     final requiresStoreInput = user?.role == 'SUPER_ADMIN';
+    final canUsePaymentSpeaker = monitor.canUsePaymentSpeaker;
 
     return Scaffold(
       appBar: const GradientHeader(title: 'Theo dõi tiền vào', showBack: true),
@@ -42,82 +43,90 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            monitor.isSpeakerEnabled
-                                ? Icons.volume_up_rounded
-                                : Icons.volume_off_rounded,
-                            color: monitor.isSpeakerEnabled
-                                ? AppColors.success
-                                : AppColors.neutral500,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              monitor.isSpeakerEnabled
-                                  ? 'Đang đọc loa khi có tiền vào'
-                                  : 'Đã tắt đọc loa',
-                              style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
+              if (canUsePaymentSpeaker || requiresStoreInput)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (canUsePaymentSpeaker) ...[
+                          Row(
+                            children: [
+                              Icon(
+                                monitor.isSpeakerEnabled
+                                    ? Icons.volume_up_rounded
+                                    : Icons.volume_off_rounded,
+                                color: monitor.isSpeakerEnabled
+                                    ? AppColors.success
+                                    : AppColors.neutral500,
                               ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  monitor.isSpeakerEnabled
+                                      ? 'Đang đọc loa khi có tiền vào'
+                                      : 'Đã tắt đọc loa',
+                                  style: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              Switch.adaptive(
+                                value: monitor.isSpeakerEnabled,
+                                onChanged: monitor.canMonitorOnThisDevice
+                                    ? (value) => context
+                                          .read<PaymentMonitorProvider>()
+                                          .setSpeakerEnabled(value)
+                                    : null,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: _SyncStatusPill(monitor: monitor),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Máy này tự cập nhật giao dịch tiền vào mỗi 5 giây. Khi bật đọc loa, giao dịch mới sẽ được đọc thành tiếng; khi tắt, danh sách vẫn cập nhật bình thường.',
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                              height: 1.25,
+                              fontSize: 13,
                             ),
                           ),
-                          Switch.adaptive(
-                            value: monitor.isSpeakerEnabled,
-                            onChanged: monitor.canMonitorOnThisDevice
-                                ? (value) => context
-                                      .read<PaymentMonitorProvider>()
-                                      .setSpeakerEnabled(value)
-                                : null,
+                        ],
+                        if (requiresStoreInput) ...[
+                          if (canUsePaymentSpeaker)
+                            const SizedBox(
+                              height: AppLayoutTokens.formFieldGap,
+                            ),
+                          TextField(
+                            controller: _storeController,
+                            decoration: const InputDecoration(
+                              labelText: 'Mã showroom cần xem',
+                              prefixIcon: Icon(Icons.store_outlined),
+                              border: OutlineInputBorder(),
+                            ),
+                            textCapitalization: TextCapitalization.characters,
+                            onSubmitted: (_) => _applyStoreOverride(context),
+                          ),
+                          const SizedBox(height: AppLayoutTokens.formInlineGap),
+                          AppSecondaryButton(
+                            onPressed: () => _applyStoreOverride(context),
+                            icon: Icons.check_rounded,
+                            label: 'Xem showroom này',
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 10),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: _SyncStatusPill(monitor: monitor),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Máy này tự cập nhật giao dịch tiền vào mỗi 5 giây. Khi bật đọc loa, giao dịch mới sẽ được đọc thành tiếng; khi tắt, danh sách vẫn cập nhật bình thường.',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          height: 1.25,
-                          fontSize: 13,
-                        ),
-                      ),
-                      if (requiresStoreInput) ...[
-                        const SizedBox(height: AppLayoutTokens.formFieldGap),
-                        TextField(
-                          controller: _storeController,
-                          decoration: const InputDecoration(
-                            labelText: 'Mã showroom cần xem',
-                            prefixIcon: Icon(Icons.store_outlined),
-                            border: OutlineInputBorder(),
-                          ),
-                          textCapitalization: TextCapitalization.characters,
-                          onSubmitted: (_) => _applyStoreOverride(context),
-                        ),
-                        const SizedBox(height: AppLayoutTokens.formInlineGap),
-                        AppSecondaryButton(
-                          onPressed: () => _applyStoreOverride(context),
-                          icon: Icons.check_rounded,
-                          label: 'Xem showroom này',
-                        ),
                       ],
-                    ],
+                    ),
                   ),
                 ),
-              ),
-              if (monitor.speakerError != null) ...[
+              if (canUsePaymentSpeaker && monitor.speakerError != null) ...[
                 const SizedBox(height: 12),
                 _SpeakerErrorCard(
                   error: monitor.speakerError!,
@@ -155,14 +164,17 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                         ? const _EmptyTransactions()
                         : ListView.builder(
                             itemCount: monitor.latestTransactions.length,
-                            itemBuilder: (context, index) => _buildTransactionTile(
-                              monitor.latestTransactions[index],
-                            ),
+                            itemBuilder: (context, index) =>
+                                _buildTransactionTile(
+                                  monitor.latestTransactions[index],
+                                ),
                           ),
                     if (monitor.isLoading)
                       Positioned.fill(
                         child: Container(
-                          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surface.withValues(alpha: 0.6),
                           child: const Center(
                             child: CircularProgressIndicator(),
                           ),
@@ -273,7 +285,8 @@ class _TransactionFilters extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+        final isMobile =
+            constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
 
         if (isMobile) {
           return Card(
@@ -368,7 +381,9 @@ class _TransactionFilters extends StatelessWidget {
                       ),
                       IconButton(
                         onPressed: monitor.canGoNextPage
-                            ? () => context.read<PaymentMonitorProvider>().nextPage()
+                            ? () => context
+                                  .read<PaymentMonitorProvider>()
+                                  .nextPage()
                             : null,
                         icon: const Icon(Icons.chevron_right_rounded),
                       ),
@@ -444,7 +459,9 @@ class _TransactionFilters extends StatelessWidget {
                             .toList(),
                         onChanged: (value) {
                           if (value == null) return;
-                          context.read<PaymentMonitorProvider>().setPageSize(value);
+                          context.read<PaymentMonitorProvider>().setPageSize(
+                            value,
+                          );
                         },
                       ),
                     ),
@@ -474,7 +491,9 @@ class _TransactionFilters extends StatelessWidget {
                     ),
                     IconButton(
                       onPressed: monitor.canGoNextPage
-                          ? () => context.read<PaymentMonitorProvider>().nextPage()
+                          ? () => context
+                                .read<PaymentMonitorProvider>()
+                                .nextPage()
                           : null,
                       icon: const Icon(Icons.chevron_right_rounded),
                     ),

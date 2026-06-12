@@ -54,15 +54,7 @@ void main() {
     );
 
     await Future<void>.delayed(Duration.zero);
-    provider.syncAuth(
-      const User(
-        id: 'user-1',
-        email: 'staff@example.com',
-        role: 'MANAGER',
-        storeId: 'store-uuid-1',
-      ),
-      isInitialized: true,
-    );
+    provider.syncAuth(_storeUser(), isInitialized: true);
     await _waitUntil(
       () =>
           repository.transactionFetchCount > 0 &&
@@ -79,6 +71,61 @@ void main() {
     provider.dispose();
   });
 
+  test(
+    'loads transactions but skips notification polling for ineligible job role',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: [_readyNotification()],
+      );
+      final speaker = _FakePaymentSpeaker();
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(jobRoleCode: 'SALE'), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
+
+      expect(provider.canUsePaymentSpeaker, isFalse);
+      expect(provider.isActive, isFalse);
+      expect(repository.transactionFetchCount, greaterThan(0));
+      expect(repository.readyFetchCount, 0);
+      expect(repository.downloadCount, 0);
+      expect(repository.ackEvents, isEmpty);
+      expect(speaker.playCount, 0);
+
+      provider.dispose();
+    },
+  );
+
+  test('normalizes SA and CASH job role codes for speaker polling', () async {
+    for (final roleCode in ['sa', ' cash ']) {
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(jobRoleCode: roleCode), isInitialized: true);
+      await _waitUntil(
+        () => repository.readyFetchCount > 0 && !provider.isLoading,
+      );
+
+      expect(provider.canUsePaymentSpeaker, isTrue);
+      expect(repository.readyFetchCount, greaterThan(0));
+
+      provider.dispose();
+    }
+  });
+
   test('requests stored transactions with the selected date range', () async {
     final repository = _FakePaymentMonitorRepository(notifications: const []);
     final speaker = _FakePaymentSpeaker();
@@ -90,15 +137,7 @@ void main() {
     );
 
     await Future<void>.delayed(Duration.zero);
-    provider.syncAuth(
-      const User(
-        id: 'user-1',
-        email: 'staff@example.com',
-        role: 'MANAGER',
-        storeId: 'store-uuid-1',
-      ),
-      isInitialized: true,
-    );
+    provider.syncAuth(_storeUser(), isInitialized: true);
     await _waitUntil(
       () => repository.transactionFetchCount > 0 && !provider.isLoading,
     );
@@ -133,15 +172,7 @@ void main() {
     );
 
     await Future<void>.delayed(Duration.zero);
-    provider.syncAuth(
-      const User(
-        id: 'user-1',
-        email: 'staff@example.com',
-        role: 'MANAGER',
-        storeId: 'store-uuid-1',
-      ),
-      isInitialized: true,
-    );
+    provider.syncAuth(_storeUser(), isInitialized: true);
     await _waitUntil(
       () => repository.transactionFetchCount > 0 && !provider.isLoading,
     );
@@ -168,15 +199,7 @@ void main() {
       );
 
       await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(
-        const User(
-          id: 'user-1',
-          email: 'staff@example.com',
-          role: 'MANAGER',
-          storeId: 'store-uuid-1',
-        ),
-        isInitialized: true,
-      );
+      provider.syncAuth(_storeUser(), isInitialized: true);
       await _waitUntil(
         () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
       );
@@ -210,15 +233,7 @@ void main() {
       );
 
       await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(
-        const User(
-          id: 'user-1',
-          email: 'staff@example.com',
-          role: 'MANAGER',
-          storeId: 'store-uuid-1',
-        ),
-        isInitialized: true,
-      );
+      provider.syncAuth(_storeUser(), isInitialized: true);
       await _waitUntil(
         () => repository.ackEvents.contains('FAILED') && !provider.isLoading,
       );
@@ -257,15 +272,7 @@ void main() {
       );
 
       await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(
-        const User(
-          id: 'user-1',
-          email: 'staff@example.com',
-          role: 'MANAGER',
-          storeId: 'store-uuid-1',
-        ),
-        isInitialized: true,
-      );
+      provider.syncAuth(_storeUser(), isInitialized: true);
       await _waitUntil(
         () => repository.ackEvents.contains('FAILED') && !provider.isLoading,
       );
@@ -312,6 +319,16 @@ Future<void> _waitUntil(bool Function() condition) async {
   }
 }
 
+User _storeUser({String? jobRoleCode = 'CASH'}) {
+  return User(
+    id: 'user-1',
+    email: 'staff@example.com',
+    role: 'MANAGER',
+    storeId: 'store-uuid-1',
+    jobRoleCode: jobRoleCode,
+  );
+}
+
 PaymentNotification _readyNotification() {
   return PaymentNotification.fromJson({
     'notificationId': 'note-1',
@@ -332,6 +349,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<String?> requestedStartDates = [];
   final List<String?> requestedEndDates = [];
   int transactionFetchCount = 0;
+  int readyFetchCount = 0;
   int downloadCount = 0;
 
   _FakePaymentMonitorRepository({
@@ -368,6 +386,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     DateTime? afterCreatedAt,
     int limit = 10,
   }) async {
+    readyFetchCount += 1;
     return notifications;
   }
 

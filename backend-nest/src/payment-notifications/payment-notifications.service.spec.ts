@@ -8,6 +8,13 @@ describe('PaymentNotificationsService', () => {
   let redis: any;
   let policyService: { canAccessPolicy: jest.Mock };
   let service: PaymentNotificationsService;
+  const speakerUser = (overrides: Record<string, unknown> = {}) => ({
+    id: 'user-speaker',
+    role: 'USER',
+    storeId: 'store-uuid-1',
+    organizationNodeId: 'org-store-cp01-pos-sa',
+    ...overrides,
+  });
 
   beforeEach(() => {
     process.env = { ...originalEnv };
@@ -36,6 +43,9 @@ describe('PaymentNotificationsService', () => {
       store: {
         findUnique: jest.fn(),
       },
+      organizationNode: {
+        findUnique: jest.fn(),
+      },
       $executeRaw: jest.fn(),
       $transaction: jest.fn(async (callback: any) => callback(prisma)),
     };
@@ -48,6 +58,24 @@ describe('PaymentNotificationsService', () => {
             ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE,
       ),
     };
+    prisma.organizationNode.findUnique.mockImplementation(
+      async ({ where }: any) => {
+        const id = String(where?.id || '');
+        if (!id) return null;
+        const businessCode = id.toUpperCase().includes('CASH')
+          ? 'CASH'
+          : id.toUpperCase().includes('WAREHOUSE')
+            ? 'WAREHOUSE'
+            : 'SA';
+        return {
+          id,
+          type: 'LV5_POSITION',
+          businessCode,
+          code: `POS_${businessCode}`,
+          isActive: true,
+        };
+      },
+    );
     service = new PaymentNotificationsService(
       prisma,
       redis,
@@ -170,7 +198,7 @@ describe('PaymentNotificationsService', () => {
 
     await expect(
       service.getAudioForUser(
-        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        speakerUser({ id: 'user-1' }),
         'note-1',
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -187,7 +215,7 @@ describe('PaymentNotificationsService', () => {
 
     await expect(
       service.acknowledge(
-        { id: 'user-1', role: 'MANAGER', storeId: 'store-uuid-1' },
+        speakerUser({ id: 'user-1' }),
         'note-1',
         { clientId: 'pc-1', event: 'PLAYED' },
       ),
@@ -216,7 +244,7 @@ describe('PaymentNotificationsService', () => {
 
     await expect(
       service.acknowledge(
-        { id: 'user-1', role: 'MANAGER', storeId: 'store-uuid-1' },
+        speakerUser({ id: 'user-1' }),
         'note-1',
         {
           clientId: 'pc-1',
@@ -245,7 +273,7 @@ describe('PaymentNotificationsService', () => {
     prisma.paymentNotification.findMany.mockResolvedValue([]);
 
     await service.listReadyForClient(
-      { role: 'MANAGER', storeId: 'store-uuid-1' },
+      speakerUser(),
       { clientId: 'pc-1', afterCreatedAt: checkpoint.toISOString() },
     );
 
@@ -256,6 +284,48 @@ describe('PaymentNotificationsService', () => {
         }),
       }),
     );
+  });
+
+  it('returns no ready audio notifications for non-speaker Lv5 positions', async () => {
+    await expect(
+      service.listReadyForClient(
+        speakerUser({ organizationNodeId: 'org-store-cp01-pos-warehouse' }),
+        { clientId: 'pc-1' },
+      ),
+    ).resolves.toEqual({ list: [] });
+
+    expect(prisma.store.findUnique).not.toHaveBeenCalled();
+    expect(prisma.paymentNotification.findMany).not.toHaveBeenCalled();
+    expect(
+      prisma.paymentNotificationDeliveryLog.createMany,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('rejects audio and ack for non-speaker Lv5 positions', async () => {
+    prisma.paymentNotification.findUnique.mockResolvedValue({
+      id: 'note-1',
+      transactionId: 'txn-1',
+      storeCode: 'CP01',
+      audioStatus: 'READY',
+      audioPath: 'ready.wav',
+    });
+
+    const warehouseUser = speakerUser({
+      organizationNodeId: 'org-store-cp01-pos-warehouse',
+    });
+
+    await expect(
+      service.getAudioForUser(warehouseUser, 'note-1'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.acknowledge(warehouseUser, 'note-1', {
+        clientId: 'pc-1',
+        event: 'PLAYED',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.store.findUnique).not.toHaveBeenCalled();
+    expect(prisma.paymentNotificationDeliveryLog.create).not.toHaveBeenCalled();
   });
 
   it('lists ready audio notifications not yet terminal for this client', async () => {
@@ -279,7 +349,7 @@ describe('PaymentNotificationsService', () => {
 
     await expect(
       service.listReadyForClient(
-        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        speakerUser(),
         { clientId: 'pc-1' },
       ),
     ).resolves.toEqual({
@@ -355,7 +425,7 @@ describe('PaymentNotificationsService', () => {
 
     await expect(
       service.listReadyForClient(
-        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        speakerUser(),
         { clientId: 'pc-1779876132645257' },
       ),
     ).resolves.toEqual({
@@ -403,7 +473,7 @@ describe('PaymentNotificationsService', () => {
 
     await expect(
       service.listReadyForClient(
-        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        speakerUser(),
         { clientId: 'pc-1779876132645257', limit: '3' },
       ),
     ).resolves.toEqual({
@@ -439,9 +509,10 @@ describe('PaymentNotificationsService', () => {
       audioStatus: 'FAILED',
       audioPath: null,
     });
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
 
     await expect(
-      service.getAudioForUser({ role: 'SUPER_ADMIN' }, 'note-1'),
+      service.getAudioForUser(speakerUser(), 'note-1'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

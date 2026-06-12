@@ -20,10 +20,16 @@ assign tasks by department, job role, work scope, and SR.
   `LV2_DEPARTMENT`/`LV2_REGION`, `LV3_AREA`/`LV3_UNIT`, `LV4_STORE`, and
   `LV5_POSITION`. Lv0 is highest, Lv5 is lowest, and parent links may skip
   levels as long as the parent level is lower than the child level.
+- Every active Lv4 store owns five fixed Lv5 positions:
+  `STORE_MANAGER`, `SA`, `TECHNICIAN`, `CASH`, and `WAREHOUSE`. New store nodes
+  create these children automatically, and existing stores are backfilled during
+  store/tree sync without changing SR identity or payment metadata.
+- Payment speaker behavior is a runtime permission of Lv5 store positions:
+  only `SA` and `CASH` can poll, stream, or acknowledge payment audio.
 - Legacy work scopes remain compatibility fields derived from the selected
   organization node: `NATIONAL -> REGION -> AREA -> STORE`.
 - Store-scoped personnel codes include SR, Area, and Region, for example
-  `SALE_CP62_HCM_MN`, `STORE_MANAGER_CP62_HCM_MN`, and
+  `SA_CP62_HCM_MN`, `STORE_MANAGER_CP62_HCM_MN`, and
   `WAREHOUSE_CP62_HCM_MN`.
 - Region-scoped virtual channels use `CHATSALE` and `TELESALE`; legacy
   `ONLINE` is migration-only and maps to `REGION + CHATSALE`.
