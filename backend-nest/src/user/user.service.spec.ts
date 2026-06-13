@@ -823,6 +823,50 @@ describe('UserService admin store management', () => {
     );
   });
 
+  it('keeps Lv5 showroom assignments when user scope tree sync refreshes store nodes', async () => {
+    const org = installUserScopeTreeMock();
+    prisma.store.findMany.mockResolvedValueOnce([store]);
+
+    await service.adminListUserScopeTree(superAdmin);
+
+    const storeSubtreeIds = Array.from(org.nodesById.values())
+      .filter(
+        (node) => node.id === 'org-store-cp62' || node.parentId === 'org-store-cp62',
+      )
+      .map((node) => node.id);
+    expect(storeSubtreeIds).toEqual(
+      expect.arrayContaining([
+        'org-store-cp62',
+        'org-store-cp62-pos-sa',
+        'org-store-cp62-pos-cash',
+        'org-store-cp62-pos-warehouse',
+      ]),
+    );
+    expect(prisma.user.updateMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        storeId: 'store-62',
+        workScopeType: 'STORE',
+      },
+      data: {
+        areaCode: 'HCM',
+        regionCode: 'MIEN_NAM',
+      },
+    });
+    expect(prisma.user.updateMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        storeId: 'store-62',
+        workScopeType: 'STORE',
+        OR: [
+          { organizationNodeId: null },
+          { organizationNodeId: { notIn: storeSubtreeIds } },
+        ],
+      },
+      data: {
+        organizationNodeId: 'org-store-cp62',
+      },
+    });
+  });
+
   it('creates a region under a block organization node', async () => {
     const org = installUserScopeTreeMock();
     org.saveNode({
