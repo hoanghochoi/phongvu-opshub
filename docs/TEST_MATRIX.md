@@ -62,9 +62,10 @@ This file maps product behavior to proof. Existing flows are marked
   service so app-version metadata only changes the API container config, while
   Postgres/realtime/Caddy use explicit environment keys; staging/prod workflows
   wait for recreated app services and verify API app-version env before public
-  metadata smoke. Gap: staging/prod must run `npm run audit:node-features`
-  against live data before migration, and live admin UI plus `/features/me`
-  smoke remains manual.
+  metadata smoke. SSH heredoc deploy commands route Docker Compose through a
+  stdin-closed helper so Compose cannot consume the rest of the remote script.
+  Gap: staging/prod must run `npm run audit:node-features` against live data
+  before migration, and live admin UI plus `/features/me` smoke remains manual.
 - WARRANTY-001, 2026-06-13: fixed warranty image upload failing with
   `property user should not exist` by aligning the Flutter multipart payload
   with the Nest `UploadWarrantyImagesDto`; the client now sends only `receipt`,

@@ -572,25 +572,28 @@ jobs:
           docker run --rm \
             --env-file "$OPSHUB_ENV_FILE" \
             -v "$REMOTE_RELEASE_DIR/deploy/home-server/Caddyfile:/etc/caddy/Caddyfile:ro" \
-            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile < /dev/null
 
           ln -sfn "$REMOTE_RELEASE_DIR" "${CURRENT_DIR}.next"
           mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
           cd "$CURRENT_DIR"
           export COMPOSE_PROJECT_NAME OPSHUB_ENV_FILE
           compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+          compose_cmd() {
+            "${compose[@]}" "$@" < /dev/null
+          }
 
-          "${compose[@]}" config >/dev/null
+          compose_cmd config >/dev/null
 
           resolve_failed_node_feature_migration() {
             local migration_name="20260613190000_node_feature_assignments"
             local failed_count
             local table_exists
 
-            "${compose[@]}" up -d --no-recreate --wait postgres >/dev/null
+            compose_cmd up -d --no-recreate --wait postgres >/dev/null
 
             failed_count="$(
-              "${compose[@]}" \
+              compose_cmd \
                 exec -T postgres sh -lc \
                 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT COUNT(*) FROM _prisma_migrations WHERE migration_name = '\''20260613190000_node_feature_assignments'\'' AND finished_at IS NULL AND rolled_back_at IS NULL;"'
             )"
@@ -600,7 +603,7 @@ jobs:
             fi
 
             table_exists="$(
-              "${compose[@]}" \
+              compose_cmd \
                 exec -T postgres sh -lc \
                 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT to_regclass('\''public.\"OrganizationNodeFeatureAssignment\"'\'') IS NOT NULL;"'
             )"
@@ -611,25 +614,24 @@ jobs:
             fi
 
             echo "Resolving stale failed migration state for $migration_name before rerun."
-            "${compose[@]}" \
+            compose_cmd \
               --profile migrate run --rm -T --build migrate \
-              npx prisma migrate resolve --rolled-back "$migration_name" < /dev/null
+              npx prisma migrate resolve --rolled-back "$migration_name"
           }
 
           resolve_failed_node_feature_migration
 
-          "${compose[@]}" \
-            --profile migrate run --rm -T --build migrate < /dev/null
+          compose_cmd --profile migrate run --rm -T --build migrate
 
-          "${compose[@]}" stop api realtime caddy || true
-          "${compose[@]}" rm -f api realtime caddy || true
+          compose_cmd stop api realtime caddy || true
+          compose_cmd rm -f api realtime caddy || true
 
-          "${compose[@]}" up -d --build --force-recreate --wait api realtime caddy
+          compose_cmd up -d --build --force-recreate --wait api realtime caddy
 
           expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}"
           for attempt in {1..12}; do
             current_app_env="$(
-              "${compose[@]}" \
+              compose_cmd \
                 exec -T api sh -lc \
                 'printf "%s|%s|%s|%s" "$APP_ANDROID_APP_VERSION" "$APP_ANDROID_APP_BUILD_NUMBER" "$APP_WINDOWS_APP_VERSION" "$APP_WINDOWS_APP_BUILD_NUMBER"' \
                 2>/dev/null || true
@@ -644,7 +646,7 @@ jobs:
             sleep 5
           done
 
-          "${compose[@]}" ps
+          compose_cmd ps
 
           releases_dir="$(dirname "$REMOTE_RELEASE_DIR")"
           current_real="$(readlink -f "$CURRENT_DIR" || true)"

@@ -536,25 +536,27 @@ jobs:
           docker run --rm \
             --env-file "$OPSHUB_ENV_FILE" \
             -v "$REMOTE_RELEASE_DIR/deploy/home-server/Caddyfile:/etc/caddy/Caddyfile:ro" \
-            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile < /dev/null
 
           ln -sfn "$REMOTE_RELEASE_DIR" "${CURRENT_DIR}.next"
           mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
           cd "$CURRENT_DIR"
           export OPSHUB_ENV_FILE
           compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+          compose_cmd() {
+            "${compose[@]}" "$@" < /dev/null
+          }
 
-          "${compose[@]}" config >/dev/null
+          compose_cmd config >/dev/null
 
-          "${compose[@]}" \
-            --profile migrate run --rm -T --build migrate < /dev/null
+          compose_cmd --profile migrate run --rm -T --build migrate
 
-          "${compose[@]}" up -d --build --force-recreate --wait api realtime caddy
+          compose_cmd up -d --build --force-recreate --wait api realtime caddy
 
           expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}"
           for attempt in {1..12}; do
             current_app_env="$(
-              "${compose[@]}" \
+              compose_cmd \
                 exec -T api sh -lc \
                 'printf "%s|%s|%s|%s" "$APP_ANDROID_APP_VERSION" "$APP_ANDROID_APP_BUILD_NUMBER" "$APP_WINDOWS_APP_VERSION" "$APP_WINDOWS_APP_BUILD_NUMBER"' \
                 2>/dev/null || true
@@ -569,7 +571,7 @@ jobs:
             sleep 5
           done
 
-          "${compose[@]}" ps
+          compose_cmd ps
 
           releases_dir="$(dirname "$REMOTE_RELEASE_DIR")"
           current_real="$(readlink -f "$CURRENT_DIR" || true)"
@@ -761,27 +763,21 @@ jobs:
           docker run --rm \
             --env-file "$OPSHUB_ENV_FILE" \
             -v "$CADDY_TMP:/etc/caddy/Caddyfile:ro" \
-            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile < /dev/null
           install -m 0644 "$CADDY_TMP" "$CURRENT_DIR/deploy/home-server/Caddyfile"
           rm -f "$CADDY_TMP"
           cd "$CURRENT_DIR"
-          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml \
-            up -d --no-deps caddy
-          if ! docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml \
-            exec -T caddy caddy reload --config /etc/caddy/Caddyfile; then
-            docker compose \
-              --env-file "$OPSHUB_ENV_FILE" \
-              -f deploy/home-server/docker-compose.home.yml \
-              restart caddy
+          export OPSHUB_ENV_FILE
+          compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+          compose_cmd() {
+            "${compose[@]}" "$@" < /dev/null
+          }
+
+          compose_cmd up -d --no-deps caddy
+          if ! compose_cmd exec -T caddy caddy reload --config /etc/caddy/Caddyfile; then
+            compose_cmd restart caddy
           fi
-          docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml \
-            ps caddy
+          compose_cmd ps caddy
           REMOTE
 
       - name: Verify static download deploy
