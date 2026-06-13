@@ -10,6 +10,7 @@ import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
+import '../../data/feedback_upload_contract.dart';
 
 class FeedbackScreen extends StatefulWidget {
   const FeedbackScreen({super.key});
@@ -151,21 +152,17 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       final files = <http.MultipartFile>[];
       for (var i = 0; i < _images.length; i++) {
         files.add(
-          await http.MultipartFile.fromPath(
-            'images',
-            _images[i].path,
-            filename: 'feedback_$i.jpg',
-          ),
+          await buildFeedbackImageMultipartFile(image: _images[i], index: i),
         );
       }
 
       final response = await ApiClient().postMultipart(
         ApiConstants.feedbackEndpoint,
         fields: {
-          'function': _functionController.text.trim(),
-          'description': _descriptionController.text.trim(),
-          'user_email': userEmail,
-          'timestamp': DateTime.now().toIso8601String(),
+          ...buildFeedbackMultipartFields(
+            functionName: _functionController.text,
+            description: _descriptionController.text,
+          ),
         },
         files: files,
         timeout: ApiConstants.uploadTimeout,

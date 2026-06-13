@@ -86,7 +86,7 @@ void main() {
       );
 
       await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(jobRoleCode: 'SALE'), isInitialized: true);
+      provider.syncAuth(_storeUser(jobRoleCode: 'SA'), isInitialized: true);
       await _waitUntil(
         () => repository.transactionFetchCount > 0 && !provider.isLoading,
       );
@@ -103,28 +103,36 @@ void main() {
     },
   );
 
-  test('normalizes SA and CASH job role codes for speaker polling', () async {
-    for (final roleCode in ['sa', ' cash ']) {
-      final repository = _FakePaymentMonitorRepository(notifications: const []);
-      final provider = PaymentMonitorProvider(
-        repository,
-        _FakePaymentSpeaker(),
-        null,
-        retryDelay,
-      );
+  test(
+    'normalizes STORE_MANAGER and CASH job role codes for speaker polling',
+    () async {
+      for (final roleCode in ['store_manager', ' cash ']) {
+        final repository = _FakePaymentMonitorRepository(
+          notifications: const [],
+        );
+        final provider = PaymentMonitorProvider(
+          repository,
+          _FakePaymentSpeaker(),
+          null,
+          retryDelay,
+        );
 
-      await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(jobRoleCode: roleCode), isInitialized: true);
-      await _waitUntil(
-        () => repository.readyFetchCount > 0 && !provider.isLoading,
-      );
+        await Future<void>.delayed(Duration.zero);
+        provider.syncAuth(
+          _storeUser(jobRoleCode: roleCode),
+          isInitialized: true,
+        );
+        await _waitUntil(
+          () => repository.readyFetchCount > 0 && !provider.isLoading,
+        );
 
-      expect(provider.canUsePaymentSpeaker, isTrue);
-      expect(repository.readyFetchCount, greaterThan(0));
+        expect(provider.canUsePaymentSpeaker, isTrue);
+        expect(repository.readyFetchCount, greaterThan(0));
 
-      provider.dispose();
-    }
-  });
+        provider.dispose();
+      }
+    },
+  );
 
   test('requests stored transactions with the selected date range', () async {
     final repository = _FakePaymentMonitorRepository(notifications: const []);

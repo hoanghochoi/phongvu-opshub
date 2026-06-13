@@ -270,7 +270,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   bool get _canUsePaymentSpeaker {
     final jobRoleCode = _normalizedJobRoleCode(_user);
-    return jobRoleCode == 'SA' || jobRoleCode == 'CASH';
+    return jobRoleCode == 'STORE_MANAGER' || jobRoleCode == 'CASH';
   }
 
   bool get _hasMonitorScope {

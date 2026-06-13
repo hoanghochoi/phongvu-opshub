@@ -60,14 +60,15 @@ This file maps product behavior to proof. Existing flows are marked
   stores. Backend user assignment keeps the selected Lv5 node as
   `organizationNodeId`, derives legacy personnel codes from the tree, and syncs
   compatibility job-role catalog rows without changing SR identity/payment/MAP
-  fields. Payment speaker ready/audio/ack is limited to active Lv5 `SA` or
-  `CASH`; other positions receive an empty ready list and cannot stream or ack
-  payment audio. Validation in current patch: `npx prisma validate`, `npx
-  prisma generate`, backend `npm run build`, focused backend user/payment Jest
-  (2 suites, 42 tests), full backend `npm test -- --runInBand` (35 suites, 254
-  tests), `flutter analyze --no-pub`, focused Flutter admin-user and payment
-  monitor tests, full Flutter `flutter test --no-pub --reporter expanded` (86
-  tests), and `git diff --check`. Gap: live staging smoke remains pending.
+  fields. Payment speaker ready/audio/ack is limited to active Lv5
+  `STORE_MANAGER` or `CASH`; other positions receive an empty ready list and
+  cannot stream or ack payment audio. Validation in current patch: `npx prisma
+  validate`, `npx prisma generate`, backend `npm run build`, focused backend
+  feedback/payment Jest (3 suites, 19 tests), full backend
+  `npm test -- --runInBand` (35 suites, 259 tests), `flutter analyze --no-pub`,
+  focused Flutter feedback/payment monitor tests, full Flutter
+  `flutter test --no-pub --reporter expanded` (91 tests), and `git diff
+  --check`. Gap: live staging smoke remains pending.
 - PROFILE-ADMIN-001/PERSONNEL-001, 2026-06-12: changed organization
   administration to the Lv0-Lv5 source-of-truth tree. Backend normalizes active
   org node types to `LV0_DOMAIN`, `LV1_BLOCK`, `LV2_DEPARTMENT`,
