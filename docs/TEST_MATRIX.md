@@ -39,6 +39,22 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PROFILE-ADMIN-001, 2026-06-13: changed runtime feature access from per-user
+  allowlists to direct organization node-group assignments. Backend added
+  `OrganizationNodeFeatureAssignment`, migration preflight/backfill, read-only
+  audit script, `/admin/features/node-assignments` APIs, node-group
+  `/features/me` resolution, and user-list feature filtering through node
+  assignments. Flutter added node assignment management in feature management
+  and organization tree, removed the user-editor feature picker, and stopped
+  sending user `featureTreeCodes`. Validation: `npx prisma validate`,
+  `npx prisma generate`, `node --check
+  scripts/audit-node-feature-permissions.mjs`, backend `npm run build`,
+  focused backend user/feature Jest (3 suites, 44 tests), full backend `npm
+  test -- --runInBand` (36 suites, 262 tests), focused Flutter admin user tree
+  test, `flutter analyze --no-pub`, full Flutter `flutter test --no-pub
+  --reporter expanded` (97 tests), and `git diff --check`. Gap: staging/prod
+  must run `npm run audit:node-features` against live data before migration, and
+  live admin UI plus `/features/me` smoke remains manual.
 - WARRANTY-001, 2026-06-13: fixed warranty image upload failing with
   `property user should not exist` by aligning the Flutter multipart payload
   with the Nest `UploadWarrantyImagesDto`; the client now sends only `receipt`,

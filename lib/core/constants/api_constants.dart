@@ -38,6 +38,10 @@ class ApiConstants {
   static const String featuresMeEndpoint = '/features/me';
   static const String adminFeaturesEndpoint = '/admin/features';
   static const String adminFeaturesTreeEndpoint = '/admin/features/tree';
+  static const String adminFeatureNodeAssignmentsEndpoint =
+      '/admin/features/node-assignments';
+  static const String adminFeatureNodeAssignmentsBatchEndpoint =
+      '/admin/features/node-assignments/batch';
   static const String adminFeatureRulesEndpoint = '/admin/features/rules';
   static const String adminFeatureRulesBatchEndpoint =
       '/admin/features/rules/batch';

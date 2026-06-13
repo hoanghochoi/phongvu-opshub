@@ -309,10 +309,16 @@ describe('UserService admin store management', () => {
       findFirst: jest.fn(async ({ where }: any) => {
         return (
           Array.from(nodesById.values()).find((node) => {
-            if (where.parentId !== undefined && node.parentId !== where.parentId) {
+            if (
+              where.parentId !== undefined &&
+              node.parentId !== where.parentId
+            ) {
               return false;
             }
-            if (where.type !== undefined && node.type !== canonicalType(where.type)) {
+            if (
+              where.type !== undefined &&
+              node.type !== canonicalType(where.type)
+            ) {
               return false;
             }
             if (
@@ -352,7 +358,8 @@ describe('UserService admin store management', () => {
           .filter((node) => !allowedIds || allowedIds.has(node.id))
           .filter((node) => !disallowedType || node.type !== disallowedType)
           .filter(
-            (node) => activeValue === undefined || node.isActive === activeValue,
+            (node) =>
+              activeValue === undefined || node.isActive === activeValue,
           )
           .map((node) => ({
             ...node,
@@ -743,7 +750,7 @@ describe('UserService admin store management', () => {
     );
   });
 
-  it('saves user feature assignments from featureTreeCodes with ancestors', async () => {
+  it('ignores legacy per-user featureTreeCodes when creating users', async () => {
     installUserScopeTreeMock();
 
     await service.adminCreateUser(superAdmin, {
@@ -757,18 +764,8 @@ describe('UserService admin store management', () => {
       featureTreeCodes: ['FIFO_IMPORT', 'ADMIN_USERS'],
     });
 
-    expect(prisma.userFeatureAssignment.deleteMany).toHaveBeenCalledWith({
-      where: { userId: 'user-NO_ROLE' },
-    });
-    expect(prisma.userFeatureAssignment.createMany).toHaveBeenCalledWith({
-      data: expect.arrayContaining([
-        expect.objectContaining({ featureCode: 'FIFO' }),
-        expect.objectContaining({ featureCode: 'FIFO_IMPORT' }),
-        expect.objectContaining({ featureCode: 'ADMIN' }),
-        expect.objectContaining({ featureCode: 'ADMIN_USERS' }),
-      ]),
-      skipDuplicates: true,
-    });
+    expect(prisma.userFeatureAssignment.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.userFeatureAssignment.createMany).not.toHaveBeenCalled();
   });
 
   it('keeps the ROOT_DOMAIN organization node for NATIONAL scope', async () => {
@@ -831,7 +828,8 @@ describe('UserService admin store management', () => {
 
     const storeSubtreeIds = Array.from(org.nodesById.values())
       .filter(
-        (node) => node.id === 'org-store-cp62' || node.parentId === 'org-store-cp62',
+        (node) =>
+          node.id === 'org-store-cp62' || node.parentId === 'org-store-cp62',
       )
       .map((node) => node.id);
     expect(storeSubtreeIds).toEqual(
@@ -968,7 +966,8 @@ describe('UserService admin store management', () => {
     );
     const storeSubtreeIds = Array.from(org.nodesById.values())
       .filter(
-        (node) => node.id === 'org-store-cp62' || node.parentId === 'org-store-cp62',
+        (node) =>
+          node.id === 'org-store-cp62' || node.parentId === 'org-store-cp62',
       )
       .map((node) => node.id);
     expect(storeSubtreeIds).toEqual(
@@ -1369,7 +1368,6 @@ describe('UserService admin store management', () => {
         firstName: 'Sale',
         role: 'USER',
         organizationNodeId: positionNode.id,
-        featureTreeCodes: [],
       }),
     ).resolves.toMatchObject({
       departmentCode: 'SALES',
@@ -1437,7 +1435,8 @@ describe('UserService admin store management', () => {
     );
     const storeSubtreeIds = Array.from(org.nodesById.values())
       .filter(
-        (node) => node.id === 'org-store-cp01' || node.parentId === 'org-store-cp01',
+        (node) =>
+          node.id === 'org-store-cp01' || node.parentId === 'org-store-cp01',
       )
       .map((node) => node.id);
     expect(storeSubtreeIds).toEqual(

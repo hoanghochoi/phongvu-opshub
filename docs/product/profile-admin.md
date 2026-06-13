@@ -25,10 +25,11 @@ and basic administration for privileged roles.
 ## Admin Management
 
 - Admin menu visibility is resolved through backend feature and policy maps.
-  Runtime feature access uses a strict per-user allowlist; non-`SUPER_ADMIN`
-  users can open only active features explicitly assigned to them. Policy rules
-  still control capability and data scope, but they do not automatically open a
-  feature that is not assigned to the user.
+  Runtime feature access uses node-group assignments from the user's direct
+  active organization node: same root + node type + business code/code share the
+  same active feature set. Policy rules still control capability and data
+  scope, but they do not automatically open a feature that is not assigned to
+  the user's direct node group.
 - The administration menu contains user management, read-only system role
   management, Lv0-Lv5 organization tree management, personnel catalog
   management, feature management, policy management, and manual FIFO inventory
@@ -36,12 +37,10 @@ and basic administration for privileged roles.
   administration screens are not exposed; their data is maintained through the
   organization tree or runtime store flows.
 - Admin users can list, add, and edit users inside their permitted scope.
-- User management keeps name/email search and adds filters for domain,
-  organization node, feature/screen, role, and status. `SUPER_ADMIN` can assign
-  multiple allowed features from the user edit dialog. User feature assignment
-  is submitted as `featureTreeCodes`; the backend expands selected child nodes
-  to include their feature-tree ancestors before saving `UserFeatureAssignment`
-  rows.
+- User management keeps name/email search and filters for domain, organization
+  node, feature/screen, role, and status. The feature/screen filter resolves
+  through node-group feature assignments; the user editor does not assign
+  per-user feature exceptions.
 - System access roles are fixed to `SUPER_ADMIN`, `ADMIN`, and `USER`.
   `SUPER_ADMIN` can manage all roots. `ADMIN` is scoped by its assigned
   organization root, with email-domain fallback during rollout. `USER` has no
@@ -80,10 +79,12 @@ and basic administration for privileged roles.
   New store nodes create these positions automatically; existing store nodes are
   backfilled when the store tree sync runs.
 - Feature management keeps feature definitions and legacy feature rules for
-  reference/backfill, but the primary runtime gate is now the user feature
-  assignment allowlist. Feature rule create/edit in the app uses organization
-  tree nodes instead of legacy Region/Area/SR selectors. `SUPER_ADMIN` bypasses
-  feature gates to avoid lockout.
+  reference/rollback, but the primary runtime gate is now
+  `OrganizationNodeFeatureAssignment`. `SUPER_ADMIN` assigns features from the
+  feature-management Node tab or from the selected node in the organization
+  tree. The backend expands selected feature-tree descendants to include their
+  ancestors and stores one row per root + node type + node key + feature.
+  `SUPER_ADMIN` bypasses feature gates to avoid lockout.
 - Policy management lets `SUPER_ADMIN` manage admin policy definitions, policy
   rules, and system settings. Policy rules support the same detailed selectors
   as feature rules plus `scopeContains`, and app rule create/edit uses

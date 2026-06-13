@@ -11,7 +11,9 @@ import '../../../../core/network/api_exception.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../domain/admin_feature_definition.dart';
 import '../../domain/admin_organization_node.dart';
+import '../widgets/node_feature_assignment_dialog.dart';
 
 class OrganizationTreeAdminScreen extends StatefulWidget {
   const OrganizationTreeAdminScreen({super.key});
@@ -96,6 +98,54 @@ class _OrganizationTreeAdminScreenState
     if (saved == true) await _load();
   }
 
+  Future<void> _openFeatureAssignment() async {
+    final node = _selectedNode;
+    if (node == null) return;
+    final startedAt = DateTime.now();
+    try {
+      await AppLogger.instance.info(
+        'AdminOrganization',
+        'Organization node feature panel load started',
+        context: {'nodeId': node.id, 'type': node.type},
+      );
+      final results = await Future.wait<Object>([
+        _repository.listAdminFeatureTree(),
+        _repository.listAdminFeatureNodeAssignments(),
+      ]);
+      if (!mounted) return;
+      final updated = await showDialog<bool>(
+        context: context,
+        builder: (context) => NodeFeatureAssignmentDialog(
+          repository: _repository,
+          nodes: _nodes,
+          features: results[0] as List<AdminFeatureDefinition>,
+          assignments: results[1] as List<AdminNodeFeatureAssignment>,
+          initialNode: node,
+        ),
+      );
+      await AppLogger.instance.info(
+        'AdminOrganization',
+        'Organization node feature panel closed',
+        context: {
+          'nodeId': node.id,
+          'updated': updated == true,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      if (updated == true) await _load();
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'AdminOrganization',
+        'Organization node feature panel failed',
+        error: error,
+        stackTrace: stackTrace,
+        upload: true,
+        context: {'nodeId': node.id, 'type': node.type},
+      );
+      if (mounted) _showMessage('Chưa mở được panel tính năng của node.');
+    }
+  }
+
   Future<void> _deleteSelected() async {
     final node = _selectedNode;
     if (node == null) return;
@@ -157,11 +207,13 @@ class _OrganizationTreeAdminScreenState
 
   @override
   Widget build(BuildContext context) {
-    final role = context.select<AuthProvider, String?>(
-      (auth) => auth.user?.role,
-    );
+    final currentUser = context.watch<AuthProvider>().user;
+    final role = currentUser?.role;
     final canEditStructure = role == 'SUPER_ADMIN';
     final canEditMap = User.isAdminRole(role);
+    final canManageFeatures =
+        role == 'SUPER_ADMIN' ||
+        currentUser?.canUseFeature('ADMIN_FEATURES') == true;
     final selected = _selectedNode;
     return Scaffold(
       appBar: GradientHeader(
@@ -209,6 +261,7 @@ class _OrganizationTreeAdminScreenState
                         canEditStructure ||
                         (canEditMap && selected?.type == 'LV4_STORE'),
                     canDelete: canEditStructure,
+                    canManageFeatures: canManageFeatures,
                     onAddChild: selected == null
                         ? null
                         : () => _openEditor(parentId: selected.id),
@@ -218,6 +271,9 @@ class _OrganizationTreeAdminScreenState
                     onDelete: selected == null || selected.isSystem
                         ? null
                         : _deleteSelected,
+                    onManageFeatures: selected == null
+                        ? null
+                        : _openFeatureAssignment,
                   );
                   if (constraints.maxWidth < 760) {
                     return Column(
@@ -357,9 +413,11 @@ class _OrganizationNodeDetail extends StatelessWidget {
   final bool canAddChild;
   final bool canEdit;
   final bool canDelete;
+  final bool canManageFeatures;
   final VoidCallback? onAddChild;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onManageFeatures;
 
   const _OrganizationNodeDetail({
     required this.node,
@@ -367,9 +425,11 @@ class _OrganizationNodeDetail extends StatelessWidget {
     required this.canAddChild,
     required this.canEdit,
     required this.canDelete,
+    required this.canManageFeatures,
     required this.onAddChild,
     required this.onEdit,
     required this.onDelete,
+    required this.onManageFeatures,
   });
 
   @override
@@ -466,9 +526,15 @@ class _OrganizationNodeDetail extends StatelessWidget {
             label: 'Danh mục liên kết',
             value: '${node.referenceCount}',
           ),
-          if (canAddChild || canEdit || canDelete)
+          if (canAddChild || canEdit || canDelete || canManageFeatures)
             AppActionRow(
               children: [
+                if (canManageFeatures)
+                  AppSecondaryButton(
+                    onPressed: onManageFeatures,
+                    icon: Icons.account_tree_outlined,
+                    label: 'Tính năng',
+                  ),
                 if (canAddChild)
                   AppSecondaryButton(
                     onPressed: onAddChild,

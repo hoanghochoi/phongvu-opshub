@@ -8,8 +8,6 @@ class AdminUserEditorPayload {
     required String status,
     required String role,
     required bool canEditRole,
-    required bool canEditFeatures,
-    required List<String> featureTreeCodes,
     String? organizationNodeId,
   }) {
     return {
@@ -19,7 +17,6 @@ class AdminUserEditorPayload {
       'status': status,
       'organizationNodeId': organizationNodeId,
       if (canEditRole) 'role': role,
-      if (canEditFeatures) 'featureTreeCodes': featureTreeCodes,
     };
   }
 }

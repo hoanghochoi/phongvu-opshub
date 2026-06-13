@@ -18,6 +18,8 @@ import {
   AdminFeatureDto,
   AdminFeatureRuleBatchDto,
   AdminFeatureRuleDto,
+  AdminNodeFeatureAssignmentBatchDto,
+  AdminNodeFeatureAssignmentUpdateDto,
 } from './feature.dto';
 import { FeatureService } from './feature.service';
 
@@ -41,6 +43,40 @@ export class FeatureController {
   @RequireFeature(FEATURE_KEYS.ADMIN_FEATURES)
   listFeatureTree(@Request() req: any) {
     return this.featureService.adminListFeatureTree(req.user);
+  }
+
+  @Get('admin/features/node-assignments')
+  @RequireFeature(FEATURE_KEYS.ADMIN_FEATURES)
+  listNodeAssignments(
+    @Request() req: any,
+    @Query('featureCode') featureCode?: string,
+  ) {
+    return this.featureService.adminListNodeAssignments(req.user, featureCode);
+  }
+
+  @Post('admin/features/node-assignments/batch')
+  @RequireFeature(FEATURE_KEYS.ADMIN_FEATURES)
+  createNodeAssignments(
+    @Request() req: any,
+    @Body() body: AdminNodeFeatureAssignmentBatchDto,
+  ) {
+    return this.featureService.adminCreateNodeAssignments(req.user, body);
+  }
+
+  @Patch('admin/features/node-assignments/:id')
+  @RequireFeature(FEATURE_KEYS.ADMIN_FEATURES)
+  updateNodeAssignment(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: AdminNodeFeatureAssignmentUpdateDto,
+  ) {
+    return this.featureService.adminUpdateNodeAssignment(req.user, id, body);
+  }
+
+  @Delete('admin/features/node-assignments/:id')
+  @RequireFeature(FEATURE_KEYS.ADMIN_FEATURES)
+  deleteNodeAssignment(@Request() req: any, @Param('id') id: string) {
+    return this.featureService.adminDeleteNodeAssignment(req.user, id);
   }
 
   @Post('admin/features')

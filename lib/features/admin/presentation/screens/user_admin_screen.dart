@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
-import '../../../../app/theme/app_colors.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -296,7 +295,6 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   Future<void> _openEditor([User? user]) async {
     final canEditRole =
         context.read<AuthProvider>().user?.role == 'SUPER_ADMIN';
-    final canEditFeatures = canEditRole;
     final updated = await showDialog<bool>(
       context: context,
       builder: (context) => _UserEditorDialog(
@@ -304,11 +302,9 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         roles: _roles,
         regions: _regions,
         areas: _areas,
-        features: _features,
         orgNodes: _orgNodes,
         user: user,
         canEditRole: canEditRole,
-        canEditFeatures: canEditFeatures,
       ),
     );
     if (updated == true) await _load();
@@ -585,21 +581,17 @@ class _UserEditorDialog extends StatefulWidget {
   final List<AdminRoleDefinition> roles;
   final List<AdminRegionDefinition> regions;
   final List<AdminAreaDefinition> areas;
-  final List<AdminFeatureDefinition> features;
   final List<AdminOrganizationNode> orgNodes;
   final User? user;
   final bool canEditRole;
-  final bool canEditFeatures;
 
   const _UserEditorDialog({
     required this.repository,
     required this.roles,
     required this.regions,
     required this.areas,
-    required this.features,
     required this.orgNodes,
     required this.canEditRole,
-    required this.canEditFeatures,
     this.user,
   });
 
@@ -619,7 +611,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   String? _regionCode;
   String? _areaCode;
   String? _organizationNodeId;
-  final Set<String> _featureCodes = <String>{};
   bool _saving = false;
 
   @override
@@ -638,7 +629,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     _areaCode = user?.areaCode;
     _organizationNodeId = user?.organizationNodeId ?? _legacyScopeNodeId(user);
     _applyOrganizationNodeToState(_selectedOrganizationNode());
-    _featureCodes.addAll(user?.featureCodes ?? const []);
   }
 
   @override
@@ -680,7 +670,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
           'workScopeType': _workScopeType,
           'organizationNodeId': _organizationNodeId,
           'organizationNodeType': selectedNode?.type,
-          'featureCount': _featureCodes.length,
           'durationMs': 0,
         },
       );
@@ -742,19 +731,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       role: _role,
       organizationNodeId: _organizationNodeId,
       canEditRole: widget.canEditRole,
-      canEditFeatures: widget.canEditFeatures,
-      featureTreeCodes: _sortedFeatureCodes(),
     );
-  }
-
-  List<String> _sortedFeatureCodes() => _featureCodes.toList()..sort();
-
-  bool _sameStringList(List<String> left, List<String> right) {
-    if (left.length != right.length) return false;
-    for (var index = 0; index < left.length; index += 1) {
-      if (left[index] != right[index]) return false;
-    }
-    return true;
   }
 
   List<String> _changeSummary(User user, Map<String, dynamic> body) {
@@ -771,13 +748,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     addIfChanged('status', user.status, 'Trạng thái');
     addIfChanged('organizationNodeId', user.organizationNodeId, 'Node tổ chức');
     if (widget.canEditRole) addIfChanged('role', user.role, 'Quyền hệ thống');
-    if (widget.canEditFeatures) {
-      final oldCodes = user.featureCodes.toList()..sort();
-      final newCodes = _sortedFeatureCodes();
-      if (!_sameStringList(oldCodes, newCodes)) {
-        changes.add('Chức năng được dùng');
-      }
-    }
     return changes;
   }
 
@@ -829,9 +799,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       _areaCode = user.areaCode;
       _organizationNodeId = user.organizationNodeId ?? _legacyScopeNodeId(user);
       _applyOrganizationNodeToState(_selectedOrganizationNode());
-      _featureCodes
-        ..clear()
-        ..addAll(user.featureCodes);
     });
   }
 
@@ -890,46 +857,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       if (area.code == code) return area.abbreviation;
     }
     return code;
-  }
-
-  void _toggleFeature(AdminFeatureDefinition feature, bool selected) {
-    setState(() {
-      if (selected) {
-        _featureCodes.add(feature.code);
-        var parentCode = feature.parentCode;
-        while (parentCode != null && parentCode.isNotEmpty) {
-          _featureCodes.add(parentCode);
-          parentCode = _featureByCode(parentCode)?.parentCode;
-        }
-      } else {
-        _featureCodes.remove(feature.code);
-        for (final child in _descendantsOf(feature.code)) {
-          _featureCodes.remove(child.code);
-        }
-      }
-    });
-  }
-
-  AdminFeatureDefinition? _featureByCode(String code) {
-    for (final feature in widget.features) {
-      if (feature.code == code) return feature;
-    }
-    return null;
-  }
-
-  List<AdminFeatureDefinition> _descendantsOf(String code) {
-    final result = <AdminFeatureDefinition>[];
-    void visit(String parentCode) {
-      for (final feature in widget.features) {
-        if (feature.parentCode == parentCode) {
-          result.add(feature);
-          visit(feature.code);
-        }
-      }
-    }
-
-    visit(code);
-    return result;
   }
 
   bool get _allowsGlobalNationalScope =>
@@ -1297,12 +1224,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                 ],
                 onChanged: (value) => setState(() => _status = value ?? 'yes'),
               ),
-              if (widget.canEditFeatures)
-                _FeatureCheckboxTree(
-                  features: widget.features,
-                  selectedCodes: _featureCodes,
-                  onChanged: _toggleFeature,
-                ),
             ],
           ),
         ),
@@ -1460,118 +1381,6 @@ class _NodeTypeBadge extends StatelessWidget {
           fontWeight: FontWeight.w700,
         ),
       ),
-    );
-  }
-}
-
-class _FeatureCheckboxTree extends StatelessWidget {
-  final List<AdminFeatureDefinition> features;
-  final Set<String> selectedCodes;
-  final void Function(AdminFeatureDefinition feature, bool selected) onChanged;
-
-  const _FeatureCheckboxTree({
-    required this.features,
-    required this.selectedCodes,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (features.isEmpty) {
-      return const Text('Chưa tải được danh sách chức năng');
-    }
-    final byParent = <String?, List<AdminFeatureDefinition>>{};
-    for (final feature in features) {
-      byParent.putIfAbsent(feature.parentCode, () => []).add(feature);
-    }
-    for (final list in byParent.values) {
-      list.sort((a, b) {
-        final order = a.sortOrder.compareTo(b.sortOrder);
-        return order != 0 ? order : a.title.compareTo(b.title);
-      });
-    }
-    final roots = byParent[null] ?? const <AdminFeatureDefinition>[];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Chức năng được sử dụng',
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-        const SizedBox(height: 8),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 260),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.neutral200),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final feature in roots)
-                  _FeatureCheckboxTile(
-                    feature: feature,
-                    byParent: byParent,
-                    selectedCodes: selectedCodes,
-                    depth: 0,
-                    onChanged: onChanged,
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _FeatureCheckboxTile extends StatelessWidget {
-  final AdminFeatureDefinition feature;
-  final Map<String?, List<AdminFeatureDefinition>> byParent;
-  final Set<String> selectedCodes;
-  final int depth;
-  final void Function(AdminFeatureDefinition feature, bool selected) onChanged;
-
-  const _FeatureCheckboxTile({
-    required this.feature,
-    required this.byParent,
-    required this.selectedCodes,
-    required this.depth,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final children = byParent[feature.code] ?? const <AdminFeatureDefinition>[];
-    return Column(
-      children: [
-        CheckboxListTile(
-          dense: true,
-          contentPadding: EdgeInsets.only(left: 8.0 + depth * 18, right: 8),
-          value: selectedCodes.contains(feature.code),
-          title: Text(
-            feature.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          subtitle: Text(
-            feature.code,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          controlAffinity: ListTileControlAffinity.leading,
-          onChanged: (value) => onChanged(feature, value == true),
-        ),
-        for (final child in children)
-          _FeatureCheckboxTile(
-            feature: child,
-            byParent: byParent,
-            selectedCodes: selectedCodes,
-            depth: depth + 1,
-            onChanged: onChanged,
-          ),
-      ],
     );
   }
 }
