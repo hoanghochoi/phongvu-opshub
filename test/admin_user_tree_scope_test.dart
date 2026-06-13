@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/api_exception.dart';
+import 'package:phongvu_opshub/features/admin/domain/admin_feature_definition.dart';
 import 'package:phongvu_opshub/features/admin/domain/admin_organization_node.dart';
 import 'package:phongvu_opshub/features/admin/domain/admin_user_editor_payload.dart';
 import 'package:phongvu_opshub/features/admin/presentation/screens/user_admin_screen.dart';
@@ -43,6 +44,68 @@ void main() {
     },
   );
 
+  test(
+    'AuthRepository manages node feature assignments through admin endpoints',
+    () async {
+      final calls = <String>[];
+      final bodies = <Map<String, dynamic>>[];
+      final repository = AuthRepository(
+        ApiClient.test(
+          MockClient((http.Request request) async {
+            calls.add('${request.method} ${request.url.path}');
+            if (request.method == 'GET') {
+              expect(request.url.queryParameters['featureCode'], 'FIFO');
+              return http.Response(
+                jsonEncode([
+                  {
+                    'id': 'assign-1',
+                    'scopeRootNodeId': 'org-domain',
+                    'scopeRootNodeName': 'phongvu.vn',
+                    'nodeType': 'LV5_POSITION',
+                    'nodeKey': 'SA',
+                    'featureCode': 'FIFO',
+                    'featureName': 'FIFO',
+                    'enabled': true,
+                    'organizationNodeIds': ['org-pos-sa'],
+                    'impactedUserCount': 3,
+                  },
+                ]),
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }
+            bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+            return http.Response(
+              jsonEncode([]),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+
+      final assignments = await repository.listAdminFeatureNodeAssignments(
+        featureCode: 'FIFO',
+      );
+      await repository.saveAdminFeatureNodeAssignments(
+        const AdminNodeFeatureAssignmentBatchRequest(
+          organizationNodeIds: ['org-pos-sa'],
+          featureTreeCodes: ['FIFO'],
+          replaceExisting: true,
+        ),
+      );
+
+      expect(assignments.single.impactedUserCount, 3);
+      expect(calls, [
+        'GET /api/admin/features/node-assignments',
+        'POST /api/admin/features/node-assignments/batch',
+      ]);
+      expect(bodies.single['organizationNodeIds'], ['org-pos-sa']);
+      expect(bodies.single['featureTreeCodes'], ['FIFO']);
+      expect(bodies.single['replaceExisting'], true);
+    },
+  );
+
   test('Admin user editor payload sends tree-only scope input', () {
     final body = AdminUserEditorPayload.build(
       email: ' staff@phongvu.vn ',
@@ -52,15 +115,13 @@ void main() {
       role: 'USER',
       organizationNodeId: 'org-store-cp62',
       canEditRole: true,
-      canEditFeatures: true,
-      featureTreeCodes: const ['FIFO', 'ADMIN_USERS'],
     );
 
     expect(body['email'], 'staff@phongvu.vn');
     expect(body['firstName'], 'An');
     expect(body['lastName'], 'Nguyen');
     expect(body['organizationNodeId'], 'org-store-cp62');
-    expect(body['featureTreeCodes'], ['FIFO', 'ADMIN_USERS']);
+    expect(body, isNot(contains('featureTreeCodes')));
     expect(body, isNot(contains('featureCodes')));
     expect(body, isNot(contains('departmentCode')));
     expect(body, isNot(contains('jobRoleCode')));

@@ -10,6 +10,7 @@ class AdminFeatureDefinition {
   final bool isActive;
   final int ruleCount;
   final int userAssignmentCount;
+  final int nodeAssignmentCount;
 
   const AdminFeatureDefinition({
     this.id,
@@ -23,6 +24,7 @@ class AdminFeatureDefinition {
     this.isActive = true,
     this.ruleCount = 0,
     this.userAssignmentCount = 0,
+    this.nodeAssignmentCount = 0,
   });
 
   factory AdminFeatureDefinition.fromJson(Map<String, dynamic> json) {
@@ -43,6 +45,8 @@ class AdminFeatureDefinition {
       ruleCount: int.tryParse(counts['rules']?.toString() ?? '') ?? 0,
       userAssignmentCount:
           int.tryParse(counts['userAssignments']?.toString() ?? '') ?? 0,
+      nodeAssignmentCount:
+          int.tryParse(counts['nodeAssignments']?.toString() ?? '') ?? 0,
     );
   }
 
@@ -54,6 +58,86 @@ class AdminFeatureDefinition {
     'sortOrder': sortOrder,
     'visibleInUserPicker': visibleInUserPicker,
     'isActive': isActive,
+  };
+}
+
+class AdminNodeFeatureAssignment {
+  final String id;
+  final String scopeRootNodeId;
+  final String? scopeRootNodeName;
+  final String nodeType;
+  final String nodeKey;
+  final String featureCode;
+  final String featureName;
+  final bool enabled;
+  final String? assignedById;
+  final String? assignedByEmail;
+  final String? note;
+  final List<String> organizationNodeIds;
+  final int impactedUserCount;
+
+  const AdminNodeFeatureAssignment({
+    required this.id,
+    required this.scopeRootNodeId,
+    this.scopeRootNodeName,
+    required this.nodeType,
+    required this.nodeKey,
+    required this.featureCode,
+    required this.featureName,
+    required this.enabled,
+    this.assignedById,
+    this.assignedByEmail,
+    this.note,
+    this.organizationNodeIds = const [],
+    this.impactedUserCount = 0,
+  });
+
+  factory AdminNodeFeatureAssignment.fromJson(Map<String, dynamic> json) {
+    return AdminNodeFeatureAssignment(
+      id: json['id']?.toString() ?? '',
+      scopeRootNodeId: json['scopeRootNodeId']?.toString() ?? '',
+      scopeRootNodeName: json['scopeRootNodeName']?.toString(),
+      nodeType: json['nodeType']?.toString() ?? '',
+      nodeKey: json['nodeKey']?.toString() ?? '',
+      featureCode: json['featureCode']?.toString() ?? '',
+      featureName:
+          json['featureName']?.toString() ??
+          json['featureCode']?.toString() ??
+          '',
+      enabled: json['enabled'] != false,
+      assignedById: json['assignedById']?.toString(),
+      assignedByEmail: json['assignedByEmail']?.toString(),
+      note: json['note']?.toString(),
+      organizationNodeIds: _stringListFromJson(json['organizationNodeIds']),
+      impactedUserCount:
+          int.tryParse(json['impactedUserCount']?.toString() ?? '') ?? 0,
+    );
+  }
+
+  String get groupKey => '$scopeRootNodeId|$nodeType|$nodeKey';
+}
+
+class AdminNodeFeatureAssignmentBatchRequest {
+  final List<String> organizationNodeIds;
+  final List<String> featureTreeCodes;
+  final bool replaceExisting;
+  final bool enabled;
+  final String? note;
+
+  const AdminNodeFeatureAssignmentBatchRequest({
+    required this.organizationNodeIds,
+    required this.featureTreeCodes,
+    this.replaceExisting = false,
+    this.enabled = true,
+    this.note,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'organizationNodeIds': organizationNodeIds,
+    'featureTreeCodes': featureTreeCodes,
+    'replaceExisting': replaceExisting,
+    'enabled': enabled,
+    'note': note,
   };
 }
 
@@ -136,6 +220,16 @@ class AdminFeatureRule {
     'userId': userId,
     'note': note,
   };
+}
+
+List<String> _stringListFromJson(dynamic value) {
+  if (value is List) {
+    return value
+        .map((item) => item?.toString() ?? '')
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
+  return const [];
 }
 
 class AdminFeatureRuleBatchRequest {

@@ -48,12 +48,14 @@ account import from CSV, and administration for privileged roles.
   `Lv0 -> Lv2 -> Lv3`. Subdomain nodes are retired from active responses, and
   delete is blocked with explicit reasons when a node has children, users, SRs,
   or other references.
-- Runtime feature access is a strict per-user allowlist. `SUPER_ADMIN` can
-  assign multiple active features from user management through the feature tree;
-  the app sends `featureTreeCodes` and the backend saves selected descendants
-  with their ancestors. Non-`SUPER_ADMIN` users cannot open unassigned features
-  even when a policy rule would allow the capability. Legacy feature rules
-  remain for reference and backfill.
+- Runtime feature access is assigned by direct organization node group. A group
+  is the selected root plus the user's direct node type and business code/code;
+  there is no ancestor/descendant inheritance in v1. `SUPER_ADMIN` assigns
+  features from feature management or the organization-tree node panel. The app
+  sends `organizationNodeIds` plus `featureTreeCodes`; the backend expands
+  selected descendants with ancestors and saves
+  `OrganizationNodeFeatureAssignment` rows. Legacy per-user assignments and
+  feature rules remain only for audit/rollback during rollout.
 - `SUPER_ADMIN` bypasses feature gates to avoid lockout.
 - User management supports filters by name/email search, domain,
   organization node, feature/screen, role, and status.

@@ -11,6 +11,7 @@ import '../../domain/admin_feature_definition.dart';
 import '../../domain/admin_organization_node.dart';
 import '../../domain/admin_personnel_definition.dart';
 import '../../domain/admin_role_definition.dart';
+import '../widgets/node_feature_assignment_dialog.dart';
 
 class FeatureAdminScreen extends StatefulWidget {
   const FeatureAdminScreen({super.key});
@@ -23,12 +24,14 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
   final _repository = AuthRepository(ApiClient());
   List<AdminFeatureDefinition> _features = [];
   List<AdminFeatureRule> _rules = [];
+  List<AdminNodeFeatureAssignment> _nodeAssignments = [];
   List<AdminRoleDefinition> _roles = [];
   List<AdminPersonnelDefinition> _departments = [];
   List<AdminPersonnelDefinition> _jobRoles = [];
   List<AdminOrganizationNode> _organizationNodes = [];
   List<User> _users = [];
   String? _ruleFeatureFilter;
+  String? _nodeFeatureFilter;
   bool _loading = true;
 
   @override
@@ -49,6 +52,9 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
       final results = await Future.wait([
         _repository.listAdminFeatures(),
         _repository.listAdminFeatureRules(featureCode: _ruleFeatureFilter),
+        _repository.listAdminFeatureNodeAssignments(
+          featureCode: _nodeFeatureFilter,
+        ),
         _repository.listAdminRoles(),
         _repository.listAdminDepartments(),
         _repository.listAdminJobRoles(),
@@ -59,11 +65,12 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
       setState(() {
         _features = results[0] as List<AdminFeatureDefinition>;
         _rules = results[1] as List<AdminFeatureRule>;
-        _roles = results[2] as List<AdminRoleDefinition>;
-        _departments = results[3] as List<AdminPersonnelDefinition>;
-        _jobRoles = results[4] as List<AdminPersonnelDefinition>;
-        _organizationNodes = results[5] as List<AdminOrganizationNode>;
-        _users = results[6] as List<User>;
+        _nodeAssignments = results[2] as List<AdminNodeFeatureAssignment>;
+        _roles = results[3] as List<AdminRoleDefinition>;
+        _departments = results[4] as List<AdminPersonnelDefinition>;
+        _jobRoles = results[5] as List<AdminPersonnelDefinition>;
+        _organizationNodes = results[6] as List<AdminOrganizationNode>;
+        _users = results[7] as List<User>;
       });
       await AppLogger.instance.info(
         'AdminFeatures',
@@ -71,6 +78,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
         context: {
           'features': _features.length,
           'rules': _rules.length,
+          'nodeAssignments': _nodeAssignments.length,
           'users': _users.length,
           'organizationNodes': _organizationNodes.length,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
@@ -118,6 +126,26 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
     if (updated == true) await _load();
   }
 
+  Future<void> _openNodeAssignmentEditor({AdminOrganizationNode? node}) async {
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (context) => NodeFeatureAssignmentDialog(
+        repository: _repository,
+        nodes: _organizationNodes,
+        features: _features,
+        assignments: _nodeAssignments,
+        initialNode: node,
+      ),
+    );
+    if (updated == true) await _load();
+  }
+
+  Future<void> _editNodeAssignmentGroup(
+    AdminNodeFeatureAssignment assignment,
+  ) async {
+    await _openNodeAssignmentEditor(node: _nodeForAssignment(assignment));
+  }
+
   Future<void> _deleteFeature(AdminFeatureDefinition feature) async {
     final confirmed = await _confirm(
       title: 'Xóa tính năng',
@@ -149,6 +177,96 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
       if (mounted) {
         _showMessage('Chưa xóa được tính năng. Có thể đang có rule.');
       }
+    }
+  }
+
+  Future<void> _toggleNodeAssignment(
+    AdminNodeFeatureAssignment assignment,
+    bool enabled,
+  ) async {
+    try {
+      await AppLogger.instance.info(
+        'AdminFeatures',
+        'Node feature assignment toggle started',
+        context: {
+          'assignmentId': assignment.id,
+          'featureCode': assignment.featureCode,
+          'enabled': enabled,
+        },
+      );
+      await _repository.updateAdminFeatureNodeAssignment(
+        assignment.id,
+        enabled: enabled,
+      );
+      await AppLogger.instance.info(
+        'AdminFeatures',
+        'Node feature assignment toggle succeeded',
+        context: {
+          'assignmentId': assignment.id,
+          'featureCode': assignment.featureCode,
+          'enabled': enabled,
+        },
+      );
+      await _load();
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'AdminFeatures',
+        'Node feature assignment toggle failed',
+        error: error,
+        stackTrace: stackTrace,
+        upload: true,
+        context: {
+          'assignmentId': assignment.id,
+          'featureCode': assignment.featureCode,
+          'enabled': enabled,
+        },
+      );
+      if (mounted) _showMessage('Chưa cập nhật được quyền node.');
+    }
+  }
+
+  Future<void> _deleteNodeAssignment(
+    AdminNodeFeatureAssignment assignment,
+  ) async {
+    final confirmed = await _confirm(
+      title: 'Xóa quyền node',
+      message: 'Xóa quyền ${assignment.featureName} khỏi nhóm node này?',
+    );
+    if (!confirmed) return;
+    try {
+      await AppLogger.instance.warn(
+        'AdminFeatures',
+        'Node feature assignment delete started',
+        context: {
+          'assignmentId': assignment.id,
+          'featureCode': assignment.featureCode,
+          'nodeType': assignment.nodeType,
+          'nodeKey': assignment.nodeKey,
+        },
+      );
+      await _repository.deleteAdminFeatureNodeAssignment(assignment.id);
+      await AppLogger.instance.warn(
+        'AdminFeatures',
+        'Node feature assignment delete succeeded',
+        context: {
+          'assignmentId': assignment.id,
+          'featureCode': assignment.featureCode,
+        },
+      );
+      await _load();
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'AdminFeatures',
+        'Node feature assignment delete failed',
+        error: error,
+        stackTrace: stackTrace,
+        upload: true,
+        context: {
+          'assignmentId': assignment.id,
+          'featureCode': assignment.featureCode,
+        },
+      );
+      if (mounted) _showMessage('Chưa xóa được quyền node.');
     }
   }
 
@@ -223,10 +341,31 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
     return code;
   }
 
+  AdminOrganizationNode? _nodeForAssignment(
+    AdminNodeFeatureAssignment assignment,
+  ) {
+    for (final nodeId in assignment.organizationNodeIds) {
+      for (final node in _organizationNodes) {
+        if (node.id == nodeId) return node;
+      }
+    }
+    final assignmentType = AdminOrganizationNode.canonicalType(
+      assignment.nodeType,
+    );
+    final assignmentKey = assignment.nodeKey.trim().toUpperCase();
+    for (final node in _organizationNodes) {
+      final nodeKey = (node.businessCode ?? node.storeId ?? node.code)
+          .trim()
+          .toUpperCase();
+      if (node.type == assignmentType && nodeKey == assignmentKey) return node;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: GradientHeader(
           title: 'Quản lý tính năng',
@@ -234,7 +373,8 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Tính năng'),
-              Tab(text: 'Rules'),
+              Tab(text: 'Node'),
+              Tab(text: 'Rules cũ'),
             ],
           ),
           actions: [
@@ -244,9 +384,14 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
               tooltip: 'Thêm tính năng',
             ),
             IconButton(
+              onPressed: _loading ? null : () => _openNodeAssignmentEditor(),
+              icon: const Icon(Icons.account_tree_outlined),
+              tooltip: 'Gán tính năng theo node',
+            ),
+            IconButton(
               onPressed: _loading ? null : () => _openRuleEditor(),
               icon: const Icon(Icons.rule_folder_outlined),
-              tooltip: 'Thêm rule',
+              tooltip: 'Thêm rule cũ',
             ),
           ],
         ),
@@ -262,6 +407,19 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
                         : () {
                             _deleteFeature(feature);
                           },
+                  ),
+                  _NodeAssignmentList(
+                    assignments: _nodeAssignments,
+                    features: _features,
+                    featureFilter: _nodeFeatureFilter,
+                    onFilterChanged: (value) async {
+                      setState(() => _nodeFeatureFilter = value);
+                      await _load();
+                    },
+                    onAdd: () => _openNodeAssignmentEditor(),
+                    onEdit: _editNodeAssignmentGroup,
+                    onToggle: _toggleNodeAssignment,
+                    onDelete: _deleteNodeAssignment,
                   ),
                   _RuleList(
                     rules: _rules,
@@ -371,7 +529,7 @@ class _FeatureCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${feature.code} • ${feature.ruleCount} rule${feature.description.isEmpty ? '' : ' • ${feature.description}'}',
+                    '${feature.code} • ${feature.nodeAssignmentCount} node • ${feature.ruleCount} rule cũ${feature.description.isEmpty ? '' : ' • ${feature.description}'}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -405,6 +563,202 @@ class _FeatureCard extends StatelessWidget {
               onPressed: onDelete,
               icon: Icons.delete_outline,
               tooltip: feature.isSystem ? 'Tính năng hệ thống' : 'Xóa',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NodeAssignmentList extends StatelessWidget {
+  final List<AdminNodeFeatureAssignment> assignments;
+  final List<AdminFeatureDefinition> features;
+  final String? featureFilter;
+  final ValueChanged<String?> onFilterChanged;
+  final VoidCallback onAdd;
+  final void Function(AdminNodeFeatureAssignment assignment) onEdit;
+  final void Function(AdminNodeFeatureAssignment assignment, bool enabled)
+  onToggle;
+  final void Function(AdminNodeFeatureAssignment assignment) onDelete;
+
+  const _NodeAssignmentList({
+    required this.assignments,
+    required this.features,
+    required this.featureFilter,
+    required this.onFilterChanged,
+    required this.onAdd,
+    required this.onEdit,
+    required this.onToggle,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppResponsiveContent(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          Padding(
+            padding: AppLayoutTokens.pagePaddingFor(
+              MediaQuery.sizeOf(context).width,
+            ).copyWith(bottom: 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String?>(
+                    initialValue: featureFilter,
+                    decoration: const InputDecoration(
+                      labelText: 'Lọc theo tính năng',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Tất cả'),
+                      ),
+                      ...features.map(
+                        (feature) => DropdownMenuItem<String?>(
+                          value: feature.code,
+                          child: Text('${feature.code} - ${feature.title}'),
+                        ),
+                      ),
+                    ],
+                    onChanged: onFilterChanged,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                AppSecondaryButton(
+                  onPressed: onAdd,
+                  icon: Icons.account_tree_outlined,
+                  label: 'Gán node',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: assignments.isEmpty
+                ? const Center(child: Text('Chưa có quyền tính năng theo node'))
+                : ListView.separated(
+                    padding: AppLayoutTokens.pagePaddingFor(
+                      MediaQuery.sizeOf(context).width,
+                    ).copyWith(top: 0),
+                    itemCount: assignments.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final assignment = assignments[index];
+                      return _NodeAssignmentCard(
+                        assignment: assignment,
+                        onEdit: () => onEdit(assignment),
+                        onToggle: (enabled) => onToggle(assignment, enabled),
+                        onDelete: () => onDelete(assignment),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NodeAssignmentCard extends StatelessWidget {
+  final AdminNodeFeatureAssignment assignment;
+  final VoidCallback onEdit;
+  final ValueChanged<bool> onToggle;
+  final VoidCallback onDelete;
+
+  const _NodeAssignmentCard({
+    required this.assignment,
+    required this.onEdit,
+    required this.onToggle,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = assignment.enabled
+        ? const Color(0xFF059669)
+        : const Color(0xFFDC2626);
+    final typeTitle = AdminOrganizationNodeTypes.titleOf(assignment.nodeType);
+    final scope = assignment.scopeRootNodeName ?? assignment.scopeRootNodeId;
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.11),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.account_tree_outlined, color: color, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${assignment.featureName} (${assignment.featureCode})',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$scope • $typeTitle ${assignment.nodeKey} • ${assignment.impactedUserCount} user',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 13,
+                      height: 1.25,
+                    ),
+                  ),
+                  if (assignment.note?.isNotEmpty == true) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      assignment.note!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Switch(value: assignment.enabled, onChanged: onToggle),
+            const SizedBox(width: 8),
+            AppIconAction(
+              onPressed: onEdit,
+              icon: Icons.edit_outlined,
+              tooltip: 'Sửa nhóm node',
+            ),
+            const SizedBox(width: 8),
+            AppIconAction(
+              onPressed: onDelete,
+              icon: Icons.delete_outline,
+              tooltip: 'Xóa quyền node',
             ),
           ],
         ),

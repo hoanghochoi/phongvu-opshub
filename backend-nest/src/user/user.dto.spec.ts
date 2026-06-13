@@ -13,13 +13,22 @@ describe('AdminUserDto', () => {
     await expect(validate(dto)).resolves.toHaveLength(0);
   });
 
-  it('accepts featureTreeCodes for tree-only feature assignment', async () => {
+  it('rejects legacy per-user featureTreeCodes from user payloads', async () => {
     const dto = Object.assign(new AdminUserDto(), {
       email: 'staff@phongvu.vn',
       firstName: 'Staff',
       featureTreeCodes: ['FIFO', 'FIFO_IMPORT'],
     });
 
-    await expect(validate(dto)).resolves.toHaveLength(0);
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ property: 'featureTreeCodes' }),
+      ]),
+    );
   });
 });

@@ -8,6 +8,10 @@ organization tree and fixed system-role rollout.
 - [ ] Confirm the staging deployment completed successfully.
 - [ ] Confirm Prisma migration `20260612180000_lv_org_tree_roles` applied.
 - [ ] Confirm Prisma migration `20260613100000_admin_org_tree_feature` applied.
+- [ ] Run `npm run audit:node-features` before migration/deploy; report is
+  clean or every divergent node group has been fixed intentionally.
+- [ ] Confirm Prisma migration `20260613190000_node_feature_assignments`
+  applied after the preflight report is clean.
 - [ ] Confirm backend health endpoint returns healthy.
 - [ ] Confirm app build/version shown to the tester is the new staging build.
 - [ ] Keep a rollback point ready: previous staging image/build and DB backup.
@@ -29,6 +33,11 @@ organization tree and fixed system-role rollout.
   self-selection message.
 - [ ] `/admin/features/tree` shows `Cơ cấu tổ chức`/`ADMIN_ORG_TREE` and does
   not show legacy `ADMIN_STORES`, `ADMIN_REGIONS`, or `ADMIN_PERSONNEL`.
+- [ ] `GET /admin/features/node-assignments` returns node-group assignments
+  with impacted user counts.
+- [ ] `POST /admin/features/node-assignments/batch` saves a selected node plus
+  `featureTreeCodes`; `/features/me` changes only for users in the same direct
+  node group.
 
 ## SUPER_ADMIN App Smoke
 
@@ -49,6 +58,12 @@ organization tree and fixed system-role rollout.
 - [ ] User edit dialog has no direct `Phòng ban` or `Chức danh` assignment rows;
   node picker supports search, type filter, full breadcrumb, level badge, and
   selected-state visibility.
+- [ ] User edit dialog has no feature picker and does not send
+  `featureTreeCodes`.
+- [ ] Open feature management -> Node tab; assign a feature set to one Lv5
+  group and verify impacted user count.
+- [ ] Open `Cơ cấu tổ chức`, select a node, use `Tính năng`, save the same node
+  group feature set, and verify the Node tab reflects it.
 - [ ] Newly registered user lands on `/assignment-pending` with the exact
   support text, refresh button, and logout button.
 - [ ] Save a feature rule with an organization tree node.
@@ -67,8 +82,8 @@ organization tree and fixed system-role rollout.
 
 ## USER App Smoke
 
-- [ ] Login as `USER`; admin menu is not visible unless explicitly feature
-  allowed by backend policy for a non-admin flow.
+- [ ] Login as `USER`; admin menu is not visible unless the user's direct node
+  group has the required active feature assignment.
 - [ ] Existing daily flows still work for the assigned SR/store.
 - [ ] Unassigned `USER` remains on the assignment-pending screen until a
   `SUPER_ADMIN` assigns an organization node, then refresh/login enters the app.

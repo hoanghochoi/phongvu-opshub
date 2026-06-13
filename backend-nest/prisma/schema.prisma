@@ -234,6 +234,7 @@ model User {
   platformSessions    UserPlatformSession[]
   featureAccessRules   FeatureAccessRule[]
   userFeatureAssignments UserFeatureAssignment[]
+  nodeFeatureAssignmentsAssigned OrganizationNodeFeatureAssignment[] @relation("NodeFeatureAssignedBy")
 
   @@index([departmentCode])
   @@index([jobRoleCode])
@@ -406,6 +407,7 @@ model OrganizationNode {
   areas        AreaDefinition[]
   featureAccessRules FeatureAccessRule[]
   adminPolicyRules AdminPolicyRule[]
+  nodeFeatureAssignments OrganizationNodeFeatureAssignment[] @relation("NodeFeatureScopeRoot")
 
   @@index([parentId])
   @@index([type])
@@ -429,6 +431,7 @@ model FeatureDefinition {
 
   rules FeatureAccessRule[]
   userAssignments UserFeatureAssignment[]
+  nodeAssignments OrganizationNodeFeatureAssignment[]
 
   @@index([parentCode])
   @@index([visibleInUserPicker])
@@ -450,6 +453,29 @@ model UserFeatureAssignment {
   @@index([featureCode])
   @@index([assignedById])
   @@index([enabled])
+}
+
+model OrganizationNodeFeatureAssignment {
+  id              String   @id @default(uuid())
+  scopeRootNodeId String
+  scopeRootNode   OrganizationNode @relation("NodeFeatureScopeRoot", fields: [scopeRootNodeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  nodeType        String
+  nodeKey         String
+  featureCode     String
+  feature         FeatureDefinition @relation(fields: [featureCode], references: [code], onDelete: Cascade, onUpdate: Cascade)
+  enabled         Boolean  @default(true)
+  assignedById    String?
+  assignedBy      User?    @relation("NodeFeatureAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  note            String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([scopeRootNodeId, nodeType, nodeKey, featureCode])
+  @@index([scopeRootNodeId])
+  @@index([nodeType, nodeKey])
+  @@index([featureCode])
+  @@index([enabled])
+  @@index([assignedById])
 }
 
 model FeatureAccessRule {

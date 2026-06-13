@@ -806,6 +806,91 @@ class AuthRepository {
     );
   }
 
+  Future<List<AdminNodeFeatureAssignment>> listAdminFeatureNodeAssignments({
+    String? featureCode,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConstants.adminFeatureNodeAssignmentsEndpoint,
+      queryParameters: featureCode?.trim().isNotEmpty == true
+          ? {'featureCode': featureCode!.trim()}
+          : null,
+    );
+    final data = jsonDecode(response.body) as List<dynamic>;
+    final assignments = data
+        .map(
+          (item) =>
+              AdminNodeFeatureAssignment.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+    await AppLogger.instance.info(
+      'AdminFeatures',
+      'Node feature assignments loaded',
+      context: {'featureCode': featureCode, 'count': assignments.length},
+    );
+    return assignments;
+  }
+
+  Future<List<AdminNodeFeatureAssignment>> saveAdminFeatureNodeAssignments(
+    AdminNodeFeatureAssignmentBatchRequest request,
+  ) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminFeatureNodeAssignmentsBatchEndpoint,
+      body: request.toJson(),
+    );
+    final data = jsonDecode(response.body) as List<dynamic>;
+    final assignments = data
+        .map(
+          (item) =>
+              AdminNodeFeatureAssignment.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+    await AppLogger.instance.info(
+      'AdminFeatures',
+      'Node feature assignments saved',
+      context: {
+        'nodes': request.organizationNodeIds.length,
+        'features': request.featureTreeCodes.length,
+        'replaceExisting': request.replaceExisting,
+        'resultCount': assignments.length,
+      },
+    );
+    return assignments;
+  }
+
+  Future<AdminNodeFeatureAssignment> updateAdminFeatureNodeAssignment(
+    String id, {
+    required bool enabled,
+  }) async {
+    final response = await _apiClient.patch(
+      '${ApiConstants.adminFeatureNodeAssignmentsEndpoint}/$id',
+      body: {'enabled': enabled},
+    );
+    final assignment = AdminNodeFeatureAssignment.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+    await AppLogger.instance.info(
+      'AdminFeatures',
+      'Node feature assignment updated',
+      context: {
+        'assignmentId': id,
+        'featureCode': assignment.featureCode,
+        'enabled': assignment.enabled,
+      },
+    );
+    return assignment;
+  }
+
+  Future<void> deleteAdminFeatureNodeAssignment(String id) async {
+    await _apiClient.delete(
+      '${ApiConstants.adminFeatureNodeAssignmentsEndpoint}/$id',
+    );
+    await AppLogger.instance.warn(
+      'AdminFeatures',
+      'Node feature assignment deleted',
+      context: {'assignmentId': id},
+    );
+  }
+
   Future<List<AdminFeatureRule>> listAdminFeatureRules({
     String? featureCode,
   }) async {

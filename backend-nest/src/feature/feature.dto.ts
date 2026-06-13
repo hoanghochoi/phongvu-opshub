@@ -166,3 +166,52 @@ export class AdminFeatureRuleBatchDto extends AdminFeatureRuleDto {
   @MaxLength(80, { each: true })
   userIds?: string[];
 }
+
+export class AdminNodeFeatureAssignmentBatchDto {
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(80, { each: true })
+  organizationNodeIds?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  organizationNodeId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(60, { each: true })
+  featureTreeCodes?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(60, { each: true })
+  featureCodes?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  replaceExisting?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(240)
+  note?: string;
+}
+
+export class AdminNodeFeatureAssignmentUpdateDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(240)
+  note?: string;
+}

@@ -1,4 +1,3 @@
-import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { FeatureService } from './feature.service';
 
 describe('FeatureService', () => {
@@ -6,9 +5,8 @@ describe('FeatureService', () => {
   let prisma: any;
   let featureActive: boolean;
   let rules: any[];
-  let assignments: Record<string, boolean>;
-  let policyAccess: Record<string, boolean>;
-  let policyService: any;
+  let nodeAssignments: Record<string, boolean>;
+  let directNodeActive: boolean;
 
   const area = {
     code: 'HCM',
@@ -23,26 +21,49 @@ describe('FeatureService', () => {
     departmentCode: 'SALES',
     jobRoleCode: 'SALE',
     workScopeType: 'STORE',
+    organizationNodeId: 'org-store-cp62',
     store: { storeId: 'CP62', storeName: 'CP62', area },
   };
 
   beforeEach(() => {
     featureActive = true;
     rules = [];
-    assignments = {};
-    policyAccess = {
-      [ADMIN_POLICY_CODES.FIFO]: true,
-      [ADMIN_POLICY_CODES.BANK_STATEMENTS]: false,
-      [ADMIN_POLICY_CODES.ADMIN_USERS]: true,
-      [ADMIN_POLICY_CODES.ADMIN_ORG_TREE]: true,
-      [ADMIN_POLICY_CODES.FIFO_IMPORT]: true,
-      [ADMIN_POLICY_CODES.ADMIN_FEATURES]: false,
-    };
-    policyService = {
-      canAccessPolicyWithContext: jest.fn(async (_context: any, code: string) =>
-        policyAccess[String(code).toUpperCase()] === true,
-      ),
-    };
+    nodeAssignments = {};
+    directNodeActive = true;
+    const orgNodes = [
+      {
+        id: 'org-domain-acare-vn',
+        parentId: null,
+        type: 'LV0_DOMAIN',
+        code: 'DOMAIN_ACARE_VN',
+        businessCode: 'ACARE',
+        isActive: true,
+      },
+      {
+        id: 'org-region-mien-nam',
+        parentId: 'org-domain-acare-vn',
+        type: 'LV2_REGION',
+        code: 'REGION_ACARE_MIEN_NAM',
+        businessCode: 'MIEN_NAM',
+        isActive: true,
+      },
+      {
+        id: 'org-area-hcm',
+        parentId: 'org-region-mien-nam',
+        type: 'LV3_AREA',
+        code: 'AREA_ACARE_HCM',
+        businessCode: 'HCM',
+        isActive: true,
+      },
+      {
+        id: 'org-store-cp62',
+        parentId: 'org-area-hcm',
+        type: 'LV4_STORE',
+        code: 'STORE_CP62',
+        businessCode: 'CP62',
+        isActive: directNodeActive,
+      },
+    ];
     prisma = {
       $transaction: jest.fn(async (operations: Promise<any>[]) =>
         Promise.all(operations),
@@ -60,16 +81,25 @@ describe('FeatureService', () => {
         })),
       },
       userFeatureAssignment: {
-        findUnique: jest.fn(async ({ where }: any) => {
-          const code = where.userId_featureCode.featureCode;
-          if (!(code in assignments)) return null;
-          return { enabled: assignments[code] };
-        }),
+        findUnique: jest.fn(async () => ({ enabled: true })),
         createMany: jest.fn(),
       },
-      adminSetting: {
-        findUnique: jest.fn(async () => ({ key: 'USER_FEATURE_ALLOWLIST_BACKFILLED_AT' })),
-        create: jest.fn(),
+      organizationNodeFeatureAssignment: {
+        findUnique: jest.fn(async ({ where }: any) => {
+          const input = where.scopeRootNodeId_nodeType_nodeKey_featureCode;
+          if (
+            input.scopeRootNodeId !== 'org-domain-acare-vn' ||
+            input.nodeType !== 'LV4_STORE' ||
+            input.nodeKey !== 'CP62' ||
+            !(input.featureCode in nodeAssignments)
+          ) {
+            return null;
+          }
+          return { enabled: nodeAssignments[input.featureCode] };
+        }),
+        findMany: jest.fn(async () => []),
+        upsert: jest.fn(),
+        deleteMany: jest.fn(),
       },
       roleDefinition: {
         findUnique: jest.fn(async ({ where }: any) => ({ code: where.code })),
@@ -89,9 +119,16 @@ describe('FeatureService', () => {
         ),
       },
       organizationNode: {
+        findMany: jest.fn(async () =>
+          orgNodes.map((node) =>
+            node.id === 'org-store-cp62'
+              ? { ...node, isActive: directNodeActive }
+              : node,
+          ),
+        ),
         findUnique: jest.fn(async ({ where }: any) =>
           where.id === 'org-store-cp62'
-            ? { id: 'org-store-cp62', isActive: true }
+            ? { id: 'org-store-cp62', isActive: directNodeActive }
             : null,
         ),
       },
@@ -108,11 +145,11 @@ describe('FeatureService', () => {
         }),
       },
     };
-    service = new FeatureService(prisma, policyService);
+    service = new FeatureService(prisma);
   });
 
-  it('allows only features explicitly assigned to the user', async () => {
-    assignments = { FIFO: true };
+  it('allows only features assigned to the direct node group', async () => {
+    nodeAssignments = { FIFO: true };
 
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
@@ -122,17 +159,17 @@ describe('FeatureService', () => {
     ).resolves.toBe(false);
   });
 
-  it('denies legacy rule access without a user feature assignment', async () => {
+  it('does not use legacy rule or per-user assignment for runtime access', async () => {
     rules = [{ featureCode: 'FIFO', enabled: true, userId: 'user-1' }];
-    policyAccess[ADMIN_POLICY_CODES.FIFO] = true;
 
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
     ).resolves.toBe(false);
+    expect(prisma.userFeatureAssignment.findUnique).not.toHaveBeenCalled();
   });
 
-  it('denies disabled user feature assignments', async () => {
-    assignments = { FIFO: false };
+  it('denies disabled node feature assignments', async () => {
+    nodeAssignments = { FIFO: false };
 
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
@@ -141,7 +178,16 @@ describe('FeatureService', () => {
 
   it('denies inactive features even when assigned', async () => {
     featureActive = false;
-    assignments = { FIFO: true };
+    nodeAssignments = { FIFO: true };
+
+    await expect(
+      service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
+    ).resolves.toBe(false);
+  });
+
+  it('denies assignments when the direct organization node is inactive', async () => {
+    directNodeActive = false;
+    nodeAssignments = { FIFO: true };
 
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'FIFO'),

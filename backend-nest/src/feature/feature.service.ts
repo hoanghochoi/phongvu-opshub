@@ -7,7 +7,6 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PolicyService } from '../policy/policy.service';
 import { DEFAULT_FEATURE_DEFINITIONS } from './feature.constants';
 import {
   SYSTEM_ROLE_ADMIN,
@@ -19,8 +18,6 @@ import {
 const SUPER_ADMIN_ROLE = SYSTEM_ROLE_SUPER_ADMIN;
 const ADMIN_ROLE = SYSTEM_ROLE_ADMIN;
 const VALID_WORK_SCOPES = new Set(['NATIONAL', 'REGION', 'AREA', 'STORE']);
-const USER_FEATURE_BACKFILL_SETTING_KEY =
-  'USER_FEATURE_ALLOWLIST_BACKFILLED_AT';
 
 type FeatureContext = {
   id?: string | null;
@@ -35,6 +32,10 @@ type FeatureContext = {
   storeCode?: string | null;
   organizationNodeId?: string | null;
   organizationNodeIds?: string[];
+  organizationNodeActive?: boolean;
+  organizationScopeRootId?: string | null;
+  organizationNodeType?: string | null;
+  organizationNodeKey?: string | null;
   storeName?: string | null;
 };
 
@@ -42,14 +43,10 @@ type FeatureContext = {
 export class FeatureService implements OnModuleInit {
   private readonly logger = new Logger(FeatureService.name);
 
-  constructor(
-    private prisma: PrismaService,
-    private policyService: PolicyService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   async onModuleInit() {
     await this.seedDefaultFeatures();
-    await this.backfillUserFeatureAssignmentsOnce();
   }
 
   async seedDefaultFeatures() {
@@ -106,7 +103,7 @@ export class FeatureService implements OnModuleInit {
     await this.seedDefaultFeatures();
     return this.prisma.featureDefinition.findMany({
       orderBy: [{ isSystem: 'desc' }, { sortOrder: 'asc' }, { code: 'asc' }],
-      include: { _count: { select: { rules: true } } },
+      include: { _count: { select: { rules: true, nodeAssignments: true } } },
     });
   }
 
@@ -116,7 +113,15 @@ export class FeatureService implements OnModuleInit {
     return this.prisma.featureDefinition.findMany({
       where: { isActive: true, visibleInUserPicker: true },
       orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
-      include: { _count: { select: { rules: true, userAssignments: true } } },
+      include: {
+        _count: {
+          select: {
+            rules: true,
+            userAssignments: true,
+            nodeAssignments: true,
+          },
+        },
+      },
     });
   }
 
@@ -201,7 +206,15 @@ export class FeatureService implements OnModuleInit {
     const code = this.normalizeCode(codeInput, 'Mã tính năng không hợp lệ');
     const feature = await this.prisma.featureDefinition.findUnique({
       where: { code },
-      include: { _count: { select: { rules: true, userAssignments: true } } },
+      include: {
+        _count: {
+          select: {
+            rules: true,
+            userAssignments: true,
+            nodeAssignments: true,
+          },
+        },
+      },
     });
     if (!feature) throw new NotFoundException('Không tìm thấy tính năng');
     if (feature.isSystem) {
@@ -213,6 +226,11 @@ export class FeatureService implements OnModuleInit {
     if (feature._count.userAssignments > 0) {
       throw new BadRequestException(
         'Tính năng đang được gán cho user, không thể xóa',
+      );
+    }
+    if (feature._count.nodeAssignments > 0) {
+      throw new BadRequestException(
+        'Tính năng đang được gán cho node tổ chức, không thể xóa',
       );
     }
     await this.prisma.featureDefinition.delete({ where: { code } });
@@ -277,6 +295,385 @@ export class FeatureService implements OnModuleInit {
     return { deleted: true, id };
   }
 
+  async adminListNodeAssignments(admin: any, featureCode?: string) {
+    this.assertSuperAdmin(admin);
+    await this.seedDefaultFeatures();
+    const normalizedFeatureCode = featureCode
+      ? this.normalizeCode(featureCode, 'Mã tính năng không hợp lệ')
+      : undefined;
+    const rows = await this.prisma.organizationNodeFeatureAssignment.findMany({
+      where: normalizedFeatureCode
+        ? { featureCode: normalizedFeatureCode }
+        : undefined,
+      orderBy: [
+        { scopeRootNodeId: 'asc' },
+        { nodeType: 'asc' },
+        { nodeKey: 'asc' },
+        { featureCode: 'asc' },
+      ],
+      include: {
+        feature: true,
+        scopeRootNode: true,
+        assignedBy: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    const result = [];
+    for (const row of rows) {
+      result.push(await this.toNodeFeatureAssignmentDto(row));
+    }
+    return result;
+  }
+
+  async adminCreateNodeAssignments(admin: any, body: any) {
+    this.assertSuperAdmin(admin);
+    await this.seedDefaultFeatures();
+    const nodeIds = this.normalizeRequiredTextList(
+      body.organizationNodeIds ?? body.organizationNodeId,
+      80,
+      'Chọn ít nhất một node tổ chức',
+    );
+    const featureCodes = await this.normalizeFeatureTreeCodeList(
+      body.featureTreeCodes ?? body.featureCodes ?? [],
+    );
+    const replaceExisting = body.replaceExisting === true;
+    const enabled = body.enabled !== false;
+    if (!replaceExisting && featureCodes.length === 0) {
+      throw new BadRequestException('Chọn ít nhất một tính năng');
+    }
+    if (featureCodes.length > 0) await this.ensureFeaturesExist(featureCodes);
+    const note = this.optionalText(body.note, 240);
+
+    const targetMap = new Map<
+      string,
+      {
+        scopeRootNodeId: string;
+        nodeType: string;
+        nodeKey: string;
+        organizationNodeIds: string[];
+      }
+    >();
+    for (const nodeId of nodeIds) {
+      const target = await this.resolveNodeFeatureTarget(nodeId);
+      targetMap.set(
+        `${target.scopeRootNodeId}:${target.nodeType}:${target.nodeKey}`,
+        target,
+      );
+    }
+    const targets = Array.from(targetMap.values());
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const target of targets) {
+        if (replaceExisting) {
+          await tx.organizationNodeFeatureAssignment.deleteMany({
+            where: {
+              scopeRootNodeId: target.scopeRootNodeId,
+              nodeType: target.nodeType,
+              nodeKey: target.nodeKey,
+            },
+          });
+        }
+        for (const featureCode of featureCodes) {
+          await tx.organizationNodeFeatureAssignment.upsert({
+            where: {
+              scopeRootNodeId_nodeType_nodeKey_featureCode: {
+                scopeRootNodeId: target.scopeRootNodeId,
+                nodeType: target.nodeType,
+                nodeKey: target.nodeKey,
+                featureCode,
+              },
+            },
+            update: {
+              enabled,
+              assignedById: admin?.id ?? null,
+              note,
+              updatedAt: new Date(),
+            },
+            create: {
+              scopeRootNodeId: target.scopeRootNodeId,
+              nodeType: target.nodeType,
+              nodeKey: target.nodeKey,
+              featureCode,
+              enabled,
+              assignedById: admin?.id ?? null,
+              note,
+            },
+          });
+        }
+      }
+    });
+
+    this.logger.log(
+      `Node feature assignments saved: admin=${admin?.email || admin?.id || 'unknown'} nodes=${nodeIds.length} groups=${targets.length} features=${featureCodes.length} replaceExisting=${replaceExisting}`,
+    );
+    return this.adminListNodeAssignments(admin);
+  }
+
+  async adminUpdateNodeAssignment(admin: any, id: string, body: any) {
+    this.assertSuperAdmin(admin);
+    const current =
+      await this.prisma.organizationNodeFeatureAssignment.findUnique({
+        where: { id },
+      });
+    if (!current) throw new NotFoundException('Không tìm thấy quyền node');
+    const updated = await this.prisma.organizationNodeFeatureAssignment.update({
+      where: { id },
+      data: {
+        enabled:
+          body.enabled === undefined ? current.enabled : body.enabled === true,
+        assignedById: admin?.id ?? current.assignedById,
+        note:
+          body.note === undefined
+            ? current.note
+            : this.optionalText(body.note, 240),
+      },
+      include: {
+        feature: true,
+        scopeRootNode: true,
+        assignedBy: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+    this.logger.log(
+      `Node feature assignment updated: admin=${admin?.email || admin?.id || 'unknown'} id=${id} feature=${updated.featureCode} enabled=${updated.enabled}`,
+    );
+    return this.toNodeFeatureAssignmentDto(updated);
+  }
+
+  async adminDeleteNodeAssignment(admin: any, id: string) {
+    this.assertSuperAdmin(admin);
+    const current =
+      await this.prisma.organizationNodeFeatureAssignment.findUnique({
+        where: { id },
+      });
+    if (!current) throw new NotFoundException('Không tìm thấy quyền node');
+    await this.prisma.organizationNodeFeatureAssignment.delete({
+      where: { id },
+    });
+    this.logger.warn(
+      `Node feature assignment deleted: admin=${admin?.email || admin?.id || 'unknown'} id=${id} feature=${current.featureCode}`,
+    );
+    return { deleted: true, id };
+  }
+
+  private async toNodeFeatureAssignmentDto(row: any) {
+    const organizationNodeIds = await this.organizationNodeIdsForFeatureGroup(
+      row.scopeRootNodeId,
+      row.nodeType,
+      row.nodeKey,
+    );
+    const impactedUserCount =
+      organizationNodeIds.length === 0
+        ? 0
+        : await this.prisma.user.count({
+            where: {
+              role: { not: SUPER_ADMIN_ROLE },
+              organizationNodeId: { in: organizationNodeIds },
+            },
+          });
+    return {
+      id: row.id,
+      scopeRootNodeId: row.scopeRootNodeId,
+      scopeRootNodeName: row.scopeRootNode?.displayName ?? null,
+      nodeType: row.nodeType,
+      nodeKey: row.nodeKey,
+      featureCode: row.featureCode,
+      featureName: row.feature?.displayName ?? row.featureCode,
+      enabled: row.enabled === true,
+      assignedById: row.assignedById ?? null,
+      assignedByEmail: row.assignedBy?.email ?? null,
+      note: row.note ?? null,
+      organizationNodeIds,
+      impactedUserCount,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  private async resolveNodeFeatureTarget(nodeId: string) {
+    const nodes = await this.prisma.organizationNode.findMany({
+      select: {
+        id: true,
+        parentId: true,
+        type: true,
+        code: true,
+        businessCode: true,
+        isActive: true,
+      },
+    });
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const node = byId.get(nodeId);
+    if (!node || !node.isActive) {
+      throw new BadRequestException('Node tổ chức không tồn tại hoặc đã tắt');
+    }
+    const scopeRootNodeId = this.rootNodeIdForNode(nodes, nodeId);
+    if (!scopeRootNodeId) {
+      throw new BadRequestException(
+        'Không xác định được root của node tổ chức',
+      );
+    }
+    const nodeType = this.normalizeNodeType(node.type);
+    const nodeKey = this.nodeFeatureKey(node);
+    return {
+      scopeRootNodeId,
+      nodeType,
+      nodeKey,
+      organizationNodeIds: this.nodeIdsForFeatureGroupFromNodes(
+        nodes,
+        scopeRootNodeId,
+        nodeType,
+        nodeKey,
+      ),
+    };
+  }
+
+  private async organizationNodeIdsForFeatureGroup(
+    scopeRootNodeId: string,
+    nodeType: string,
+    nodeKey: string,
+  ) {
+    const nodes = await this.prisma.organizationNode.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        parentId: true,
+        type: true,
+        code: true,
+        businessCode: true,
+        isActive: true,
+      },
+    });
+    return this.nodeIdsForFeatureGroupFromNodes(
+      nodes,
+      scopeRootNodeId,
+      this.normalizeNodeType(nodeType),
+      this.normalizeNodeKey(nodeKey),
+    );
+  }
+
+  private nodeIdsForFeatureGroupFromNodes(
+    nodes: Array<{
+      id: string;
+      parentId: string | null;
+      type: string;
+      code: string;
+      businessCode: string | null;
+      isActive?: boolean | null;
+    }>,
+    scopeRootNodeId: string,
+    nodeType: string,
+    nodeKey: string,
+  ) {
+    const descendantIds = this.descendantIdsFromNodes(nodes, scopeRootNodeId);
+    return nodes
+      .filter(
+        (node) =>
+          node.isActive !== false &&
+          descendantIds.has(node.id) &&
+          this.normalizeNodeType(node.type) === nodeType &&
+          this.nodeFeatureKey(node) === nodeKey,
+      )
+      .map((node) => node.id);
+  }
+
+  private descendantIdsFromNodes(
+    nodes: Array<{ id: string; parentId: string | null }>,
+    rootId: string,
+  ) {
+    const ids = new Set<string>([rootId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const node of nodes) {
+        if (node.parentId && ids.has(node.parentId) && !ids.has(node.id)) {
+          ids.add(node.id);
+          changed = true;
+        }
+      }
+    }
+    return ids;
+  }
+
+  private rootNodeIdForNode(
+    nodes: Array<{
+      id: string;
+      parentId: string | null;
+      type: string;
+      isActive?: boolean | null;
+    }>,
+    nodeId: string,
+  ) {
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    let cursor = byId.get(nodeId) ?? null;
+    let rootId: string | null = null;
+    for (let guard = 0; cursor && guard < 50; guard += 1) {
+      if (cursor.isActive === false) return null;
+      rootId = cursor.id;
+      if (
+        !cursor.parentId ||
+        this.normalizeNodeType(cursor.type) === 'LV0_DOMAIN'
+      ) {
+        return cursor.id;
+      }
+      cursor = byId.get(cursor.parentId) ?? null;
+    }
+    return rootId;
+  }
+
+  private nodeFeatureKey(node: {
+    businessCode?: string | null;
+    code?: string;
+  }) {
+    return this.normalizeNodeKey(node.businessCode || node.code);
+  }
+
+  private normalizeNodeKey(value: unknown) {
+    const key = String(value || '')
+      .trim()
+      .toUpperCase();
+    if (!key) throw new BadRequestException('Mã node tổ chức không hợp lệ');
+    return key;
+  }
+
+  private normalizeNodeType(value: unknown) {
+    const type = String(value || '')
+      .trim()
+      .toUpperCase();
+    switch (type) {
+      case 'ROOT_DOMAIN':
+        return 'LV0_DOMAIN';
+      case 'BLOCK':
+        return 'LV1_BLOCK';
+      case 'DEPARTMENT':
+        return 'LV2_DEPARTMENT';
+      case 'REGION':
+        return 'LV2_REGION';
+      case 'AREA':
+        return 'LV3_AREA';
+      case 'VIRTUAL_SCOPE':
+        return 'LV3_UNIT';
+      case 'SHOWROOM':
+        return 'LV4_STORE';
+      case 'JOB_ROLE':
+        return 'LV5_POSITION';
+      default:
+        return type;
+    }
+  }
+
   private async canAccessFeatureWithContext(
     context: FeatureContext,
     featureCodeInput: string,
@@ -285,128 +682,37 @@ export class FeatureService implements OnModuleInit {
       featureCodeInput,
       'Mã tính năng không hợp lệ',
     );
-    if (this.normalizeSystemRole(context.role) === SUPER_ADMIN_ROLE) return true;
+    if (this.normalizeSystemRole(context.role) === SUPER_ADMIN_ROLE)
+      return true;
 
     const feature = await this.prisma.featureDefinition.findUnique({
       where: { code: featureCode },
       select: { isActive: true },
     });
     if (!feature || !feature.isActive) return false;
-    if (!context.id) return false;
-
-    const assignment = await this.prisma.userFeatureAssignment.findUnique({
-      where: {
-        userId_featureCode: {
-          userId: context.id,
-          featureCode,
-        },
-      },
-      select: { enabled: true },
-    });
-    return assignment?.enabled === true;
-  }
-
-  private async legacyCanAccessFeatureWithContext(
-    context: FeatureContext,
-    featureCodeInput: string,
-  ) {
-    const featureCode = this.normalizeCode(
-      featureCodeInput,
-      'Mã tính năng không hợp lệ',
-    );
-    if (this.normalizeSystemRole(context.role) === SUPER_ADMIN_ROLE) return true;
-
-    const feature = await this.prisma.featureDefinition.findUnique({
-      where: { code: featureCode },
-      select: { isActive: true },
-    });
-    if (feature && !feature.isActive) return false;
-
-    const rules = await this.prisma.featureAccessRule.findMany({
-      where: { featureCode },
-    });
-    const matches = rules
-      .filter((rule) => this.ruleMatches(rule, context))
-      .map((rule) => ({ rule, score: this.ruleScore(rule) }))
-      .sort((a, b) => b.score - a.score);
-
-    const policyAllowed = await this.policyService.canAccessPolicyWithContext(
-      context,
-      featureCode,
-    );
-    if (matches.length === 0) return policyAllowed;
-
-    const topScore = matches[0].score;
-    const topRules = matches.filter((match) => match.score === topScore);
-    if (topRules.some((match) => !match.rule.enabled)) return false;
-    return policyAllowed && topRules.some((match) => match.rule.enabled);
-  }
-
-  private async backfillUserFeatureAssignmentsOnce() {
-    try {
-      const marker = await this.prisma.adminSetting.findUnique({
-        where: { key: USER_FEATURE_BACKFILL_SETTING_KEY },
-      });
-      if (marker) return;
-
-      await this.policyService.seedDefaultPolicies();
-      const features = await this.prisma.featureDefinition.findMany({
-        where: { isActive: true, visibleInUserPicker: true },
-        orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
-      });
-      const users = await this.prisma.user.findMany({
-        where: { role: { not: SUPER_ADMIN_ROLE } },
-        select: { id: true },
-      });
-
-      const rows: Array<{
-        userId: string;
-        featureCode: string;
-        enabled: boolean;
-        note: string;
-      }> = [];
-      for (const user of users) {
-        const context = await this.resolveContext(user);
-        for (const feature of features) {
-          if (
-            await this.legacyCanAccessFeatureWithContext(context, feature.code)
-          ) {
-            rows.push({
-              userId: user.id,
-              featureCode: feature.code,
-              enabled: true,
-              note: 'Backfilled from legacy feature and policy rules',
-            });
-          }
-        }
-      }
-
-      if (rows.length > 0) {
-        await this.prisma.userFeatureAssignment.createMany({
-          data: rows,
-          skipDuplicates: true,
-        });
-      }
-
-      await this.prisma.adminSetting.create({
-        data: {
-          key: USER_FEATURE_BACKFILL_SETTING_KEY,
-          displayName: 'User feature allowlist backfill',
-          description:
-            'Marker that legacy feature access was copied to user allowlists',
-          category: 'MIGRATION',
-          value: { completedAt: new Date().toISOString(), rows: rows.length },
-          isSystem: true,
-          isSensitive: false,
-        },
-      });
-      this.logger.log(
-        `User feature allowlist backfill completed: users=${users.length} rows=${rows.length}`,
-      );
-    } catch (error) {
-      this.logger.error('User feature allowlist backfill failed', error as any);
-      throw error;
+    if (
+      !context.id ||
+      context.organizationNodeActive !== true ||
+      !context.organizationScopeRootId ||
+      !context.organizationNodeType ||
+      !context.organizationNodeKey
+    ) {
+      return false;
     }
+
+    const assignment =
+      await this.prisma.organizationNodeFeatureAssignment.findUnique({
+        where: {
+          scopeRootNodeId_nodeType_nodeKey_featureCode: {
+            scopeRootNodeId: context.organizationScopeRootId,
+            nodeType: context.organizationNodeType,
+            nodeKey: context.organizationNodeKey,
+            featureCode,
+          },
+        },
+        select: { enabled: true },
+      });
+    return assignment?.enabled === true;
   }
 
   private async normalizeRuleInput(input: any, current?: any) {
@@ -535,6 +841,25 @@ export class FeatureService implements OnModuleInit {
     return this.normalizeOptions(values, singleValue, (value) =>
       this.optionalText(value, maxLength),
     );
+  }
+
+  private normalizeRequiredTextList(
+    value: unknown,
+    maxLength: number,
+    message: string,
+  ) {
+    const values = Array.isArray(value) ? value : [value];
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const item of values) {
+      const normalized = this.optionalText(item, maxLength);
+      if (!normalized) continue;
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      result.push(normalized);
+    }
+    if (result.length === 0) throw new BadRequestException(message);
+    return result;
   }
 
   private normalizeDomainOptions(listValue: unknown, singleValue: unknown) {
@@ -729,6 +1054,56 @@ export class FeatureService implements OnModuleInit {
     if (!feature) throw new BadRequestException('Tính năng không tồn tại');
   }
 
+  private async ensureFeaturesExist(featureCodes: string[]) {
+    const features = await this.prisma.featureDefinition.findMany({
+      where: { code: { in: featureCodes } },
+      select: { code: true },
+    });
+    const found = new Set(features.map((feature) => feature.code));
+    const missing = featureCodes.filter(
+      (featureCode) => !found.has(featureCode),
+    );
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        'Tính năng không tồn tại: ' + missing.join(', '),
+      );
+    }
+  }
+
+  private async normalizeFeatureTreeCodeList(value: unknown) {
+    const requestedCodes = Array.from(
+      new Set(
+        (Array.isArray(value) ? value : [])
+          .map((item) => this.normalizeOptionalCode(item))
+          .filter((code): code is string => Boolean(code)),
+      ),
+    );
+    if (requestedCodes.length === 0) return [];
+
+    const features = await this.prisma.featureDefinition.findMany({
+      select: { code: true, parentCode: true },
+    });
+    const byCode = new Map(
+      features.map((feature) => [feature.code, feature.parentCode ?? null]),
+    );
+    const missing = requestedCodes.filter((code) => !byCode.has(code));
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        'Tính năng không tồn tại: ' + missing.join(', '),
+      );
+    }
+
+    const expanded = new Set<string>();
+    for (const code of requestedCodes) {
+      let cursor: string | null = code;
+      for (let guard = 0; cursor && guard < 50; guard += 1) {
+        expanded.add(cursor);
+        cursor = byCode.get(cursor) ?? null;
+      }
+    }
+    return Array.from(expanded).sort();
+  }
+
   private async resolveContext(user: any): Promise<FeatureContext> {
     if (!user?.id) {
       return {
@@ -761,9 +1136,8 @@ export class FeatureService implements OnModuleInit {
       this.effectiveScope(source) === 'STORE'
         ? (source.store?.organizationNodeId ?? source.organizationNodeId)
         : (source.organizationNodeId ?? source.store?.organizationNodeId);
-    const organizationContext = await this.resolveOrganizationRuleContext(
-      scopeNodeId,
-    );
+    const organizationContext =
+      await this.resolveOrganizationRuleContext(scopeNodeId);
     const area = this.areaForContextSource(source);
     const region = this.regionForContextSource(source);
     return {
@@ -775,11 +1149,18 @@ export class FeatureService implements OnModuleInit {
       jobRoleCode: source.jobRoleCode ?? null,
       workScopeType: this.effectiveScope(source),
       regionCode:
-        organizationContext.regionCode ?? region?.code ?? source.regionCode ?? null,
+        organizationContext.regionCode ??
+        region?.code ??
+        source.regionCode ??
+        null,
       areaCode:
         organizationContext.areaCode ?? area?.code ?? source.areaCode ?? null,
       organizationNodeId: organizationContext.organizationNodeId,
       organizationNodeIds: organizationContext.organizationNodeIds,
+      organizationNodeActive: organizationContext.organizationNodeActive,
+      organizationScopeRootId: organizationContext.scopeRootNodeId,
+      organizationNodeType: organizationContext.nodeType,
+      organizationNodeKey: organizationContext.nodeKey,
       storeCode: organizationContext.storeCode ?? source.store?.storeId ?? null,
       storeName: source.store?.storeName ?? null,
     };
@@ -789,6 +1170,10 @@ export class FeatureService implements OnModuleInit {
     const empty = {
       organizationNodeId: nodeId ?? null,
       organizationNodeIds: [] as string[],
+      organizationNodeActive: false,
+      scopeRootNodeId: null as string | null,
+      nodeType: null as string | null,
+      nodeKey: null as string | null,
       regionCode: null as string | null,
       areaCode: null as string | null,
       storeCode: null as string | null,
@@ -802,6 +1187,7 @@ export class FeatureService implements OnModuleInit {
       type: string;
       code: string;
       businessCode: string | null;
+      isActive: boolean;
     }> = await organizationNode.findMany({
       select: {
         id: true,
@@ -809,11 +1195,14 @@ export class FeatureService implements OnModuleInit {
         type: true,
         code: true,
         businessCode: true,
+        isActive: true,
       },
     });
     const byId = new Map(nodes.map((node) => [node.id, node]));
     const ancestors: typeof nodes = [];
     let cursor = byId.get(nodeId) ?? null;
+    const directNode = cursor;
+    if (!directNode) return empty;
     for (let guard = 0; cursor && guard < 50; guard += 1) {
       ancestors.push(cursor);
       cursor = cursor.parentId ? (byId.get(cursor.parentId) ?? null) : null;
@@ -821,11 +1210,17 @@ export class FeatureService implements OnModuleInit {
     const businessCodeFor = (...types: string[]) => {
       const node = ancestors.find((item) => types.includes(item.type));
       if (!node) return null;
-      return node.businessCode || this.legacyCodeFromOrganizationCode(node.code);
+      return (
+        node.businessCode || this.legacyCodeFromOrganizationCode(node.code)
+      );
     };
     return {
       organizationNodeId: nodeId,
       organizationNodeIds: ancestors.map((node) => node.id),
+      organizationNodeActive: directNode.isActive === true,
+      scopeRootNodeId: this.rootNodeIdForNode(nodes, nodeId),
+      nodeType: this.normalizeNodeType(directNode.type),
+      nodeKey: this.nodeFeatureKey(directNode),
       regionCode: businessCodeFor('LV2_REGION', 'REGION'),
       areaCode: businessCodeFor('LV3_AREA', 'AREA'),
       storeCode: businessCodeFor('LV4_STORE', 'SHOWROOM'),
@@ -866,10 +1261,7 @@ export class FeatureService implements OnModuleInit {
       .toUpperCase();
     if (VALID_WORK_SCOPES.has(scope)) return scope;
     const role = this.normalizeSystemRole(user?.role);
-    if (
-      role === SUPER_ADMIN_ROLE ||
-      role === ADMIN_ROLE
-    ) {
+    if (role === SUPER_ADMIN_ROLE || role === ADMIN_ROLE) {
       return 'NATIONAL';
     }
     return 'STORE';
@@ -877,56 +1269,6 @@ export class FeatureService implements OnModuleInit {
 
   private normalizeSystemRole(role: unknown) {
     return normalizeSystemRoleCode(role);
-  }
-
-  private ruleMatches(rule: any, context: FeatureContext) {
-    return (
-      this.matches(rule.emailDomain, context.emailDomain) &&
-      this.matches(rule.userId, context.id) &&
-      this.matches(rule.storeCode, context.storeCode) &&
-      this.organizationNodeMatches(rule.organizationNodeId, context) &&
-      this.matches(rule.areaCode, context.areaCode) &&
-      this.matches(rule.regionCode, context.regionCode) &&
-      this.matches(rule.workScopeType, context.workScopeType) &&
-      this.matches(rule.jobRoleCode, context.jobRoleCode) &&
-      this.matches(rule.departmentCode, context.departmentCode) &&
-      this.matches(
-        this.normalizeSystemRole(rule.systemRole),
-        this.normalizeSystemRole(context.role),
-      )
-    );
-  }
-
-  private organizationNodeMatches(
-    ruleValue?: string | null,
-    context?: FeatureContext,
-  ) {
-    if (!ruleValue) return true;
-    const ids = context?.organizationNodeIds ?? [];
-    return ids.includes(ruleValue);
-  }
-
-  private matches(ruleValue?: string | null, contextValue?: string | null) {
-    if (!ruleValue) return true;
-    return (
-      String(ruleValue).toUpperCase() ===
-      String(contextValue || '').toUpperCase()
-    );
-  }
-
-  private ruleScore(rule: any) {
-    return (
-      (rule.emailDomain ? 256 : 0) +
-      (rule.userId ? 128 : 0) +
-      (rule.organizationNodeId ? 96 : 0) +
-      (rule.storeCode ? 64 : 0) +
-      (rule.areaCode ? 32 : 0) +
-      (rule.regionCode ? 16 : 0) +
-      (rule.workScopeType ? 8 : 0) +
-      (rule.jobRoleCode ? 4 : 0) +
-      (rule.departmentCode ? 2 : 0) +
-      (rule.systemRole ? 1 : 0)
-    );
   }
 
   private normalizeCode(value: unknown, message: string) {
