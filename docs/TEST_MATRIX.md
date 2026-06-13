@@ -39,6 +39,19 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- WARRANTY-001, 2026-06-13: fixed warranty image upload failing with
+  `property user should not exist` by aligning the Flutter multipart payload
+  with the Nest `UploadWarrantyImagesDto`; the client now sends only `receipt`,
+  and the backend tolerates the legacy `user` field for installed clients while
+  continuing to resolve the creator from the authenticated JWT user. Validation:
+  focused Flutter
+  `flutter test --no-pub test\warranty_upload_contract_test.dart --reporter expanded`,
+  focused backend upload Jest
+  `npm test -- --runInBand src/upload/upload.dto.spec.ts src/upload/upload.controller.spec.ts src/upload/upload.service.spec.ts`,
+  backend `npm run build`, full backend `npm test -- --runInBand` (36 suites,
+  261 tests), `flutter analyze --no-pub`, full Flutter
+  `flutter test --no-pub --reporter expanded` (96 tests), and `git diff
+  --check`. Gap: live authenticated upload smoke remains pending.
 - AUTH-001/PROFILE-ADMIN-001, 2026-06-13: changed registration/login so new
   users do not self-select SR/store. Auth/profile responses now expose
   `assignmentPending`; Flutter routes pending users to `/assignment-pending`

@@ -31,6 +31,10 @@ receive status updates.
 
 - Uploads are security-sensitive because they touch local files and public image
   URLs.
+- Warranty image uploads send only the receipt field in new multipart form
+  data. The API may tolerate the legacy `user` field for old clients, but the
+  creator must be resolved from the authenticated JWT user, not from a client
+  supplied user/email field.
 - Changes to file paths, image URL construction, file size/type validation, or
   status event payloads require explicit proof.
 - `UPLOAD_BASE_DIR` must point to persistent storage in production.
