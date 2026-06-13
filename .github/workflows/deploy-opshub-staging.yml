@@ -218,16 +218,46 @@ jobs:
         run: |
           $prereqDir = New-Item -ItemType Directory -Force -Path "build\windows\prereqs"
           $vcRedistPath = Join-Path $prereqDir.FullName "vc_redist.x64.exe"
-          Invoke-WebRequest -Uri "https://aka.ms/vc14/vc_redist.x64.exe" -OutFile $vcRedistPath
-          $vcRedist = Get-Item $vcRedistPath
-          if ($vcRedist.Length -lt 1000000) {
-            throw "Downloaded Visual C++ Redistributable is unexpectedly small: $($vcRedist.Length) bytes"
+          $downloadUrl = "https://aka.ms/vc14/vc_redist.x64.exe"
+          $maxAttempts = 5
+          $downloaded = $false
+
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            try {
+              if (Test-Path $vcRedistPath) {
+                Remove-Item -LiteralPath $vcRedistPath -Force
+              }
+              Invoke-WebRequest `
+                -Uri $downloadUrl `
+                -OutFile $vcRedistPath `
+                -MaximumRetryCount 3 `
+                -RetryIntervalSec 2
+
+              $vcRedist = Get-Item $vcRedistPath
+              if ($vcRedist.Length -lt 1000000) {
+                throw "Downloaded Visual C++ Redistributable is unexpectedly small: $($vcRedist.Length) bytes"
+              }
+
+              $signature = Get-AuthenticodeSignature $vcRedistPath
+              if ($signature.Status -ne "Valid") {
+                throw "Visual C++ Redistributable signature is not valid: $($signature.Status)"
+              }
+
+              "VC_REDIST_X64_PATH=$($vcRedist.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+              $downloaded = $true
+              break
+            } catch {
+              if ($attempt -eq $maxAttempts) {
+                throw
+              }
+              Write-Warning ("Attempt {0}/{1} to download Visual C++ Redistributable failed: {2}" -f $attempt, $maxAttempts, $_.Exception.Message)
+              Start-Sleep -Seconds ([Math]::Min(30, $attempt * 5))
+            }
           }
-          $signature = Get-AuthenticodeSignature $vcRedistPath
-          if ($signature.Status -ne "Valid") {
-            throw "Visual C++ Redistributable signature is not valid: $($signature.Status)"
+
+          if (-not $downloaded) {
+            throw "Failed to download Visual C++ Redistributable after $maxAttempts attempts."
           }
-          "VC_REDIST_X64_PATH=$($vcRedist.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Build Windows staging installer
         shell: pwsh
