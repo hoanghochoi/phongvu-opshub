@@ -542,44 +542,11 @@ export class UserService implements OnModuleInit {
   }
 
   async selectStoreOnce(userId: string, storeCode: string) {
-    const normalizedStoreCode = storeCode.trim();
-    if (!normalizedStoreCode) {
-      throw new BadRequestException('Vui lòng chọn chi nhánh');
-    }
-
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: this.userDtoInclude(),
-    });
-    if (!user) throw new NotFoundException('Không tìm thấy user');
-    if (user.storeId || user.branchLockedAt) {
-      throw new ForbiddenException('Chi nhánh đã được khóa và không thể đổi');
-    }
-
-    const store = await this.prisma.store.findUnique({
-      where: { storeId: normalizedStoreCode },
-      include: { area: true },
-    });
-    if (!store) throw new BadRequestException('Chi nhánh không hợp lệ');
-
-    const updated = await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...this.userRelationMutationData(
-          {
-            storeUuid: store.id,
-            areaCode: store.areaCode ?? DEFAULT_REGION_CODE,
-            regionCode: store.area?.regionCode ?? DEFAULT_REGION_CODE,
-            organizationNodeId: store.organizationNodeId ?? null,
-          },
-          { disconnectNulls: true },
-        ),
-        branchLockedAt: new Date(),
-        profileCompletedAt: new Date(),
-      },
-      include: this.userDtoInclude(),
-    });
-    return this.toUserDto(updated);
+    void userId;
+    void storeCode;
+    throw new GoneException(
+      'Luồng tự chọn SR đã ngừng. Vui lòng liên hệ super_admin để được gán node tổ chức.',
+    );
   }
 
   async adminListUsers(admin: any, filters: any = {}) {
@@ -2442,6 +2409,7 @@ export class UserService implements OnModuleInit {
       personnelCode: this.personnelCodeFor(user),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
+      assignmentPending: this.assignmentPending(user),
       mustSelectStore: this.mustSelectStore(user),
     };
   }
@@ -2452,8 +2420,16 @@ export class UserService implements OnModuleInit {
     storeId?: string | null;
     store?: { storeId?: string | null } | null;
   }) {
-    const hasStore = Boolean(user.storeId || user.store?.storeId);
-    return this.effectiveWorkScope(user) === STORE_SCOPE && !hasStore;
+    return false;
+  }
+
+  private assignmentPending(user: {
+    role: string;
+    organizationNodeId?: string | null;
+  }) {
+    const role = this.normalizeRoleCode(user.role, true);
+    if (role === SUPER_ADMIN_ROLE || role === ADMIN_ROLE) return false;
+    return !user.organizationNodeId;
   }
 
   async adminListRoles(admin: any) {

@@ -114,7 +114,7 @@ export class FeatureService implements OnModuleInit {
     this.assertSuperAdmin(admin);
     await this.seedDefaultFeatures();
     return this.prisma.featureDefinition.findMany({
-      where: { visibleInUserPicker: true },
+      where: { isActive: true, visibleInUserPicker: true },
       orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
       include: { _count: { select: { rules: true, userAssignments: true } } },
     });

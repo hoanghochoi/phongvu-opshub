@@ -614,7 +614,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   String _role = 'USER';
   String _status = 'yes';
   String? _storeId;
-  String? _departmentCode;
   String? _jobRoleCode;
   String _workScopeType = 'STORE';
   String? _regionCode;
@@ -633,7 +632,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     _role = User.normalizeRole(user?.role);
     _status = user?.status ?? 'yes';
     _storeId = user?.storeId;
-    _departmentCode = user?.departmentCode;
     _jobRoleCode = user?.jobRoleCode;
     _workScopeType = user?.workScopeType ?? _defaultScopeForRole(_role);
     _regionCode = user?.regionCode;
@@ -652,6 +650,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   }
 
   Future<void> _save() async {
+    final stopwatch = Stopwatch()..start();
     final body = _buildBody();
     final user = widget.user;
     final selectedNode = _selectedOrganizationNode();
@@ -682,6 +681,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
           'organizationNodeId': _organizationNodeId,
           'organizationNodeType': selectedNode?.type,
           'featureCount': _featureCodes.length,
+          'durationMs': 0,
         },
       );
       if (user == null) {
@@ -700,14 +700,16 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
           'workScopeType': _workScopeType,
           'organizationNodeId': _organizationNodeId,
           'organizationNodeType': selectedNode?.type,
+          'durationMs': stopwatch.elapsedMilliseconds,
         },
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
+      final message = adminUserSaveErrorMessage(error);
       await AppLogger.instance.error(
         'Admin',
         'Admin user editor save failed',
-        error: error,
+        error: message,
         upload: true,
         context: {
           'mode': user == null ? 'create' : 'update',
@@ -717,10 +719,11 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
           'workScopeType': _workScopeType,
           'organizationNodeId': _organizationNodeId,
           'organizationNodeType': selectedNode?.type,
+          'errorType': error.runtimeType.toString(),
+          'durationMs': stopwatch.elapsedMilliseconds,
         },
       );
       if (mounted) {
-        final message = adminUserSaveErrorMessage(error);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(message)));
@@ -820,7 +823,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       _role = User.normalizeRole(user.role);
       _status = user.status ?? 'yes';
       _storeId = user.storeId;
-      _departmentCode = user.departmentCode;
       _jobRoleCode = user.jobRoleCode;
       _workScopeType = user.workScopeType ?? _defaultScopeForRole(_role);
       _regionCode = user.regionCode;
@@ -930,11 +932,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     return result;
   }
 
-  String? _organizationNodeValue() {
-    final items = _scopeNodeItems().map((item) => item.$1.id).toSet();
-    return items.contains(_organizationNodeId) ? _organizationNodeId : null;
-  }
-
   bool get _allowsGlobalNationalScope =>
       _workScopeType == 'NATIONAL' && _role == 'SUPER_ADMIN';
 
@@ -948,23 +945,23 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     };
   }
 
-  List<(AdminOrganizationNode, String)> _scopeNodeItems() {
-    return widget.orgNodes
-        .where((node) => node.isActive)
-        .map(
-          (node) => (
-            node,
-            '${AdminOrganizationNodeTypes.titleOf(node.type)} • ${node.businessCode ?? node.storeId ?? node.code} • ${node.title}',
-          ),
-        )
-        .toList();
-  }
+  List<AdminOrganizationNode> _scopeNodes() =>
+      widget.orgNodes.where((node) => node.isActive).toList();
 
   String _scopeNodeLabel() => 'Node tổ chức';
 
   String _scopeNodeHint() {
     if (_allowsGlobalNationalScope) return 'Toàn hệ thống';
     return 'Chọn Lv0-Lv5';
+  }
+
+  String _selectedOrganizationNodeText() {
+    if (_organizationNodeId == null && _allowsGlobalNationalScope) {
+      return 'Toàn hệ thống';
+    }
+    final node = _selectedOrganizationNode();
+    if (node == null) return '';
+    return _nodeBreadcrumb(node);
   }
 
   AdminOrganizationNode? _selectedOrganizationNode() =>
@@ -976,6 +973,165 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       if (node.id == nodeId) return node;
     }
     return null;
+  }
+
+  String _nodeCode(AdminOrganizationNode node) =>
+      node.businessCode ?? node.storeId ?? node.code;
+
+  String _nodeBreadcrumb(AdminOrganizationNode node) {
+    final path = <AdminOrganizationNode>[node];
+    var parentId = node.parentId;
+    for (var guard = 0; parentId != null && guard < 50; guard += 1) {
+      final parent = _nodeById(parentId);
+      if (parent == null) break;
+      path.insert(0, parent);
+      parentId = parent.parentId;
+    }
+    return path.map(_nodeCompactLabel).join(' / ');
+  }
+
+  String _nodeCompactLabel(AdminOrganizationNode node) {
+    final code = _nodeCode(node);
+    if (code.isEmpty || code == node.title) return node.title;
+    return '${node.title} ($code)';
+  }
+
+  String _nodeSearchText(AdminOrganizationNode node) {
+    return [
+      _nodeBreadcrumb(node),
+      AdminOrganizationNodeTypes.titleOf(node.type),
+      node.title,
+      node.code,
+      node.businessCode,
+      node.abbreviation,
+      node.emailDomain,
+      node.storeId,
+      node.storeName,
+    ].whereType<String>().join(' ').toLowerCase();
+  }
+
+  List<AdminOrganizationNode> _filteredScopeNodes(String query, String? type) {
+    final normalizedQuery = query.trim().toLowerCase();
+    final normalizedType = type?.trim();
+    final nodes = _scopeNodes().where((node) {
+      final typeMatches =
+          normalizedType == null ||
+          normalizedType.isEmpty ||
+          node.type == normalizedType;
+      final queryMatches =
+          normalizedQuery.isEmpty ||
+          _nodeSearchText(node).contains(normalizedQuery);
+      return typeMatches && queryMatches;
+    }).toList();
+    nodes.sort((left, right) {
+      final level = left.level.compareTo(right.level);
+      if (level != 0) return level;
+      final order = left.sortOrder.compareTo(right.sortOrder);
+      if (order != 0) return order;
+      return _nodeBreadcrumb(left).compareTo(_nodeBreadcrumb(right));
+    });
+    return nodes;
+  }
+
+  Future<void> _openOrganizationNodePicker() async {
+    var query = '';
+    String? type;
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final nodes = _filteredScopeNodes(query, type);
+            return AlertDialog(
+              title: const Text('Chọn node tổ chức'),
+              content: SizedBox(
+                width: 560,
+                height: 520,
+                child: Column(
+                  children: [
+                    TextField(
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Tìm node, mã SR, domain',
+                        prefixIcon: Icon(Icons.search_rounded),
+                      ),
+                      onChanged: (value) => setDialogState(() => query = value),
+                    ),
+                    const SizedBox(height: AppLayoutTokens.formInlineGap),
+                    DropdownButtonFormField<String?>(
+                      initialValue: type,
+                      decoration: const InputDecoration(labelText: 'Loại node'),
+                      items: [
+                        const DropdownMenuItem(
+                          value: null,
+                          child: Text('Tất cả'),
+                        ),
+                        ...AdminOrganizationNodeTypes.definitions.map(
+                          (item) => DropdownMenuItem(
+                            value: item.$1,
+                            child: Text(item.$2),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) => setDialogState(() => type = value),
+                    ),
+                    const SizedBox(height: AppLayoutTokens.formInlineGap),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount:
+                            nodes.length + (_allowsGlobalNationalScope ? 1 : 0),
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          if (_allowsGlobalNationalScope && index == 0) {
+                            final selected = _organizationNodeId == null;
+                            return ListTile(
+                              selected: selected,
+                              leading: Icon(
+                                selected
+                                    ? Icons.check_circle_rounded
+                                    : Icons.public_rounded,
+                              ),
+                              title: const Text('Toàn hệ thống'),
+                              subtitle: const Text('SUPER_ADMIN global'),
+                              onTap: () =>
+                                  Navigator.of(context).pop('__GLOBAL__'),
+                            );
+                          }
+                          final nodeIndex = _allowsGlobalNationalScope
+                              ? index - 1
+                              : index;
+                          final node = nodes[nodeIndex];
+                          return _OrganizationNodeOptionTile(
+                            node: node,
+                            selected: node.id == _organizationNodeId,
+                            title: _nodeBreadcrumb(node),
+                            code: _nodeCode(node),
+                            onTap: () => Navigator.of(context).pop(node.id),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Đóng'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (!mounted) return;
+    if (selected == null) return;
+    final nextNodeId = selected == '__GLOBAL__' ? null : selected;
+    if (nextNodeId != _organizationNodeId) {
+      _applyOrganizationNode(nextNodeId);
+    }
   }
 
   AdminOrganizationNode? _scopeNodeByBusinessCode(String type, String? code) {
@@ -1010,7 +1166,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
 
   void _applyOrganizationNodeToState(AdminOrganizationNode? node) {
     _storeId = null;
-    _departmentCode = null;
     _jobRoleCode = null;
     _regionCode = null;
     _areaCode = null;
@@ -1018,11 +1173,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     if (node == null) return;
     _workScopeType = _scopeForNode(node);
     final code = node.businessCode ?? node.storeId ?? node.code;
-    if (node.type == 'LV2_DEPARTMENT') {
-      _departmentCode = code;
-    } else {
-      _departmentCode = _ancestorBusinessCode(node, 'LV2_DEPARTMENT');
-    }
     if (node.type == 'LV5_POSITION') {
       _jobRoleCode = code;
     }
@@ -1068,29 +1218,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       parentId = value.parentId;
     }
     return null;
-  }
-
-  String _derivedDepartmentTitle() {
-    final node = _selectedOrganizationNode();
-    final departmentNode = node?.type == 'LV2_DEPARTMENT'
-        ? node
-        : node == null
-        ? null
-        : _ancestorNode(node, 'LV2_DEPARTMENT');
-    if (departmentNode != null) return _nodePersonnelTitle(departmentNode);
-    return _departmentCode?.isNotEmpty == true ? _departmentCode! : 'Chưa gán';
-  }
-
-  String _derivedJobRoleTitle() {
-    final node = _selectedOrganizationNode();
-    if (node?.type == 'LV5_POSITION') return _nodePersonnelTitle(node!);
-    return _jobRoleCode?.isNotEmpty == true ? _jobRoleCode! : 'Chưa gán';
-  }
-
-  String _nodePersonnelTitle(AdminOrganizationNode node) {
-    final code = node.businessCode ?? node.code;
-    if (code.isEmpty) return node.title;
-    return '${node.title} ($code)';
   }
 
   @override
@@ -1140,38 +1267,14 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                     labelText: 'Quyền hệ thống',
                   ),
                 ),
-              TextFormField(
-                key: ValueKey('department-$_organizationNodeId'),
-                initialValue: _derivedDepartmentTitle(),
-                enabled: false,
-                decoration: const InputDecoration(labelText: 'Phòng ban'),
-              ),
-              TextFormField(
-                key: ValueKey('job-role-$_organizationNodeId'),
-                initialValue: _derivedJobRoleTitle(),
-                enabled: false,
-                decoration: const InputDecoration(labelText: 'Chức danh'),
-              ),
-              DropdownButtonFormField<String?>(
-                initialValue: _organizationNodeValue(),
-                decoration: InputDecoration(labelText: _scopeNodeLabel()),
-                hint: Text(_scopeNodeHint()),
-                items: [
-                  if (_allowsGlobalNationalScope)
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('Toàn hệ thống'),
-                    ),
-                  ..._scopeNodeItems().map(
-                    (item) => DropdownMenuItem<String?>(
-                      value: item.$1.id,
-                      child: Text(item.$2, overflow: TextOverflow.ellipsis),
-                    ),
-                  ),
-                ],
-                onChanged:
-                    _scopeNodeItems().isNotEmpty || _allowsGlobalNationalScope
-                    ? _applyOrganizationNode
+              _OrganizationNodeSelector(
+                label: _scopeNodeLabel(),
+                valueText: _selectedOrganizationNodeText(),
+                hintText: _scopeNodeHint(),
+                selectedNode: _selectedOrganizationNode(),
+                nodeCode: _nodeCode,
+                onTap: _scopeNodes().isNotEmpty || _allowsGlobalNationalScope
+                    ? _openOrganizationNodePicker
                     : null,
               ),
               TextFormField(
@@ -1224,6 +1327,139 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _OrganizationNodeSelector extends StatelessWidget {
+  final String label;
+  final String valueText;
+  final String hintText;
+  final AdminOrganizationNode? selectedNode;
+  final String Function(AdminOrganizationNode node) nodeCode;
+  final VoidCallback? onTap;
+
+  const _OrganizationNodeSelector({
+    required this.label,
+    required this.valueText,
+    required this.hintText,
+    required this.selectedNode,
+    required this.nodeCode,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final node = selectedNode;
+    final hasValue = valueText.trim().isNotEmpty;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          suffixIcon: const Icon(Icons.search_rounded),
+        ),
+        child: Row(
+          children: [
+            if (node != null) ...[
+              _NodeTypeBadge(type: node.type),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+            ],
+            Expanded(
+              child: Text(
+                hasValue ? valueText : hintText,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: hasValue
+                      ? Theme.of(context).colorScheme.onSurface
+                      : Theme.of(context).hintColor,
+                  fontWeight: hasValue ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+            ),
+            if (node != null) ...[
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              Text(
+                nodeCode(node),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OrganizationNodeOptionTile extends StatelessWidget {
+  final AdminOrganizationNode node;
+  final bool selected;
+  final String title;
+  final String code;
+  final VoidCallback onTap;
+
+  const _OrganizationNodeOptionTile({
+    required this.node,
+    required this.selected,
+    required this.title,
+    required this.code,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final typeTitle = AdminOrganizationNodeTypes.titleOf(node.type);
+    final metadata = [
+      typeTitle,
+      if (code.isNotEmpty) code,
+      if (node.emailDomain?.isNotEmpty == true) node.emailDomain!,
+      if (node.storeName?.isNotEmpty == true) node.storeName!,
+    ].join(' • ');
+    return ListTile(
+      selected: selected,
+      leading: _NodeTypeBadge(type: node.type),
+      title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
+      subtitle: Text(metadata, maxLines: 1, overflow: TextOverflow.ellipsis),
+      trailing: selected
+          ? Icon(
+              Icons.check_circle_rounded,
+              color: Theme.of(context).colorScheme.primary,
+            )
+          : null,
+      onTap: onTap,
+    );
+  }
+}
+
+class _NodeTypeBadge extends StatelessWidget {
+  final String type;
+
+  const _NodeTypeBadge({required this.type});
+
+  @override
+  Widget build(BuildContext context) {
+    final title = AdminOrganizationNodeTypes.titleOf(type);
+    return Container(
+      constraints: const BoxConstraints(minWidth: 76),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        title,
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.onPrimaryContainer,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

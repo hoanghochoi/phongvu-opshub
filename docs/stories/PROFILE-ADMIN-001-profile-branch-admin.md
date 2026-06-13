@@ -1,15 +1,16 @@
-# PROFILE-ADMIN-001 Profile, Branch Selection, And User Admin
+# PROFILE-ADMIN-001 Profile, Organization Assignment, And User Admin
 
 ## Scope
 
-Add personal profile management, one-time branch selection on first login, store
-payment account import from CSV, and administration for privileged roles.
+Add personal profile management, admin-assigned organization nodes, store payment
+account import from CSV, and administration for privileged roles.
 
 ## Acceptance Criteria
 
 - `data/store_account.csv` is present in the repo.
 - Backend can import store account rows into `Store`.
-- First-login users without a branch must choose one and see a lock warning.
+- Newly registered users without an organization node authenticate into the
+  assignment-pending screen and do not self-select an SR/store.
 - Users can edit profile display names and upload an avatar.
 - `SUPER_ADMIN` and scoped `ADMIN` users can open administration from the app
   when their resolved feature map allows it.
@@ -27,7 +28,10 @@ payment account import from CSV, and administration for privileged roles.
   update, and delete requests are rejected with a fixed-role message.
 - Legacy admin APIs `/admin/regions`, `/admin/areas`, and `/admin/stores`
   return `410 Gone`. Runtime `/stores`, `Store`, payment/MAP fields, FIFO,
-  VietQR, and store selection remain compatible.
+  and VietQR remain compatible.
+- Organization tree administration uses feature/policy code `ADMIN_ORG_TREE`.
+  Legacy `ADMIN_STORES`, `ADMIN_REGIONS`, and `ADMIN_PERSONNEL` are preserved
+  only for history/backfill and are hidden from the feature picker.
 - Lv4 store nodes in the organization tree are the admin surface for SR/store
   metadata. Tree saves sync the related `Store` row without overwriting existing
   SR identity, payment, transfer, or MAP fields unless those fields are
@@ -35,8 +39,8 @@ payment account import from CSV, and administration for privileged roles.
 - Store-scoped users derive Region/Area from their assigned SR and do not need
   a direct Region/Area assignment.
 - Admin user editing uses the organization tree for assignment. The app sends
-  `organizationNodeId`; legacy work scope, store, region, and area columns are
-  backend-derived compatibility fields, not editor inputs.
+  `organizationNodeId`; legacy work scope, store, region, area, department, and
+  job-role columns are backend-derived compatibility fields, not editor inputs.
 - Organization management supports `LV0_DOMAIN`, `LV1_BLOCK`,
   `LV2_DEPARTMENT`, `LV2_REGION`, `LV3_AREA`, `LV3_UNIT`, `LV4_STORE`, and
   `LV5_POSITION`. Lv0 is the only parentless root. Other nodes can attach to
@@ -69,7 +73,6 @@ payment account import from CSV, and administration for privileged roles.
   bank-web reconciliation. Passwords are encrypted at rest and are never sent
   back to the app. Scoped admins must not edit transfer account number/name,
   bank, BIN, SR code/name, or Region/Area through the MAP credential flow.
-- User self-service branch changes are rejected after the first selection.
 - VietQR uses the selected store's configured transfer account when available.
 
 ## Validation

@@ -34,7 +34,7 @@ describe('FeatureService', () => {
       [ADMIN_POLICY_CODES.FIFO]: true,
       [ADMIN_POLICY_CODES.BANK_STATEMENTS]: false,
       [ADMIN_POLICY_CODES.ADMIN_USERS]: true,
-      [ADMIN_POLICY_CODES.ADMIN_STORES]: true,
+      [ADMIN_POLICY_CODES.ADMIN_ORG_TREE]: true,
       [ADMIN_POLICY_CODES.FIFO_IMPORT]: true,
       [ADMIN_POLICY_CODES.ADMIN_FEATURES]: false,
     };
@@ -237,5 +237,15 @@ describe('FeatureService', () => {
         storeCode: null,
       }),
     });
+  });
+
+  it('returns only active visible features for the user picker tree', async () => {
+    await service.adminListFeatureTree({ role: 'SUPER_ADMIN' });
+
+    expect(prisma.featureDefinition.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { isActive: true, visibleInUserPicker: true },
+      }),
+    );
   });
 });

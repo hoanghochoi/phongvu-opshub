@@ -24,6 +24,7 @@ class User {
   final String? personnelCode;
   final Map<String, bool> featureAccess;
   final Map<String, bool> policyAccess;
+  final bool assignmentPending;
   final bool mustSelectStore;
 
   const User({
@@ -52,6 +53,7 @@ class User {
     this.personnelCode,
     this.featureAccess = const {},
     this.policyAccess = const {},
+    this.assignmentPending = false,
     this.mustSelectStore = false,
   });
 
@@ -103,6 +105,9 @@ class User {
             json['resolvedPolicyAccess'] ??
             json['policyAccess'],
       ),
+      assignmentPending:
+          json['assignmentPending'] == true ||
+          json['assignmentPending'] == 'true',
       mustSelectStore:
           json['mustSelectStore'] == true || json['mustSelectStore'] == 'true',
     );
@@ -114,10 +119,10 @@ class User {
     return isAdminMenuRole(role);
   }
 
-  bool get needsStoreSelection =>
-      (workScopeType ?? (isAdminRole(role) ? 'NATIONAL' : 'STORE')) ==
-          'STORE' &&
-      (mustSelectStore || storeId == null);
+  bool get needsStoreSelection => false;
+
+  bool get needsOrganizationAssignment =>
+      assignmentPending || (!isAdminRole(role) && organizationNodeId == null);
 
   bool get belongsToCp62 {
     final values = [
@@ -180,6 +185,7 @@ class User {
       personnelCode: personnelCode,
       featureAccess: featureAccess ?? this.featureAccess,
       policyAccess: policyAccess ?? this.policyAccess,
+      assignmentPending: assignmentPending,
       mustSelectStore: mustSelectStore,
     );
   }
@@ -234,6 +240,7 @@ class User {
         other.personnelCode == personnelCode &&
         _mapEquals(other.featureAccess, featureAccess) &&
         _mapEquals(other.policyAccess, policyAccess) &&
+        other.assignmentPending == assignmentPending &&
         other.mustSelectStore == mustSelectStore;
   }
 
@@ -271,6 +278,7 @@ class User {
       personnelCode.hashCode ^
       featureAccess.hashCode ^
       policyAccess.hashCode ^
+      assignmentPending.hashCode ^
       mustSelectStore.hashCode;
 
   @override

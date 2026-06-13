@@ -11,9 +11,9 @@ assign tasks by department, job role, work scope, and SR.
   is fixed to `SUPER_ADMIN`, `ADMIN`, or `USER`.
 - Users can store department code, job role code, and work scope type.
 - Backend seeds default department and job-role catalogs.
-- Admin user management can assign department, job role, and an active
-  organization node. The editor sends `organizationNodeId` as the source of
-  truth for staff placement.
+- Admin user management assigns an active organization node. Department and job
+  role compatibility fields are derived from the selected node. The editor sends
+  `organizationNodeId` as the source of truth for staff placement.
 - Auth/profile/admin user responses include `departmentCode`, `jobRoleCode`,
   `workScopeType`, Region/Area fields, and generated `personnelCode`.
 - Organization nodes are ordered `Lv0 -> Lv5`: `LV0_DOMAIN`, `LV1_BLOCK`,
@@ -35,11 +35,10 @@ assign tasks by department, job role, work scope, and SR.
   `ONLINE` is migration-only and maps to `REGION + CHATSALE`.
 - `MULTI_STORE` is removed from the public contract and rejected after
   migration.
-- Store-scoped users derive Region/Area from their assigned Lv4 store/SR;
-  self-service registration and first SR selection do not expose Region/Area
-  choices.
-- Branch selection is required only when the effective work scope is `STORE`
-  and the user has no assigned store.
+- Store-scoped users derive Region/Area from their assigned Lv4 store/SR.
+- Registration does not expose SR/store, Region, Area, department, or job-role
+  selection. Unassigned users stay on the assignment-pending screen until an
+  admin assigns an organization node.
 - Task assignment is explicitly out of scope for this story.
 
 ## Validation

@@ -13,6 +13,6 @@ update them when behavior changes.
 | `warranty.md` | Warranty/repair upload and realtime status |
 | `feedback.md` | Staff feedback submission |
 | `vietqr.md` | Manual bank-transfer QR, payment monitor, and MAP bank statement reconciliation |
-| `profile-admin.md` | Profile, branch selection, and user administration |
+| `profile-admin.md` | Profile, admin-assigned organization nodes, and user administration |
 | `backend-platform.md` | Backend services, infra, deployment contracts |
 | `windows-distribution.md` | Internal Windows signing, trusted certificate deployment, and download checklist |

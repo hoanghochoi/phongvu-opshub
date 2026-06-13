@@ -9,6 +9,14 @@ Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
 - Flutter uses email/password sign-in with a separate registration form.
 - Users without an account register with an OpsHub-accepted staff email domain
   and an OpsHub password before signing in.
+- Newly registered users do not self-select an SR/store. They can authenticate,
+  but if they do not have `organizationNodeId` the auth/profile response returns
+  `assignmentPending=true` and the app keeps them on `/assignment-pending` until
+  a `SUPER_ADMIN` assigns an organization node.
+- The pending screen must show: `Chưa được gán phòng ban, cửa hàng. Vui lòng
+  liên hệ hoang.nv1@phongvu-mna.vn - zalo: 0906581906 để được hỗ trợ.` It
+  provides refresh account and logout actions.
+- Self-service `/users/me/select-store` is retired and returns `410 Gone`.
 - NestJS validates allowed staff email domains from active organization tree
   domain nodes first. The default root domains are `phongvu.vn` and
   `acare.vn`; `SUPER_ADMIN` can add login-enabled subdomain nodes such as

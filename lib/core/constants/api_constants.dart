@@ -25,7 +25,6 @@ class ApiConstants {
   static const String getUserEndpoint = '/auth/get-user';
   static const String storesEndpoint = '/stores';
   static const String profileEndpoint = '/users/me';
-  static const String selectStoreEndpoint = '/users/me/select-store';
   static const String avatarEndpoint = '/users/me/avatar';
   static const String adminUsersEndpoint = '/admin/users';
   static const String adminUserScopeTreeEndpoint = '/admin/users/scope-tree';

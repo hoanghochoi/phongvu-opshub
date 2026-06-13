@@ -81,7 +81,7 @@ export class PolicyService implements OnModuleInit {
             category: policy.category ?? 'GENERAL',
             defaultAllowed: policy.defaultAllowed === true,
             isSystem: true,
-            isActive: true,
+            isActive: (policy as any).isActive !== false,
           },
           create: {
             code: policy.code,
@@ -90,7 +90,7 @@ export class PolicyService implements OnModuleInit {
             category: policy.category ?? 'GENERAL',
             defaultAllowed: policy.defaultAllowed === true,
             isSystem: true,
-            isActive: true,
+            isActive: (policy as any).isActive !== false,
           },
         }),
       ),
