@@ -852,7 +852,7 @@ export class PolicyService implements OnModuleInit {
     const source = full ?? user;
     const scopeNodeId =
       this.effectiveScope(source) === 'STORE'
-        ? (source.store?.organizationNodeId ?? source.organizationNodeId)
+        ? (source.organizationNodeId ?? source.store?.organizationNodeId)
         : (source.organizationNodeId ?? source.store?.organizationNodeId);
     const organizationContext = await this.resolveOrganizationRuleContext(
       scopeNodeId,

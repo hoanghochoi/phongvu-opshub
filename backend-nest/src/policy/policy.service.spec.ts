@@ -238,6 +238,84 @@ describe('PolicyService', () => {
     });
   });
 
+  it('matches policy rules against the assigned Lv5 node before showroom fallback', async () => {
+    rules = [
+      {
+        policyCode: ADMIN_POLICY_CODES.ADMIN_USERS,
+        allowed: true,
+        organizationNodeId: 'org-store-cp62-pos-sa',
+      },
+    ];
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'user-lv5',
+      email: 'sale@phongvu.vn',
+      role: 'USER',
+      departmentCode: 'SALES',
+      jobRoleCode: 'SA',
+      workScopeType: 'STORE',
+      organizationNodeId: 'org-store-cp62-pos-sa',
+      organizationNode: {
+        id: 'org-store-cp62-pos-sa',
+        displayName: 'Nhan vien ban hang',
+      },
+      store: {
+        id: 'store-62',
+        storeId: 'CP62',
+        storeName: 'SR CP62',
+        organizationNodeId: 'org-store-cp62',
+        area: null,
+        organizationNode: { id: 'org-store-cp62' },
+      },
+      region: null,
+      area: null,
+    });
+    prisma.organizationNode.findMany.mockResolvedValueOnce([
+      {
+        id: 'org-region-mien-nam',
+        parentId: null,
+        type: 'LV2_REGION',
+        code: 'REGION_PHONGVU_MIEN_NAM',
+        businessCode: 'MIEN_NAM',
+        displayName: 'Mien Nam',
+        abbreviation: 'MN',
+      },
+      {
+        id: 'org-area-hcm',
+        parentId: 'org-region-mien-nam',
+        type: 'LV3_AREA',
+        code: 'AREA_PHONGVU_HCM',
+        businessCode: 'HCM',
+        displayName: 'Ho Chi Minh',
+        abbreviation: 'HCM',
+      },
+      {
+        id: 'org-store-cp62',
+        parentId: 'org-area-hcm',
+        type: 'LV4_STORE',
+        code: 'STORE_CP62',
+        businessCode: 'CP62',
+        displayName: 'SR CP62',
+        abbreviation: 'CP62',
+      },
+      {
+        id: 'org-store-cp62-pos-sa',
+        parentId: 'org-store-cp62',
+        type: 'LV5_POSITION',
+        code: 'STORE_CP62_POS_SA',
+        businessCode: 'SA',
+        displayName: 'Nhan vien ban hang',
+        abbreviation: 'SA',
+      },
+    ]);
+
+    await expect(
+      service.canAccessPolicy(
+        { id: 'user-lv5' },
+        ADMIN_POLICY_CODES.ADMIN_USERS,
+      ),
+    ).resolves.toBe(true);
+  });
+
   it('updates array-valued settings', async () => {
     settings[ADMIN_SETTING_KEYS.AUTH_ALLOWED_EMAIL_DOMAINS] = {
       key: ADMIN_SETTING_KEYS.AUTH_ALLOWED_EMAIL_DOMAINS,

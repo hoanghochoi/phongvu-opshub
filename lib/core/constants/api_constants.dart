@@ -46,6 +46,8 @@ class ApiConstants {
   static const String adminPolicyRulesEndpoint = '/admin/policies/rules';
   static const String adminPolicyRulesBatchEndpoint =
       '/admin/policies/rules/batch';
+  static const String adminPolicyScopeTreeEndpoint =
+      '/admin/policies/scope-tree';
   static const String adminSettingsEndpoint = '/admin/settings';
   static const String adminMapVietinTransactionsEndpoint =
       '/admin/map-vietin/transactions/search';

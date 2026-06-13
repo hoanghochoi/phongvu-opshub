@@ -45,7 +45,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
         _repository.listAdminPolicies(),
         _repository.listAdminPolicyRules(policyCode: _rulePolicyFilter),
         _repository.listAdminSettings(),
-        _repository.listAdminOrganizationTree(),
+        _repository.listAdminPolicyScopeTree(),
       ]);
       if (!mounted) return;
       setState(() {
@@ -572,10 +572,10 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
   late final TextEditingController _departmentCodes;
   late final TextEditingController _jobRoleCodes;
   late final TextEditingController _workScopeTypes;
-  late final TextEditingController _organizationNodeIds;
   late final TextEditingController _userIds;
   late final TextEditingController _scopeContains;
   late final TextEditingController _note;
+  final Set<String> _organizationNodeIds = {};
   bool _saving = false;
 
   @override
@@ -591,9 +591,11 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
     _departmentCodes = TextEditingController(text: rule?.departmentCode ?? '');
     _jobRoleCodes = TextEditingController(text: rule?.jobRoleCode ?? '');
     _workScopeTypes = TextEditingController(text: rule?.workScopeType ?? '');
-    _organizationNodeIds = TextEditingController(
-      text: rule?.organizationNodeId ?? _legacyNodeIdFor(rule) ?? '',
-    );
+    final organizationNodeId =
+        rule?.organizationNodeId ?? _legacyNodeIdFor(rule);
+    if (organizationNodeId != null && organizationNodeId.isNotEmpty) {
+      _organizationNodeIds.add(organizationNodeId);
+    }
     _userIds = TextEditingController(text: rule?.userId ?? '');
     _scopeContains = TextEditingController(text: rule?.scopeContains ?? '');
     _note = TextEditingController(text: rule?.note ?? '');
@@ -607,7 +609,6 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
       _departmentCodes,
       _jobRoleCodes,
       _workScopeTypes,
-      _organizationNodeIds,
       _userIds,
       _scopeContains,
       _note,
@@ -630,7 +631,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
     final departmentCodes = _csv(_departmentCodes);
     final jobRoleCodes = _csv(_jobRoleCodes);
     final workScopeTypes = _csv(_workScopeTypes);
-    final organizationNodeIds = _csv(_organizationNodeIds);
+    final organizationNodeIds = _organizationNodeIds.toList()..sort();
     final userIds = _csv(_userIds);
     final scopeContainsValues = _csv(_scopeContains);
     final note = _note.text.trim().isEmpty ? null : _note.text.trim();
@@ -794,27 +795,42 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
 
   Widget _organizationNodePicker() {
     final items = _organizationNodeItems();
-    final current = _organizationNodeIds.text.trim().isEmpty
-        ? null
-        : _organizationNodeIds.text.trim().split(',').first.trim();
-    return DropdownButtonFormField<String?>(
-      initialValue: items.any((item) => item.$1 == current) ? current : null,
-      decoration: const InputDecoration(labelText: 'Node tổ chức'),
-      items: [
-        const DropdownMenuItem<String?>(
-          value: null,
-          child: Text('Không áp dụng'),
+    final selectedLabels = items
+        .where((item) => _organizationNodeIds.contains(item.$1))
+        .map((item) => item.$2)
+        .toList();
+    final isEditing = widget.rule != null;
+    return InkWell(
+      onTap: _saving
+          ? null
+          : () async {
+              final values = await showDialog<Set<String>>(
+                context: context,
+                builder: (context) => _PolicyNodeSelectDialog(
+                  allowMultiple: !isEditing,
+                  items: items,
+                  selectedValues: _organizationNodeIds,
+                ),
+              );
+              if (values == null) return;
+              setState(() {
+                _organizationNodeIds
+                  ..clear()
+                  ..addAll(values);
+              });
+            },
+      borderRadius: BorderRadius.circular(4),
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Node tổ chức',
+          border: OutlineInputBorder(),
         ),
-        ...items.map(
-          (item) => DropdownMenuItem<String?>(
-            value: item.$1,
-            child: Text(item.$2, overflow: TextOverflow.ellipsis),
-          ),
+        child: Text(
+          selectedLabels.isEmpty ? 'Không áp dụng' : selectedLabels.join(', '),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
-      ],
-      onChanged: (value) => setState(() {
-        _organizationNodeIds.text = value ?? '';
-      }),
+      ),
     );
   }
 
@@ -861,15 +877,141 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
   }
 
   List<(String, String)> _organizationNodeItems() {
+    final byId = {for (final node in widget.organizationNodes) node.id: node};
     return widget.organizationNodes
         .where((node) => node.isActive)
         .map(
           (node) => (
             node.id,
-            '${AdminOrganizationNodeTypes.titleOf(node.type)} • ${node.businessCode ?? node.storeId ?? node.code} • ${node.title}',
+            '${AdminOrganizationNodeTypes.titleOf(node.type)} • ${node.businessCode ?? node.storeId ?? node.code} • ${_breadcrumbFor(node, byId)}',
           ),
         )
         .toList();
+  }
+
+  String _breadcrumbFor(
+    AdminOrganizationNode node,
+    Map<String, AdminOrganizationNode> byId,
+  ) {
+    final names = <String>[];
+    AdminOrganizationNode? cursor = node;
+    for (var guard = 0; cursor != null && guard < 20; guard += 1) {
+      names.add(cursor.title);
+      final parentId = cursor.parentId;
+      cursor = parentId == null ? null : byId[parentId];
+    }
+    return names.reversed.join(' / ');
+  }
+}
+
+class _PolicyNodeSelectDialog extends StatefulWidget {
+  final bool allowMultiple;
+  final List<(String, String)> items;
+  final Set<String> selectedValues;
+
+  const _PolicyNodeSelectDialog({
+    required this.allowMultiple,
+    required this.items,
+    required this.selectedValues,
+  });
+
+  @override
+  State<_PolicyNodeSelectDialog> createState() =>
+      _PolicyNodeSelectDialogState();
+}
+
+class _PolicyNodeSelectDialogState extends State<_PolicyNodeSelectDialog> {
+  final _searchController = TextEditingController();
+  late final Set<String> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = {...widget.selectedValues};
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchController.text.trim().toLowerCase();
+    final filteredItems = query.isEmpty
+        ? widget.items
+        : widget.items
+              .where(
+                (item) =>
+                    item.$1.toLowerCase().contains(query) ||
+                    item.$2.toLowerCase().contains(query),
+              )
+              .toList();
+    return AlertDialog(
+      title: const Text('Node tổ chức'),
+      content: SizedBox(
+        width: 560,
+        height: 560,
+        child: Column(
+          children: [
+            TextField(
+              controller: _searchController,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                labelText: 'Tìm node',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: filteredItems.isEmpty
+                  ? const Center(child: Text('Không có dữ liệu'))
+                  : ListView.builder(
+                      itemCount: filteredItems.length,
+                      itemBuilder: (context, index) {
+                        final item = filteredItems[index];
+                        final selected = _selected.contains(item.$1);
+                        return CheckboxListTile(
+                          value: selected,
+                          title: Text(
+                            item.$2,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(item.$1),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          onChanged: (value) => setState(() {
+                            if (value == true) {
+                              if (!widget.allowMultiple) _selected.clear();
+                              _selected.add(item.$1);
+                            } else {
+                              _selected.remove(item.$1);
+                            }
+                          }),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => setState(_selected.clear),
+          child: const Text('Bỏ chọn'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(null),
+          child: const Text('Hủy'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop({..._selected}),
+          child: const Text('Áp dụng'),
+        ),
+      ],
+    );
   }
 }
 

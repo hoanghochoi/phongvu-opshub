@@ -652,6 +652,25 @@ class AuthRepository {
     return nodes;
   }
 
+  Future<List<AdminOrganizationNode>> listAdminPolicyScopeTree() async {
+    final response = await _apiClient.get(
+      ApiConstants.adminPolicyScopeTreeEndpoint,
+    );
+    final data = jsonDecode(response.body) as List<dynamic>;
+    final nodes = data
+        .map(
+          (item) =>
+              AdminOrganizationNode.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+    await AppLogger.instance.info(
+      'AdminPolicies',
+      'Admin policy scope tree loaded',
+      context: {'count': nodes.length},
+    );
+    return nodes;
+  }
+
   Future<AdminOrganizationNode> createAdminOrganizationNode(
     AdminOrganizationNode node,
   ) async {
