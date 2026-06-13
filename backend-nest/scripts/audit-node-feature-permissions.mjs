@@ -160,18 +160,20 @@ try {
   `);
 
   const result = {
-    ok: orphanedUsers.length === 0 && divergentGroups.length === 0,
+    ok: divergentGroups.length === 0,
     generatedAt: new Date().toISOString(),
     orphanedUsers,
     divergentGroups,
     nextStep:
-      orphanedUsers.length === 0 && divergentGroups.length === 0
-        ? 'Safe to run the node feature assignment migration.'
-        : 'Resolve these groups before running the node feature assignment migration.',
+      divergentGroups.length === 0
+        ? orphanedUsers.length === 0
+          ? 'Safe to run the node feature assignment migration.'
+          : 'Safe to run the migration after reviewing orphaned users; they will be skipped from backfill until they regain an active direct organization node.'
+        : 'Resolve divergent node groups before running the node feature assignment migration.',
   };
 
   console.log(JSON.stringify(result, jsonReplacer, 2));
-  if (!result.ok) process.exitCode = 2;
+  if (divergentGroups.length > 0) process.exitCode = 2;
 } finally {
   await close();
 }

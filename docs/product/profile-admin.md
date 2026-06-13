@@ -84,6 +84,9 @@ and basic administration for privileged roles.
   feature-management Node tab or from the selected node in the organization
   tree. The backend expands selected feature-tree descendants to include their
   ancestors and stores one row per root + node type + node key + feature.
+  Migration audit still reports orphaned per-user feature rows, but rollout
+  blocks only divergent node groups; users without an active direct node are
+  skipped from backfill because runtime node-group access already denies them.
   `SUPER_ADMIN` bypasses feature gates to avoid lockout.
 - Policy management lets `SUPER_ADMIN` manage admin policy definitions, policy
   rules, and system settings. Policy rules support the same detailed selectors
