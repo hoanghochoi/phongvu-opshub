@@ -52,9 +52,15 @@ This file maps product behavior to proof. Existing flows are marked
   focused backend user/feature Jest (3 suites, 44 tests), full backend `npm
   test -- --runInBand` (36 suites, 262 tests), focused Flutter admin user tree
   test, `flutter analyze --no-pub`, full Flutter `flutter test --no-pub
-  --reporter expanded` (97 tests), and `git diff --check`. Gap: staging/prod
-  must run `npm run audit:node-features` against live data before migration, and
-  live admin UI plus `/features/me` smoke remains manual.
+  --reporter expanded` (97 tests), and `git diff --check`. Follow-up
+  2026-06-13: staging deploy exposed a legacy orphan user with enabled
+  per-user features but no active direct organization node. The migration now
+  still blocks divergent node groups, but reports and skips orphaned users from
+  backfill, and the staging deploy workflow auto-resolves the stale failed
+  migration state for this exact migration when the target table was never
+  created. Gap: staging/prod must run `npm run audit:node-features` against
+  live data before migration, and live admin UI plus `/features/me` smoke
+  remains manual.
 - WARRANTY-001, 2026-06-13: fixed warranty image upload failing with
   `property user should not exist` by aligning the Flutter multipart payload
   with the Nest `UploadWarrantyImagesDto`; the client now sends only `receipt`,

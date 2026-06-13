@@ -55,7 +55,10 @@ account import from CSV, and administration for privileged roles.
   sends `organizationNodeIds` plus `featureTreeCodes`; the backend expands
   selected descendants with ancestors and saves
   `OrganizationNodeFeatureAssignment` rows. Legacy per-user assignments and
-  feature rules remain only for audit/rollback during rollout.
+  feature rules remain only for audit/rollback during rollout. Migration
+  rollout blocks divergent node groups, while orphaned users without an active
+  direct node are reported and skipped from backfill because runtime access
+  already denies them.
 - `SUPER_ADMIN` bypasses feature gates to avoid lockout.
 - User management supports filters by name/email search, domain,
   organization node, feature/screen, role, and status.

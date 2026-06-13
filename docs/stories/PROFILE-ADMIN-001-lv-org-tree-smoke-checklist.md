@@ -9,9 +9,11 @@ organization tree and fixed system-role rollout.
 - [ ] Confirm Prisma migration `20260612180000_lv_org_tree_roles` applied.
 - [ ] Confirm Prisma migration `20260613100000_admin_org_tree_feature` applied.
 - [ ] Run `npm run audit:node-features` before migration/deploy; report is
-  clean or every divergent node group has been fixed intentionally.
+  safe to migrate: every divergent node group has been fixed intentionally, and
+  any orphaned users without an active direct node have been reviewed because
+  they will be skipped from backfill.
 - [ ] Confirm Prisma migration `20260613190000_node_feature_assignments`
-  applied after the preflight report is clean.
+  applied after the preflight report is migration-safe.
 - [ ] Confirm backend health endpoint returns healthy.
 - [ ] Confirm app build/version shown to the tester is the new staging build.
 - [ ] Keep a rollback point ready: previous staging image/build and DB backup.

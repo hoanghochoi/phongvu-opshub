@@ -579,6 +579,51 @@ jobs:
           cd "$CURRENT_DIR"
           export COMPOSE_PROJECT_NAME
 
+          resolve_failed_node_feature_migration() {
+            local migration_name="20260613190000_node_feature_assignments"
+            local failed_count
+            local table_exists
+
+            OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
+              --env-file "$OPSHUB_ENV_FILE" \
+              -f deploy/home-server/docker-compose.home.yml \
+              up -d postgres >/dev/null
+
+            failed_count="$(
+              OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
+                --env-file "$OPSHUB_ENV_FILE" \
+                -f deploy/home-server/docker-compose.home.yml \
+                exec -T postgres sh -lc \
+                'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT COUNT(*) FROM _prisma_migrations WHERE migration_name = '\''20260613190000_node_feature_assignments'\'' AND finished_at IS NULL AND rolled_back_at IS NULL;"'
+            )"
+            failed_count="$(printf '%s' "$failed_count" | tr -d '[:space:]')"
+            if [ "${failed_count:-0}" = "0" ]; then
+              return 0
+            fi
+
+            table_exists="$(
+              OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
+                --env-file "$OPSHUB_ENV_FILE" \
+                -f deploy/home-server/docker-compose.home.yml \
+                exec -T postgres sh -lc \
+                'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT to_regclass('\''public.\"OrganizationNodeFeatureAssignment\"'\'') IS NOT NULL;"'
+            )"
+            table_exists="$(printf '%s' "$table_exists" | tr -d '[:space:]')"
+            if [ "$table_exists" != "f" ]; then
+              echo "Refusing to auto-resolve $migration_name because OrganizationNodeFeatureAssignment already exists." >&2
+              exit 1
+            fi
+
+            echo "Resolving stale failed migration state for $migration_name before rerun."
+            OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
+              --env-file "$OPSHUB_ENV_FILE" \
+              -f deploy/home-server/docker-compose.home.yml \
+              --profile migrate run --rm -T --build migrate \
+              npx prisma migrate resolve --rolled-back "$migration_name" < /dev/null
+          }
+
+          resolve_failed_node_feature_migration
+
           OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
             -f deploy/home-server/docker-compose.home.yml \

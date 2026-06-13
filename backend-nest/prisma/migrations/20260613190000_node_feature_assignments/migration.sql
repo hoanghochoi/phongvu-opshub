@@ -1,35 +1,13 @@
 -- Node-group feature assignments. The preflight blocks unsafe migration from
 -- per-user allowlists when a node group contains divergent feature sets.
+-- Users that still have legacy per-user features but no active direct
+-- organization node are reported by the audit script and skipped from backfill,
+-- because runtime node-based feature access already denies them.
 
 DO $$
 DECLARE
-  blocking_orphans INTEGER := 0;
   blocking_groups INTEGER := 0;
 BEGIN
-  SELECT COUNT(*)
-  INTO blocking_orphans
-  FROM "User" u
-  WHERE upper(u."role") <> 'SUPER_ADMIN'
-    AND EXISTS (
-      SELECT 1
-      FROM "UserFeatureAssignment" ufa
-      WHERE ufa."userId" = u."id"
-        AND ufa."enabled" = true
-    )
-    AND (
-      u."organizationNodeId" IS NULL
-      OR NOT EXISTS (
-        SELECT 1
-        FROM "OrganizationNode" n
-        WHERE n."id" = u."organizationNodeId"
-          AND n."isActive" = true
-      )
-    );
-
-  IF blocking_orphans > 0 THEN
-    RAISE EXCEPTION 'NODE_FEATURE_ASSIGNMENT_PREFLIGHT_FAILED: % users have enabled feature assignments but no active organization node. Run scripts/audit-node-feature-permissions.mjs for details.', blocking_orphans;
-  END IF;
-
   WITH RECURSIVE ancestors AS (
     SELECT
       n."id" AS "nodeId",
