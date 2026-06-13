@@ -42,6 +42,11 @@ OPSHUB_ENV_FILE=./env docker compose --env-file deploy/home-server/env -f deploy
 OPSHUB_ENV_FILE=./env docker compose --env-file deploy/home-server/env -f deploy/home-server/docker-compose.home.yml up -d --build
 ```
 
+`OPSHUB_ENV_FILE` is required for every runtime compose command. Do not rely on
+`--env-file` alone: the compose services also read the same file through
+`env_file`, and missing `OPSHUB_ENV_FILE` should stop the command immediately
+instead of silently falling back to `deploy/home-server/env.example`.
+
 4. Build Flutter for production with the home-server API:
 
 ```bash

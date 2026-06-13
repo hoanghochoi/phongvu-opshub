@@ -15,6 +15,7 @@ source "$ENV_FILE"
 set +a
 
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.home.yml"
+export OPSHUB_ENV_FILE="$ENV_FILE"
 SSD_ROOT="${OPSHUB_SSD_ROOT:-/srv/opshub}"
 BACKUP_ROOT="${OPSHUB_BACKUP_ROOT:-/mnt/truenas/opshub-backups}"
 STAMP="$(date +%Y%m%d-%H%M%S)"

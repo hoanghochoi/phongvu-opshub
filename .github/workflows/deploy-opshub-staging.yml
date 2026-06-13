@@ -577,7 +577,12 @@ jobs:
           ln -sfn "$REMOTE_RELEASE_DIR" "${CURRENT_DIR}.next"
           mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
           cd "$CURRENT_DIR"
-          export COMPOSE_PROJECT_NAME
+          export COMPOSE_PROJECT_NAME OPSHUB_ENV_FILE
+
+          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
+            --env-file "$OPSHUB_ENV_FILE" \
+            -f deploy/home-server/docker-compose.home.yml \
+            config >/dev/null
 
           resolve_failed_node_feature_migration() {
             local migration_name="20260613190000_node_feature_assignments"

@@ -541,6 +541,12 @@ jobs:
           ln -sfn "$REMOTE_RELEASE_DIR" "${CURRENT_DIR}.next"
           mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
           cd "$CURRENT_DIR"
+          export OPSHUB_ENV_FILE
+
+          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
+            --env-file "$OPSHUB_ENV_FILE" \
+            -f deploy/home-server/docker-compose.home.yml \
+            config >/dev/null
 
           OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
