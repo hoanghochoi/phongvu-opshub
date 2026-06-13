@@ -632,7 +632,7 @@ jobs:
           OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
             -f deploy/home-server/docker-compose.home.yml \
-            rm -sf api realtime caddy || true
+            down --remove-orphans
 
           OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
