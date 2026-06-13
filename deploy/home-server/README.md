@@ -46,6 +46,9 @@ OPSHUB_ENV_FILE=./env docker compose --env-file deploy/home-server/env -f deploy
 `--env-file` alone: the compose services also read the same file through
 `env_file`, and missing `OPSHUB_ENV_FILE` should stop the command immediately
 instead of silently falling back to `deploy/home-server/env.example`.
+Only the API container reads the full runtime env file. Infrastructure services
+use explicit environment keys so changing app-version metadata does not recreate
+Postgres, Redis, realtime, or Caddy by accident.
 
 4. Build Flutter for production with the home-server API:
 

@@ -578,26 +578,19 @@ jobs:
           mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
           cd "$CURRENT_DIR"
           export COMPOSE_PROJECT_NAME OPSHUB_ENV_FILE
+          compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
 
-          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml \
-            config >/dev/null
+          "${compose[@]}" config >/dev/null
 
           resolve_failed_node_feature_migration() {
             local migration_name="20260613190000_node_feature_assignments"
             local failed_count
             local table_exists
 
-            OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
-              --env-file "$OPSHUB_ENV_FILE" \
-              -f deploy/home-server/docker-compose.home.yml \
-              up -d postgres >/dev/null
+            "${compose[@]}" up -d --no-recreate --wait postgres >/dev/null
 
             failed_count="$(
-              OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
-                --env-file "$OPSHUB_ENV_FILE" \
-                -f deploy/home-server/docker-compose.home.yml \
+              "${compose[@]}" \
                 exec -T postgres sh -lc \
                 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT COUNT(*) FROM _prisma_migrations WHERE migration_name = '\''20260613190000_node_feature_assignments'\'' AND finished_at IS NULL AND rolled_back_at IS NULL;"'
             )"
@@ -607,9 +600,7 @@ jobs:
             fi
 
             table_exists="$(
-              OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
-                --env-file "$OPSHUB_ENV_FILE" \
-                -f deploy/home-server/docker-compose.home.yml \
+              "${compose[@]}" \
                 exec -T postgres sh -lc \
                 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT to_regclass('\''public.\"OrganizationNodeFeatureAssignment\"'\'') IS NOT NULL;"'
             )"
@@ -620,36 +611,25 @@ jobs:
             fi
 
             echo "Resolving stale failed migration state for $migration_name before rerun."
-            OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
-              --env-file "$OPSHUB_ENV_FILE" \
-              -f deploy/home-server/docker-compose.home.yml \
+            "${compose[@]}" \
               --profile migrate run --rm -T --build migrate \
               npx prisma migrate resolve --rolled-back "$migration_name" < /dev/null
           }
 
           resolve_failed_node_feature_migration
 
-          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml \
+          "${compose[@]}" \
             --profile migrate run --rm -T --build migrate < /dev/null
 
-          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml \
-            down --remove-orphans
+          "${compose[@]}" stop api realtime caddy || true
+          "${compose[@]}" rm -f api realtime caddy || true
 
-          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml \
-            up -d --build --force-recreate api realtime caddy
+          "${compose[@]}" up -d --build --force-recreate --wait api realtime caddy
 
           expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}"
           for attempt in {1..12}; do
             current_app_env="$(
-              OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
-                --env-file "$OPSHUB_ENV_FILE" \
-                -f deploy/home-server/docker-compose.home.yml \
+              "${compose[@]}" \
                 exec -T api sh -lc \
                 'printf "%s|%s|%s|%s" "$APP_ANDROID_APP_VERSION" "$APP_ANDROID_APP_BUILD_NUMBER" "$APP_WINDOWS_APP_VERSION" "$APP_WINDOWS_APP_BUILD_NUMBER"' \
                 2>/dev/null || true
@@ -664,9 +644,7 @@ jobs:
             sleep 5
           done
 
-          docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml ps
+          "${compose[@]}" ps
 
           releases_dir="$(dirname "$REMOTE_RELEASE_DIR")"
           current_real="$(readlink -f "$CURRENT_DIR" || true)"

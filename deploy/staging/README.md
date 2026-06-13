@@ -76,6 +76,9 @@ Every manual `docker compose` command against the runtime stack must export
 `OPSHUB_ENV_FILE` to the same file passed through `--env-file`. The compose
 file now fails fast when `OPSHUB_ENV_FILE` is missing so operators do not
 silently fall back to `deploy/home-server/env.example`.
+The API is the only service that reads the full env file. Postgres, realtime,
+and Caddy receive explicit environment keys, so staging app-version updates
+should not recreate database infrastructure during a deploy.
 
 Production deploys must not be pushed directly from feature branches. After
 staging is accepted, fast-forward `main` from `staging` and push `origin/main`
