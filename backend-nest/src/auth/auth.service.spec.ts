@@ -120,6 +120,9 @@ describe('AuthService', () => {
       firstName: 'An',
       lastName: 'Nguyen',
       role: 'USER',
+      organizationNodeId: null,
+      assignmentPending: true,
+      mustSelectStore: false,
     });
 
     expect(prisma.user.create).toHaveBeenCalledWith(
@@ -176,6 +179,9 @@ describe('AuthService', () => {
       login: true,
       email: 'staff@phongvu-shop.vn',
       firstName: 'An',
+      organizationNodeId: null,
+      assignmentPending: true,
+      mustSelectStore: false,
     });
     expect(prisma.user.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -514,6 +520,7 @@ describe('AuthService', () => {
       workScopeType: 'REGION',
       regionCode: 'CHATSALE',
       personnelCode: 'CHATSALE_CHATSALE_CHATSALE_CHATSALE',
+      assignmentPending: true,
       mustSelectStore: false,
     });
   });

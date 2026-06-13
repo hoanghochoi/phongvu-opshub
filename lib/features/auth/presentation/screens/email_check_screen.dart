@@ -104,8 +104,8 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
     if (!context.mounted) return;
 
     if (success) {
-      final route = authProvider.user?.needsStoreSelection == true
-          ? '/select-store'
+      final route = authProvider.user?.needsOrganizationAssignment == true
+          ? '/assignment-pending'
           : '/home';
       context.go(route);
     } else if (authProvider.errorMessage != null) {

@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  GoneException,
+} from '@nestjs/common';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { UserService } from './user.service';
 
@@ -859,6 +863,12 @@ describe('UserService admin store management', () => {
         }),
       }),
     );
+  });
+
+  it('retires self-service store selection', async () => {
+    await expect(
+      service.selectStoreOnce('user-1', 'CP62'),
+    ).rejects.toBeInstanceOf(GoneException);
   });
 
   it('normalizes legacy region code when moving a showroom under a tree area', async () => {

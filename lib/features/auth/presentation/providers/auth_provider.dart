@@ -33,7 +33,10 @@ class AuthProvider extends ChangeNotifier {
     'user_areaCode',
     'user_areaName',
     'user_areaAbbreviation',
+    'user_organizationNodeId',
+    'user_organizationNodeName',
     'user_personnelCode',
+    'user_assignmentPending',
   ];
 
   static String _sharedKey(String key) => AppStorageKeys.shared(key);
@@ -84,7 +87,16 @@ class AuthProvider extends ChangeNotifier {
       final areaAbbreviation = prefs.getString(
         _sharedKey('user_areaAbbreviation'),
       );
+      final organizationNodeId = prefs.getString(
+        _sharedKey('user_organizationNodeId'),
+      );
+      final organizationNodeName = prefs.getString(
+        _sharedKey('user_organizationNodeName'),
+      );
       final personnelCode = prefs.getString(_sharedKey('user_personnelCode'));
+      final assignmentPending =
+          prefs.getBool(_sharedKey('user_assignmentPending')) ??
+          (!User.isAdminRole(role) && organizationNodeId == null);
       final token = await _readSavedToken(prefs);
 
       if (email != null) {
@@ -106,12 +118,11 @@ class AuthProvider extends ChangeNotifier {
           areaCode: areaCode,
           areaName: areaName,
           areaAbbreviation: areaAbbreviation,
+          organizationNodeId: organizationNodeId,
+          organizationNodeName: organizationNodeName,
           personnelCode: personnelCode,
-          mustSelectStore:
-              (workScopeType ??
-                      (User.isAdminRole(role) ? 'NATIONAL' : 'STORE')) ==
-                  'STORE' &&
-              storeId == null,
+          assignmentPending: assignmentPending,
+          mustSelectStore: false,
         );
 
         // Restore JWT token to ApiClient for authenticated API calls
@@ -210,8 +221,22 @@ class AuthProvider extends ChangeNotifier {
       );
       await _saveOptionalString(
         prefs,
+        'user_organizationNodeId',
+        user.organizationNodeId,
+      );
+      await _saveOptionalString(
+        prefs,
+        'user_organizationNodeName',
+        user.organizationNodeName,
+      );
+      await _saveOptionalString(
+        prefs,
         'user_personnelCode',
         user.personnelCode,
+      );
+      await prefs.setBool(
+        _sharedKey('user_assignmentPending'),
+        user.needsOrganizationAssignment,
       );
       if (token != null) {
         await _secureStorage.write(key: _secureKey(_jwtTokenKey), value: token);
@@ -312,7 +337,7 @@ class AuthProvider extends ChangeNotifier {
 
   void _queueDailyActivityLogUpload() {
     final currentUser = _user;
-    if (currentUser == null || currentUser.needsStoreSelection) return;
+    if (currentUser == null || currentUser.needsOrganizationAssignment) return;
     unawaited(
       AppLogger.instance.uploadDailyActivityLogIfDue(
         storeCode: currentUser.storeId,
@@ -784,44 +809,6 @@ class AuthProvider extends ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
-  }
-
-  Future<bool> selectStore(String storeId) async {
-    if (_user == null) return false;
-    await AppLogger.instance.info(
-      'Auth',
-      'Store selection started',
-      context: {'email': _user!.email, 'storeId': storeId},
-    );
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      _user = await _withFeatureAccess(
-        await _repository.selectStore(storeId, _user!.email),
-      );
-      await _saveSession(_user!);
-      await AppLogger.instance.info(
-        'Auth',
-        'Store selection succeeded',
-        context: {'email': _user!.email, 'storeId': _user!.storeId},
-      );
-      _queueDailyActivityLogUpload();
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } on ApiException catch (e) {
-      await AppLogger.instance.warn(
-        'Auth',
-        'Store selection failed',
-        context: {'storeId': storeId, 'message': e.message},
-      );
-      _errorMessage = e.message;
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
   }
 
   Future<bool> updateProfile({

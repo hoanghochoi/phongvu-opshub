@@ -53,7 +53,7 @@ void main() {
       'resolvedFeatureAccess': {
         'ADMIN': true,
         'ADMIN_USERS': true,
-        'ADMIN_STORES': true,
+        'ADMIN_ORG_TREE': true,
         'FIFO_IMPORT': true,
         'ADMIN_FEATURES': false,
       },
@@ -62,13 +62,34 @@ void main() {
 
     expect(user.isAdmin, isTrue);
     expect(user.needsStoreSelection, isFalse);
+    expect(user.needsOrganizationAssignment, isFalse);
     expect(user.hasNationalWorkScope, isTrue);
     expect(user.canUseFeature('ADMIN_USERS'), isTrue);
-    expect(user.canUseFeature('ADMIN_STORES'), isTrue);
+    expect(user.canUseFeature('ADMIN_ORG_TREE'), isTrue);
     expect(user.canUseFeature('FIFO_IMPORT'), isTrue);
     expect(user.canUseFeature('ADMIN_FEATURES'), isFalse);
     expect(user.canUsePolicy('ADMIN'), isTrue);
     expect(user.canUsePolicy('ADMIN_POLICIES'), isFalse);
+  });
+
+  test('User exposes pending organization assignment from auth response', () {
+    final pendingUser = User.fromJson({
+      'email': 'new@phongvu.vn',
+      'role': 'USER',
+      'assignmentPending': true,
+      'mustSelectStore': false,
+    });
+    final assignedUser = User.fromJson({
+      'email': 'assigned@phongvu.vn',
+      'role': 'USER',
+      'organizationNodeId': 'org-store-cp62',
+      'assignmentPending': false,
+      'mustSelectStore': false,
+    });
+
+    expect(pendingUser.needsStoreSelection, isFalse);
+    expect(pendingUser.needsOrganizationAssignment, isTrue);
+    expect(assignedUser.needsOrganizationAssignment, isFalse);
   });
 
   test('Scope definitions do not expose legacy ONLINE or MULTI_STORE', () {

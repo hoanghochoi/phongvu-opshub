@@ -8,11 +8,11 @@ import '../../features/bank_statement/data/bank_statement_repository.dart';
 import '../../features/bank_statement/presentation/providers/bank_statement_provider.dart';
 import '../../features/bank_statement/presentation/screens/bank_statement_screen.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
+import '../../features/auth/presentation/screens/assignment_pending_screen.dart';
 import '../../features/auth/presentation/screens/email_check_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/profile_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
-import '../../features/auth/presentation/screens/store_selection_screen.dart';
 import '../../features/admin/presentation/screens/admin_menu_screen.dart';
 import '../../features/admin/presentation/screens/feedback_admin_screen.dart';
 import '../../features/admin/presentation/screens/inventory_import_screen.dart';
@@ -53,21 +53,23 @@ class AppRouter {
         }
 
         final isAuthenticated = authProvider.isAuthenticated;
-        final needsStore = authProvider.user?.needsStoreSelection ?? false;
+        final needsAssignment =
+            authProvider.user?.needsOrganizationAssignment ?? false;
 
         final isLoading = location == '/loading';
         final isLoggingIn = location == '/login';
         final isRegistering = location == '/register';
         final isForgotPassword = location == '/forgot-password';
+        final isAssignmentPending = location == '/assignment-pending';
 
         if (!isAuthenticated) {
           if (isLoggingIn || isRegistering || isForgotPassword) return null;
           return '/login';
         }
 
-        if (needsStore) {
-          if (location == '/select-store') return null;
-          return '/select-store';
+        if (needsAssignment) {
+          if (isAssignmentPending) return null;
+          return '/assignment-pending';
         }
 
         if (location == '/admin/feedback' &&
@@ -85,7 +87,7 @@ class AppRouter {
             isLoggingIn ||
             isRegistering ||
             isForgotPassword ||
-            location == '/select-store') {
+            isAssignmentPending) {
           return '/home';
         }
 
@@ -113,8 +115,8 @@ class AppRouter {
           builder: (context, state) => const ForgotPasswordScreen(),
         ),
         GoRoute(
-          path: '/select-store',
-          builder: (context, state) => const StoreSelectionScreen(),
+          path: '/assignment-pending',
+          builder: (context, state) => const AssignmentPendingScreen(),
         ),
         GoRoute(
           path: '/home',
@@ -218,7 +220,7 @@ class AppRouter {
       '/admin' => 'ADMIN',
       '/admin/users' => 'ADMIN_USERS',
       '/admin/roles' => 'ADMIN_ROLES',
-      '/admin/organization' => 'ADMIN_USERS',
+      '/admin/organization' => 'ADMIN_ORG_TREE',
       '/admin/policies' => 'ADMIN_POLICIES',
       '/admin/inventory-import' => 'FIFO_IMPORT',
       '/admin/feedback' => 'ADMIN_FEEDBACK',

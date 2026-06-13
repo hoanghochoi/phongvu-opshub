@@ -265,9 +265,12 @@ export class AuthService {
       areaCode: this.areaForUser(user)?.code ?? null,
       areaName: this.areaForUser(user)?.displayName ?? null,
       areaAbbreviation: this.areaForUser(user)?.abbreviation ?? null,
+      organizationNodeId: user.organizationNodeId ?? null,
+      organizationNodeName: user.organizationNode?.displayName ?? null,
       personnelCode: this.personnelCodeFor(user),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
+      assignmentPending: this.assignmentPending(user),
       mustSelectStore: this.mustSelectStore(user),
     };
   }
@@ -305,6 +308,7 @@ export class AuthService {
       store: { include: { area: { include: { region: true } } } },
       region: true,
       area: { include: { region: true } },
+      organizationNode: true,
     };
   }
 
@@ -322,6 +326,8 @@ export class AuthService {
       workScopeType?: string | null;
       regionCode?: string | null;
       areaCode?: string | null;
+      organizationNodeId?: string | null;
+      organizationNode?: { displayName?: string | null } | null;
       profileCompletedAt?: Date | null;
       branchLockedAt?: Date | null;
       storeId?: string | null;
@@ -369,9 +375,12 @@ export class AuthService {
       areaCode: this.areaForUser(user)?.code ?? null,
       areaName: this.areaForUser(user)?.displayName ?? null,
       areaAbbreviation: this.areaForUser(user)?.abbreviation ?? null,
+      organizationNodeId: user.organizationNodeId ?? null,
+      organizationNodeName: user.organizationNode?.displayName ?? null,
       personnelCode: this.personnelCodeFor(user),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
+      assignmentPending: this.assignmentPending(user),
       mustSelectStore: this.mustSelectStore(user),
     };
   }
@@ -382,8 +391,16 @@ export class AuthService {
     storeId?: string | null;
     store?: { storeId?: string | null } | null;
   }) {
-    const hasStore = Boolean(user.storeId || user.store?.storeId);
-    return this.effectiveWorkScope(user) === STORE_SCOPE && !hasStore;
+    return false;
+  }
+
+  private assignmentPending(user: {
+    role: string;
+    organizationNodeId?: string | null;
+  }) {
+    const role = this.normalizeRoleForOutput(user.role);
+    if (role === SUPER_ADMIN_ROLE || role === ADMIN_ROLE) return false;
+    return !user.organizationNodeId;
   }
 
   private effectiveWorkScope(user: {

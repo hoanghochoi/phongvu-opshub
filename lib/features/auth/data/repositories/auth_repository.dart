@@ -303,17 +303,6 @@ class AuthRepository {
     );
   }
 
-  Future<User> selectStore(String storeId, String email) async {
-    final response = await _apiClient.post(
-      ApiConstants.selectStoreEndpoint,
-      body: {'storeId': storeId},
-    );
-    return User.fromJson(
-      jsonDecode(response.body) as Map<String, dynamic>,
-      fallbackEmail: email,
-    );
-  }
-
   Future<User> updateProfile({
     required String email,
     required String firstName,

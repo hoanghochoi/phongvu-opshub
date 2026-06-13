@@ -109,13 +109,13 @@ export class UserController {
   }
 
   @Get('admin/org-tree')
-  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   listOrganizationTree(@Request() req: any) {
     return this.userService.adminListOrganizationTree(req.user);
   }
 
   @Post('admin/org-tree/nodes')
-  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   createOrganizationNode(
     @Request() req: any,
     @Body() body: OrganizationNodeDto,
@@ -124,7 +124,7 @@ export class UserController {
   }
 
   @Patch('admin/org-tree/nodes/:id')
-  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   updateOrganizationNode(
     @Request() req: any,
     @Param('id') id: string,
@@ -134,7 +134,7 @@ export class UserController {
   }
 
   @Delete('admin/org-tree/nodes/:id')
-  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   deleteOrganizationNode(@Request() req: any, @Param('id') id: string) {
     return this.userService.adminDeleteOrganizationNode(req.user, id);
   }
@@ -208,19 +208,19 @@ export class UserController {
   }
 
   @Get('admin/regions')
-  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   listRegions(@Request() req: any) {
     return this.userService.adminRetiredTreeApi(req.user, 'GET /admin/regions');
   }
 
   @Post('admin/regions')
-  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   createRegion(@Request() req: any, @Body() body: AdminRegionDto) {
     return this.userService.adminRetiredTreeApi(req.user, 'POST /admin/regions');
   }
 
   @Patch('admin/regions/:code')
-  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   updateRegion(
     @Request() req: any,
     @Param('code') code: string,
@@ -233,7 +233,7 @@ export class UserController {
   }
 
   @Delete('admin/regions/:code')
-  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   deleteRegion(@Request() req: any, @Param('code') code: string) {
     return this.userService.adminRetiredTreeApi(
       req.user,
@@ -242,19 +242,19 @@ export class UserController {
   }
 
   @Get('admin/areas')
-  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   listAreas(@Request() req: any, @Query('regionCode') regionCode?: string) {
     return this.userService.adminRetiredTreeApi(req.user, 'GET /admin/areas');
   }
 
   @Post('admin/areas')
-  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   createArea(@Request() req: any, @Body() body: AdminAreaDto) {
     return this.userService.adminRetiredTreeApi(req.user, 'POST /admin/areas');
   }
 
   @Patch('admin/areas/:code')
-  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   updateArea(
     @Request() req: any,
     @Param('code') code: string,
@@ -267,7 +267,7 @@ export class UserController {
   }
 
   @Delete('admin/areas/:code')
-  @RequireFeature(FEATURE_KEYS.ADMIN_REGIONS)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   deleteArea(@Request() req: any, @Param('code') code: string) {
     return this.userService.adminRetiredTreeApi(
       req.user,
@@ -298,19 +298,19 @@ export class UserController {
   }
 
   @Get('admin/stores')
-  @RequireFeature(FEATURE_KEYS.ADMIN_STORES)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   listAdminStores(@Request() req: any, @Query('q') q?: string) {
     return this.userService.adminRetiredTreeApi(req.user, 'GET /admin/stores');
   }
 
   @Post('admin/stores')
-  @RequireFeature(FEATURE_KEYS.ADMIN_STORES)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   createStore(@Request() req: any, @Body() body: AdminStoreDto) {
     return this.userService.adminRetiredTreeApi(req.user, 'POST /admin/stores');
   }
 
   @Patch('admin/stores/:storeId')
-  @RequireFeature(FEATURE_KEYS.ADMIN_STORES)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   updateStore(
     @Request() req: any,
     @Param('storeId') storeId: string,
@@ -323,7 +323,7 @@ export class UserController {
   }
 
   @Delete('admin/stores/:storeId')
-  @RequireFeature(FEATURE_KEYS.ADMIN_STORES)
+  @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   deleteStore(@Request() req: any, @Param('storeId') storeId: string) {
     return this.userService.adminRetiredTreeApi(
       req.user,

@@ -35,7 +35,7 @@ class AdminMenuScreen extends StatelessWidget {
           color: AppColors.violet600,
           onTap: () => context.push('/admin/roles'),
         ),
-      if (canUse('ADMIN_USERS'))
+      if (canUse('ADMIN_ORG_TREE'))
         AppFeatureAction(
           icon: Icons.account_tree_outlined,
           title: 'Cơ cấu tổ chức',

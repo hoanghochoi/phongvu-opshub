@@ -7,6 +7,7 @@ organization tree and fixed system-role rollout.
 
 - [ ] Confirm the staging deployment completed successfully.
 - [ ] Confirm Prisma migration `20260612180000_lv_org_tree_roles` applied.
+- [ ] Confirm Prisma migration `20260613100000_admin_org_tree_feature` applied.
 - [ ] Confirm backend health endpoint returns healthy.
 - [ ] Confirm app build/version shown to the tester is the new staging build.
 - [ ] Keep a rollback point ready: previous staging image/build and DB backup.
@@ -24,6 +25,10 @@ organization tree and fixed system-role rollout.
 - [ ] Role list returns only `SUPER_ADMIN`, `ADMIN`, and `USER`.
 - [ ] Role create/update/delete requests are rejected with the fixed-role
   message.
+- [ ] `POST /users/me/select-store` returns `410 Gone` with a clear retired
+  self-selection message.
+- [ ] `/admin/features/tree` shows `Cơ cấu tổ chức`/`ADMIN_ORG_TREE` and does
+  not show legacy `ADMIN_STORES`, `ADMIN_REGIONS`, or `ADMIN_PERSONNEL`.
 
 ## SUPER_ADMIN App Smoke
 
@@ -41,6 +46,11 @@ organization tree and fixed system-role rollout.
   `USER`.
 - [ ] Assign a user to Lv0, Lv2/Lv3, Lv4, and Lv5 nodes in separate tests; save
   succeeds and the selected node remains visible after reload.
+- [ ] User edit dialog has no direct `Phòng ban` or `Chức danh` assignment rows;
+  node picker supports search, type filter, full breadcrumb, level badge, and
+  selected-state visibility.
+- [ ] Newly registered user lands on `/assignment-pending` with the exact
+  support text, refresh button, and logout button.
 - [ ] Save a feature rule with an organization tree node.
 - [ ] Save a policy rule with an organization tree node.
 
@@ -60,8 +70,8 @@ organization tree and fixed system-role rollout.
 - [ ] Login as `USER`; admin menu is not visible unless explicitly feature
   allowed by backend policy for a non-admin flow.
 - [ ] Existing daily flows still work for the assigned SR/store.
-- [ ] First store selection still loads and saves normally for store-scoped
-  users.
+- [ ] Unassigned `USER` remains on the assignment-pending screen until a
+  `SUPER_ADMIN` assigns an organization node, then refresh/login enters the app.
 
 ## Runtime Regression Smoke
 
@@ -84,7 +94,8 @@ organization tree and fixed system-role rollout.
 - [ ] Backend logs show old admin API `410` hits.
 - [ ] Flutter `AppLogger` records org tree load/save/delete and user save with
   role/org node context.
-- [ ] Flutter `AppLogger` records store selection load success/failure.
+- [ ] Flutter `AppLogger` records assignment-pending refresh success/failure and
+  user save with role/org-node context.
 - [ ] Attach screenshots or notes for every failed item before rollback or fix.
 
 ## Pass Criteria

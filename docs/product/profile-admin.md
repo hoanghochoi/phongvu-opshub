@@ -1,16 +1,17 @@
 # Profile And Administration
 
-OpsHub supports personal profile management, one-time branch selection, and
-basic administration for privileged roles.
+OpsHub supports personal profile management, admin-assigned organization nodes,
+and basic administration for privileged roles.
 
 ## Personal Profile
 
 - Staff can view and update their display name.
 - Staff can upload an avatar image.
-- Staff must choose a branch when first signing in if their account does not
-  already have one.
-- The app warns that branch information is locked after confirmation.
-- The backend rejects self-service branch changes once a branch is assigned.
+- Staff do not choose a branch/store during registration or first login. If
+  their account has no `organizationNodeId`, the app shows the assignment
+  pending screen and asks them to contact support.
+- The backend rejects the retired self-service store-selection API with
+  `410 Gone`.
 
 ## Store Account Data
 
@@ -56,7 +57,11 @@ basic administration for privileged roles.
   role message.
 - Legacy admin APIs `/admin/regions`, `/admin/areas`, and `/admin/stores`
   return `410 Gone`. Runtime `/stores`, the `Store` table, payment account
-  fields, MAP credentials, FIFO, VietQR, and store selection remain compatible.
+  fields, MAP credentials, FIFO, and VietQR remain compatible.
+- Organization tree administration is gated by feature/policy code
+  `ADMIN_ORG_TREE` and appears as `Cơ cấu tổ chức`. Legacy feature codes
+  `ADMIN_STORES`, `ADMIN_REGIONS`, and `ADMIN_PERSONNEL` remain in the database
+  only for history/backfill and are hidden from the user feature picker.
 - Organization management lets `SUPER_ADMIN` maintain the source-of-truth tree:
   `LV0_DOMAIN`, `LV1_BLOCK`, `LV2_DEPARTMENT`, `LV2_REGION`, `LV3_AREA`,
   `LV3_UNIT`, `LV4_STORE`, and `LV5_POSITION`. Lv0 is the highest level and
@@ -104,9 +109,9 @@ basic administration for privileged roles.
 
 - System access role remains separate from operational personnel assignment.
   `User.role` continues to control app/admin permissions.
-- Admin user management can assign department, job role, and organization node
-  for future task assignment. The editor sends `organizationNodeId` as the
-  primary assignment input.
+- Admin user management assigns only an organization node. Department/job-role
+  compatibility columns are derived from that node by the backend and are not
+  user-editor inputs.
 - User work-scope assignment uses the organization tree as the source of truth:
   any active Lv0-Lv5 node can contain users/staff. Legacy `workScopeType`,
   `storeId`, `regionCode`, and `areaCode` remain derived backend/runtime fields,
@@ -127,7 +132,7 @@ basic administration for privileged roles.
   `REGION + CHATSALE` and is not exposed in the public contract.
 - SR-scoped users do not need a direct Region/Area assignment. When their SR
   has an Area, the backend derives the user's `areaCode` and `regionCode` from
-  that SR during admin assignment and self-service first SR selection.
+  that SR during admin assignment.
 - `CHATSALE` and `TELESALE` are virtual Region-level scopes.
 - The API returns a generated `personnelCode` for debugging and future task
   routing in the format `JOBROLE_SR_AREA_REGION`. Examples:
