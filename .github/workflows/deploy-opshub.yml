@@ -542,25 +542,34 @@ jobs:
           mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
           cd "$CURRENT_DIR"
           export OPSHUB_ENV_FILE
+          compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
 
-          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml \
-            config >/dev/null
+          "${compose[@]}" config >/dev/null
 
-          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml \
+          "${compose[@]}" \
             --profile migrate run --rm -T --build migrate < /dev/null
 
-          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml \
-            up -d --build --force-recreate api realtime caddy
+          "${compose[@]}" up -d --build --force-recreate --wait api realtime caddy
 
-          docker compose \
-            --env-file "$OPSHUB_ENV_FILE" \
-            -f deploy/home-server/docker-compose.home.yml ps
+          expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}"
+          for attempt in {1..12}; do
+            current_app_env="$(
+              "${compose[@]}" \
+                exec -T api sh -lc \
+                'printf "%s|%s|%s|%s" "$APP_ANDROID_APP_VERSION" "$APP_ANDROID_APP_BUILD_NUMBER" "$APP_WINDOWS_APP_VERSION" "$APP_WINDOWS_APP_BUILD_NUMBER"' \
+                2>/dev/null || true
+            )"
+            if [ "$current_app_env" = "$expected_app_env" ]; then
+              break
+            fi
+            if [ "$attempt" -eq 12 ]; then
+              echo "API container app-version env mismatch after recreate: expected $expected_app_env got ${current_app_env:-<empty>}" >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+          "${compose[@]}" ps
 
           releases_dir="$(dirname "$REMOTE_RELEASE_DIR")"
           current_real="$(readlink -f "$CURRENT_DIR" || true)"
