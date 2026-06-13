@@ -79,6 +79,12 @@ export class UserController {
     return this.userService.adminListUserScopeTree(req.user);
   }
 
+  @Get('admin/policies/scope-tree')
+  @RequireFeature(FEATURE_KEYS.ADMIN_POLICIES)
+  listPolicyScopeTree(@Request() req: any) {
+    return this.userService.adminListPolicyScopeTree(req.user);
+  }
+
   @Post('admin/users')
   @RequireFeature(FEATURE_KEYS.ADMIN_USERS)
   createUser(@Request() req: any, @Body() body: AdminUserDto) {

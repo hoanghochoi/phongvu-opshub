@@ -61,7 +61,9 @@ account import from CSV, and administration for privileged roles.
   rules, and system settings for login domains, password policy, and OTP
   policies. App policy and feature rule editing uses organization tree nodes
   instead of legacy Region/Area/SR selectors, while the backend keeps legacy
-  rule fields for compatibility/backfill. Settings can save JSON object or
+  rule fields for compatibility/backfill. Policy rule matching uses the user's
+  assigned organization node before the showroom fallback, so Lv5-specific
+  policy rules work for tree-assigned users. Settings can save JSON object or
   array values.
 - User assignment uses the fixed backend role catalog.
 - `SUPER_ADMIN` can change user roles after registration; registration itself

@@ -113,6 +113,12 @@ This file maps product behavior to proof. Existing flows are marked
   suites, 249 tests), and full `flutter test --no-pub --reporter expanded`
   (83 tests). Gap: live staging click-through for saving user feature
   assignments, feature/policy rules, and settings remains manual.
+- PROFILE-ADMIN-001, 2026-06-13: policy management now loads organization
+  scope nodes through an `ADMIN_POLICIES`-guarded scope tree endpoint instead
+  of requiring `ADMIN_ORG_TREE`; policy runtime context prefers the user's
+  assigned `organizationNodeId` before showroom fallback so Lv5 policy rules
+  match tree-assigned users; the Flutter policy rule editor uses a searchable
+  tree node picker for single-rule edit and batch creation.
 - PROFILE-ADMIN-001, 2026-06-12: completed tree-only user work-scope assignment.
   Backend user create/update now accepts `organizationNodeId` as the assignment
   input, derives legacy `storeId`/`regionCode`/`areaCode`, keeps SUPER_ADMIN

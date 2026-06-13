@@ -927,6 +927,14 @@ export class UserService implements OnModuleInit {
     return this.listOrganizationTreeForAdmin(admin, 'admin-list-user-scope-tree');
   }
 
+  async adminListPolicyScopeTree(admin: any) {
+    await this.assertAdmin(admin);
+    return this.listOrganizationTreeForAdmin(
+      admin,
+      'admin-list-policy-scope-tree',
+    );
+  }
+
   private async listOrganizationTreeForAdmin(admin: any, source: string) {
     await this.seedDefaultOrganizationTree();
     await this.syncStoreOrganizationNodes(source);
