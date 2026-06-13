@@ -3558,6 +3558,8 @@ export class UserService implements OnModuleInit {
         include: { area: { include: { region: true } } },
       })) ?? [];
     let syncedCount = 0;
+    let locationSyncedUserCount = 0;
+    let relinkedUserCount = 0;
 
     try {
       for (const store of stores) {
@@ -3568,14 +3570,32 @@ export class UserService implements OnModuleInit {
             source,
           );
           if (syncResult.nodeId) {
-            await tx.user.updateMany({
+            const storeSubtreeIds = await this.organizationDescendantIdsForClient(
+              tx,
+              syncResult.nodeId,
+            );
+            const locationSync = await tx.user.updateMany({
               where: { storeId: store.id, workScopeType: STORE_SCOPE },
               data: {
-                organizationNodeId: syncResult.nodeId,
                 areaCode: syncResult.location.areaCode,
                 regionCode: syncResult.location.regionCode,
               },
             });
+            const relinkResult = await tx.user.updateMany({
+              where: {
+                storeId: store.id,
+                workScopeType: STORE_SCOPE,
+                OR: [
+                  { organizationNodeId: null },
+                  { organizationNodeId: { notIn: storeSubtreeIds } },
+                ],
+              },
+              data: {
+                organizationNodeId: syncResult.nodeId,
+              },
+            });
+            locationSyncedUserCount += locationSync.count;
+            relinkedUserCount += relinkResult.count;
           }
         });
         syncedCount += 1;
@@ -3587,6 +3607,10 @@ export class UserService implements OnModuleInit {
           stores.length +
           ' synced=' +
           syncedCount +
+          ' userLocationSynced=' +
+          locationSyncedUserCount +
+          ' userRelinked=' +
+          relinkedUserCount +
           ' durationMs=' +
           (Date.now() - startedAt),
       );
