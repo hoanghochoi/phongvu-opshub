@@ -72,6 +72,11 @@ The workflow builds staging Android and Windows packages, uploads them to
 in `/srv/opshub-staging/env`, runs migrations, and recreates only the staging
 Docker services.
 
+Every manual `docker compose` command against the runtime stack must export
+`OPSHUB_ENV_FILE` to the same file passed through `--env-file`. The compose
+file now fails fast when `OPSHUB_ENV_FILE` is missing so operators do not
+silently fall back to `deploy/home-server/env.example`.
+
 Production deploys must not be pushed directly from feature branches. After
 staging is accepted, fast-forward `main` from `staging` and push `origin/main`
 to run the production workflow.
