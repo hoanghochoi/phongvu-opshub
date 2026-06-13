@@ -632,7 +632,32 @@ jobs:
           OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
             -f deploy/home-server/docker-compose.home.yml \
+            rm -sf api realtime caddy || true
+
+          OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
+            --env-file "$OPSHUB_ENV_FILE" \
+            -f deploy/home-server/docker-compose.home.yml \
             up -d --build --force-recreate api realtime caddy
+
+          expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}"
+          for attempt in {1..12}; do
+            current_app_env="$(
+              OPSHUB_ENV_FILE="$OPSHUB_ENV_FILE" docker compose \
+                --env-file "$OPSHUB_ENV_FILE" \
+                -f deploy/home-server/docker-compose.home.yml \
+                exec -T api sh -lc \
+                'printf "%s|%s|%s|%s" "$APP_ANDROID_APP_VERSION" "$APP_ANDROID_APP_BUILD_NUMBER" "$APP_WINDOWS_APP_VERSION" "$APP_WINDOWS_APP_BUILD_NUMBER"' \
+                2>/dev/null || true
+            )"
+            if [ "$current_app_env" = "$expected_app_env" ]; then
+              break
+            fi
+            if [ "$attempt" -eq 12 ]; then
+              echo "API container app-version env mismatch after recreate: expected $expected_app_env got ${current_app_env:-<empty>}" >&2
+              exit 1
+            fi
+            sleep 5
+          done
 
           docker compose \
             --env-file "$OPSHUB_ENV_FILE" \
