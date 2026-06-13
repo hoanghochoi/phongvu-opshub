@@ -18,6 +18,8 @@ ideas reach the backend.
 - Submitting feedback requires the `FEEDBACK` feature. Listing all feedback uses
   `/feedback/admin`, requires `ADMIN_FEEDBACK`, and the service still enforces
   `SUPER_ADMIN` even if a non-super user gets that feature by mistake.
+- The admin feedback list should render uploaded feedback image URLs as inline
+  thumbnails while keeping non-displayable image text visible as fallback.
 - If feedback becomes user-identifying or sensitive, update auth and privacy
   expectations before implementation.
 
@@ -25,4 +27,5 @@ ideas reach the backend.
 
 - NestJS feedback service/controller tests.
 - Flutter validation or UI-state tests when the submission flow changes.
+- Flutter admin feedback parser tests when display parsing changes.
 - Manual smoke for successful and failed submissions when API behavior changes.

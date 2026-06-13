@@ -22,7 +22,9 @@ export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
   // POST /upload/warranty
-  // Multipart: fields: { receipt, user } + files: image0, image1, ...
+  // Multipart: fields: { receipt } + files: images[].
+  // Legacy clients may still send "user"; it is accepted only for compatibility.
+  // The creator is always resolved from the authenticated JWT user.
   @Post('warranty')
   @RequireFeature(FEATURE_KEYS.WARRANTY)
   @UseInterceptors(FilesInterceptor('images', 10, imageUploadOptions))

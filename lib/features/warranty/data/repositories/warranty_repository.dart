@@ -57,7 +57,7 @@ class WarrantyRepository {
 
       final response = await _apiClient.postMultipart(
         ApiConstants.saveWarrantyEndpoint,
-        fields: {'user': userEmail, 'receipt': receiptNumber},
+        fields: buildWarrantyMultipartFields(receiptNumber: receiptNumber),
         files: multipartFiles,
         timeout: ApiConstants.uploadTimeout,
       );
@@ -102,6 +102,13 @@ class WarrantyRepository {
       );
       throw ApiException('Chưa lưu được biên nhận. Vui lòng thử lại.');
     }
+  }
+
+  @visibleForTesting
+  static Map<String, String> buildWarrantyMultipartFields({
+    required String receiptNumber,
+  }) {
+    return {'receipt': receiptNumber.trim()};
   }
 
   static String? warrantyMimeTypeFor({required String fileName, String? path}) {
