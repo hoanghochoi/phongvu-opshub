@@ -126,9 +126,9 @@ and basic administration for privileged roles.
   BOD, and CEO. These are operational personnel roles, separate from the three
   fixed system access roles.
 - Payment speaker polling/audio/ack is limited to staff assigned directly to
-  active Lv5 positions with business code `SA` or `CASH`. Other positions can
-  still use allowed store/runtime views but do not receive or acknowledge
-  payment audio notifications.
+  active Lv5 positions with business code `STORE_MANAGER` or `CASH`. Other
+  positions can still use allowed store/runtime views but do not receive or
+  acknowledge payment audio notifications.
 - Work scope values are `NATIONAL`, `REGION`, `AREA`, and `STORE`.
   `MULTI_STORE` is not accepted. Legacy `ONLINE` is migrated to
   `REGION + CHATSALE` and is not exposed in the public contract.

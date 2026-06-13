@@ -25,7 +25,8 @@ assign tasks by department, job role, work scope, and SR.
   create these children automatically, and existing stores are backfilled during
   store/tree sync without changing SR identity or payment metadata.
 - Payment speaker behavior is a runtime permission of Lv5 store positions:
-  only `SA` and `CASH` can poll, stream, or acknowledge payment audio.
+  only `STORE_MANAGER` and `CASH` can poll, stream, or acknowledge payment
+  audio.
 - Legacy work scopes remain compatibility fields derived from the selected
   organization node: `NATIONAL -> REGION -> AREA -> STORE`.
 - Store-scoped personnel codes include SR, Area, and Region, for example

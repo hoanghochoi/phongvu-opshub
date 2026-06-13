@@ -79,7 +79,7 @@ organization tree and fixed system-role rollout.
 - [ ] Manual FIFO inventory import remains gated by admin import permission.
 - [ ] VietQR generation still uses the existing SR transfer account data.
 - [ ] MAP/payment monitor still reads existing store MAP configuration.
-- [ ] Payment speaker ready/audio/ack works for Lv5 `SA` or `CASH`.
+- [ ] Payment speaker ready/audio/ack works for Lv5 `STORE_MANAGER` or `CASH`.
 - [ ] Payment speaker ready list is empty, and audio/ack is forbidden, for a
   non-speaker Lv5 position such as `WAREHOUSE`.
 - [ ] Bank statement store filter still lists the expected SRs.

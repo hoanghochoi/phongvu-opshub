@@ -34,9 +34,9 @@ const DEFAULT_DELIVERY_CLAIM_TTL_SECONDS = 120;
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
 const PAYMENT_SPEAKER_ORG_TYPE = 'LV5_POSITION';
-const PAYMENT_SPEAKER_POSITION_CODES = new Set(['SA', 'CASH']);
+const PAYMENT_SPEAKER_POSITION_CODES = new Set(['STORE_MANAGER', 'CASH']);
 const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE =
-  'Chỉ vị trí SA hoặc CASH mới được dùng đọc loa tiền vào';
+  'Chỉ vị trí STORE_MANAGER hoặc CASH mới được dùng đọc loa tiền vào';
 
 type StoredTransaction = {
   id: string;
