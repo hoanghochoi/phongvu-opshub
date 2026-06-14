@@ -35,6 +35,7 @@ const testPassword = process.env.STAGING_TEST_PASSWORD?.trim();
 if (!testPassword || testPassword.length < 10) {
   fail('STAGING_TEST_PASSWORD must be set and contain at least 10 characters.');
 }
+assertStagingTestPasswordPolicy(testPassword);
 
 const { prisma, close } = createPrismaClient();
 
@@ -175,6 +176,18 @@ function assertStagingTarget() {
   const publicBaseUrl = process.env.PUBLIC_BASE_URL || '';
   if (!publicBaseUrl.includes('opshub-staging.hoanghochoi.com')) {
     fail('Refusing to run. PUBLIC_BASE_URL must point to opshub-staging.hoanghochoi.com.');
+  }
+}
+
+function assertStagingTestPasswordPolicy(value) {
+  const missing = [];
+  if (!/[A-Z]/.test(value)) missing.push('one uppercase letter');
+  if (!/[0-9]/.test(value)) missing.push('one number');
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(value)) {
+    missing.push('one special character');
+  }
+  if (missing.length > 0) {
+    fail(`STAGING_TEST_PASSWORD must include ${missing.join(', ')}.`);
   }
 }
 
