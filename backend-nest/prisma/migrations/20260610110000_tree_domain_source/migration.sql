@@ -28,6 +28,41 @@ INSERT INTO "OrganizationNode" (
   "id", "code", "businessCode", "displayName", "abbreviation", "description", "type", "parentId",
   "emailDomain", "loginAllowed", "isSystem", "isActive", "sortOrder", "createdAt", "updatedAt"
 )
+VALUES (
+  'org-subdomain-phongvu-vn',
+  'SUBDOMAIN_PHONGVU_VN',
+  'phongvu.vn',
+  'Phong Vũ',
+  'PV',
+  'Legacy Phong Vũ operation tree bucket',
+  'SUBDOMAIN',
+  'org-domain-phongvu-vn',
+  NULL,
+  false,
+  true,
+  true,
+  10000,
+  CURRENT_TIMESTAMP,
+  CURRENT_TIMESTAMP
+)
+ON CONFLICT ("code") DO UPDATE SET
+  "businessCode" = EXCLUDED."businessCode",
+  "displayName" = EXCLUDED."displayName",
+  "abbreviation" = EXCLUDED."abbreviation",
+  "description" = EXCLUDED."description",
+  "type" = 'SUBDOMAIN',
+  "parentId" = EXCLUDED."parentId",
+  "emailDomain" = NULL,
+  "loginAllowed" = false,
+  "isSystem" = true,
+  "isActive" = true,
+  "sortOrder" = EXCLUDED."sortOrder",
+  "updatedAt" = CURRENT_TIMESTAMP;
+
+INSERT INTO "OrganizationNode" (
+  "id", "code", "businessCode", "displayName", "abbreviation", "description", "type", "parentId",
+  "emailDomain", "loginAllowed", "isSystem", "isActive", "sortOrder", "createdAt", "updatedAt"
+)
 SELECT
   'org-region-phongvu-' || lower(regexp_replace(r."code", '[^A-Za-z0-9]+', '-', 'g')),
   'REGION_PHONGVU_' || regexp_replace(upper(r."code"), '[^A-Z0-9]+', '_', 'g'),

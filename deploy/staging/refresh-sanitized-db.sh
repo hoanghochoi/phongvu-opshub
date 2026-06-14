@@ -32,15 +32,19 @@ export OPSHUB_ENV_FILE="$STAGING_ENV_FILE"
 export OPSHUB_SSD_ROOT="$STAGING_SSD_ROOT"
 export COMPOSE_PROJECT_NAME="$STAGING_COMPOSE_PROJECT_NAME"
 compose=(docker compose --env-file "$STAGING_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
-"${compose[@]}" up -d --wait postgres redis
-"${compose[@]}" stop api realtime caddy || true
+compose_cmd() {
+  "${compose[@]}" "$@" < /dev/null
+}
+compose_cmd up -d --wait postgres redis
+compose_cmd stop api realtime caddy || true
 mkdir -p "$STAGING_BACKUP_ROOT"
 backup_file="$STAGING_BACKUP_ROOT/pre-refresh-$(date -u +%Y%m%d-%H%M%S).sql.gz"
-"${compose[@]}" exec -T postgres sh -lc 'pg_dump --no-owner --no-privileges -U "$POSTGRES_USER" "$POSTGRES_DB"' | gzip > "$backup_file"
+compose_cmd exec -T postgres sh -lc 'pg_dump --no-owner --no-privileges -U "$POSTGRES_USER" "$POSTGRES_DB"' | gzip > "$backup_file"
 echo "Staging database backup created: $backup_file"
-"${compose[@]}" exec -T postgres sh -lc '
-  dropdb --force -U "$POSTGRES_USER" --if-exists "$POSTGRES_DB"
-  createdb -U "$POSTGRES_USER" "$POSTGRES_DB"
+compose_cmd exec -T postgres sh -lc '
+  set -e
+  dropdb --force -U "$POSTGRES_USER" --maintenance-db=postgres --if-exists "$POSTGRES_DB"
+  createdb -U "$POSTGRES_USER" --owner "$POSTGRES_USER" "$POSTGRES_DB"
 '
 REMOTE
 
@@ -48,7 +52,7 @@ prod_project_export=""
 if [[ -n "$PROD_COMPOSE_PROJECT_NAME" ]]; then
   prod_project_export="export COMPOSE_PROJECT_NAME=$(sq "$PROD_COMPOSE_PROJECT_NAME");"
 fi
-prod_dump_cmd="set -euo pipefail; cd $(sq "$PROD_CURRENT_DIR"); export OPSHUB_ENV_FILE=$(sq "$PROD_ENV_FILE"); export OPSHUB_SSD_ROOT=$(sq "$PROD_SSD_ROOT"); $prod_project_export docker compose --env-file $(sq "$PROD_ENV_FILE") -f deploy/home-server/docker-compose.home.yml exec -T postgres sh -lc 'pg_dump --clean --if-exists --no-owner --no-privileges -U \"\$POSTGRES_USER\" \"\$POSTGRES_DB\"'"
+prod_dump_cmd="set -euo pipefail; cd $(sq "$PROD_CURRENT_DIR"); export OPSHUB_ENV_FILE=$(sq "$PROD_ENV_FILE"); export OPSHUB_SSD_ROOT=$(sq "$PROD_SSD_ROOT"); $prod_project_export docker compose --env-file $(sq "$PROD_ENV_FILE") -f deploy/home-server/docker-compose.home.yml exec -T postgres sh -lc 'pg_dump --clean --if-exists --no-owner --no-privileges -U \"\$POSTGRES_USER\" \"\$POSTGRES_DB\"' < /dev/null"
 staging_import_cmd="set -euo pipefail; cd $(sq "$STAGING_CURRENT_DIR"); export OPSHUB_ENV_FILE=$(sq "$STAGING_ENV_FILE"); export OPSHUB_SSD_ROOT=$(sq "$STAGING_SSD_ROOT"); export COMPOSE_PROJECT_NAME=$(sq "$STAGING_COMPOSE_PROJECT_NAME"); docker compose --env-file $(sq "$STAGING_ENV_FILE") -f deploy/home-server/docker-compose.home.yml exec -T postgres sh -lc 'psql -v ON_ERROR_STOP=1 -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\"'"
 
 echo "Streaming production dump from $PROD_SSH_HOST into staging. Raw dump is not written to disk locally."
@@ -63,18 +67,21 @@ export OPSHUB_ENV_FILE="$STAGING_ENV_FILE"
 export OPSHUB_SSD_ROOT="$STAGING_SSD_ROOT"
 export COMPOSE_PROJECT_NAME="$STAGING_COMPOSE_PROJECT_NAME"
 compose=(docker compose --env-file "$STAGING_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
-"${compose[@]}" --profile migrate run --rm -T --build migrate < /dev/null
+compose_cmd() {
+  "${compose[@]}" "$@" < /dev/null
+}
+compose_cmd --profile migrate run --rm -T --build migrate
 password_args=()
 if [[ -n "${STAGING_TEST_PASSWORD:-}" ]]; then
   password_args=(-e STAGING_TEST_PASSWORD="$STAGING_TEST_PASSWORD")
 fi
-"${compose[@]}" run --rm -T \
+compose_cmd run --rm -T \
   -e OPSHUB_STAGING=true \
   -e OPSHUB_STAGING_SANITIZE_CONFIRM=opshub-staging \
   "${password_args[@]}" \
-  api npm run sanitize:staging < /dev/null
-"${compose[@]}" up -d --build --force-recreate api realtime caddy
-"${compose[@]}" ps
+  api npm run sanitize:staging
+compose_cmd up -d --build --force-recreate api realtime caddy
+compose_cmd ps
 REMOTE
 
 echo "Staging DB refresh and sanitization complete. Run deploy/staging/smoke-test-checklist-db-refresh-2026-06-08.md."
