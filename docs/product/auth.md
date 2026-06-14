@@ -18,7 +18,11 @@ Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
   provides refresh account and logout actions.
 - Self-service `/users/me/select-store` is retired and returns `410 Gone`.
 - NestJS validates allowed staff email domains from the
-  `AUTH_ALLOWED_EMAIL_DOMAINS` admin setting. Organization-tree domain nodes are
+  `AUTH_ALLOWED_EMAIL_DOMAINS` admin setting. Flutter does not enforce a
+  bundled domain list before calling auth endpoints, so runtime policy changes
+  take effect through the backend. The login form only checks email syntax and a
+  non-empty password before calling the API; password correctness and domain
+  authorization are backend decisions. Organization-tree domain nodes are
   metadata only and do not enable or block login.
 - `data/email_domain.txt` and `EMAIL_DOMAIN_FILE` remain fallback inputs when
   the admin setting is unavailable, but production should keep the setting as

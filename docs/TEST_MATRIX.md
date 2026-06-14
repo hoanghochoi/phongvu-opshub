@@ -100,6 +100,19 @@ This file maps product behavior to proof. Existing flows are marked
   261 tests), `flutter analyze --no-pub`, full Flutter
   `flutter test --no-pub --reporter expanded` (96 tests), and `git diff
   --check`. Gap: live authenticated upload smoke remains pending.
+- AUTH-001, 2026-06-15: removed Flutter-side bundled-domain gating from login,
+  registration-code, registration, and forgot-password email validation so
+  `AUTH_ALLOWED_EMAIL_DOMAINS` remains the backend source of truth. Login also
+  stops applying password-strength policy before auth, and only requires a
+  non-empty password so existing valid accounts can reach the backend credential
+  check. This fixes runtime domains such as `phongvu-mna.vn` being rejected
+  before `/auth/login` or related public auth endpoints are called. Validation:
+  focused Flutter
+  validators/auth repository tests (`flutter test --no-pub test/validators_test.dart
+  test/auth_device_info_test.dart`), focused backend auth/policy domain tests
+  (`npm test -- --runInBand src/auth/auth.service.spec.ts
+  src/policy/policy.service.spec.ts src/auth/email-domain-policy.spec.ts`),
+  `flutter analyze --no-pub`, backend `npm run build`, and `git diff --check`.
 - AUTH-001/PROFILE-ADMIN-001, 2026-06-13: changed registration/login so new
   users do not self-select SR/store. Auth/profile responses now expose
   `assignmentPending`; Flutter routes pending users to `/assignment-pending`

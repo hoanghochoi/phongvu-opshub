@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
-import '../../../../core/utils/email_domain_policy.dart';
 import '../../../../core/utils/validators.dart';
 import '../providers/auth_provider.dart';
 
@@ -23,22 +22,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _codeController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  List<String> _allowedDomains = const [];
   _ResetStep _step = _ResetStep.email;
   String? _resetToken;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadDomains();
-  }
-
-  Future<void> _loadDomains() async {
-    final domains = await EmailDomainPolicy.loadAllowedDomains();
-    if (mounted) setState(() => _allowedDomains = domains);
-  }
 
   @override
   void dispose() {
@@ -278,9 +265,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       validator: (value) {
         final email = value?.trim() ?? '';
         if (!Validators.isValidEmail(email)) return 'Email không hợp lệ';
-        if (!EmailDomainPolicy.isAllowedEmail(email, _allowedDomains)) {
-          return EmailDomainPolicy.invalidDomainMessage;
-        }
         return null;
       },
     );

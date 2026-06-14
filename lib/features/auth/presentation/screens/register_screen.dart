@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
-import '../../../../core/utils/email_domain_policy.dart';
 import '../../../../core/utils/validators.dart';
 import '../providers/auth_provider.dart';
 
@@ -23,7 +22,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _verificationCodeController = TextEditingController();
-  List<String> _allowedDomains = const [];
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isSendingCode = false;
@@ -31,15 +29,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     super.initState();
-    _loadDomains();
     if (widget.initialEmail != null && widget.initialEmail!.trim().isNotEmpty) {
       _emailController.text = widget.initialEmail!.trim();
     }
-  }
-
-  Future<void> _loadDomains() async {
-    final domains = await EmailDomainPolicy.loadAllowedDomains();
-    if (mounted) setState(() => _allowedDomains = domains);
   }
 
   @override
@@ -109,7 +101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          EmailDomainPolicy.promptText,
+                          'Dùng email được OpsHub chấp nhận và mật khẩu OpsHub',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.65),
@@ -163,12 +155,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             final email = value?.trim() ?? '';
                             if (!Validators.isValidEmail(email)) {
                               return 'Email không hợp lệ';
-                            }
-                            if (!EmailDomainPolicy.isAllowedEmail(
-                              email,
-                              _allowedDomains,
-                            )) {
-                              return EmailDomainPolicy.invalidDomainMessage;
                             }
                             return null;
                           },
@@ -390,10 +376,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final email = _emailController.text.trim();
     if (!Validators.isValidEmail(email)) {
       _showError(context, 'Email không hợp lệ');
-      return;
-    }
-    if (!EmailDomainPolicy.isAllowedEmail(email, _allowedDomains)) {
-      _showError(context, EmailDomainPolicy.invalidDomainMessage);
       return;
     }
 
