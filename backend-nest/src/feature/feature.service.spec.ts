@@ -22,7 +22,27 @@ describe('FeatureService', () => {
     jobRoleCode: 'SALE',
     workScopeType: 'STORE',
     organizationNodeId: 'org-store-cp62',
-    store: { storeId: 'CP62', storeName: 'CP62', area },
+    store: {
+      storeId: 'CP62',
+      storeName: 'CP62',
+      organizationNodeId: 'org-store-cp62',
+      area,
+    },
+  };
+
+  const assignmentKey = (
+    nodeType: string,
+    nodeKey: string,
+    featureCode: string,
+  ) => `${nodeType}:${nodeKey}:${featureCode}`;
+
+  const setNodeAssignment = (
+    featureCode: string,
+    enabled: boolean,
+    nodeType = 'LV4_STORE',
+    nodeKey = 'CP62',
+  ) => {
+    nodeAssignments[assignmentKey(nodeType, nodeKey, featureCode)] = enabled;
   };
 
   beforeEach(() => {
@@ -63,6 +83,14 @@ describe('FeatureService', () => {
         businessCode: 'CP62',
         isActive: directNodeActive,
       },
+      {
+        id: 'org-store-cp62-sa',
+        parentId: 'org-store-cp62',
+        type: 'LV5_POSITION',
+        code: 'STORE_CP62_SA',
+        businessCode: 'SA',
+        isActive: true,
+      },
     ];
     prisma = {
       $transaction: jest.fn(async (operations: Promise<any>[]) =>
@@ -87,15 +115,18 @@ describe('FeatureService', () => {
       organizationNodeFeatureAssignment: {
         findUnique: jest.fn(async ({ where }: any) => {
           const input = where.scopeRootNodeId_nodeType_nodeKey_featureCode;
+          const key = assignmentKey(
+            input.nodeType,
+            input.nodeKey,
+            input.featureCode,
+          );
           if (
             input.scopeRootNodeId !== 'org-domain-acare-vn' ||
-            input.nodeType !== 'LV4_STORE' ||
-            input.nodeKey !== 'CP62' ||
-            !(input.featureCode in nodeAssignments)
+            !(key in nodeAssignments)
           ) {
             return null;
           }
-          return { enabled: nodeAssignments[input.featureCode] };
+          return { enabled: nodeAssignments[key] };
         }),
         findMany: jest.fn(async () => []),
         upsert: jest.fn(),
@@ -127,9 +158,7 @@ describe('FeatureService', () => {
           ),
         ),
         findUnique: jest.fn(async ({ where }: any) =>
-          where.id === 'org-store-cp62'
-            ? { id: 'org-store-cp62', isActive: directNodeActive }
-            : null,
+          orgNodes.find((node) => node.id === where.id) ?? null,
         ),
       },
       store: {
@@ -141,6 +170,14 @@ describe('FeatureService', () => {
         findUnique: jest.fn(async ({ where }: any) => {
           if (where.id === 'user-1') return storeUser;
           if (where.id === 'user-2') return { ...storeUser, id: 'user-2' };
+          if (where.id === 'user-lv5') {
+            return {
+              ...storeUser,
+              id: 'user-lv5',
+              jobRoleCode: 'SA',
+              organizationNodeId: 'org-store-cp62-sa',
+            };
+          }
           return null;
         }),
       },
@@ -149,7 +186,7 @@ describe('FeatureService', () => {
   });
 
   it('allows only features assigned to the direct node group', async () => {
-    nodeAssignments = { FIFO: true };
+    setNodeAssignment('FIFO', true);
 
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
@@ -169,7 +206,7 @@ describe('FeatureService', () => {
   });
 
   it('denies disabled node feature assignments', async () => {
-    nodeAssignments = { FIFO: false };
+    setNodeAssignment('FIFO', false);
 
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
@@ -178,7 +215,7 @@ describe('FeatureService', () => {
 
   it('denies inactive features even when assigned', async () => {
     featureActive = false;
-    nodeAssignments = { FIFO: true };
+    setNodeAssignment('FIFO', true);
 
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
@@ -187,11 +224,33 @@ describe('FeatureService', () => {
 
   it('denies assignments when the direct organization node is inactive', async () => {
     directNodeActive = false;
-    nodeAssignments = { FIFO: true };
+    setNodeAssignment('FIFO', true);
 
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
     ).resolves.toBe(false);
+  });
+
+  it('prefers assigned Lv5 organization node over store fallback', async () => {
+    setNodeAssignment('FIFO', true, 'LV5_POSITION', 'SA');
+
+    await expect(
+      service.canAccessFeature({ id: 'user-lv5' }, 'FIFO'),
+    ).resolves.toBe(true);
+    expect(
+      prisma.organizationNodeFeatureAssignment.findUnique,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          scopeRootNodeId_nodeType_nodeKey_featureCode: {
+            scopeRootNodeId: 'org-domain-acare-vn',
+            nodeType: 'LV5_POSITION',
+            nodeKey: 'SA',
+            featureCode: 'FIFO',
+          },
+        },
+      }),
+    );
   });
 
   it('always bypasses feature gates for super admin', async () => {
