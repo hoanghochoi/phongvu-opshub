@@ -16,6 +16,7 @@
     "import:users": "node scripts/import-users-csv.mjs",
     "import:store-accounts": "node scripts/import-store-accounts-csv.mjs",
     "sanitize:staging": "node scripts/sanitize-staging-db.mjs",
+    "audit:runtime-org-tree": "node scripts/audit-runtime-org-tree-code.mjs",
     "audit:node-features": "node scripts/audit-node-feature-permissions.mjs",
     "migrate:n8n-warranty": "node scripts/migrate-n8n-warranty-metadata.mjs",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
