@@ -231,6 +231,43 @@ describe('PaymentNotificationsService', () => {
     });
   });
 
+  it('lets SUPER_ADMIN acknowledge speaker events without an Lv5 node', async () => {
+    prisma.paymentNotification.findUnique.mockResolvedValue({
+      id: 'note-1',
+      transactionId: 'txn-1',
+      storeCode: 'CP01',
+    });
+    prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({});
+
+    await expect(
+      service.acknowledge(
+        speakerUser({
+          id: 'super-1',
+          role: 'SUPER_ADMIN',
+          storeId: null,
+          organizationNodeId: null,
+        }),
+        'note-1',
+        {
+          clientId: 'pc-1',
+          event: 'PLAYED',
+        },
+      ),
+    ).resolves.toEqual({ ok: true });
+
+    expect(prisma.organizationNode.findUnique).not.toHaveBeenCalled();
+    expect(prisma.paymentNotificationDeliveryLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        notificationId: 'note-1',
+        transactionId: 'txn-1',
+        storeCode: 'CP01',
+        userId: 'super-1',
+        clientId: 'pc-1',
+        event: 'PLAYED',
+      }),
+    });
+  });
+
   it('records playback failed acknowledgement without marking it terminal', async () => {
     prisma.paymentNotification.findUnique.mockResolvedValue({
       id: 'note-1',

@@ -3,9 +3,14 @@ import { createPrismaClient } from './prisma-local.mjs';
 
 const CONFIRM_VALUE = 'reset-org-tree-to-roots';
 const ROOT_PHONGVU_ID = 'org-domain-phongvu-vn';
-const ROOT_ACARE_ID = 'org-domain-acaretek-vn';
+const ROOT_ACARE_ID = 'org-domain-acare-vn';
 const RESET_NODE_TYPES = [
   'SUBDOMAIN',
+  'LV1_BLOCK',
+  'LV2_DEPARTMENT',
+  'LV2_REGION',
+  'LV3_AREA',
+  'LV3_UNIT',
   'REGION',
   'AREA',
   'DEPARTMENT',
@@ -70,7 +75,7 @@ async function collectSummary() {
   );
   const showroomsNotUnderRoot = await prisma.organizationNode.count({
     where: {
-      type: 'SHOWROOM',
+      type: 'LV4_STORE',
       NOT: { parentId: { in: [ROOT_PHONGVU_ID, ROOT_ACARE_ID] } },
     },
   });
@@ -110,7 +115,7 @@ async function ensureRootDomains(client) {
       businessCode: 'phongvu.vn',
       abbreviation: 'PV',
       description: 'Domain dang nhap Phong Vu',
-      type: 'ROOT_DOMAIN',
+      type: 'LV0_DOMAIN',
       parentId: null,
       emailDomain: 'phongvu.vn',
       loginAllowed: true,
@@ -125,7 +130,7 @@ async function ensureRootDomains(client) {
       businessCode: 'phongvu.vn',
       abbreviation: 'PV',
       description: 'Domain dang nhap Phong Vu',
-      type: 'ROOT_DOMAIN',
+      type: 'LV0_DOMAIN',
       parentId: null,
       emailDomain: 'phongvu.vn',
       loginAllowed: true,
@@ -135,13 +140,13 @@ async function ensureRootDomains(client) {
     },
   });
   await client.organizationNode.upsert({
-    where: { code: 'DOMAIN_ACARETEK_VN' },
+    where: { code: 'DOMAIN_ACARE_VN' },
     update: {
       displayName: 'acare.vn',
-      businessCode: 'acare.vn',
+      businessCode: 'ACARE_VN',
       abbreviation: 'ACARE',
       description: 'Domain dang nhap A Care',
-      type: 'ROOT_DOMAIN',
+      type: 'LV0_DOMAIN',
       parentId: null,
       emailDomain: 'acare.vn',
       loginAllowed: true,
@@ -151,12 +156,12 @@ async function ensureRootDomains(client) {
     },
     create: {
       id: ROOT_ACARE_ID,
-      code: 'DOMAIN_ACARETEK_VN',
+      code: 'DOMAIN_ACARE_VN',
       displayName: 'acare.vn',
-      businessCode: 'acare.vn',
+      businessCode: 'ACARE_VN',
       abbreviation: 'ACARE',
       description: 'Domain dang nhap A Care',
-      type: 'ROOT_DOMAIN',
+      type: 'LV0_DOMAIN',
       parentId: null,
       emailDomain: 'acare.vn',
       loginAllowed: true,
@@ -185,7 +190,7 @@ async function moveStoresToDomainRoots(client) {
       const linkedNode = await client.organizationNode.findUnique({
         where: { id: store.organizationNodeId },
       });
-      if (linkedNode?.type === 'SHOWROOM' && !linkedNode.isSystem) {
+      if (linkedNode?.type === 'LV4_STORE' && !linkedNode.isSystem) {
         const duplicate = await client.organizationNode.findUnique({
           where: { code: nodeCode },
         });
@@ -204,7 +209,7 @@ async function moveStoresToDomainRoots(client) {
       businessCode: store.storeId,
       abbreviation: store.storeId,
       description: displayName,
-      type: 'SHOWROOM',
+      type: 'LV4_STORE',
       parentId: rootId,
       emailDomain: null,
       loginAllowed: false,
@@ -240,7 +245,7 @@ async function moveStoresToDomainRoots(client) {
 async function moveOrphanShowroomsToDomainRoots(client) {
   const showrooms = await client.organizationNode.findMany({
     where: {
-      type: 'SHOWROOM',
+      type: 'LV4_STORE',
       NOT: { parentId: { in: [ROOT_PHONGVU_ID, ROOT_ACARE_ID] } },
       stores: { none: {} },
     },
@@ -390,7 +395,8 @@ function normalizeUpdateCounts(value) {
 }
 
 function rootIdForStore(storeId) {
-  return String(storeId || '').trim().toUpperCase().startsWith('AC')
+  const code = String(storeId || '').trim().toUpperCase();
+  return code.startsWith('AC') || code.startsWith('AP')
     ? ROOT_ACARE_ID
     : ROOT_PHONGVU_ID;
 }

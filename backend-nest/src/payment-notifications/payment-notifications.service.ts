@@ -406,6 +406,13 @@ export class PaymentNotificationsService {
   }
 
   private async userCanUsePaymentSpeaker(user: any, source: string) {
+    if (String(user?.role || '').trim().toUpperCase() === 'SUPER_ADMIN') {
+      this.logger.debug(
+        `Payment speaker allowed source=${source} user=${this.safeUserLabel(user)} reason=super_admin`,
+      );
+      return true;
+    }
+
     const organizationNodeId =
       typeof user?.organizationNodeId === 'string'
         ? user.organizationNodeId.trim()

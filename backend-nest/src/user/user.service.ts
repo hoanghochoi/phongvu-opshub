@@ -48,7 +48,7 @@ const DEFAULT_REGION_CODE = 'CHUA_GAN';
 const CHATSALE_REGION_CODE = 'CHATSALE';
 const TELESALE_REGION_CODE = 'TELESALE';
 const ORG_ROOT_PHONGVU_ID = 'org-domain-phongvu-vn';
-const ORG_ROOT_ACARE_ID = 'org-domain-acaretek-vn';
+const ORG_ROOT_ACARE_ID = 'org-domain-acare-vn';
 const ORG_TYPE_LV0_DOMAIN = 'LV0_DOMAIN';
 const ORG_TYPE_LV1_BLOCK = 'LV1_BLOCK';
 const ORG_TYPE_LV2_DEPARTMENT = 'LV2_DEPARTMENT';
@@ -64,6 +64,11 @@ const ORG_TYPES = new Set([
   ORG_TYPE_LV2_REGION,
   ORG_TYPE_LV3_AREA,
   ORG_TYPE_LV3_UNIT,
+  ORG_TYPE_LV4_STORE,
+  ORG_TYPE_LV5_POSITION,
+]);
+const RUNTIME_ORG_TREE_NODE_TYPES = new Set([
+  ORG_TYPE_LV0_DOMAIN,
   ORG_TYPE_LV4_STORE,
   ORG_TYPE_LV5_POSITION,
 ]);
@@ -1012,6 +1017,11 @@ export class UserService implements OnModuleInit {
     const type = this.normalizeOrganizationNodeType(
       input.type ?? current?.type,
     );
+    if (!RUNTIME_ORG_TREE_NODE_TYPES.has(type)) {
+      throw new BadRequestException(
+        'Cây tổ chức runtime chỉ hỗ trợ Lv0 Domain, Lv4 Cửa hàng và Lv5 Vị trí',
+      );
+    }
     const displayName = this.normalizeRequiredText(
       input.displayName ?? input.storeName ?? current?.displayName,
       'Tên node tổ chức không được để trống',
@@ -1219,9 +1229,18 @@ export class UserService implements OnModuleInit {
   }
 
   private assertOrganizationParentType(type: string, parentType: string) {
-    const childLevel = this.organizationNodeLevel(type);
-    const parentLevel = this.organizationNodeLevel(parentType);
-    if (parentLevel < childLevel) return;
+    const childType = this.normalizeOrganizationNodeType(type);
+    const normalizedParentType = this.normalizeOrganizationNodeType(parentType);
+    if (
+      childType === ORG_TYPE_LV4_STORE &&
+      normalizedParentType === ORG_TYPE_LV0_DOMAIN
+    )
+      return;
+    if (
+      childType === ORG_TYPE_LV5_POSITION &&
+      normalizedParentType === ORG_TYPE_LV4_STORE
+    )
+      return;
     throw new BadRequestException(
       `${this.organizationNodeTypeLabel(type)} phải nằm dưới node cấp cao hơn`,
     );
@@ -1512,6 +1531,10 @@ export class UserService implements OnModuleInit {
       : await client.store.create({ data });
 
     await this.ensureDefaultStorePositionNodes(client, node);
+    const defaultUserNodeId = await this.defaultStoreCashNodeIdForClient(
+      client,
+      node.id,
+    );
     const storeSubtreeIds = await this.organizationDescendantIdsForClient(
       client,
       node.id,
@@ -1527,7 +1550,8 @@ export class UserService implements OnModuleInit {
         ],
       },
       data: {
-        organizationNodeId: node.id,
+        organizationNodeId: defaultUserNodeId ?? node.id,
+        jobRoleCode: 'CASH',
         areaCode: location.areaCode ?? store.areaCode ?? null,
         regionCode: location.regionCode,
       },
@@ -1701,6 +1725,32 @@ export class UserService implements OnModuleInit {
           });
       await this.syncLegacyCatalogFromOrganizationNode(client, node);
     }
+  }
+
+  private async defaultStoreCashNodeIdForClient(
+    client: any,
+    storeNodeId?: string | null,
+  ) {
+    if (!storeNodeId) return null;
+    const organizationNode = client.organizationNode;
+    if (!organizationNode?.findFirst) return storeNodeId;
+    const cashNode = await organizationNode.findFirst({
+      where: {
+        parentId: storeNodeId,
+        type: ORG_TYPE_LV5_POSITION,
+        businessCode: 'CASH',
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    return cashNode?.id ?? storeNodeId;
+  }
+
+  private async defaultStoreCashNodeIdForStore(store: any) {
+    return this.defaultStoreCashNodeIdForClient(
+      this.prisma,
+      store?.organizationNodeId ?? null,
+    );
   }
 
   private async organizationDescendantIdsForClient(
@@ -3418,6 +3468,8 @@ export class UserService implements OnModuleInit {
         'admin-update-store',
       );
       if (organizationSync.nodeId) {
+        const defaultUserNodeId =
+          organizationSync.defaultUserNodeId ?? organizationSync.nodeId;
         const storeSubtreeIds = await this.organizationDescendantIdsForClient(
           tx,
           organizationSync.nodeId,
@@ -3432,7 +3484,8 @@ export class UserService implements OnModuleInit {
             ],
           },
           data: {
-            organizationNodeId: organizationSync.nodeId,
+            organizationNodeId: defaultUserNodeId,
+            jobRoleCode: 'CASH',
             areaCode: organizationSync.location.areaCode,
             regionCode: organizationSync.location.regionCode,
           },
@@ -3660,7 +3713,9 @@ export class UserService implements OnModuleInit {
                 ],
               },
               data: {
-                organizationNodeId: syncResult.nodeId,
+                organizationNodeId:
+                  syncResult.defaultUserNodeId ?? syncResult.nodeId,
+                jobRoleCode: 'CASH',
               },
             });
             locationSyncedUserCount += locationSync.count;
@@ -3707,6 +3762,7 @@ export class UserService implements OnModuleInit {
       return {
         store,
         nodeId: null,
+        defaultUserNodeId: null,
         parentId: null,
         linked: false,
         moved: false,
@@ -3785,6 +3841,10 @@ export class UserService implements OnModuleInit {
       });
     }
     await this.ensureDefaultStorePositionNodes(client, node);
+    const defaultUserNodeId = await this.defaultStoreCashNodeIdForClient(
+      client,
+      node.id,
+    );
 
     if (
       source !== 'admin-list-organization-tree' &&
@@ -3809,6 +3869,7 @@ export class UserService implements OnModuleInit {
     return {
       store: { ...store, organizationNodeId: node.id },
       nodeId: node.id,
+      defaultUserNodeId,
       parentId,
       linked,
       moved: existingNode?.parentId !== parentId,
@@ -3820,7 +3881,13 @@ export class UserService implements OnModuleInit {
     const storeCode = String(store?.storeId || '')
       .trim()
       .toUpperCase();
-    const isAcare = storeCode.startsWith('AC');
+    const storeName = String(store?.storeName || '').trim().toLowerCase();
+    const areaCode = String(store?.areaCode || '').trim().toUpperCase();
+    const isAcare =
+      storeCode.startsWith('AC') ||
+      storeCode.startsWith('AP') ||
+      areaCode === 'ACARE' ||
+      storeName.startsWith('acare');
     return {
       baseParentId: isAcare ? ORG_ROOT_ACARE_ID : ORG_ROOT_PHONGVU_ID,
       sortBase: isAcare ? 20000 : 10000,
@@ -3861,10 +3928,10 @@ export class UserService implements OnModuleInit {
       },
     });
     await organizationNode.upsert({
-      where: { code: 'DOMAIN_ACARETEK_VN' },
+      where: { code: 'DOMAIN_ACARE_VN' },
       update: {
         displayName: 'acare.vn',
-        businessCode: 'acare.vn',
+        businessCode: 'ACARE_VN',
         abbreviation: 'ACARE',
         description: 'Domain đăng nhập A Care',
         type: ORG_TYPE_LV0_DOMAIN,
@@ -3876,9 +3943,9 @@ export class UserService implements OnModuleInit {
       },
       create: {
         id: ORG_ROOT_ACARE_ID,
-        code: 'DOMAIN_ACARETEK_VN',
+        code: 'DOMAIN_ACARE_VN',
         displayName: 'acare.vn',
-        businessCode: 'acare.vn',
+        businessCode: 'ACARE_VN',
         abbreviation: 'ACARE',
         description: 'Domain đăng nhập A Care',
         type: ORG_TYPE_LV0_DOMAIN,
@@ -4171,10 +4238,14 @@ export class UserService implements OnModuleInit {
         : null;
       const areaCode = store?.areaCode ?? DEFAULT_REGION_CODE;
       const regionCode = store?.area?.regionCode ?? DEFAULT_REGION_CODE;
+      const organizationNodeId =
+        (await this.defaultStoreCashNodeIdForStore(store)) ??
+        store?.organizationNodeId ??
+        null;
       return {
         regionCode,
         areaCode,
-        organizationNodeId: store?.organizationNodeId ?? null,
+        organizationNodeId,
         storeNodeId: store?.organizationNodeId ?? null,
       };
     }

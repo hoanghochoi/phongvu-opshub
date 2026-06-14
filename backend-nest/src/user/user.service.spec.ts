@@ -394,8 +394,9 @@ describe('UserService admin store management', () => {
       sortOrder: 10,
     });
     org.saveNode({
-      id: 'org-domain-acaretek-vn',
-      code: 'DOMAIN_ACARETEK_VN',
+      id: 'org-domain-acare-vn',
+      code: 'DOMAIN_ACARE_VN',
+      businessCode: 'ACARE_VN',
       displayName: 'acare.vn',
       type: 'ROOT_DOMAIN',
       parentId: null,
@@ -465,7 +466,7 @@ describe('UserService admin store management', () => {
       businessCode: 'AC001',
       displayName: 'AC001',
       type: 'SHOWROOM',
-      parentId: 'org-domain-acaretek-vn',
+      parentId: 'org-domain-acare-vn',
       isSystem: false,
       isActive: true,
       sortOrder: 400,
@@ -682,7 +683,7 @@ describe('UserService admin store management', () => {
         firstName: 'Wrong Root',
         role: 'STAFF',
         workScopeType: 'NATIONAL',
-        organizationNodeId: 'org-domain-acaretek-vn',
+        organizationNodeId: 'org-domain-acare-vn',
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
@@ -696,12 +697,12 @@ describe('UserService admin store management', () => {
         firstName: 'National',
         role: 'STAFF',
         workScopeType: 'NATIONAL',
-        organizationNodeId: 'org-domain-acaretek-vn',
+        organizationNodeId: 'org-domain-acare-vn',
       }),
     ).resolves.toMatchObject({
       email: 'national@acare.vn',
       workScopeType: 'NATIONAL',
-      organizationNodeId: 'org-domain-acaretek-vn',
+      organizationNodeId: 'org-domain-acare-vn',
     });
 
     await expect(
@@ -813,7 +814,7 @@ describe('UserService admin store management', () => {
     const nodes = await service.adminListUserScopeTree(adminAcare);
 
     expect(nodes.map((node: any) => node.id)).toEqual(
-      expect.arrayContaining(['org-domain-acaretek-vn', 'org-store-ac001']),
+      expect.arrayContaining(['org-domain-acare-vn', 'org-store-ac001']),
     );
     expect(nodes.map((node: any) => node.id)).not.toEqual(
       expect.arrayContaining(['org-domain-phongvu-vn', 'org-store-cp62']),
@@ -860,12 +861,13 @@ describe('UserService admin store management', () => {
         ],
       },
       data: {
-        organizationNodeId: 'org-store-cp62',
+        organizationNodeId: 'org-store-cp62-pos-cash',
+        jobRoleCode: 'CASH',
       },
     });
   });
 
-  it('creates a region under a block organization node', async () => {
+  it('rejects creating legacy Lv1-Lv3 organization nodes', async () => {
     const org = installUserScopeTreeMock();
     org.saveNode({
       id: 'org-block-sales',
@@ -889,22 +891,10 @@ describe('UserService admin store management', () => {
         isActive: true,
         sortOrder: 0,
       }),
-    ).resolves.toMatchObject({
-      code: 'HCM_BD',
-      businessCode: 'HCM-BD',
-      type: 'LV2_REGION',
-      parentId: 'org-block-sales',
-    });
+    ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(prisma.regionDefinition.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { code: 'HCM_BD' },
-        create: expect.objectContaining({
-          code: 'HCM_BD',
-          organizationNodeId: 'org-hcm-bd',
-        }),
-      }),
-    );
+    expect(prisma.organizationNode.create).not.toHaveBeenCalled();
+    expect(prisma.regionDefinition.upsert).not.toHaveBeenCalled();
   });
 
   it('retires self-service store selection', async () => {
@@ -913,7 +903,7 @@ describe('UserService admin store management', () => {
     ).rejects.toBeInstanceOf(GoneException);
   });
 
-  it('normalizes legacy region code when moving a showroom under a tree area', async () => {
+  it('rejects moving an Lv4 store back under a legacy area node', async () => {
     const org = installUserScopeTreeMock();
     org.saveNode({
       id: 'org-region-hcm-bd',
@@ -949,50 +939,10 @@ describe('UserService admin store management', () => {
         isActive: true,
         sortOrder: 300,
       }),
-    ).resolves.toMatchObject({
-      id: 'org-store-cp62',
-      parentId: 'org-area-hcm1',
-      type: 'LV4_STORE',
-    });
+    ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(prisma.store.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'store-62' },
-        data: expect.objectContaining({
-          areaCode: 'HCM1',
-          organizationNodeId: 'org-store-cp62',
-        }),
-      }),
-    );
-    const storeSubtreeIds = Array.from(org.nodesById.values())
-      .filter(
-        (node) =>
-          node.id === 'org-store-cp62' || node.parentId === 'org-store-cp62',
-      )
-      .map((node) => node.id);
-    expect(storeSubtreeIds).toEqual(
-      expect.arrayContaining([
-        'org-store-cp62',
-        'org-store-cp62-pos-sa',
-        'org-store-cp62-pos-cash',
-        'org-store-cp62-pos-warehouse',
-      ]),
-    );
-    expect(prisma.user.updateMany).toHaveBeenCalledWith({
-      where: {
-        storeId: expect.any(String),
-        workScopeType: 'STORE',
-        OR: [
-          { organizationNodeId: null },
-          { organizationNodeId: { notIn: storeSubtreeIds } },
-        ],
-      },
-      data: {
-        organizationNodeId: 'org-store-cp62',
-        areaCode: 'HCM1',
-        regionCode: 'HCM_BD',
-      },
-    });
+    expect(prisma.organizationNode.update).not.toHaveBeenCalled();
+    expect(prisma.store.update).not.toHaveBeenCalled();
   });
 
   it('generates personnel codes from SR, area, and region scope', async () => {
@@ -1457,7 +1407,8 @@ describe('UserService admin store management', () => {
         ],
       },
       data: {
-        organizationNodeId: 'org-store-cp01',
+        organizationNodeId: 'org-store-cp01-pos-cash',
+        jobRoleCode: 'CASH',
         areaCode: null,
         regionCode: null,
       },

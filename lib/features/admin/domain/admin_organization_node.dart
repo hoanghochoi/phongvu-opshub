@@ -170,11 +170,6 @@ class AdminOrganizationNodeTypes {
 
   static const definitions = [
     ('LV0_DOMAIN', 'Lv0 Domain'),
-    ('LV1_BLOCK', 'Lv1 Khối'),
-    ('LV2_DEPARTMENT', 'Lv2 Phòng'),
-    ('LV2_REGION', 'Lv2 Miền'),
-    ('LV3_AREA', 'Lv3 Vùng'),
-    ('LV3_UNIT', 'Lv3 Bộ phận'),
     ('LV4_STORE', 'Lv4 Cửa hàng'),
     ('LV5_POSITION', 'Lv5 Vị trí'),
   ];
