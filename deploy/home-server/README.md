@@ -13,6 +13,9 @@ Target layout:
 - Runtime env file: `/srv/opshub/env`.
 - Current deployed release symlink: `/home/ubuntu/phongvu-opshub/current`.
 - Compose file for runtime checks: `/home/ubuntu/phongvu-opshub/current/deploy/home-server/docker-compose.home.yml`.
+- Piper TTS sidecar runs as `opshub-piper-tts.service`; keep
+  `PIPER_LEADING_SILENCE_MS=650` so the spoken "Phong Vũ" is not clipped after
+  the cue sound.
 - MAP global sync reads `100` rows per MAP page and defaults to
   `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES=2`, for at most `200` rows per sync loop.
   After each backend MAP-history fetch finishes, the next scheduled fetch waits

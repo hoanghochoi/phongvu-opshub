@@ -11,7 +11,7 @@ VieNeu runtime with Piper `vi-vais1000`.
 - The service always returns `audio/wav`; the Windows app already detects and
   plays WAV files.
 - The WAV output prepends `PIPER_LEADING_SILENCE_MS` of leading silence,
-  default `250`, so playback does not clip the first word.
+  default `650`, so playback does not clip the first word after the cue.
 - The WAV output appends `PIPER_TAIL_SILENCE_MS` of trailing silence, default
   `500`, so playback does not clip the final word.
 - `speed` maps to Piper `length_scale = 1 / speed`.

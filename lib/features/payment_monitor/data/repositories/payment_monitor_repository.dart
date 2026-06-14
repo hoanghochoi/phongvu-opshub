@@ -9,7 +9,7 @@ class StoredPaymentTransactionsPage {
   final List<MapPaymentTransaction> transactions;
   final int page;
   final int limit;
-  final int total;
+  final int? total;
 
   const StoredPaymentTransactionsPage({
     required this.transactions,
@@ -31,6 +31,7 @@ class PaymentMonitorRepository {
     String? endDate,
     int page = 0,
     int limit = 10,
+    bool includeTotal = true,
   }) async {
     final response = await _apiClient.get(
       ApiConstants.adminMapVietinStoredTransactionsEndpoint,
@@ -44,6 +45,7 @@ class PaymentMonitorRepository {
           'endDate': endDate.trim(),
         'page': page.toString(),
         'limit': limit.toString(),
+        if (!includeTotal) 'includeTotal': 'false',
       },
     );
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -61,8 +63,9 @@ class PaymentMonitorRepository {
       transactions: transactions,
       page: int.tryParse(data['page']?.toString() ?? '') ?? page,
       limit: int.tryParse(data['limit']?.toString() ?? '') ?? limit,
-      total:
-          int.tryParse(data['total']?.toString() ?? '') ?? transactions.length,
+      total: data.containsKey('total')
+          ? int.tryParse(data['total']?.toString() ?? '') ?? transactions.length
+          : null,
     );
   }
 

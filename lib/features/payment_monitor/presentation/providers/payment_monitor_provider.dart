@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/platform/app_platform_capabilities.dart';
 import '../../../../core/network/api_exception.dart' as api;
 import '../../../../core/platform/app_restart_service.dart';
@@ -30,8 +34,11 @@ class PaymentSpeakerError {
   });
 }
 
+typedef PaymentRealtimeConnector = WebSocketChannel Function(Uri uri);
+
 class PaymentMonitorProvider extends ChangeNotifier {
-  static const _pollInterval = Duration(seconds: 5);
+  static const _fallbackRefreshInterval = Duration(seconds: 30);
+  static const _realtimeRefreshDebounce = Duration(milliseconds: 500);
   static const _startupNotificationLookback = Duration(minutes: 15);
   static const _speakerEnabledPreferenceKey = 'payment_monitor_enabled';
   static const _clientIdPreferenceKey = 'payment_monitor_client_id';
@@ -51,13 +58,18 @@ class PaymentMonitorProvider extends ChangeNotifier {
   final PaymentSpeaker _speaker;
   final AppRestartService _restartService;
   final Duration _playbackRetryDelay;
+  final PaymentRealtimeConnector _realtimeConnector;
   final Set<String> _terminalNotificationIds = {};
   final List<MapPaymentTransaction> _latestTransactions = [];
 
   Timer? _timer;
+  Timer? _realtimeRefreshTimer;
+  StreamSubscription<dynamic>? _realtimeSubscription;
+  WebSocketChannel? _realtimeChannel;
   User? _user;
   String? _storeOverride;
   String? _clientId;
+  String? _realtimeKey;
   DateTime? _notificationCheckpointAt;
   bool _isActive = false;
   bool _isLoading = false;
@@ -74,16 +86,20 @@ class PaymentMonitorProvider extends ChangeNotifier {
   int _pollFailureCount = 0;
   DateTime? _nextPollAllowedAt;
   PaymentSpeakerError? _speakerError;
-  bool _listOnlyLoadRequested = false;
   String? _lastSpeakerEligibilityLogKey;
+  bool _refreshQueuedWhileLoading = false;
+  bool _queuedRefreshIncludeTotal = false;
 
   PaymentMonitorProvider(
     this._repository,
     this._speaker, [
     AppRestartService? restartService,
     Duration playbackRetryDelay = _defaultPlaybackRetryDelay,
+    PaymentRealtimeConnector? realtimeConnector,
   ]) : _restartService = restartService ?? AppRestartService(),
-       _playbackRetryDelay = playbackRetryDelay {
+       _playbackRetryDelay = playbackRetryDelay,
+       _realtimeConnector =
+           realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri)) {
     _loadEnabledPreference();
   }
 
@@ -113,7 +129,6 @@ class PaymentMonitorProvider extends ChangeNotifier {
     final nextUserKey = _userSessionKey(user);
     _user = user;
     if (previousUserKey != nextUserKey) {
-      _listOnlyLoadRequested = false;
       _lastSpeakerEligibilityLogKey = null;
       _latestTransactions.clear();
     }
@@ -173,6 +188,19 @@ class PaymentMonitorProvider extends ChangeNotifier {
     await _restartService.restart();
   }
 
+  Future<void> refreshNow() async {
+    await AppLogger.instance.info(
+      'PaymentMonitor',
+      'Payment monitor manual refresh requested',
+      context: {
+        'storeId': _requestStoreId ?? _user?.storeId,
+        'page': _pageIndex,
+        'limit': _pageSize,
+      },
+    );
+    await _poll(force: true, includeTotal: true, reason: 'manual_refresh');
+  }
+
   void setStoreOverride(String value) {
     final normalized = value.trim().toUpperCase();
     if (_storeOverride == normalized) return;
@@ -211,7 +239,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         },
       ),
     );
-    _poll(force: true);
+    _poll(force: true, includeTotal: true, reason: 'date_range');
   }
 
   void setPageSize(int value) {
@@ -228,21 +256,21 @@ class PaymentMonitorProvider extends ChangeNotifier {
         },
       ),
     );
-    _poll(force: true);
+    _poll(force: true, includeTotal: true, reason: 'page_size');
   }
 
   void nextPage() {
     if (!canGoNextPage) return;
     _pageIndex += 1;
     unawaited(_logPageChanged('next'));
-    _poll(force: true);
+    _poll(force: true, includeTotal: true, reason: 'next_page');
   }
 
   void previousPage() {
     if (!canGoPreviousPage) return;
     _pageIndex -= 1;
     unawaited(_logPageChanged('previous'));
-    _poll(force: true);
+    _poll(force: true, includeTotal: true, reason: 'previous_page');
   }
 
   Future<void> _loadEnabledPreference() async {
@@ -322,8 +350,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
       AppLogger.instance.info(
         'PaymentMonitor',
         eligible
-            ? 'Payment speaker polling eligible'
-            : 'Payment speaker polling skipped for ineligible job role',
+            ? 'Payment speaker realtime eligible'
+            : 'Payment speaker audio skipped for ineligible job role',
         context: {
           'speakerEligible': eligible,
           'reason': reason,
@@ -345,69 +373,51 @@ class PaymentMonitorProvider extends ChangeNotifier {
       _stop(reason: 'missing_scope');
       return;
     }
-    if (!_canUsePaymentSpeaker) {
-      _stopSpeakerPolling(reason: 'ineligible_job_role');
-      _logSpeakerEligibility(eligible: false, reason: 'ineligible_job_role');
-      if (!_listOnlyLoadRequested && !_isLoading) {
-        _listOnlyLoadRequested = true;
-        _poll(force: true);
-      }
-      return;
-    }
-    _logSpeakerEligibility(eligible: true, reason: 'eligible_job_role');
+    final speakerEligible = _canUsePaymentSpeaker;
+    _logSpeakerEligibility(
+      eligible: speakerEligible,
+      reason: speakerEligible ? 'eligible_job_role' : 'ineligible_job_role',
+    );
+    _connectRealtime();
     if (_isActive) return;
     _isActive = true;
-    _notificationCheckpointAt = DateTime.now().toUtc().subtract(
-      _startupNotificationLookback,
-    );
+    _notificationCheckpointAt = speakerEligible
+        ? DateTime.now().toUtc().subtract(_startupNotificationLookback)
+        : null;
     _loggedMonitorStarted = false;
     _terminalNotificationIds.clear();
     _speakerError = null;
     _latestTransactions.clear();
-    _poll(force: true);
-    _timer = Timer.periodic(_pollInterval, (_) => _poll());
+    _poll(force: true, includeTotal: true, reason: 'initial_load');
+    _timer = Timer.periodic(
+      _fallbackRefreshInterval,
+      (_) => _poll(includeTotal: false, reason: 'fallback'),
+    );
     notifyListeners();
   }
 
   void _restart() {
-    _listOnlyLoadRequested = false;
     _stop(reason: 'restart');
     _reconcile();
   }
 
-  void _stopSpeakerPolling({required String reason}) {
-    _timer?.cancel();
-    _timer = null;
-    final shouldNotify = _isActive || _speakerError != null;
-    _isActive = false;
-    _notificationCheckpointAt = null;
-    _loggedMonitorStarted = false;
-    _pollFailureCount = 0;
-    _nextPollAllowedAt = null;
-    _terminalNotificationIds.clear();
-    _speakerError = null;
-    if (shouldNotify) {
-      AppLogger.instance.info(
-        'PaymentMonitor',
-        'Payment speaker polling stopped',
-        context: {
-          'reason': reason,
-          'storeId': _requestStoreId ?? _user?.storeId,
-          'jobRoleCode': _normalizedJobRoleCode(_user),
-        },
-      );
-      notifyListeners();
-    }
-  }
-
   void _stop({required String reason, bool clearError = true}) {
+    final hadConnection =
+        _timer != null ||
+        _realtimeRefreshTimer != null ||
+        _realtimeChannel != null ||
+        _realtimeKey != null;
     _timer?.cancel();
     _timer = null;
+    _realtimeRefreshTimer?.cancel();
+    _realtimeRefreshTimer = null;
+    _disconnectRealtime(reason);
     if (!_isActive &&
         !_isLoading &&
         _latestTransactions.isEmpty &&
         _errorMessage == null &&
-        _speakerError == null) {
+        _speakerError == null &&
+        !hadConnection) {
       return;
     }
     _isActive = false;
@@ -416,8 +426,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _loggedMonitorStarted = false;
     _pollFailureCount = 0;
     _nextPollAllowedAt = null;
-    _listOnlyLoadRequested = false;
     _lastSpeakerEligibilityLogKey = null;
+    _refreshQueuedWhileLoading = false;
+    _queuedRefreshIncludeTotal = false;
     _terminalNotificationIds.clear();
     _latestTransactions.clear();
     if (clearError) _errorMessage = null;
@@ -430,8 +441,170 @@ class PaymentMonitorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _poll({bool force = false}) async {
-    if (_isLoading || !_canMonitorOnThisDevice || !_hasMonitorScope) return;
+  void _connectRealtime() {
+    final user = _user;
+    if (user == null || !_hasMonitorScope) {
+      _disconnectRealtime('missing_scope');
+      return;
+    }
+    final token = ApiClient().authToken;
+    if (token == null || token.trim().isEmpty) {
+      _disconnectRealtime('missing_token');
+      return;
+    }
+    final storeCode = _requestStoreId ?? user.storeId;
+    final nextKey = [user.id ?? user.email, storeCode ?? '', token].join('|');
+    if (_realtimeKey == nextKey && _realtimeChannel != null) return;
+    _disconnectRealtime('reconnect');
+
+    final url = ApiConstants.realtimeWsUrl(
+      storeId: storeCode,
+      accessToken: token,
+    );
+    try {
+      final channel = _realtimeConnector(Uri.parse(url));
+      _realtimeChannel = channel;
+      _realtimeKey = nextKey;
+      _realtimeSubscription = channel.stream.listen(
+        _handleRealtimeMessage,
+        onError: (Object error, StackTrace stackTrace) {
+          unawaited(
+            AppLogger.instance.error(
+              'PaymentMonitorRealtime',
+              'Payment monitor realtime error',
+              error: error,
+              stackTrace: stackTrace,
+              context: {'storeId': storeCode},
+            ),
+          );
+        },
+        onDone: () {
+          unawaited(
+            AppLogger.instance.info(
+              'PaymentMonitorRealtime',
+              'Payment monitor realtime disconnected',
+              context: {'storeId': storeCode},
+            ),
+          );
+          _realtimeSubscription = null;
+          _realtimeChannel = null;
+          _realtimeKey = null;
+        },
+      );
+      unawaited(
+        AppLogger.instance.info(
+          'PaymentMonitorRealtime',
+          'Payment monitor realtime connected',
+          context: {'storeId': storeCode},
+        ),
+      );
+    } catch (error, stackTrace) {
+      unawaited(
+        AppLogger.instance.error(
+          'PaymentMonitorRealtime',
+          'Payment monitor realtime connect failed',
+          error: error,
+          stackTrace: stackTrace,
+          context: {'storeId': storeCode},
+        ),
+      );
+      _disconnectRealtime('connect_failed');
+    }
+  }
+
+  void _disconnectRealtime(String reason) {
+    final hadConnection = _realtimeChannel != null || _realtimeKey != null;
+    unawaited(_realtimeSubscription?.cancel());
+    _realtimeSubscription = null;
+    unawaited(_realtimeChannel?.sink.close());
+    _realtimeChannel = null;
+    _realtimeKey = null;
+    if (hadConnection) {
+      unawaited(
+        AppLogger.instance.info(
+          'PaymentMonitorRealtime',
+          'Payment monitor realtime disconnected',
+          context: {
+            'reason': reason,
+            'storeId': _requestStoreId ?? _user?.storeId,
+          },
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleRealtimeMessage(dynamic message) async {
+    try {
+      final decoded = jsonDecode(message.toString());
+      if (decoded is! Map<String, dynamic>) return;
+      if (decoded['type']?.toString() != 'PAYMENT_NOTIFICATION') return;
+      final rawPayload = decoded['payload'];
+      final payload = rawPayload is Map<String, dynamic>
+          ? rawPayload
+          : rawPayload is Map
+          ? rawPayload.map((key, value) => MapEntry(key.toString(), value))
+          : jsonDecode(rawPayload.toString()) as Map<String, dynamic>;
+      final eventStore = payload['storeCode']?.toString().trim().toUpperCase();
+      final expectedStore = (_requestStoreId ?? _user?.storeId)
+          ?.trim()
+          .toUpperCase();
+      if (expectedStore != null &&
+          expectedStore.isNotEmpty &&
+          eventStore != null &&
+          eventStore.isNotEmpty &&
+          eventStore != expectedStore) {
+        return;
+      }
+      await AppLogger.instance.info(
+        'PaymentMonitorRealtime',
+        'Payment notification realtime event received',
+        context: {
+          'storeId': eventStore,
+          'notificationId': payload['notificationId']?.toString(),
+          'transactionId': payload['transactionId']?.toString(),
+          'audioStatus': payload['audioStatus']?.toString(),
+          'speakerEligible': _canUsePaymentSpeaker,
+          'speakerEnabled': _isSpeakerEnabled,
+        },
+      );
+      _scheduleRealtimeRefresh();
+    } catch (error, stackTrace) {
+      await AppLogger.instance.warn(
+        'PaymentMonitorRealtime',
+        'Payment notification realtime event ignored',
+        context: {
+          'error': error.toString(),
+          'stackTrace': stackTrace.toString(),
+        },
+      );
+    }
+  }
+
+  @visibleForTesting
+  Future<void> handleRealtimeMessageForTesting(dynamic message) {
+    return _handleRealtimeMessage(message);
+  }
+
+  void _scheduleRealtimeRefresh() {
+    _realtimeRefreshTimer?.cancel();
+    _realtimeRefreshTimer = Timer(_realtimeRefreshDebounce, () {
+      _poll(force: true, includeTotal: false, reason: 'realtime_event');
+    });
+  }
+
+  Future<void> _poll({
+    bool force = false,
+    bool includeTotal = true,
+    String reason = 'unknown',
+  }) async {
+    if (!_canMonitorOnThisDevice || !_hasMonitorScope) return;
+    if (_isLoading) {
+      if (force) {
+        _refreshQueuedWhileLoading = true;
+        _queuedRefreshIncludeTotal = _queuedRefreshIncludeTotal || includeTotal;
+      }
+      return;
+    }
     final nextPollAllowedAt = _nextPollAllowedAt;
     if (!force && nextPollAllowedAt != null) {
       final now = DateTime.now();
@@ -444,23 +617,24 @@ class PaymentMonitorProvider extends ChangeNotifier {
     var phase = 'stored_transactions';
     try {
       final speakerEligible = _canUsePaymentSpeaker;
+      if (!_loggedMonitorStarted) {
+        _loggedMonitorStarted = true;
+        await AppLogger.instance.info(
+          'PaymentMonitor',
+          'Payment monitor started',
+          context: {
+            'storeId': _requestStoreId ?? _user?.storeId,
+            'checkpointAt': _notificationCheckpointAt?.toIso8601String(),
+            'jobRoleCode': _normalizedJobRoleCode(_user),
+            'speakerEligible': speakerEligible,
+            'reason': reason,
+          },
+        );
+      }
       String? clientId;
       if (speakerEligible) {
         phase = 'client_id';
         clientId = await _ensureClientId();
-        if (!_loggedMonitorStarted) {
-          _loggedMonitorStarted = true;
-          await AppLogger.instance.info(
-            'PaymentMonitor',
-            'Payment monitor started',
-            context: {
-              'storeId': _requestStoreId ?? _user?.storeId,
-              'checkpointAt': _notificationCheckpointAt?.toIso8601String(),
-              'jobRoleCode': _normalizedJobRoleCode(_user),
-              'speakerEligible': true,
-            },
-          );
-        }
       }
       phase = 'stored_transactions';
       final transactionPage = await _repository.fetchStoredTransactions(
@@ -469,6 +643,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         endDate: _formatDateForApi(_rangeEndDate),
         page: _pageIndex,
         limit: _pageSize,
+        includeTotal: includeTotal,
       );
       if (speakerEligible) {
         phase = 'ready_notifications';
@@ -506,7 +681,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
       _nextPollAllowedAt = null;
       _pageIndex = transactionPage.page;
       _pageSize = transactionPage.limit;
-      _totalTransactions = transactionPage.total;
+      final total = transactionPage.total;
+      if (total != null) _totalTransactions = total;
       _latestTransactions
         ..clear()
         ..addAll(transactionPage.transactions);
@@ -536,6 +712,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'endDate': _formatDateForApi(_rangeEndDate),
           'page': _pageIndex,
           'limit': _pageSize,
+          'reason': reason,
+          'includeTotal': includeTotal,
         },
       );
       if (pollError.isAuthFailure) {
@@ -544,12 +722,29 @@ class PaymentMonitorProvider extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+      if (_refreshQueuedWhileLoading &&
+          _canMonitorOnThisDevice &&
+          _hasMonitorScope) {
+        final queuedIncludeTotal = _queuedRefreshIncludeTotal;
+        _refreshQueuedWhileLoading = false;
+        _queuedRefreshIncludeTotal = false;
+        unawaited(
+          _poll(
+            force: true,
+            includeTotal: queuedIncludeTotal,
+            reason: 'queued_after_loading',
+          ),
+        );
+      }
     }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _realtimeRefreshTimer?.cancel();
+    unawaited(_realtimeSubscription?.cancel());
+    unawaited(_realtimeChannel?.sink.close());
     super.dispose();
   }
 

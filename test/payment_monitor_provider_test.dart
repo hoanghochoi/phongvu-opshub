@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
@@ -92,7 +94,7 @@ void main() {
       );
 
       expect(provider.canUsePaymentSpeaker, isFalse);
-      expect(provider.isActive, isFalse);
+      expect(provider.isActive, isTrue);
       expect(repository.transactionFetchCount, greaterThan(0));
       expect(repository.readyFetchCount, 0);
       expect(repository.downloadCount, 0);
@@ -192,6 +194,73 @@ void main() {
 
     expect(repository.requestedStartDates, contains('2026-05-23'));
     expect(repository.requestedEndDates, contains('2026-05-27'));
+
+    provider.dispose();
+  });
+
+  test(
+    'realtime payment event triggers lightweight transaction refresh',
+    () async {
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
+      final initialFetchCount = repository.transactionFetchCount;
+
+      await provider.handleRealtimeMessageForTesting(
+        jsonEncode({
+          'type': 'PAYMENT_NOTIFICATION',
+          'payload': {
+            'notificationId': 'note-1',
+            'transactionId': 'txn-1',
+            'storeCode': 'CP01',
+            'amount': 1250000,
+            'audioStatus': 'READY',
+          },
+        }),
+      );
+      await _waitUntil(
+        () =>
+            repository.transactionFetchCount > initialFetchCount &&
+            !provider.isLoading,
+      );
+
+      expect(repository.requestedIncludeTotals.first, isTrue);
+      expect(repository.requestedIncludeTotals.last, isFalse);
+
+      provider.dispose();
+    },
+  );
+
+  test('manual refresh requests total count for pagination', () async {
+    final repository = _FakePaymentMonitorRepository(notifications: const []);
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+    repository.requestedIncludeTotals.clear();
+
+    await provider.refreshNow();
+    await _waitUntil(() => !provider.isLoading);
+
+    expect(repository.requestedIncludeTotals, contains(true));
 
     provider.dispose();
   });
@@ -360,12 +429,15 @@ Future<void> _waitUntil(bool Function() condition) async {
   }
 }
 
-User _storeUser({String? jobRoleCode = 'CASH'}) {
+User _storeUser({
+  String? jobRoleCode = 'CASH',
+  String storeId = 'store-uuid-1',
+}) {
   return User(
     id: 'user-1',
     email: 'staff@example.com',
     role: 'MANAGER',
-    storeId: 'store-uuid-1',
+    storeId: storeId,
     jobRoleCode: jobRoleCode,
   );
 }
@@ -397,6 +469,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<String> ackErrors = [];
   final List<String?> requestedStartDates = [];
   final List<String?> requestedEndDates = [];
+  final List<bool> requestedIncludeTotals = [];
   int transactionFetchCount = 0;
   int readyFetchCount = 0;
   int downloadCount = 0;
@@ -414,12 +487,14 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     String? endDate,
     int page = 0,
     int limit = 10,
+    bool includeTotal = true,
   }) async {
     transactionFetchCount += 1;
     final error = transactionError;
     if (error != null) throw error;
     requestedStartDates.add(startDate);
     requestedEndDates.add(endDate);
+    requestedIncludeTotals.add(includeTotal);
     return StoredPaymentTransactionsPage(
       transactions: const [],
       page: page,

@@ -222,6 +222,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const localDateRange = this.resolveStoredTransactionDateRange(input);
     const limit = input.limit ?? 10;
     const page = input.page ?? 0;
+    const includeTotal =
+      String(input.includeTotal ?? 'true').trim().toLowerCase() !== 'false';
     const where: Prisma.MapVietinTransactionWhereInput = {
       storeCode: store.storeId,
       ...(afterFirstSeenAt ? { firstSeenAt: { gt: afterFirstSeenAt } } : {}),
@@ -245,21 +247,24 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           }
         : {}),
     };
+    const rowsPromise = this.prisma.mapVietinTransaction.findMany({
+      where,
+      orderBy: [{ paidAt: 'desc' }, { firstSeenAt: 'desc' }],
+      skip: page * limit,
+      take: limit,
+    });
     const [rows, total] = await Promise.all([
-      this.prisma.mapVietinTransaction.findMany({
-        where,
-        orderBy: [{ paidAt: 'desc' }, { firstSeenAt: 'desc' }],
-        skip: page * limit,
-        take: limit,
-      }),
-      this.prisma.mapVietinTransaction.count({ where }),
+      rowsPromise,
+      includeTotal
+        ? this.prisma.mapVietinTransaction.count({ where })
+        : Promise.resolve(null),
     ]);
 
     return {
       storeId: store.storeId,
       page,
       limit,
-      total,
+      ...(total !== null ? { total } : {}),
       list: rows.map((row) => this.toStoredTransactionDto(row)),
     };
   }

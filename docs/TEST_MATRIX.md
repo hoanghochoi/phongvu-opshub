@@ -39,6 +39,27 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PAYMENT-MONITOR-001/UPDATE-001, 2026-06-15: changed the payment monitor from
+  5-second transaction polling to realtime payment-notification events with a
+  30-second fallback refresh. Initial/manual/page/date loads still request a
+  total count, while realtime/fallback refreshes send `includeTotal=false` to
+  skip the count query. Flutter added a manual icon-only refresh action,
+  debounced/coalesced realtime refreshes, and keeps muted speakers from
+  downloading audio while acknowledging ready notifications as `SILENCED`.
+  Backend added the lightweight transaction-list contract and a delivery-log
+  index for `clientId/storeCode/event/createdAt`. Piper TTS leading silence is
+  now 650ms with 500ms tail silence, and the client asset
+  `data/ting_ting.mp3` remains bundled for full production client builds.
+  Validation in current patch: focused Flutter payment monitor test,
+  focused backend map-vietin/payment-notifications Jest, `npx prisma validate`,
+  `npx prisma generate`, backend `npm run build`, `go test ./...`,
+  `python -m py_compile deploy/home-server/tts-piper/app.py`,
+  `flutter analyze --no-pub`, full Flutter
+  `flutter test --no-pub --reporter compact` (101 tests), Windows
+  release build with production API define, and matching SHA256 for
+  `data/ting_ting.mp3` in the release `flutter_assets` bundle. Gap: live
+  production artifact endpoint checks and physical Windows speaker smoke remain
+  manual.
 - PROFILE-ADMIN-001, 2026-06-13: changed runtime feature access from per-user
   allowlists to direct organization node-group assignments. Backend added
   `OrganizationNodeFeatureAssignment`, migration preflight/backfill, read-only

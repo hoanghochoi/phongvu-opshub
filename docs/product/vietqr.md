@@ -77,13 +77,18 @@ a customer to scan and pay manually.
 - The Windows app starts the monitor after sign-in when the account has a
   showroom scope. It seeds currently visible server transactions silently so old
   rows are not announced again.
-- While the app is running, the PC polls OpsHub every 5 seconds. Each newly
-  observed successful incoming transaction is announced through generated audio
-  as `Phong VÅ© Ä‘Ã£ nháº­n: <amount> Ä‘á»“ng.`. Piper audio uses speed `0.90` by
-  default so the final word has more room to finish.
+- While the app is running, the PC listens for scoped realtime payment events
+  and refreshes stored transactions when a new notification arrives. A
+  30-second fallback refresh remains active so the list can recover from missed
+  socket events.
+- Each newly observed successful incoming transaction is announced through
+  generated audio as `Phong VÅ© Ä‘Ã£ nháº­n: <amount> Ä‘á»“ng.`. Piper audio uses
+  speed `0.90` and prepends 650 ms of leading silence by default so the first
+  word is not clipped after the cue.
 - Turning off `Äá»c thÃ´ng bÃ¡o tiá»n vÃ o` mutes only the speaker path. The PC keeps
-  polling/syncing transactions every 5 seconds, and muted notifications are
-  recorded as `SILENCED` so they are not played later as backlog.
+  syncing transactions from realtime/fallback refreshes, and muted
+  notifications are recorded as `SILENCED` so they are not played later as
+  backlog.
 - QR payment confirmation checks stored MAP transactions first. If a matching
   stored transaction exists, the QR screen moves to the paid state and the PC
   monitor also announces that transaction. If no stored match exists yet, the

@@ -808,6 +808,33 @@ describe('MapVietinService', () => {
     });
   });
 
+  it('skips total count for lightweight monitor refreshes', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+
+    const result = await service.listStoredTransactions(
+      { role: 'STAFF', storeId: 'store-uuid-1' },
+      {
+        date: '2026-05-21',
+        page: 0,
+        limit: 10,
+        includeTotal: 'false',
+      },
+    );
+
+    expect(result).toMatchObject({
+      storeId: 'CP01',
+      page: 0,
+      limit: 10,
+      list: [],
+    });
+    expect(result).not.toHaveProperty('total');
+    expect(prisma.mapVietinTransaction.count).not.toHaveBeenCalled();
+  });
+
   it('extracts all valid unique order codes from transfer content', () => {
     expect(
       service.extractOrderCodesFromContent(

@@ -90,7 +90,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            'Máy này tự cập nhật giao dịch tiền vào mỗi 5 giây. Khi bật đọc loa, giao dịch mới sẽ được đọc thành tiếng; khi tắt, danh sách vẫn cập nhật bình thường.',
+                            'Giao dịch mới tự cập nhật theo realtime; nếu mất kết nối, máy sẽ tự kiểm tra lại định kỳ.',
                             style: TextStyle(
                               color: Theme.of(
                                 context,
@@ -387,6 +387,15 @@ class _TransactionFilters extends StatelessWidget {
                             : null,
                         icon: const Icon(Icons.chevron_right_rounded),
                       ),
+                      IconButton(
+                        tooltip: 'Làm mới',
+                        onPressed: monitor.isLoading
+                            ? null
+                            : () => context
+                                  .read<PaymentMonitorProvider>()
+                                  .refreshNow(),
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
                     ],
                   ),
                 ],
@@ -496,6 +505,15 @@ class _TransactionFilters extends StatelessWidget {
                                 .nextPage()
                           : null,
                       icon: const Icon(Icons.chevron_right_rounded),
+                    ),
+                    IconButton(
+                      tooltip: 'Làm mới',
+                      onPressed: monitor.isLoading
+                          ? null
+                          : () => context
+                                .read<PaymentMonitorProvider>()
+                                .refreshNow(),
+                      icon: const Icon(Icons.refresh_rounded),
                     ),
                   ],
                 ),
