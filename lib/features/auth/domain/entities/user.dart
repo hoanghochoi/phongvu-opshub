@@ -72,6 +72,9 @@ class User {
   }
 
   static bool isAdminMenuRole(String? role) => isAdminRole(role);
+
+  bool get isSuperAdmin => role == 'SUPER_ADMIN';
+
   factory User.fromJson(Map<String, dynamic> json, {String? fallbackEmail}) {
     return User(
       id: json['id']?.toString(),
@@ -114,6 +117,7 @@ class User {
   }
 
   bool get isAdmin {
+    if (isSuperAdmin) return true;
     final resolved = featureAccess['ADMIN'];
     if (resolved != null) return resolved;
     return isAdminMenuRole(role);
@@ -144,15 +148,17 @@ class User {
   bool get canUseBankStatements => canUseFeature('BANK_STATEMENTS');
 
   bool canUseFeature(String featureCode) {
+    if (isSuperAdmin) return true;
     final resolved = featureAccess[featureCode];
     if (resolved != null) return resolved;
-    return role == 'SUPER_ADMIN';
+    return false;
   }
 
   bool canUsePolicy(String policyCode) {
+    if (isSuperAdmin) return true;
     final resolved = policyAccess[policyCode];
     if (resolved != null) return resolved;
-    return role == 'SUPER_ADMIN';
+    return false;
   }
 
   User copyWith({

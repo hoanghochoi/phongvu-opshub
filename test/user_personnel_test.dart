@@ -119,9 +119,13 @@ void main() {
       'email': 'super@phongvu.vn',
       'role': 'SUPER_ADMIN',
       'personnelCode': 'OPS_NATIONAL',
+      'resolvedFeatureAccess': {'FIFO': false, 'ADMIN': false},
+      'resolvedAdminPolicies': {'ADMIN_POLICIES': false},
     });
 
     expect(user.belongsToCp62, isFalse);
+    expect(user.isAdmin, isTrue);
+    expect(user.isSuperAdmin, isTrue);
     expect(user.canUseCp62RestrictedFlows, isTrue);
     expect(user.canUsePolicy('ADMIN_POLICIES'), isTrue);
   });

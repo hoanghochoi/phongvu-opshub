@@ -269,6 +269,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       AppPlatformCapabilities.isPaymentMonitorSupported();
 
   bool get _canUsePaymentSpeaker {
+    if (_user?.isSuperAdmin == true) return true;
     final jobRoleCode = _normalizedJobRoleCode(_user);
     return jobRoleCode == 'STORE_MANAGER' || jobRoleCode == 'CASH';
   }
@@ -276,13 +277,13 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool get _hasMonitorScope {
     final user = _user;
     if (user == null) return false;
-    if (user.role == 'SUPER_ADMIN') return _storeOverride?.isNotEmpty == true;
+    if (user.isSuperAdmin) return _storeOverride?.isNotEmpty == true;
     return user.storeId?.isNotEmpty == true;
   }
 
   String? get _requestStoreId {
     final user = _user;
-    if (user?.role == 'SUPER_ADMIN') return _storeOverride;
+    if (user?.isSuperAdmin == true) return _storeOverride;
     return null;
   }
 

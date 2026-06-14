@@ -183,6 +183,24 @@ describe('PolicyService', () => {
     ]);
   });
 
+  it('uses AUTH_ALLOWED_EMAIL_DOMAINS instead of organization tree login flags', async () => {
+    prisma.organizationNode.findMany.mockResolvedValue([
+      {
+        emailDomain: 'tree-only.vn',
+        loginAllowed: true,
+      },
+    ]);
+    settings[ADMIN_SETTING_KEYS.AUTH_ALLOWED_EMAIL_DOMAINS] = {
+      key: ADMIN_SETTING_KEYS.AUTH_ALLOWED_EMAIL_DOMAINS,
+      value: ['phongvu-mna.vn'],
+    };
+
+    await expect(
+      service.getAllowedEmailDomains(['fallback.vn']),
+    ).resolves.toEqual(['phongvu-mna.vn']);
+    expect(prisma.organizationNode.findMany).not.toHaveBeenCalled();
+  });
+
   it('creates policy rules in one batch from multiple selected targets', async () => {
     const result = await service.adminCreateRules(
       { role: 'SUPER_ADMIN' },

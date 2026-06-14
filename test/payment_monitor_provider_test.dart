@@ -134,6 +134,39 @@ void main() {
     },
   );
 
+  test('lets SUPER_ADMIN use speaker polling after choosing a store', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: [_readyNotification()],
+    );
+    final speaker = _FakePaymentSpeaker();
+    final provider = PaymentMonitorProvider(
+      repository,
+      speaker,
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_superAdmin(), isInitialized: true);
+
+    expect(provider.canUsePaymentSpeaker, isTrue);
+    expect(provider.hasMonitorScope, isFalse);
+    expect(repository.readyFetchCount, 0);
+
+    provider.setStoreOverride('cp62');
+    await _waitUntil(
+      () => repository.readyFetchCount > 0 && !provider.isLoading,
+    );
+
+    expect(provider.hasMonitorScope, isTrue);
+    expect(repository.readyFetchCount, greaterThan(0));
+    expect(repository.downloadCount, 1);
+    expect(repository.ackEvents, contains('PLAYED'));
+    expect(speaker.playCount, 1);
+
+    provider.dispose();
+  });
+
   test('requests stored transactions with the selected date range', () async {
     final repository = _FakePaymentMonitorRepository(notifications: const []);
     final speaker = _FakePaymentSpeaker();
@@ -334,6 +367,14 @@ User _storeUser({String? jobRoleCode = 'CASH'}) {
     role: 'MANAGER',
     storeId: 'store-uuid-1',
     jobRoleCode: jobRoleCode,
+  );
+}
+
+User _superAdmin() {
+  return const User(
+    id: 'super-1',
+    email: 'admin@example.com',
+    role: 'SUPER_ADMIN',
   );
 }
 

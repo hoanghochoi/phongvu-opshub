@@ -471,7 +471,6 @@ class _OrganizationNodeDetail extends StatelessWidget {
               Chip(label: Text(node.isActive ? 'Đang hoạt động' : 'Đã tắt')),
               if (node.emailDomain?.isNotEmpty == true)
                 Chip(label: Text(node.emailDomain!)),
-              if (node.loginAllowed) const Chip(label: Text('Cho đăng nhập')),
             ],
           ),
           if (node.type == 'LV4_STORE') ...[
@@ -620,7 +619,6 @@ class _OrganizationNodeEditorDialogState
   final _mapVietinPasswordController = TextEditingController();
   String _type = 'BLOCK';
   String? _parentId;
-  bool _loginAllowed = false;
   bool _isActive = true;
   bool _saving = false;
 
@@ -644,7 +642,6 @@ class _OrganizationNodeEditorDialogState
         node?.type ??
         _defaultChildType(widget.parentId == null ? null : _parentNode());
     _parentId = node?.parentId ?? widget.parentId;
-    _loginAllowed = node?.loginAllowed ?? _type == 'LV0_DOMAIN';
     _isActive = node?.isActive ?? true;
   }
 
@@ -687,7 +684,6 @@ class _OrganizationNodeEditorDialogState
       emailDomain: _emailDomainController.text.trim().isEmpty
           ? null
           : _emailDomainController.text.trim(),
-      loginAllowed: _loginAllowed,
       isActive: _isActive,
       sortOrder: int.tryParse(_sortOrderController.text.trim()) ?? 0,
       storeId: _businessCodeController.text.trim().isEmpty
@@ -905,15 +901,6 @@ class _OrganizationNodeEditorDialogState
                     ? (value) => setState(() => _isActive = value)
                     : null,
               ),
-              if (isDomain)
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _loginAllowed,
-                  title: const Text('Cho phép đăng nhập'),
-                  onChanged: canEditStructure
-                      ? (value) => setState(() => _loginAllowed = value)
-                      : null,
-                ),
             ],
           ),
         ),
@@ -933,7 +920,6 @@ class _OrganizationNodeEditorDialogState
 
   void _setType(String type) {
     _type = AdminOrganizationNode.canonicalType(type);
-    _loginAllowed = _type == 'LV0_DOMAIN';
     final parentOptions = _parentOptions();
     _parentId = _validParentId(parentOptions);
     if (_parentId == null && !_allowsEmptyParent(_type)) {

@@ -17,13 +17,12 @@ Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
   liên hệ hoang.nv1@phongvu-mna.vn - zalo: 0906581906 để được hỗ trợ.` It
   provides refresh account and logout actions.
 - Self-service `/users/me/select-store` is retired and returns `410 Gone`.
-- NestJS validates allowed staff email domains from active organization tree
-  domain nodes first. The default root domains are `phongvu.vn` and
-  `acare.vn`; `SUPER_ADMIN` can add login-enabled subdomain nodes such as
-  `phongvu-shop.vn` under the root tree.
+- NestJS validates allowed staff email domains from the
+  `AUTH_ALLOWED_EMAIL_DOMAINS` admin setting. Organization-tree domain nodes are
+  metadata only and do not enable or block login.
 - `data/email_domain.txt` and `EMAIL_DOMAIN_FILE` remain fallback inputs when
-  the organization tree is unavailable, but they should contain only accepted
-  root domains by default.
+  the admin setting is unavailable, but production should keep the setting as
+  the source of truth.
 - The break-glass account `admin@hoanghochoi.com` is allowed as an exact email
   exception even though `hoanghochoi.com` is not an operational organization
   domain.
@@ -55,8 +54,8 @@ Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
 
 - Login behavior is security-sensitive and defaults to the high-risk lane when
   changed.
-- Allowed OpsHub staff email domains, organization tree login state, password
-  policy, reset-code lifetime, JWT token-version invalidation,
+- Allowed OpsHub staff email domains through `AUTH_ALLOWED_EMAIL_DOMAINS`,
+  password policy, reset-code lifetime, JWT token-version invalidation,
   platform-session enforcement, session
   persistence, and logout behavior must be explicit in implementation stories.
 - Do not commit real credentials, tokens, service accounts, or production env

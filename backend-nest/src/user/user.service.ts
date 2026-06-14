@@ -1072,11 +1072,7 @@ export class UserService implements OnModuleInit {
       type,
       parentId,
       emailDomain,
-      loginAllowed: this.isDomainNodeType(type)
-        ? input.loginAllowed !== undefined
-          ? input.loginAllowed === true
-          : (current?.loginAllowed ?? true)
-        : false,
+      loginAllowed: false,
       isActive:
         input.isActive === undefined
           ? (current?.isActive ?? true)
@@ -1343,7 +1339,6 @@ export class UserService implements OnModuleInit {
       level: this.organizationNodeLevel(type),
       parentId: node.parentId ?? null,
       emailDomain: node.emailDomain ?? null,
-      loginAllowed: node.loginAllowed === true,
       isSystem: node.isSystem === true,
       isActive: node.isActive !== false,
       sortOrder: node.sortOrder ?? 0,

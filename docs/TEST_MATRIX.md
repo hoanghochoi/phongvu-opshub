@@ -179,7 +179,7 @@ This file maps product behavior to proof. Existing flows are marked
   organization tree plus strict per-user feature allowlist. Backend now adds
   `OrganizationNode`, `UserFeatureAssignment`, org-node links, `/admin/org-tree`
   CRUD APIs, `/admin/features/tree`, user filters by search/domain/org
-  node/feature/role/status, active organization-domain login resolution,
+  node/feature/role/status, `AUTH_ALLOWED_EMAIL_DOMAINS` login resolution,
   strict feature assignment enforcement, and break-glass bootstrap for
   `admin@hoanghochoi.com` while retiring `super_admin@phongvu-mna.vn` by delete
   or tombstone depending on references. Flutter adds organization tree admin UI,
