@@ -337,6 +337,11 @@ class _HomeScreenState extends State<HomeScreen> {
               _version.isNotEmpty ? 'Version $_version' : '',
               style: const TextStyle(fontSize: 14, color: AppColors.neutral500),
             ),
+            const SizedBox(height: 12),
+            const Text(
+              'Dev by Hoang Nguyen aka Hoàng Học Hỏi',
+              style: TextStyle(fontSize: 13, color: AppColors.neutral600),
+            ),
             const SizedBox(height: 16),
             Text(
               'Kết nối con người. Đồng bộ vận hành.',
