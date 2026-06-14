@@ -45,4 +45,39 @@ void main() {
 
     expect(find.byKey(const ValueKey(avatarUrl)), findsOneWidget);
   });
+
+  testWidgets('App info dialog shows developer credit', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      AppStorageKeys.shared('user_email'): 'dai.ca@example.com',
+      AppStorageKeys.shared('user_name'): 'Dai Ca',
+      AppStorageKeys.shared('user_storeId'): 'PV001',
+      AppStorageKeys.shared('user_storeName'): 'PV Test',
+      AppStorageKeys.shared('user_workScopeType'): 'STORE',
+    });
+    FlutterSecureStorage.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+      appName: 'PhongVu OpsHub',
+      packageName: 'com.example.phongvu_opshub',
+      version: '1.1.1',
+      buildNumber: '2',
+      buildSignature: '',
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>(
+        create: (_) => AuthProvider(AuthRepository(ApiClient())),
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Thông tin ứng dụng'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dev by Hoang Nguyen aka Hoàng Học Hỏi'), findsOneWidget);
+  });
 }
