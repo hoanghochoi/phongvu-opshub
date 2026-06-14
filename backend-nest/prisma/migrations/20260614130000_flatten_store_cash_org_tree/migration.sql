@@ -131,6 +131,44 @@ SET "organizationNodeId" = 'org-domain-acare-vn',
     "updatedAt" = CURRENT_TIMESTAMP
 WHERE "organizationNodeId" = 'org-domain-acaretek-vn';
 
+WITH job_role_definitions("id", "code", "displayName", "description", "departmentCode") AS (
+  VALUES
+    ('job-role-store-manager', 'STORE_MANAGER', 'Store Manager', 'Quản lý SR hoặc bộ phận', 'MANAGEMENT'),
+    ('job-role-sa', 'SA', 'Nhân viên Bán hàng', 'Vị trí bán hàng tại cửa hàng', 'SALES'),
+    ('job-role-technician', 'TECHNICIAN', 'Technician', 'Nhân viên kỹ thuật', 'TECHNICAL'),
+    ('job-role-cash', 'CASH', 'Nhân viên Thu ngân', 'Vị trí thu ngân tại cửa hàng', 'CASHIER'),
+    ('job-role-warehouse', 'WAREHOUSE', 'Warehouse Staff', 'Nhân viên kho', 'WAREHOUSE')
+)
+INSERT INTO "JobRoleDefinition" (
+  "id",
+  "code",
+  "displayName",
+  "description",
+  "departmentCode",
+  "isSystem",
+  "isActive",
+  "createdAt",
+  "updatedAt"
+)
+SELECT
+  "id",
+  "code",
+  "displayName",
+  "description",
+  "departmentCode",
+  true,
+  true,
+  CURRENT_TIMESTAMP,
+  CURRENT_TIMESTAMP
+FROM job_role_definitions
+ON CONFLICT ("code") DO UPDATE SET
+  "displayName" = EXCLUDED."displayName",
+  "description" = EXCLUDED."description",
+  "departmentCode" = EXCLUDED."departmentCode",
+  "isSystem" = true,
+  "isActive" = true,
+  "updatedAt" = CURRENT_TIMESTAMP;
+
 UPDATE "RegionDefinition"
 SET "organizationNodeId" = 'org-domain-acare-vn',
     "updatedAt" = CURRENT_TIMESTAMP

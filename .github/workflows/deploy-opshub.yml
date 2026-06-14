@@ -549,6 +549,10 @@ jobs:
 
           compose_cmd config >/dev/null
 
+          compose_cmd --profile migrate run --rm -T --build migrate \
+            node scripts/recover-failed-prisma-migration.mjs \
+              20260614130000_flatten_store_cash_org_tree
+
           compose_cmd --profile migrate run --rm -T --build migrate
 
           compose_cmd up -d --build --force-recreate --wait api realtime caddy
