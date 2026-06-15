@@ -39,6 +39,14 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PROFILE-ADMIN-001, 2026-06-15: fixed production deploy boot failure in
+  org-tree legacy catalog sync when existing Lv2/Lv3 organization nodes have
+  blank display names. The sync now falls back to node name/business code and
+  logs the fallback instead of crashing `onModuleInit`; the deploy workflow
+  now emits container diagnostics and rolls back to the last healthy release
+  when backend health fails. Validation in current patch: focused backend
+  `user.service.spec.ts` (38 tests), backend `npm run build`, full backend
+  `npm test -- --runInBand` (37 suites, 285 tests), and `git diff --check`.
 - PROFILE-ADMIN-001, 2026-06-15: fixed moving an Lv4 showroom under a newly
   created Lv3 area node from the organization tree. Backend now syncs the
   ancestor Lv2/Lv3 legacy Region/Area rows inside the same transaction before

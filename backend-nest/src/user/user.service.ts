@@ -1850,11 +1850,17 @@ export class UserService implements OnModuleInit {
     );
     if (!businessCode)
       throw new BadRequestException('Mã nghiệp vụ không hợp lệ');
+    const rawDisplayName = String(node.displayName || '').trim();
     const displayName = this.normalizeRequiredText(
-      node.displayName,
+      rawDisplayName || node.name || businessCode,
       'Tên node tổ chức không được để trống',
       120,
     );
+    if (!rawDisplayName) {
+      this.logger.warn(
+        `Legacy catalog sync used fallback displayName for organizationNode=${node.id} type=${node.type} code=${businessCode}`,
+      );
+    }
     const abbreviation = this.normalizeCatalogAbbreviation(
       node.abbreviation || businessCode,
     );

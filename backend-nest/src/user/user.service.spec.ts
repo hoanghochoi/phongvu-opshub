@@ -1142,6 +1142,65 @@ describe('UserService admin store management', () => {
     );
   });
 
+  it('uses legacy codes as display names when startup sync finds blank org labels', async () => {
+    const org = installUserScopeTreeMock();
+    const legacyRegion = org.saveNode({
+      id: 'org-region-legacy-blank',
+      code: 'REGION_LEGACY_BLANK',
+      businessCode: 'LEGACY_REGION',
+      displayName: '',
+      type: 'REGION',
+      parentId: 'org-domain-phongvu-vn',
+      isSystem: false,
+      isActive: true,
+      sortOrder: 120,
+    });
+    const legacyArea = org.saveNode({
+      id: 'org-area-legacy-blank',
+      code: 'AREA_LEGACY_BLANK',
+      businessCode: 'LEGACY_AREA',
+      displayName: '',
+      type: 'AREA',
+      parentId: legacyRegion.id,
+      isSystem: false,
+      isActive: true,
+      sortOrder: 210,
+    });
+    const showroom = org.saveNode({
+      id: 'org-store-legacy-blank',
+      code: 'STORE_CP77',
+      businessCode: 'CP77',
+      displayName: 'CP77',
+      type: 'SHOWROOM',
+      parentId: legacyArea.id,
+      isSystem: false,
+      isActive: true,
+      sortOrder: 10300,
+    });
+
+    await expect(
+      (service as any).organizationLocationForShowroomNode(prisma, showroom),
+    ).resolves.toEqual({
+      areaCode: 'LEGACY_AREA',
+      regionCode: 'LEGACY_REGION',
+    });
+
+    expect(prisma.regionDefinition.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: 'LEGACY_REGION' },
+        create: expect.objectContaining({ displayName: 'LEGACY_REGION' }),
+        update: expect.objectContaining({ displayName: 'LEGACY_REGION' }),
+      }),
+    );
+    expect(prisma.areaDefinition.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: 'LEGACY_AREA' },
+        create: expect.objectContaining({ displayName: 'LEGACY_AREA' }),
+        update: expect.objectContaining({ displayName: 'LEGACY_AREA' }),
+      }),
+    );
+  });
+
   it('generates personnel codes from SR, area, and region scope', async () => {
     const org = installUserScopeTreeMock();
     org.saveNode({
