@@ -100,15 +100,22 @@ a customer to scan and pay manually.
   server-side TTS service, publishes a scoped realtime event, and serves audio
   only through JWT-protected endpoints. Production uses Piper `vi-vais1000`
   through `TTS_VOICE_ID=piper:vi-vais1000`; the sidecar still accepts the
-  legacy `custom:suong-vo` voice id for rollback-friendly deploys. The Windows
-  app plays `data/ting_ting.mp3` before the generated audio, then attempts
-  playback in this order for each notification: `media_kit` on Windows, Win32
-  `PlaySoundW` for WAV files, and MCI as the final fallback. If MCI returns
-  error `326` for WAV audio, the client normalizes only that local temp file to
-  `WAV PCM 16-bit mono 44100 Hz` and retries once without requesting a larger
-  server audio payload. The Windows installer also runs a non-blocking audio
-  preflight for `Audiosrv`, `AudioEndpointBuilder`, and WinMM output devices;
-  missing service/device checks warn the user but do not block installation.
+  legacy `custom:suong-vo` voice id for rollback-friendly deploys. The audio
+  endpoint stays backward compatible: `GET /payment-notifications/:id/audio`
+  returns TTS-only audio for older clients, while new clients request
+  `includeCue=true` to receive one server-combined WAV containing the payment
+  cue followed by TTS. The server caches the combined WAV beside the generated
+  TTS file and deletes both during audio cleanup. If combined audio is
+  unavailable, for example legacy MP3 audio or a missing cue WAV, the Windows
+  client falls back to downloading TTS-only audio and playing the local
+  `data/ting_ting.mp3` cue. Playback then attempts `media_kit` on Windows,
+  Win32 `PlaySoundW` for WAV files, and MCI as the final fallback. If MCI
+  returns error `326` for WAV audio, the client normalizes only that local temp
+  file to `WAV PCM 16-bit mono 44100 Hz` and retries once without requesting a
+  larger server audio payload. The Windows installer also runs a non-blocking
+  audio preflight for `Audiosrv`, `AudioEndpointBuilder`, and WinMM output
+  devices; missing service/device checks warn the user but do not block
+  installation.
 - When a speaker attempt fails, the client uploads `PaymentSpeaker` started /
   succeeded / failed logs with sanitized context and acknowledges
   `PLAYBACK_FAILED` for attempts 1-2. The client waits 10 seconds between

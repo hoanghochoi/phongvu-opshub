@@ -39,6 +39,22 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PAYMENT-MONITOR-001, 2026-06-15: added opt-in server-side combined payment
+  audio. `GET /payment-notifications/:id/audio` remains TTS-only for older
+  clients, while `includeCue=true` returns one cached WAV containing
+  `payment-cue.wav` plus Piper TTS when the source audio is WAV. Legacy
+  non-WAV audio or missing cue assets return a clear error so the Flutter
+  client falls back to TTS-only download plus local `data/ting_ting.mp3`.
+  Flutter now logs and plays either `server_combined_cue` without local cue or
+  `local_cue_fallback` with local cue. Validation in current patch: cue WAV
+  inspected as PCM 16-bit mono 22050 Hz, focused backend
+  `payment-notifications` Jest (19 tests), focused Flutter payment monitor /
+  repository / speaker tests, backend `npm run build` with cue asset copied to
+  `dist`, `go test ./...`, `flutter analyze --no-pub`, full Flutter
+  `flutter test --no-pub --reporter compact` (102 tests), Windows release
+  build with production API define, `git diff --check`, and local combined WAV
+  smoke sample generated under `build/tts-tests/`. Gap: physical Windows
+  speaker smoke on production artifact remains manual.
 - PAYMENT-MONITOR-001/UPDATE-001, 2026-06-15: changed the payment monitor from
   5-second transaction polling to realtime payment-notification events with a
   30-second fallback refresh. Initial/manual/page/date loads still request a

@@ -9,6 +9,7 @@ class PaymentSpeaker {
     required String storeCode,
     required String clientId,
     required int attempt,
+    bool playLocalCue = true,
   }) async {
     return const PaymentSpeakerResult(
       backend: 'stub',

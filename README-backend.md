@@ -97,7 +97,10 @@ Expected responses:
   `http://172.20.0.1:18081`. The sidecar keeps the existing `/synthesize`
   contract, returns `audio/wav`, and accepts the legacy VieNeu voice id for
   rollback-friendly deploys. Keep `PIPER_LEADING_SILENCE_MS=650` so the first
-  spoken word is not clipped after the payment cue.
+  spoken word is not clipped after the payment cue. New clients may call
+  `GET /payment-notifications/:id/audio?includeCue=true` to download one
+  server-combined WAV with the cue plus TTS; the default endpoint remains
+  TTS-only for older app versions.
 - Keep placeholder values out of production; the Nest API validates env values on startup.
 - Run `npx prisma migrate deploy` before starting the Nest API.
 - Start the Go service with the same Redis connection as NestJS.

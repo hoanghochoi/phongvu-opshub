@@ -63,6 +63,7 @@ class PaymentSpeaker {
     required String storeCode,
     required String clientId,
     required int attempt,
+    bool playLocalCue = true,
   }) async {
     if (!Platform.isWindows) {
       return const PaymentSpeakerResult(
@@ -97,6 +98,7 @@ class PaymentSpeaker {
       'bytes': audioBytes.length,
       'waveOutDevices': waveOutDevices,
       'audioPreflightStatus': audioPreflightStatus,
+      'playLocalCue': playLocalCue,
       if (wavInfo != null) ...wavInfo.toLogContext(prefix: 'sourceWav'),
       if (extension == 'wav' && wavInfo == null) 'wavHeader': 'unreadable',
     };
@@ -115,7 +117,9 @@ class PaymentSpeaker {
 
     final directory =
         _temporaryDirectoryForTesting ?? await getTemporaryDirectory();
-    await _playTingTing(directory);
+    if (playLocalCue) {
+      await _playTingTing(directory);
+    }
 
     final file = File(
       '${directory.path}${Platform.pathSeparator}opshub-payment-${DateTime.now().microsecondsSinceEpoch}.$extension',

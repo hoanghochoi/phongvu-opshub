@@ -154,9 +154,15 @@ class ApiClient {
     }
   }
 
-  Future<List<int>> getBytes(String endpoint) async {
+  Future<List<int>> getBytes(
+    String endpoint, {
+    Map<String, String>? queryParameters,
+  }) async {
     try {
-      final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
+      final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
+      final url = queryParameters != null
+          ? uri.replace(queryParameters: queryParameters)
+          : uri;
       final response = await _client
           .get(
             url,

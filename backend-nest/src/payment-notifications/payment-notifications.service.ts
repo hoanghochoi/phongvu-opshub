@@ -8,8 +8,8 @@
 } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { createReadStream } from 'fs';
-import { mkdir, unlink, writeFile } from 'fs/promises';
-import { basename, join, resolve } from 'path';
+import { mkdir, readFile, rename, stat, unlink, writeFile } from 'fs/promises';
+import { basename, dirname, extname, join, resolve } from 'path';
 import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -31,6 +31,8 @@ const DEFAULT_TTS_VOICE_ID = 'piper:vi-vais1000';
 const DEFAULT_TTS_SPEED = 0.9;
 const DEFAULT_TTS_PITCH = 1.0;
 const DEFAULT_DELIVERY_CLAIM_TTL_SECONDS = 120;
+const COMBINED_CUE_VOICE_LEADING_SILENCE_MS = 100;
+const COMBINED_CUE_VOICE_TAIL_SILENCE_MS = 150;
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
 const PAYMENT_SPEAKER_ORG_TYPE = 'LV5_POSITION';
@@ -44,12 +46,25 @@ type StoredTransaction = {
   amount: number;
 };
 
+type Pcm16Wav = {
+  channels: number;
+  sampleRate: number;
+  byteRate: number;
+  blockAlign: number;
+  bitsPerSample: number;
+  data: Buffer;
+};
+
 @Injectable()
 export class PaymentNotificationsService {
   private readonly logger = new Logger(PaymentNotificationsService.name);
   private readonly audioDir = resolve(
     process.env.PAYMENT_AUDIO_DIR ||
       join(process.cwd(), 'storage', 'payment-audio'),
+  );
+  private readonly cueAudioPath = resolve(
+    process.env.PAYMENT_CUE_WAV_PATH ||
+      join(__dirname, 'assets', 'payment-cue.wav'),
   );
 
   constructor(
@@ -189,7 +204,11 @@ export class PaymentNotificationsService {
     return { list: ready };
   }
 
-  async getAudioForUser(user: any, notificationId: string) {
+  async getAudioForUser(
+    user: any,
+    notificationId: string,
+    options: { includeCue?: boolean } = {},
+  ) {
     const notification = await this.prisma.paymentNotification.findUnique({
       where: { id: notificationId },
     });
@@ -198,6 +217,18 @@ export class PaymentNotificationsService {
     await this.assertUserCanAccessStore(user, notification.storeCode);
     if (notification.audioStatus !== 'READY' || !notification.audioPath) {
       throw new NotFoundException('Audio chưa sẵn sàng');
+    }
+
+    if (options.includeCue) {
+      const combinedPath = await this.ensureCombinedCueAudio(
+        notification.audioPath,
+        notificationId,
+      );
+      return {
+        fileName: basename(combinedPath),
+        mimeType: 'audio/wav',
+        stream: new StreamableFile(createReadStream(combinedPath)),
+      };
     }
 
     return {
@@ -263,6 +294,9 @@ export class PaymentNotificationsService {
     for (const notification of expiredAudio) {
       if (notification.audioPath) {
         await unlink(notification.audioPath).catch(() => undefined);
+        await unlink(this.combinedCueAudioPath(notification.audioPath)).catch(
+          () => undefined,
+        );
       }
       await this.prisma.paymentNotification.update({
         where: { id: notification.id },
@@ -347,6 +381,231 @@ export class PaymentNotificationsService {
     }
   }
 
+  private async ensureCombinedCueAudio(
+    audioPath: string,
+    notificationId: string,
+  ) {
+    if (extname(audioPath).toLowerCase() !== '.wav') {
+      this.logger.warn(
+        `Payment combined cue unavailable for notification=${notificationId}: source audio is not wav`,
+      );
+      throw new BadRequestException(
+        'Audio hiện tại chưa hỗ trợ ghép chuông báo',
+      );
+    }
+
+    const combinedPath = this.combinedCueAudioPath(audioPath);
+    if (await this.fileExists(combinedPath)) {
+      this.logger.debug(
+        `Payment combined cue cache hit notification=${notificationId}`,
+      );
+      return combinedPath;
+    }
+
+    try {
+      const [cueBuffer, voiceBuffer] = await Promise.all([
+        readFile(this.cueAudioPath),
+        readFile(audioPath),
+      ]);
+      const cue = this.parsePcm16Wav(cueBuffer, 'payment cue');
+      const voice = this.parsePcm16Wav(voiceBuffer, 'payment voice');
+      this.assertCompatibleWav(cue, voice);
+      const trimmedVoice = this.trimVoiceSilenceForCombined(voice);
+      const combined = this.buildPcm16Wav(cue, [cue.data, trimmedVoice]);
+      const tmpPath = `${combinedPath}.${process.pid}.${randomUUID()}.tmp`;
+      await writeFile(tmpPath, combined);
+      await rename(tmpPath, combinedPath).catch(async (error: any) => {
+        await unlink(tmpPath).catch(() => undefined);
+        if (await this.fileExists(combinedPath)) return;
+        throw error;
+      });
+      this.logger.log(
+        `Payment combined cue audio generated notification=${notificationId} bytes=${combined.length}`,
+      );
+      return combinedPath;
+    } catch (error) {
+      const safe = this.safeError(error);
+      this.logger.warn(
+        `Payment combined cue generation failed notification=${notificationId}: ${safe}`,
+      );
+      throw new BadRequestException(
+        `Chưa ghép được chuông báo vào audio: ${safe}`,
+      );
+    }
+  }
+
+  private combinedCueAudioPath(audioPath: string) {
+    const extension = extname(audioPath);
+    return join(
+      dirname(audioPath),
+      `${basename(audioPath, extension)}-with-cue.wav`,
+    );
+  }
+
+  private async fileExists(path: string) {
+    try {
+      const info = await stat(path);
+      return info.isFile() && info.size > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  private parsePcm16Wav(buffer: Buffer, label: string): Pcm16Wav {
+    if (
+      buffer.length < 44 ||
+      buffer.toString('ascii', 0, 4) !== 'RIFF' ||
+      buffer.toString('ascii', 8, 12) !== 'WAVE'
+    ) {
+      throw new Error(`${label} is not a RIFF/WAVE file`);
+    }
+
+    let offset = 12;
+    let fmt: {
+      audioFormat: number;
+      channels: number;
+      sampleRate: number;
+      byteRate: number;
+      blockAlign: number;
+      bitsPerSample: number;
+    } | null = null;
+    let data: Buffer | null = null;
+
+    while (offset + 8 <= buffer.length) {
+      const chunkId = buffer.toString('ascii', offset, offset + 4);
+      const chunkSize = buffer.readUInt32LE(offset + 4);
+      const chunkStart = offset + 8;
+      const chunkEnd = chunkStart + chunkSize;
+      if (chunkEnd > buffer.length) break;
+
+      if (chunkId === 'fmt ') {
+        if (chunkSize < 16) throw new Error(`${label} fmt chunk is invalid`);
+        fmt = {
+          audioFormat: buffer.readUInt16LE(chunkStart),
+          channels: buffer.readUInt16LE(chunkStart + 2),
+          sampleRate: buffer.readUInt32LE(chunkStart + 4),
+          byteRate: buffer.readUInt32LE(chunkStart + 8),
+          blockAlign: buffer.readUInt16LE(chunkStart + 12),
+          bitsPerSample: buffer.readUInt16LE(chunkStart + 14),
+        };
+      } else if (chunkId === 'data') {
+        data = buffer.subarray(chunkStart, chunkEnd);
+      }
+
+      offset = chunkEnd + (chunkSize % 2);
+    }
+
+    if (!fmt) throw new Error(`${label} is missing fmt chunk`);
+    if (!data) throw new Error(`${label} is missing data chunk`);
+    if (fmt.audioFormat !== 1 || fmt.bitsPerSample !== 16) {
+      throw new Error(
+        `${label} must be PCM 16-bit WAV; format=${fmt.audioFormat} bits=${fmt.bitsPerSample}`,
+      );
+    }
+
+    return {
+      channels: fmt.channels,
+      sampleRate: fmt.sampleRate,
+      byteRate: fmt.byteRate,
+      blockAlign: fmt.blockAlign,
+      bitsPerSample: fmt.bitsPerSample,
+      data,
+    };
+  }
+
+  private assertCompatibleWav(cue: Pcm16Wav, voice: Pcm16Wav) {
+    if (
+      cue.channels !== voice.channels ||
+      cue.sampleRate !== voice.sampleRate ||
+      cue.bitsPerSample !== voice.bitsPerSample ||
+      cue.blockAlign !== voice.blockAlign
+    ) {
+      throw new Error(
+        `cue/voice WAV mismatch cue=${cue.channels}ch/${cue.sampleRate}Hz/${cue.bitsPerSample}bit voice=${voice.channels}ch/${voice.sampleRate}Hz/${voice.bitsPerSample}bit`,
+      );
+    }
+  }
+
+  private trimVoiceSilenceForCombined(voice: Pcm16Wav) {
+    const leadingFrames = this.countLeadingZeroFrames(voice.data, voice);
+    const tailFrames = this.countTailZeroFrames(voice.data, voice);
+    const keepLeadingFrames = this.msToFrames(
+      COMBINED_CUE_VOICE_LEADING_SILENCE_MS,
+      voice.sampleRate,
+    );
+    const keepTailFrames = this.msToFrames(
+      COMBINED_CUE_VOICE_TAIL_SILENCE_MS,
+      voice.sampleRate,
+    );
+    const trimLeadingFrames = Math.max(0, leadingFrames - keepLeadingFrames);
+    const trimTailFrames = Math.max(0, tailFrames - keepTailFrames);
+    const start = trimLeadingFrames * voice.blockAlign;
+    const end = Math.max(
+      start,
+      voice.data.length - trimTailFrames * voice.blockAlign,
+    );
+    return voice.data.subarray(start, end);
+  }
+
+  private countLeadingZeroFrames(data: Buffer, format: Pcm16Wav) {
+    const frameCount = Math.floor(data.length / format.blockAlign);
+    for (let frame = 0; frame < frameCount; frame += 1) {
+      if (
+        !this.isZeroFrame(data, frame * format.blockAlign, format.blockAlign)
+      ) {
+        return frame;
+      }
+    }
+    return frameCount;
+  }
+
+  private countTailZeroFrames(data: Buffer, format: Pcm16Wav) {
+    const frameCount = Math.floor(data.length / format.blockAlign);
+    for (let frame = frameCount - 1; frame >= 0; frame -= 1) {
+      if (
+        !this.isZeroFrame(data, frame * format.blockAlign, format.blockAlign)
+      ) {
+        return frameCount - frame - 1;
+      }
+    }
+    return frameCount;
+  }
+
+  private isZeroFrame(data: Buffer, offset: number, width: number) {
+    for (let index = 0; index < width; index += 1) {
+      if (data[offset + index] !== 0) return false;
+    }
+    return true;
+  }
+
+  private msToFrames(ms: number, sampleRate: number) {
+    return Math.floor((sampleRate * ms) / 1000);
+  }
+
+  private buildPcm16Wav(format: Pcm16Wav, chunks: Buffer[]) {
+    const dataSize = chunks.reduce((total, chunk) => total + chunk.length, 0);
+    const output = Buffer.alloc(44 + dataSize);
+    output.write('RIFF', 0, 'ascii');
+    output.writeUInt32LE(36 + dataSize, 4);
+    output.write('WAVE', 8, 'ascii');
+    output.write('fmt ', 12, 'ascii');
+    output.writeUInt32LE(16, 16);
+    output.writeUInt16LE(1, 20);
+    output.writeUInt16LE(format.channels, 22);
+    output.writeUInt32LE(format.sampleRate, 24);
+    output.writeUInt32LE(format.byteRate, 28);
+    output.writeUInt16LE(format.blockAlign, 32);
+    output.writeUInt16LE(format.bitsPerSample, 34);
+    output.write('data', 36, 'ascii');
+    output.writeUInt32LE(dataSize, 40);
+    let offset = 44;
+    for (const chunk of chunks) {
+      chunk.copy(output, offset);
+      offset += chunk.length;
+    }
+    return output;
+  }
+
   private async markAudioFailed(notificationId: string, error: string) {
     const safe = this.scrub(error).slice(0, 500);
     this.logger.warn(`Payment notification TTS failed: ${safe}`);
@@ -406,7 +665,11 @@ export class PaymentNotificationsService {
   }
 
   private async userCanUsePaymentSpeaker(user: any, source: string) {
-    if (String(user?.role || '').trim().toUpperCase() === 'SUPER_ADMIN') {
+    if (
+      String(user?.role || '')
+        .trim()
+        .toUpperCase() === 'SUPER_ADMIN'
+    ) {
       this.logger.debug(
         `Payment speaker allowed source=${source} user=${this.safeUserLabel(user)} reason=super_admin`,
       );

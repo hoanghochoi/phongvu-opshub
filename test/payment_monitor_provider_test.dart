@@ -329,6 +329,63 @@ void main() {
   );
 
   test(
+    'plays server-combined cue audio without local cue when available',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: [_readyNotification()],
+      );
+      final speaker = _FakePaymentSpeaker();
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(), isInitialized: true);
+      await _waitUntil(
+        () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
+      );
+
+      expect(repository.requestedIncludeCues, [true]);
+      expect(speaker.playLocalCueValues, [false]);
+      expect(repository.downloadCount, 1);
+
+      provider.dispose();
+    },
+  );
+
+  test(
+    'falls back to TTS-only download with local cue when combined audio fails',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: [_readyNotification()],
+        combinedAudioError: ApiException('Combined audio unavailable', 400),
+      );
+      final speaker = _FakePaymentSpeaker();
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(), isInitialized: true);
+      await _waitUntil(
+        () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
+      );
+
+      expect(repository.requestedIncludeCues, [true, false]);
+      expect(speaker.playLocalCueValues, [true]);
+      expect(repository.downloadCount, 2);
+
+      provider.dispose();
+    },
+  );
+
+  test(
     'final payment audio failure logs playback failures and acks failed',
     () async {
       final repository = _FakePaymentMonitorRepository(
@@ -465,11 +522,13 @@ PaymentNotification _readyNotification() {
 class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<PaymentNotification> notifications;
   final Object? transactionError;
+  final Object? combinedAudioError;
   final List<String> ackEvents = [];
   final List<String> ackErrors = [];
   final List<String?> requestedStartDates = [];
   final List<String?> requestedEndDates = [];
   final List<bool> requestedIncludeTotals = [];
+  final List<bool> requestedIncludeCues = [];
   int transactionFetchCount = 0;
   int readyFetchCount = 0;
   int downloadCount = 0;
@@ -477,6 +536,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   _FakePaymentMonitorRepository({
     required this.notifications,
     this.transactionError,
+    this.combinedAudioError,
   }) : super(ApiClient());
 
   @override
@@ -515,8 +575,14 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   }
 
   @override
-  Future<List<int>> downloadNotificationAudio(String notificationId) async {
+  Future<List<int>> downloadNotificationAudio(
+    String notificationId, {
+    bool includeCue = false,
+  }) async {
     downloadCount += 1;
+    requestedIncludeCues.add(includeCue);
+    final error = combinedAudioError;
+    if (includeCue && error != null) throw error;
     return const [0x52, 0x49, 0x46, 0x46, 0x00];
   }
 
@@ -535,6 +601,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
 class _FakePaymentSpeaker extends PaymentSpeaker {
   final int failuresBeforeSuccess;
   final bool nonRetryableFailure;
+  final List<bool> playLocalCueValues = [];
   int playCount = 0;
 
   _FakePaymentSpeaker({
@@ -551,8 +618,10 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
     required String storeCode,
     required String clientId,
     required int attempt,
+    bool playLocalCue = true,
   }) async {
     playCount += 1;
+    playLocalCueValues.add(playLocalCue);
     if (nonRetryableFailure) {
       throw const PaymentSpeakerException(
         'Windows does not report any audio output device',

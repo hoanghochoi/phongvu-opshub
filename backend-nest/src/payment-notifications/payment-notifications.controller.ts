@@ -42,15 +42,26 @@ export class PaymentNotificationsController {
   async getAudio(
     @Request() req: any,
     @Param('id') id: string,
+    @Query('includeCue') includeCue: string | undefined,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const audio = await this.service.getAudioForUser(req.user, id);
+    const audio = await this.service.getAudioForUser(req.user, id, {
+      includeCue: this.parseBoolean(includeCue),
+    });
     response.setHeader('Content-Type', audio.mimeType);
     response.setHeader(
       'Content-Disposition',
       `inline; filename="${audio.fileName}"`,
     );
     return audio.stream;
+  }
+
+  private parseBoolean(value: string | undefined) {
+    return (
+      String(value ?? '')
+        .trim()
+        .toLowerCase() === 'true'
+    );
   }
 
   @Post('payment-notifications/:id/ack')

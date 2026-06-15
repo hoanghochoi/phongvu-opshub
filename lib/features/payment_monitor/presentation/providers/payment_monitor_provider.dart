@@ -34,6 +34,18 @@ class PaymentSpeakerError {
   });
 }
 
+class _DownloadedPaymentAudio {
+  final List<int> bytes;
+  final bool playLocalCue;
+  final String mode;
+
+  const _DownloadedPaymentAudio({
+    required this.bytes,
+    required this.playLocalCue,
+    required this.mode,
+  });
+}
+
 typedef PaymentRealtimeConnector = WebSocketChannel Function(Uri uri);
 
 class PaymentMonitorProvider extends ChangeNotifier {
@@ -915,7 +927,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       );
     }
 
-    final audioBytes = await _downloadNotificationAudio(notification);
+    final audio = await _downloadNotificationAudio(notification);
     for (var attempt = 1; attempt <= _maxAudioPlaybackAttempts; attempt += 1) {
       try {
         final startedAt = DateTime.now();
@@ -929,7 +941,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'clientId': clientId,
             'amount': notification.amount,
             'attempt': attempt,
-            'bytes': audioBytes.length,
+            'bytes': audio.bytes.length,
+            'audioMode': audio.mode,
           },
         );
         await AppLogger.instance.uploadLog(
@@ -942,7 +955,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'clientId': clientId,
             'amount': notification.amount,
             'attempt': attempt,
-            'bytes': audioBytes.length,
+            'bytes': audio.bytes.length,
+            'audioMode': audio.mode,
           },
           storeCode: notification.storeCode,
         );
@@ -950,7 +964,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           notification: notification,
           clientId: clientId,
           attempt: attempt,
-          audioBytes: audioBytes,
+          audio: audio,
         );
         await AppLogger.instance.info(
           'PaymentSpeaker',
@@ -968,6 +982,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'reportedSuccess': result.reportedSuccess,
             'audibleVerified': result.audibleVerified,
             'normalized': result.normalized,
+            'audioMode': audio.mode,
             if (result.sampleRateHz != null)
               'sampleRateHz': result.sampleRateHz,
             if (result.channels != null) 'channels': result.channels,
@@ -994,6 +1009,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'reportedSuccess': result.reportedSuccess,
             'audibleVerified': result.audibleVerified,
             'normalized': result.normalized,
+            'audioMode': audio.mode,
             if (result.sampleRateHz != null)
               'sampleRateHz': result.sampleRateHz,
             if (result.channels != null) 'channels': result.channels,
@@ -1067,7 +1083,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
   }
 
-  Future<List<int>> _downloadNotificationAudio(
+  Future<_DownloadedPaymentAudio> _downloadNotificationAudio(
     PaymentNotification notification,
   ) async {
     await AppLogger.instance.info(
@@ -1078,20 +1094,91 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'transactionId': notification.transactionId,
         'storeCode': notification.storeCode,
         'amount': notification.amount,
+        'preferredMode': 'server_combined_cue',
       },
     );
+    try {
+      final audioBytes = await _repository.downloadNotificationAudio(
+        notification.notificationId,
+        includeCue: true,
+      );
+      if (audioBytes.isEmpty) {
+        throw StateError('Server combined audio is empty');
+      }
+      await _logNotificationAudioDownloaded(
+        notification: notification,
+        bytes: audioBytes.length,
+        mode: 'server_combined_cue',
+      );
+      return _DownloadedPaymentAudio(
+        bytes: audioBytes,
+        playLocalCue: false,
+        mode: 'server_combined_cue',
+      );
+    } catch (error, stackTrace) {
+      if (error is api.ApiException &&
+          (error.statusCode == 401 || error.statusCode == 403)) {
+        rethrow;
+      }
+      final safeError = _safeSpeakerError(error);
+      await AppLogger.instance.warn(
+        'PaymentMonitor',
+        'Combined payment audio unavailable; falling back to local cue',
+        context: {
+          'notificationId': notification.notificationId,
+          'transactionId': notification.transactionId,
+          'storeCode': notification.storeCode,
+          'amount': notification.amount,
+          'audioMode': 'local_cue_fallback',
+          'error': safeError,
+          'stackTrace': stackTrace.toString(),
+        },
+      );
+      await AppLogger.instance.uploadLog(
+        'warn',
+        'PaymentMonitor',
+        'Combined payment audio unavailable; falling back to local cue',
+        context: {
+          'notificationId': notification.notificationId,
+          'transactionId': notification.transactionId,
+          'amount': notification.amount,
+          'audioMode': 'local_cue_fallback',
+          'error': safeError,
+        },
+        storeCode: notification.storeCode,
+      );
+    }
+
     final audioBytes = await _repository.downloadNotificationAudio(
       notification.notificationId,
     );
     if (audioBytes.isEmpty) {
       throw StateError('Server audio is empty');
     }
+    await _logNotificationAudioDownloaded(
+      notification: notification,
+      bytes: audioBytes.length,
+      mode: 'local_cue_fallback',
+    );
+    return _DownloadedPaymentAudio(
+      bytes: audioBytes,
+      playLocalCue: true,
+      mode: 'local_cue_fallback',
+    );
+  }
+
+  Future<void> _logNotificationAudioDownloaded({
+    required PaymentNotification notification,
+    required int bytes,
+    required String mode,
+  }) async {
     await AppLogger.instance.info(
       'PaymentMonitor',
       'Payment notification audio downloaded',
       context: {
         'notificationId': notification.notificationId,
-        'bytes': audioBytes.length,
+        'bytes': bytes,
+        'audioMode': mode,
       },
     );
     await AppLogger.instance.uploadLog(
@@ -1100,27 +1187,28 @@ class PaymentMonitorProvider extends ChangeNotifier {
       'Payment notification audio downloaded',
       context: {
         'notificationId': notification.notificationId,
-        'bytes': audioBytes.length,
+        'bytes': bytes,
+        'audioMode': mode,
       },
       storeCode: notification.storeCode,
     );
-    return audioBytes;
   }
 
   Future<PaymentSpeakerResult> _playNotificationOnce({
     required PaymentNotification notification,
     required String clientId,
     required int attempt,
-    required List<int> audioBytes,
+    required _DownloadedPaymentAudio audio,
   }) async {
     return _speaker.playServerAudio(
       amount: notification.amount,
-      audioBytes: audioBytes,
+      audioBytes: audio.bytes,
       notificationId: notification.notificationId,
       transactionId: notification.transactionId,
       storeCode: notification.storeCode,
       clientId: clientId,
       attempt: attempt,
+      playLocalCue: audio.playLocalCue,
     );
   }
 

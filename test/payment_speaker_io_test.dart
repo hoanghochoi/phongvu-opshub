@@ -92,6 +92,54 @@ void main() {
       }
     },
   );
+
+  test('skips local cue when server audio already includes it', () async {
+    final temp = await Directory.systemTemp.createTemp('opshub-speaker-test-');
+    var mediaKitCalls = 0;
+    try {
+      final speaker = PaymentSpeaker(
+        temporaryDirectoryForTesting: temp,
+        waveOutDeviceCountForTesting: () => 1,
+        mediaKitPlayerForTesting:
+            ({required file, required extension, required timeout}) async {
+              mediaKitCalls += 1;
+              throw StateError('media_kit disabled for test');
+            },
+        playSoundPlayerForTesting: ({required file, required timeout}) async {
+          return const PaymentSpeakerResult(
+            backend: 'playsound',
+            extension: 'wav',
+            durationMs: 1,
+            reportedSuccess: true,
+            audibleVerified: false,
+          );
+        },
+      );
+
+      final result = await speaker.playServerAudio(
+        amount: 1250000,
+        audioBytes: _pcm16Wav(
+          sampleRateHz: 22050,
+          channels: 1,
+          frames: const [
+            [0],
+            [1000],
+          ],
+        ),
+        notificationId: 'note-1',
+        transactionId: 'txn-1',
+        storeCode: 'CP01',
+        clientId: 'pc-test',
+        attempt: 1,
+        playLocalCue: false,
+      );
+
+      expect(result.backend, 'playsound');
+      expect(mediaKitCalls, 1);
+    } finally {
+      await temp.delete(recursive: true).catchError((_) => temp);
+    }
+  });
 }
 
 Uint8List _pcm16Wav({
