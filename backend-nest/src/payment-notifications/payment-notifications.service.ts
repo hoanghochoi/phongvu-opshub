@@ -34,7 +34,7 @@ const DEFAULT_TTS_SPEED = 0.9;
 const DEFAULT_TTS_PITCH = 1.0;
 const DEFAULT_DELIVERY_CLAIM_TTL_SECONDS = 120;
 const COMBINED_CUE_VOICE_LEADING_SILENCE_MS = 100;
-const COMBINED_CUE_VOICE_TAIL_SILENCE_MS = 150;
+const COMBINED_CUE_VOICE_TAIL_SILENCE_MS = 300;
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
 const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE =
@@ -421,7 +421,7 @@ export class PaymentNotificationsService {
         throw error;
       });
       this.logger.log(
-        `Payment combined cue audio generated notification=${notificationId} bytes=${combined.length}`,
+        `Payment combined cue audio generated notification=${notificationId} bytes=${combined.length} leadingSilenceMs=${COMBINED_CUE_VOICE_LEADING_SILENCE_MS} tailSilenceMs=${COMBINED_CUE_VOICE_TAIL_SILENCE_MS}`,
       );
       return combinedPath;
     } catch (error) {

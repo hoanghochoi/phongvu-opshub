@@ -1066,6 +1066,82 @@ describe('UserService admin store management', () => {
     expect(prisma.store.update).not.toHaveBeenCalled();
   });
 
+  it('syncs legacy region and area rows before moving a showroom under a new area node', async () => {
+    const org = installUserScopeTreeMock();
+    const newRegion = org.saveNode({
+      id: 'org-region-hcm-bd',
+      code: 'REGION_PHONGVU_HCM_BD',
+      businessCode: 'HCM_BD',
+      displayName: 'Ho Chi Minh - Binh Duong',
+      type: 'REGION',
+      parentId: 'org-domain-phongvu-vn',
+      isSystem: false,
+      isActive: true,
+      sortOrder: 120,
+    });
+    const newArea = org.saveNode({
+      id: 'org-area-nguyen-thi-minh-khai',
+      code: 'AREA_PHONGVU_NTMK',
+      businessCode: 'NTMK',
+      displayName: 'Nguyen Thi Minh Khai',
+      type: 'AREA',
+      parentId: newRegion.id,
+      isSystem: false,
+      isActive: true,
+      sortOrder: 210,
+    });
+
+    await expect(
+      service.adminUpdateOrganizationNode(superAdmin, 'org-store-cp01', {
+        displayName: 'Nguyen Thi Minh Khai',
+        code: 'STORE_CP01',
+        businessCode: 'CP01',
+        storeId: 'CP01',
+        storeName: 'Nguyen Thi Minh Khai',
+        type: 'LV4_STORE',
+        parentId: newArea.id,
+        isActive: true,
+        sortOrder: 10300,
+      }),
+    ).resolves.toMatchObject({
+      id: 'org-store-cp01',
+      type: 'LV4_STORE',
+      parentId: newArea.id,
+    });
+
+    expect(prisma.regionDefinition.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: 'HCM_BD' },
+      }),
+    );
+    expect(prisma.areaDefinition.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: 'NTMK' },
+        create: expect.objectContaining({ regionCode: 'HCM_BD' }),
+        update: expect.objectContaining({ regionCode: 'HCM_BD' }),
+      }),
+    );
+    expect(
+      prisma.areaDefinition.upsert.mock.invocationCallOrder[0],
+    ).toBeLessThan(prisma.store.update.mock.invocationCallOrder[0]);
+    expect(prisma.store.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          areaCode: 'NTMK',
+          organizationNodeId: 'org-store-cp01',
+        }),
+      }),
+    );
+    expect(prisma.user.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          areaCode: 'NTMK',
+          regionCode: 'HCM_BD',
+        }),
+      }),
+    );
+  });
+
   it('generates personnel codes from SR, area, and region scope', async () => {
     const org = installUserScopeTreeMock();
     org.saveNode({

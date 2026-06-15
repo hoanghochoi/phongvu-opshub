@@ -39,6 +39,19 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PROFILE-ADMIN-001, 2026-06-15: fixed moving an Lv4 showroom under a newly
+  created Lv3 area node from the organization tree. Backend now syncs the
+  ancestor Lv2/Lv3 legacy Region/Area rows inside the same transaction before
+  updating Store/User location fields, avoiding the previous 500 from missing
+  legacy area references. Validation in current patch: focused backend
+  `user.service.spec.ts`, backend `npm run build`, full backend
+  `npm test -- --runInBand`, and `git diff --check`.
+- PAYMENT-MONITOR-001, 2026-06-15: increased server-combined payment audio
+  tail silence from 150ms to 300ms and logs the combined-audio leading/tail
+  silence settings when generating cached cue+TTS WAV files. Validation in
+  current patch: focused backend `payment-notifications.service.spec.ts`,
+  backend `npm run build`, full backend `npm test -- --runInBand`, and
+  `git diff --check`.
 - PROFILE-ADMIN-001, 2026-06-15: restored full Lv0-Lv5 organization-node
   creation in the admin org-tree editor/API. The node type dropdown again
   exposes Lv1/Lv2/Lv3 options, parent validation uses level ordering instead

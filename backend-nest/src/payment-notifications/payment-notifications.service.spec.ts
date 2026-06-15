@@ -259,7 +259,7 @@ describe('PaymentNotificationsService', () => {
     });
     const voiceWav = pcm16Wav({
       sampleRateHz: 1000,
-      frames: [...Array(120).fill(0), 2000, -2000, ...Array(200).fill(0)],
+      frames: [...Array(120).fill(0), 2000, -2000, ...Array(400).fill(0)],
     });
     try {
       await writeFile(cuePath, cueWav);
@@ -292,7 +292,7 @@ describe('PaymentNotificationsService', () => {
       );
 
       const combined = await readFile(combinedPath);
-      const expectedFrames = 3 + 100 + 2 + 150;
+      const expectedFrames = 3 + 100 + 2 + 300;
       expect(wavDataBytes(combined)).toBe(expectedFrames * 2);
 
       await expect(

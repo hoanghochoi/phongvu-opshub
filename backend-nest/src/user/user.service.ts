@@ -2240,6 +2240,11 @@ export class UserService implements OnModuleInit {
     const regionNode = ancestors.find((item) =>
       this.isLegacyRegionNodeType(item.type),
     );
+    if (areaNode) {
+      await this.syncLegacyCatalogFromOrganizationNode(client, areaNode);
+    } else if (regionNode) {
+      await this.syncLegacyCatalogFromOrganizationNode(client, regionNode);
+    }
     return {
       areaCode: this.legacyPersonnelCodeFromOrganizationNode(
         areaNode,
