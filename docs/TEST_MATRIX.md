@@ -39,6 +39,14 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PROFILE-ADMIN-001, 2026-06-15: fixed scoped admin user listing for store
+  managers assigned to Lv5 position nodes. Admin data scope now lifts a direct
+  Lv5 position under a Lv4 showroom to the owning showroom subtree for user and
+  store management, so accounts such as `hoang.nv1@phongvu-mna.vn` can see all
+  staff in their managed showroom instead of only users assigned to the same
+  Lv5 position. Validation in current patch: focused backend
+  `user.service.spec.ts` (36 tests), backend `npm run build`, and
+  `git diff --check`.
 - PAYMENT-MONITOR-001/PROFILE-ADMIN-001, 2026-06-15: split payment speaker
   access into node feature `PAYMENT_SPEAKER` (`Đọc loa`) under
   `PAYMENT_MONITOR`. `PAYMENT_MONITOR` keeps the transaction view and realtime

@@ -50,6 +50,11 @@ and basic administration for privileged roles.
   `SUPER_ADMIN` can manage all roots. `ADMIN` is scoped by its assigned
   organization root, with email-domain fallback during rollout. `USER` has no
   administration surface by role alone.
+- For user and store administration, an `ADMIN` assigned directly to a Lv5
+  position under a Lv4 showroom manages the owning showroom subtree, not only
+  that single Lv5 position. This lets a store-manager account with `ADMIN_USERS`
+  see and manage the staff assigned to other Lv5 positions in the same
+  showroom, while still excluding other showrooms.
 - The backend migration normalizes legacy role aliases during rollout:
   `ADMIN`, `ADMIN_PHONGVU`, `ADMIN_ACARE`, and `MANAGER` become `ADMIN`;
   `STAFF` becomes `USER`. Login, JWT, feature, and policy checks normalize

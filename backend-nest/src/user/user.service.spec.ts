@@ -660,6 +660,118 @@ describe('UserService admin store management', () => {
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
+  it('lets a store-manager Lv5 admin list every user in the managed showroom subtree', async () => {
+    const org = installUserScopeTreeMock();
+    org.saveNode({
+      id: 'org-store-cp62-pos-manager',
+      code: 'STORE_CP62_POS_STORE_MANAGER',
+      businessCode: 'STORE_MANAGER',
+      displayName: 'Quản lý Cửa hàng',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 10,
+    });
+    org.saveNode({
+      id: 'org-store-cp62-pos-sa',
+      code: 'STORE_CP62_POS_SA',
+      businessCode: 'SA',
+      displayName: 'Nhân viên Bán hàng',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 20,
+    });
+    org.saveNode({
+      id: 'org-store-cp62-pos-cash',
+      code: 'STORE_CP62_POS_CASH',
+      businessCode: 'CASH',
+      displayName: 'Nhân viên Thu ngân',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 30,
+    });
+    org.saveNode({
+      id: 'org-store-cp01-pos-sa',
+      code: 'STORE_CP01_POS_SA',
+      businessCode: 'SA',
+      displayName: 'Nhân viên Bán hàng CP01',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp01',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 20,
+    });
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'cp62-sa',
+        email: 'sa@phongvu.vn',
+        firstName: 'SA',
+        lastName: null,
+        role: 'USER',
+        status: 'yes',
+        workScopeType: 'STORE',
+        organizationNodeId: 'org-store-cp62-pos-sa',
+        organizationNode: {
+          id: 'org-store-cp62-pos-sa',
+          displayName: 'Nhân viên Bán hàng',
+        },
+        storeId: store.id,
+        store,
+      },
+      {
+        id: 'cp62-cash',
+        email: 'cash@phongvu.vn',
+        firstName: 'Cash',
+        lastName: null,
+        role: 'USER',
+        status: 'yes',
+        workScopeType: 'STORE',
+        organizationNodeId: 'org-store-cp62-pos-cash',
+        organizationNode: {
+          id: 'org-store-cp62-pos-cash',
+          displayName: 'Nhân viên Thu ngân',
+        },
+        storeId: store.id,
+        store,
+      },
+    ]);
+
+    const scopedAdmin = {
+      ...admin,
+      email: 'hoang.nv1@phongvu-mna.vn',
+      workScopeType: 'STORE',
+      storeId: store.id,
+      organizationNodeId: 'org-store-cp62-pos-manager',
+    };
+
+    await expect(service.adminListUsers(scopedAdmin)).resolves.toEqual([
+      expect.objectContaining({ email: 'sa@phongvu.vn' }),
+      expect.objectContaining({ email: 'cash@phongvu.vn' }),
+    ]);
+
+    const where = prisma.user.findMany.mock.calls.at(-1)?.[0]?.where;
+    const locationScope = where.AND[0].AND[1];
+    const nodeFilter = locationScope.OR.find(
+      (item: any) => item.organizationNodeId,
+    );
+    expect(nodeFilter.organizationNodeId.in).toEqual(
+      expect.arrayContaining([
+        'org-store-cp62',
+        'org-store-cp62-pos-manager',
+        'org-store-cp62-pos-sa',
+        'org-store-cp62-pos-cash',
+      ]),
+    );
+    expect(nodeFilter.organizationNodeId.in).not.toContain(
+      'org-store-cp01-pos-sa',
+    );
+  });
+
   it('lets ADMIN_PHONGVU assign the Phong Vu root but not the A Care root', async () => {
     installUserScopeTreeMock();
 

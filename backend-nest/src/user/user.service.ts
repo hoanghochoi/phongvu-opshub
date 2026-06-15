@@ -2365,8 +2365,9 @@ export class UserService implements OnModuleInit {
       const domainScope = await this.adminDomainScope(admin);
       if (scope === NATIONAL_SCOPE) return domainScope;
       if (admin.organizationNodeId) {
+        const scopeRootId = await this.adminManagementScopeRootId(admin);
         const organizationScope = await this.userOrganizationNodeWhere(
-          admin.organizationNodeId,
+          scopeRootId ?? admin.organizationNodeId,
         );
         if (organizationScope) {
           return this.combineUserScope(domainScope, organizationScope);
@@ -2443,6 +2444,41 @@ export class UserService implements OnModuleInit {
     return Array.from(ids);
   }
 
+  private async adminManagementScopeRootId(admin: any) {
+    const organizationNodeId = String(admin?.organizationNodeId || '').trim();
+    if (!organizationNodeId) return null;
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) return organizationNodeId;
+    const nodes: Array<{
+      id: string;
+      parentId: string | null;
+      type: string;
+    }> = await organizationNode.findMany({
+      select: { id: true, parentId: true, type: true },
+    });
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const node = byId.get(organizationNodeId);
+    if (!node) return organizationNodeId;
+    if (this.normalizeOrganizationNodeType(node.type) !== ORG_TYPE_LV5_POSITION)
+      return organizationNodeId;
+    const parent = node.parentId ? byId.get(node.parentId) : null;
+    if (
+      parent &&
+      this.normalizeOrganizationNodeType(parent.type) === ORG_TYPE_LV4_STORE
+    ) {
+      this.logger.debug(
+        'Admin management scope lifted from Lv5 to showroom: admin=' +
+          (admin?.email || admin?.id || 'unknown') +
+          ' nodeId=' +
+          organizationNodeId +
+          ' scopeRootId=' +
+          parent.id,
+      );
+      return parent.id;
+    }
+    return organizationNodeId;
+  }
+
   private async organizationUserScopeForRoot(rootId: string) {
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.findMany)
@@ -2517,8 +2553,9 @@ export class UserService implements OnModuleInit {
     const scope = this.effectiveWorkScope(admin);
     if (scope === NATIONAL_SCOPE) return true;
     if (admin.organizationNodeId && store?.organizationNodeId) {
+      const scopeRootId = await this.adminManagementScopeRootId(admin);
       const organizationNodeIds = await this.organizationDescendantIds(
-        admin.organizationNodeId,
+        scopeRootId ?? admin.organizationNodeId,
       );
       return organizationNodeIds.includes(store.organizationNodeId);
     }
@@ -5300,8 +5337,9 @@ export class UserService implements OnModuleInit {
       return this.combineStoreScope(organizationScope, undefined);
     }
     if (admin.organizationNodeId) {
+      const scopeRootId = await this.adminManagementScopeRootId(admin);
       const organizationNodeIds = await this.organizationDescendantIds(
-        admin.organizationNodeId,
+        scopeRootId ?? admin.organizationNodeId,
       );
       return this.combineStoreScope(organizationScope, {
         organizationNodeId: { in: organizationNodeIds },
