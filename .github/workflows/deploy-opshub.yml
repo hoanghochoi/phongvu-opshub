@@ -538,6 +538,8 @@ jobs:
             -v "$REMOTE_RELEASE_DIR/deploy/home-server/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile < /dev/null
 
+          previous_current="$(readlink -f "$CURRENT_DIR" || true)"
+          remote_release_real="$(readlink -f "$REMOTE_RELEASE_DIR" || true)"
           ln -sfn "$REMOTE_RELEASE_DIR" "${CURRENT_DIR}.next"
           mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
           cd "$CURRENT_DIR"
@@ -547,6 +549,79 @@ jobs:
             "${compose[@]}" "$@" < /dev/null
           }
 
+          dump_deploy_diagnostics() {
+            set +e
+            echo "::group::Docker deployment diagnostics"
+            compose_cmd ps
+            compose_cmd logs --tail=200 api
+            compose_cmd logs --tail=120 realtime
+            compose_cmd logs --tail=120 caddy
+            docker inspect home-server-api-1 --format '{{json .State.Health}}'
+            echo "::endgroup::"
+            set -e
+          }
+
+          rollback_to_release() {
+            candidate="$1"
+            if [ ! -d "$candidate" ]; then
+              return 1
+            fi
+            echo "Attempting rollback to release: $candidate"
+            ln -sfn "$candidate" "${CURRENT_DIR}.rollback"
+            mv -Tf "${CURRENT_DIR}.rollback" "$CURRENT_DIR"
+            cd "$CURRENT_DIR"
+            compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+            if compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 api realtime caddy; then
+              echo "Rollback release is healthy: $candidate"
+              compose_cmd ps
+              return 0
+            fi
+            dump_deploy_diagnostics
+            return 1
+          }
+
+          rollback_on_error() {
+            status=$?
+            trap - ERR
+            echo "Deploy failed with status $status" >&2
+            dump_deploy_diagnostics
+
+            rollback_candidates=()
+            if [ -n "${previous_current:-}" ] && [ -d "$previous_current" ]; then
+              rollback_candidates+=("$previous_current")
+            fi
+
+            releases_dir="$(dirname "$REMOTE_RELEASE_DIR")"
+            while IFS= read -r dir; do
+              dir_real="$(readlink -f "$dir" || true)"
+              if [ -z "$dir_real" ] || [ "$dir_real" = "$remote_release_real" ]; then
+                continue
+              fi
+              already_added=false
+              for existing in "${rollback_candidates[@]}"; do
+                existing_real="$(readlink -f "$existing" || true)"
+                if [ "$existing_real" = "$dir_real" ]; then
+                  already_added=true
+                  break
+                fi
+              done
+              if [ "$already_added" = false ]; then
+                rollback_candidates+=("$dir_real")
+              fi
+            done < <(find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
+
+            for candidate in "${rollback_candidates[@]}"; do
+              if rollback_to_release "$candidate"; then
+                exit "$status"
+              fi
+            done
+
+            echo "Rollback did not find a healthy release" >&2
+            exit "$status"
+          }
+
+          trap rollback_on_error ERR
+
           compose_cmd config >/dev/null
 
           compose_cmd --profile migrate run --rm -T --build migrate \
@@ -555,7 +630,7 @@ jobs:
 
           compose_cmd --profile migrate run --rm -T --build migrate
 
-          compose_cmd up -d --build --force-recreate --wait api realtime caddy
+          compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 api realtime caddy
 
           expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}"
           for attempt in {1..12}; do
