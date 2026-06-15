@@ -39,6 +39,16 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PROFILE-ADMIN-001, 2026-06-15: restored full Lv0-Lv5 organization-node
+  creation in the admin org-tree editor/API. The node type dropdown again
+  exposes Lv1/Lv2/Lv3 options, parent validation uses level ordering instead
+  of a root-showroom-only allowlist, and manual org-tree create/update no
+  longer syncs or blocks on legacy Region/Area/Department/JobRole catalogs.
+  Lv4 showroom nodes still sync Store runtime metadata for QR/MAP/payment
+  behavior. Validation in current patch: focused backend
+  `user.service.spec.ts` (36 tests), backend `npm run build`, focused Flutter
+  `admin_user_tree_scope_test.dart` (7 tests), `flutter analyze --no-pub`, and
+  `git diff --check`.
 - PROFILE-ADMIN-001, 2026-06-15: fixed scoped admin user listing for store
   managers assigned to Lv5 position nodes. Admin data scope now lifts a direct
   Lv5 position under a Lv4 showroom to the owning showroom subtree for user and

@@ -191,6 +191,29 @@ void main() {
     },
   );
 
+  test('AdminOrganizationNodeTypes exposes the full Lv0-Lv5 tree', () {
+    final types = AdminOrganizationNodeTypes.definitions
+        .map((definition) => definition.$1)
+        .toList();
+
+    expect(
+      types,
+      containsAllInOrder([
+        'LV0_DOMAIN',
+        'LV1_BLOCK',
+        'LV2_DEPARTMENT',
+        'LV2_REGION',
+        'LV3_AREA',
+        'LV3_UNIT',
+        'LV4_STORE',
+        'LV5_POSITION',
+      ]),
+    );
+    expect(AdminOrganizationNodeTypes.titleOf('BLOCK'), 'Lv1 Khối');
+    expect(AdminOrganizationNodeTypes.titleOf('REGION'), 'Lv2 Miền');
+    expect(AdminOrganizationNodeTypes.titleOf('AREA'), 'Lv3 Vùng');
+  });
+
   test(
     'Admin user editor snackbar message keeps backend ApiException text',
     () {

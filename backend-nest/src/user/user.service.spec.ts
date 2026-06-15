@@ -979,34 +979,54 @@ describe('UserService admin store management', () => {
     });
   });
 
-  it('rejects creating legacy Lv1-Lv3 organization nodes', async () => {
+  it('creates Lv1-Lv3 organization nodes without legacy catalog coupling', async () => {
     const org = installUserScopeTreeMock();
-    org.saveNode({
-      id: 'org-block-sales',
+
+    const block = await service.adminCreateOrganizationNode(superAdmin, {
+      displayName: 'Kinh Doanh',
       code: 'BLOCK_KINH_DOANH',
       businessCode: 'KINH_DOANH',
-      displayName: 'Kinh Doanh',
       type: 'BLOCK',
       parentId: 'org-domain-phongvu-vn',
-      isSystem: false,
       isActive: true,
       sortOrder: 50,
     });
+    const regionNode = await service.adminCreateOrganizationNode(superAdmin, {
+      displayName: 'Hồ Chí Minh - Bình Dương',
+      code: 'HCM-BD',
+      businessCode: 'HCM-BD',
+      type: 'REGION',
+      parentId: block.id,
+      isActive: true,
+      sortOrder: 100,
+    });
+    const areaNode = await service.adminCreateOrganizationNode(superAdmin, {
+      displayName: 'Hồ Chí Minh 1',
+      code: 'HCM1',
+      businessCode: 'HCM1',
+      type: 'AREA',
+      parentId: regionNode.id,
+      isActive: true,
+      sortOrder: 200,
+    });
 
-    await expect(
-      service.adminCreateOrganizationNode(superAdmin, {
-        displayName: 'Hồ Chí Minh - Bình Dương',
-        code: 'HCM-BD',
-        businessCode: 'HCM-BD',
-        type: 'REGION',
-        parentId: 'org-block-sales',
-        isActive: true,
-        sortOrder: 0,
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-
-    expect(prisma.organizationNode.create).not.toHaveBeenCalled();
+    expect(block).toMatchObject({
+      type: 'LV1_BLOCK',
+      parentId: 'org-domain-phongvu-vn',
+    });
+    expect(regionNode).toMatchObject({
+      type: 'LV2_REGION',
+      parentId: block.id,
+    });
+    expect(areaNode).toMatchObject({
+      type: 'LV3_AREA',
+      parentId: regionNode.id,
+    });
+    expect(prisma.organizationNode.create).toHaveBeenCalledTimes(3);
     expect(prisma.regionDefinition.upsert).not.toHaveBeenCalled();
+    expect(prisma.areaDefinition.upsert).not.toHaveBeenCalled();
+    expect(prisma.departmentDefinition.upsert).not.toHaveBeenCalled();
+    expect(prisma.jobRoleDefinition.upsert).not.toHaveBeenCalled();
   });
 
   it('retires self-service store selection', async () => {
@@ -1015,29 +1035,18 @@ describe('UserService admin store management', () => {
     ).rejects.toBeInstanceOf(GoneException);
   });
 
-  it('rejects moving an Lv4 store back under a legacy area node', async () => {
+  it('rejects moving an Lv4 store under an equal or lower child level node', async () => {
     const org = installUserScopeTreeMock();
     org.saveNode({
-      id: 'org-region-hcm-bd',
-      code: 'HCM_BD',
-      businessCode: 'HCM-BD',
-      displayName: 'Ho Chi Minh - Binh Duong',
-      type: 'REGION',
-      parentId: 'org-domain-phongvu-vn',
+      id: 'org-store-cp62-pos-sa',
+      code: 'STORE_CP62_POS_SA',
+      businessCode: 'SA',
+      displayName: 'Nhan vien ban hang',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
       isSystem: false,
       isActive: true,
-      sortOrder: 100,
-    });
-    org.saveNode({
-      id: 'org-area-hcm1',
-      code: 'HCM1',
-      businessCode: 'HCM1',
-      displayName: 'Ho Chi Minh 1',
-      type: 'AREA',
-      parentId: 'org-region-hcm-bd',
-      isSystem: false,
-      isActive: true,
-      sortOrder: 200,
+      sortOrder: 400,
     });
 
     await expect(
@@ -1047,7 +1056,7 @@ describe('UserService admin store management', () => {
         businessCode: 'CP62',
         storeId: 'CP62',
         type: 'LV4_STORE',
-        parentId: 'org-area-hcm1',
+        parentId: 'org-store-cp62-pos-sa',
         isActive: true,
         sortOrder: 300,
       }),

@@ -816,8 +816,7 @@ class _OrganizationNodeEditorDialogState
                     .toList(),
                 onChanged: !canEditStructure || widget.node?.isSystem == true
                     ? null
-                    : (value) =>
-                        setState(() => _setType(value ?? 'LV4_STORE')),
+                    : (value) => setState(() => _setType(value ?? 'LV4_STORE')),
               ),
               DropdownButtonFormField<String?>(
                 key: ValueKey('parent-$_type-${parentValue ?? 'none'}'),
@@ -938,8 +937,12 @@ class _OrganizationNodeEditorDialogState
 
   String _defaultChildType(AdminOrganizationNode? parent) {
     if (parent == null) return 'LV0_DOMAIN';
-    return switch (parent.type) {
-      'LV0_DOMAIN' => 'LV4_STORE',
+    return switch (AdminOrganizationNode.canonicalType(parent.type)) {
+      'LV0_DOMAIN' => 'LV1_BLOCK',
+      'LV1_BLOCK' => 'LV2_REGION',
+      'LV2_DEPARTMENT' => 'LV3_UNIT',
+      'LV2_REGION' => 'LV3_AREA',
+      'LV3_AREA' || 'LV3_UNIT' => 'LV4_STORE',
       'LV4_STORE' => 'LV5_POSITION',
       _ => 'LV5_POSITION',
     };
@@ -978,9 +981,10 @@ class _OrganizationNodeEditorDialogState
   bool _canUseParentForType(AdminOrganizationNode parent, String type) {
     if (!parent.isActive) return false;
     final childType = AdminOrganizationNode.canonicalType(type);
-    if (childType == 'LV4_STORE') return parent.type == 'LV0_DOMAIN';
-    if (childType == 'LV5_POSITION') return parent.type == 'LV4_STORE';
-    return false;
+    if (childType == 'LV0_DOMAIN') return false;
+    final childLevel = AdminOrganizationNode.levelOf(childType);
+    final parentLevel = AdminOrganizationNode.levelOf(parent.type);
+    return parentLevel < childLevel;
   }
 }
 

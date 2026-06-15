@@ -73,6 +73,11 @@ const ORG_TYPES = new Set([
 ]);
 const RUNTIME_ORG_TREE_NODE_TYPES = new Set([
   ORG_TYPE_LV0_DOMAIN,
+  ORG_TYPE_LV1_BLOCK,
+  ORG_TYPE_LV2_DEPARTMENT,
+  ORG_TYPE_LV2_REGION,
+  ORG_TYPE_LV3_AREA,
+  ORG_TYPE_LV3_UNIT,
   ORG_TYPE_LV4_STORE,
   ORG_TYPE_LV5_POSITION,
 ]);
@@ -1202,9 +1207,6 @@ export class UserService implements OnModuleInit {
     const data = await this.normalizeOrganizationNodeInput(body);
     const node = await this.prisma.$transaction(async (tx) => {
       const created = await tx.organizationNode.create({ data });
-      if (this.isLegacyCatalogNodeType(created.type)) {
-        await this.syncLegacyCatalogFromOrganizationNode(tx, created);
-      }
       if (this.isStoreNodeType(created.type)) {
         await this.syncShowroomStoreFromNode(tx, created, body, null);
       }
@@ -1246,9 +1248,6 @@ export class UserService implements OnModuleInit {
         where: { id },
         data,
       });
-      if (this.isLegacyCatalogNodeType(updated.type)) {
-        await this.syncLegacyCatalogFromOrganizationNode(tx, updated);
-      }
       if (this.isStoreNodeType(updated.type)) {
         await this.syncShowroomStoreFromNode(tx, updated, body, current);
       }
@@ -1325,7 +1324,7 @@ export class UserService implements OnModuleInit {
     );
     if (!RUNTIME_ORG_TREE_NODE_TYPES.has(type)) {
       throw new BadRequestException(
-        'Cây tổ chức runtime chỉ hỗ trợ Lv0 Domain, Lv4 Cửa hàng và Lv5 Vị trí',
+        'Cây tổ chức runtime chỉ hỗ trợ node Lv0-Lv5',
       );
     }
     const displayName = this.normalizeRequiredText(
@@ -1434,15 +1433,6 @@ export class UserService implements OnModuleInit {
     return this.normalizeOrganizationNodeType(type) === ORG_TYPE_LV5_POSITION;
   }
 
-  private isLegacyCatalogNodeType(type: string) {
-    return (
-      this.isLegacyRegionNodeType(type) ||
-      this.isLegacyAreaNodeType(type) ||
-      this.isLegacyDepartmentNodeType(type) ||
-      this.isLegacyPositionNodeType(type)
-    );
-  }
-
   private normalizeOrganizationNodeCode(value: unknown) {
     const code = String(value || '')
       .trim()
@@ -1533,16 +1523,9 @@ export class UserService implements OnModuleInit {
   private assertOrganizationParentType(type: string, parentType: string) {
     const childType = this.normalizeOrganizationNodeType(type);
     const normalizedParentType = this.normalizeOrganizationNodeType(parentType);
-    if (
-      childType === ORG_TYPE_LV4_STORE &&
-      normalizedParentType === ORG_TYPE_LV0_DOMAIN
-    )
-      return;
-    if (
-      childType === ORG_TYPE_LV5_POSITION &&
-      normalizedParentType === ORG_TYPE_LV4_STORE
-    )
-      return;
+    const childLevel = this.organizationNodeLevel(childType);
+    const parentLevel = this.organizationNodeLevel(normalizedParentType);
+    if (parentLevel < childLevel) return;
     throw new BadRequestException(
       `${this.organizationNodeTypeLabel(type)} phải nằm dưới node cấp cao hơn`,
     );
