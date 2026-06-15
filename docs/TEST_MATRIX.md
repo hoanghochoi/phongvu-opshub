@@ -39,6 +39,18 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PAYMENT-MONITOR-001/PROFILE-ADMIN-001, 2026-06-15: split payment speaker
+  access into node feature `PAYMENT_SPEAKER` (`Đọc loa`) under
+  `PAYMENT_MONITOR`. `PAYMENT_MONITOR` keeps the transaction view and realtime
+  refreshes, while `PAYMENT_SPEAKER` controls ready notification polling, audio
+  streaming, and speaker ack on supported Windows PCs. The rollout backfills
+  `PAYMENT_SPEAKER` only for Lv5 `STORE_MANAGER`/`CASH` node groups that
+  already have `PAYMENT_MONITOR`; other node groups can receive speaker access
+  by assigning `Đọc loa` directly. Mobile/non-Windows still do not start the
+  speaker path by default. Validation in current patch: `npx prisma validate`,
+  focused backend `feature.service` + `payment-notifications.service` Jest (32
+  tests), backend `npm run build`, `flutter analyze --no-pub`, focused Flutter
+  `payment_monitor_provider_test.dart` (15 tests), and `git diff --check`.
 - PAYMENT-MONITOR-001, 2026-06-15: added opt-in server-side combined payment
   audio. `GET /payment-notifications/:id/audio` remains TTS-only for older
   clients, while `includeCue=true` returns one cached WAV containing
@@ -150,9 +162,12 @@ This file maps product behavior to proof. Existing flows are marked
   stores. Backend user assignment keeps the selected Lv5 node as
   `organizationNodeId`, derives legacy personnel codes from the tree, and syncs
   compatibility job-role catalog rows without changing SR identity/payment/MAP
-  fields. Payment speaker ready/audio/ack is limited to active Lv5
-  `STORE_MANAGER` or `CASH`; other positions receive an empty ready list and
-  cannot stream or ack payment audio. Validation in current patch: `npx prisma
+  fields. Payment speaker ready/audio/ack is now controlled by the separate
+  node feature `PAYMENT_SPEAKER` (`Đọc loa`) on supported Windows PCs; users
+  with only `PAYMENT_MONITOR` keep transaction list/realtime refresh access but
+  do not poll, stream, or ack speaker audio. Rollout backfills `PAYMENT_SPEAKER`
+  only for active Lv5 `STORE_MANAGER`/`CASH` node groups that already have
+  `PAYMENT_MONITOR`. Validation in current patch: `npx prisma
   validate`, `npx prisma generate`, backend `npm run build`, focused backend
   feedback/payment Jest (3 suites, 19 tests), full backend
   `npm test -- --runInBand` (35 suites, 259 tests), `flutter analyze --no-pub`,

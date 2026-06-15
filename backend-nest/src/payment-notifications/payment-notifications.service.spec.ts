@@ -14,12 +14,14 @@ describe('PaymentNotificationsService', () => {
   let prisma: any;
   let redis: any;
   let policyService: { canAccessPolicy: jest.Mock };
+  let featureService: { canAccessFeature: jest.Mock };
   let service: PaymentNotificationsService;
   const speakerUser = (overrides: Record<string, unknown> = {}) => ({
     id: 'user-speaker',
     role: 'USER',
     storeId: 'store-uuid-1',
     organizationNodeId: 'org-store-cp01-pos-store-manager',
+    hasPaymentSpeakerFeature: true,
     ...overrides,
   });
 
@@ -65,6 +67,14 @@ describe('PaymentNotificationsService', () => {
             ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE,
       ),
     };
+    featureService = {
+      canAccessFeature: jest.fn(
+        async (user: any, code: string) =>
+          String(code || '').toUpperCase() === 'PAYMENT_SPEAKER' &&
+          (user?.role === 'SUPER_ADMIN' ||
+            user?.hasPaymentSpeakerFeature !== false),
+      ),
+    };
     prisma.organizationNode.findUnique.mockImplementation(
       async ({ where }: any) => {
         const id = String(where?.id || '');
@@ -89,6 +99,7 @@ describe('PaymentNotificationsService', () => {
       prisma,
       redis,
       policyService as any,
+      featureService as any,
     );
   });
 
@@ -258,6 +269,7 @@ describe('PaymentNotificationsService', () => {
         prisma,
         redis,
         policyService as any,
+        featureService as any,
       );
       prisma.paymentNotification.findUnique.mockResolvedValue({
         id: 'note-combined',
@@ -326,6 +338,7 @@ describe('PaymentNotificationsService', () => {
         prisma,
         redis,
         policyService as any,
+        featureService as any,
       );
       prisma.paymentNotification.findUnique.mockResolvedValue({
         id: 'note-missing-cue',
@@ -494,12 +507,18 @@ describe('PaymentNotificationsService', () => {
     ['SA', 'org-store-cp01-pos-sa'],
     ['WAREHOUSE', 'org-store-cp01-pos-warehouse'],
   ])(
-    'returns no ready audio notifications for non-speaker Lv5 position %s',
+    'returns no ready audio notifications without PAYMENT_SPEAKER for Lv5 position %s',
     async (_position, organizationNodeId) => {
       await expect(
-        service.listReadyForClient(speakerUser({ organizationNodeId }), {
-          clientId: 'pc-1',
-        }),
+        service.listReadyForClient(
+          speakerUser({
+            organizationNodeId,
+            hasPaymentSpeakerFeature: false,
+          }),
+          {
+            clientId: 'pc-1',
+          },
+        ),
       ).resolves.toEqual({ list: [] });
 
       expect(prisma.store.findUnique).not.toHaveBeenCalled();
@@ -510,7 +529,7 @@ describe('PaymentNotificationsService', () => {
     },
   );
 
-  it('rejects audio and ack for non-speaker Lv5 positions', async () => {
+  it('rejects audio and ack without PAYMENT_SPEAKER', async () => {
     prisma.paymentNotification.findUnique.mockResolvedValue({
       id: 'note-1',
       transactionId: 'txn-1',
@@ -521,6 +540,7 @@ describe('PaymentNotificationsService', () => {
 
     const warehouseUser = speakerUser({
       organizationNodeId: 'org-store-cp01-pos-warehouse',
+      hasPaymentSpeakerFeature: false,
     });
 
     await expect(
@@ -535,6 +555,28 @@ describe('PaymentNotificationsService', () => {
 
     expect(prisma.store.findUnique).not.toHaveBeenCalled();
     expect(prisma.paymentNotificationDeliveryLog.create).not.toHaveBeenCalled();
+  });
+
+  it('allows a non-legacy Lv5 position when PAYMENT_SPEAKER is assigned', async () => {
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+    prisma.paymentNotification.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.listReadyForClient(
+        speakerUser({ organizationNodeId: 'org-store-cp01-pos-sa' }),
+        {
+          clientId: 'pc-1',
+        },
+      ),
+    ).resolves.toEqual({ list: [] });
+
+    expect(featureService.canAccessFeature).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationNodeId: 'org-store-cp01-pos-sa',
+      }),
+      'PAYMENT_SPEAKER',
+    );
+    expect(prisma.paymentNotification.findMany).toHaveBeenCalled();
   });
 
   it('lists ready audio notifications not yet terminal for this client', async () => {

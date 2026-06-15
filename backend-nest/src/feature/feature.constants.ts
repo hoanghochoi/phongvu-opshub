@@ -15,6 +15,7 @@ export const FEATURE_KEYS = {
   VIETQR: 'VIETQR',
   BANK_STATEMENTS: 'BANK_STATEMENTS',
   PAYMENT_MONITOR: 'PAYMENT_MONITOR',
+  PAYMENT_SPEAKER: 'PAYMENT_SPEAKER',
   FEEDBACK: 'FEEDBACK',
 } as const;
 
@@ -128,6 +129,13 @@ export const DEFAULT_FEATURE_DEFINITIONS = [
     displayName: 'Tiền vào',
     description: 'Theo dõi giao dịch tiền vào',
     sortOrder: 500,
+  },
+  {
+    code: FEATURE_KEYS.PAYMENT_SPEAKER,
+    displayName: 'Đọc loa',
+    description: 'Đọc loa thông báo tiền vào trên thiết bị hỗ trợ',
+    parentCode: FEATURE_KEYS.PAYMENT_MONITOR,
+    sortOrder: 510,
   },
   {
     code: FEATURE_KEYS.FEEDBACK,

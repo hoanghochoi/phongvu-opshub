@@ -81,14 +81,19 @@ a customer to scan and pay manually.
   and refreshes stored transactions when a new notification arrives. A
   30-second fallback refresh remains active so the list can recover from missed
   socket events.
-- Each newly observed successful incoming transaction is announced through
-  generated audio as `Phong VÅ© Ä‘Ã£ nháº­n: <amount> Ä‘á»“ng.`. Piper audio uses
+- Each newly observed successful incoming transaction can be announced through
+  generated audio as `Phong VÅ© Ä‘Ã£ nháº­n: <amount> Ä‘á»“ng.` when the signed-in
+  user has both `PAYMENT_MONITOR` and the separate node feature
+  `PAYMENT_SPEAKER` (`Đọc loa`) on a supported Windows PC. Piper audio uses
   speed `0.90` and prepends 650 ms of leading silence by default so the first
-  word is not clipped after the cue.
-- Turning off `Äá»c thÃ´ng bÃ¡o tiá»n vÃ o` mutes only the speaker path. The PC keeps
+  word is not clipped after the cue. Mobile and other unsupported platforms do
+  not start the speaker path by default.
+- Turning off `Đọc loa tiền vào` mutes only the speaker path. The PC keeps
   syncing transactions from realtime/fallback refreshes, and muted
   notifications are recorded as `SILENCED` so they are not played later as
-  backlog.
+  backlog. Users with `PAYMENT_MONITOR` but without `PAYMENT_SPEAKER` keep the
+  transaction list and realtime refreshes, but they do not poll ready audio,
+  download audio, or acknowledge speaker events.
 - QR payment confirmation checks stored MAP transactions first. If a matching
   stored transaction exists, the QR screen moves to the paid state and the PC
   monitor also announces that transaction. If no stored match exists yet, the

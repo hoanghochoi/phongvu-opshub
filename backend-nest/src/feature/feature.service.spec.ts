@@ -253,6 +253,20 @@ describe('FeatureService', () => {
     );
   });
 
+  it('requires PAYMENT_SPEAKER separately from PAYMENT_MONITOR for Lv5 nodes', async () => {
+    setNodeAssignment('PAYMENT_MONITOR', true, 'LV5_POSITION', 'SA');
+
+    await expect(
+      service.canAccessFeature({ id: 'user-lv5' }, 'PAYMENT_SPEAKER'),
+    ).resolves.toBe(false);
+
+    setNodeAssignment('PAYMENT_SPEAKER', true, 'LV5_POSITION', 'SA');
+
+    await expect(
+      service.canAccessFeature({ id: 'user-lv5' }, 'PAYMENT_SPEAKER'),
+    ).resolves.toBe(true);
+  });
+
   it('always bypasses feature gates for super admin', async () => {
     featureActive = false;
     rules = [{ featureCode: 'ADMIN_FEATURES', enabled: false }];

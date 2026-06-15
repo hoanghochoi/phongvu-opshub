@@ -16,6 +16,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
+import { FEATURE_KEYS } from '../feature/feature.constants';
+import { FeatureService } from '../feature/feature.service';
 import {
   CreateAppLogDto,
   ListPaymentNotificationsQueryDto,
@@ -35,10 +37,8 @@ const COMBINED_CUE_VOICE_LEADING_SILENCE_MS = 100;
 const COMBINED_CUE_VOICE_TAIL_SILENCE_MS = 150;
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
-const PAYMENT_SPEAKER_ORG_TYPE = 'LV5_POSITION';
-const PAYMENT_SPEAKER_POSITION_CODES = new Set(['STORE_MANAGER', 'CASH']);
 const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE =
-  'Chỉ vị trí STORE_MANAGER hoặc CASH mới được dùng đọc loa tiền vào';
+  'Không có quyền Đọc loa tiền vào';
 
 type StoredTransaction = {
   id: string;
@@ -71,6 +71,7 @@ export class PaymentNotificationsService {
     private prisma: PrismaService,
     private redisService: RedisService,
     private policyService: PolicyService,
+    private featureService: FeatureService,
   ) {}
 
   async createForTransaction(transaction: StoredTransaction) {
@@ -665,56 +666,14 @@ export class PaymentNotificationsService {
   }
 
   private async userCanUsePaymentSpeaker(user: any, source: string) {
-    if (
-      String(user?.role || '')
-        .trim()
-        .toUpperCase() === 'SUPER_ADMIN'
-    ) {
-      this.logger.debug(
-        `Payment speaker allowed source=${source} user=${this.safeUserLabel(user)} reason=super_admin`,
-      );
-      return true;
-    }
-
-    const organizationNodeId =
-      typeof user?.organizationNodeId === 'string'
-        ? user.organizationNodeId.trim()
-        : '';
-    if (!organizationNodeId) {
-      this.logger.debug(
-        `Payment speaker denied source=${source} user=${this.safeUserLabel(user)} reason=missing_org_node`,
-      );
-      return false;
-    }
-
-    const organizationNode = await this.prisma.organizationNode.findUnique({
-      where: { id: organizationNodeId },
-      select: {
-        id: true,
-        type: true,
-        businessCode: true,
-        code: true,
-        isActive: true,
-      },
-    });
-    const positionCode = this.normalizeSpeakerPositionCode(
-      organizationNode?.businessCode || organizationNode?.code,
+    const allowed = await this.featureService.canAccessFeature(
+      user,
+      FEATURE_KEYS.PAYMENT_SPEAKER,
     );
-    const allowed =
-      organizationNode?.isActive === true &&
-      organizationNode.type === PAYMENT_SPEAKER_ORG_TYPE &&
-      PAYMENT_SPEAKER_POSITION_CODES.has(positionCode);
-
     this.logger.debug(
-      `Payment speaker ${allowed ? 'allowed' : 'denied'} source=${source} user=${this.safeUserLabel(user)} orgNode=${organizationNode?.id ?? 'none'} type=${organizationNode?.type ?? 'none'} position=${positionCode || 'none'}`,
+      `Payment speaker ${allowed ? 'allowed' : 'denied'} source=${source} user=${this.safeUserLabel(user)} feature=${FEATURE_KEYS.PAYMENT_SPEAKER}`,
     );
     return allowed;
-  }
-
-  private normalizeSpeakerPositionCode(value: unknown) {
-    return String(value || '')
-      .trim()
-      .toUpperCase();
   }
 
   private async assertUserCanAccessStore(user: any, storeCode: string) {

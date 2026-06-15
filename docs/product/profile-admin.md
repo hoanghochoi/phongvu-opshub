@@ -134,10 +134,15 @@ and basic administration for privileged roles.
   as `CHATSALE`, `TELESALE`, `AREA_MANAGER`, `REGIONAL_MANAGER`, back office,
   BOD, and CEO. These are operational personnel roles, separate from the three
   fixed system access roles.
-- Payment speaker ready-claim/audio/ack is limited to staff assigned directly
-  to active Lv5 positions with business code `STORE_MANAGER` or `CASH`. Other
-  positions can still use allowed store/runtime views and realtime transaction
-  refreshes but do not receive or acknowledge payment audio notifications.
+- Payment speaker ready-claim/audio/ack is controlled by the separate
+  `PAYMENT_SPEAKER` (`Đọc loa`) feature assigned to the user's direct
+  organization node group. `PAYMENT_MONITOR` opens the `Tiền vào` transaction
+  view, while `PAYMENT_SPEAKER` permits audio polling, audio download, and
+  payment-notification ack on supported Windows PCs. Mobile and other
+  unsupported platforms do not enable the speaker path by default. The rollout
+  backfills `PAYMENT_SPEAKER` only for Lv5 `STORE_MANAGER` and `CASH` node
+  groups that already have `PAYMENT_MONITOR`, so current speaker users keep
+  working without opening speaker access to every monitor user.
 - Work scope values are `NATIONAL`, `REGION`, `AREA`, and `STORE`.
   `MULTI_STORE` is not accepted. Legacy `ONLINE` is migrated to
   `REGION + CHATSALE` and is not exposed in the public contract.

@@ -154,12 +154,15 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   Future<void> setSpeakerEnabled(bool value) async {
     if (!_canUsePaymentSpeaker) {
+      final reason = _speakerEligibilityReason();
       await AppLogger.instance.info(
         'PaymentMonitor',
-        'Payment speaker preference change ignored for ineligible job role',
+        'Payment speaker preference change ignored',
         context: {
           'storeId': _requestStoreId ?? _user?.storeId,
-          'jobRoleCode': _normalizedJobRoleCode(_user),
+          'reason': reason,
+          'hasPaymentSpeakerFeature': _userCanUsePaymentSpeakerFeature(_user),
+          'supportsPaymentMonitor': _canMonitorOnThisDevice,
           'speakerEligible': false,
         },
       );
@@ -309,9 +312,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       AppPlatformCapabilities.isPaymentMonitorSupported();
 
   bool get _canUsePaymentSpeaker {
-    if (_user?.isSuperAdmin == true) return true;
-    final jobRoleCode = _normalizedJobRoleCode(_user);
-    return jobRoleCode == 'STORE_MANAGER' || jobRoleCode == 'CASH';
+    return _canMonitorOnThisDevice && _userCanUsePaymentSpeakerFeature(_user);
   }
 
   bool get _hasMonitorScope {
@@ -327,10 +328,16 @@ class PaymentMonitorProvider extends ChangeNotifier {
     return null;
   }
 
-  static String? _normalizedJobRoleCode(User? user) {
-    final value = user?.jobRoleCode?.trim().toUpperCase();
-    if (value == null || value.isEmpty) return null;
-    return value;
+  static bool _userCanUsePaymentSpeakerFeature(User? user) {
+    return user?.canUseFeature('PAYMENT_SPEAKER') == true;
+  }
+
+  String _speakerEligibilityReason() {
+    if (!_canMonitorOnThisDevice) return 'unsupported_platform';
+    if (!_userCanUsePaymentSpeakerFeature(_user)) {
+      return 'missing_speaker_feature';
+    }
+    return 'eligible';
   }
 
   static String? _userSessionKey(User? user) {
@@ -339,7 +346,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       user.id ?? user.email,
       user.storeId ?? '',
       user.role ?? '',
-      _normalizedJobRoleCode(user) ?? '',
+      _userCanUsePaymentSpeakerFeature(user).toString(),
     ].join('|');
   }
 
@@ -347,14 +354,15 @@ class PaymentMonitorProvider extends ChangeNotifier {
     required bool eligible,
     required String reason,
   }) {
-    final jobRoleCode = _normalizedJobRoleCode(_user);
     final storeId = _requestStoreId ?? _user?.storeId;
+    final hasPaymentSpeakerFeature = _userCanUsePaymentSpeakerFeature(_user);
     final key = [
       eligible,
       reason,
       _user?.id ?? _user?.email ?? '',
       storeId ?? '',
-      jobRoleCode ?? '',
+      hasPaymentSpeakerFeature,
+      _canMonitorOnThisDevice,
     ].join('|');
     if (_lastSpeakerEligibilityLogKey == key) return;
     _lastSpeakerEligibilityLogKey = key;
@@ -363,13 +371,14 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'PaymentMonitor',
         eligible
             ? 'Payment speaker realtime eligible'
-            : 'Payment speaker audio skipped for ineligible job role',
+            : 'Payment speaker audio skipped',
         context: {
           'speakerEligible': eligible,
           'reason': reason,
           'storeId': storeId,
           'hasScope': _hasMonitorScope,
-          'jobRoleCode': jobRoleCode,
+          'hasPaymentSpeakerFeature': hasPaymentSpeakerFeature,
+          'supportsPaymentMonitor': _canMonitorOnThisDevice,
           'listOnly': !eligible,
         },
       ),
@@ -388,7 +397,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     final speakerEligible = _canUsePaymentSpeaker;
     _logSpeakerEligibility(
       eligible: speakerEligible,
-      reason: speakerEligible ? 'eligible_job_role' : 'ineligible_job_role',
+      reason: _speakerEligibilityReason(),
     );
     _connectRealtime();
     if (_isActive) return;
@@ -637,7 +646,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
           context: {
             'storeId': _requestStoreId ?? _user?.storeId,
             'checkpointAt': _notificationCheckpointAt?.toIso8601String(),
-            'jobRoleCode': _normalizedJobRoleCode(_user),
+            'hasPaymentSpeakerFeature': _userCanUsePaymentSpeakerFeature(_user),
+            'supportsPaymentMonitor': _canMonitorOnThisDevice,
             'speakerEligible': speakerEligible,
             'reason': reason,
           },
@@ -781,12 +791,14 @@ class PaymentMonitorProvider extends ChangeNotifier {
     if (!_canUsePaymentSpeaker) {
       await AppLogger.instance.info(
         'PaymentMonitor',
-        'Payment notifications ignored because job role is not speaker eligible',
+        'Payment notifications ignored because speaker feature is unavailable',
         context: {
           'count': notifications.length,
           'clientId': clientId,
           'storeCode': _requestStoreId ?? _user?.storeId,
-          'jobRoleCode': _normalizedJobRoleCode(_user),
+          'reason': _speakerEligibilityReason(),
+          'hasPaymentSpeakerFeature': _userCanUsePaymentSpeakerFeature(_user),
+          'supportsPaymentMonitor': _canMonitorOnThisDevice,
         },
       );
       return;

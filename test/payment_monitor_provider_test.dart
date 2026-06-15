@@ -74,7 +74,7 @@ void main() {
   });
 
   test(
-    'loads transactions but skips notification polling for ineligible job role',
+    'loads transactions but skips notification polling without speaker feature',
     () async {
       final repository = _FakePaymentMonitorRepository(
         notifications: [_readyNotification()],
@@ -88,7 +88,7 @@ void main() {
       );
 
       await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(jobRoleCode: 'SA'), isInitialized: true);
+      provider.syncAuth(_storeUser(canReadSpeaker: false), isInitialized: true);
       await _waitUntil(
         () => repository.transactionFetchCount > 0 && !provider.isLoading,
       );
@@ -106,9 +106,9 @@ void main() {
   );
 
   test(
-    'normalizes STORE_MANAGER and CASH job role codes for speaker polling',
+    'uses PAYMENT_SPEAKER feature instead of job role for speaker polling',
     () async {
-      for (final roleCode in ['store_manager', ' cash ']) {
+      for (final roleCode in ['SA', 'warehouse']) {
         final repository = _FakePaymentMonitorRepository(
           notifications: const [],
         );
@@ -133,6 +133,33 @@ void main() {
 
         provider.dispose();
       }
+    },
+  );
+
+  test(
+    'does not enable speaker on non-Windows even with speaker feature',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      final repository = _FakePaymentMonitorRepository(
+        notifications: [_readyNotification()],
+      );
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(), isInitialized: true);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(provider.canUsePaymentSpeaker, isFalse);
+      expect(provider.isActive, isFalse);
+      expect(repository.readyFetchCount, 0);
+      expect(repository.downloadCount, 0);
+
+      provider.dispose();
     },
   );
 
@@ -489,6 +516,8 @@ Future<void> _waitUntil(bool Function() condition) async {
 User _storeUser({
   String? jobRoleCode = 'CASH',
   String storeId = 'store-uuid-1',
+  bool canReadSpeaker = true,
+  bool canMonitor = true,
 }) {
   return User(
     id: 'user-1',
@@ -496,6 +525,10 @@ User _storeUser({
     role: 'MANAGER',
     storeId: storeId,
     jobRoleCode: jobRoleCode,
+    featureAccess: {
+      if (canMonitor) 'PAYMENT_MONITOR': true,
+      if (canReadSpeaker) 'PAYMENT_SPEAKER': true,
+    },
   );
 }
 

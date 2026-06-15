@@ -59,6 +59,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final canUsePaymentMonitor = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('PAYMENT_MONITOR') == true,
     );
+    final canUsePaymentSpeaker = context.select<AuthProvider, bool>(
+      (auth) => auth.user?.canUseFeature('PAYMENT_SPEAKER') == true,
+    );
     final supportsPaymentMonitor =
         AppPlatformCapabilities.isPaymentMonitorSupported();
     final actions = _buildHomeActions(
@@ -105,7 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (canUsePaymentMonitor && supportsPaymentMonitor) ...[
+                  if (canUsePaymentSpeaker && supportsPaymentMonitor) ...[
                     const _PaymentMonitorQuickToggle(),
                     const SizedBox(height: 16),
                   ],
