@@ -581,8 +581,7 @@ jobs:
           }
 
           rollback_on_error() {
-            status=$?
-            trap - ERR
+            status="$1"
             echo "Deploy failed with status $status" >&2
             dump_deploy_diagnostics
 
@@ -620,8 +619,6 @@ jobs:
             exit "$status"
           }
 
-          trap rollback_on_error ERR
-
           compose_cmd config >/dev/null
 
           compose_cmd --profile migrate run --rm -T --build migrate \
@@ -630,7 +627,13 @@ jobs:
 
           compose_cmd --profile migrate run --rm -T --build migrate
 
+          set +e
           compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 api realtime caddy
+          deploy_status=$?
+          set -e
+          if [ "$deploy_status" -ne 0 ]; then
+            rollback_on_error "$deploy_status"
+          fi
 
           expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}"
           for attempt in {1..12}; do
