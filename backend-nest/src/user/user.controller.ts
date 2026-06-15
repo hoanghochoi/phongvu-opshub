@@ -15,10 +15,12 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { imageUploadOptions } from '../upload/image-upload.options';
+import { userImportFileUploadOptions } from './user-import-file-upload.options';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { RequireFeature } from '../feature/feature.decorator';
 import { FeatureGuard } from '../feature/feature.guard';
 import { UserService } from './user.service';
+import { UserImportParserService } from './user-import-parser.service';
 import {
   AdminResetPasswordDto,
   AdminAreaDto,
@@ -36,7 +38,10 @@ import {
 @Controller()
 @UseGuards(AuthGuard('jwt'), FeatureGuard)
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly userImportParser: UserImportParserService,
+  ) {}
 
   @Get('stores')
   listStores(@Query('q') q?: string) {
@@ -89,6 +94,14 @@ export class UserController {
   @RequireFeature(FEATURE_KEYS.ADMIN_USERS)
   createUser(@Request() req: any, @Body() body: AdminUserDto) {
     return this.userService.adminCreateUser(req.user, body);
+  }
+
+  @Post('admin/users/import')
+  @RequireFeature(FEATURE_KEYS.ADMIN_USERS)
+  @UseInterceptors(FileInterceptor('file', userImportFileUploadOptions))
+  importUsers(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
+    const parsed = this.userImportParser.parse(file);
+    return this.userService.adminImportUsers(req.user, parsed);
   }
 
   @Patch('admin/users/:id')
@@ -190,10 +203,7 @@ export class UserController {
 
   @Post('admin/job-roles')
   @RequireFeature(FEATURE_KEYS.ADMIN_PERSONNEL)
-  createJobRole(
-    @Request() req: any,
-    @Body() body: AdminPersonnelCatalogDto,
-  ) {
+  createJobRole(@Request() req: any, @Body() body: AdminPersonnelCatalogDto) {
     return this.userService.adminCreateJobRole(req.user, body);
   }
 
@@ -222,7 +232,10 @@ export class UserController {
   @Post('admin/regions')
   @RequireFeature(FEATURE_KEYS.ADMIN_ORG_TREE)
   createRegion(@Request() req: any, @Body() body: AdminRegionDto) {
-    return this.userService.adminRetiredTreeApi(req.user, 'POST /admin/regions');
+    return this.userService.adminRetiredTreeApi(
+      req.user,
+      'POST /admin/regions',
+    );
   }
 
   @Patch('admin/regions/:code')

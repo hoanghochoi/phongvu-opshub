@@ -15,6 +15,74 @@ import '../auth_device_info.dart';
 import '../../domain/entities/store_branch.dart';
 import '../../domain/entities/user.dart';
 
+class AdminUserImportRowResult {
+  final int rowNumber;
+  final String email;
+  final String action;
+  final String role;
+  final String? organizationNodeId;
+  final String? organizationNodeName;
+  final String? personnelCode;
+
+  const AdminUserImportRowResult({
+    required this.rowNumber,
+    required this.email,
+    required this.action,
+    required this.role,
+    this.organizationNodeId,
+    this.organizationNodeName,
+    this.personnelCode,
+  });
+
+  factory AdminUserImportRowResult.fromJson(Map<String, dynamic> json) {
+    return AdminUserImportRowResult(
+      rowNumber: _toInt(json['rowNumber']),
+      email: json['email']?.toString() ?? '',
+      action: json['action']?.toString() ?? '',
+      role: json['role']?.toString() ?? '',
+      organizationNodeId: json['organizationNodeId']?.toString(),
+      organizationNodeName: json['organizationNodeName']?.toString(),
+      personnelCode: json['personnelCode']?.toString(),
+    );
+  }
+}
+
+class AdminUserImportResult {
+  final int totalRows;
+  final int createdRows;
+  final int updatedRows;
+  final int skippedRows;
+  final List<AdminUserImportRowResult> results;
+
+  const AdminUserImportResult({
+    required this.totalRows,
+    required this.createdRows,
+    required this.updatedRows,
+    required this.skippedRows,
+    required this.results,
+  });
+
+  factory AdminUserImportResult.fromJson(Map<String, dynamic> json) {
+    return AdminUserImportResult(
+      totalRows: _toInt(json['totalRows']),
+      createdRows: _toInt(json['createdRows']),
+      updatedRows: _toInt(json['updatedRows']),
+      skippedRows: _toInt(json['skippedRows']),
+      results: (json['results'] as List<dynamic>? ?? const [])
+          .map(
+            (item) =>
+                AdminUserImportRowResult.fromJson(item as Map<String, dynamic>),
+          )
+          .toList(),
+    );
+  }
+}
+
+int _toInt(Object? value) {
+  if (value is int) return value;
+  return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
 class AuthRepository {
   final ApiClient _apiClient;
   final AuthDeviceInfoProvider _deviceInfoProvider;
@@ -483,6 +551,29 @@ class AuthRepository {
       },
     );
     return user;
+  }
+
+  Future<AdminUserImportResult> importAdminUsers(String path) async {
+    final response = await _apiClient.postMultipart(
+      ApiConstants.adminUsersImportEndpoint,
+      fields: const {},
+      files: [await http.MultipartFile.fromPath('file', path)],
+      timeout: ApiConstants.uploadTimeout,
+    );
+    final result = AdminUserImportResult.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin users imported',
+      context: {
+        'totalRows': result.totalRows,
+        'createdRows': result.createdRows,
+        'updatedRows': result.updatedRows,
+        'skippedRows': result.skippedRows,
+      },
+    );
+    return result;
   }
 
   Future<void> resetAdminUserPassword(

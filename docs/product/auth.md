@@ -44,6 +44,8 @@ Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
 - Users who forget their password can request a reset email from the login
   screen. The email contains a 6-digit code that expires after 10 minutes. The
   response is generic so the API does not reveal whether an email exists.
+- Users created by admin Excel import have no password initially. Their first
+  password is created through the same in-app `Quên mật khẩu` email-code flow.
 - After verifying the reset code in the app, users enter the new password and
   confirmation in the app. The backend stores only a one-time reset-token hash
   between code verification and final password update.

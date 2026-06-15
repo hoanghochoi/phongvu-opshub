@@ -27,6 +27,7 @@ class ApiConstants {
   static const String profileEndpoint = '/users/me';
   static const String avatarEndpoint = '/users/me/avatar';
   static const String adminUsersEndpoint = '/admin/users';
+  static const String adminUsersImportEndpoint = '/admin/users/import';
   static const String adminUserScopeTreeEndpoint = '/admin/users/scope-tree';
   static String adminUserResetPasswordEndpoint(String id) =>
       '/admin/users/$id/reset-password';

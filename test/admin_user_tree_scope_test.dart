@@ -106,6 +106,32 @@ void main() {
     },
   );
 
+  test('Admin user import result parses summary and per-row results', () {
+    final result = AdminUserImportResult.fromJson({
+      'totalRows': 2,
+      'createdRows': 1,
+      'updatedRows': 1,
+      'skippedRows': 0,
+      'results': [
+        {
+          'rowNumber': 2,
+          'email': 'new@phongvu.vn',
+          'action': 'created',
+          'role': 'USER',
+          'organizationNodeId': 'org-pos-sa',
+          'organizationNodeName': 'Nhân viên Bán hàng',
+          'personnelCode': 'SA_CP62_HCM_MN',
+        },
+      ],
+    });
+
+    expect(result.totalRows, 2);
+    expect(result.createdRows, 1);
+    expect(result.updatedRows, 1);
+    expect(result.results.single.email, 'new@phongvu.vn');
+    expect(result.results.single.personnelCode, 'SA_CP62_HCM_MN');
+  });
+
   test('Admin user editor payload sends tree-only scope input', () {
     final body = AdminUserEditorPayload.build(
       email: ' staff@phongvu.vn ',

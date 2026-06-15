@@ -22,6 +22,10 @@ import {
   BREAK_GLASS_SUPER_ADMIN_PASSWORD_HASH,
   LEGACY_SUPER_ADMIN_EMAIL,
 } from '../auth/break-glass-admin.constants';
+import {
+  AdminUserImportParseResult,
+  AdminUserImportRow,
+} from './user-import-parser.service';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 const ADMIN_ROLE = 'ADMIN';
@@ -117,6 +121,33 @@ const DEFAULT_ROLE_DEFINITIONS = [
     description: 'Quyền thao tác hằng ngày',
   },
 ];
+
+type PreparedAdminUserMutation = {
+  email: string;
+  role: string;
+  workScopeType: string;
+  personnel: {
+    departmentCode?: string | null;
+    jobRoleCode?: string | null;
+    regionCode?: string | null;
+    areaCode?: string | null;
+    organizationNodeId?: string | null;
+  };
+  createData: Record<string, unknown>;
+  updateData: Record<string, unknown>;
+};
+
+type PreparedAdminUserImport = {
+  rowNumber: number;
+  email: string;
+  action: 'created' | 'updated';
+  userId?: string;
+  role: string;
+  organizationNodeId: string | null;
+  organizationNodeName: string | null;
+  createData?: Record<string, unknown>;
+  updateData?: Record<string, unknown>;
+};
 
 const DEFAULT_DEPARTMENT_DEFINITIONS = [
   {
@@ -607,49 +638,10 @@ export class UserService implements OnModuleInit {
 
   async adminCreateUser(admin: any, body: any) {
     await this.assertAdmin(admin);
-    const email = String(body.email || '')
-      .trim()
-      .toLowerCase();
-    if (!email) throw new BadRequestException('Email không được để trống');
-    await this.assertEmailWithinAdminDomain(admin, email);
-
-    const role = await this.resolveAssignableRole(body.role || USER_ROLE);
-    await this.assertRoleEditable(admin, role);
-    const workScopeType = await this.resolveWorkScopeTypeForAssignment(
-      body,
-      null,
-      role,
-    );
-    const storeUuid = await this.resolveUserAssignmentStoreUuid(admin, body, {
-      workScopeType,
-    });
-    const personnel = await this.resolvePersonnelAssignment(admin, body, {
-      role,
-      storeUuid,
-      workScopeType,
-    });
+    const prepared = await this.prepareAdminUserMutation(admin, body, null);
 
     const user = await this.prisma.user.create({
-      data: {
-        email,
-        password: '',
-        firstName: String(body.firstName || email.split('@')[0]).trim(),
-        lastName: String(body.lastName || '').trim() || null,
-        role,
-        status:
-          String(body.status || 'yes').toLowerCase() === 'no' ? 'no' : 'yes',
-        workScopeType: personnel.workScopeType,
-        ...this.userRelationMutationData({
-          storeUuid,
-          departmentCode: personnel.departmentCode,
-          jobRoleCode: personnel.jobRoleCode,
-          regionCode: personnel.regionCode,
-          areaCode: personnel.areaCode,
-          organizationNodeId: personnel.organizationNodeId,
-        }),
-        branchLockedAt: storeUuid ? new Date() : null,
-        profileCompletedAt: storeUuid ? new Date() : null,
-      },
+      data: prepared.createData as any,
       include: this.userDtoInclude(),
     });
     const saved = await this.prisma.user.findUnique({
@@ -657,7 +649,7 @@ export class UserService implements OnModuleInit {
       include: this.userDtoInclude(),
     });
     this.logger.log(
-      `Admin user created: email=${email} role=${role} scope=${personnel.workScopeType} personnelCode=${this.personnelCodeFor(user) ?? 'none'}`,
+      `Admin user created: email=${prepared.email} role=${prepared.role} scope=${prepared.workScopeType} personnelCode=${this.personnelCodeFor(user) ?? 'none'}`,
     );
     return this.toUserDto(saved ?? user);
   }
@@ -670,6 +662,214 @@ export class UserService implements OnModuleInit {
     });
     if (!current) throw new NotFoundException('Không tìm thấy user');
 
+    await this.assertAdminCanUpdateUser(admin, userId, current);
+    const prepared = await this.prepareAdminUserMutation(admin, body, current);
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: prepared.updateData as any,
+      include: this.userDtoInclude(),
+    });
+    const saved = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: this.userDtoInclude(),
+    });
+    this.logger.log(
+      `Admin user updated: id=${userId} role=${prepared.role} scope=${prepared.workScopeType} personnelCode=${this.personnelCodeFor(updated) ?? 'none'}`,
+    );
+    return this.toUserDto(saved ?? updated);
+  }
+
+  async adminImportUsers(admin: any, parsed: AdminUserImportParseResult) {
+    await this.assertAdmin(admin);
+    const startedAt = Date.now();
+    this.logger.log(
+      'Admin user import started: admin=' +
+        (admin.email || admin.id || 'unknown') +
+        ' role=' +
+        admin.role +
+        ' rows=' +
+        parsed.rows.length +
+        ' skipped=' +
+        parsed.skippedRows,
+    );
+
+    try {
+      await this.seedDefaultOrganizationTree();
+      await this.syncStoreOrganizationNodes('admin-user-import');
+      const prepared = await this.prepareAdminUserImport(admin, parsed.rows);
+
+      await this.prisma.$transaction(async (tx) => {
+        for (const item of prepared) {
+          if (item.action === 'created') {
+            await tx.user.create({ data: item.createData as any });
+          } else if (item.userId) {
+            await tx.user.update({
+              where: { id: item.userId },
+              data: item.updateData as any,
+            });
+          }
+        }
+      });
+
+      const emails = prepared.map((item) => item.email);
+      const savedUsers = await this.prisma.user.findMany({
+        where: { email: { in: emails } },
+        include: this.userDtoInclude(),
+      });
+      const savedByEmail = new Map(
+        savedUsers.map((user) => [String(user.email).toLowerCase(), user]),
+      );
+      const results = prepared.map((item) => {
+        const saved = savedByEmail.get(item.email);
+        return {
+          rowNumber: item.rowNumber,
+          email: item.email,
+          action: item.action,
+          role: saved?.role ?? item.role,
+          organizationNodeId:
+            saved?.organizationNodeId ?? item.organizationNodeId,
+          organizationNodeName:
+            saved?.organizationNode?.displayName ?? item.organizationNodeName,
+          personnelCode: saved ? this.personnelCodeFor(saved) : null,
+        };
+      });
+      const createdRows = results.filter(
+        (item) => item.action === 'created',
+      ).length;
+      const updatedRows = results.filter(
+        (item) => item.action === 'updated',
+      ).length;
+
+      this.logger.log(
+        'Admin user import completed: admin=' +
+          (admin.email || admin.id || 'unknown') +
+          ' created=' +
+          createdRows +
+          ' updated=' +
+          updatedRows +
+          ' skipped=' +
+          parsed.skippedRows +
+          ' durationMs=' +
+          (Date.now() - startedAt),
+      );
+      return {
+        totalRows: parsed.totalRows,
+        createdRows,
+        updatedRows,
+        skippedRows: parsed.skippedRows,
+        results,
+      };
+    } catch (error) {
+      this.logger.error(
+        'Admin user import failed: admin=' +
+          (admin.email || admin.id || 'unknown') +
+          ' rows=' +
+          parsed.rows.length +
+          ' durationMs=' +
+          (Date.now() - startedAt),
+        error,
+      );
+      throw error;
+    }
+  }
+
+  private async prepareAdminUserMutation(
+    admin: any,
+    body: any,
+    current: any | null,
+  ): Promise<PreparedAdminUserMutation> {
+    const email = current
+      ? String(current.email || '')
+          .trim()
+          .toLowerCase()
+      : String(body.email || '')
+          .trim()
+          .toLowerCase();
+    if (!email) throw new BadRequestException('Email không được để trống');
+    if (!current) await this.assertEmailWithinAdminDomain(admin, email);
+
+    const role = body.role
+      ? await this.resolveAssignableRole(body.role)
+      : current
+        ? this.normalizeRoleCode(current.role, true)
+        : await this.resolveAssignableRole(USER_ROLE);
+    await this.assertRoleEditable(admin, role, current?.role);
+    const workScopeType = await this.resolveWorkScopeTypeForAssignment(
+      body,
+      current,
+      role,
+    );
+    const storeUuid = await this.resolveUserAssignmentStoreUuid(admin, body, {
+      current,
+      workScopeType,
+    });
+    const personnel = await this.resolvePersonnelAssignment(admin, body, {
+      current,
+      role,
+      storeUuid,
+      workScopeType,
+    });
+    const relationInput = {
+      storeUuid,
+      departmentCode: personnel.departmentCode,
+      jobRoleCode: personnel.jobRoleCode,
+      regionCode: personnel.regionCode,
+      areaCode: personnel.areaCode,
+      organizationNodeId: personnel.organizationNodeId,
+    };
+    const createData = {
+      email,
+      password: '',
+      firstName: String(body.firstName || email.split('@')[0]).trim(),
+      lastName: String(body.lastName || '').trim() || null,
+      role,
+      status:
+        String(body.status || 'yes').toLowerCase() === 'no' ? 'no' : 'yes',
+      workScopeType: personnel.workScopeType,
+      ...this.userRelationMutationData(relationInput),
+      branchLockedAt: storeUuid ? new Date() : null,
+      profileCompletedAt: storeUuid ? new Date() : null,
+    };
+    const updateData = {
+      firstName: body.firstName?.trim() || current?.firstName,
+      lastName:
+        body.lastName === undefined
+          ? current?.lastName
+          : String(body.lastName || '').trim() || null,
+      role,
+      status:
+        body.status === undefined
+          ? current?.status
+          : String(body.status).toLowerCase() === 'no'
+            ? 'no'
+            : 'yes',
+      workScopeType: personnel.workScopeType,
+      ...this.userRelationMutationData(relationInput, {
+        disconnectNulls: true,
+      }),
+      branchLockedAt: storeUuid
+        ? (current?.branchLockedAt ?? new Date())
+        : null,
+      profileCompletedAt: storeUuid
+        ? (current?.profileCompletedAt ?? new Date())
+        : current?.profileCompletedAt,
+    };
+    return {
+      email,
+      role,
+      workScopeType: personnel.workScopeType,
+      personnel,
+      createData,
+      updateData,
+    };
+  }
+
+  private async assertAdminCanUpdateUser(
+    admin: any,
+    userId: string,
+    current: any,
+  ) {
     if (
       this.isScopedAdmin(admin) &&
       this.normalizeRoleCode(current.role) === SUPER_ADMIN_ROLE
@@ -695,71 +895,177 @@ export class UserService implements OnModuleInit {
         'Khong co quyen sua user ngoai pham vi quan ly',
       );
     }
+  }
 
-    const role = body.role
-      ? await this.resolveAssignableRole(body.role)
-      : this.normalizeRoleCode(current.role, true);
-    await this.assertRoleEditable(admin, role, current.role);
-    const workScopeType = await this.resolveWorkScopeTypeForAssignment(
-      body,
-      current,
-      role,
+  private async prepareAdminUserImport(
+    admin: any,
+    rows: AdminUserImportRow[],
+  ): Promise<PreparedAdminUserImport[]> {
+    const emails = rows.map((row) => row.email);
+    const existingUsers = await this.prisma.user.findMany({
+      where: { email: { in: emails } },
+      include: this.userDtoInclude(),
+    });
+    const existingByEmail = new Map(
+      existingUsers.map((user) => [String(user.email).toLowerCase(), user]),
     );
-    const storeUuid = await this.resolveUserAssignmentStoreUuid(admin, body, {
-      current,
-      workScopeType,
-    });
-    const personnel = await this.resolvePersonnelAssignment(admin, body, {
-      current,
-      role,
-      storeUuid,
-      workScopeType,
-    });
+    const organizationNodes = await this.listActiveOrganizationNodesForImport();
+    const prepared: PreparedAdminUserImport[] = [];
+    const errors: string[] = [];
 
-    const updated = await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        firstName: body.firstName?.trim() || current.firstName,
-        lastName:
-          body.lastName === undefined
-            ? current.lastName
-            : String(body.lastName || '').trim() || null,
-        role,
-        status:
-          body.status === undefined
-            ? current.status
-            : String(body.status).toLowerCase() === 'no'
-              ? 'no'
-              : 'yes',
-        workScopeType: personnel.workScopeType,
-        ...this.userRelationMutationData(
-          {
-            storeUuid,
-            departmentCode: personnel.departmentCode,
-            jobRoleCode: personnel.jobRoleCode,
-            regionCode: personnel.regionCode,
-            areaCode: personnel.areaCode,
-            organizationNodeId: personnel.organizationNodeId,
-          },
-          { disconnectNulls: true },
-        ),
-        branchLockedAt: storeUuid
-          ? (current.branchLockedAt ?? new Date())
-          : null,
-        profileCompletedAt: storeUuid
-          ? (current.profileCompletedAt ?? new Date())
-          : current.profileCompletedAt,
+    for (const row of rows) {
+      try {
+        const node = await this.resolveImportOrganizationNode(
+          admin,
+          row,
+          organizationNodes,
+        );
+        const current = existingByEmail.get(row.email) ?? null;
+        if (current) {
+          await this.assertAdminCanUpdateUser(admin, current.id, current);
+        }
+        const body = {
+          email: row.email,
+          firstName: row.fullName,
+          lastName: '',
+          role: row.role,
+          status: current ? undefined : 'yes',
+          organizationNodeId: node.id,
+        };
+        const mutation = await this.prepareAdminUserMutation(
+          admin,
+          body,
+          current,
+        );
+        prepared.push({
+          rowNumber: row.rowNumber,
+          email: row.email,
+          action: current ? 'updated' : 'created',
+          userId: current?.id,
+          role: mutation.role,
+          organizationNodeId: mutation.personnel.organizationNodeId ?? node.id,
+          organizationNodeName: node.displayName,
+          createData: current ? undefined : mutation.createData,
+          updateData: current ? mutation.updateData : undefined,
+        });
+      } catch (error) {
+        errors.push(
+          `dòng ${row.rowNumber}: ${this.errorMessageForImport(error)}`,
+        );
+      }
+    }
+
+    if (errors.length > 0) {
+      const preview = errors.slice(0, 8).join('; ');
+      const suffix =
+        errors.length > 8 ? `; và ${errors.length - 8} lỗi khác` : '';
+      throw new BadRequestException(
+        `File nhân sự chưa hợp lệ: ${preview}${suffix}`,
+      );
+    }
+    return prepared;
+  }
+
+  private async listActiveOrganizationNodesForImport() {
+    return this.prisma.organizationNode.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        parentId: true,
+        type: true,
+        code: true,
+        businessCode: true,
+        displayName: true,
+        isActive: true,
       },
-      include: this.userDtoInclude(),
     });
-    const saved = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: this.userDtoInclude(),
-    });
-    this.logger.log(
-      `Admin user updated: id=${userId} role=${role} scope=${personnel.workScopeType} personnelCode=${this.personnelCodeFor(updated) ?? 'none'}`,
-    );
-    return this.toUserDto(saved ?? updated);
+  }
+
+  private async resolveImportOrganizationNode(
+    admin: any,
+    row: AdminUserImportRow,
+    nodes: Array<{
+      id: string;
+      parentId: string | null;
+      type: string;
+      code: string;
+      businessCode: string | null;
+      displayName: string;
+      isActive: boolean;
+    }>,
+  ) {
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    let previous: (typeof nodes)[number] | null = null;
+    let target: (typeof nodes)[number] | null = null;
+
+    for (let level = 0; level < row.levelCodes.length; level += 1) {
+      const value = row.levelCodes[level];
+      if (!value) continue;
+      const candidates = nodes.filter(
+        (node) =>
+          node.isActive &&
+          this.organizationNodeLevel(node.type) === level &&
+          this.importNodeMatches(node, value) &&
+          (!previous ||
+            this.organizationNodeIsDescendantOf(node, previous, byId)),
+      );
+      if (candidates.length === 0) {
+        throw new BadRequestException(
+          `không tìm thấy node lv${level} với mã ${value}`,
+        );
+      }
+      if (candidates.length > 1) {
+        throw new BadRequestException(
+          `mã node lv${level} bị trùng/mơ hồ: ${value}`,
+        );
+      }
+      previous = candidates[0];
+      target = candidates[0];
+    }
+
+    if (!target) {
+      throw new BadRequestException('thiếu node tổ chức');
+    }
+    await this.assertOrganizationNodeAssignableByAdmin(admin, target.id);
+    return target;
+  }
+
+  private organizationNodeIsDescendantOf(
+    node: { id: string; parentId: string | null },
+    ancestor: { id: string },
+    byId: Map<string, { id: string; parentId: string | null }>,
+  ) {
+    let cursor: { id: string; parentId: string | null } | undefined = node;
+    for (let guard = 0; cursor && guard < 50; guard += 1) {
+      if (cursor.id === ancestor.id) return true;
+      cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
+    }
+    return false;
+  }
+
+  private importNodeMatches(
+    node: { code: string; businessCode: string | null },
+    value: string,
+  ) {
+    const keys = this.importLookupKeys(value);
+    const nodeKeys = [
+      ...this.importLookupKeys(node.code),
+      ...this.importLookupKeys(node.businessCode),
+    ];
+    return nodeKeys.some((key) => keys.has(key));
+  }
+
+  private importLookupKeys(value: unknown) {
+    const raw = String(value || '')
+      .trim()
+      .toUpperCase();
+    const normalized = raw.replace(/[^A-Z0-9_]/g, '_');
+    return new Set([raw, normalized].filter(Boolean));
+  }
+
+  private errorMessageForImport(error: unknown) {
+    if (error instanceof Error && error.message) return error.message;
+    return 'dòng dữ liệu không hợp lệ';
   }
 
   private normalizeFeatureCodeList(value: unknown) {
@@ -3876,8 +4182,12 @@ export class UserService implements OnModuleInit {
     const storeCode = String(store?.storeId || '')
       .trim()
       .toUpperCase();
-    const storeName = String(store?.storeName || '').trim().toLowerCase();
-    const areaCode = String(store?.areaCode || '').trim().toUpperCase();
+    const storeName = String(store?.storeName || '')
+      .trim()
+      .toLowerCase();
+    const areaCode = String(store?.areaCode || '')
+      .trim()
+      .toUpperCase();
     const isAcare =
       storeCode.startsWith('AC') ||
       storeCode.startsWith('AP') ||

@@ -178,6 +178,17 @@ This file maps product behavior to proof. Existing flows are marked
   tree-scope test (4 tests), `flutter analyze --no-pub`, full Flutter
   `flutter test --no-pub --reporter expanded` (84 tests), and `git diff
   --check`. Gap: live staging smoke remains manual.
+- PROFILE-ADMIN-001/AUTH-002, 2026-06-15: added Excel-based admin user import
+  through `POST /admin/users/import` guarded by `ADMIN_USERS`. The import
+  accepts the `user_temp.xlsx` header contract, resolves `lv0`-`lv5` values by
+  active organization node `code`/`businessCode`, assigns the deepest matched
+  node, creates passwordless users, upserts existing users without changing
+  passwords, and keeps first-password setup on the in-app forgot-password
+  email-code flow. Validation in current patch: `npx prisma validate`, backend
+  `npm run build`, full backend `npm test -- --runInBand` (37 suites, 280
+  tests), `flutter analyze --no-pub`, and full Flutter
+  `flutter test --no-pub --reporter expanded` (103 tests), plus
+  `git diff --check`.
 - PROFILE-ADMIN-001, 2026-06-12: fixed organization node creation for Region
   nodes under Block parents such as `Kinh Doanh`. Backend parent validation now
   allows `REGION` under `BLOCK`, preserves existing showroom-under-block trees,

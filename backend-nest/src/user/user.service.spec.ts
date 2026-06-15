@@ -1415,6 +1415,201 @@ describe('UserService admin store management', () => {
     });
   });
 
+  it('imports passwordless users and upserts existing users from tree-code Excel rows', async () => {
+    const org = installUserScopeTreeMock();
+    org.saveNode({
+      id: 'org-store-cp62-pos-sa',
+      code: 'STORE_CP62_POS_SA',
+      businessCode: 'SA',
+      displayName: 'Nhân viên Bán hàng',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 10,
+    });
+    prisma.store.findMany.mockResolvedValue([]);
+    const existing = {
+      id: 'existing-user',
+      email: 'old@phongvu.vn',
+      password: 'already-hashed',
+      firstName: 'Old',
+      lastName: 'Name',
+      role: 'USER',
+      status: 'no',
+      workScopeType: 'STORE',
+      storeId: 'store-62',
+      store,
+      jobRoleCode: 'SA',
+      organizationNodeId: 'org-store-cp62-pos-sa',
+      organizationNode: {
+        id: 'org-store-cp62-pos-sa',
+        displayName: 'Nhân viên Bán hàng',
+      },
+      userFeatureAssignments: [],
+    };
+    const savedNew = {
+      id: 'new-user',
+      email: 'new@phongvu.vn',
+      firstName: 'New User',
+      lastName: null,
+      role: 'USER',
+      status: 'yes',
+      workScopeType: 'STORE',
+      storeId: 'store-62',
+      store,
+      jobRoleCode: 'SA',
+      organizationNodeId: 'org-store-cp62-pos-sa',
+      organizationNode: existing.organizationNode,
+      userFeatureAssignments: [],
+    };
+    const savedOld = { ...existing, firstName: 'Old Updated', lastName: null };
+    prisma.user.findMany
+      .mockResolvedValueOnce([existing])
+      .mockResolvedValueOnce([savedNew, savedOld]);
+    prisma.user.update.mockResolvedValue(savedOld);
+
+    const result = await service.adminImportUsers(superAdmin, {
+      totalRows: 2,
+      skippedRows: 0,
+      rows: [
+        {
+          rowNumber: 2,
+          email: 'new@phongvu.vn',
+          fullName: 'New User',
+          role: 'USER',
+          levelCodes: ['DOMAIN_PHONGVU_VN', '', '', '', 'CP62', 'SA'],
+        },
+        {
+          rowNumber: 3,
+          email: 'old@phongvu.vn',
+          fullName: 'Old Updated',
+          role: 'USER',
+          levelCodes: ['DOMAIN_PHONGVU_VN', '', '', '', 'STORE_CP62', 'SA'],
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      totalRows: 2,
+      createdRows: 1,
+      updatedRows: 1,
+      skippedRows: 0,
+    });
+    expect(result.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          email: 'new@phongvu.vn',
+          action: 'created',
+          organizationNodeId: 'org-store-cp62-pos-sa',
+          personnelCode: 'SA_CP62_HCM_MN',
+        }),
+        expect.objectContaining({
+          email: 'old@phongvu.vn',
+          action: 'updated',
+          personnelCode: 'SA_CP62_HCM_MN',
+        }),
+      ]),
+    );
+    expect(prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: 'new@phongvu.vn',
+          password: '',
+          firstName: 'New User',
+          organizationNode: { connect: { id: 'org-store-cp62-pos-sa' } },
+        }),
+      }),
+    );
+    const updateCall = prisma.user.update.mock.calls[0][0];
+    expect(updateCall).toEqual(
+      expect.objectContaining({
+        where: { id: 'existing-user' },
+        data: expect.not.objectContaining({ password: expect.anything() }),
+      }),
+    );
+    expect(updateCall.data).toEqual(expect.objectContaining({ status: 'no' }));
+  });
+
+  it('rejects ambiguous import node codes before writing users', async () => {
+    const org = installUserScopeTreeMock();
+    org.saveNode({
+      id: 'org-store-cp62-pos-sa-1',
+      code: 'STORE_CP62_POS_SA_1',
+      businessCode: 'SA',
+      displayName: 'SA 1',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 10,
+    });
+    org.saveNode({
+      id: 'org-store-cp62-pos-sa-2',
+      code: 'STORE_CP62_POS_SA_2',
+      businessCode: 'SA',
+      displayName: 'SA 2',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 11,
+    });
+    prisma.store.findMany.mockResolvedValue([]);
+    prisma.user.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.adminImportUsers(superAdmin, {
+        totalRows: 1,
+        skippedRows: 0,
+        rows: [
+          {
+            rowNumber: 2,
+            email: 'staff@phongvu.vn',
+            fullName: 'Staff',
+            role: 'USER',
+            levelCodes: ['DOMAIN_PHONGVU_VN', '', '', '', 'CP62', 'SA'],
+          },
+        ],
+      }),
+    ).rejects.toThrow('mơ hồ');
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects user import outside the scoped admin organization root', async () => {
+    const org = installUserScopeTreeMock();
+    org.saveNode({
+      id: 'org-store-cp62-pos-sa',
+      code: 'STORE_CP62_POS_SA',
+      businessCode: 'SA',
+      displayName: 'Nhân viên Bán hàng',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 10,
+    });
+    prisma.store.findMany.mockResolvedValue([]);
+    prisma.user.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.adminImportUsers(adminAcare, {
+        totalRows: 1,
+        skippedRows: 0,
+        rows: [
+          {
+            rowNumber: 2,
+            email: 'staff@phongvu.vn',
+            fullName: 'Staff',
+            role: 'USER',
+            levelCodes: ['DOMAIN_PHONGVU_VN', '', '', '', 'CP62', 'SA'],
+          },
+        ],
+      }),
+    ).rejects.toThrow('Chỉ được gán user trong phạm vi quản lý');
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
   it('allows showroom organization nodes directly under a root domain', async () => {
     const org = installOrganizationNodeMock();
     org.saveNode({

@@ -201,6 +201,36 @@ describe('PasswordResetService', () => {
     });
   });
 
+  it('sets the first password for an imported passwordless user', async () => {
+    const token = 'first-password-token';
+    prisma.passwordResetToken.findUnique.mockResolvedValue({
+      id: 'token-1',
+      userId: 'user-1',
+      email: 'imported@phongvu.vn',
+      source: 'SELF_SERVICE',
+      tokenHash: hashToken(token),
+      expiresAt: new Date(Date.now() + 30_000),
+      consumedAt: null,
+      attempts: 0,
+      user: {
+        id: 'user-1',
+        email: 'imported@phongvu.vn',
+        password: '',
+        store: null,
+      },
+    });
+
+    await expect(service.resetPassword(token, 'Password2!')).resolves.toEqual({
+      ok: true,
+    });
+
+    const savedPassword = prisma.user.update.mock.calls[0][0].data.password;
+    expect(savedPassword).toEqual(expect.any(String));
+    await expect(bcrypt.compare('Password2!', savedPassword)).resolves.toBe(
+      true,
+    );
+  });
+
   it('increments attempts for a valid token with a weak new password', async () => {
     prisma.passwordResetToken.findUnique.mockResolvedValue({
       id: 'token-1',

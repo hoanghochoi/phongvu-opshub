@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -45,6 +46,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   String? _roleFilter;
   String? _statusFilter;
   bool _loading = true;
+  bool _importing = false;
   Timer? _searchDebounce;
 
   @override
@@ -145,6 +147,78 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       }
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _importUsers() async {
+    if (_importing) return;
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin user import file picker opened',
+    );
+    final picked = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['xlsx', 'xls'],
+      allowMultiple: false,
+      withData: false,
+    );
+    final file = picked?.files.single;
+    final path = file?.path;
+    if (file == null || path == null) return;
+
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin user import file selected',
+      context: {'fileName': file.name, 'size': file.size},
+    );
+    if (!mounted) return;
+    setState(() => _importing = true);
+    final startedAt = DateTime.now();
+    try {
+      await AppLogger.instance.info(
+        'Admin',
+        'Admin user import started',
+        context: {'fileName': file.name, 'size': file.size},
+      );
+      final result = await _repository.importAdminUsers(path);
+      await AppLogger.instance.info(
+        'Admin',
+        'Admin user import succeeded',
+        context: {
+          'fileName': file.name,
+          'totalRows': result.totalRows,
+          'createdRows': result.createdRows,
+          'updatedRows': result.updatedRows,
+          'skippedRows': result.skippedRows,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => _UserImportResultDialog(result: result),
+      );
+      await _load();
+    } catch (error, stackTrace) {
+      final message = adminUserSaveErrorMessage(error);
+      await AppLogger.instance.error(
+        'Admin',
+        'Admin user import failed',
+        error: message,
+        stackTrace: stackTrace,
+        upload: true,
+        context: {
+          'fileName': file.name,
+          'errorType': error.runtimeType.toString(),
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) setState(() => _importing = false);
     }
   }
 
@@ -371,6 +445,17 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         showBack: true,
         actions: [
           IconButton(
+            onPressed: _importing ? null : _importUsers,
+            icon: _importing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.upload_file_outlined),
+            tooltip: 'Import nhân sự',
+          ),
+          IconButton(
             onPressed: () => _openEditor(),
             icon: const Icon(Icons.person_add_alt_1_outlined),
             tooltip: 'Thêm người dùng',
@@ -571,6 +656,97 @@ class _FilterDropdown<T> extends StatelessWidget {
           ...items,
         ],
         onChanged: onChanged,
+      ),
+    );
+  }
+}
+
+class _UserImportResultDialog extends StatelessWidget {
+  final AdminUserImportResult result;
+
+  const _UserImportResultDialog({required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = result.results.take(8).toList();
+    return AlertDialog(
+      title: const Text('Kết quả import'),
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ImportSummaryRow(label: 'Tổng dòng', value: result.totalRows),
+            _ImportSummaryRow(label: 'Tạo mới', value: result.createdRows),
+            _ImportSummaryRow(label: 'Cập nhật', value: result.updatedRows),
+            _ImportSummaryRow(label: 'Dòng bỏ qua', value: result.skippedRows),
+            if (rows.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 260),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: rows.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 6),
+                  itemBuilder: (context, index) {
+                    final row = rows[index];
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        row.action == 'created'
+                            ? Icons.person_add_alt_1_outlined
+                            : Icons.manage_accounts_outlined,
+                      ),
+                      title: Text(row.email),
+                      subtitle: Text(
+                        'Dòng ${row.rowNumber} • ${row.role} • ${row.personnelCode ?? row.organizationNodeName ?? '-'}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Đóng'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ImportSummaryRow extends StatelessWidget {
+  final String label;
+  final int value;
+
+  const _ImportSummaryRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          SizedBox(width: 120, child: Text(label)),
+          Expanded(
+            child: Text(
+              '$value',
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
       ),
     );
   }

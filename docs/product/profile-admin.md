@@ -37,6 +37,11 @@ and basic administration for privileged roles.
   administration screens are not exposed; their data is maintained through the
   organization tree or runtime store flows.
 - Admin users can list, add, and edit users inside their permitted scope.
+- Admin users with `ADMIN_USERS` can import nhân sự from an Excel file using
+  the template headers `email`, `full_name`, `system_role`, and `lv0` through
+  `lv5`. The backend matches `lv*` values to active organization node
+  `code`/`businessCode`, assigns the deepest matched node, creates passwordless
+  users, and upserts existing users without changing their password.
 - User management keeps name/email search and filters for domain, organization
   node, feature/screen, role, and status. The feature/screen filter resolves
   through node-group feature assignments; the user editor does not assign
