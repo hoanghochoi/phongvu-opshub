@@ -56,6 +56,40 @@ public. Do not make the repository public until every pre-public item is checked
   used by the deploy workflows.
 - Enable secret scanning and push protection if available for the public repo.
 
+## Secret inventory
+
+Repository secrets that were present before public preparation:
+
+- Production Android signing: `ANDROID_KEYSTORE_BASE64`,
+  `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+- Staging Android signing: `ANDROID_STAGING_KEYSTORE_BASE64`,
+  `ANDROID_STAGING_KEYSTORE_PASSWORD`, `ANDROID_STAGING_KEY_ALIAS`,
+  `ANDROID_STAGING_KEY_PASSWORD`.
+- Production deploy: `OPSHUB_VPS_HOST`, `OPSHUB_VPS_PORT`,
+  `OPSHUB_VPS_USER`, `OPSHUB_VPS_SSH_KEY`.
+- Staging deploy: `OPSHUB_STAGING_VPS_HOST`, `OPSHUB_STAGING_VPS_PORT`,
+  `OPSHUB_STAGING_VPS_USER`, `OPSHUB_STAGING_SSH_KEY`.
+- Shared Tailscale deploy: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`.
+- Production Windows signing: `WINDOWS_SIGNING_PFX_BASE64`,
+  `WINDOWS_SIGNING_PFX_PASSWORD`.
+
+Missing before public preparation:
+
+- `WINDOWS_STAGING_SIGNING_PFX_BASE64`
+- `WINDOWS_STAGING_SIGNING_PFX_PASSWORD`
+
+If staging Windows builds should be signed, create or reuse an internal staging
+PFX, then add the two missing secrets to the `staging` environment. If unsigned
+staging Windows artifacts are acceptable, leave both unset; the staging workflow
+will build unsigned artifacts and log that signing is disabled.
+
+PowerShell helper to create base64 text from a PFX:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes('C:\path\to\opshub-staging-codesign.pfx')) |
+  Set-Content .\opshub-staging-codesign.pfx.base64
+```
+
 ## Deployment smoke order
 
 1. Enable only the staging workflow and run `Deploy OpsHub Staging`.
