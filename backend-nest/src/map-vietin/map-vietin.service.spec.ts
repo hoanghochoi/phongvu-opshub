@@ -53,6 +53,9 @@ describe('MapVietinService', () => {
         if (user?.role === 'SUPER_ADMIN') return true;
         const role = String(user?.role || '').toUpperCase();
         const policyCode = String(code || '').toUpperCase();
+        if (policyCode === ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE) {
+          return user?.statementAllScope === true;
+        }
         if (policyCode === ADMIN_POLICY_CODES.BANK_STATEMENTS) {
           return ['ADMIN_PHONGVU', 'ADMIN_ACARE', 'MANAGER', 'STAFF'].includes(
             role,
@@ -175,6 +178,33 @@ describe('MapVietinService', () => {
       service.searchTransactions(manager, { storeId: 'CP02' }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('allows statement reads from all-scope policy without base statement policy', async () => {
+    const financeUser = {
+      id: 'finance-1',
+      role: 'USER',
+      statementAllScope: true,
+    };
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(0);
+
+    await expect(
+      service.listStatements(financeUser, { allStores: 'true' } as any),
+    ).resolves.toMatchObject({
+      page: 0,
+      limit: 20,
+      total: 0,
+      list: [],
+    });
+
+    expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: {} }),
+    );
+    expect(policyService.canAccessPolicy).toHaveBeenCalledWith(
+      financeUser,
+      ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE,
+    );
   });
 
   it('requires MAP credentials before calling VietinBank', async () => {

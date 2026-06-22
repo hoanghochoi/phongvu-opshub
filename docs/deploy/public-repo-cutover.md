@@ -1,11 +1,12 @@
 # Public Repo Cutover Checklist
 
-Use this checklist before changing `hoanghochoi/phongvu-opshub` from private to
-public. Do not make the repository public until every pre-public item is checked.
+`hoanghochoi/phongvu-opshub` became public before this checklist was committed.
+Keep the pre-public steps below as the audit/runbook for future history cleanup
+or credential rotation.
 
-## Pre-public status
+## Current status (2026-06-22)
 
-- Deploy workflows are disabled while the repo is being prepared.
+- Repository visibility is `PUBLIC`.
 - Git history was rewritten in a clean mirror and force-pushed for `main` and
   `staging`.
 - The cleaned remote was verified with `gitleaks detect --redact=100` and had no
@@ -14,8 +15,12 @@ public. Do not make the repository public until every pre-public item is checked
 - GitHub Actions artifacts and caches were removed.
 - Deploy workflows were hardened with environment gates, deployment concurrency,
   and pinned third-party actions.
+- Production and staging GitHub Environments each contain the expected 12 secret
+  names, and both deploy workflows are active.
+- Full staging and production deploy smoke is still required before declaring
+  the credential cutover complete.
 
-## Before clicking Make public
+## Historical checks before making public
 
 - Confirm the current remote refs are the cleaned refs:
 
@@ -39,6 +44,10 @@ public. Do not make the repository public until every pre-public item is checked
 
 ## Immediately after making public
 
+- Follow the detailed secret recreation and rotation guide:
+  [`github-environment-secrets.md`](github-environment-secrets.md).
+- If every old secret is unavailable, follow the full reset guide:
+  [`tao-moi-toan-bo-github-secrets.md`](tao-moi-toan-bo-github-secrets.md).
 - Create GitHub Environments:
   - `production`: restrict deployment branches to `main`.
   - `staging`: restrict deployment branches to `staging`.

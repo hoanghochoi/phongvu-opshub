@@ -248,7 +248,7 @@ describe('PaymentNotificationsService', () => {
     }
   });
 
-  it('returns a cached cue plus TTS WAV when includeCue is requested', async () => {
+  it('returns a cached cue plus full TTS WAV when includeCue is requested', async () => {
     const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-audio-'));
     const cuePath = join(temp, 'payment-cue.wav');
     const voicePath = join(temp, 'ready.wav');
@@ -292,7 +292,7 @@ describe('PaymentNotificationsService', () => {
       );
 
       const combined = await readFile(combinedPath);
-      const expectedFrames = 3 + 100 + 2 + 300;
+      const expectedFrames = 3 + 120 + 2 + 400;
       expect(wavDataBytes(combined)).toBe(expectedFrames * 2);
 
       await expect(

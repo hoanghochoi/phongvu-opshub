@@ -145,7 +145,12 @@ class User {
   bool get hasNationalWorkScope =>
       isAdminRole(role) || workScopeType?.toUpperCase() == 'NATIONAL';
 
-  bool get canUseBankStatements => canUseFeature('BANK_STATEMENTS');
+  bool get canUseBankStatements =>
+      canUseFeature('BANK_STATEMENTS') ||
+      canUsePolicy('BANK_STATEMENT_ALL_SCOPE');
+
+  bool get canUseAllBankStatementStores =>
+      hasNationalWorkScope || canUsePolicy('BANK_STATEMENT_ALL_SCOPE');
 
   bool canUseFeature(String featureCode) {
     if (isSuperAdmin) return true;

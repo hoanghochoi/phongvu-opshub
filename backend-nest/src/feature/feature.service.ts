@@ -19,6 +19,13 @@ const SUPER_ADMIN_ROLE = SYSTEM_ROLE_SUPER_ADMIN;
 const ADMIN_ROLE = SYSTEM_ROLE_ADMIN;
 const VALID_WORK_SCOPES = new Set(['NATIONAL', 'REGION', 'AREA', 'STORE']);
 
+type FeatureNodeTarget = {
+  scopeRootNodeId: string;
+  nodeType: string;
+  nodeKey: string;
+  organizationNodeId?: string | null;
+};
+
 type FeatureContext = {
   id?: string | null;
   email?: string | null;
@@ -36,6 +43,7 @@ type FeatureContext = {
   organizationScopeRootId?: string | null;
   organizationNodeType?: string | null;
   organizationNodeKey?: string | null;
+  organizationNodeFeatureTargets?: FeatureNodeTarget[];
   storeName?: string | null;
 };
 
@@ -84,13 +92,32 @@ export class FeatureService implements OnModuleInit {
       orderBy: { code: 'asc' },
     });
     const context = await this.resolveContext(user);
-    const entries = await Promise.all(
-      features.map(async (feature) => [
-        feature.code,
-        await this.canAccessFeatureWithContext(context, feature.code),
+    if (this.normalizeSystemRole(context.role) === SUPER_ADMIN_ROLE) {
+      return Object.fromEntries(
+        features.map((feature) => [feature.code, true]),
+      );
+    }
+
+    const featureCodes = features.map((feature) => feature.code);
+    const targets = this.requiredFeatureNodeTargets(context);
+    if (!this.hasUsableFeatureContext(context) || targets.length === 0) {
+      return Object.fromEntries(
+        featureCodes.map((featureCode) => [featureCode, false]),
+      );
+    }
+
+    const enabledAssignments = await this.enabledFeatureAssignmentKeys(
+      targets,
+      featureCodes,
+    );
+    return Object.fromEntries(
+      featureCodes.map((featureCode) => [
+        featureCode,
+        targets.every((target) =>
+          enabledAssignments.has(this.featureTargetKey(target, featureCode)),
+        ),
       ]),
     );
-    return Object.fromEntries(entries);
   }
 
   async canAccessFeature(user: any, featureCode: string) {
@@ -690,29 +717,120 @@ export class FeatureService implements OnModuleInit {
       select: { isActive: true },
     });
     if (!feature || !feature.isActive) return false;
-    if (
-      !context.id ||
-      context.organizationNodeActive !== true ||
-      !context.organizationScopeRootId ||
-      !context.organizationNodeType ||
-      !context.organizationNodeKey
-    ) {
-      return false;
-    }
+    if (!this.hasUsableFeatureContext(context)) return false;
 
-    const assignment =
-      await this.prisma.organizationNodeFeatureAssignment.findUnique({
-        where: {
-          scopeRootNodeId_nodeType_nodeKey_featureCode: {
-            scopeRootNodeId: context.organizationScopeRootId,
-            nodeType: context.organizationNodeType,
-            nodeKey: context.organizationNodeKey,
-            featureCode,
+    const targets = this.requiredFeatureNodeTargets(context);
+    if (targets.length === 0) return false;
+    const enabledAssignments = await this.enabledFeatureAssignmentKeys(
+      targets,
+      [featureCode],
+    );
+    return targets.every((target) =>
+      enabledAssignments.has(this.featureTargetKey(target, featureCode)),
+    );
+  }
+
+  private hasUsableFeatureContext(context: FeatureContext) {
+    return (
+      !!context.id &&
+      context.organizationNodeActive === true &&
+      !!context.organizationScopeRootId &&
+      !!context.organizationNodeType &&
+      !!context.organizationNodeKey
+    );
+  }
+
+  private requiredFeatureNodeTargets(context: FeatureContext) {
+    const fallbackTarget =
+      context.organizationScopeRootId &&
+      context.organizationNodeType &&
+      context.organizationNodeKey
+        ? [
+            {
+              scopeRootNodeId: context.organizationScopeRootId,
+              nodeType: context.organizationNodeType,
+              nodeKey: context.organizationNodeKey,
+              organizationNodeId: context.organizationNodeId ?? null,
+            },
+          ]
+        : [];
+    const rawTargets =
+      context.organizationNodeFeatureTargets &&
+      context.organizationNodeFeatureTargets.length > 0
+        ? context.organizationNodeFeatureTargets
+        : fallbackTarget;
+    const seen = new Set<string>();
+    const result: FeatureNodeTarget[] = [];
+    for (const target of rawTargets) {
+      if (!target.scopeRootNodeId || !target.nodeType || !target.nodeKey) {
+        continue;
+      }
+      const normalized = {
+        scopeRootNodeId: target.scopeRootNodeId,
+        nodeType: this.normalizeNodeType(target.nodeType),
+        nodeKey: this.normalizeNodeKey(target.nodeKey),
+        organizationNodeId: target.organizationNodeId ?? null,
+      };
+      const key = this.featureTargetKey(normalized, '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(normalized);
+    }
+    return result;
+  }
+
+  private async enabledFeatureAssignmentKeys(
+    targets: FeatureNodeTarget[],
+    featureCodes: string[],
+  ) {
+    const normalizedFeatureCodes = Array.from(
+      new Set(
+        featureCodes.map((featureCode) =>
+          this.normalizeCode(featureCode, 'Mã tính năng không hợp lệ'),
+        ),
+      ),
+    );
+    if (targets.length === 0 || normalizedFeatureCodes.length === 0) {
+      return new Set<string>();
+    }
+    const rows = await this.prisma.organizationNodeFeatureAssignment.findMany({
+      where: {
+        enabled: true,
+        featureCode: { in: normalizedFeatureCodes },
+        OR: targets.map((target) => ({
+          scopeRootNodeId: target.scopeRootNodeId,
+          nodeType: target.nodeType,
+          nodeKey: target.nodeKey,
+        })),
+      },
+      select: {
+        scopeRootNodeId: true,
+        nodeType: true,
+        nodeKey: true,
+        featureCode: true,
+      },
+    });
+    return new Set(
+      rows.map((row) =>
+        this.featureTargetKey(
+          {
+            scopeRootNodeId: row.scopeRootNodeId,
+            nodeType: row.nodeType,
+            nodeKey: row.nodeKey,
           },
-        },
-        select: { enabled: true },
-      });
-    return assignment?.enabled === true;
+          row.featureCode,
+        ),
+      ),
+    );
+  }
+
+  private featureTargetKey(target: FeatureNodeTarget, featureCode: string) {
+    return [
+      target.scopeRootNodeId,
+      this.normalizeNodeType(target.nodeType),
+      this.normalizeNodeKey(target.nodeKey),
+      featureCode,
+    ].join('|');
   }
 
   private async normalizeRuleInput(input: any, current?: any) {
@@ -1159,6 +1277,7 @@ export class FeatureService implements OnModuleInit {
       organizationScopeRootId: organizationContext.scopeRootNodeId,
       organizationNodeType: organizationContext.nodeType,
       organizationNodeKey: organizationContext.nodeKey,
+      organizationNodeFeatureTargets: organizationContext.nodeFeatureTargets,
       storeCode: organizationContext.storeCode ?? source.store?.storeId ?? null,
       storeName: source.store?.storeName ?? null,
     };
@@ -1172,6 +1291,7 @@ export class FeatureService implements OnModuleInit {
       scopeRootNodeId: null as string | null,
       nodeType: null as string | null,
       nodeKey: null as string | null,
+      nodeFeatureTargets: [] as FeatureNodeTarget[],
       regionCode: null as string | null,
       areaCode: null as string | null,
       storeCode: null as string | null,
@@ -1212,17 +1332,44 @@ export class FeatureService implements OnModuleInit {
         node.businessCode || this.legacyCodeFromOrganizationCode(node.code)
       );
     };
+    const scopeRootNodeId = this.rootNodeIdForNode(nodes, nodeId);
     return {
       organizationNodeId: nodeId,
       organizationNodeIds: ancestors.map((node) => node.id),
       organizationNodeActive: directNode.isActive === true,
-      scopeRootNodeId: this.rootNodeIdForNode(nodes, nodeId),
+      scopeRootNodeId,
       nodeType: this.normalizeNodeType(directNode.type),
       nodeKey: this.nodeFeatureKey(directNode),
+      nodeFeatureTargets: scopeRootNodeId
+        ? this.nodeFeatureTargetsForAccess(ancestors, scopeRootNodeId)
+        : [],
       regionCode: businessCodeFor('LV2_REGION', 'REGION'),
       areaCode: businessCodeFor('LV3_AREA', 'AREA'),
       storeCode: businessCodeFor('LV4_STORE', 'SHOWROOM'),
     };
+  }
+
+  private nodeFeatureTargetsForAccess(
+    ancestors: Array<{
+      id: string;
+      type: string;
+      code: string;
+      businessCode: string | null;
+      isActive?: boolean | null;
+    }>,
+    scopeRootNodeId: string,
+  ) {
+    return ancestors
+      .filter((node, index) => {
+        const nodeType = this.normalizeNodeType(node.type);
+        return index === 0 || nodeType !== 'LV0_DOMAIN';
+      })
+      .map((node) => ({
+        scopeRootNodeId,
+        nodeType: this.normalizeNodeType(node.type),
+        nodeKey: this.nodeFeatureKey(node),
+        organizationNodeId: node.id,
+      }));
   }
 
   private legacyCodeFromOrganizationCode(code: string) {

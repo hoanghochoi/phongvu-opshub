@@ -56,6 +56,7 @@ export class AdminPolicyRuleDto {
   @MaxLength(80)
   systemRole?: string;
 
+  // Backward-compatible whitelist only; service rejects non-empty legacy selectors.
   @IsOptional()
   @IsString()
   @MaxLength(80)
@@ -173,7 +174,6 @@ export class AdminPolicyRuleBatchDto extends AdminPolicyRuleDto {
   @IsString({ each: true })
   @MaxLength(120, { each: true })
   scopeContainsValues?: string[];
-
 }
 
 export class AdminSettingDto {

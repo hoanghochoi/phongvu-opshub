@@ -81,7 +81,7 @@ class BankStatementProvider extends ChangeNotifier {
     return _hasEffectiveFilter && _primaryFilterCount <= 1;
   }
 
-  bool get canUseAllStores => _user?.hasNationalWorkScope == true;
+  bool get canUseAllStores => _user?.canUseAllBankStatementStores == true;
 
   BankStatementRowMessage? rowMessage(String id) => _rowMessages[id];
 
@@ -103,7 +103,7 @@ class BankStatementProvider extends ChangeNotifier {
       _stores
         ..clear()
         ..addAll(
-          user?.hasNationalWorkScope == true
+          user?.canUseAllBankStatementStores == true
               ? stores
               : stores.where((store) => store.storeId == user?.storeId),
         );

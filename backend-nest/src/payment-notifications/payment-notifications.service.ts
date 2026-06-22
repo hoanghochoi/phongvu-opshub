@@ -33,8 +33,6 @@ const DEFAULT_TTS_VOICE_ID = 'piper:vi-vais1000';
 const DEFAULT_TTS_SPEED = 0.9;
 const DEFAULT_TTS_PITCH = 1.0;
 const DEFAULT_DELIVERY_CLAIM_TTL_SECONDS = 120;
-const COMBINED_CUE_VOICE_LEADING_SILENCE_MS = 100;
-const COMBINED_CUE_VOICE_TAIL_SILENCE_MS = 300;
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
 const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE =
@@ -411,8 +409,7 @@ export class PaymentNotificationsService {
       const cue = this.parsePcm16Wav(cueBuffer, 'payment cue');
       const voice = this.parsePcm16Wav(voiceBuffer, 'payment voice');
       this.assertCompatibleWav(cue, voice);
-      const trimmedVoice = this.trimVoiceSilenceForCombined(voice);
-      const combined = this.buildPcm16Wav(cue, [cue.data, trimmedVoice]);
+      const combined = this.buildPcm16Wav(cue, [cue.data, voice.data]);
       const tmpPath = `${combinedPath}.${process.pid}.${randomUUID()}.tmp`;
       await writeFile(tmpPath, combined);
       await rename(tmpPath, combinedPath).catch(async (error: any) => {
@@ -421,7 +418,7 @@ export class PaymentNotificationsService {
         throw error;
       });
       this.logger.log(
-        `Payment combined cue audio generated notification=${notificationId} bytes=${combined.length} leadingSilenceMs=${COMBINED_CUE_VOICE_LEADING_SILENCE_MS} tailSilenceMs=${COMBINED_CUE_VOICE_TAIL_SILENCE_MS}`,
+        `Payment combined cue audio generated notification=${notificationId} bytes=${combined.length} voiceDataBytes=${voice.data.length}`,
       );
       return combinedPath;
     } catch (error) {
@@ -525,62 +522,6 @@ export class PaymentNotificationsService {
         `cue/voice WAV mismatch cue=${cue.channels}ch/${cue.sampleRate}Hz/${cue.bitsPerSample}bit voice=${voice.channels}ch/${voice.sampleRate}Hz/${voice.bitsPerSample}bit`,
       );
     }
-  }
-
-  private trimVoiceSilenceForCombined(voice: Pcm16Wav) {
-    const leadingFrames = this.countLeadingZeroFrames(voice.data, voice);
-    const tailFrames = this.countTailZeroFrames(voice.data, voice);
-    const keepLeadingFrames = this.msToFrames(
-      COMBINED_CUE_VOICE_LEADING_SILENCE_MS,
-      voice.sampleRate,
-    );
-    const keepTailFrames = this.msToFrames(
-      COMBINED_CUE_VOICE_TAIL_SILENCE_MS,
-      voice.sampleRate,
-    );
-    const trimLeadingFrames = Math.max(0, leadingFrames - keepLeadingFrames);
-    const trimTailFrames = Math.max(0, tailFrames - keepTailFrames);
-    const start = trimLeadingFrames * voice.blockAlign;
-    const end = Math.max(
-      start,
-      voice.data.length - trimTailFrames * voice.blockAlign,
-    );
-    return voice.data.subarray(start, end);
-  }
-
-  private countLeadingZeroFrames(data: Buffer, format: Pcm16Wav) {
-    const frameCount = Math.floor(data.length / format.blockAlign);
-    for (let frame = 0; frame < frameCount; frame += 1) {
-      if (
-        !this.isZeroFrame(data, frame * format.blockAlign, format.blockAlign)
-      ) {
-        return frame;
-      }
-    }
-    return frameCount;
-  }
-
-  private countTailZeroFrames(data: Buffer, format: Pcm16Wav) {
-    const frameCount = Math.floor(data.length / format.blockAlign);
-    for (let frame = frameCount - 1; frame >= 0; frame -= 1) {
-      if (
-        !this.isZeroFrame(data, frame * format.blockAlign, format.blockAlign)
-      ) {
-        return frameCount - frame - 1;
-      }
-    }
-    return frameCount;
-  }
-
-  private isZeroFrame(data: Buffer, offset: number, width: number) {
-    for (let index = 0; index < width; index += 1) {
-      if (data[offset + index] !== 0) return false;
-    }
-    return true;
-  }
-
-  private msToFrames(ms: number, sampleRate: number) {
-    return Math.floor((sampleRate * ms) / 1000);
   }
 
   private buildPcm16Wav(format: Pcm16Wav, chunks: Buffer[]) {

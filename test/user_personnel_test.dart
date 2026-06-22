@@ -129,4 +129,20 @@ void main() {
     expect(user.canUseCp62RestrictedFlows, isTrue);
     expect(user.canUsePolicy('ADMIN_POLICIES'), isTrue);
   });
+
+  test('User treats bank statement all-scope policy as statement access', () {
+    final user = User.fromJson({
+      'email': 'finance@phongvu.vn',
+      'role': 'USER',
+      'workScopeType': 'STORE',
+      'organizationNodeId': 'org-finance-accounting',
+      'resolvedFeatureAccess': {'BANK_STATEMENTS': false},
+      'resolvedAdminPolicies': {'BANK_STATEMENT_ALL_SCOPE': true},
+    });
+
+    expect(user.hasNationalWorkScope, isFalse);
+    expect(user.canUseFeature('BANK_STATEMENTS'), isFalse);
+    expect(user.canUseBankStatements, isTrue);
+    expect(user.canUseAllBankStatementStores, isTrue);
+  });
 }

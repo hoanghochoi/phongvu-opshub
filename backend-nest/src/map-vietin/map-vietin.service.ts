@@ -223,7 +223,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const limit = input.limit ?? 10;
     const page = input.page ?? 0;
     const includeTotal =
-      String(input.includeTotal ?? 'true').trim().toLowerCase() !== 'false';
+      String(input.includeTotal ?? 'true')
+        .trim()
+        .toLowerCase() !== 'false';
     const where: Prisma.MapVietinTransactionWhereInput = {
       storeCode: store.storeId,
       ...(afterFirstSeenAt ? { firstSeenAt: { gt: afterFirstSeenAt } } : {}),
@@ -918,8 +920,20 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  private async canUseStatements(user: any) {
+    if (
+      await this.policyService.canAccessPolicy(
+        user,
+        ADMIN_POLICY_CODES.BANK_STATEMENTS,
+      )
+    ) {
+      return true;
+    }
+    return this.hasNationalStatementScope(user);
+  }
+
   private async assertCanUseStatements(user: any) {
-    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.BANK_STATEMENTS)) {
+    if (await this.canUseStatements(user)) {
       return;
     }
     throw new ForbiddenException('Không có quyền xem sao kê');
@@ -988,7 +1002,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       .trim()
       .toUpperCase();
 
-    if (await this.policyService.canAccessPolicy(admin, ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE)) {
+    if (
+      await this.policyService.canAccessPolicy(
+        admin,
+        ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE,
+      )
+    ) {
       if (!normalizedStoreCode) {
         throw new BadRequestException('Vui lòng chọn showroom cần kiểm tra');
       }
@@ -1018,7 +1037,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       .trim()
       .toUpperCase();
 
-    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE)) {
+    if (
+      await this.policyService.canAccessPolicy(
+        user,
+        ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE,
+      )
+    ) {
       if (!normalizedStoreCode) {
         throw new BadRequestException('Vui lòng chọn showroom cần theo dõi');
       }
@@ -1525,7 +1549,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async assertCanSearch(admin: any) {
-    if (await this.policyService.canAccessPolicy(admin, ADMIN_POLICY_CODES.BANK_STATEMENTS)) {
+    if (await this.canUseStatements(admin)) {
       return;
     }
     throw new ForbiddenException('Không có quyền kiểm tra giao dịch MAP');

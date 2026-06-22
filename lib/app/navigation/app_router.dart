@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/network/api_client.dart';
 import '../../core/platform/app_platform_capabilities.dart';
+import '../../features/auth/domain/entities/user.dart';
 import '../../features/bank_statement/data/bank_statement_repository.dart';
 import '../../features/bank_statement/presentation/providers/bank_statement_provider.dart';
 import '../../features/bank_statement/presentation/screens/bank_statement_screen.dart';
@@ -79,7 +80,7 @@ class AppRouter {
 
         final routeFeature = _featureForRoute(location);
         if (routeFeature != null &&
-            authProvider.user?.canUseFeature(routeFeature) != true) {
+            !_canUseRouteFeature(authProvider.user, routeFeature)) {
           return '/home';
         }
 
@@ -237,5 +238,12 @@ class AppRouter {
       '/feedback' => 'FEEDBACK',
       _ => null,
     };
+  }
+
+  static bool _canUseRouteFeature(User? user, String featureCode) {
+    if (featureCode == 'BANK_STATEMENTS') {
+      return user?.canUseBankStatements == true;
+    }
+    return user?.canUseFeature(featureCode) == true;
   }
 }

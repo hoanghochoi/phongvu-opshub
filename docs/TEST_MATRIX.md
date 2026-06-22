@@ -39,6 +39,37 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PLATFORM-001, 2026-06-22: production and staging workflows now serialize
+  deploys, use GitHub Environments, and pin checkout, Flutter, and Tailscale
+  actions to immutable commits. Added public-cutover/environment-secret
+  runbooks plus PowerShell helpers that generate secret bundles only outside
+  the repo and tighten their local ACLs. Validation: production/staging workflow
+  YAML parse, PowerShell parser checks, live read-only confirmation that both
+  environments contain 12 secret names, staged `gitleaks` scan with no findings,
+  full project validation, and `git diff --check`. Gap: staging and production
+  workflow smoke remain pending.
+- PROFILE-ADMIN-001, 2026-06-22: policy rule create/edit is now tree-only and
+  requires an organization node. Legacy selectors remain readable for old
+  rules but are rejected on write; the Flutter editor logs blocked saves and
+  create/update outcomes through `AppLogger`. Validation: focused policy and
+  feature-guard coverage within full Flutter/backend suites, `flutter analyze
+  --no-pub`, full Flutter tests (109 tests), NestJS build, full NestJS tests
+  (38 suites, 294 tests), Go realtime tests, and `git diff --check`. Gap: live
+  policy-admin click-through remains manual.
+- PAYMENT-STATEMENT-001, 2026-06-22: `BANK_STATEMENT_ALL_SCOPE` now grants the
+  bank-statement route, backend feature-guard fallback, statement APIs, and
+  all-showroom selection without requiring the base feature or a manager role.
+  Validation: focused Flutter/backend coverage within full suites, Flutter
+  analyze/tests, NestJS build/tests, Go tests, and `git diff --check`. Gap:
+  live finance-user Windows click-through remains manual.
+- PAYMENT-MONITOR-001, 2026-06-22: server-combined payment audio now preserves
+  the full Piper-generated TTS WAV when appending it after `payment-cue.wav`,
+  including Piper's configured 650ms leading silence and 500ms tail silence, so
+  long amount announcements keep the original voice ending. The combined-audio
+  log now records `voiceDataBytes` instead of trim window settings. Validation:
+  focused backend coverage within the full NestJS suite (38 suites, 294 tests),
+  NestJS build, full Flutter analyze/tests (109 tests), Go tests, and
+  `git diff --check`.
 - PROFILE-ADMIN-001, 2026-06-15: fixed production deploy boot failure in
   org-tree legacy catalog sync when existing Lv2/Lv3 organization nodes have
   blank display names. The sync now falls back to node name/business code and

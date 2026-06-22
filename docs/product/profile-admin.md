@@ -99,13 +99,15 @@ and basic administration for privileged roles.
   skipped from backfill because runtime node-group access already denies them.
   `SUPER_ADMIN` bypasses feature gates to avoid lockout.
 - Policy management lets `SUPER_ADMIN` manage admin policy definitions, policy
-  rules, and system settings. Policy rules support the same detailed selectors
-  as feature rules plus `scopeContains`, and app rule create/edit uses
-  organization tree nodes instead of legacy Region/Area/SR selectors. Policy
-  rule matching keeps the assigned organization node as the source of truth, so
-  rules can target a user's exact Lv5 node or any ancestor node. Auth domain,
-  password policy, and OTP policy settings are managed from the policy settings
-  tab and can store JSON object or array values.
+  rules, and system settings. New and edited policy rules require at least one
+  organization tree node; legacy Department/JobRole/work-scope/Region/Area/SR/
+  user/scope-contains selectors remain readable for historical rules but are
+  rejected on create/update. Optional email-domain and system-role selectors
+  can further narrow each selected node rule. Policy matching keeps the assigned
+  organization node as the source of truth, so rules can target a user's exact
+  Lv5 node or any ancestor node. Auth domain, password policy, and OTP policy
+  settings are managed from the policy settings tab and can store JSON object
+  or array values.
 - `ADMIN` can reset passwords only for users inside their organization scope
   and cannot reset `SUPER_ADMIN`.
 - `SUPER_ADMIN` can manage all users.

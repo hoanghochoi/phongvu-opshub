@@ -85,9 +85,10 @@ a customer to scan and pay manually.
   generated audio as `Phong VÅ© Ä‘Ã£ nháº­n: <amount> Ä‘á»“ng.` when the signed-in
   user has both `PAYMENT_MONITOR` and the separate node feature
   `PAYMENT_SPEAKER` (`Đọc loa`) on a supported Windows PC. Piper audio uses
-  speed `0.90` and prepends 650 ms of leading silence by default so the first
-  word is not clipped after the cue. Mobile and other unsupported platforms do
-  not start the speaker path by default.
+  speed `0.90`, prepends 650 ms of leading silence, and appends 500 ms of tail
+  silence by default so the first and last words are not clipped after the cue.
+  Mobile and other unsupported platforms do not start the speaker path by
+  default.
 - Turning off `Đọc loa tiền vào` mutes only the speaker path. The PC keeps
   syncing transactions from realtime/fallback refreshes, and muted
   notifications are recorded as `SILENCED` so they are not played later as
@@ -109,8 +110,9 @@ a customer to scan and pay manually.
   endpoint stays backward compatible: `GET /payment-notifications/:id/audio`
   returns TTS-only audio for older clients, while new clients request
   `includeCue=true` to receive one server-combined WAV containing the payment
-  cue followed by TTS. The server caches the combined WAV beside the generated
-  TTS file and deletes both during audio cleanup. If combined audio is
+  cue followed by the full TTS WAV, including Piper's leading and tail silence.
+  The server caches the combined WAV beside the generated TTS file and deletes
+  both during audio cleanup. If combined audio is
   unavailable, for example legacy MP3 audio or a missing cue WAV, the Windows
   client falls back to downloading TTS-only audio and playing the local
   `data/ting_ting.mp3` cue. Playback then attempts `media_kit` on Windows,
@@ -133,9 +135,11 @@ a customer to scan and pay manually.
 
 ## Bank Statement Reconciliation
 
-- The Windows PC app exposes a `Sao ke` home action for MANAGER and
-  SUPER_ADMIN users. The NestJS API enforces the same role gate on statement
-  list, export, inline order update, and order-history endpoints.
+- The app exposes the `Sao ke` home action when the resolved
+  `BANK_STATEMENTS` feature is allowed or the user has the
+  `BANK_STATEMENT_ALL_SCOPE` policy. The NestJS feature guard and statement
+  endpoints apply the same fallback, so a finance user can receive national
+  statement access without also receiving unrelated manager capabilities.
 - MAP sync extracts every valid order code from the transfer content. A valid
   order is an independent 14-digit number whose first 6 digits are a real
   `yymmdd` date. Duplicates are removed while preserving first-seen order; no
@@ -147,10 +151,10 @@ a customer to scan and pay manually.
 - Primary filters are mutually exclusive: showroom, order code, amount, and
   transfer content. Order status and date range can be used alone or combined
   with one primary filter.
-- Showroom filtering follows V1 scope: national users can search all or
-  multiple showrooms; showroom-scoped users can search only their own showroom.
-  Order, amount, and content filters are allowed across the user's statement
-  scope.
+- Showroom filtering follows effective statement scope: national users and
+  users with `BANK_STATEMENT_ALL_SCOPE` can search all or multiple showrooms;
+  showroom-scoped users can search only their own showroom. Order, amount, and
+  content filters are allowed across the user's statement scope.
 - Order filter is an exact match against any stored order in the transaction.
   Amount filter is exact integer amount. Content filter is case-insensitive
   contains matching.

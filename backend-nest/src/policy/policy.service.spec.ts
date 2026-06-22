@@ -51,7 +51,9 @@ describe('PolicyService', () => {
       adminPolicyDefinition: {
         upsert: jest.fn(),
         findMany: jest.fn(async () => Object.values(policies)),
-        findUnique: jest.fn(async ({ where }: any) => policies[where.code] ?? null),
+        findUnique: jest.fn(
+          async ({ where }: any) => policies[where.code] ?? null,
+        ),
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
@@ -62,14 +64,19 @@ describe('PolicyService', () => {
           rules.filter((rule) => rule.policyCode === where.policyCode),
         ),
         findUnique: jest.fn(),
-        create: jest.fn(async ({ data }: any) => ({ id: `rule-${rules.length + 1}`, ...data })),
+        create: jest.fn(async ({ data }: any) => ({
+          id: `rule-${rules.length + 1}`,
+          ...data,
+        })),
         update: jest.fn(),
         delete: jest.fn(),
       },
       adminSetting: {
         upsert: jest.fn(),
         findMany: jest.fn(),
-        findUnique: jest.fn(async ({ where }: any) => settings[where.key] ?? null),
+        findUnique: jest.fn(
+          async ({ where }: any) => settings[where.key] ?? null,
+        ),
         create: jest.fn(),
         update: jest.fn(),
       },
@@ -86,7 +93,10 @@ describe('PolicyService', () => {
         findUnique: jest.fn(async ({ where }: any) => ({ code: where.code })),
       },
       areaDefinition: {
-        findUnique: jest.fn(async ({ where }: any) => ({ code: where.code, regionCode: 'MIEN_NAM' })),
+        findUnique: jest.fn(async ({ where }: any) => ({
+          code: where.code,
+          regionCode: 'MIEN_NAM',
+        })),
       },
       organizationNode: {
         findMany: jest.fn(async () => []),
@@ -97,12 +107,16 @@ describe('PolicyService', () => {
         ),
       },
       store: {
-        findUnique: jest.fn(async ({ where }: any) => ({ storeId: where.storeId })),
+        findUnique: jest.fn(async ({ where }: any) => ({
+          storeId: where.storeId,
+        })),
       },
       user: {
         findUnique: jest.fn(async ({ where }: any) => ({ id: where.id })),
       },
-      $transaction: jest.fn(async (operations: Promise<any>[]) => Promise.all(operations)),
+      $transaction: jest.fn(async (operations: Promise<any>[]) =>
+        Promise.all(operations),
+      ),
     };
     service = new PolicyService(prisma);
   });
@@ -117,12 +131,24 @@ describe('PolicyService', () => {
   });
 
   it('applies explicit allow and deny rules', async () => {
-    rules = [{ policyCode: ADMIN_POLICY_CODES.FIFO, allowed: true, systemRole: 'STAFF' }];
+    rules = [
+      {
+        policyCode: ADMIN_POLICY_CODES.FIFO,
+        allowed: true,
+        systemRole: 'STAFF',
+      },
+    ];
     await expect(
       service.canAccessPolicyWithContext(context, ADMIN_POLICY_CODES.FIFO),
     ).resolves.toBe(true);
 
-    rules = [{ policyCode: ADMIN_POLICY_CODES.FEEDBACK, allowed: false, systemRole: 'STAFF' }];
+    rules = [
+      {
+        policyCode: ADMIN_POLICY_CODES.FEEDBACK,
+        allowed: false,
+        systemRole: 'STAFF',
+      },
+    ];
     await expect(
       service.canAccessPolicyWithContext(context, ADMIN_POLICY_CODES.FEEDBACK),
     ).resolves.toBe(false);
@@ -130,7 +156,11 @@ describe('PolicyService', () => {
 
   it('lets the more specific matching rule win', async () => {
     rules = [
-      { policyCode: ADMIN_POLICY_CODES.FIFO, allowed: false, systemRole: 'STAFF' },
+      {
+        policyCode: ADMIN_POLICY_CODES.FIFO,
+        allowed: false,
+        systemRole: 'STAFF',
+      },
       { policyCode: ADMIN_POLICY_CODES.FIFO, allowed: true, storeCode: 'CP62' },
     ];
 
@@ -159,12 +189,21 @@ describe('PolicyService', () => {
     rules = [{ policyCode: ADMIN_POLICY_CODES.FIFO, allowed: false }];
 
     await expect(
-      service.canAccessPolicyWithContext({ ...context, role: 'SUPER_ADMIN' }, ADMIN_POLICY_CODES.FIFO),
+      service.canAccessPolicyWithContext(
+        { ...context, role: 'SUPER_ADMIN' },
+        ADMIN_POLICY_CODES.FIFO,
+      ),
     ).resolves.toBe(true);
   });
 
   it('matches scopeContains against the resolved SR scope', async () => {
-    rules = [{ policyCode: ADMIN_POLICY_CODES.FIFO, allowed: true, scopeContains: 'CP6' }];
+    rules = [
+      {
+        policyCode: ADMIN_POLICY_CODES.FIFO,
+        allowed: true,
+        scopeContains: 'CP6',
+      },
+    ];
 
     await expect(
       service.canAccessPolicyWithContext(context, ADMIN_POLICY_CODES.FIFO),
@@ -177,10 +216,9 @@ describe('PolicyService', () => {
       value: ['@acare.vn', 'phongvu.vn', 'acare.vn'],
     };
 
-    await expect(service.getAllowedEmailDomains(['fallback.vn'])).resolves.toEqual([
-      'acare.vn',
-      'phongvu.vn',
-    ]);
+    await expect(
+      service.getAllowedEmailDomains(['fallback.vn']),
+    ).resolves.toEqual(['acare.vn', 'phongvu.vn']);
   });
 
   it('uses AUTH_ALLOWED_EMAIL_DOMAINS instead of organization tree login flags', async () => {
@@ -201,35 +239,54 @@ describe('PolicyService', () => {
     expect(prisma.organizationNode.findMany).not.toHaveBeenCalled();
   });
 
-  it('creates policy rules in one batch from multiple selected targets', async () => {
+  it('creates policy rules in one batch from selected organization nodes', async () => {
     const result = await service.adminCreateRules(
       { role: 'SUPER_ADMIN' },
       {
         policyCode: ADMIN_POLICY_CODES.FIFO,
         allowed: false,
-        departmentCodes: ['SALES', 'TECHNICAL'],
-        regionCodes: ['MIEN_NAM'],
-        areaCodes: ['HCM'],
-        userIds: ['user-1', 'user-2'],
-        scopeContainsValues: ['CP'],
+        emailDomains: ['phongvu.vn'],
+        systemRoles: ['USER'],
+        organizationNodeIds: ['org-store-cp62'],
         note: 'temporary policy block',
       },
     );
 
-    expect(result).toHaveLength(4);
-    expect(prisma.adminPolicyRule.create).toHaveBeenCalledTimes(4);
+    expect(result).toHaveLength(1);
+    expect(prisma.adminPolicyRule.create).toHaveBeenCalledTimes(1);
     expect(prisma.adminPolicyRule.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         policyCode: ADMIN_POLICY_CODES.FIFO,
         allowed: false,
-        departmentCode: 'SALES',
-        regionCode: 'MIEN_NAM',
-        areaCode: 'HCM',
-        userId: 'user-1',
-        scopeContains: 'CP',
+        emailDomain: 'phongvu.vn',
+        systemRole: 'USER',
+        organizationNodeId: 'org-store-cp62',
+        departmentCode: null,
+        jobRoleCode: null,
+        workScopeType: null,
+        regionCode: null,
+        areaCode: null,
+        storeCode: null,
+        userId: null,
+        scopeContains: null,
         note: 'temporary policy block',
       }),
     });
+  });
+
+  it('rejects legacy selectors when managing policy rules', async () => {
+    await expect(
+      service.adminCreateRules(
+        { role: 'SUPER_ADMIN' },
+        {
+          policyCode: ADMIN_POLICY_CODES.FIFO,
+          allowed: true,
+          organizationNodeIds: ['org-store-cp62'],
+          departmentCodes: ['SALES'],
+        },
+      ),
+    ).rejects.toThrow('Policy rule chi ho tro OrganizationNode');
+    expect(prisma.adminPolicyRule.create).not.toHaveBeenCalled();
   });
 
   it('creates policy rules from organization tree nodes without legacy location selectors', async () => {

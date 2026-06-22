@@ -115,15 +115,7 @@ class AdminPolicyRule {
     'allowed': allowed,
     'emailDomain': emailDomain,
     'systemRole': systemRole,
-    'departmentCode': departmentCode,
-    'jobRoleCode': jobRoleCode,
-    'workScopeType': workScopeType,
-    'regionCode': regionCode,
-    'areaCode': areaCode,
     'organizationNodeId': organizationNodeId,
-    'storeCode': storeCode,
-    'userId': userId,
-    'scopeContains': scopeContains,
     'note': note,
   };
 }
@@ -133,15 +125,7 @@ class AdminPolicyRuleBatchRequest {
   final bool allowed;
   final List<String> emailDomains;
   final List<String> systemRoles;
-  final List<String> departmentCodes;
-  final List<String> jobRoleCodes;
-  final List<String> workScopeTypes;
-  final List<String> regionCodes;
-  final List<String> areaCodes;
   final List<String> organizationNodeIds;
-  final List<String> storeCodes;
-  final List<String> userIds;
-  final List<String> scopeContainsValues;
   final String? note;
 
   const AdminPolicyRuleBatchRequest({
@@ -149,15 +133,7 @@ class AdminPolicyRuleBatchRequest {
     required this.allowed,
     this.emailDomains = const [],
     this.systemRoles = const [],
-    this.departmentCodes = const [],
-    this.jobRoleCodes = const [],
-    this.workScopeTypes = const [],
-    this.regionCodes = const [],
-    this.areaCodes = const [],
     this.organizationNodeIds = const [],
-    this.storeCodes = const [],
-    this.userIds = const [],
-    this.scopeContainsValues = const [],
     this.note,
   });
 
@@ -166,16 +142,8 @@ class AdminPolicyRuleBatchRequest {
     'allowed': allowed,
     'emailDomains': emailDomains,
     'systemRoles': systemRoles,
-    'departmentCodes': departmentCodes,
-    'jobRoleCodes': jobRoleCodes,
-    'workScopeTypes': workScopeTypes,
     'organizationNodeIds': organizationNodeIds,
-    'userIds': userIds,
-    'scopeContainsValues': scopeContainsValues,
     'note': note,
-    if (regionCodes.isNotEmpty) 'regionCodes': regionCodes,
-    if (areaCodes.isNotEmpty) 'areaCodes': areaCodes,
-    if (storeCodes.isNotEmpty) 'storeCodes': storeCodes,
   };
 }
 

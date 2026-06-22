@@ -68,6 +68,22 @@ void main() {
       provider.dispose();
     });
 
+    test('uses bank statement all-scope policy for all-store access', () async {
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+
+      await provider.initialize(_financeAllScopeUser);
+
+      expect(provider.canUseAllStores, isTrue);
+      expect(provider.stores.map((store) => store.storeId), ['CP01', 'CP02']);
+
+      provider.setStoreSelection(allStores: true, ids: const {});
+
+      expect(provider.allStores, isTrue);
+
+      provider.dispose();
+    });
+
     test('keeps primary filters mutually exclusive', () async {
       final repository = _FakeBankStatementRepository();
       final provider = BankStatementProvider(repository);
@@ -294,6 +310,15 @@ const _superAdmin = User(
   id: 'admin-1',
   email: 'super@example.com',
   role: 'SUPER_ADMIN',
+);
+
+const _financeAllScopeUser = User(
+  id: 'finance-1',
+  email: 'finance@phongvu.vn',
+  role: 'USER',
+  storeId: 'CP01',
+  workScopeType: 'STORE',
+  policyAccess: {'BANK_STATEMENT_ALL_SCOPE': true},
 );
 
 class _FakeBankStatementRepository extends BankStatementRepository {

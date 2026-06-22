@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../app/widgets/app_layout.dart';
@@ -5,6 +7,61 @@ import '../../../../core/logging/app_logger.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../domain/admin_feature_definition.dart';
 import '../../domain/admin_organization_node.dart';
+
+@visibleForTesting
+Map<String, List<AdminOrganizationNode>> blockedNodeFeatureCodesForParentGate({
+  required AdminOrganizationNode node,
+  required List<AdminOrganizationNode> nodes,
+  required Iterable<String> selectedFeatureCodes,
+  required List<AdminNodeFeatureAssignment> assignments,
+}) {
+  final selectedCodes = selectedFeatureCodes.toSet();
+  if (selectedCodes.isEmpty) return const {};
+  final byId = {for (final item in nodes) item.id: item};
+  final parents = <AdminOrganizationNode>[];
+  var parentId = node.parentId;
+  for (var guard = 0; parentId != null && guard < 50; guard += 1) {
+    final parent = byId[parentId];
+    if (parent == null) break;
+    if (!_isRootOrganizationNode(parent)) parents.add(parent);
+    parentId = parent.parentId;
+  }
+  if (parents.isEmpty) return const {};
+
+  final result = <String, List<AdminOrganizationNode>>{};
+  for (final featureCode in selectedCodes) {
+    final missingParents = parents
+        .where(
+          (parent) => !_nodeHasEnabledFeatureAssignment(
+            parent,
+            featureCode,
+            assignments,
+          ),
+        )
+        .toList();
+    if (missingParents.isNotEmpty) {
+      result[featureCode] = missingParents;
+    }
+  }
+  return result;
+}
+
+bool _nodeHasEnabledFeatureAssignment(
+  AdminOrganizationNode node,
+  String featureCode,
+  List<AdminNodeFeatureAssignment> assignments,
+) {
+  return assignments.any(
+    (assignment) =>
+        assignment.enabled &&
+        assignment.featureCode == featureCode &&
+        assignment.organizationNodeIds.contains(node.id),
+  );
+}
+
+bool _isRootOrganizationNode(AdminOrganizationNode node) {
+  return AdminOrganizationNode.canonicalType(node.type) == 'LV0_DOMAIN';
+}
 
 class NodeFeatureAssignmentDialog extends StatefulWidget {
   final AuthRepository repository;
@@ -32,6 +89,7 @@ class _NodeFeatureAssignmentDialogState
   final _noteController = TextEditingController();
   final Set<String> _selectedCodes = <String>{};
   String? _selectedNodeId;
+  String? _lastParentWarningLogKey;
   bool _saving = false;
 
   @override
@@ -45,6 +103,9 @@ class _NodeFeatureAssignmentDialogState
       _selectedNodeId = nodes.isEmpty ? null : nodes.first.id;
     }
     _loadSelectedCodesForNode();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _scheduleParentWarningLog();
+    });
   }
 
   @override
@@ -104,6 +165,7 @@ class _NodeFeatureAssignmentDialogState
       _selectedNodeId = nodeId;
       _loadSelectedCodesForNode();
     });
+    _scheduleParentWarningLog();
   }
 
   void _toggleFeature(AdminFeatureDefinition feature, bool selected) {
@@ -122,6 +184,7 @@ class _NodeFeatureAssignmentDialogState
         }
       }
     });
+    _scheduleParentWarningLog();
   }
 
   AdminFeatureDefinition? _featureByCode(String code) {
@@ -146,6 +209,58 @@ class _NodeFeatureAssignmentDialogState
     return result;
   }
 
+  Map<String, List<AdminOrganizationNode>> _blockedSelectedFeatureCodes(
+    AdminOrganizationNode node,
+  ) {
+    return blockedNodeFeatureCodesForParentGate(
+      node: node,
+      nodes: widget.nodes,
+      selectedFeatureCodes: _selectedCodes,
+      assignments: widget.assignments,
+    );
+  }
+
+  String _featureLabel(String code) {
+    final feature = _featureByCode(code);
+    return feature == null ? code : '${feature.title} ($code)';
+  }
+
+  String _nodeShortLabel(AdminOrganizationNode node) {
+    final code = node.businessCode ?? node.storeId ?? node.code;
+    return '${AdminOrganizationNodeTypes.titleOf(node.type)} $code';
+  }
+
+  void _scheduleParentWarningLog() {
+    unawaited(_logParentWarningIfNeeded());
+  }
+
+  Future<void> _logParentWarningIfNeeded() async {
+    final node = _selectedNode();
+    if (node == null) return;
+    final blocked = _blockedSelectedFeatureCodes(node);
+    if (blocked.isEmpty) {
+      _lastParentWarningLogKey = null;
+      return;
+    }
+    final sortedCodes = blocked.keys.toList()..sort();
+    final logKey = '${node.id}|${sortedCodes.join(',')}';
+    if (_lastParentWarningLogKey == logKey) return;
+    _lastParentWarningLogKey = logKey;
+    await AppLogger.instance.info(
+      'AdminFeatures',
+      'Node feature assignment parent veto warning shown',
+      context: {
+        'organizationNodeId': node.id,
+        'organizationNodeType': node.type,
+        'blockedFeatureCount': blocked.length,
+        'missingParentCount': blocked.values.fold<int>(
+          0,
+          (sum, parents) => sum + parents.length,
+        ),
+      },
+    );
+  }
+
   Future<void> _save() async {
     final node = _selectedNode();
     if (node == null) {
@@ -155,6 +270,7 @@ class _NodeFeatureAssignmentDialogState
       return;
     }
     final featureCodes = _selectedCodes.toList()..sort();
+    final blockedFeatures = _blockedSelectedFeatureCodes(node);
     final stopwatch = Stopwatch()..start();
     setState(() => _saving = true);
     try {
@@ -165,6 +281,7 @@ class _NodeFeatureAssignmentDialogState
           'organizationNodeId': node.id,
           'organizationNodeType': node.type,
           'featureCount': featureCodes.length,
+          'parentBlockedFeatureCount': blockedFeatures.length,
           'replaceExisting': true,
         },
       );
@@ -185,6 +302,7 @@ class _NodeFeatureAssignmentDialogState
           'organizationNodeId': node.id,
           'organizationNodeType': node.type,
           'featureCount': featureCodes.length,
+          'parentBlockedFeatureCount': blockedFeatures.length,
           'durationMs': stopwatch.elapsedMilliseconds,
         },
       );
@@ -200,6 +318,7 @@ class _NodeFeatureAssignmentDialogState
           'organizationNodeId': node.id,
           'organizationNodeType': node.type,
           'featureCount': featureCodes.length,
+          'parentBlockedFeatureCount': blockedFeatures.length,
           'durationMs': stopwatch.elapsedMilliseconds,
         },
       );
@@ -226,6 +345,9 @@ class _NodeFeatureAssignmentDialogState
           ? assignment.impactedUserCount
           : max,
     );
+    final blockedFeatures = selectedNode == null
+        ? const <String, List<AdminOrganizationNode>>{}
+        : _blockedSelectedFeatureCodes(selectedNode);
     return AlertDialog(
       title: const Text('Tính năng theo node'),
       content: SizedBox(
@@ -263,6 +385,12 @@ class _NodeFeatureAssignmentDialogState
                 selectedCodes: _selectedCodes,
                 onChanged: _toggleFeature,
               ),
+              if (blockedFeatures.isNotEmpty)
+                _ParentFeatureVetoWarning(
+                  blockedFeatures: blockedFeatures,
+                  featureLabel: _featureLabel,
+                  nodeLabel: _nodeShortLabel,
+                ),
               TextField(
                 controller: _noteController,
                 decoration: const InputDecoration(labelText: 'Ghi chú'),
@@ -286,6 +414,87 @@ class _NodeFeatureAssignmentDialogState
           child: Text(_saving ? 'Đang lưu...' : 'Lưu'),
         ),
       ],
+    );
+  }
+}
+
+class _ParentFeatureVetoWarning extends StatelessWidget {
+  final Map<String, List<AdminOrganizationNode>> blockedFeatures;
+  final String Function(String code) featureLabel;
+  final String Function(AdminOrganizationNode node) nodeLabel;
+
+  const _ParentFeatureVetoWarning({
+    required this.blockedFeatures,
+    required this.featureLabel,
+    required this.nodeLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final entries = blockedFeatures.entries.toList()
+      ..sort((left, right) => left.key.compareTo(right.key));
+    final visibleEntries = entries.take(4).toList();
+    final extraCount = entries.length - visibleEntries.length;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: theme.colorScheme.error.withValues(alpha: 0.5),
+        ),
+        borderRadius: BorderRadius.circular(8),
+        color: theme.colorScheme.errorContainer.withValues(alpha: 0.35),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.lock_outline,
+                  size: 18,
+                  color: theme.colorScheme.error,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Một số tính năng sẽ chưa có hiệu lực vì node cha chưa được tick cùng tính năng.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final entry in visibleEntries)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '${featureLabel(entry.key)} thiếu ${entry.value.map(nodeLabel).join(', ')}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onErrorContainer,
+                  ),
+                ),
+              ),
+            if (extraCount > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Còn $extraCount tính năng khác đang bị chặn bởi node cha.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onErrorContainer,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

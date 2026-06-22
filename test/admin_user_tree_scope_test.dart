@@ -8,6 +8,7 @@ import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/features/admin/domain/admin_feature_definition.dart';
 import 'package:phongvu_opshub/features/admin/domain/admin_organization_node.dart';
 import 'package:phongvu_opshub/features/admin/domain/admin_user_editor_payload.dart';
+import 'package:phongvu_opshub/features/admin/presentation/widgets/node_feature_assignment_dialog.dart';
 import 'package:phongvu_opshub/features/admin/presentation/screens/user_admin_screen.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 
@@ -105,6 +106,116 @@ void main() {
       expect(bodies.single['replaceExisting'], true);
     },
   );
+
+  test(
+    'Node feature parent gate helper blocks child feature when non-root parent is missing',
+    () {
+      const nodes = [
+        AdminOrganizationNode(
+          id: 'org-domain',
+          code: 'DOMAIN_PHONGVU_VN',
+          title: 'phongvu.vn',
+          type: 'LV0_DOMAIN',
+        ),
+        AdminOrganizationNode(
+          id: 'org-region',
+          code: 'REGION_MIEN_NAM',
+          title: 'Miền Nam',
+          businessCode: 'MIEN_NAM',
+          type: 'LV2_REGION',
+          parentId: 'org-domain',
+        ),
+        AdminOrganizationNode(
+          id: 'org-area',
+          code: 'AREA_HCM',
+          title: 'HCM',
+          businessCode: 'HCM',
+          type: 'LV3_AREA',
+          parentId: 'org-region',
+        ),
+        AdminOrganizationNode(
+          id: 'org-store',
+          code: 'STORE_CP62',
+          title: 'CP62',
+          businessCode: 'CP62',
+          type: 'LV4_STORE',
+          parentId: 'org-area',
+        ),
+      ];
+      const assignments = [
+        AdminNodeFeatureAssignment(
+          id: 'region-fifo',
+          scopeRootNodeId: 'org-domain',
+          nodeType: 'LV2_REGION',
+          nodeKey: 'MIEN_NAM',
+          featureCode: 'FIFO',
+          featureName: 'FIFO',
+          enabled: true,
+          organizationNodeIds: ['org-region'],
+        ),
+        AdminNodeFeatureAssignment(
+          id: 'store-fifo',
+          scopeRootNodeId: 'org-domain',
+          nodeType: 'LV4_STORE',
+          nodeKey: 'CP62',
+          featureCode: 'FIFO',
+          featureName: 'FIFO',
+          enabled: true,
+          organizationNodeIds: ['org-store'],
+        ),
+      ];
+
+      final blocked = blockedNodeFeatureCodesForParentGate(
+        node: nodes.last,
+        nodes: nodes,
+        selectedFeatureCodes: const ['FIFO'],
+        assignments: assignments,
+      );
+
+      expect(blocked.keys, ['FIFO']);
+      expect(blocked['FIFO']!.map((node) => node.id), ['org-area']);
+    },
+  );
+
+  test('Node feature parent gate helper ignores root node assignments', () {
+    const nodes = [
+      AdminOrganizationNode(
+        id: 'org-domain',
+        code: 'DOMAIN_PHONGVU_VN',
+        title: 'phongvu.vn',
+        type: 'LV0_DOMAIN',
+      ),
+      AdminOrganizationNode(
+        id: 'org-region',
+        code: 'REGION_MIEN_NAM',
+        title: 'Miền Nam',
+        businessCode: 'MIEN_NAM',
+        type: 'LV2_REGION',
+        parentId: 'org-domain',
+      ),
+    ];
+    const assignments = [
+      AdminNodeFeatureAssignment(
+        id: 'region-fifo',
+        scopeRootNodeId: 'org-domain',
+        nodeType: 'LV2_REGION',
+        nodeKey: 'MIEN_NAM',
+        featureCode: 'FIFO',
+        featureName: 'FIFO',
+        enabled: true,
+        organizationNodeIds: ['org-region'],
+      ),
+    ];
+
+    final blocked = blockedNodeFeatureCodesForParentGate(
+      node: nodes.last,
+      nodes: nodes,
+      selectedFeatureCodes: const ['FIFO'],
+      assignments: assignments,
+    );
+
+    expect(blocked, isEmpty);
+  });
 
   test('Admin user import result parses summary and per-row results', () {
     final result = AdminUserImportResult.fromJson({

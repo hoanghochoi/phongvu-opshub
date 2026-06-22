@@ -45,6 +45,17 @@ describe('FeatureService', () => {
     nodeAssignments[assignmentKey(nodeType, nodeKey, featureCode)] = enabled;
   };
 
+  const setStoreChainAssignment = (featureCode: string, enabled = true) => {
+    setNodeAssignment(featureCode, enabled, 'LV2_REGION', 'MIEN_NAM');
+    setNodeAssignment(featureCode, enabled, 'LV3_AREA', 'HCM');
+    setNodeAssignment(featureCode, enabled, 'LV4_STORE', 'CP62');
+  };
+
+  const setLv5ChainAssignment = (featureCode: string, enabled = true) => {
+    setStoreChainAssignment(featureCode, enabled);
+    setNodeAssignment(featureCode, enabled, 'LV5_POSITION', 'SA');
+  };
+
   beforeEach(() => {
     featureActive = true;
     rules = [];
@@ -128,7 +139,35 @@ describe('FeatureService', () => {
           }
           return { enabled: nodeAssignments[key] };
         }),
-        findMany: jest.fn(async () => []),
+        findMany: jest.fn(async ({ where }: any = {}) => {
+          const featureCodes = Array.isArray(where?.featureCode?.in)
+            ? where.featureCode.in
+            : where?.featureCode
+              ? [where.featureCode]
+              : [];
+          const targets = Array.isArray(where?.OR) ? where.OR : [];
+          if (where?.enabled !== true || targets.length === 0) return [];
+          const rows: any[] = [];
+          for (const target of targets) {
+            if (target.scopeRootNodeId !== 'org-domain-acare-vn') continue;
+            for (const featureCode of featureCodes) {
+              const key = assignmentKey(
+                target.nodeType,
+                target.nodeKey,
+                featureCode,
+              );
+              if (nodeAssignments[key] === true) {
+                rows.push({
+                  scopeRootNodeId: target.scopeRootNodeId,
+                  nodeType: target.nodeType,
+                  nodeKey: target.nodeKey,
+                  featureCode,
+                });
+              }
+            }
+          }
+          return rows;
+        }),
         upsert: jest.fn(),
         deleteMany: jest.fn(),
       },
@@ -157,8 +196,9 @@ describe('FeatureService', () => {
               : node,
           ),
         ),
-        findUnique: jest.fn(async ({ where }: any) =>
-          orgNodes.find((node) => node.id === where.id) ?? null,
+        findUnique: jest.fn(
+          async ({ where }: any) =>
+            orgNodes.find((node) => node.id === where.id) ?? null,
         ),
       },
       store: {
@@ -185,8 +225,8 @@ describe('FeatureService', () => {
     service = new FeatureService(prisma);
   });
 
-  it('allows only features assigned to the direct node group', async () => {
-    setNodeAssignment('FIFO', true);
+  it('allows only features assigned to the direct node group and parent chain', async () => {
+    setStoreChainAssignment('FIFO');
 
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
@@ -194,6 +234,71 @@ describe('FeatureService', () => {
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'BANK_STATEMENTS'),
     ).resolves.toBe(false);
+  });
+
+  it('denies child node assignments when an organization parent is missing the feature', async () => {
+    setNodeAssignment('FIFO', true, 'LV2_REGION', 'MIEN_NAM');
+    setNodeAssignment('FIFO', true, 'LV4_STORE', 'CP62');
+
+    await expect(
+      service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
+    ).resolves.toBe(false);
+  });
+
+  it('denies child node assignments when a higher non-root ancestor is missing the feature', async () => {
+    setNodeAssignment('FIFO', true, 'LV3_AREA', 'HCM');
+    setNodeAssignment('FIFO', true, 'LV4_STORE', 'CP62');
+
+    await expect(
+      service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
+    ).resolves.toBe(false);
+  });
+
+  it('does not require the root organization node to be assigned', async () => {
+    setStoreChainAssignment('FIFO');
+    setNodeAssignment('FIFO', false, 'LV0_DOMAIN', 'ACARE');
+
+    await expect(
+      service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
+    ).resolves.toBe(true);
+  });
+
+  it('does not grant child nodes from parent assignments alone', async () => {
+    setNodeAssignment('FIFO', true, 'LV2_REGION', 'MIEN_NAM');
+    setNodeAssignment('FIFO', true, 'LV3_AREA', 'HCM');
+
+    await expect(
+      service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
+    ).resolves.toBe(false);
+  });
+
+  it('resolves /features/me with one assignment batch across active features', async () => {
+    prisma.featureDefinition.findMany.mockResolvedValueOnce([
+      { code: 'FIFO' },
+      { code: 'BANK_STATEMENTS' },
+    ]);
+    prisma.organizationNodeFeatureAssignment.findMany.mockClear();
+    setStoreChainAssignment('FIFO');
+
+    await expect(
+      service.resolveFeatureAccessMap({ id: 'user-1' }),
+    ).resolves.toEqual({
+      FIFO: true,
+      BANK_STATEMENTS: false,
+    });
+    expect(
+      prisma.organizationNodeFeatureAssignment.findMany,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      prisma.organizationNodeFeatureAssignment.findMany,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          enabled: true,
+          featureCode: { in: ['FIFO', 'BANK_STATEMENTS'] },
+        }),
+      }),
+    );
   });
 
   it('does not use legacy rule or per-user assignment for runtime access', async () => {
@@ -206,6 +311,8 @@ describe('FeatureService', () => {
   });
 
   it('denies disabled node feature assignments', async () => {
+    setNodeAssignment('FIFO', true, 'LV2_REGION', 'MIEN_NAM');
+    setNodeAssignment('FIFO', true, 'LV3_AREA', 'HCM');
     setNodeAssignment('FIFO', false);
 
     await expect(
@@ -215,7 +322,7 @@ describe('FeatureService', () => {
 
   it('denies inactive features even when assigned', async () => {
     featureActive = false;
-    setNodeAssignment('FIFO', true);
+    setStoreChainAssignment('FIFO');
 
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
@@ -224,7 +331,7 @@ describe('FeatureService', () => {
 
   it('denies assignments when the direct organization node is inactive', async () => {
     directNodeActive = false;
-    setNodeAssignment('FIFO', true);
+    setStoreChainAssignment('FIFO');
 
     await expect(
       service.canAccessFeature({ id: 'user-1' }, 'FIFO'),
@@ -232,35 +339,53 @@ describe('FeatureService', () => {
   });
 
   it('prefers assigned Lv5 organization node over store fallback', async () => {
-    setNodeAssignment('FIFO', true, 'LV5_POSITION', 'SA');
+    setLv5ChainAssignment('FIFO');
 
     await expect(
       service.canAccessFeature({ id: 'user-lv5' }, 'FIFO'),
     ).resolves.toBe(true);
     expect(
-      prisma.organizationNodeFeatureAssignment.findUnique,
+      prisma.organizationNodeFeatureAssignment.findMany,
     ).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          scopeRootNodeId_nodeType_nodeKey_featureCode: {
-            scopeRootNodeId: 'org-domain-acare-vn',
-            nodeType: 'LV5_POSITION',
-            nodeKey: 'SA',
-            featureCode: 'FIFO',
-          },
-        },
+        where: expect.objectContaining({
+          enabled: true,
+          featureCode: { in: ['FIFO'] },
+          OR: expect.arrayContaining([
+            {
+              scopeRootNodeId: 'org-domain-acare-vn',
+              nodeType: 'LV5_POSITION',
+              nodeKey: 'SA',
+            },
+            {
+              scopeRootNodeId: 'org-domain-acare-vn',
+              nodeType: 'LV4_STORE',
+              nodeKey: 'CP62',
+            },
+            {
+              scopeRootNodeId: 'org-domain-acare-vn',
+              nodeType: 'LV3_AREA',
+              nodeKey: 'HCM',
+            },
+            {
+              scopeRootNodeId: 'org-domain-acare-vn',
+              nodeType: 'LV2_REGION',
+              nodeKey: 'MIEN_NAM',
+            },
+          ]),
+        }),
       }),
     );
   });
 
   it('requires PAYMENT_SPEAKER separately from PAYMENT_MONITOR for Lv5 nodes', async () => {
-    setNodeAssignment('PAYMENT_MONITOR', true, 'LV5_POSITION', 'SA');
+    setLv5ChainAssignment('PAYMENT_MONITOR');
 
     await expect(
       service.canAccessFeature({ id: 'user-lv5' }, 'PAYMENT_SPEAKER'),
     ).resolves.toBe(false);
 
-    setNodeAssignment('PAYMENT_SPEAKER', true, 'LV5_POSITION', 'SA');
+    setLv5ChainAssignment('PAYMENT_SPEAKER');
 
     await expect(
       service.canAccessFeature({ id: 'user-lv5' }, 'PAYMENT_SPEAKER'),

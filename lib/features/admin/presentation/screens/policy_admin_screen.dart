@@ -382,23 +382,31 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
       rule.allowed ? 'Cho phép' : 'Chặn',
       if (rule.emailDomain?.isNotEmpty == true) 'domain=${rule.emailDomain}',
       if (rule.systemRole?.isNotEmpty == true) 'role=${rule.systemRole}',
-      if (rule.departmentCode?.isNotEmpty == true)
-        'phòng=${rule.departmentCode}',
-      if (rule.jobRoleCode?.isNotEmpty == true) 'chức=${rule.jobRoleCode}',
-      if (rule.workScopeType?.isNotEmpty == true) 'scope=${rule.workScopeType}',
       if (rule.organizationNodeName?.isNotEmpty == true)
         'node=${rule.organizationNodeName}',
       if (rule.organizationNodeId?.isNotEmpty == true &&
           rule.organizationNodeName == null)
         'node=${rule.organizationNodeId}',
-      if (rule.regionCode?.isNotEmpty == true) 'miền=${rule.regionCode}',
-      if (rule.areaCode?.isNotEmpty == true) 'vùng=${rule.areaCode}',
-      if (rule.storeCode?.isNotEmpty == true) 'SR=${rule.storeCode}',
-      if (rule.userId?.isNotEmpty == true) 'user=${rule.userId}',
-      if (rule.scopeContains?.isNotEmpty == true)
-        'contains=${rule.scopeContains}',
+      if (_legacyRuleSummary(rule) != null)
+        'legacy=${_legacyRuleSummary(rule)}',
     ];
     return parts.join(' • ');
+  }
+
+  String? _legacyRuleSummary(AdminPolicyRule rule) {
+    final legacy = [
+      if (rule.departmentCode?.isNotEmpty == true)
+        'phòng:${rule.departmentCode}',
+      if (rule.jobRoleCode?.isNotEmpty == true) 'chức:${rule.jobRoleCode}',
+      if (rule.workScopeType?.isNotEmpty == true) 'scope:${rule.workScopeType}',
+      if (rule.regionCode?.isNotEmpty == true) 'miền:${rule.regionCode}',
+      if (rule.areaCode?.isNotEmpty == true) 'vùng:${rule.areaCode}',
+      if (rule.storeCode?.isNotEmpty == true) 'SR:${rule.storeCode}',
+      if (rule.userId?.isNotEmpty == true) 'user:${rule.userId}',
+      if (rule.scopeContains?.isNotEmpty == true)
+        'contains:${rule.scopeContains}',
+    ];
+    return legacy.isEmpty ? null : legacy.join(',');
   }
 
   String _compactJson(dynamic value) {
@@ -569,11 +577,6 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
   late bool _allowed;
   late final TextEditingController _emailDomains;
   late final TextEditingController _systemRoles;
-  late final TextEditingController _departmentCodes;
-  late final TextEditingController _jobRoleCodes;
-  late final TextEditingController _workScopeTypes;
-  late final TextEditingController _userIds;
-  late final TextEditingController _scopeContains;
   late final TextEditingController _note;
   final Set<String> _organizationNodeIds = {};
   bool _saving = false;
@@ -588,31 +591,16 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
     _allowed = rule?.allowed ?? true;
     _emailDomains = TextEditingController(text: rule?.emailDomain ?? '');
     _systemRoles = TextEditingController(text: rule?.systemRole ?? '');
-    _departmentCodes = TextEditingController(text: rule?.departmentCode ?? '');
-    _jobRoleCodes = TextEditingController(text: rule?.jobRoleCode ?? '');
-    _workScopeTypes = TextEditingController(text: rule?.workScopeType ?? '');
-    final organizationNodeId =
-        rule?.organizationNodeId ?? _legacyNodeIdFor(rule);
+    final organizationNodeId = rule?.organizationNodeId;
     if (organizationNodeId != null && organizationNodeId.isNotEmpty) {
       _organizationNodeIds.add(organizationNodeId);
     }
-    _userIds = TextEditingController(text: rule?.userId ?? '');
-    _scopeContains = TextEditingController(text: rule?.scopeContains ?? '');
     _note = TextEditingController(text: rule?.note ?? '');
   }
 
   @override
   void dispose() {
-    for (final controller in [
-      _emailDomains,
-      _systemRoles,
-      _departmentCodes,
-      _jobRoleCodes,
-      _workScopeTypes,
-      _userIds,
-      _scopeContains,
-      _note,
-    ]) {
+    for (final controller in [_emailDomains, _systemRoles, _note]) {
       controller.dispose();
     }
     super.dispose();
@@ -628,13 +616,22 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
     setState(() => _saving = true);
     final emailDomains = _csv(_emailDomains);
     final systemRoles = _csv(_systemRoles);
-    final departmentCodes = _csv(_departmentCodes);
-    final jobRoleCodes = _csv(_jobRoleCodes);
-    final workScopeTypes = _csv(_workScopeTypes);
     final organizationNodeIds = _organizationNodeIds.toList()..sort();
-    final userIds = _csv(_userIds);
-    final scopeContainsValues = _csv(_scopeContains);
     final note = _note.text.trim().isEmpty ? null : _note.text.trim();
+    if (organizationNodeIds.isEmpty) {
+      await AppLogger.instance.warn(
+        'AdminPolicies',
+        'Policy rule save blocked without organization node',
+        context: {'policyCode': _policyCode, 'isEdit': widget.rule != null},
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chọn node tổ chức cho rule.')),
+        );
+        setState(() => _saving = false);
+      }
+      return;
+    }
     try {
       await AppLogger.instance.info(
         'AdminPolicies',
@@ -644,12 +641,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
           'isEdit': widget.rule != null,
           'domainCount': emailDomains.length,
           'roleCount': systemRoles.length,
-          'departmentCount': departmentCodes.length,
-          'jobRoleCount': jobRoleCodes.length,
-          'scopeCount': workScopeTypes.length,
           'organizationNodeCount': organizationNodeIds.length,
-          'userCount': userIds.length,
-          'scopeContainsCount': scopeContainsValues.length,
         },
       );
       if (widget.rule?.id == null) {
@@ -659,12 +651,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
             allowed: _allowed,
             emailDomains: emailDomains,
             systemRoles: systemRoles,
-            departmentCodes: departmentCodes,
-            jobRoleCodes: jobRoleCodes,
-            workScopeTypes: workScopeTypes,
             organizationNodeIds: organizationNodeIds,
-            userIds: userIds,
-            scopeContainsValues: scopeContainsValues,
             note: note,
           ),
         );
@@ -676,21 +663,9 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
             allowed: _allowed,
             emailDomain: emailDomains.isEmpty ? null : emailDomains.first,
             systemRole: systemRoles.isEmpty ? null : systemRoles.first,
-            departmentCode: departmentCodes.isEmpty
-                ? null
-                : departmentCodes.first,
-            jobRoleCode: jobRoleCodes.isEmpty ? null : jobRoleCodes.first,
-            workScopeType: workScopeTypes.isEmpty ? null : workScopeTypes.first,
-            regionCode: null,
-            areaCode: null,
             organizationNodeId: organizationNodeIds.isEmpty
                 ? null
                 : organizationNodeIds.first,
-            storeCode: null,
-            userId: userIds.isEmpty ? null : userIds.first,
-            scopeContains: scopeContainsValues.isEmpty
-                ? null
-                : scopeContainsValues.first,
             note: note,
           ),
         );
@@ -757,12 +732,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
             ),
             _csvField(_emailDomains, 'Domain email'),
             _csvField(_systemRoles, 'System role'),
-            _csvField(_departmentCodes, 'Phòng ban'),
-            _csvField(_jobRoleCodes, 'Chức danh'),
-            _csvField(_workScopeTypes, 'Phạm vi'),
             _organizationNodePicker(),
-            _csvField(_userIds, 'User ID'),
-            _csvField(_scopeContains, 'Scope chứa chuỗi'),
             TextField(
               controller: _note,
               decoration: const InputDecoration(labelText: 'Ghi chú'),
@@ -826,54 +796,12 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
           border: OutlineInputBorder(),
         ),
         child: Text(
-          selectedLabels.isEmpty ? 'Không áp dụng' : selectedLabels.join(', '),
+          selectedLabels.isEmpty ? 'Chưa chọn node' : selectedLabels.join(', '),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
       ),
     );
-  }
-
-  String? _legacyNodeIdFor(AdminPolicyRule? rule) {
-    if (rule == null) return null;
-    final storeNode = _nodeIdByTypeAndCode('LV4_STORE', rule.storeCode);
-    if (storeNode != null) return storeNode;
-    final areaNode = _nodeIdByTypeAndCode('LV3_AREA', rule.areaCode);
-    if (areaNode != null) return areaNode;
-    return _nodeIdByTypeAndCode('LV2_REGION', rule.regionCode);
-  }
-
-  String? _nodeIdByTypeAndCode(String type, String? code) {
-    final normalized = _normalizeLegacyCode(code);
-    if (normalized == null) return null;
-    for (final node in widget.organizationNodes) {
-      if (node.type != AdminOrganizationNode.canonicalType(type)) continue;
-      final candidates = [
-        node.businessCode,
-        node.storeId,
-        node.code,
-        _legacyCodeFromNodeCode(node.code),
-      ];
-      if (candidates.any((item) => _normalizeLegacyCode(item) == normalized)) {
-        return node.id;
-      }
-    }
-    return null;
-  }
-
-  String? _normalizeLegacyCode(String? value) {
-    final normalized = value?.trim().toUpperCase();
-    return normalized == null || normalized.isEmpty ? null : normalized;
-  }
-
-  String _legacyCodeFromNodeCode(String code) {
-    return code
-        .replaceFirst(
-          RegExp(r'^(LV2_REGION|LV3_AREA|REGION|AREA)_(PHONGVU|ACARE)_'),
-          '',
-        )
-        .replaceFirst(RegExp(r'^STORE_'), '')
-        .toUpperCase();
   }
 
   List<(String, String)> _organizationNodeItems() {
