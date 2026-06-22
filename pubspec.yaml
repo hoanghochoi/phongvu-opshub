@@ -173,14 +173,14 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/icon/source/app_icon_padded.png"
 
-  # TÃ¹y chá» n cho Android adaptive icon
+  # Tùy chọn cho Android adaptive icon
   adaptive_icon_foreground: "assets/icon/source/app_icon_foreground.png"
   adaptive_icon_background: "#081B5A"
 
-  # TÃ¹y chá» n cho iOS
+  # Tùy chọn cho iOS
   remove_alpha_ios: true
 
-  # TÃ¹y chá» n cho Windows
+  # Tùy chọn cho Windows
   windows:
     generate: true
     image_path: "assets/icon/source/app_icon_padded.png"

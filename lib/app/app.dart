@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
+import '../core/logging/app_logger.dart';
 import '../core/network/api_client.dart';
 import '../features/auth/data/repositories/auth_repository.dart';
 import '../features/auth/presentation/providers/auth_provider.dart';
@@ -135,6 +136,7 @@ class _SessionExpiredDialogGate extends StatefulWidget {
 
 class _SessionExpiredDialogGateState extends State<_SessionExpiredDialogGate> {
   bool _dialogVisible = false;
+  int _presentationAttempts = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -152,23 +154,78 @@ class _SessionExpiredDialogGateState extends State<_SessionExpiredDialogGate> {
       final authProvider = context.read<AuthProvider>();
       final currentMessage = authProvider.sessionExpiredDialogMessage;
       if (currentMessage == null) return;
+      final navigatorContext =
+          AppRouter.navigatorKey.currentState?.overlay?.context;
+      if (navigatorContext == null) {
+        _presentationAttempts += 1;
+        await AppLogger.instance.warn(
+          'Auth',
+          'Session expired dialog presentation deferred',
+          context: {
+            'reason': 'root_navigator_unavailable',
+            'attempt': _presentationAttempts,
+          },
+        );
+        if (mounted && _presentationAttempts < 3) {
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => _showDialogIfNeeded(currentMessage),
+          );
+        } else if (mounted) {
+          await AppLogger.instance.error(
+            'Auth',
+            'Session expired dialog navigator unavailable',
+            context: {'attempts': _presentationAttempts},
+            upload: true,
+          );
+          authProvider.clearSessionExpiredDialogMessage();
+          widget.router.go('/login');
+          _presentationAttempts = 0;
+        }
+        return;
+      }
 
+      _presentationAttempts = 0;
       _dialogVisible = true;
       try {
+        await AppLogger.instance.info(
+          'Auth',
+          'Session expired dialog presentation started',
+        );
+        if (!navigatorContext.mounted) {
+          await AppLogger.instance.warn(
+            'Auth',
+            'Session expired dialog cancelled before presentation',
+            context: {'reason': 'root_navigator_unmounted'},
+          );
+          return;
+        }
         await showDialog<void>(
-          context: context,
+          context: navigatorContext,
           barrierDismissible: false,
           builder: (dialogContext) => AlertDialog(
             title: const Text('Phiên đăng nhập đã hết hạn'),
             content: Text(currentMessage),
             actions: [
               FilledButton.icon(
-                onPressed: () => Navigator.of(dialogContext).pop(),
+                onPressed: () =>
+                    Navigator.of(dialogContext, rootNavigator: true).pop(),
                 icon: const Icon(Icons.login_rounded),
                 label: const Text('Đăng nhập lại'),
               ),
             ],
           ),
+        );
+        await AppLogger.instance.info(
+          'Auth',
+          'Session expired dialog dismissed',
+        );
+      } catch (error, stackTrace) {
+        await AppLogger.instance.error(
+          'Auth',
+          'Session expired dialog presentation failed',
+          error: error,
+          stackTrace: stackTrace,
+          upload: true,
         );
       } finally {
         if (mounted) {

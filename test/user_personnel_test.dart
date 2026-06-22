@@ -145,4 +145,19 @@ void main() {
     expect(user.canUseBankStatements, isTrue);
     expect(user.canUseAllBankStatementStores, isTrue);
   });
+
+  test('User does not infer all-showroom statement scope from admin role', () {
+    final user = User.fromJson({
+      'email': 'manager@phongvu.vn',
+      'role': 'MANAGER',
+      'storeId': 'CP01',
+      'workScopeType': 'STORE',
+      'resolvedFeatureAccess': {'BANK_STATEMENTS': true},
+      'resolvedAdminPolicies': {'BANK_STATEMENT_ALL_SCOPE': false},
+    });
+
+    expect(user.hasNationalWorkScope, isTrue);
+    expect(user.canUseBankStatements, isTrue);
+    expect(user.canUseAllBankStatementStores, isFalse);
+  });
 }

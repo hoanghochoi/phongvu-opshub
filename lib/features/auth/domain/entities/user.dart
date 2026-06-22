@@ -150,7 +150,7 @@ class User {
       canUsePolicy('BANK_STATEMENT_ALL_SCOPE');
 
   bool get canUseAllBankStatementStores =>
-      hasNationalWorkScope || canUsePolicy('BANK_STATEMENT_ALL_SCOPE');
+      canUsePolicy('BANK_STATEMENT_ALL_SCOPE');
 
   bool canUseFeature(String featureCode) {
     if (isSuperAdmin) return true;

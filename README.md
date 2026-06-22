@@ -1,6 +1,6 @@
 # PhongVu OpsHub
 
-PhongVu OpsHub is an internal operations app for Phong Vu staff. The Flutter app covers daily store and warehouse workflows: email/password registration and sign-in, FIFO check, FIFO sorting, warranty/repair image capture, feedback, and admin FIFO history.
+PhongVu OpsHub is an internal operations app for Phong Vu staff. The Flutter app covers daily store and warehouse workflows: email/password registration and sign-in, FIFO check, FIFO sorting, warranty/repair image capture, staff suggestions, and admin FIFO history.
 
 ## Project Layout
 

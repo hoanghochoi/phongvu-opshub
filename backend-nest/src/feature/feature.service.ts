@@ -871,7 +871,7 @@ export class FeatureService implements OnModuleInit {
   private async normalizeRuleBatchInput(input: any) {
     const featureCode = this.normalizeCode(
       input.featureCode,
-      'MÃ£ tÃ­nh nÄƒng khÃ´ng há»£p lá»‡',
+      'Mã tính năng không hợp lệ',
     );
     await this.ensureFeature(featureCode);
     const enabled = input.enabled === true;
@@ -898,9 +898,7 @@ export class FeatureService implements OnModuleInit {
     );
     for (const workScopeType of workScopeTypes) {
       if (workScopeType && !VALID_WORK_SCOPES.has(workScopeType)) {
-        throw new BadRequestException(
-          'Pháº¡m vi tÃ­nh nÄƒng khÃ´ng há»£p lá»‡',
-        );
+        throw new BadRequestException('Phạm vi tính năng không hợp lệ');
       }
     }
     const locations = await this.normalizeLocationOptions(
@@ -934,7 +932,7 @@ export class FeatureService implements OnModuleInit {
     });
 
     if (dataList.length > 500) {
-      throw new BadRequestException('Tá»‘i Ä‘a 500 rules má»—i láº§n táº¡o');
+      throw new BadRequestException('Tối đa 500 rules mỗi lần tạo');
     }
 
     for (const data of dataList) {
@@ -1036,13 +1034,13 @@ export class FeatureService implements OnModuleInit {
       const area = await this.prisma.areaDefinition.findUnique({
         where: { code: areaCode },
       });
-      if (!area) throw new BadRequestException('VÃ¹ng khÃ´ng tá»“n táº¡i');
+      if (!area) throw new BadRequestException('Vùng không tồn tại');
       if (selectedRegions.includes(area.regionCode)) {
         locations.push({ regionCode: area.regionCode, areaCode });
       }
     }
     if (locations.length === 0) {
-      throw new BadRequestException('VÃ¹ng khÃ´ng thuá»™c Miá»n Ä‘Ã£ chá»n');
+      throw new BadRequestException('Vùng không thuộc Miền đã chọn');
     }
     return locations;
   }

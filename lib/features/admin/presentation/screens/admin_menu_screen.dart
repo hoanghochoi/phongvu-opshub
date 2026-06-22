@@ -53,9 +53,9 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (isSuperAdmin)
         AppFeatureAction(
-          icon: Icons.feedback_outlined,
-          title: 'Danh sách phản hồi',
-          description: 'Phản hồi nội bộ',
+          icon: Icons.lightbulb_outline_rounded,
+          title: 'Danh sách góp ý',
+          description: 'Góp ý nội bộ',
           color: AppColors.teal600,
           onTap: () => context.push('/admin/feedback'),
         ),

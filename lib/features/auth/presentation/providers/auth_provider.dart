@@ -306,6 +306,12 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  @visibleForTesting
+  void setSessionExpiredDialogMessageForTesting(String? message) {
+    _sessionExpiredDialogMessage = message;
+    notifyListeners();
+  }
+
   Future<void> _saveOptionalString(
     SharedPreferences prefs,
     String key,

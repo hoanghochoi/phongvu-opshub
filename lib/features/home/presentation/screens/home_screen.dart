@@ -10,6 +10,7 @@ import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_logo.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../payment_monitor/presentation/providers/payment_monitor_provider.dart';
 
@@ -59,6 +60,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final canUsePaymentMonitor = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('PAYMENT_MONITOR') == true,
     );
+    final canUseFeedback = context.select<AuthProvider, bool>(
+      (auth) => auth.user?.canUseFeature('FEEDBACK') == true,
+    );
     final canUsePaymentSpeaker = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('PAYMENT_SPEAKER') == true,
     );
@@ -72,6 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
       canUseBankStatements,
       canUseVietQr,
       canUsePaymentMonitor,
+      canUseFeedback,
       supportsPaymentMonitor,
     );
 
@@ -131,6 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
     bool canUseBankStatements,
     bool canUseVietQr,
     bool canUsePaymentMonitor,
+    bool canUseFeedback,
     bool supportsPaymentMonitor,
   ) {
     return [
@@ -181,6 +187,20 @@ class _HomeScreenState extends State<HomeScreen> {
           description: 'Cập nhật giao dịch',
           color: AppColors.violet600,
           onTap: () => context.push('/payment-monitor'),
+        ),
+      if (canUseFeedback)
+        AppFeatureAction(
+          icon: Icons.lightbulb_outline_rounded,
+          title: 'Góp ý',
+          description: 'Đề xuất & báo lỗi',
+          color: AppColors.amber500,
+          onTap: () async {
+            await AppLogger.instance.info(
+              'Feedback',
+              'Suggestion opened from home',
+            );
+            if (context.mounted) context.push('/feedback');
+          },
         ),
     ];
   }
@@ -255,20 +275,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     context.push('/admin');
                   },
                 ),
-              ListTile(
-                leading: const Icon(
-                  Icons.question_answer_rounded,
-                  color: Colors.white,
-                ),
-                title: const Text(
-                  'Phản hồi',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  context.push('/feedback');
-                },
-              ),
               ListTile(
                 leading: const Icon(
                   Icons.settings_outlined,

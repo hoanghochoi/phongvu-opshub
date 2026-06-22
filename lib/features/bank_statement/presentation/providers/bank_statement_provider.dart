@@ -99,6 +99,14 @@ class BankStatementProvider extends ChangeNotifier {
   Future<void> loadStores() async {
     try {
       final user = _user;
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement store load started',
+        context: {
+          'scopeMode': canUseAllStores ? 'ALL_STORES' : 'ASSIGNED_STORE',
+          'hasAssignedStore': user?.storeId?.isNotEmpty == true,
+        },
+      );
       final stores = await _repository.fetchStores();
       _stores
         ..clear()
@@ -111,7 +119,11 @@ class BankStatementProvider extends ChangeNotifier {
       await AppLogger.instance.info(
         'BankStatement',
         'Bank statement stores loaded',
-        context: {'count': _stores.length, 'national': canUseAllStores},
+        context: {
+          'scopeMode': canUseAllStores ? 'ALL_STORES' : 'ASSIGNED_STORE',
+          'availableCount': stores.length,
+          'visibleCount': _stores.length,
+        },
       );
       notifyListeners();
     } catch (error) {
@@ -120,6 +132,10 @@ class BankStatementProvider extends ChangeNotifier {
         'BankStatement',
         'Bank statement store load failed',
         error: error,
+        context: {
+          'scopeMode': canUseAllStores ? 'ALL_STORES' : 'ASSIGNED_STORE',
+          'hasAssignedStore': _user?.storeId?.isNotEmpty == true,
+        },
       );
       notifyListeners();
     }

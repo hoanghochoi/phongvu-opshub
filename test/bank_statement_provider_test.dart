@@ -84,6 +84,18 @@ void main() {
       provider.dispose();
     });
 
+    test('limits a store-scoped manager to the assigned showroom', () async {
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+
+      await provider.initialize(_storeScopedManager);
+
+      expect(provider.canUseAllStores, isFalse);
+      expect(provider.stores.map((store) => store.storeId), ['CP01']);
+
+      provider.dispose();
+    });
+
     test('keeps primary filters mutually exclusive', () async {
       final repository = _FakeBankStatementRepository();
       final provider = BankStatementProvider(repository);
@@ -304,6 +316,7 @@ const _nationalManager = User(
   email: 'manager@example.com',
   role: 'MANAGER',
   workScopeType: 'NATIONAL',
+  policyAccess: {'BANK_STATEMENT_ALL_SCOPE': true},
 );
 
 const _superAdmin = User(
@@ -319,6 +332,16 @@ const _financeAllScopeUser = User(
   storeId: 'CP01',
   workScopeType: 'STORE',
   policyAccess: {'BANK_STATEMENT_ALL_SCOPE': true},
+);
+
+const _storeScopedManager = User(
+  id: 'manager-1',
+  email: 'manager@phongvu.vn',
+  role: 'MANAGER',
+  storeId: 'CP01',
+  workScopeType: 'STORE',
+  featureAccess: {'BANK_STATEMENTS': true},
+  policyAccess: {'BANK_STATEMENT_ALL_SCOPE': false},
 );
 
 class _FakeBankStatementRepository extends BankStatementRepository {

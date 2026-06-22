@@ -49,7 +49,7 @@ export class FeedbackService {
           (admin?.role || 'unknown'),
       );
       throw new ForbiddenException(
-        'Chỉ SUPER_ADMIN được xem danh sách phản hồi',
+        'Chỉ SUPER_ADMIN được xem danh sách góp ý',
       );
     }
     this.logger.log(

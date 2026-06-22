@@ -11,7 +11,7 @@ update them when behavior changes.
 | `fifo.md` | FIFO check, sorting, and history workflows |
 | `sort.md` | SKU sort/grouping workflow |
 | `warranty.md` | Warranty/repair upload and realtime status |
-| `feedback.md` | Staff feedback submission |
+| `feedback.md` | Staff suggestions and issue reports |
 | `vietqr.md` | Manual bank-transfer QR, payment monitor, and MAP bank statement reconciliation |
 | `profile-admin.md` | Profile, admin-assigned organization nodes, and user administration |
 | `backend-platform.md` | Backend services, infra, deployment contracts |

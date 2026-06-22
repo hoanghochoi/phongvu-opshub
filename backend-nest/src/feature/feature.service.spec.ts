@@ -483,6 +483,31 @@ describe('FeatureService', () => {
     });
   });
 
+  it('returns readable Vietnamese validation errors for invalid rule batches', async () => {
+    await expect(
+      service.adminCreateRules(
+        { role: 'SUPER_ADMIN' },
+        {
+          featureCode: 'FIFO',
+          enabled: true,
+          workScopeTypes: ['NOT_A_SCOPE'],
+        },
+      ),
+    ).rejects.toThrow('Phạm vi tính năng không hợp lệ');
+
+    await expect(
+      service.adminCreateRules(
+        { role: 'SUPER_ADMIN' },
+        {
+          featureCode: 'FIFO',
+          enabled: true,
+          regionCodes: ['MIEN_NAM'],
+          areaCodes: ['UNKNOWN'],
+        },
+      ),
+    ).rejects.toThrow('Vùng không tồn tại');
+  });
+
   it('returns only active visible features for the user picker tree', async () => {
     await service.adminListFeatureTree({ role: 'SUPER_ADMIN' });
 

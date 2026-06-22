@@ -1,15 +1,20 @@
+import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../../app/widgets/gradient_header.dart';
+
+import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
+import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/feedback_upload_contract.dart';
 
 class FeedbackScreen extends StatefulWidget {
@@ -20,6 +25,8 @@ class FeedbackScreen extends StatefulWidget {
 }
 
 class _FeedbackScreenState extends State<FeedbackScreen> {
+  static const int _maxImages = 10;
+
   final _formKey = GlobalKey<FormState>();
   final _functionController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -28,121 +35,176 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   bool _isSubmitting = false;
 
   @override
+  void initState() {
+    super.initState();
+    unawaited(
+      AppLogger.instance.info(
+        'Feedback',
+        'Suggestion screen opened',
+        context: {'maxImages': _maxImages},
+      ),
+    );
+  }
+
+  @override
   void dispose() {
     _functionController.dispose();
     _descriptionController.dispose();
     super.dispose();
   }
 
+  Future<bool> _ensureImageCapacity(String source) async {
+    if (_images.length < _maxImages) return true;
+    await AppLogger.instance.warn(
+      'Feedback',
+      'Suggestion image add blocked at limit',
+      context: {'source': source, 'imageCount': _images.length},
+    );
+    if (mounted) {
+      _showSnackBar(
+        'Mỗi góp ý đính kèm tối đa $_maxImages ảnh.',
+        color: AppColors.warning,
+      );
+    }
+    return false;
+  }
+
   Future<void> _pickImage() async {
+    if (!await _ensureImageCapacity('gallery')) return;
     try {
-      final List<XFile> images = await _picker.pickMultiImage();
-      if (images.isNotEmpty) {
-        setState(() {
-          _images.addAll(images.map((xFile) => File(xFile.path)));
-        });
-        await AppLogger.instance.info(
-          'Feedback',
-          'Feedback images picked',
-          context: {'pickedCount': images.length, 'totalCount': _images.length},
+      final selectedImages = await _picker.pickMultiImage();
+      if (selectedImages.isEmpty || !mounted) return;
+
+      final remaining = _maxImages - _images.length;
+      final accepted = selectedImages.take(remaining).toList(growable: false);
+      setState(() {
+        _images.addAll(accepted.map((image) => File(image.path)));
+      });
+      final truncated = selectedImages.length - accepted.length;
+      await AppLogger.instance.info(
+        'Feedback',
+        'Suggestion images picked',
+        context: {
+          'pickedCount': selectedImages.length,
+          'acceptedCount': accepted.length,
+          'truncatedCount': truncated,
+          'totalCount': _images.length,
+        },
+      );
+      if (truncated > 0 && mounted) {
+        _showSnackBar(
+          'Đã giữ $_maxImages ảnh đầu tiên theo giới hạn hệ thống.',
+          color: AppColors.warning,
         );
       }
-    } catch (e) {
+    } catch (error, stackTrace) {
       await AppLogger.instance.error(
         'Feedback',
-        'Pick images failed',
-        error: e,
+        'Suggestion image picker failed',
+        error: error,
+        stackTrace: stackTrace,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Chưa chọn được ảnh. Vui lòng thử lại.'),
-            backgroundColor: Colors.red,
-          ),
+        _showSnackBar(
+          'Chưa chọn được ảnh. Vui lòng thử lại.',
+          color: AppColors.error,
         );
       }
     }
   }
 
   Future<void> _takePhoto() async {
+    if (!await _ensureImageCapacity('camera')) return;
     try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.camera);
-      if (image != null) {
-        setState(() {
-          _images.add(File(image.path));
-        });
-        await AppLogger.instance.info(
-          'Feedback',
-          'Feedback photo captured',
-          context: {'totalCount': _images.length},
-        );
-      }
-    } catch (e) {
-      await AppLogger.instance.error('Feedback', 'Take photo failed', error: e);
+      final image = await _picker.pickImage(source: ImageSource.camera);
+      if (image == null || !mounted) return;
+      setState(() => _images.add(File(image.path)));
+      await AppLogger.instance.info(
+        'Feedback',
+        'Suggestion photo captured',
+        context: {'totalCount': _images.length},
+      );
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'Feedback',
+        'Suggestion camera capture failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Chưa chụp được ảnh. Vui lòng thử lại.'),
-            backgroundColor: Colors.red,
-          ),
+        _showSnackBar(
+          'Chưa chụp được ảnh. Vui lòng thử lại.',
+          color: AppColors.error,
         );
       }
     }
   }
 
-  void _removeImage(int index) {
-    setState(() {
-      _images.removeAt(index);
-    });
+  Future<void> _removeImage(int index) async {
+    if (index < 0 || index >= _images.length) return;
+    setState(() => _images.removeAt(index));
+    await AppLogger.instance.info(
+      'Feedback',
+      'Suggestion image removed',
+      context: {'removedIndex': index, 'totalCount': _images.length},
+    );
   }
 
   void _showImageSourceDialog() {
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Chọn nguồn ảnh'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.photo_library),
-                title: const Text('Thư viện ảnh'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _pickImage();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt),
-                title: const Text('Chụp ảnh'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _takePhoto();
-                },
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Thêm ảnh minh họa'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Chọn từ thư viện'),
+              onTap: () {
+                Navigator.of(dialogContext).pop();
+                unawaited(_pickImage());
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Chụp ảnh mới'),
+              onTap: () {
+                Navigator.of(dialogContext).pop();
+                unawaited(_takePhoto());
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Future<void> _submitFeedback() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      await AppLogger.instance.warn(
+        'Feedback',
+        'Suggestion submit blocked by validation',
+        context: {
+          'functionLength': _functionController.text.trim().length,
+          'descriptionLength': _descriptionController.text.trim().length,
+          'imageCount': _images.length,
+        },
+      );
+      return;
+    }
 
-    setState(() {
-      _isSubmitting = true;
-    });
+    setState(() => _isSubmitting = true);
+    final startedAt = DateTime.now();
 
     try {
-      final authProvider = context.read<AuthProvider>();
-      final userEmail = authProvider.user?.email ?? '';
+      final user = context.read<AuthProvider>().user;
       await AppLogger.instance.info(
         'Feedback',
-        'Feedback submit started',
+        'Suggestion submit started',
         context: {
-          'userEmail': userEmail,
+          'userId': user?.id,
+          'storeId': user?.storeId,
           'functionLength': _functionController.text.trim().length,
           'descriptionLength': _descriptionController.text.trim().length,
           'imageCount': _images.length,
@@ -158,273 +220,342 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
 
       final response = await ApiClient().postMultipart(
         ApiConstants.feedbackEndpoint,
-        fields: {
-          ...buildFeedbackMultipartFields(
-            functionName: _functionController.text,
-            description: _descriptionController.text,
-          ),
-        },
+        fields: buildFeedbackMultipartFields(
+          functionName: _functionController.text,
+          description: _descriptionController.text,
+        ),
         files: files,
         timeout: ApiConstants.uploadTimeout,
       );
+      final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
 
-      if (mounted) {
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          await AppLogger.instance.info(
-            'Feedback',
-            'Feedback submit succeeded',
-            context: {'userEmail': userEmail, 'imageCount': _images.length},
-          );
-          // ignore: use_build_context_synchronously
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Gửi phản hồi thành công! Cảm ơn bạn đã đóng góp.'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          _functionController.clear();
-          _descriptionController.clear();
-          setState(() {
-            _images.clear();
-          });
-          // ignore: use_build_context_synchronously
-          Navigator.of(context).pop();
-        } else {
-          await AppLogger.instance.warn(
-            'Feedback',
-            'Feedback submit returned non-success',
-            context: {'statusCode': response.statusCode},
-          );
-          // ignore: use_build_context_synchronously
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Chưa gửi được phản hồi. Vui lòng thử lại.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        await AppLogger.instance.info(
+          'Feedback',
+          'Suggestion submit succeeded',
+          context: {
+            'userId': user?.id,
+            'storeId': user?.storeId,
+            'imageCount': _images.length,
+            'statusCode': response.statusCode,
+            'durationMs': durationMs,
+          },
+        );
+        if (!mounted) return;
+        _showSnackBar(
+          'Đã gửi góp ý. Cảm ơn bạn đã giúp OpsHub tốt hơn!',
+          color: AppColors.success,
+        );
+        _functionController.clear();
+        _descriptionController.clear();
+        setState(_images.clear);
+        Navigator.of(context).pop();
+        return;
       }
-    } catch (e) {
-      await AppLogger.instance.error(
+
+      await AppLogger.instance.warn(
         'Feedback',
-        'Feedback submit failed',
-        error: e,
-        upload: true,
-        context: {'imageCount': _images.length},
+        'Suggestion submit returned non-success',
+        context: {
+          'statusCode': response.statusCode,
+          'imageCount': _images.length,
+          'durationMs': durationMs,
+        },
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Chưa gửi được phản hồi. Vui lòng thử lại.'),
-            backgroundColor: Colors.red,
-          ),
+        _showSnackBar(
+          'Chưa gửi được góp ý. Vui lòng thử lại.',
+          color: AppColors.error,
+        );
+      }
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'Feedback',
+        'Suggestion submit failed',
+        error: error,
+        stackTrace: stackTrace,
+        upload: true,
+        context: {
+          'imageCount': _images.length,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      if (mounted) {
+        _showSnackBar(
+          'Chưa gửi được góp ý. Kiểm tra kết nối rồi thử lại.',
+          color: AppColors.error,
         );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
-      }
+      if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  void _showSnackBar(String message, {required Color color}) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const GradientHeader(title: 'Phản hồi', showBack: true),
+      appBar: const GradientHeader(title: 'Góp ý', showBack: true),
       body: Form(
         key: _formKey,
         child: AppResponsiveScrollView(
           maxWidth: AppLayoutTokens.formMaxWidth,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: AppFormColumn(
+            spacing: AppLayoutTokens.formSectionGap,
             children: [
-              // Info card
-              Card(
-                color: Colors.blue.withValues(alpha: 0.1),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
+              const AppStatusBanner(
+                icon: Icons.lightbulb_outline_rounded,
+                title: 'Cùng cải thiện OpsHub',
+                message:
+                    'Chia sẻ đề xuất, điểm chưa thuận tiện hoặc lỗi bạn gặp '
+                    'trong lúc làm việc.',
+                tone: AppStateTone.info,
+              ),
+              TextFormField(
+                key: const ValueKey('suggestion-function-field'),
+                controller: _functionController,
+                enabled: !_isSubmitting,
+                textInputAction: TextInputAction.next,
+                maxLength: 120,
+                decoration: const InputDecoration(
+                  labelText: 'Chức năng liên quan',
+                  hintText: 'Ví dụ: FIFO, VietQR, Sao kê, Tiền vào, BH / SC...',
+                  helperText: 'Cho biết khu vực bạn đang sử dụng.',
+                  prefixIcon: Icon(Icons.category_outlined),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Vui lòng nhập chức năng liên quan';
+                  }
+                  return null;
+                },
+              ),
+              TextFormField(
+                key: const ValueKey('suggestion-description-field'),
+                controller: _descriptionController,
+                enabled: !_isSubmitting,
+                minLines: 5,
+                maxLines: 8,
+                maxLength: 5000,
+                decoration: const InputDecoration(
+                  labelText: 'Nội dung góp ý',
+                  hintText:
+                      'Bạn mong muốn thay đổi điều gì? Nếu là lỗi, hãy mô tả '
+                      'các bước đã thực hiện.',
+                  alignLabelWithHint: true,
+                  prefixIcon: Icon(Icons.edit_note_rounded),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Vui lòng nhập nội dung góp ý';
+                  }
+                  return null;
+                },
+              ),
+              _SuggestionImagesCard(
+                images: _images,
+                maxImages: _maxImages,
+                isSubmitting: _isSubmitting,
+                onAdd: _showImageSourceDialog,
+                onRemove: (index) => unawaited(_removeImage(index)),
+              ),
+              AppPrimaryButton(
+                key: const ValueKey('submit-suggestion-button'),
+                onPressed: _submitFeedback,
+                icon: Icons.send_rounded,
+                label: 'Gửi góp ý',
+                isLoading: _isSubmitting,
+                loadingLabel: 'Đang gửi...',
+              ),
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionImagesCard extends StatelessWidget {
+  final List<File> images;
+  final int maxImages;
+  final bool isSubmitting;
+  final VoidCallback onAdd;
+  final ValueChanged<int> onRemove;
+
+  const _SuggestionImagesCard({
+    required this.images,
+    required this.maxImages,
+    required this.isSubmitting,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.info_outline, color: Colors.blue[700]),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text(
-                          'Gửi phản hồi về lỗi hoặc góp ý cải thiện ứng dụng',
-                          style: TextStyle(fontSize: 14),
+                      Text(
+                        'Ảnh minh họa',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        'Không bắt buộc, tối đa 10 ảnh',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.neutral500,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-
-              // Function field
-              Text(
-                'Chức năng',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
-              TextFormField(
-                controller: _functionController,
-                decoration: const InputDecoration(
-                  hintText: 'Ví dụ: Chat, Bảo hành, Đăng nhập...',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.category_outlined),
+                TextButton.icon(
+                  onPressed: isSubmitting || images.length >= maxImages
+                      ? null
+                      : onAdd,
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  label: const Text('Thêm ảnh'),
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Vui lòng nhập chức năng';
-                  }
-                  return null;
+              ],
+            ),
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
+            if (images.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(
+                    AppLayoutTokens.cardRadius,
+                  ),
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.image_outlined,
+                      color: AppColors.neutral400,
+                      size: 34,
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Thêm ảnh khi hình ảnh giúp mô tả góp ý rõ hơn.',
+                        style: TextStyle(color: AppColors.neutral600),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columnCount = constraints.maxWidth >= 600
+                      ? 4
+                      : constraints.maxWidth < 360
+                      ? 2
+                      : 3;
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: images.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columnCount,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                    ),
+                    itemBuilder: (context, index) => _SuggestionImageTile(
+                      image: images[index],
+                      index: index,
+                      enabled: !isSubmitting,
+                      onRemove: () => onRemove(index),
+                    ),
+                  );
                 },
               ),
-              const SizedBox(height: AppLayoutTokens.formSectionGap),
-
-              // Description field
-              Text(
-                'Mô tả',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(
-                  hintText: 'Mô tả chi tiết lỗi hoặc góp ý của bạn...',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.description_outlined),
-                ),
-                maxLines: 5,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Vui lòng nhập mô tả';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: AppLayoutTokens.formSectionGap),
-
-              // Images section
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Hình ảnh (Tùy chọn)',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: _isSubmitting ? null : _showImageSourceDialog,
-                    icon: const Icon(Icons.add_photo_alternate),
-                    label: const Text(
-                      'Thêm ảnh',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
-
-              // Images grid
-              if (_images.isEmpty)
-                Container(
-                  height: 150,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300, width: 2),
-                    borderRadius: BorderRadius.circular(8),
-                    color: Colors.grey.shade50,
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.image_outlined,
-                          size: 48,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Chưa có hình ảnh',
-                          style: TextStyle(color: Colors.grey.shade600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Nhấn "Thêm ảnh" để chọn',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                    childAspectRatio: 1,
-                  ),
-                  itemCount: _images.length,
-                  itemBuilder: (context, index) {
-                    return Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.file(_images[index], fit: BoxFit.cover),
-                        ),
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: GestureDetector(
-                            onTap: () => _removeImage(index),
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.close,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-
-              const SizedBox(height: 32),
-
-              AppPrimaryButton(
-                onPressed: _submitFeedback,
-                icon: Icons.send_rounded,
-                label: 'Gửi phản hồi',
-                isLoading: _isSubmitting,
-                loadingLabel: 'Đang gửi...',
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _SuggestionImageTile extends StatelessWidget {
+  final File image;
+  final int index;
+  final bool enabled;
+  final VoidCallback onRemove;
+
+  const _SuggestionImageTile({
+    required this.image,
+    required this.index,
+    required this.enabled,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      image: true,
+      label: 'Ảnh góp ý ${index + 1}',
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+            child: Image.file(
+              image,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => ColoredBox(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: const Icon(
+                  Icons.broken_image_outlined,
+                  color: AppColors.error,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 5,
+            right: 5,
+            child: Tooltip(
+              message: 'Xóa ảnh ${index + 1}',
+              child: Material(
+                color: enabled ? AppColors.error : AppColors.neutral400,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  onTap: enabled ? onRemove : null,
+                  customBorder: const CircleBorder(),
+                  child: const Padding(
+                    padding: EdgeInsets.all(6),
+                    child: Icon(
+                      Icons.close_rounded,
+                      color: AppColors.surface,
+                      size: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

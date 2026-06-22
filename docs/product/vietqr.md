@@ -35,8 +35,8 @@ a customer to scan and pay manually.
 - Each generated QR is stored as a payment intent so staff can run payment
   confirmation after showing the QR to the customer.
 - The QR result screen automatically checks payment status while the screen is
-  open when amount and transfer content are fixed. Staff can also tap `Kiá»ƒm tra
-  ngay` to run the same check immediately.
+  open when amount and transfer content are fixed. Staff can also tap
+  `Kiểm tra ngay` to run the same check immediately.
 - Once payment is confirmed, the app hides the QR and shows a green success
   state with MAP transaction details when available: payer, received amount,
   transfer content, transaction number, and transaction time.
@@ -54,7 +54,7 @@ a customer to scan and pay manually.
 
 ## PC Payment Monitor
 
-- The Windows PC app exposes a `Tiá»n vÃ o` home action.
+- The Windows PC app exposes a `Tiền vào` home action.
 - The NestJS API is the source of truth for MAP transactions. It polls
   configured showroom MAP accounts in the background, stores successful incoming
   transactions in Postgres, and exposes the stored list to scoped clients.
@@ -81,8 +81,12 @@ a customer to scan and pay manually.
   and refreshes stored transactions when a new notification arrives. A
   30-second fallback refresh remains active so the list can recover from missed
   socket events.
+- Failed transaction refreshes apply bounded backoff. Realtime/fallback refresh
+  cannot bypass that backoff; only an explicit user refresh or filter/page
+  action may retry immediately. This prevents socket bursts from amplifying
+  backend `429 Too Many Requests` responses.
 - Each newly observed successful incoming transaction can be announced through
-  generated audio as `Phong VÅ© Ä‘Ã£ nháº­n: <amount> Ä‘á»“ng.` when the signed-in
+  generated audio as `Phong Vũ đã nhận: <amount> đồng.` when the signed-in
   user has both `PAYMENT_MONITOR` and the separate node feature
   `PAYMENT_SPEAKER` (`Đọc loa`) on a supported Windows PC. Piper audio uses
   speed `0.90`, prepends 650 ms of leading silence, and appends 500 ms of tail
@@ -165,8 +169,8 @@ a customer to scan and pay manually.
 - The statement date-range control shows `Hôm nay` when no explicit range is
   selected. A custom date range must include both start and end dates; an
   incomplete range is treated as no explicit range.
-- `ÄÃ£ cÃ³ Ä‘Æ¡n hÃ ng` means the stored order list is not empty. `ChÆ°a cÃ³ Ä‘Æ¡n hÃ ng`
-  means the order list is empty.
+- `Đã có đơn hàng` means the stored order list is not empty.
+  `Chưa có đơn hàng` means the order list is empty.
 - Statement rows show transaction details beside a compact order area. The row
   summary uses short readable pills for payment source, SR code, amount, and
   successful transfer status, not the raw MAP API status; the current payment
@@ -193,7 +197,7 @@ Bank-web confirmation is possible only as a separate reconciliation feature
 after the bank portal is identified and approved for automation. Current
 research against VietinBank MAP merchant transaction payment page shows a
 searchable transaction list with filters for amount, transaction code, date
-range, status, and a `Táº£i káº¿t quáº£` export action.
+range, status, and a `Tải kết quả` export action.
 
 Preferred paths, from safest to riskiest:
 

@@ -55,6 +55,10 @@ Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
   but the current forgot-password flow no longer sends reset links.
 - Successful password change/reset increments the user token version so older
   JWTs are rejected.
+- When a protected request rejects the current session, Flutter clears local
+  auth state, presents one non-dismissible re-login dialog through the root
+  navigator, records start/dismiss/failure through `AppLogger`, and routes to
+  `/login` without throwing an uncaught navigation error.
 
 ## Contract Notes
 

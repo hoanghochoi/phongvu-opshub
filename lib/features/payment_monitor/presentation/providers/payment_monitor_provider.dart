@@ -17,6 +17,7 @@ import '../../data/payment_speaker.dart';
 import '../../data/repositories/payment_monitor_repository.dart';
 import '../../domain/map_payment_transaction.dart';
 import '../../domain/payment_notification.dart';
+import '../../domain/payment_poll_policy.dart';
 
 class PaymentSpeakerError {
   final String storeCode;
@@ -213,7 +214,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'limit': _pageSize,
       },
     );
-    await _poll(force: true, includeTotal: true, reason: 'manual_refresh');
+    await _poll(
+      force: true,
+      bypassBackoff: true,
+      includeTotal: true,
+      reason: 'manual_refresh',
+    );
   }
 
   void setStoreOverride(String value) {
@@ -254,7 +260,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
         },
       ),
     );
-    _poll(force: true, includeTotal: true, reason: 'date_range');
+    _poll(
+      force: true,
+      bypassBackoff: true,
+      includeTotal: true,
+      reason: 'date_range',
+    );
   }
 
   void setPageSize(int value) {
@@ -271,21 +282,36 @@ class PaymentMonitorProvider extends ChangeNotifier {
         },
       ),
     );
-    _poll(force: true, includeTotal: true, reason: 'page_size');
+    _poll(
+      force: true,
+      bypassBackoff: true,
+      includeTotal: true,
+      reason: 'page_size',
+    );
   }
 
   void nextPage() {
     if (!canGoNextPage) return;
     _pageIndex += 1;
     unawaited(_logPageChanged('next'));
-    _poll(force: true, includeTotal: true, reason: 'next_page');
+    _poll(
+      force: true,
+      bypassBackoff: true,
+      includeTotal: true,
+      reason: 'next_page',
+    );
   }
 
   void previousPage() {
     if (!canGoPreviousPage) return;
     _pageIndex -= 1;
     unawaited(_logPageChanged('previous'));
-    _poll(force: true, includeTotal: true, reason: 'previous_page');
+    _poll(
+      force: true,
+      bypassBackoff: true,
+      includeTotal: true,
+      reason: 'previous_page',
+    );
   }
 
   Future<void> _loadEnabledPreference() async {
@@ -615,6 +641,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   Future<void> _poll({
     bool force = false,
+    bool bypassBackoff = false,
     bool includeTotal = true,
     String reason = 'unknown',
   }) async {
@@ -627,9 +654,21 @@ class PaymentMonitorProvider extends ChangeNotifier {
       return;
     }
     final nextPollAllowedAt = _nextPollAllowedAt;
-    if (!force && nextPollAllowedAt != null) {
-      final now = DateTime.now();
-      if (now.isBefore(nextPollAllowedAt)) return;
+    if (shouldDeferPaymentPoll(
+      now: DateTime.now(),
+      nextPollAllowedAt: nextPollAllowedAt,
+      bypassBackoff: bypassBackoff,
+    )) {
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment monitor poll deferred by backoff',
+        context: {
+          'reason': reason,
+          'nextRetryAt': nextPollAllowedAt?.toIso8601String(),
+          'failureCount': _pollFailureCount,
+        },
+      );
+      return;
     }
     _isLoading = true;
     _errorMessage = null;
@@ -753,6 +792,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         unawaited(
           _poll(
             force: true,
+            bypassBackoff: false,
             includeTotal: queuedIncludeTotal,
             reason: 'queued_after_loading',
           ),

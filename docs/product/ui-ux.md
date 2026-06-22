@@ -103,6 +103,11 @@ visual systems that make the app feel assembled from unrelated screens.
 
 - New or changed user-facing flows must log start, success, failure, and key
   branch decisions through `AppLogger` with sanitized context.
+- Local and uploaded log context must redact secrets, authorization values,
+  email addresses, and local Windows user profile paths. Windows logs live at
+  `%APPDATA%\com.example\OpsHub\logs\opshub.log`.
+- Log retention must preserve complete JSON lines. Malformed fragments may be
+  discarded during compaction; retention must not cut a record in the middle.
 - Minimum UI validation for code changes:
   - `dart format --output=none --set-exit-if-changed <changed Dart files>`
   - `git diff --check`

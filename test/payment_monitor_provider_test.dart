@@ -292,6 +292,46 @@ void main() {
     provider.dispose();
   });
 
+  test('realtime refresh respects poll backoff after throttling', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: const [],
+      transactionError: ApiException('Too Many Requests', 429),
+    );
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount == 1 && !provider.isLoading,
+    );
+
+    await provider.handleRealtimeMessageForTesting(
+      jsonEncode({
+        'type': 'PAYMENT_NOTIFICATION',
+        'payload': {
+          'notificationId': 'note-throttled',
+          'transactionId': 'txn-throttled',
+          'storeCode': 'CP01',
+          'amount': 1250000,
+          'audioStatus': 'READY',
+        },
+      }),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+
+    expect(repository.transactionFetchCount, 1);
+
+    await provider.refreshNow();
+    expect(repository.transactionFetchCount, 2);
+
+    provider.dispose();
+  });
+
   test('stops monitor when polling returns an auth failure', () async {
     final repository = _FakePaymentMonitorRepository(
       notifications: const [],
