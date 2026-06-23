@@ -155,6 +155,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private readonly payerNameKeys = [
     'payerName',
     'payerFullName',
+    'reqCardName',
+    'requestCardName',
     'senderName',
     'senderFullName',
     'fromAccountName',
@@ -165,6 +167,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private readonly payerAccountKeys = [
     'payerAccount',
     'payerAccountNo',
+    'reqCardNo',
+    'requestCardNo',
     'senderAccount',
     'senderAccountNo',
     'fromAccount',
@@ -1395,8 +1399,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     paidAt: Date | null;
     payerName: string | null;
     payerAccount: string | null;
+    rawData?: Prisma.JsonValue | null;
     firstSeenAt: Date;
   }) {
+    const payer = this.resolveStoredPayer(row);
     return {
       id: row.id,
       storeId: row.storeCode,
@@ -1411,10 +1417,35 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       orderUpdatedByEmail: row.orderUpdatedByEmail || null,
       status: row.status,
       paidAt: row.paidAt,
-      payerName: row.payerName,
-      payerAccount: row.payerAccount,
+      payerName: payer.name,
+      payerAccount: payer.account,
       firstSeenAt: row.firstSeenAt,
     };
+  }
+
+  private resolveStoredPayer(row: {
+    payerName?: string | null;
+    payerAccount?: string | null;
+    rawData?: Prisma.JsonValue | null;
+  }) {
+    const rawData = this.rawDataAsMapRow(row.rawData);
+    const rawName = rawData
+      ? this.readFirstText(rawData, this.payerNameKeys)
+      : '';
+    const rawAccount = rawData
+      ? this.readFirstText(rawData, this.payerAccountKeys)
+      : '';
+    return {
+      name: this.firstNonEmptyText(row.payerName, rawName) || null,
+      account: this.firstNonEmptyText(row.payerAccount, rawAccount) || null,
+    };
+  }
+
+  private rawDataAsMapRow(value?: Prisma.JsonValue | null) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    return value as MapTransactionRow;
   }
 
   private isSuccessfulTransaction(row: MapTransactionRow) {
@@ -1477,6 +1508,15 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     for (const key of keys) {
       const value = this.readText(row, key);
       if (value) return value;
+    }
+    return '';
+  }
+
+  private firstNonEmptyText(...values: unknown[]) {
+    for (const value of values) {
+      const text =
+        value === null || value === undefined ? '' : String(value).trim();
+      if (text) return text;
     }
     return '';
   }
@@ -1830,6 +1870,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     ];
     const lines = [headers.map((value) => this.csvCell(value)).join(',')];
     for (const row of rows) {
+      const payer = this.resolveStoredPayer(row);
       lines.push(
         [
           this.csvCell(row.storeCode),
@@ -1839,8 +1880,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           this.csvExcelTextCell((row.orders || []).join(' | ')),
           this.csvCell(row.status),
           this.csvCell(this.csvVietnamDate(row.paidAt)),
-          this.csvCell(row.payerName),
-          this.csvExcelTextCell(row.payerAccount),
+          this.csvCell(payer.name),
+          this.csvExcelTextCell(payer.account),
           this.csvCell(this.csvVietnamDate(row.firstSeenAt)),
           this.csvCell(row.orderSource),
           this.csvCell(row.orderUpdatedByEmail),

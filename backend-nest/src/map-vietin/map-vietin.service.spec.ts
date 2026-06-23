@@ -357,6 +357,8 @@ describe('MapVietinService', () => {
                 txnDesc: 'Khach chuyen tien',
                 status: '00',
                 virtualAccount: '18pv-icu',
+                reqCardName: 'NGUYEN VAN A',
+                reqCardNo: '9704361234567890',
               },
             ],
             pageIndex: 0,
@@ -389,6 +391,8 @@ describe('MapVietinService', () => {
           storeCode: 'CP01',
           transactionNumber: 'TXN-001',
           amount: 1250000,
+          payerName: 'NGUYEN VAN A',
+          payerAccount: '9704361234567890',
         }),
       }),
     );
@@ -823,6 +827,10 @@ describe('MapVietinService', () => {
         paidAt: new Date('2026-05-21T03:00:00.000Z'),
         payerName: null,
         payerAccount: null,
+        rawData: {
+          reqCardName: 'NGUYEN VAN A',
+          reqCardNo: '9704361234567890',
+        },
         firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
       },
     ]);
@@ -843,6 +851,8 @@ describe('MapVietinService', () => {
           id: 'stored-1',
           transactionNumber: 'TXN-001',
           amount: 1250000,
+          payerName: 'NGUYEN VAN A',
+          payerAccount: '9704361234567890',
         },
       ],
     });
@@ -1098,8 +1108,12 @@ describe('MapVietinService', () => {
         orders: ['26052912345678'],
         status: 'Thành công',
         paidAt: new Date('2026-06-03T09:39:41.000Z'),
-        payerName: 'Nguyễn Văn A',
-        payerAccount: '9704361234567890',
+        payerName: null,
+        payerAccount: null,
+        rawData: {
+          reqCardName: 'Nguyễn Văn A',
+          reqCardNo: '9704361234567890',
+        },
         firstSeenAt: new Date('2026-06-03T09:40:05.000Z'),
         orderSource: 'AUTO',
       },
@@ -1119,6 +1133,7 @@ describe('MapVietinService', () => {
     expect(csv).not.toContain('2026-06-03T09:39:41.000Z');
     expect(csv).toContain('"=""2030000000000"""');
     expect(csv).toContain('"=""26052912345678"""');
+    expect(csv).toContain('Nguyễn Văn A');
     expect(csv).toContain('"=""9704361234567890"""');
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({

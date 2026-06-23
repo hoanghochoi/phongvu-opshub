@@ -57,6 +57,27 @@ void main() {
       expect(history.newOrders, ['26052987654321']);
       expect(history.changedByEmail, 'manager@example.com');
     });
+
+    test('reads VietinBank MAP request card payer fields', () {
+      final transaction = BankStatementTransaction.fromJson({
+        'id': 'tx-req-card',
+        'storeId': 'CP01',
+        'transactionKey': 'key-req-card',
+        'transactionNumber': 'MAP-REQ-001',
+        'amount': 1250000,
+        'content': 'PAY 26052912345678',
+        'orders': ['26052912345678'],
+        'status': '00',
+        'paidAt': '2026-05-29T02:00:00.000Z',
+        'firstSeenAt': '2026-05-29T02:00:05.000Z',
+        'reqCardName': 'NGUYEN VAN A',
+        'reqCardNo': '9704361234567890',
+      });
+
+      expect(transaction.payerName, 'NGUYEN VAN A');
+      expect(transaction.payerAccount, '9704361234567890');
+      expect(transaction.payerLabel, 'NGUYEN VAN A • 9704361234567890');
+    });
   });
 
   group('BankStatementProvider', () {

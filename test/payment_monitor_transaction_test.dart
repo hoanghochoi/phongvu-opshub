@@ -30,6 +30,24 @@ void main() {
       expect(transaction.isValidIncoming, isTrue);
     });
 
+    test('reads VietinBank MAP request card payer fields', () {
+      final transaction = MapPaymentTransaction.fromJson({
+        'transactionNumber': 'MAP-REQ-001',
+        'amount': 1250000,
+        'tranTime': '21/05/2026 09:15:30',
+        'transactionDescription': 'Customer transfer',
+        'storeCode': 'CP01',
+        'reqCardName': 'NGUYEN VAN A',
+        'reqCardNo': '9704361234567890',
+        'statusText': 'Thành công',
+      });
+
+      expect(transaction.payerName, 'NGUYEN VAN A');
+      expect(transaction.payerAccount, '9704361234567890');
+      expect(transaction.payerLabel, 'NGUYEN VAN A • 9704361234567890');
+      expect(transaction.isValidIncoming, isTrue);
+    });
+
     test('rejects non-successful or empty-amount rows', () {
       final pending = MapPaymentTransaction.fromJson({
         'txnNo': 'MAP-002',

@@ -66,6 +66,8 @@ class MapPaymentTransaction {
     final payerName = _readFirstText(json, const [
       'payerName',
       'payerFullName',
+      'reqCardName',
+      'requestCardName',
       'senderName',
       'senderFullName',
       'fromAccountName',
@@ -76,6 +78,8 @@ class MapPaymentTransaction {
     final payerAccount = _readFirstText(json, const [
       'payerAccount',
       'payerAccountNo',
+      'reqCardNo',
+      'requestCardNo',
       'senderAccount',
       'senderAccountNo',
       'fromAccount',

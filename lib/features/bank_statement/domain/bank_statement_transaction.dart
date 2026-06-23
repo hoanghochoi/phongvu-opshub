@@ -48,8 +48,30 @@ class BankStatementTransaction {
       status: json['status']?.toString(),
       paidAt: _readDate(json['paidAt']),
       firstSeenAt: _readDate(json['firstSeenAt']),
-      payerName: json['payerName']?.toString(),
-      payerAccount: json['payerAccount']?.toString(),
+      payerName: _readFirstText(json, const [
+        'payerName',
+        'payerFullName',
+        'reqCardName',
+        'requestCardName',
+        'senderName',
+        'senderFullName',
+        'fromAccountName',
+        'debitAccountName',
+        'customerName',
+        'buyerName',
+      ]),
+      payerAccount: _readFirstText(json, const [
+        'payerAccount',
+        'payerAccountNo',
+        'reqCardNo',
+        'requestCardNo',
+        'senderAccount',
+        'senderAccountNo',
+        'fromAccount',
+        'fromAccountNo',
+        'debitAccount',
+        'debitAccountNo',
+      ]),
     );
   }
 
@@ -83,6 +105,14 @@ class BankStatementTransaction {
     if (value is num) return value.toInt();
     final normalized = value?.toString().replaceAll(RegExp(r'[^0-9]'), '');
     return int.tryParse(normalized ?? '') ?? 0;
+  }
+
+  static String? _readFirstText(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final text = json[key]?.toString().trim() ?? '';
+      if (text.isNotEmpty) return text;
+    }
+    return null;
   }
 
   static DateTime? _readDate(Object? value) {
