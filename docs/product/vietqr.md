@@ -93,8 +93,11 @@ a customer to scan and pay manually.
   generated audio as `Phong Vũ đã nhận: <amount> đồng.` when the signed-in
   user has both `PAYMENT_MONITOR` and the separate node feature
   `PAYMENT_SPEAKER` (`Đọc loa`) on a supported Windows PC. Piper audio uses
-  speed `0.90`, prepends 650 ms of leading silence, and appends 500 ms of tail
-  silence by default so the first and last words are not clipped after the cue.
+  speed `0.90`, no configured leading silence, and 500 ms of tail silence. The
+  server-combined WAV reduces only the payment cue to `80%` amplitude, then
+  appends the full TTS WAV immediately so there is no configured gap before the
+  first spoken word. If combined audio is unavailable, the Windows local-cue
+  fallback also plays the cue at `80%` while keeping voice playback at `100%`.
   Mobile and other unsupported platforms do not start the speaker path by
   default.
 - Turning off `Đọc loa tiền vào` mutes only the speaker path. The PC keeps

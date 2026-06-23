@@ -28,6 +28,7 @@ describe('PaymentNotificationsService', () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
     delete process.env.TTS_SERVICE_URL;
+    delete process.env.PAYMENT_CUE_GAIN;
     prisma = {
       paymentNotification: {
         findUnique: jest.fn(),
@@ -252,7 +253,7 @@ describe('PaymentNotificationsService', () => {
     const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-audio-'));
     const cuePath = join(temp, 'payment-cue.wav');
     const voicePath = join(temp, 'ready.wav');
-    const combinedPath = join(temp, 'ready-with-cue.wav');
+    const combinedPath = join(temp, 'ready-with-cue-g0800.wav');
     const cueWav = pcm16Wav({
       sampleRateHz: 1000,
       frames: [0, 1000, -1000],
@@ -286,7 +287,7 @@ describe('PaymentNotificationsService', () => {
         }),
       ).resolves.toEqual(
         expect.objectContaining({
-          fileName: 'ready-with-cue.wav',
+          fileName: 'ready-with-cue-g0800.wav',
           mimeType: 'audio/wav',
         }),
       );
@@ -294,6 +295,14 @@ describe('PaymentNotificationsService', () => {
       const combined = await readFile(combinedPath);
       const expectedFrames = 3 + 120 + 2 + 400;
       expect(wavDataBytes(combined)).toBe(expectedFrames * 2);
+      const combinedSamples = wavPcm16Samples(combined);
+      expect(combinedSamples.slice(0, 3)).toEqual([0, 800, -800]);
+      expect(combinedSamples.slice(3)).toEqual([
+        ...Array(120).fill(0),
+        2000,
+        -2000,
+        ...Array(400).fill(0),
+      ]);
 
       await expect(
         service.getAudioForUser(speakerUser(), 'note-combined', {
@@ -301,7 +310,7 @@ describe('PaymentNotificationsService', () => {
         }),
       ).resolves.toEqual(
         expect.objectContaining({
-          fileName: 'ready-with-cue.wav',
+          fileName: 'ready-with-cue-g0800.wav',
           mimeType: 'audio/wav',
         }),
       );
@@ -363,10 +372,16 @@ describe('PaymentNotificationsService', () => {
   it('deletes cached combined cue audio when notification audio expires', async () => {
     const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-cleanup-'));
     const voicePath = join(temp, 'ready.wav');
-    const combinedPath = join(temp, 'ready-with-cue.wav');
+    const legacyCombinedPath = join(temp, 'ready-with-cue.wav');
+    const currentCombinedPath = join(temp, 'ready-with-cue-g0800.wav');
+    const staleGainCombinedPath = join(temp, 'ready-with-cue-g0500.wav');
     try {
       await writeFile(voicePath, pcm16Wav({ frames: [1, 2, 3] }));
-      await writeFile(combinedPath, pcm16Wav({ frames: [1, 2, 3, 4] }));
+      await Promise.all(
+        [legacyCombinedPath, currentCombinedPath, staleGainCombinedPath].map(
+          (path) => writeFile(path, pcm16Wav({ frames: [1, 2, 3, 4] })),
+        ),
+      );
       prisma.paymentNotification.findMany.mockResolvedValue([
         { id: 'note-expired', audioPath: voicePath },
       ]);
@@ -375,7 +390,9 @@ describe('PaymentNotificationsService', () => {
       await service.cleanupExpiredData();
 
       await expect(readFile(voicePath)).rejects.toThrow();
-      await expect(readFile(combinedPath)).rejects.toThrow();
+      await expect(readFile(legacyCombinedPath)).rejects.toThrow();
+      await expect(readFile(currentCombinedPath)).rejects.toThrow();
+      await expect(readFile(staleGainCombinedPath)).rejects.toThrow();
       expect(prisma.paymentNotification.update).toHaveBeenCalledWith({
         where: { id: 'note-expired' },
         data: {
@@ -800,6 +817,23 @@ function wavDataBytes(buffer: Buffer) {
     const chunkId = buffer.toString('ascii', offset, offset + 4);
     const chunkSize = buffer.readUInt32LE(offset + 4);
     if (chunkId === 'data') return chunkSize;
+    offset += 8 + chunkSize + (chunkSize % 2);
+  }
+  throw new Error('WAV data chunk not found');
+}
+
+function wavPcm16Samples(buffer: Buffer) {
+  let offset = 12;
+  while (offset + 8 <= buffer.length) {
+    const chunkId = buffer.toString('ascii', offset, offset + 4);
+    const chunkSize = buffer.readUInt32LE(offset + 4);
+    if (chunkId === 'data') {
+      const samples: number[] = [];
+      for (let index = offset + 8; index < offset + 8 + chunkSize; index += 2) {
+        samples.push(buffer.readInt16LE(index));
+      }
+      return samples;
+    }
     offset += 8 + chunkSize + (chunkSize % 2);
   }
   throw new Error('WAV data chunk not found');

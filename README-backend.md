@@ -96,8 +96,12 @@ Expected responses:
   `deploy/home-server/tts-piper/` and point `TTS_SERVICE_URL` to
   `http://172.20.0.1:18081`. The sidecar keeps the existing `/synthesize`
   contract, returns `audio/wav`, and accepts the legacy VieNeu voice id for
-  rollback-friendly deploys. Keep `PIPER_LEADING_SILENCE_MS=650` so the first
-  spoken word is not clipped after the payment cue. New clients may call
+  rollback-friendly deploys. Production uses `PIPER_LEADING_SILENCE_MS=0` and
+  `PIPER_TAIL_SILENCE_MS=500`; combined audio applies
+  `PAYMENT_CUE_GAIN=0.80` to the cue so speech starts immediately at full level
+  while the final word keeps its tail padding. The Windows local-cue fallback
+  also plays its MP3 cue at `80%` and keeps voice playback at `100%`. New
+  clients may call
   `GET /payment-notifications/:id/audio?includeCue=true` to download one
   server-combined WAV with the cue plus TTS; the default endpoint remains
   TTS-only for older app versions.

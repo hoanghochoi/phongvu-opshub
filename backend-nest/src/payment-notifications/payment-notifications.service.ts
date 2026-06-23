@@ -8,7 +8,15 @@
 } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { createReadStream } from 'fs';
-import { mkdir, readFile, rename, stat, unlink, writeFile } from 'fs/promises';
+import {
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  stat,
+  unlink,
+  writeFile,
+} from 'fs/promises';
 import { basename, dirname, extname, join, resolve } from 'path';
 import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
@@ -32,11 +40,11 @@ const DEFAULT_TRANSACTION_RETENTION_DAYS = 90;
 const DEFAULT_TTS_VOICE_ID = 'piper:vi-vais1000';
 const DEFAULT_TTS_SPEED = 0.9;
 const DEFAULT_TTS_PITCH = 1.0;
+const DEFAULT_PAYMENT_CUE_GAIN = 0.8;
 const DEFAULT_DELIVERY_CLAIM_TTL_SECONDS = 120;
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
-const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE =
-  'Không có quyền Đọc loa tiền vào';
+const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE = 'Không có quyền Đọc loa tiền vào';
 
 type StoredTransaction = {
   id: string;
@@ -293,9 +301,7 @@ export class PaymentNotificationsService {
     for (const notification of expiredAudio) {
       if (notification.audioPath) {
         await unlink(notification.audioPath).catch(() => undefined);
-        await unlink(this.combinedCueAudioPath(notification.audioPath)).catch(
-          () => undefined,
-        );
+        await this.deleteCombinedCueAudioFiles(notification.audioPath);
       }
       await this.prisma.paymentNotification.update({
         where: { id: notification.id },
@@ -393,10 +399,11 @@ export class PaymentNotificationsService {
       );
     }
 
-    const combinedPath = this.combinedCueAudioPath(audioPath);
+    const cueGain = this.paymentCueGain();
+    const combinedPath = this.combinedCueAudioPath(audioPath, cueGain);
     if (await this.fileExists(combinedPath)) {
       this.logger.debug(
-        `Payment combined cue cache hit notification=${notificationId}`,
+        `Payment combined cue cache hit notification=${notificationId} cueGain=${cueGain.toFixed(2)}`,
       );
       return combinedPath;
     }
@@ -409,7 +416,8 @@ export class PaymentNotificationsService {
       const cue = this.parsePcm16Wav(cueBuffer, 'payment cue');
       const voice = this.parsePcm16Wav(voiceBuffer, 'payment voice');
       this.assertCompatibleWav(cue, voice);
-      const combined = this.buildPcm16Wav(cue, [cue.data, voice.data]);
+      const adjustedCueData = this.applyPcm16Gain(cue.data, cueGain);
+      const combined = this.buildPcm16Wav(cue, [adjustedCueData, voice.data]);
       const tmpPath = `${combinedPath}.${process.pid}.${randomUUID()}.tmp`;
       await writeFile(tmpPath, combined);
       await rename(tmpPath, combinedPath).catch(async (error: any) => {
@@ -418,7 +426,7 @@ export class PaymentNotificationsService {
         throw error;
       });
       this.logger.log(
-        `Payment combined cue audio generated notification=${notificationId} bytes=${combined.length} voiceDataBytes=${voice.data.length}`,
+        `Payment combined cue audio generated notification=${notificationId} bytes=${combined.length} cueGain=${cueGain.toFixed(2)} voiceDataBytes=${voice.data.length}`,
       );
       return combinedPath;
     } catch (error) {
@@ -432,11 +440,29 @@ export class PaymentNotificationsService {
     }
   }
 
-  private combinedCueAudioPath(audioPath: string) {
+  private combinedCueAudioPath(
+    audioPath: string,
+    cueGain = this.paymentCueGain(),
+  ) {
     const extension = extname(audioPath);
+    const gainTag = Math.round(cueGain * 1000)
+      .toString()
+      .padStart(4, '0');
     return join(
       dirname(audioPath),
-      `${basename(audioPath, extension)}-with-cue.wav`,
+      `${basename(audioPath, extension)}-with-cue-g${gainTag}.wav`,
+    );
+  }
+
+  private async deleteCombinedCueAudioFiles(audioPath: string) {
+    const extension = extname(audioPath);
+    const directory = dirname(audioPath);
+    const prefix = `${basename(audioPath, extension)}-with-cue`;
+    const entries = await readdir(directory).catch(() => [] as string[]);
+    await Promise.all(
+      entries
+        .filter((entry) => entry.startsWith(prefix) && entry.endsWith('.wav'))
+        .map((entry) => unlink(join(directory, entry)).catch(() => undefined)),
     );
   }
 
@@ -544,6 +570,16 @@ export class PaymentNotificationsService {
     for (const chunk of chunks) {
       chunk.copy(output, offset);
       offset += chunk.length;
+    }
+    return output;
+  }
+
+  private applyPcm16Gain(data: Buffer, gain: number) {
+    const output = Buffer.allocUnsafe(data.length);
+    for (let offset = 0; offset < data.length; offset += 2) {
+      const sample = data.readInt16LE(offset);
+      const adjusted = Math.round(sample * gain);
+      output.writeInt16LE(Math.max(-32768, Math.min(32767, adjusted)), offset);
     }
     return output;
   }
@@ -726,6 +762,14 @@ export class PaymentNotificationsService {
 
   private ttsPitch() {
     return this.readPositiveNumber('TTS_PITCH', DEFAULT_TTS_PITCH);
+  }
+
+  private paymentCueGain() {
+    const parsed = Number(process.env.PAYMENT_CUE_GAIN);
+    if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 1) {
+      return parsed;
+    }
+    return DEFAULT_PAYMENT_CUE_GAIN;
   }
 
   private readPositiveInt(key: string, fallback: number) {

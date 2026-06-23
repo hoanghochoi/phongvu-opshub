@@ -10,8 +10,8 @@ VieNeu runtime with Piper `vi-vais1000`.
   `voice_id`, `speed`, `pitch`, and `voice_index`.
 - The service always returns `audio/wav`; the Windows app already detects and
   plays WAV files.
-- The WAV output prepends `PIPER_LEADING_SILENCE_MS` of leading silence,
-  default `650`, so playback does not clip the first word after the cue.
+- The WAV output defaults `PIPER_LEADING_SILENCE_MS` to `0`, so the first spoken
+  word follows the server-combined payment cue without a configured gap.
 - The WAV output appends `PIPER_TAIL_SILENCE_MS` of trailing silence, default
   `500`, so playback does not clip the final word.
 - `speed` maps to Piper `length_scale = 1 / speed`.
@@ -59,6 +59,7 @@ Switch OpsHub after the smoke test passes:
 TTS_SERVICE_URL=http://172.20.0.1:18081
 TTS_VOICE_ID=piper:vi-vais1000
 TTS_SPEED=0.90
+PAYMENT_CUE_GAIN=0.80
 
 cd /home/ubuntu/phongvu-opshub/current
 OPSHUB_ENV_FILE=/srv/opshub/env docker compose --env-file /srv/opshub/env \

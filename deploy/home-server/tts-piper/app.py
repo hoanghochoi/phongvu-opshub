@@ -26,7 +26,7 @@ CONFIG_PATH = Path(os.getenv("PIPER_CONFIG_PATH", str(MODEL_DIR / "config.json")
 TMP_DIR = Path(os.getenv("PIPER_TMP_DIR", "/tmp/opshub-piper-tts"))
 DEFAULT_VOICE_ID = os.getenv("PIPER_VOICE_ID", "piper:vi-vais1000")
 MAX_TEXT_CHARS = int(os.getenv("PIPER_MAX_TEXT_CHARS", "500"))
-LEADING_SILENCE_MS = int(os.getenv("PIPER_LEADING_SILENCE_MS", "650"))
+LEADING_SILENCE_MS = int(os.getenv("PIPER_LEADING_SILENCE_MS", "0"))
 TAIL_SILENCE_MS = int(os.getenv("PIPER_TAIL_SILENCE_MS", "500"))
 
 TMP_DIR.mkdir(parents=True, exist_ok=True)

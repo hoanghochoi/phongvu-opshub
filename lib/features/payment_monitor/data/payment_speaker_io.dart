@@ -17,6 +17,7 @@ typedef PaymentMediaKitPlayer =
       required File file,
       required String extension,
       required Duration timeout,
+      required double volume,
     });
 
 typedef PaymentPlaySoundPlayer =
@@ -36,6 +37,7 @@ class PaymentSpeaker {
   static const _source = 'PaymentSpeaker';
   static const _voiceTimeout = Duration(seconds: 20);
   static const _cueTimeout = Duration(seconds: 5);
+  static const _cueVolumePercent = 80.0;
 
   final PaymentMediaKitPlayer? _mediaKitPlayerForTesting;
   final PaymentPlaySoundPlayer? _playSoundPlayerForTesting;
@@ -146,10 +148,25 @@ class PaymentSpeaker {
       );
       await file.writeAsBytes(asset.buffer.asUint8List(), flush: true);
       try {
-        await _playWithMediaKit(
+        await AppLogger.instance.info(
+          _source,
+          'Payment sound cue playback started',
+          context: {'cueVolumePercent': _cueVolumePercent},
+        );
+        final result = await _playWithMediaKit(
           file: file,
           extension: 'mp3',
           timeout: _cueTimeout,
+          volume: _cueVolumePercent,
+        );
+        await AppLogger.instance.info(
+          _source,
+          'Payment sound cue playback succeeded',
+          context: {
+            'cueVolumePercent': _cueVolumePercent,
+            'backend': result.backend,
+            'durationMs': result.durationMs,
+          },
         );
       } finally {
         await file.delete().catchError((_) => file);
@@ -182,6 +199,7 @@ class PaymentSpeaker {
         file: file,
         extension: extension,
         timeout: _voiceTimeout,
+        volume: 100.0,
       );
       return _withAudioContext(
         result,
@@ -294,10 +312,16 @@ class PaymentSpeaker {
     required File file,
     required String extension,
     required Duration timeout,
+    required double volume,
   }) async {
     final override = _mediaKitPlayerForTesting;
     if (override != null) {
-      return override(file: file, extension: extension, timeout: timeout);
+      return override(
+        file: file,
+        extension: extension,
+        timeout: timeout,
+        volume: volume,
+      );
     }
 
     final stopwatch = Stopwatch()..start();
@@ -310,6 +334,7 @@ class PaymentSpeaker {
           .then<void>((message) {
             throw StateError('media_kit error: $message');
           });
+      await player.setVolume(volume);
       await player.open(Media(file.uri.toString()), play: true);
       await Future.any<void>([completed.then((_) {}), failed]).timeout(timeout);
       return PaymentSpeakerResult(

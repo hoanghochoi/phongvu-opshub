@@ -30,7 +30,12 @@ void main() {
           temporaryDirectoryForTesting: temp,
           waveOutDeviceCountForTesting: () => 1,
           mediaKitPlayerForTesting:
-              ({required file, required extension, required timeout}) async {
+              ({
+                required file,
+                required extension,
+                required timeout,
+                required volume,
+              }) async {
                 throw StateError('media_kit disabled for test');
               },
           playSoundPlayerForTesting: ({required file, required timeout}) async {
@@ -101,8 +106,14 @@ void main() {
         temporaryDirectoryForTesting: temp,
         waveOutDeviceCountForTesting: () => 1,
         mediaKitPlayerForTesting:
-            ({required file, required extension, required timeout}) async {
+            ({
+              required file,
+              required extension,
+              required timeout,
+              required volume,
+            }) async {
               mediaKitCalls += 1;
+              expect(volume, 100.0);
               throw StateError('media_kit disabled for test');
             },
         playSoundPlayerForTesting: ({required file, required timeout}) async {
@@ -140,6 +151,73 @@ void main() {
       await temp.delete(recursive: true).catchError((_) => temp);
     }
   });
+
+  test(
+    'plays fallback cue at 80 percent and keeps voice at 100 percent',
+    () async {
+      final temp = await Directory.systemTemp.createTemp(
+        'opshub-speaker-test-',
+      );
+      final playbackVolumes = <String, double>{};
+      try {
+        final speaker = PaymentSpeaker(
+          temporaryDirectoryForTesting: temp,
+          waveOutDeviceCountForTesting: () => 1,
+          mediaKitPlayerForTesting:
+              ({
+                required file,
+                required extension,
+                required timeout,
+                required volume,
+              }) async {
+                playbackVolumes[extension] = volume;
+                if (extension == 'wav') {
+                  throw StateError('media_kit voice disabled for test');
+                }
+                return PaymentSpeakerResult(
+                  backend: 'media_kit',
+                  extension: extension,
+                  durationMs: 1,
+                  reportedSuccess: true,
+                  audibleVerified: false,
+                );
+              },
+          playSoundPlayerForTesting: ({required file, required timeout}) async {
+            return const PaymentSpeakerResult(
+              backend: 'playsound',
+              extension: 'wav',
+              durationMs: 1,
+              reportedSuccess: true,
+              audibleVerified: false,
+            );
+          },
+        );
+
+        final result = await speaker.playServerAudio(
+          amount: 1250000,
+          audioBytes: _pcm16Wav(
+            sampleRateHz: 22050,
+            channels: 1,
+            frames: const [
+              [0],
+              [1000],
+            ],
+          ),
+          notificationId: 'note-1',
+          transactionId: 'txn-1',
+          storeCode: 'CP01',
+          clientId: 'pc-test',
+          attempt: 1,
+          playLocalCue: true,
+        );
+
+        expect(result.backend, 'playsound');
+        expect(playbackVolumes, {'mp3': 80.0, 'wav': 100.0});
+      } finally {
+        await temp.delete(recursive: true).catchError((_) => temp);
+      }
+    },
+  );
 }
 
 Uint8List _pcm16Wav({

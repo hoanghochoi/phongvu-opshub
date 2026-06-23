@@ -62,6 +62,18 @@ This file maps product behavior to proof. Existing flows are marked
   Validation: focused Flutter/backend coverage within full suites, Flutter
   analyze/tests, NestJS build/tests, Go tests, and `git diff --check`. Gap:
   live finance-user Windows click-through remains manual.
+- PAYMENT-MONITOR-001, 2026-06-23: production payment audio now applies
+  `PAYMENT_CUE_GAIN=0.80` only to the server cue, uses a gain-versioned combined
+  WAV cache, and removes both legacy and gain-versioned cache files on expiry.
+  Piper defaults and the systemd unit use `PIPER_LEADING_SILENCE_MS=0` while
+  preserving the 500ms tail, so speech joins the quieter cue without a
+  configured gap. The Windows local fallback uses cue volume `80%` and voice
+  volume `100%`. Validation: focused payment-notification Jest (20 tests),
+  focused Flutter speaker tests (3 tests), full NestJS Jest (38 suites, 295
+  tests), full Flutter tests (123 tests), NestJS build, Flutter analyze, Python
+  compile, focused Piper padding unittest, and `git diff --check`. Gap:
+  production sidecar/API rollout and physical Windows speaker smoke remain
+  pending.
 - PAYMENT-MONITOR-001, 2026-06-23: `Tiền vào` now preserves MAP payer name and
   account fields in the Flutter transaction model, shows the payer summary on
   each card, and opens a selectable full-detail dialog when the card is tapped.
