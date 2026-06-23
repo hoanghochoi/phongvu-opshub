@@ -72,10 +72,14 @@ class PaymentMonitorRepository {
   Future<List<int>> downloadNotificationAudio(
     String notificationId, {
     bool includeCue = false,
+    bool rawAmount = false,
   }) {
     return _apiClient.getBytes(
       ApiConstants.paymentNotificationAudioEndpoint(notificationId),
-      queryParameters: {if (includeCue) 'includeCue': 'true'},
+      queryParameters: {
+        if (includeCue) 'includeCue': 'true',
+        if (rawAmount) 'rawAmount': 'true',
+      },
     );
   }
 

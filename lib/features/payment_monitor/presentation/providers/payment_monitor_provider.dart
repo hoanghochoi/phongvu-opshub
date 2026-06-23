@@ -38,11 +38,13 @@ class PaymentSpeakerError {
 class _DownloadedPaymentAudio {
   final List<int> bytes;
   final bool playLocalCue;
+  final bool playLocalCuePrefix;
   final String mode;
 
   const _DownloadedPaymentAudio({
     required this.bytes,
     required this.playLocalCue,
+    required this.playLocalCuePrefix,
     required this.mode,
   });
 }
@@ -1156,9 +1158,62 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'transactionId': notification.transactionId,
         'storeCode': notification.storeCode,
         'amount': notification.amount,
-        'preferredMode': 'server_combined_cue',
+        'preferredMode': 'client_cue_prefix_amount',
       },
     );
+    try {
+      final audioBytes = await _repository.downloadNotificationAudio(
+        notification.notificationId,
+        rawAmount: true,
+      );
+      if (audioBytes.isEmpty) {
+        throw StateError('Raw amount audio is empty');
+      }
+      await _logNotificationAudioDownloaded(
+        notification: notification,
+        bytes: audioBytes.length,
+        mode: 'client_cue_prefix_amount',
+      );
+      return _DownloadedPaymentAudio(
+        bytes: audioBytes,
+        playLocalCue: false,
+        playLocalCuePrefix: true,
+        mode: 'client_cue_prefix_amount',
+      );
+    } catch (error, stackTrace) {
+      if (error is api.ApiException &&
+          (error.statusCode == 401 || error.statusCode == 403)) {
+        rethrow;
+      }
+      final safeError = _safeSpeakerError(error);
+      await AppLogger.instance.warn(
+        'PaymentMonitor',
+        'Raw amount payment audio unavailable; falling back to server combined cue',
+        context: {
+          'notificationId': notification.notificationId,
+          'transactionId': notification.transactionId,
+          'storeCode': notification.storeCode,
+          'amount': notification.amount,
+          'audioMode': 'server_combined_cue',
+          'error': safeError,
+          'stackTrace': stackTrace.toString(),
+        },
+      );
+      await AppLogger.instance.uploadLog(
+        'warn',
+        'PaymentMonitor',
+        'Raw amount payment audio unavailable; falling back to server combined cue',
+        context: {
+          'notificationId': notification.notificationId,
+          'transactionId': notification.transactionId,
+          'amount': notification.amount,
+          'audioMode': 'server_combined_cue',
+          'error': safeError,
+        },
+        storeCode: notification.storeCode,
+      );
+    }
+
     try {
       final audioBytes = await _repository.downloadNotificationAudio(
         notification.notificationId,
@@ -1175,6 +1230,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       return _DownloadedPaymentAudio(
         bytes: audioBytes,
         playLocalCue: false,
+        playLocalCuePrefix: false,
         mode: 'server_combined_cue',
       );
     } catch (error, stackTrace) {
@@ -1225,6 +1281,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     return _DownloadedPaymentAudio(
       bytes: audioBytes,
       playLocalCue: true,
+      playLocalCuePrefix: false,
       mode: 'local_cue_fallback',
     );
   }
@@ -1271,6 +1328,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       clientId: clientId,
       attempt: attempt,
       playLocalCue: audio.playLocalCue,
+      playLocalCuePrefix: audio.playLocalCuePrefix,
     );
   }
 

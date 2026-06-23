@@ -37,6 +37,7 @@ class PaymentSpeaker {
   static const _source = 'PaymentSpeaker';
   static const _voiceTimeout = Duration(seconds: 20);
   static const _cueTimeout = Duration(seconds: 5);
+  static const _cuePrefixTimeout = Duration(seconds: 8);
   static const _cueVolumePercent = 80.0;
 
   final PaymentMediaKitPlayer? _mediaKitPlayerForTesting;
@@ -66,6 +67,7 @@ class PaymentSpeaker {
     required String clientId,
     required int attempt,
     bool playLocalCue = true,
+    bool playLocalCuePrefix = false,
   }) async {
     if (!Platform.isWindows) {
       return const PaymentSpeakerResult(
@@ -101,6 +103,7 @@ class PaymentSpeaker {
       'waveOutDevices': waveOutDevices,
       'audioPreflightStatus': audioPreflightStatus,
       'playLocalCue': playLocalCue,
+      'playLocalCuePrefix': playLocalCuePrefix,
       if (wavInfo != null) ...wavInfo.toLogContext(prefix: 'sourceWav'),
       if (extension == 'wav' && wavInfo == null) 'wavHeader': 'unreadable',
     };
@@ -119,7 +122,13 @@ class PaymentSpeaker {
 
     final directory =
         _temporaryDirectoryForTesting ?? await getTemporaryDirectory();
-    if (playLocalCue) {
+    if (playLocalCuePrefix) {
+      await _playPaymentCuePrefix(
+        directory,
+        context: playbackContext,
+        audioPreflightStatus: audioPreflightStatus,
+      );
+    } else if (playLocalCue) {
       await _playTingTing(directory);
     }
 
@@ -134,6 +143,7 @@ class PaymentSpeaker {
         extension: extension,
         context: playbackContext,
         audioPreflightStatus: audioPreflightStatus,
+        timeout: _voiceTimeout,
       );
     } finally {
       await file.delete().catchError((_) => file);
@@ -183,11 +193,59 @@ class PaymentSpeaker {
     }
   }
 
+  Future<void> _playPaymentCuePrefix(
+    Directory directory, {
+    required Map<String, Object?> context,
+    required String audioPreflightStatus,
+  }) async {
+    final asset = await rootBundle.load('data/payment-cue-prefix.wav');
+    final file = File(
+      '${directory.path}${Platform.pathSeparator}opshub-payment-cue-prefix.wav',
+    );
+    await file.writeAsBytes(asset.buffer.asUint8List(), flush: true);
+    try {
+      final wavInfo = PaymentWavTools.tryReadInfo(asset.buffer.asUint8List());
+      await AppLogger.instance.info(
+        _source,
+        'Payment local cue-prefix playback started',
+        context: {
+          ...context,
+          'asset': 'data/payment-cue-prefix.wav',
+          'bytes': asset.lengthInBytes,
+          if (wavInfo != null) ...wavInfo.toLogContext(prefix: 'cuePrefixWav'),
+        },
+      );
+      final result = await _playWithFallbacks(
+        file: file,
+        extension: 'wav',
+        context: {
+          ...context,
+          'asset': 'data/payment-cue-prefix.wav',
+          'bytes': asset.lengthInBytes,
+        },
+        audioPreflightStatus: audioPreflightStatus,
+        timeout: _cuePrefixTimeout,
+      );
+      await AppLogger.instance.info(
+        _source,
+        'Payment local cue-prefix playback succeeded',
+        context: {
+          ...context,
+          'backend': result.backend,
+          'durationMs': result.durationMs,
+        },
+      );
+    } finally {
+      await file.delete().catchError((_) => file);
+    }
+  }
+
   Future<PaymentSpeakerResult> _playWithFallbacks({
     required File file,
     required String extension,
     required Map<String, Object?> context,
     required String audioPreflightStatus,
+    required Duration timeout,
     bool allowMci326Normalize = true,
     bool normalized = false,
   }) async {
@@ -198,7 +256,7 @@ class PaymentSpeaker {
       final result = await _playWithMediaKit(
         file: file,
         extension: extension,
-        timeout: _voiceTimeout,
+        timeout: timeout,
         volume: 100.0,
       );
       return _withAudioContext(
@@ -222,10 +280,7 @@ class PaymentSpeaker {
 
     if (extension == 'wav') {
       try {
-        final result = await _playWithPlaySound(
-          file: file,
-          timeout: _voiceTimeout,
-        );
+        final result = await _playWithPlaySound(file: file, timeout: timeout);
         return _withAudioContext(
           result,
           wavInfo,
@@ -250,7 +305,7 @@ class PaymentSpeaker {
       final result = await _playWithMci(
         file: file,
         extension: extension,
-        timeout: _voiceTimeout,
+        timeout: timeout,
       );
       return _withAudioContext(
         result,
@@ -285,6 +340,7 @@ class PaymentSpeaker {
                 ),
               },
               audioPreflightStatus: audioPreflightStatus,
+              timeout: timeout,
               allowMci326Normalize: false,
               normalized: true,
             );

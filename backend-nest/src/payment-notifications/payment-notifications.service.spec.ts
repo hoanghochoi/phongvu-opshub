@@ -29,6 +29,12 @@ describe('PaymentNotificationsService', () => {
     process.env = { ...originalEnv };
     delete process.env.TTS_SERVICE_URL;
     delete process.env.PAYMENT_CUE_GAIN;
+    delete process.env.PAYMENT_TTS_AUDIO_MODE;
+    delete process.env.PAYMENT_TTS_AMOUNT_ONLY;
+    delete process.env.PAYMENT_PREFIX_WAV_PATH;
+    delete process.env.PAYMENT_CUE_PREFIX_WAV_PATH;
+    delete process.env.PAYMENT_AUDIO_DIR;
+    delete process.env.PAYMENT_AMOUNT_AUDIO_CACHE_DIR;
     prisma = {
       paymentNotification: {
         findUnique: jest.fn(),
@@ -208,6 +214,215 @@ describe('PaymentNotificationsService', () => {
     });
   });
 
+  it('sends amount-only TTS text when fixed prefix audio mode is enabled', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-prefix-'));
+    const prefixPath = join(temp, 'payment-prefix.wav');
+    try {
+      await writeFile(prefixPath, pcm16Wav({ frames: [300, -300] }));
+      process.env.PAYMENT_PREFIX_WAV_PATH = prefixPath;
+      process.env.PAYMENT_TTS_AUDIO_MODE = 'amount_only_with_prefix';
+      process.env.TTS_SERVICE_URL = 'http://piper-tts:8000';
+      service = new PaymentNotificationsService(
+        prisma,
+        redis,
+        policyService as any,
+        featureService as any,
+      );
+      const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: false,
+        status: 500,
+      } as Response);
+      prisma.paymentNotification.findUnique.mockResolvedValue(null);
+      prisma.paymentNotification.create.mockResolvedValue({
+        id: 'note-amount-only',
+        storeCode: 'CP01',
+        transactionId: 'txn-amount-only',
+        amount: 28756321,
+        text: 'Phong Vũ đã nhận: hai mươi tám triệu bảy trăm năm mươi sáu nghìn ba trăm hai mươi mốt đồng.',
+        audioStatus: 'PENDING',
+        audioError: null,
+      });
+      prisma.paymentNotification.update.mockResolvedValue({
+        id: 'note-amount-only',
+        storeCode: 'CP01',
+        transactionId: 'txn-amount-only',
+        amount: 28756321,
+        audioStatus: 'FAILED',
+        audioError: 'TTS returned HTTP 500',
+      });
+      prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({});
+
+      await service.createForTransaction({
+        id: 'txn-amount-only',
+        storeCode: 'CP01',
+        amount: 28756321,
+      });
+
+      expect(prisma.paymentNotification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            text: 'Phong Vũ đã nhận: hai mươi tám triệu bảy trăm năm mươi sáu nghìn ba trăm hai mươi mốt đồng.',
+          }),
+        }),
+      );
+      const [, request] = fetchMock.mock.calls[0];
+      expect(JSON.parse(String((request as RequestInit).body))).toEqual({
+        text: 'hai mươi tám triệu bảy trăm năm mươi sáu nghìn ba trăm hai mươi mốt đồng.',
+        format: 'wav',
+        voice_id: 'piper:vi-vais1000',
+        speed: 0.9,
+        pitch: 1.0,
+      });
+    } finally {
+      delete process.env.PAYMENT_PREFIX_WAV_PATH;
+      delete process.env.PAYMENT_TTS_AUDIO_MODE;
+      await rm(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('reuses cached amount-only WAV for repeated amount text', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-amount-cache-'));
+    const prefixPath = join(temp, 'payment-prefix.wav');
+    const audioDir = join(temp, 'audio');
+    try {
+      await writeFile(prefixPath, pcm16Wav({ frames: [300, -300] }));
+      process.env.PAYMENT_PREFIX_WAV_PATH = prefixPath;
+      process.env.PAYMENT_AUDIO_DIR = audioDir;
+      process.env.PAYMENT_TTS_AUDIO_MODE = 'amount_only_with_prefix';
+      process.env.TTS_SERVICE_URL = 'http://piper-tts:8000';
+      service = new PaymentNotificationsService(
+        prisma,
+        redis,
+        policyService as any,
+        featureService as any,
+      );
+      const amountAudio = pcm16Wav({
+        sampleRateHz: 1000,
+        frames: [100, -100, 50, -50],
+      });
+      const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: jest.fn().mockReturnValue('audio/wav') },
+        arrayBuffer: jest
+          .fn()
+          .mockResolvedValue(
+            amountAudio.buffer.slice(
+              amountAudio.byteOffset,
+              amountAudio.byteOffset + amountAudio.byteLength,
+            ),
+          ),
+      } as unknown as Response);
+      const notes = [
+        {
+          id: 'note-cache-1',
+          storeCode: 'CP01',
+          transactionId: 'txn-cache-1',
+          amount: 1250000,
+          text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng.',
+          audioStatus: 'PENDING',
+          audioError: null,
+        },
+        {
+          id: 'note-cache-2',
+          storeCode: 'CP01',
+          transactionId: 'txn-cache-2',
+          amount: 1250000,
+          text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng.',
+          audioStatus: 'PENDING',
+          audioError: null,
+        },
+      ];
+      prisma.paymentNotification.findUnique.mockResolvedValue(null);
+      prisma.paymentNotification.create
+        .mockResolvedValueOnce(notes[0])
+        .mockResolvedValueOnce(notes[1]);
+      prisma.paymentNotification.update.mockImplementation(
+        async ({ where, data }: any) => ({
+          ...notes.find((note) => note.id === where.id),
+          ...data,
+        }),
+      );
+      prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({});
+
+      await service.createForTransaction({
+        id: 'txn-cache-1',
+        storeCode: 'CP01',
+        amount: 1250000,
+      });
+      await service.createForTransaction({
+        id: 'txn-cache-2',
+        storeCode: 'CP01',
+        amount: 1250000,
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const audioPaths = prisma.paymentNotification.update.mock.calls.map(
+        ([input]: any[]) => input.data.audioPath,
+      );
+      expect(audioPaths).toHaveLength(2);
+      expect(audioPaths[0]).toContain('-amount-only-cache-');
+      expect(audioPaths[1]).toContain('-amount-only-cache-');
+      expect(audioPaths[0]).not.toEqual(audioPaths[1]);
+      await expect(readFile(audioPaths[0])).resolves.toEqual(amountAudio);
+      await expect(readFile(audioPaths[1])).resolves.toEqual(amountAudio);
+    } finally {
+      await rm(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('falls back to full TTS text when fixed prefix mode is enabled without a prefix WAV', async () => {
+    process.env.PAYMENT_PREFIX_WAV_PATH = join(
+      tmpdir(),
+      'missing-payment-prefix.wav',
+    );
+    process.env.PAYMENT_TTS_AUDIO_MODE = 'amount_only_with_prefix';
+    process.env.TTS_SERVICE_URL = 'http://piper-tts:8000';
+    service = new PaymentNotificationsService(
+      prisma,
+      redis,
+      policyService as any,
+      featureService as any,
+    );
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 500,
+    } as Response);
+    prisma.paymentNotification.findUnique.mockResolvedValue(null);
+    prisma.paymentNotification.create.mockResolvedValue({
+      id: 'note-missing-prefix',
+      storeCode: 'CP01',
+      transactionId: 'txn-missing-prefix',
+      amount: 1250000,
+      text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng.',
+      audioStatus: 'PENDING',
+      audioError: null,
+    });
+    prisma.paymentNotification.update.mockResolvedValue({
+      id: 'note-missing-prefix',
+      storeCode: 'CP01',
+      transactionId: 'txn-missing-prefix',
+      amount: 1250000,
+      audioStatus: 'FAILED',
+      audioError: 'TTS returned HTTP 500',
+    });
+    prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({});
+
+    await service.createForTransaction({
+      id: 'txn-missing-prefix',
+      storeCode: 'CP01',
+      amount: 1250000,
+    });
+
+    const [, request] = fetchMock.mock.calls[0];
+    expect(JSON.parse(String((request as RequestInit).body))).toEqual(
+      expect.objectContaining({
+        text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng.',
+        format: 'mp3',
+      }),
+    );
+  });
+
   it('blocks audio access outside the signed-in user store', async () => {
     prisma.paymentNotification.findUnique.mockResolvedValue({
       id: 'note-1',
@@ -316,6 +531,99 @@ describe('PaymentNotificationsService', () => {
       );
     } finally {
       delete process.env.PAYMENT_CUE_WAV_PATH;
+      await rm(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('joins fixed prefix and amount-only WAV, with cue when requested', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-prefix-audio-'));
+    const cuePath = join(temp, 'payment-cue.wav');
+    const prefixPath = join(temp, 'payment-prefix.wav');
+    const cuePrefixPath = join(temp, 'payment-cue-prefix.wav');
+    const voicePath = join(temp, 'note-amount-only-voice.wav');
+    const prefixCombinedPath = join(
+      temp,
+      'note-amount-only-voice-with-prefix.wav',
+    );
+    const cuePrefixCombinedPath = join(
+      temp,
+      'note-amount-only-voice-with-cue-g0800-prefix.wav',
+    );
+    try {
+      await writeFile(
+        cuePath,
+        pcm16Wav({ sampleRateHz: 1000, frames: [0, 1000, -1000] }),
+      );
+      await writeFile(
+        prefixPath,
+        pcm16Wav({ sampleRateHz: 1000, frames: [300, -300] }),
+      );
+      await writeFile(
+        cuePrefixPath,
+        pcm16Wav({ sampleRateHz: 1000, frames: [0, 800, -800, 300, -300] }),
+      );
+      await writeFile(
+        voicePath,
+        pcm16Wav({ sampleRateHz: 1000, frames: [2000, -2000, 1000] }),
+      );
+      process.env.PAYMENT_CUE_WAV_PATH = join(temp, 'missing-payment-cue.wav');
+      process.env.PAYMENT_PREFIX_WAV_PATH = prefixPath;
+      process.env.PAYMENT_CUE_PREFIX_WAV_PATH = cuePrefixPath;
+      service = new PaymentNotificationsService(
+        prisma,
+        redis,
+        policyService as any,
+        featureService as any,
+      );
+      prisma.paymentNotification.findUnique.mockResolvedValue({
+        id: 'note-prefix-combined',
+        storeCode: 'CP01',
+        audioStatus: 'READY',
+        audioPath: voicePath,
+        audioMime: 'audio/wav',
+      });
+      prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+
+      await expect(
+        service.getAudioForUser(speakerUser(), 'note-prefix-combined', {
+          rawAmount: true,
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          fileName: 'note-amount-only-voice.wav',
+          mimeType: 'audio/wav',
+        }),
+      );
+
+      await expect(
+        service.getAudioForUser(speakerUser(), 'note-prefix-combined'),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          fileName: 'note-amount-only-voice-with-prefix.wav',
+          mimeType: 'audio/wav',
+        }),
+      );
+      expect(wavPcm16Samples(await readFile(prefixCombinedPath))).toEqual([
+        300, -300, 2000, -2000, 1000,
+      ]);
+
+      await expect(
+        service.getAudioForUser(speakerUser(), 'note-prefix-combined', {
+          includeCue: true,
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          fileName: 'note-amount-only-voice-with-cue-g0800-prefix.wav',
+          mimeType: 'audio/wav',
+        }),
+      );
+      expect(wavPcm16Samples(await readFile(cuePrefixCombinedPath))).toEqual([
+        0, 800, -800, 300, -300, 2000, -2000, 1000,
+      ]);
+    } finally {
+      delete process.env.PAYMENT_CUE_WAV_PATH;
+      delete process.env.PAYMENT_PREFIX_WAV_PATH;
+      delete process.env.PAYMENT_CUE_PREFIX_WAV_PATH;
       await rm(temp, { recursive: true, force: true });
     }
   });

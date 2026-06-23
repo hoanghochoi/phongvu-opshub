@@ -395,11 +395,39 @@ void main() {
     },
   );
 
+  test('plays raw amount audio with local cue-prefix when available', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: [_readyNotification()],
+    );
+    final speaker = _FakePaymentSpeaker();
+    final provider = PaymentMonitorProvider(
+      repository,
+      speaker,
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
+    );
+
+    expect(repository.requestedRawAmounts, [true]);
+    expect(repository.requestedIncludeCues, [false]);
+    expect(speaker.playLocalCueValues, [false]);
+    expect(speaker.playLocalCuePrefixValues, [true]);
+    expect(repository.downloadCount, 1);
+
+    provider.dispose();
+  });
+
   test(
-    'plays server-combined cue audio without local cue when available',
+    'falls back to server-combined cue audio when raw amount is unavailable',
     () async {
       final repository = _FakePaymentMonitorRepository(
         notifications: [_readyNotification()],
+        rawAmountAudioError: ApiException('Raw amount unavailable', 400),
       );
       final speaker = _FakePaymentSpeaker();
       final provider = PaymentMonitorProvider(
@@ -415,19 +443,22 @@ void main() {
         () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
       );
 
-      expect(repository.requestedIncludeCues, [true]);
+      expect(repository.requestedRawAmounts, [true, false]);
+      expect(repository.requestedIncludeCues, [false, true]);
       expect(speaker.playLocalCueValues, [false]);
-      expect(repository.downloadCount, 1);
+      expect(speaker.playLocalCuePrefixValues, [false]);
+      expect(repository.downloadCount, 2);
 
       provider.dispose();
     },
   );
 
   test(
-    'falls back to TTS-only download with local cue when combined audio fails',
+    'falls back to TTS-only download with local cue when raw and combined audio fail',
     () async {
       final repository = _FakePaymentMonitorRepository(
         notifications: [_readyNotification()],
+        rawAmountAudioError: ApiException('Raw amount unavailable', 400),
         combinedAudioError: ApiException('Combined audio unavailable', 400),
       );
       final speaker = _FakePaymentSpeaker();
@@ -444,9 +475,11 @@ void main() {
         () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
       );
 
-      expect(repository.requestedIncludeCues, [true, false]);
+      expect(repository.requestedRawAmounts, [true, false, false]);
+      expect(repository.requestedIncludeCues, [false, true, false]);
       expect(speaker.playLocalCueValues, [true]);
-      expect(repository.downloadCount, 2);
+      expect(speaker.playLocalCuePrefixValues, [false]);
+      expect(repository.downloadCount, 3);
 
       provider.dispose();
     },
@@ -595,6 +628,7 @@ PaymentNotification _readyNotification() {
 class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<PaymentNotification> notifications;
   final Object? transactionError;
+  final Object? rawAmountAudioError;
   final Object? combinedAudioError;
   final List<String> ackEvents = [];
   final List<String> ackErrors = [];
@@ -602,6 +636,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<String?> requestedEndDates = [];
   final List<bool> requestedIncludeTotals = [];
   final List<bool> requestedIncludeCues = [];
+  final List<bool> requestedRawAmounts = [];
   int transactionFetchCount = 0;
   int readyFetchCount = 0;
   int downloadCount = 0;
@@ -609,6 +644,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   _FakePaymentMonitorRepository({
     required this.notifications,
     this.transactionError,
+    this.rawAmountAudioError,
     this.combinedAudioError,
   }) : super(ApiClient());
 
@@ -651,9 +687,13 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   Future<List<int>> downloadNotificationAudio(
     String notificationId, {
     bool includeCue = false,
+    bool rawAmount = false,
   }) async {
     downloadCount += 1;
     requestedIncludeCues.add(includeCue);
+    requestedRawAmounts.add(rawAmount);
+    final rawError = rawAmountAudioError;
+    if (rawAmount && rawError != null) throw rawError;
     final error = combinedAudioError;
     if (includeCue && error != null) throw error;
     return const [0x52, 0x49, 0x46, 0x46, 0x00];
@@ -675,6 +715,7 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
   final int failuresBeforeSuccess;
   final bool nonRetryableFailure;
   final List<bool> playLocalCueValues = [];
+  final List<bool> playLocalCuePrefixValues = [];
   int playCount = 0;
 
   _FakePaymentSpeaker({
@@ -692,9 +733,11 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
     required String clientId,
     required int attempt,
     bool playLocalCue = true,
+    bool playLocalCuePrefix = false,
   }) async {
     playCount += 1;
     playLocalCueValues.add(playLocalCue);
+    playLocalCuePrefixValues.add(playLocalCuePrefix);
     if (nonRetryableFailure) {
       throw const PaymentSpeakerException(
         'Windows does not report any audio output device',

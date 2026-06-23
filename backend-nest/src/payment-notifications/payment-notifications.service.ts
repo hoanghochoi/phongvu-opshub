@@ -9,16 +9,19 @@
 import { Interval } from '@nestjs/schedule';
 import { createReadStream } from 'fs';
 import {
+  copyFile,
+  link,
   mkdir,
   readFile,
   readdir,
   rename,
   stat,
   unlink,
+  utimes,
   writeFile,
 } from 'fs/promises';
 import { basename, dirname, extname, join, resolve } from 'path';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -41,10 +44,22 @@ const DEFAULT_TTS_VOICE_ID = 'piper:vi-vais1000';
 const DEFAULT_TTS_SPEED = 0.9;
 const DEFAULT_TTS_PITCH = 1.0;
 const DEFAULT_PAYMENT_CUE_GAIN = 0.8;
+const DEFAULT_AMOUNT_AUDIO_CACHE_RETENTION_DAYS = 90;
 const DEFAULT_DELIVERY_CLAIM_TTL_SECONDS = 120;
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
 const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE = 'Không có quyền Đọc loa tiền vào';
+const PAYMENT_TTS_PREFIX_TEXT = 'Phong Vũ đã nhận:';
+
+type PaymentTtsAudioMode = 'full_text' | 'amount_only_with_prefix';
+
+type PaymentAmountAudioCacheEntry = {
+  cacheKey: string;
+  cachePath: string;
+  bytes: number;
+  mimeType: string;
+  source: 'hit' | 'generated' | 'waited';
+};
 
 type StoredTransaction = {
   id: string;
@@ -68,9 +83,25 @@ export class PaymentNotificationsService {
     process.env.PAYMENT_AUDIO_DIR ||
       join(process.cwd(), 'storage', 'payment-audio'),
   );
+  private readonly amountAudioCacheDir = resolve(
+    process.env.PAYMENT_AMOUNT_AUDIO_CACHE_DIR ||
+      join(this.audioDir, 'amount-cache'),
+  );
+  private readonly amountAudioCacheInflight = new Map<
+    string,
+    Promise<PaymentAmountAudioCacheEntry>
+  >();
   private readonly cueAudioPath = resolve(
     process.env.PAYMENT_CUE_WAV_PATH ||
       join(__dirname, 'assets', 'payment-cue.wav'),
+  );
+  private readonly prefixAudioPath = resolve(
+    process.env.PAYMENT_PREFIX_WAV_PATH ||
+      join(__dirname, 'assets', 'payment-prefix.wav'),
+  );
+  private readonly cuePrefixAudioPath = resolve(
+    process.env.PAYMENT_CUE_PREFIX_WAV_PATH ||
+      join(__dirname, 'assets', 'payment-cue-prefix.wav'),
   );
 
   constructor(
@@ -90,7 +121,10 @@ export class PaymentNotificationsService {
     });
     if (existing) return existing;
 
-    const text = `Phong Vũ đã nhận: ${vietnameseAmountWords(transaction.amount)} đồng.`;
+    const amountText = `${vietnameseAmountWords(transaction.amount)} đồng.`;
+    const text = `${PAYMENT_TTS_PREFIX_TEXT} ${amountText}`;
+    const audioMode = await this.resolvePaymentTtsAudioMode();
+    const ttsText = audioMode === 'amount_only_with_prefix' ? amountText : text;
     const expiresAt = this.daysFromNow(this.audioRetentionDays());
     let notification = await this.prisma.paymentNotification.create({
       data: {
@@ -103,7 +137,11 @@ export class PaymentNotificationsService {
       },
     });
 
-    notification = await this.generateAudio(notification.id, text);
+    notification = await this.generateAudio(
+      notification.id,
+      ttsText,
+      audioMode,
+    );
     await this.publishReadyEvent(notification);
     await this.logDeliveryEvent({
       notificationId: notification.id,
@@ -214,7 +252,7 @@ export class PaymentNotificationsService {
   async getAudioForUser(
     user: any,
     notificationId: string,
-    options: { includeCue?: boolean } = {},
+    options: { includeCue?: boolean; rawAmount?: boolean } = {},
   ) {
     const notification = await this.prisma.paymentNotification.findUnique({
       where: { id: notificationId },
@@ -226,10 +264,38 @@ export class PaymentNotificationsService {
       throw new NotFoundException('Audio chưa sẵn sàng');
     }
 
+    if (options.rawAmount) {
+      if (!this.isAmountOnlyAudioPath(notification.audioPath)) {
+        this.logger.warn(
+          `Payment raw amount audio unavailable for notification=${notificationId}: source audio is not amount-only`,
+        );
+        throw new BadRequestException('Audio số tiền chưa sẵn sàng');
+      }
+      return {
+        fileName: basename(notification.audioPath),
+        mimeType: notification.audioMime || 'audio/wav',
+        stream: new StreamableFile(createReadStream(notification.audioPath)),
+      };
+    }
+
     if (options.includeCue) {
-      const combinedPath = await this.ensureCombinedCueAudio(
+      const combinedPath = await this.ensureCombinedPaymentAudio(
         notification.audioPath,
         notificationId,
+        { includeCue: true },
+      );
+      return {
+        fileName: basename(combinedPath),
+        mimeType: 'audio/wav',
+        stream: new StreamableFile(createReadStream(combinedPath)),
+      };
+    }
+
+    if (this.isAmountOnlyAudioPath(notification.audioPath)) {
+      const combinedPath = await this.ensureCombinedPaymentAudio(
+        notification.audioPath,
+        notificationId,
+        { includeCue: false },
       );
       return {
         fileName: basename(combinedPath),
@@ -301,7 +367,7 @@ export class PaymentNotificationsService {
     for (const notification of expiredAudio) {
       if (notification.audioPath) {
         await unlink(notification.audioPath).catch(() => undefined);
-        await this.deleteCombinedCueAudioFiles(notification.audioPath);
+        await this.deleteCombinedPaymentAudioFiles(notification.audioPath);
       }
       await this.prisma.paymentNotification.update({
         where: { id: notification.id },
@@ -312,6 +378,7 @@ export class PaymentNotificationsService {
         },
       });
     }
+    await this.pruneAmountAudioCache();
 
     const logCutoff = this.daysAgo(this.logRetentionDays());
     await this.prisma.paymentNotificationDeliveryLog.deleteMany({
@@ -327,7 +394,15 @@ export class PaymentNotificationsService {
     });
   }
 
-  private async generateAudio(notificationId: string, text: string) {
+  private async generateAudio(
+    notificationId: string,
+    text: string,
+    audioMode: PaymentTtsAudioMode,
+  ) {
+    if (audioMode === 'amount_only_with_prefix') {
+      return this.generateAmountOnlyAudio(notificationId, text);
+    }
+
     const serviceUrl = process.env.TTS_SERVICE_URL?.trim();
     if (!serviceUrl) {
       return this.markAudioFailed(
@@ -336,6 +411,8 @@ export class PaymentNotificationsService {
       );
     }
 
+    const startedAt = Date.now();
+    const requestedFormat = 'mp3';
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), this.ttsTimeoutMs());
@@ -346,7 +423,7 @@ export class PaymentNotificationsService {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             text,
-            format: 'mp3',
+            format: requestedFormat,
             voice_id: this.ttsVoiceId(),
             speed: this.ttsSpeed(),
             pitch: this.ttsPitch(),
@@ -367,10 +444,13 @@ export class PaymentNotificationsService {
       await mkdir(this.audioDir, { recursive: true });
       const audioPath = join(
         this.audioDir,
-        `${notificationId}-${randomUUID()}.${extension}`,
+        `${notificationId}-full-${randomUUID()}.${extension}`,
       );
       const buffer = Buffer.from(await response.arrayBuffer());
       await writeFile(audioPath, buffer);
+      this.logger.log(
+        `Payment notification TTS generated notification=${notificationId} mode=${audioMode} chars=${text.length} bytes=${buffer.length} durationMs=${Date.now() - startedAt} mime=${mimeType}`,
+      );
 
       return this.prisma.paymentNotification.update({
         where: { id: notificationId },
@@ -382,42 +462,287 @@ export class PaymentNotificationsService {
         },
       });
     } catch (error) {
+      this.logger.warn(
+        `Payment notification TTS request failed notification=${notificationId} mode=${audioMode} durationMs=${Date.now() - startedAt}: ${this.safeError(error)}`,
+      );
       return this.markAudioFailed(notificationId, this.safeError(error));
     }
   }
 
-  private async ensureCombinedCueAudio(
-    audioPath: string,
-    notificationId: string,
-  ) {
-    if (extname(audioPath).toLowerCase() !== '.wav') {
-      this.logger.warn(
-        `Payment combined cue unavailable for notification=${notificationId}: source audio is not wav`,
+  private async generateAmountOnlyAudio(notificationId: string, text: string) {
+    const startedAt = Date.now();
+    try {
+      const cacheEntry = await this.ensureAmountAudioCache(text);
+      const materialized = await this.materializeAmountAudioForNotification(
+        notificationId,
+        cacheEntry,
       );
-      throw new BadRequestException(
-        'Audio hiện tại chưa hỗ trợ ghép chuông báo',
+      this.logger.log(
+        `Payment amount audio ready notification=${notificationId} cache=${cacheEntry.source} key=${cacheEntry.cacheKey.slice(0, 12)} bytes=${cacheEntry.bytes} materialize=${materialized.method} durationMs=${Date.now() - startedAt}`,
+      );
+
+      return this.prisma.paymentNotification.update({
+        where: { id: notificationId },
+        data: {
+          audioStatus: 'READY',
+          audioPath: materialized.audioPath,
+          audioMime: cacheEntry.mimeType,
+          audioError: null,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Payment amount audio failed notification=${notificationId} durationMs=${Date.now() - startedAt}: ${this.safeError(error)}`,
+      );
+      return this.markAudioFailed(notificationId, this.safeError(error));
+    }
+  }
+
+  private async ensureAmountAudioCache(
+    text: string,
+  ): Promise<PaymentAmountAudioCacheEntry> {
+    const descriptor = this.amountAudioCacheDescriptor(text);
+    const existing = await this.readAmountAudioCacheFile(descriptor);
+    if (existing) return { ...existing, source: 'hit' };
+
+    const inflight = this.amountAudioCacheInflight.get(descriptor.cacheKey);
+    if (inflight) {
+      const entry = await inflight;
+      return { ...entry, source: 'waited' };
+    }
+
+    const promise = this.generateAmountAudioCache(text, descriptor);
+    this.amountAudioCacheInflight.set(descriptor.cacheKey, promise);
+    try {
+      return await promise;
+    } finally {
+      if (this.amountAudioCacheInflight.get(descriptor.cacheKey) === promise) {
+        this.amountAudioCacheInflight.delete(descriptor.cacheKey);
+      }
+    }
+  }
+
+  private async generateAmountAudioCache(
+    text: string,
+    descriptor: ReturnType<
+      PaymentNotificationsService['amountAudioCacheDescriptor']
+    >,
+  ): Promise<PaymentAmountAudioCacheEntry> {
+    const serviceUrl = process.env.TTS_SERVICE_URL?.trim();
+    if (!serviceUrl) {
+      throw new Error('TTS_SERVICE_URL is not configured');
+    }
+
+    const startedAt = Date.now();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.ttsTimeoutMs());
+    const response = await fetch(
+      `${serviceUrl.replace(/\/$/, '')}/synthesize`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          format: descriptor.format,
+          voice_id: descriptor.voiceId,
+          speed: descriptor.speed,
+          pitch: descriptor.pitch,
+        }),
+        signal: controller.signal,
+      },
+    ).finally(() => clearTimeout(timeout));
+
+    if (!response.ok) {
+      throw new Error(`TTS returned HTTP ${response.status}`);
+    }
+
+    const mimeType = response.headers.get('content-type') || 'audio/wav';
+    if (!mimeType.includes('wav')) {
+      throw new Error(
+        'PAYMENT_TTS_AUDIO_MODE=amount_only_with_prefix requires audio/wav from TTS',
       );
     }
 
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length === 0) {
+      throw new Error('TTS returned empty audio');
+    }
+
+    await mkdir(this.amountAudioCacheDir, { recursive: true });
+    const tmpPath = `${descriptor.cachePath}.${process.pid}.${randomUUID()}.tmp`;
+    await writeFile(tmpPath, buffer);
+    let source: PaymentAmountAudioCacheEntry['source'] = 'generated';
+    await rename(tmpPath, descriptor.cachePath).catch(async (error: any) => {
+      await unlink(tmpPath).catch(() => undefined);
+      if (await this.fileExists(descriptor.cachePath)) {
+        source = 'waited';
+        return;
+      }
+      throw error;
+    });
+
+    const entry =
+      (await this.readAmountAudioCacheFile(descriptor)) ??
+      ({
+        cacheKey: descriptor.cacheKey,
+        cachePath: descriptor.cachePath,
+        bytes: buffer.length,
+        mimeType: 'audio/wav',
+        source,
+      } satisfies PaymentAmountAudioCacheEntry);
+    this.logger.log(
+      `Payment amount TTS cache ${source} key=${descriptor.cacheKey.slice(0, 12)} chars=${text.length} bytes=${entry.bytes} durationMs=${Date.now() - startedAt} mime=${mimeType}`,
+    );
+    return { ...entry, source };
+  }
+
+  private async readAmountAudioCacheFile(
+    descriptor: ReturnType<
+      PaymentNotificationsService['amountAudioCacheDescriptor']
+    >,
+  ): Promise<Omit<PaymentAmountAudioCacheEntry, 'source'> | null> {
+    const info = await stat(descriptor.cachePath).catch(() => null);
+    if (!info?.isFile() || info.size <= 0) return null;
+    const now = new Date();
+    await utimes(descriptor.cachePath, now, now).catch(() => undefined);
+    return {
+      cacheKey: descriptor.cacheKey,
+      cachePath: descriptor.cachePath,
+      bytes: info.size,
+      mimeType: 'audio/wav',
+    };
+  }
+
+  private async materializeAmountAudioForNotification(
+    notificationId: string,
+    cacheEntry: PaymentAmountAudioCacheEntry,
+  ) {
+    await mkdir(this.audioDir, { recursive: true });
+    const audioPath = join(
+      this.audioDir,
+      `${notificationId}-amount-only-cache-${cacheEntry.cacheKey.slice(
+        0,
+        12,
+      )}.wav`,
+    );
+    await unlink(audioPath).catch(() => undefined);
+    try {
+      await link(cacheEntry.cachePath, audioPath);
+      return { audioPath, method: 'hardlink' };
+    } catch {
+      await copyFile(cacheEntry.cachePath, audioPath);
+      return { audioPath, method: 'copy' };
+    }
+  }
+
+  private amountAudioCacheDescriptor(text: string) {
+    const voiceId = this.ttsVoiceId();
+    const speed = this.ttsSpeed();
+    const pitch = this.ttsPitch();
+    const format = 'wav';
+    const cacheKey = createHash('sha256')
+      .update(
+        JSON.stringify({ version: 1, text, format, voiceId, speed, pitch }),
+      )
+      .digest('hex');
+    return {
+      cacheKey,
+      cachePath: join(this.amountAudioCacheDir, `${cacheKey}.wav`),
+      voiceId,
+      speed,
+      pitch,
+      format,
+    };
+  }
+
+  private async ensureCombinedPaymentAudio(
+    audioPath: string,
+    notificationId: string,
+    options: { includeCue: boolean },
+  ) {
+    if (extname(audioPath).toLowerCase() !== '.wav') {
+      this.logger.warn(
+        `Payment combined audio unavailable for notification=${notificationId}: source audio is not wav`,
+      );
+      throw new BadRequestException(
+        'Audio hiện tại chưa hỗ trợ ghép đoạn cố định',
+      );
+    }
+
+    const includePrefix = this.isAmountOnlyAudioPath(audioPath);
     const cueGain = this.paymentCueGain();
-    const combinedPath = this.combinedCueAudioPath(audioPath, cueGain);
+    const combinedPath = this.combinedPaymentAudioPath(audioPath, {
+      includeCue: options.includeCue,
+      includePrefix,
+      cueGain,
+    });
     if (await this.fileExists(combinedPath)) {
       this.logger.debug(
-        `Payment combined cue cache hit notification=${notificationId} cueGain=${cueGain.toFixed(2)}`,
+        `Payment combined audio cache hit notification=${notificationId} includeCue=${options.includeCue} includePrefix=${includePrefix} cueGain=${cueGain.toFixed(2)}`,
       );
       return combinedPath;
     }
 
     try {
-      const [cueBuffer, voiceBuffer] = await Promise.all([
-        readFile(this.cueAudioPath),
-        readFile(audioPath),
-      ]);
-      const cue = this.parsePcm16Wav(cueBuffer, 'payment cue');
+      const cuePrefixPath =
+        options.includeCue &&
+        includePrefix &&
+        (await this.fileExists(this.cuePrefixAudioPath))
+          ? this.cuePrefixAudioPath
+          : null;
+      const [cueBuffer, prefixBuffer, cuePrefixBuffer, voiceBuffer] =
+        await Promise.all([
+          options.includeCue && !cuePrefixPath
+            ? readFile(this.cueAudioPath)
+            : Promise.resolve(null),
+          includePrefix && !cuePrefixPath
+            ? readFile(this.prefixAudioPath)
+            : Promise.resolve(null),
+          cuePrefixPath ? readFile(cuePrefixPath) : Promise.resolve(null),
+          readFile(audioPath),
+        ]);
       const voice = this.parsePcm16Wav(voiceBuffer, 'payment voice');
-      this.assertCompatibleWav(cue, voice);
-      const adjustedCueData = this.applyPcm16Gain(cue.data, cueGain);
-      const combined = this.buildPcm16Wav(cue, [adjustedCueData, voice.data]);
+      let format = voice;
+      const chunks: Buffer[] = [];
+      let cueDataBytes = 0;
+      let prefixDataBytes = 0;
+      let cuePrefixDataBytes = 0;
+      if (cuePrefixBuffer) {
+        const cuePrefix = this.parsePcm16Wav(
+          cuePrefixBuffer,
+          'payment cue-prefix',
+        );
+        this.assertCompatibleWav(
+          cuePrefix,
+          voice,
+          'payment cue-prefix',
+          'payment voice',
+        );
+        format = cuePrefix;
+        cuePrefixDataBytes = cuePrefix.data.length;
+        chunks.push(cuePrefix.data);
+      }
+      if (cueBuffer) {
+        const cue = this.parsePcm16Wav(cueBuffer, 'payment cue');
+        this.assertCompatibleWav(cue, voice, 'payment cue', 'payment voice');
+        format = cue;
+        const adjustedCueData = this.applyPcm16Gain(cue.data, cueGain);
+        cueDataBytes = adjustedCueData.length;
+        chunks.push(adjustedCueData);
+      }
+      if (prefixBuffer) {
+        const prefix = this.parsePcm16Wav(prefixBuffer, 'payment prefix');
+        this.assertCompatibleWav(
+          format,
+          prefix,
+          cueBuffer ? 'payment cue' : 'payment voice',
+          'payment prefix',
+        );
+        prefixDataBytes = prefix.data.length;
+        chunks.push(prefix.data);
+      }
+      chunks.push(voice.data);
+      const combined = this.buildPcm16Wav(format, chunks);
       const tmpPath = `${combinedPath}.${process.pid}.${randomUUID()}.tmp`;
       await writeFile(tmpPath, combined);
       await rename(tmpPath, combinedPath).catch(async (error: any) => {
@@ -426,44 +751,123 @@ export class PaymentNotificationsService {
         throw error;
       });
       this.logger.log(
-        `Payment combined cue audio generated notification=${notificationId} bytes=${combined.length} cueGain=${cueGain.toFixed(2)} voiceDataBytes=${voice.data.length}`,
+        `Payment combined audio generated notification=${notificationId} bytes=${combined.length} includeCue=${options.includeCue} includePrefix=${includePrefix} cueGain=${cueGain.toFixed(2)} cueDataBytes=${cueDataBytes} prefixDataBytes=${prefixDataBytes} cuePrefixDataBytes=${cuePrefixDataBytes} voiceDataBytes=${voice.data.length}`,
       );
       return combinedPath;
     } catch (error) {
       const safe = this.safeError(error);
       this.logger.warn(
-        `Payment combined cue generation failed notification=${notificationId}: ${safe}`,
+        `Payment combined audio generation failed notification=${notificationId}: ${safe}`,
       );
-      throw new BadRequestException(
-        `Chưa ghép được chuông báo vào audio: ${safe}`,
-      );
+      throw new BadRequestException(`Chưa ghép được audio thanh toán: ${safe}`);
     }
   }
 
-  private combinedCueAudioPath(
+  private combinedPaymentAudioPath(
     audioPath: string,
-    cueGain = this.paymentCueGain(),
+    options: {
+      includeCue: boolean;
+      includePrefix: boolean;
+      cueGain: number;
+    },
   ) {
     const extension = extname(audioPath);
-    const gainTag = Math.round(cueGain * 1000)
-      .toString()
-      .padStart(4, '0');
+    const tags: string[] = [];
+    if (options.includeCue) {
+      const gainTag = Math.round(options.cueGain * 1000)
+        .toString()
+        .padStart(4, '0');
+      tags.push(`cue-g${gainTag}`);
+    }
+    if (options.includePrefix) tags.push('prefix');
+    const suffix = tags.length > 0 ? tags.join('-') : 'audio';
     return join(
       dirname(audioPath),
-      `${basename(audioPath, extension)}-with-cue-g${gainTag}.wav`,
+      `${basename(audioPath, extension)}-with-${suffix}.wav`,
     );
   }
 
-  private async deleteCombinedCueAudioFiles(audioPath: string) {
+  private isAmountOnlyAudioPath(audioPath: string) {
+    return basename(audioPath).includes('-amount-only-');
+  }
+
+  private async deleteCombinedPaymentAudioFiles(audioPath: string) {
     const extension = extname(audioPath);
     const directory = dirname(audioPath);
-    const prefix = `${basename(audioPath, extension)}-with-cue`;
+    const prefix = `${basename(audioPath, extension)}-with-`;
     const entries = await readdir(directory).catch(() => [] as string[]);
     await Promise.all(
       entries
         .filter((entry) => entry.startsWith(prefix) && entry.endsWith('.wav'))
         .map((entry) => unlink(join(directory, entry)).catch(() => undefined)),
     );
+  }
+
+  private async pruneAmountAudioCache() {
+    const cutoff = this.daysAgo(this.amountAudioCacheRetentionDays()).getTime();
+    const entries = await readdir(this.amountAudioCacheDir).catch(
+      () => [] as string[],
+    );
+    await Promise.all(
+      entries
+        .filter((entry) => entry.endsWith('.wav'))
+        .map(async (entry) => {
+          const path = join(this.amountAudioCacheDir, entry);
+          const info = await stat(path).catch(() => null);
+          if (!info?.isFile() || info.mtimeMs >= cutoff) return;
+          await unlink(path).catch(() => undefined);
+        }),
+    );
+  }
+
+  private async resolvePaymentTtsAudioMode(): Promise<PaymentTtsAudioMode> {
+    const mode = this.paymentTtsAudioMode();
+    if (mode !== 'amount_only_with_prefix') return mode;
+    if (await this.fileExists(this.prefixAudioPath)) return mode;
+    this.logger.warn(
+      `Payment amount-only TTS requested but prefix WAV is unavailable path=${this.prefixAudioPath}; falling back to full_text`,
+    );
+    return 'full_text';
+  }
+
+  private paymentTtsAudioMode(): PaymentTtsAudioMode {
+    const rawMode = String(process.env.PAYMENT_TTS_AUDIO_MODE || '')
+      .trim()
+      .toLowerCase();
+    const rawFlag = String(process.env.PAYMENT_TTS_AMOUNT_ONLY || '')
+      .trim()
+      .toLowerCase();
+    const amountOnlyModes = new Set([
+      'amount_only_with_prefix',
+      'amount-only-with-prefix',
+      'amount_only',
+      'split_prefix',
+    ]);
+    if (
+      amountOnlyModes.has(rawMode) ||
+      ['1', 'true', 'yes', 'on'].includes(rawFlag)
+    ) {
+      return 'amount_only_with_prefix';
+    }
+    return 'full_text';
+  }
+
+  private assertCompatibleWav(
+    reference: Pcm16Wav,
+    candidate: Pcm16Wav,
+    referenceLabel = 'reference',
+    candidateLabel = 'candidate',
+  ) {
+    if (
+      reference.channels !== candidate.channels ||
+      reference.sampleRate !== candidate.sampleRate ||
+      reference.bitsPerSample !== candidate.bitsPerSample ||
+      reference.blockAlign !== candidate.blockAlign
+    ) {
+      throw new Error(
+        `${referenceLabel}/${candidateLabel} WAV mismatch ${reference.channels}ch/${reference.sampleRate}Hz/${reference.bitsPerSample}bit vs ${candidate.channels}ch/${candidate.sampleRate}Hz/${candidate.bitsPerSample}bit`,
+      );
+    }
   }
 
   private async fileExists(path: string) {
@@ -535,19 +939,6 @@ export class PaymentNotificationsService {
       bitsPerSample: fmt.bitsPerSample,
       data,
     };
-  }
-
-  private assertCompatibleWav(cue: Pcm16Wav, voice: Pcm16Wav) {
-    if (
-      cue.channels !== voice.channels ||
-      cue.sampleRate !== voice.sampleRate ||
-      cue.bitsPerSample !== voice.bitsPerSample ||
-      cue.blockAlign !== voice.blockAlign
-    ) {
-      throw new Error(
-        `cue/voice WAV mismatch cue=${cue.channels}ch/${cue.sampleRate}Hz/${cue.bitsPerSample}bit voice=${voice.channels}ch/${voice.sampleRate}Hz/${voice.bitsPerSample}bit`,
-      );
-    }
   }
 
   private buildPcm16Wav(format: Pcm16Wav, chunks: Buffer[]) {
@@ -716,6 +1107,13 @@ export class PaymentNotificationsService {
     return this.readPositiveInt(
       'PAYMENT_AUDIO_RETENTION_DAYS',
       DEFAULT_AUDIO_RETENTION_DAYS,
+    );
+  }
+
+  private amountAudioCacheRetentionDays() {
+    return this.readPositiveInt(
+      'PAYMENT_AMOUNT_AUDIO_CACHE_RETENTION_DAYS',
+      DEFAULT_AMOUNT_AUDIO_CACHE_RETENTION_DAYS,
     );
   }
 

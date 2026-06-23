@@ -43,10 +43,12 @@ export class PaymentNotificationsController {
     @Request() req: any,
     @Param('id') id: string,
     @Query('includeCue') includeCue: string | undefined,
+    @Query('rawAmount') rawAmount: string | undefined,
     @Res({ passthrough: true }) response: Response,
   ) {
     const audio = await this.service.getAudioForUser(req.user, id, {
       includeCue: this.parseBoolean(includeCue),
+      rawAmount: this.parseBoolean(rawAmount),
     });
     response.setHeader('Content-Type', audio.mimeType);
     response.setHeader(

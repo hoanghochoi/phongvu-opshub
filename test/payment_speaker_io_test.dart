@@ -218,6 +218,62 @@ void main() {
       }
     },
   );
+
+  test('plays local cue-prefix asset before raw amount audio', () async {
+    final temp = await Directory.systemTemp.createTemp('opshub-speaker-test-');
+    final playedFiles = <String>[];
+    final playbackVolumes = <double>[];
+    try {
+      final speaker = PaymentSpeaker(
+        temporaryDirectoryForTesting: temp,
+        waveOutDeviceCountForTesting: () => 1,
+        mediaKitPlayerForTesting:
+            ({
+              required file,
+              required extension,
+              required timeout,
+              required volume,
+            }) async {
+              playedFiles.add(file.path);
+              playbackVolumes.add(volume);
+              return PaymentSpeakerResult(
+                backend: 'media_kit',
+                extension: extension,
+                durationMs: 1,
+                reportedSuccess: true,
+                audibleVerified: false,
+              );
+            },
+      );
+
+      final result = await speaker.playServerAudio(
+        amount: 1250000,
+        audioBytes: _pcm16Wav(
+          sampleRateHz: 22050,
+          channels: 1,
+          frames: const [
+            [0],
+            [1000],
+          ],
+        ),
+        notificationId: 'note-1',
+        transactionId: 'txn-1',
+        storeCode: 'CP01',
+        clientId: 'pc-test',
+        attempt: 1,
+        playLocalCue: false,
+        playLocalCuePrefix: true,
+      );
+
+      expect(result.backend, 'media_kit');
+      expect(playedFiles, hasLength(2));
+      expect(playedFiles.first, contains('opshub-payment-cue-prefix.wav'));
+      expect(playedFiles.last, contains('opshub-payment-'));
+      expect(playbackVolumes, [100.0, 100.0]);
+    } finally {
+      await temp.delete(recursive: true).catchError((_) => temp);
+    }
+  });
 }
 
 Uint8List _pcm16Wav({

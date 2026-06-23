@@ -28,6 +28,26 @@ void main() {
     },
   );
 
+  test('downloadNotificationAudio requests raw amount when enabled', () async {
+    final requests = <http.Request>[];
+    final apiClient = ApiClient.test(
+      MockClient((request) async {
+        requests.add(request);
+        return http.Response.bytes(const [1, 2, 3], 200);
+      }),
+    );
+    final repository = PaymentMonitorRepository(apiClient);
+
+    await repository.downloadNotificationAudio('note-1', rawAmount: true);
+
+    expect(requests, hasLength(1));
+    expect(
+      requests.single.url.path,
+      endsWith('/payment-notifications/note-1/audio'),
+    );
+    expect(requests.single.url.queryParameters['rawAmount'], 'true');
+  });
+
   test('downloadNotificationAudio keeps legacy URL by default', () async {
     final requests = <http.Request>[];
     final apiClient = ApiClient.test(

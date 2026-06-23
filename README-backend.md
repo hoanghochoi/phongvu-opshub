@@ -106,7 +106,20 @@ Expected responses:
   clients may call
   `GET /payment-notifications/:id/audio?includeCue=true` to download one
   server-combined WAV with the cue plus TTS; the default endpoint remains
-  TTS-only for older app versions.
+  TTS-only for older app versions. To trial shorter TTS generation, set
+  `PAYMENT_TTS_AUDIO_MODE=amount_only_with_prefix` and provide a compatible
+  `PAYMENT_PREFIX_WAV_PATH` such as `/data/import/payment-prefix.wav`; the
+  backend then sends only the amount text to TTS and joins the fixed prefix back
+  into both combined and fallback audio. For the fastest server-combined path,
+  also provide `PAYMENT_CUE_PREFIX_WAV_PATH` such as
+  `/data/import/payment-cue-prefix.wav`; this file should be the prejoined cue
+  plus prefix WAV generated with the configured `PAYMENT_CUE_GAIN`. Amount-only
+  WAVs are cached by text/voice/speed/pitch under
+  `PAYMENT_AUDIO_DIR/amount-cache` by default, retained for
+  `PAYMENT_AMOUNT_AUDIO_CACHE_RETENTION_DAYS` (default `90`), and can be served
+  to newer clients through
+  `GET /payment-notifications/:id/audio?rawAmount=true` so the client can play
+  its bundled `payment-cue-prefix.wav` locally before the downloaded amount WAV.
 - Keep placeholder values out of production; the Nest API validates env values on startup.
 - Run `npx prisma migrate deploy` before starting the Nest API.
 - Start the Go service with the same Redis connection as NestJS.
