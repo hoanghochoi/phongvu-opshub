@@ -8,6 +8,14 @@ class AppPlatformCapabilities {
     TargetPlatform? platform,
   }) {
     final effectiveIsWeb = isWeb ?? kIsWeb;
+    return !effectiveIsWeb;
+  }
+
+  static bool isPaymentSpeakerSupported({
+    bool? isWeb,
+    TargetPlatform? platform,
+  }) {
+    final effectiveIsWeb = isWeb ?? kIsWeb;
     final effectivePlatform = platform ?? defaultTargetPlatform;
     return !effectiveIsWeb && effectivePlatform == TargetPlatform.windows;
   }

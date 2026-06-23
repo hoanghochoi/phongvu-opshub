@@ -136,32 +136,32 @@ void main() {
     },
   );
 
-  test(
-    'does not enable speaker on non-Windows even with speaker feature',
-    () async {
-      debugDefaultTargetPlatformOverride = TargetPlatform.android;
-      final repository = _FakePaymentMonitorRepository(
-        notifications: [_readyNotification()],
-      );
-      final provider = PaymentMonitorProvider(
-        repository,
-        _FakePaymentSpeaker(),
-        null,
-        retryDelay,
-      );
+  test('loads transactions on Android but does not enable speaker', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final repository = _FakePaymentMonitorRepository(
+      notifications: [_readyNotification()],
+    );
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+    );
 
-      await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(), isInitialized: true);
-      await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
 
-      expect(provider.canUsePaymentSpeaker, isFalse);
-      expect(provider.isActive, isFalse);
-      expect(repository.readyFetchCount, 0);
-      expect(repository.downloadCount, 0);
+    expect(provider.canUsePaymentSpeaker, isFalse);
+    expect(provider.isActive, isTrue);
+    expect(repository.transactionFetchCount, greaterThan(0));
+    expect(repository.readyFetchCount, 0);
+    expect(repository.downloadCount, 0);
 
-      provider.dispose();
-    },
-  );
+    provider.dispose();
+  });
 
   test('lets SUPER_ADMIN use speaker polling after choosing a store', () async {
     final repository = _FakePaymentMonitorRepository(

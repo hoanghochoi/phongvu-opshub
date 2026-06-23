@@ -52,9 +52,11 @@ a customer to scan and pay manually.
   directly. If an intent is still `PENDING` after its Vietnam-local creation day
   has passed, the backend marks it `FAILED` with reason `EXPIRED_VIETNAM_DAY`.
 
-## PC Payment Monitor
+## Payment Monitor
 
-- The Windows PC app exposes a `Tiền vào` home action.
+- The app exposes a `Tiền vào` home action for users with `PAYMENT_MONITOR` on
+  supported non-web clients, including Android and Windows. Mobile clients show
+  the stored transaction list without enabling the speaker path.
 - The NestJS API is the source of truth for MAP transactions. It polls
   configured showroom MAP accounts in the background, stores successful incoming
   transactions in Postgres, and exposes the stored list to scoped clients.
@@ -78,9 +80,9 @@ a customer to scan and pay manually.
   Tapping a card opens a selectable detail dialog with the full available payer,
   amount, transaction time/number, content, status, showroom, and OpsHub
   first-seen timestamp. Missing MAP fields are shown explicitly as unavailable.
-- The Windows app starts the monitor after sign-in when the account has a
-  showroom scope. It seeds currently visible server transactions silently so old
-  rows are not announced again.
+- The app starts the monitor after sign-in when the account has a showroom
+  scope. It seeds currently visible server transactions silently so old rows
+  are not announced again on speaker-capable clients.
 - While the app is running, the PC listens for scoped realtime payment events
   and refreshes stored transactions when a new notification arrives. A
   30-second fallback refresh remains active so the list can recover from missed

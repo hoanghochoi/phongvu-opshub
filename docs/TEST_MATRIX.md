@@ -221,6 +221,13 @@ This file maps product behavior to proof. Existing flows are marked
   stdin-closed helper so Compose cannot consume the rest of the remote script.
   Gap: staging/prod must run `npm run audit:node-features` against live data
   before migration, and live admin UI plus `/features/me` smoke remains manual.
+- PAYMENT-MONITOR-001, 2026-06-23: split payment monitor list access from the
+  Windows-only speaker capability. Android/non-web clients with
+  `PAYMENT_MONITOR` now see the `Tiền vào` Home action and load stored
+  transactions, while `PAYMENT_SPEAKER` audio polling/download/ack remains
+  Windows-only. Validation: focused Flutter
+  `flutter test --no-pub test\app_platform_capabilities_test.dart test\home_feedback_action_test.dart test\payment_monitor_provider_test.dart test\payment_monitor_unsupported_screen_test.dart --reporter expanded`.
+  Gap: live Android APK click-through remains manual.
 - WARRANTY-001/FEEDBACK-001, 2026-06-23: raised the shared image upload limit
   from 10 to 20 files for warranty image save and staff feedback attachments.
   Flutter now caps warranty picker selections at 20 before submitting, feedback

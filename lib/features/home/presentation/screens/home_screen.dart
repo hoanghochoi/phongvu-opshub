@@ -66,8 +66,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final canUsePaymentSpeaker = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('PAYMENT_SPEAKER') == true,
     );
-    final supportsPaymentMonitor =
-        AppPlatformCapabilities.isPaymentMonitorSupported();
+    final supportsPaymentSpeaker =
+        AppPlatformCapabilities.isPaymentSpeakerSupported();
     final actions = _buildHomeActions(
       context,
       isAdmin,
@@ -77,7 +77,6 @@ class _HomeScreenState extends State<HomeScreen> {
       canUseVietQr,
       canUsePaymentMonitor,
       canUseFeedback,
-      supportsPaymentMonitor,
     );
 
     return Scaffold(
@@ -113,7 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (canUsePaymentSpeaker && supportsPaymentMonitor) ...[
+                  if (canUsePaymentSpeaker && supportsPaymentSpeaker) ...[
                     const _PaymentMonitorQuickToggle(),
                     const SizedBox(height: 16),
                   ],
@@ -137,7 +136,6 @@ class _HomeScreenState extends State<HomeScreen> {
     bool canUseVietQr,
     bool canUsePaymentMonitor,
     bool canUseFeedback,
-    bool supportsPaymentMonitor,
   ) {
     return [
       if (isAdmin)
@@ -180,9 +178,9 @@ class _HomeScreenState extends State<HomeScreen> {
           color: AppColors.info,
           onTap: () => context.push('/bank-statement'),
         ),
-      if (canUsePaymentMonitor && supportsPaymentMonitor)
+      if (canUsePaymentMonitor)
         AppFeatureAction(
-          icon: Icons.volume_up_rounded,
+          icon: Icons.payments_outlined,
           title: 'Tiền vào',
           description: 'Cập nhật giao dịch',
           color: AppColors.violet600,

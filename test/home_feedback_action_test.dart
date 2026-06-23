@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  tearDown(() {
+    debugDefaultTargetPlatformOverride = null;
+  });
 
   testWidgets('Góp ý is always the last visible Home action', (tester) async {
     SharedPreferences.setMockInitialValues({});
@@ -59,6 +64,50 @@ void main() {
     );
     expect(titles.last, 'Góp ý');
     expect(titles.where((title) => title == 'Góp ý'), hasLength(1));
+  });
+
+  testWidgets('Android Home shows Tiền vào but hides speaker quick toggle', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+    });
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+      appName: 'PhongVu OpsHub',
+      packageName: 'com.example.phongvu_opshub',
+      version: '1.1.1',
+      buildNumber: '2',
+      buildSignature: '',
+    );
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'user-1',
+        email: 'staff@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+        featureAccess: {'PAYMENT_MONITOR': true, 'PAYMENT_SPEAKER': true},
+      ),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final titles = tester
+        .widgetList<AppFeatureTile>(find.byType(AppFeatureTile))
+        .map((tile) => tile.action.title)
+        .toList(growable: false);
+
+    expect(titles, contains('Tiền vào'));
+    expect(find.text('Đọc loa tiền vào'), findsNothing);
+    debugDefaultTargetPlatformOverride = null;
   });
 }
 

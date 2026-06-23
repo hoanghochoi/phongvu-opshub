@@ -164,6 +164,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'reason': reason,
           'hasPaymentSpeakerFeature': _userCanUsePaymentSpeakerFeature(_user),
           'supportsPaymentMonitor': _canMonitorOnThisDevice,
+          'supportsPaymentSpeaker': _canUseSpeakerOnThisDevice,
           'speakerEligible': false,
         },
       );
@@ -337,8 +338,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool get _canMonitorOnThisDevice =>
       AppPlatformCapabilities.isPaymentMonitorSupported();
 
+  bool get _canUseSpeakerOnThisDevice =>
+      AppPlatformCapabilities.isPaymentSpeakerSupported();
+
   bool get _canUsePaymentSpeaker {
-    return _canMonitorOnThisDevice && _userCanUsePaymentSpeakerFeature(_user);
+    return _canUseSpeakerOnThisDevice &&
+        _userCanUsePaymentSpeakerFeature(_user);
   }
 
   bool get _hasMonitorScope {
@@ -360,6 +365,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   String _speakerEligibilityReason() {
     if (!_canMonitorOnThisDevice) return 'unsupported_platform';
+    if (!_canUseSpeakerOnThisDevice) return 'unsupported_speaker_platform';
     if (!_userCanUsePaymentSpeakerFeature(_user)) {
       return 'missing_speaker_feature';
     }
@@ -389,6 +395,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       storeId ?? '',
       hasPaymentSpeakerFeature,
       _canMonitorOnThisDevice,
+      _canUseSpeakerOnThisDevice,
     ].join('|');
     if (_lastSpeakerEligibilityLogKey == key) return;
     _lastSpeakerEligibilityLogKey = key;
@@ -405,6 +412,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'hasScope': _hasMonitorScope,
           'hasPaymentSpeakerFeature': hasPaymentSpeakerFeature,
           'supportsPaymentMonitor': _canMonitorOnThisDevice,
+          'supportsPaymentSpeaker': _canUseSpeakerOnThisDevice,
           'listOnly': !eligible,
         },
       ),
@@ -687,6 +695,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'checkpointAt': _notificationCheckpointAt?.toIso8601String(),
             'hasPaymentSpeakerFeature': _userCanUsePaymentSpeakerFeature(_user),
             'supportsPaymentMonitor': _canMonitorOnThisDevice,
+            'supportsPaymentSpeaker': _canUseSpeakerOnThisDevice,
             'speakerEligible': speakerEligible,
             'reason': reason,
           },
@@ -839,6 +848,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'reason': _speakerEligibilityReason(),
           'hasPaymentSpeakerFeature': _userCanUsePaymentSpeakerFeature(_user),
           'supportsPaymentMonitor': _canMonitorOnThisDevice,
+          'supportsPaymentSpeaker': _canUseSpeakerOnThisDevice,
         },
       );
       return;
