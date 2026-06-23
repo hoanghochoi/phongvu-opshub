@@ -60,9 +60,6 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#VcRedistPath}"; DestDir: "{tmp}"; DestName: "vc_redist.x64.exe"; Flags: dontcopy
-#ifdef InternalCodeSigningCertPath
-Source: "{#InternalCodeSigningCertPath}"; DestDir: "{tmp}"; DestName: "opshub-codesign.cer"; Flags: dontcopy
-#endif
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\phongvu_opshub.exe"
@@ -84,54 +81,6 @@ begin
     Result := 'true'
   else
     Result := 'false';
-end;
-
-#ifdef InternalCodeSigningCertPath
-function InternalCodeSigningCertBundled(): Boolean;
-begin
-  Result := True;
-end;
-#else
-function InternalCodeSigningCertBundled(): Boolean;
-begin
-  Result := False;
-end;
-#endif
-
-procedure AddInternalCodeSigningCertToStore(StoreName: String; CertPath: String);
-var
-  ResultCode: Integer;
-begin
-  ResultCode := -1;
-
-  if Exec(
-    ExpandConstant('{sys}\certutil.exe'),
-    '-user -addstore ' + StoreName + ' "' + CertPath + '"',
-    '',
-    SW_HIDE,
-    ewWaitUntilTerminated,
-    ResultCode
-  ) and (ResultCode = 0) then
-    Log('Internal code signing certificate installed in current user store: ' + StoreName + '.')
-  else
-    Log('Internal code signing certificate install warning. Store: ' + StoreName + '. Exit code: ' + IntToStr(ResultCode) + '.');
-end;
-
-procedure InstallInternalCodeSigningCert();
-var
-  CertPath: String;
-begin
-  if not InternalCodeSigningCertBundled() then
-  begin
-    Log('No internal code signing certificate is bundled with this installer.');
-    Exit;
-  end;
-
-  ExtractTemporaryFile('opshub-codesign.cer');
-  CertPath := ExpandConstant('{tmp}\opshub-codesign.cer');
-  Log('Installing bundled internal code signing certificate for the current Windows user.');
-  AddInternalCodeSigningCertToStore('Root', CertPath);
-  AddInternalCodeSigningCertToStore('TrustedPublisher', CertPath);
 end;
 
 function IsServiceRunning(ServiceName: String): Boolean;
@@ -196,7 +145,6 @@ end;
 function InitializeSetup(): Boolean;
 begin
   Result := True;
-  InstallInternalCodeSigningCert();
   RunAudioPreflight();
 end;
 

@@ -192,12 +192,8 @@ jobs:
           }
           $certPath = Join-Path $env:RUNNER_TEMP 'opshub-windows-signing.pfx'
           [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64))
-          $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certPath, $env:WINDOWS_SIGNING_PFX_PASSWORD)
-          $publicCertPath = Join-Path $env:RUNNER_TEMP 'opshub-windows-signing.cer'
-          [IO.File]::WriteAllBytes($publicCertPath, $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
           'WINDOWS_SIGNING_ENABLED=true' | Out-File -FilePath $env:GITHUB_ENV -Append
           "WINDOWS_SIGNING_PFX_PATH=$certPath" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "WINDOWS_SIGNING_CERT_PATH=$publicCertPath" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Sign Windows app executable
         if: env.WINDOWS_SIGNING_ENABLED == 'true'
@@ -282,12 +278,6 @@ jobs:
             "/DOutputDir=$outputDir",
             "/DOutputBaseFilename=${{ needs.prepare.outputs.windows_installer_basename }}"
           )
-          if ($env:WINDOWS_SIGNING_ENABLED -eq 'true') {
-            if (-not (Test-Path $env:WINDOWS_SIGNING_CERT_PATH)) {
-              throw 'WINDOWS_SIGNING_CERT_PATH is missing while Windows signing is enabled.'
-            }
-            $isccArgs += "/DInternalCodeSigningCertPath=${env:WINDOWS_SIGNING_CERT_PATH}"
-          }
           $isccArgs += 'deploy\windows\phongvu-opshub.iss'
           & $iscc @isccArgs
 
@@ -298,6 +288,14 @@ jobs:
           WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
         run: |
           .\scripts\sign-windows-artifact.ps1 -Path 'build\windows\x64\runner\${{ needs.prepare.outputs.windows_installer_name }}'
+
+      - name: Scan final Windows artifacts with Microsoft Defender
+        shell: pwsh
+        run: |
+          .\scripts\scan-windows-artifact-defender.ps1 -Path @(
+            'build\windows\x64\runner\${{ needs.prepare.outputs.windows_zip_name }}',
+            'build\windows\x64\runner\${{ needs.prepare.outputs.windows_installer_name }}'
+          )
 
       - name: Write Windows checksums
         shell: pwsh

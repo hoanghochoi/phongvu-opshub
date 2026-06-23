@@ -14,11 +14,14 @@
   `WINDOWS_SIGNING_PFX_BASE64` and `WINDOWS_SIGNING_PFX_PASSWORD` secrets are
   configured. Without those secrets, CI keeps building unsigned artifacts and
   logs that the Windows build is unsigned.
-- When signing secrets are configured, CI exports the public certificate from the
-  PFX and bundles it into the Inno installer. The installer imports that `.cer`
-  into the current Windows user's `Trusted Root Certification Authorities` and
-  `Trusted Publishers` stores so later updates signed by the same certificate are
-  already trusted for that user.
+- When signing secrets are configured, CI signs the app and installer but never
+  bundles or installs its own trust certificate. A package must not add its own
+  signer to `Trusted Root Certification Authorities` or `Trusted Publishers`;
+  IT deploys the public `.cer` separately through a managed channel.
+- CI updates Microsoft Defender security intelligence and scans the final signed
+  installer and portable ZIP before checksums are generated or files are
+  uploaded. A missing scanner, failed update, detection, quarantine, or non-zero
+  scan exit code blocks the release.
 - Direct downloads still publish a SHA256 checksum file beside the Windows ZIP
   and installer EXE. The checksum is generated after signing, so it matches the
   final downloadable files.
@@ -33,8 +36,9 @@
   download paths. For internal rollout, prefer managed deployment, trusted
   intranet download, or an IT allow-list over asking staff to bypass warnings.
 - The first install on a PC that does not already trust the certificate can still
-  show browser or SmartScreen warnings, because the bundled certificate can only
-  be installed after the user starts the installer.
+  show browser or SmartScreen warnings. Provision the public certificate before
+  download when the first install must be warning-free; do not ask staff to
+  bypass a Defender malware detection.
 
 ## Internal Certificate Setup
 
@@ -42,8 +46,8 @@
   PFX secret restricted to release automation.
 - Export the public `.cer` file and deploy it to company PCs through GPO,
   Intune, device-management tooling, or a documented admin install step when the
-  first install must avoid trust prompts. The installer also imports the bundled
-  `.cer` for the current user after it starts.
+  first install must avoid trust prompts. The installer deliberately does not
+  import or trust the certificate itself.
 - Add these GitHub repository secrets only after the certificate is created:
   `WINDOWS_SIGNING_PFX_BASE64` and `WINDOWS_SIGNING_PFX_PASSWORD`.
 - Do not commit the PFX, password, private key, or real certificate files.
@@ -78,6 +82,8 @@ Import-Certificate -FilePath .\opshub-codesign.cer `
 ## Release Checklist
 
 - Confirm Windows signing secrets are present before expecting signed artifacts.
+- Confirm the `Scan final Windows artifacts with Microsoft Defender` workflow
+  step passed after signing and before checksum generation.
 - Verify `Get-AuthenticodeSignature` on the final installer is not `NotSigned`.
   A self-signed certificate may report `UnknownError` on machines that have not
   trusted the public `.cer`; the target staff PCs must trust the certificate for
