@@ -198,13 +198,12 @@ void main() {
       provider.setLimit(2);
       await provider.search();
       provider.toggleAllVisible(true);
-      final callsAfterSearch = repository.fetchStatementsCount;
-
       expect(provider.page, 0);
       expect(provider.selectedIds, {'tx-1', 'tx-2'});
+      expect(repository.fetchStatementsCount, 1);
 
       await provider.nextPage();
-      expect(repository.fetchStatementsCount, callsAfterSearch);
+      expect(repository.fetchStatementsCount, 2);
       provider.toggleSelected('tx-3', true);
 
       expect(provider.page, 1);
@@ -212,7 +211,7 @@ void main() {
       expect(provider.selectedIds, {'tx-1', 'tx-2', 'tx-3'});
 
       await provider.previousPage();
-      expect(repository.fetchStatementsCount, callsAfterSearch);
+      expect(repository.fetchStatementsCount, 3);
 
       expect(provider.page, 0);
       expect(provider.transactions.map((item) => item.id), ['tx-1', 'tx-2']);
@@ -221,7 +220,7 @@ void main() {
       provider.dispose();
     });
 
-    test('keeps SR snapshot fetches under backend page limit', () async {
+    test('loads only the current server page for broad SR searches', () async {
       final repository = _FakeBankStatementRepository(
         pages: [
           List.generate(
@@ -242,12 +241,8 @@ void main() {
       expect(provider.hasSearched, isTrue);
       expect(provider.total, 125);
       expect(provider.transactions.length, 20);
-      expect(repository.fetchStatementsCount, 3);
-      expect(repository.seenQueries.map((query) => query.limit), [
-        20,
-        100,
-        100,
-      ]);
+      expect(repository.fetchStatementsCount, 1);
+      expect(repository.seenQueries.single.limit, 20);
       expect(
         repository.seenQueries.every(
           (query) => query.storeIds.single == 'CP01',
@@ -262,6 +257,51 @@ void main() {
         ),
         isTrue,
       );
+
+      provider.dispose();
+    });
+
+    test('exports selected ids kept across pages', () async {
+      final repository = _FakeBankStatementRepository(
+        pages: [
+          [
+            _transaction('tx-1', ['26052912345678']),
+            _transaction('tx-2', const []),
+          ],
+          [_transaction('tx-3', const []), _transaction('tx-4', const [])],
+        ],
+      );
+      final provider = BankStatementProvider(repository);
+      await provider.initialize(_nationalManager);
+
+      provider.setOrderStatus('MISSING_ORDER');
+      provider.setLimit(2);
+      await provider.search();
+      provider.toggleSelected('tx-1', true);
+      await provider.nextPage();
+      provider.toggleSelected('tx-3', true);
+      await provider.exportCsv();
+
+      expect(repository.exportCsvCount, 1);
+      expect(repository.lastExportTransactionIds, ['tx-1', 'tx-3']);
+
+      provider.dispose();
+    });
+
+    test('blocks CSV export when the date range is over one month', () async {
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+      await provider.initialize(_nationalManager);
+
+      provider.setStoreSelection(allStores: true, ids: const {});
+      provider.setDateRange(DateTime(2026, 5), DateTime(2026, 6, 5));
+
+      expect(provider.hasExportDateRangeLimitViolation, isTrue);
+
+      await provider.exportCsv();
+
+      expect(repository.exportCsvCount, 0);
+      expect(provider.exportMessage, 'Không export quá 1 tháng.');
 
       provider.dispose();
     });
@@ -352,9 +392,12 @@ const _storeScopedManager = User(
 class _FakeBankStatementRepository extends BankStatementRepository {
   int fetchStatementsCount = 0;
   int updateOrdersCount = 0;
+  int exportCsvCount = 0;
   BankStatementQuery? lastQuery;
+  BankStatementQuery? lastExportQuery;
   final List<BankStatementQuery> seenQueries = [];
   List<String> lastUpdatedOrders = const [];
+  List<String> lastExportTransactionIds = const [];
 
   final List<List<BankStatementTransaction>> _pages;
 
@@ -429,6 +472,9 @@ class _FakeBankStatementRepository extends BankStatementRepository {
     BankStatementQuery query, {
     List<String> transactionIds = const [],
   }) async {
+    exportCsvCount += 1;
+    lastExportQuery = query;
+    lastExportTransactionIds = List.of(transactionIds);
     return Uint8List.fromList([0xef, 0xbb, 0xbf, 0x63, 0x73, 0x76]);
   }
 }

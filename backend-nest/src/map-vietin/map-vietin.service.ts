@@ -14,6 +14,8 @@ import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { decryptSecret } from '../common/secret-cipher';
 import { PaymentNotificationsService } from '../payment-notifications/payment-notifications.service';
+import { FEATURE_KEYS } from '../feature/feature.constants';
+import { FeatureService } from '../feature/feature.service';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
 import {
@@ -44,6 +46,8 @@ const ORDER_SOURCE_MANUAL = 'MANUAL';
 const STATEMENT_ORDER_STATUS_ALL = 'ALL';
 const STATEMENT_ORDER_STATUS_HAS_ORDER = 'HAS_ORDER';
 const STATEMENT_ORDER_STATUS_MISSING_ORDER = 'MISSING_ORDER';
+const STATEMENT_EXPORT_MAX_DATE_SPAN_DAYS = 31;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 type MapLoginResponse = {
   error_code?: string;
@@ -183,6 +187,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private prisma: PrismaService,
     private policyService: PolicyService,
+    private featureService: FeatureService,
     @Optional()
     private paymentNotifications?: PaymentNotificationsService,
   ) {}
@@ -299,6 +304,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
 
   async exportStatementsCsv(user: any, input: ExportMapVietinStatementsDto) {
     await this.assertCanUseStatements(user);
+    this.assertStatementExportDateRangeAllowed(input);
     const selectedIds = this.normalizeTransactionIds(input.transactionIds);
     const where = selectedIds.length
       ? await this.buildSelectedStatementWhere(user, selectedIds)
@@ -315,6 +321,21 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       `Statement export succeeded: user=${this.safeUserLabel(user)} mode=${selectedIds.length ? 'selected' : 'filter'} count=${rows.length}`,
     );
     return this.toStatementsCsv(rows);
+  }
+
+  private assertStatementExportDateRangeAllowed(
+    input: ExportMapVietinStatementsDto,
+  ) {
+    const dateRange = this.resolveStoredTransactionDateRange(input);
+    if (!dateRange) return;
+    const spanDays = Math.round(
+      (dateRange.end.getTime() - dateRange.start.getTime()) / MS_PER_DAY,
+    );
+    if (spanDays > STATEMENT_EXPORT_MAX_DATE_SPAN_DAYS) {
+      throw new BadRequestException(
+        'Chỉ được export sao kê trong tối đa 1 tháng',
+      );
+    }
   }
 
   async updateStatementOrders(
@@ -925,6 +946,14 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       await this.policyService.canAccessPolicy(
         user,
         ADMIN_POLICY_CODES.BANK_STATEMENTS,
+      )
+    ) {
+      return true;
+    }
+    if (
+      await this.featureService.canAccessFeature(
+        user,
+        FEATURE_KEYS.BANK_STATEMENTS,
       )
     ) {
       return true;

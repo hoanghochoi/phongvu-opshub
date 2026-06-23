@@ -8,6 +8,51 @@ import '../../../auth/data/repositories/auth_repository.dart';
 import '../../domain/admin_feature_definition.dart';
 import '../../domain/admin_organization_node.dart';
 
+class RelatedFeaturePolicyHint {
+  final String featureCode;
+  final String featureName;
+  final String policyCode;
+  final String policyName;
+  final String message;
+
+  const RelatedFeaturePolicyHint({
+    required this.featureCode,
+    required this.featureName,
+    required this.policyCode,
+    required this.policyName,
+    required this.message,
+  });
+}
+
+const _relatedPolicyHints = <String, RelatedFeaturePolicyHint>{
+  'BANK_STATEMENTS': RelatedFeaturePolicyHint(
+    featureCode: 'BANK_STATEMENTS',
+    featureName: 'Sao kê',
+    policyCode: 'BANK_STATEMENT_ALL_SCOPE',
+    policyName: 'Xem sao kê toàn hệ thống',
+    message:
+        'Feature Sao kê chỉ mở quyền xem theo phạm vi node/showroom. '
+        'Muốn xem tất cả showroom hoặc chọn nhiều showroom thì thêm policy '
+        'BANK_STATEMENT_ALL_SCOPE trong Quản lý policy.',
+  ),
+};
+
+@visibleForTesting
+List<RelatedFeaturePolicyHint> relatedPolicyHintsForFeatureCodes(
+  Iterable<String> selectedFeatureCodes,
+) {
+  final seen = <String>{};
+  final hints = <RelatedFeaturePolicyHint>[];
+  for (final rawCode in selectedFeatureCodes) {
+    final code = rawCode.trim().toUpperCase();
+    final hint = _relatedPolicyHints[code];
+    if (hint == null || !seen.add(hint.policyCode)) continue;
+    hints.add(hint);
+  }
+  hints.sort((left, right) => left.policyCode.compareTo(right.policyCode));
+  return hints;
+}
+
 @visibleForTesting
 Map<String, List<AdminOrganizationNode>> blockedNodeFeatureCodesForParentGate({
   required AdminOrganizationNode node,
@@ -90,6 +135,7 @@ class _NodeFeatureAssignmentDialogState
   final Set<String> _selectedCodes = <String>{};
   String? _selectedNodeId;
   String? _lastParentWarningLogKey;
+  String? _lastRelatedPolicyReminderLogKey;
   bool _saving = false;
 
   @override
@@ -104,7 +150,7 @@ class _NodeFeatureAssignmentDialogState
     }
     _loadSelectedCodesForNode();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _scheduleParentWarningLog();
+      if (mounted) _scheduleGuidanceLogs();
     });
   }
 
@@ -165,7 +211,7 @@ class _NodeFeatureAssignmentDialogState
       _selectedNodeId = nodeId;
       _loadSelectedCodesForNode();
     });
-    _scheduleParentWarningLog();
+    _scheduleGuidanceLogs();
   }
 
   void _toggleFeature(AdminFeatureDefinition feature, bool selected) {
@@ -184,7 +230,7 @@ class _NodeFeatureAssignmentDialogState
         }
       }
     });
-    _scheduleParentWarningLog();
+    _scheduleGuidanceLogs();
   }
 
   AdminFeatureDefinition? _featureByCode(String code) {
@@ -234,6 +280,15 @@ class _NodeFeatureAssignmentDialogState
     unawaited(_logParentWarningIfNeeded());
   }
 
+  void _scheduleRelatedPolicyReminderLog() {
+    unawaited(_logRelatedPolicyReminderIfNeeded());
+  }
+
+  void _scheduleGuidanceLogs() {
+    _scheduleParentWarningLog();
+    _scheduleRelatedPolicyReminderLog();
+  }
+
   Future<void> _logParentWarningIfNeeded() async {
     final node = _selectedNode();
     if (node == null) return;
@@ -257,6 +312,31 @@ class _NodeFeatureAssignmentDialogState
           0,
           (sum, parents) => sum + parents.length,
         ),
+      },
+    );
+  }
+
+  Future<void> _logRelatedPolicyReminderIfNeeded() async {
+    final node = _selectedNode();
+    if (node == null) return;
+    final hints = relatedPolicyHintsForFeatureCodes(_selectedCodes);
+    if (hints.isEmpty) {
+      _lastRelatedPolicyReminderLogKey = null;
+      return;
+    }
+    final policyCodes = hints.map((hint) => hint.policyCode).join(',');
+    final featureCodes = hints.map((hint) => hint.featureCode).join(',');
+    final logKey = '${node.id}|$featureCodes|$policyCodes';
+    if (_lastRelatedPolicyReminderLogKey == logKey) return;
+    _lastRelatedPolicyReminderLogKey = logKey;
+    await AppLogger.instance.info(
+      'AdminFeatures',
+      'Node feature assignment related policy reminder shown',
+      context: {
+        'organizationNodeId': node.id,
+        'organizationNodeType': node.type,
+        'featureCount': hints.length,
+        'policyCount': hints.length,
       },
     );
   }
@@ -348,6 +428,9 @@ class _NodeFeatureAssignmentDialogState
     final blockedFeatures = selectedNode == null
         ? const <String, List<AdminOrganizationNode>>{}
         : _blockedSelectedFeatureCodes(selectedNode);
+    final relatedPolicyHints = relatedPolicyHintsForFeatureCodes(
+      _selectedCodes,
+    );
     return AlertDialog(
       title: const Text('Tính năng theo node'),
       content: SizedBox(
@@ -385,6 +468,8 @@ class _NodeFeatureAssignmentDialogState
                 selectedCodes: _selectedCodes,
                 onChanged: _toggleFeature,
               ),
+              if (relatedPolicyHints.isNotEmpty)
+                _RelatedPolicyReminder(hints: relatedPolicyHints),
               if (blockedFeatures.isNotEmpty)
                 _ParentFeatureVetoWarning(
                   blockedFeatures: blockedFeatures,
@@ -414,6 +499,67 @@ class _NodeFeatureAssignmentDialogState
           child: Text(_saving ? 'Đang lưu...' : 'Lưu'),
         ),
       ],
+    );
+  }
+}
+
+class _RelatedPolicyReminder extends StatelessWidget {
+  final List<RelatedFeaturePolicyHint> hints;
+
+  const _RelatedPolicyReminder({required this.hints});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.45),
+        ),
+        borderRadius: BorderRadius.circular(8),
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.28),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.policy_outlined,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Policy liên quan',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final hint in hints)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '${hint.policyName} (${hint.policyCode}): ${hint.message}',
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

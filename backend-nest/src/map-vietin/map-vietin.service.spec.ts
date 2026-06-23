@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { encryptSecret } from '../common/secret-cipher';
+import { FEATURE_KEYS } from '../feature/feature.constants';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { MapVietinService } from './map-vietin.service';
 
@@ -10,6 +11,7 @@ describe('MapVietinService', () => {
   let fetchMock: jest.Mock;
   let paymentNotifications: { createForTransaction: jest.Mock };
   let policyService: { canAccessPolicy: jest.Mock };
+  let featureService: { canAccessFeature: jest.Mock };
   let service: MapVietinService;
 
   beforeEach(() => {
@@ -64,6 +66,14 @@ describe('MapVietinService', () => {
         return false;
       }),
     };
+    featureService = {
+      canAccessFeature: jest.fn(async (user: any, code: string) => {
+        return (
+          code === FEATURE_KEYS.BANK_STATEMENTS &&
+          user?.featureBankStatements === true
+        );
+      }),
+    };
     fetchMock = jest.fn();
     global.fetch = fetchMock as any;
     jest
@@ -72,6 +82,7 @@ describe('MapVietinService', () => {
     service = new MapVietinService(
       prisma,
       policyService as any,
+      featureService as any,
       paymentNotifications as any,
     );
   });
@@ -205,6 +216,54 @@ describe('MapVietinService', () => {
       financeUser,
       ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE,
     );
+  });
+
+  it('allows store-scoped statement reads from feature-tree access without statement policy', async () => {
+    const cashUser = {
+      id: 'cash-1',
+      role: 'USER',
+      storeId: 'store-uuid-1',
+      featureBankStatements: true,
+    };
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(0);
+
+    await expect(
+      service.listStatements(cashUser, {
+        storeIds: 'CP01',
+        page: 0,
+        limit: 20,
+      }),
+    ).resolves.toMatchObject({
+      page: 0,
+      limit: 20,
+      total: 0,
+      list: [],
+    });
+
+    expect(featureService.canAccessFeature).toHaveBeenCalledWith(
+      cashUser,
+      FEATURE_KEYS.BANK_STATEMENTS,
+    );
+    expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { storeCode: 'CP01' } }),
+    );
+  });
+
+  it('rejects statement reads without feature-tree access or statement policy', async () => {
+    await expect(
+      service.listStatements(
+        { id: 'staff-1', role: 'USER', storeId: 'store-uuid-1' },
+        { storeIds: 'CP01', page: 0, limit: 20 },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.store.findUnique).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransaction.findMany).not.toHaveBeenCalled();
   });
 
   it('requires MAP credentials before calling VietinBank', async () => {
@@ -381,6 +440,7 @@ describe('MapVietinService', () => {
     const disabledService = new MapVietinService(
       prisma,
       policyService as any,
+      featureService as any,
       paymentNotifications as any,
     );
 
@@ -1065,6 +1125,21 @@ describe('MapVietinService', () => {
         where: expect.objectContaining({ id: { in: ['stored-1'] } }),
       }),
     );
+  });
+
+  it('rejects statement CSV exports over one month', async () => {
+    await expect(
+      service.exportStatementsCsv(
+        { role: 'SUPER_ADMIN' },
+        {
+          allStores: 'true',
+          startDate: '2026-05-01',
+          endDate: '2026-06-05',
+        },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.mapVietinTransaction.findMany).not.toHaveBeenCalled();
   });
 });
 

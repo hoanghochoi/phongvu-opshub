@@ -94,6 +94,10 @@ and basic administration for privileged roles.
   feature-management Node tab or from the selected node in the organization
   tree. The backend expands selected feature-tree descendants to include their
   ancestors and stores one row per root + node type + node key + feature.
+  The node-feature assignment dialog shows related policy reminders, for
+  example `BANK_STATEMENTS` points admins to `BANK_STATEMENT_ALL_SCOPE` when
+  national all-showroom statement access is intended; it does not create policy
+  rules automatically.
   Migration audit still reports orphaned per-user feature rows, but rollout
   blocks only divergent node groups; users without an active direct node are
   skipped from backfill because runtime node-group access already denies them.

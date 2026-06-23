@@ -972,15 +972,13 @@ class _StatementToolbar extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
-                    width: 130,
+                    width: 150,
                     child: AppSecondaryButton(
                       onPressed: provider.canSearch && !provider.isExporting
-                          ? provider.exportCsv
+                          ? () => _handleExport(context)
                           : null,
                       icon: Icons.download_rounded,
-                      label: provider.isExporting
-                          ? 'Exporting...'
-                          : 'Export CSV',
+                      label: _exportLabel,
                     ),
                   ),
                 ],
@@ -1039,16 +1037,41 @@ class _StatementToolbar extends StatelessWidget {
               width: 150,
               child: AppSecondaryButton(
                 onPressed: provider.canSearch && !provider.isExporting
-                    ? provider.exportCsv
+                    ? () => _handleExport(context)
                     : null,
                 icon: Icons.download_rounded,
-                label: provider.isExporting ? 'Đang export' : 'Export CSV',
+                label: _exportLabel,
               ),
             ),
           ],
         );
       },
     );
+  }
+
+  String get _exportLabel {
+    if (provider.isExporting) return 'Đang export';
+    return provider.selectedIds.isEmpty ? 'Export CSV' : 'Export đã chọn';
+  }
+
+  Future<void> _handleExport(BuildContext context) async {
+    if (provider.hasExportDateRangeLimitViolation) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Không thể export'),
+          content: Text(provider.exportDateRangeLimitMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Đã hiểu'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    await provider.exportCsv();
   }
 }
 

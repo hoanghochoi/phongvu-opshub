@@ -193,9 +193,12 @@ a customer to scan and pay manually.
   automatic MAP extraction is not shown as a manual edit.
 - CSV export returns UTF-8 with BOM for Excel, preserves long numeric
   identifiers such as transaction numbers, order codes, and payer accounts as
-  text, and formats transaction timestamps in Vietnam local time. Selected
-  transaction ids take precedence; if nothing is selected, export includes every
-  row matching the current filter/date/status, not just the visible page.
+  text, and formats transaction timestamps in Vietnam local time. Statement
+  search uses server-side paging, while selected transaction ids stay selected
+  when users move between pages and take precedence during export. If nothing is
+  selected, export includes every row matching the current filter/date/status,
+  not just the visible page. CSV export is limited to a date span of 31 days; a
+  longer selected range is blocked before the export request is sent.
 - `Sao ke` keeps header, filters, selection bar, and export controls fixed while
   only the transaction list scrolls. The page allows selecting and copying text.
 - `Sao ke` and `Tien vao` cards use a green border when the transaction has at

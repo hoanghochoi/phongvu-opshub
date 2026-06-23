@@ -217,6 +217,19 @@ void main() {
     expect(blocked, isEmpty);
   });
 
+  test('Related policy helper shows bank statement all-scope reminder', () {
+    final hints = relatedPolicyHintsForFeatureCodes(const [
+      'FIFO',
+      'BANK_STATEMENTS',
+    ]);
+
+    expect(hints, hasLength(1));
+    expect(hints.single.featureCode, 'BANK_STATEMENTS');
+    expect(hints.single.policyCode, 'BANK_STATEMENT_ALL_SCOPE');
+    expect(hints.single.message, contains('tất cả showroom'));
+    expect(relatedPolicyHintsForFeatureCodes(const ['FIFO']), isEmpty);
+  });
+
   test('Admin user import result parses summary and per-row results', () {
     final result = AdminUserImportResult.fromJson({
       'totalRows': 2,

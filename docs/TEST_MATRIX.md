@@ -90,6 +90,14 @@ This file maps product behavior to proof. Existing flows are marked
   context. Validation: focused statement provider/detail tests (13 tests),
   `flutter analyze --no-pub`, full Flutter tests (122 tests), and
   `git diff --check`. Gap: live Windows statement click-through remains manual.
+- PAYMENT-STATEMENT-001, 2026-06-23: `Sao kê` now pages statement results from
+  the backend instead of fetching a full client snapshot, keeps selected
+  transaction ids across page changes, exports selected ids when present, and
+  blocks CSV export ranges over 31 days in both Flutter and the statement API.
+  Validation: focused statement provider tests (14 tests), focused MAP
+  statement service tests (30 tests), `flutter analyze --no-pub`,
+  `npm run build`, and `git diff --check`. Gap: live Windows statement
+  click-through remains manual.
 - PAYMENT-MONITOR-001, 2026-06-22: server-combined payment audio now preserves
   the full Piper-generated TTS WAV when appending it after `payment-cue.wav`,
   including Piper's configured 650ms leading silence and 500ms tail silence, so
