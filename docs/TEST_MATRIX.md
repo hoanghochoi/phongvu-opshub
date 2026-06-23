@@ -221,6 +221,16 @@ This file maps product behavior to proof. Existing flows are marked
   stdin-closed helper so Compose cannot consume the rest of the remote script.
   Gap: staging/prod must run `npm run audit:node-features` against live data
   before migration, and live admin UI plus `/features/me` smoke remains manual.
+- WARRANTY-001/FEEDBACK-001, 2026-06-23: raised the shared image upload limit
+  from 10 to 20 files for warranty image save and staff feedback attachments.
+  Flutter now caps warranty picker selections at 20 before submitting, feedback
+  UI copy matches 20, and NestJS warranty/feedback multipart interceptors use
+  the shared backend limit. Validation: focused backend Jest
+  `npm test -- --runInBand src/upload/image-upload.options.spec.ts src/upload/upload.controller.spec.ts src/feedback/feedback.controller.spec.ts`,
+  backend `npm run build`, focused Flutter
+  `flutter test --no-pub test\feedback_screen_test.dart test\warranty_upload_contract_test.dart --reporter expanded`,
+  `flutter analyze --no-pub`, and `git diff --check`. Gap: live device
+  picker/upload smoke remains manual.
 - WARRANTY-001, 2026-06-13: fixed warranty image upload failing with
   `property user should not exist` by aligning the Flutter multipart payload
   with the Nest `UploadWarrantyImagesDto`; the client now sends only `receipt`,

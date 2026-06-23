@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { memoryStorage, type Options } from 'multer';
 
 const DEFAULT_IMAGE_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+export const IMAGE_UPLOAD_MAX_FILES = 20;
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -28,7 +29,7 @@ export function getImageUploadMaxBytes(
 export const imageUploadOptions: Options = {
   storage: memoryStorage(),
   limits: {
-    files: 10,
+    files: IMAGE_UPLOAD_MAX_FILES,
     fileSize: getImageUploadMaxBytes(),
   },
   fileFilter: (_req, file, callback) => {

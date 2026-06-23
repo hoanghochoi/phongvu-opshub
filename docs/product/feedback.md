@@ -20,7 +20,7 @@ triển cải thiện OpsHub.
 ## Contract Notes
 
 - Form yêu cầu `Chức năng liên quan` tối đa 120 ký tự và `Nội dung góp ý` tối đa
-  5000 ký tự. User có thể đính kèm tối đa 10 ảnh, khớp giới hạn hiện tại của
+  5000 ký tự. User có thể đính kèm tối đa 20 ảnh, khớp giới hạn hiện tại của
   backend `FilesInterceptor`.
 - Submitting suggestions requires the `FEEDBACK` feature. Listing all entries uses
   `/feedback/admin`, requires `ADMIN_FEEDBACK`, and the service still enforces

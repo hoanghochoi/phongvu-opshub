@@ -13,7 +13,10 @@ import { FEATURE_KEYS } from '../feature/feature.constants';
 import { RequireFeature } from '../feature/feature.decorator';
 import { FeatureGuard } from '../feature/feature.guard';
 import { UploadService } from './upload.service';
-import { imageUploadOptions } from './image-upload.options';
+import {
+  IMAGE_UPLOAD_MAX_FILES,
+  imageUploadOptions,
+} from './image-upload.options';
 import { UploadWarrantyImagesDto } from './upload.dto';
 
 @Controller('upload')
@@ -27,7 +30,9 @@ export class UploadController {
   // The creator is always resolved from the authenticated JWT user.
   @Post('warranty')
   @RequireFeature(FEATURE_KEYS.WARRANTY)
-  @UseInterceptors(FilesInterceptor('images', 10, imageUploadOptions))
+  @UseInterceptors(
+    FilesInterceptor('images', IMAGE_UPLOAD_MAX_FILES, imageUploadOptions),
+  )
   async uploadWarrantyImages(
     @Req() req: any,
     @Body() body: UploadWarrantyImagesDto,

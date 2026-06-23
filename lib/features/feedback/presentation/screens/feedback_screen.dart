@@ -25,7 +25,7 @@ class FeedbackScreen extends StatefulWidget {
 }
 
 class _FeedbackScreenState extends State<FeedbackScreen> {
-  static const int _maxImages = 10;
+  static const int _maxImages = 20;
 
   final _formKey = GlobalKey<FormState>();
   final _functionController = TextEditingController();
@@ -408,18 +408,18 @@ class _SuggestionImagesCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         'Ảnh minh họa',
                         style: TextStyle(fontWeight: FontWeight.w700),
                       ),
-                      SizedBox(height: 3),
+                      const SizedBox(height: 3),
                       Text(
-                        'Không bắt buộc, tối đa 10 ảnh',
-                        style: TextStyle(
+                        'Không bắt buộc, tối đa $maxImages ảnh',
+                        style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.neutral500,
                         ),

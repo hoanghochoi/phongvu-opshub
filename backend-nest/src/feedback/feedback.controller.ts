@@ -11,7 +11,10 @@ import {
 import { FeedbackService } from './feedback.service';
 import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { imageUploadOptions } from '../upload/image-upload.options';
+import {
+  IMAGE_UPLOAD_MAX_FILES,
+  imageUploadOptions,
+} from '../upload/image-upload.options';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { RequireFeature } from '../feature/feature.decorator';
 import { FeatureGuard } from '../feature/feature.guard';
@@ -24,7 +27,9 @@ export class FeedbackController {
 
   @Post()
   @RequireFeature(FEATURE_KEYS.FEEDBACK)
-  @UseInterceptors(FilesInterceptor('images', 10, imageUploadOptions))
+  @UseInterceptors(
+    FilesInterceptor('images', IMAGE_UPLOAD_MAX_FILES, imageUploadOptions),
+  )
   async create(
     @Request() req: any,
     @Body() body: CreateFeedbackDto,

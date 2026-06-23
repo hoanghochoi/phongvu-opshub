@@ -13,7 +13,7 @@ void main() {
     expect(find.text('Cùng cải thiện OpsHub'), findsOneWidget);
     expect(find.text('Chức năng liên quan'), findsOneWidget);
     expect(find.text('Nội dung góp ý'), findsOneWidget);
-    expect(find.text('Không bắt buộc, tối đa 10 ảnh'), findsOneWidget);
+    expect(find.text('Không bắt buộc, tối đa 20 ảnh'), findsOneWidget);
     expect(find.text('Phản hồi'), findsNothing);
 
     final submitButton = find.byKey(const ValueKey('submit-suggestion-button'));
