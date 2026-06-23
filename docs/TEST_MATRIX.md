@@ -62,6 +62,22 @@ This file maps product behavior to proof. Existing flows are marked
   Validation: focused Flutter/backend coverage within full suites, Flutter
   analyze/tests, NestJS build/tests, Go tests, and `git diff --check`. Gap:
   live finance-user Windows click-through remains manual.
+- PAYMENT-MONITOR-001, 2026-06-23: `Tiền vào` now preserves MAP payer name and
+  account fields in the Flutter transaction model, shows the payer summary on
+  each card, and opens a selectable full-detail dialog when the card is tapped.
+  AppLogger records detail open/close/failure using sanitized identifiers only.
+  Validation: focused payment transaction model/widget tests (5 tests),
+  `flutter analyze --no-pub`, full Flutter tests (121 tests), and
+  `git diff --check`. Gap: live Windows MAP transaction click-through remains
+  manual.
+- PAYMENT-STATEMENT-001, 2026-06-23: `Sao kê` now shows the MAP payer
+  name/account in each transaction summary and opens a selectable full-detail
+  dialog from that summary without changing checkbox selection or inline order
+  actions. The dialog includes payment, showroom, order, manual-edit, and
+  first-seen metadata; AppLogger records open/close/failure with sanitized
+  context. Validation: focused statement provider/detail tests (13 tests),
+  `flutter analyze --no-pub`, full Flutter tests (122 tests), and
+  `git diff --check`. Gap: live Windows statement click-through remains manual.
 - PAYMENT-MONITOR-001, 2026-06-22: server-combined payment audio now preserves
   the full Piper-generated TTS WAV when appending it after `payment-cue.wav`,
   including Piper's configured 650ms leading silence and 500ms tail silence, so

@@ -12,6 +12,7 @@ import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/bank_statement_transaction.dart';
 import '../providers/bank_statement_provider.dart';
+import '../widgets/bank_statement_transaction_details.dart';
 
 const double _localBreakpoint = 800;
 
@@ -1123,7 +1124,14 @@ class _StatementCardState extends State<_StatementCard> {
                             provider.toggleSelected(tx.id, value == true),
                       ),
                       Expanded(
-                        child: _TransactionDetails(tx: tx, money: widget.money),
+                        child: BankStatementTransactionDetailsLauncher(
+                          transaction: tx,
+                          amountFormatter: widget.money,
+                          child: _TransactionDetails(
+                            tx: tx,
+                            money: widget.money,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -1188,7 +1196,11 @@ class _StatementCardState extends State<_StatementCard> {
                       provider.toggleSelected(tx.id, value == true),
                 ),
                 Expanded(
-                  child: _TransactionDetails(tx: tx, money: widget.money),
+                  child: BankStatementTransactionDetailsLauncher(
+                    transaction: tx,
+                    amountFormatter: widget.money,
+                    child: _TransactionDetails(tx: tx, money: widget.money),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 SizedBox(
@@ -1357,7 +1369,7 @@ class _TransactionDetails extends StatelessWidget {
             if (tx.transactionNumber.isNotEmpty) 'GD: ${tx.transactionNumber}',
             if (time != null)
               DateFormat('HH:mm:ss dd/MM/yyyy').format(time.toLocal()),
-            if ((tx.payerName ?? '').isNotEmpty) tx.payerName!,
+            if (tx.payerLabel.isNotEmpty) tx.payerLabel,
           ].join(' • '),
           style: TextStyle(
             color: Theme.of(context).colorScheme.onSurfaceVariant,

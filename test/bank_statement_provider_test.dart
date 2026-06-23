@@ -36,6 +36,8 @@ void main() {
         'status': '00',
         'paidAt': '2026-05-29T02:00:00.000Z',
         'firstSeenAt': '2026-05-29T02:00:05.000Z',
+        'payerName': 'NGUYEN VAN A',
+        'payerAccount': '9704361234567890',
       });
       final history = BankStatementOrderHistoryEntry.fromJson({
         'id': 'audit-1',
@@ -48,6 +50,9 @@ void main() {
       expect(transaction.amount, 1250000);
       expect(transaction.hasOrders, isTrue);
       expect(transaction.orders, ['26052912345678', '26052987654321']);
+      expect(transaction.payerName, 'NGUYEN VAN A');
+      expect(transaction.payerAccount, '9704361234567890');
+      expect(transaction.payerLabel, 'NGUYEN VAN A • 9704361234567890');
       expect(history.oldOrders, ['26052912345678']);
       expect(history.newOrders, ['26052987654321']);
       expect(history.changedByEmail, 'manager@example.com');

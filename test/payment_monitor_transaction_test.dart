@@ -12,12 +12,20 @@ void main() {
         'txnDate': '21/05/2026 09:15:30',
         'firstSeenAt': '2026-05-21T02:15:35.000Z',
         'txnDesc': 'Customer transfer',
+        'storeId': 'CP01',
+        'payerName': 'NGUYEN VAN A',
+        'payerAccount': '9704361234567890',
         'status': '00',
       });
 
       expect(transaction.id, 'MAP-001');
+      expect(transaction.storeId, 'CP01');
       expect(transaction.amount, 1250000);
       expect(transaction.content, 'Customer transfer');
+      expect(transaction.status, '00');
+      expect(transaction.payerName, 'NGUYEN VAN A');
+      expect(transaction.payerAccount, '9704361234567890');
+      expect(transaction.payerLabel, 'NGUYEN VAN A • 9704361234567890');
       expect(transaction.firstSeenAt, DateTime.utc(2026, 5, 21, 2, 15, 35));
       expect(transaction.isValidIncoming, isTrue);
     });

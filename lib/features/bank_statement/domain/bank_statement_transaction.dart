@@ -54,6 +54,10 @@ class BankStatementTransaction {
   }
 
   bool get hasOrders => orders.isNotEmpty;
+  String get payerLabel => [
+    payerName?.trim() ?? '',
+    payerAccount?.trim() ?? '',
+  ].where((value) => value.isNotEmpty).join(' • ');
 
   BankStatementTransaction copyWith({List<String>? orders}) {
     return BankStatementTransaction(

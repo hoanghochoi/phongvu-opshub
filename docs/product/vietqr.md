@@ -74,6 +74,10 @@ a customer to scan and pay manually.
   showroom, not only transfers that match an OpsHub QR.
 - The monitor transaction list can be filtered by a Vietnam-local date range,
   for example 23-27/05, and remains paginated by the selected row count.
+- Each transaction card shows the payer name/account when MAP provides it.
+  Tapping a card opens a selectable detail dialog with the full available payer,
+  amount, transaction time/number, content, status, showroom, and OpsHub
+  first-seen timestamp. Missing MAP fields are shown explicitly as unavailable.
 - The Windows app starts the monitor after sign-in when the account has a
   showroom scope. It seeds currently visible server transactions silently so old
   rows are not announced again.
@@ -177,6 +181,10 @@ a customer to scan and pay manually.
   source label is `VietinBank`. Users can edit orders inline, enter multiple
   orders separated by whitespace, comma, or semicolon, save/cancel in place, and
   see a short per-row success or failure message.
+- Statement rows include the MAP payer name/account when available. Tapping the
+  transaction summary opens a selectable detail dialog with payer, payment,
+  showroom, order, manual-edit metadata, and OpsHub first-seen information;
+  checkbox selection and inline order actions remain separate controls.
 - Manual order edits write an audit row with old orders, new orders, editor id,
   editor email, source, and timestamp. The history icon opens these audit rows;
   automatic MAP extraction is not shown as a manual edit.
