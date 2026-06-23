@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { imageUploadOptions } from '../upload/image-upload.options';
+import { avatarUploadOptions } from '../upload/image-upload.options';
 import { userImportFileUploadOptions } from './user-import-file-upload.options';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { RequireFeature } from '../feature/feature.decorator';
@@ -59,7 +59,7 @@ export class UserController {
   }
 
   @Post('users/me/avatar')
-  @UseInterceptors(FileInterceptor('avatar', imageUploadOptions))
+  @UseInterceptors(FileInterceptor('avatar', avatarUploadOptions))
   updateAvatar(
     @Request() req: any,
     @UploadedFile() file?: Express.Multer.File,

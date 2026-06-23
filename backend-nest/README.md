@@ -34,6 +34,8 @@ Important variables:
 - `BIGQUERY_*`: Project, dataset, and table values for sync jobs. `BIGQUERY_KEY_FILE` is used when the VPS authenticates with a service-account JSON; keep that JSON outside the repo checkout, for example under `/data/import`, or omit it when the runtime uses Google Application Default Credentials.
 - `UPLOAD_BASE_DIR`: Directory where uploaded warranty/feedback images are written.
 - `IMAGE_BASE_URL`: Public URL that serves files from `UPLOAD_BASE_DIR`.
+- `UPLOAD_MAX_BYTES`: Maximum bytes per warranty/feedback image. Defaults to 10 MiB.
+- `AVATAR_UPLOAD_MAX_BYTES`: Maximum bytes per avatar image. Defaults to 2 MiB.
 
 The API validates env values on startup. Local development may omit all BigQuery values, which makes sync jobs skip themselves. Production requires complete BigQuery project/dataset/table values and rejects placeholder values such as `change-me` and `https://img.example.com`.
 
