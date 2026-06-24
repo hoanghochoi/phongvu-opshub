@@ -196,7 +196,7 @@ class _PersonnelCatalogAdminScreenState
                         item: item,
                         icon: Icons.apartment_outlined,
                         color: const Color(0xFF2563EB),
-                        metadata: '${item.userCount} user',
+                        metadata: '${item.userCount} người dùng',
                         onEdit: () => _openDepartmentEditor(item),
                         onDelete: item.isSystem
                             ? null
@@ -216,7 +216,7 @@ class _PersonnelCatalogAdminScreenState
                         color: const Color(0xFF7C3AED),
                         metadata: [
                           department,
-                          '${item.userCount} user',
+                          '${item.userCount} người dùng',
                         ].where((value) => value.isNotEmpty).join(' • '),
                         onEdit: () => _openJobRoleEditor(item),
                         onDelete: item.isSystem

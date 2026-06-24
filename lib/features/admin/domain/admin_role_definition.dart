@@ -26,8 +26,11 @@ class AdminRoleDefinition {
     return AdminRoleDefinition(
       id: json['id']?.toString(),
       value: code,
-      title: json['displayName']?.toString() ?? code,
-      description: json['description']?.toString() ?? '',
+      title: AdminRoles.displayTitle(code, json['displayName']?.toString()),
+      description: AdminRoles.displayDescription(
+        code,
+        json['description']?.toString(),
+      ),
       icon: _iconFor(code),
       color: _colorFor(code),
       isSystem: json['isSystem'] == true,
@@ -65,21 +68,21 @@ class AdminRoles {
   static const definitions = [
     AdminRoleDefinition(
       value: 'SUPER_ADMIN',
-      title: 'Super Admin',
+      title: 'Quản trị toàn hệ thống',
       description: 'Toàn quyền hệ thống',
       icon: Icons.verified_user_outlined,
       color: AppColors.violet600,
     ),
     AdminRoleDefinition(
       value: 'ADMIN',
-      title: 'Admin',
+      title: 'Quản trị viên',
       description: 'Quản trị theo phạm vi cây tổ chức',
       icon: Icons.admin_panel_settings_outlined,
       color: AppColors.info,
     ),
     AdminRoleDefinition(
       value: 'USER',
-      title: 'User',
+      title: 'Nhân viên',
       description: 'Quyền thao tác hằng ngày',
       icon: Icons.badge_outlined,
       color: AppColors.neutral600,
@@ -95,6 +98,36 @@ class AdminRoles {
       'ADMIN' || 'ADMIN_PHONGVU' || 'ADMIN_ACARE' || 'MANAGER' => 'ADMIN',
       'USER' || 'STAFF' => 'USER',
       _ => 'USER',
+    };
+  }
+
+  static String displayTitle(String? role, [String? rawTitle]) {
+    final title = rawTitle?.trim();
+    final code = normalize(role);
+    final technicalTitle =
+        title == null ||
+        title.isEmpty ||
+        title == code ||
+        title == 'Super Admin' ||
+        title == 'Admin' ||
+        title == 'User';
+    if (!technicalTitle) return title;
+    return switch (code) {
+      'SUPER_ADMIN' => 'Quản trị toàn hệ thống',
+      'ADMIN' => 'Quản trị viên',
+      'USER' => 'Nhân viên',
+      _ => 'Nhân viên',
+    };
+  }
+
+  static String displayDescription(String? role, [String? rawDescription]) {
+    final description = rawDescription?.trim();
+    if (description != null && description.isNotEmpty) return description;
+    return switch (normalize(role)) {
+      'SUPER_ADMIN' => 'Toàn quyền hệ thống',
+      'ADMIN' => 'Quản trị theo phạm vi cây tổ chức',
+      'USER' => 'Quyền thao tác hằng ngày',
+      _ => 'Quyền thao tác hằng ngày',
     };
   }
 }

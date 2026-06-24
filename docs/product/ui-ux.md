@@ -67,6 +67,10 @@ visual systems that make the app feel assembled from unrelated screens.
 - Do not expose backend, provider, token, stack trace, HTTP, or database terms
   in user-facing UI. Map technical failures to plain operational language, for
   example `Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.`
+- Do not expose role, department, policy, or feature codes such as `FIN_ACC`,
+  `SUPER_ADMIN`, `ADMIN_*`, or `PAYMENT_SPEAKER` in normal UI copy. Map them to
+  human labels or permission messages, for example `Bạn không có quyền sửa đơn
+  hàng.`
 - Use one product vocabulary consistently:
   - `showroom` or `SR`, not `store`, `branch`, or `shop` in visible UI.
   - `biên nhận` for warranty/repair receipts.

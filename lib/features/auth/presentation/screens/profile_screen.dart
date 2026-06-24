@@ -8,6 +8,7 @@ import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/utils/validators.dart';
+import '../../domain/entities/user.dart';
 import '../providers/auth_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -203,7 +204,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.email_outlined),
               title: Text(user?.email ?? ''),
-              subtitle: Text('Quyền hệ thống: ${user?.role ?? ''}'),
+              subtitle: Text('Vai trò: ${User.roleDisplayName(user?.role)}'),
             ),
             if (organizationNodeLabel != null)
               ListTile(

@@ -73,6 +73,15 @@ class User {
 
   static bool isAdminMenuRole(String? role) => isAdminRole(role);
 
+  static String roleDisplayName(String? role) {
+    return switch (normalizeRole(role)) {
+      'SUPER_ADMIN' => 'Quản trị toàn hệ thống',
+      'ADMIN' => 'Quản trị viên',
+      'USER' => 'Nhân viên',
+      _ => 'Nhân viên',
+    };
+  }
+
   bool get isSuperAdmin => role == 'SUPER_ADMIN';
 
   factory User.fromJson(Map<String, dynamic> json, {String? fallbackEmail}) {

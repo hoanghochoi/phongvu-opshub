@@ -249,7 +249,7 @@ export class PasswordResetService {
       where: { id: userId },
       select: { id: true, email: true, status: true },
     });
-    if (!user) throw new NotFoundException('Không tìm thấy user');
+    if (!user) throw new NotFoundException('Không tìm thấy người dùng');
 
     const password = await bcrypt.hash(newPassword, RESET_TOKEN_SALT_ROUNDS);
     const revokedAt = new Date();

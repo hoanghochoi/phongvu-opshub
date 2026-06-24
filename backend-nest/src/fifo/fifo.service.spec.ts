@@ -256,7 +256,7 @@ describe('FifoService', () => {
         [canonicalItem({ itemKey: 'CP62:S1', branchId: 'CP62' })],
         { fileName: 'inventory.xlsx', totalRows: 1, skippedRows: 0 },
       ),
-    ).rejects.toThrow('Chỉ ADMIN trở lên');
+    ).rejects.toThrow('Bạn không có quyền cập nhật tồn kho');
     expect(inventory.importManualInventory).not.toHaveBeenCalled();
   });
 });

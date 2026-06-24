@@ -119,17 +119,17 @@ const ROLE_ALIASES: Record<string, string> = {
 const DEFAULT_ROLE_DEFINITIONS = [
   {
     code: SUPER_ADMIN_ROLE,
-    displayName: 'Super Admin',
+    displayName: 'Quản trị toàn hệ thống',
     description: 'Toàn quyền hệ thống',
   },
   {
     code: ADMIN_ROLE,
-    displayName: 'Admin',
+    displayName: 'Quản trị viên',
     description: 'Quản trị theo phạm vi cây tổ chức',
   },
   {
     code: USER_ROLE,
-    displayName: 'User',
+    displayName: 'Nhân viên',
     description: 'Quyền thao tác hằng ngày',
   },
 ];
@@ -555,7 +555,7 @@ export class UserService implements OnModuleInit {
       where: { id: userId },
       include: this.userDtoInclude(),
     });
-    if (!user) throw new NotFoundException('Không tìm thấy user');
+    if (!user) throw new NotFoundException('Không tìm thấy người dùng');
     return this.toUserDto(user);
   }
 
@@ -685,7 +685,7 @@ export class UserService implements OnModuleInit {
       where: { id: userId },
       include: this.userDtoInclude(),
     });
-    if (!current) throw new NotFoundException('Không tìm thấy user');
+    if (!current) throw new NotFoundException('Không tìm thấy người dùng');
 
     await this.assertAdminCanUpdateUser(admin, userId, current);
     const prepared = await this.prepareAdminUserMutation(admin, body, current);
@@ -709,7 +709,7 @@ export class UserService implements OnModuleInit {
     await this.assertAdmin(admin);
     await this.assertSuperAdminCanDeleteUsers(admin);
     const id = String(userId || '').trim();
-    if (!id) throw new BadRequestException('userId không hợp lệ');
+    if (!id) throw new BadRequestException('Người dùng không hợp lệ');
     if (admin?.id && admin.id === id) {
       throw new BadRequestException(
         'Không thể tự xóa tài khoản đang đăng nhập',
@@ -725,9 +725,11 @@ export class UserService implements OnModuleInit {
         status: true,
       },
     });
-    if (!current) throw new NotFoundException('Không tìm thấy user');
+    if (!current) throw new NotFoundException('Không tìm thấy người dùng');
     if (this.normalizeRoleCode(current.role, true) === SUPER_ADMIN_ROLE) {
-      throw new BadRequestException('Không được xóa tài khoản SUPER_ADMIN');
+      throw new BadRequestException(
+        'Không thể xóa tài khoản quản trị toàn hệ thống',
+      );
     }
     if (String(current.status || '').toLowerCase() !== 'no') {
       throw new BadRequestException('Chỉ xóa được tài khoản đã khóa');
@@ -977,7 +979,9 @@ export class UserService implements OnModuleInit {
       this.isScopedAdmin(admin) &&
       this.normalizeRoleCode(current.role) === SUPER_ADMIN_ROLE
     ) {
-      throw new ForbiddenException('Không có quyền sửa tài khoản SUPER_ADMIN');
+      throw new ForbiddenException(
+        'Bạn không có quyền sửa tài khoản quản trị toàn hệ thống',
+      );
     }
 
     if (
@@ -1214,7 +1218,7 @@ export class UserService implements OnModuleInit {
       if (item.action !== 'created') continue;
       const user = savedByEmail.get(item.email);
       if (!user) {
-        failedByEmail.set(item.email, 'Không tìm thấy user sau import');
+        failedByEmail.set(item.email, 'Không tìm thấy người dùng sau import');
         continue;
       }
       const result = await this.sendWelcomeEmail(user, {
@@ -1343,21 +1347,25 @@ export class UserService implements OnModuleInit {
       where: { id: userId },
       include: this.userDtoInclude(),
     });
-    if (!target) throw new NotFoundException('Không tìm thấy user');
+    if (!target) throw new NotFoundException('Không tìm thấy người dùng');
 
     if (
       this.normalizeRoleCode(target.role) === SUPER_ADMIN_ROLE &&
       this.normalizeRoleCode(admin.role) !== SUPER_ADMIN_ROLE
     ) {
-      throw new ForbiddenException('Không được reset mật khẩu SUPER_ADMIN');
+      throw new ForbiddenException(
+        'Bạn không có quyền reset mật khẩu tài khoản quản trị toàn hệ thống',
+      );
     }
     if (this.normalizeRoleCode(admin.role) !== SUPER_ADMIN_ROLE) {
       if (!this.isDomainAdmin(admin)) {
-        throw new ForbiddenException('Không có quyền reset mật khẩu user');
+        throw new ForbiddenException(
+          'Bạn không có quyền reset mật khẩu người dùng',
+        );
       }
       if (!(await this.userWithinAdminScope(admin, target))) {
         throw new ForbiddenException(
-          'Không có quyền reset mật khẩu user ngoài phạm vi quản lý',
+          'Bạn không có quyền reset mật khẩu người dùng ngoài phạm vi quản lý',
         );
       }
     }
@@ -2567,7 +2575,9 @@ export class UserService implements OnModuleInit {
       this.isScopedAdmin(admin) &&
       !(await this.storeWithinAdminScope(admin, store))
     ) {
-      throw new ForbiddenException('Chỉ được gán user trong phạm vi quản lý');
+      throw new ForbiddenException(
+        'Bạn chỉ được gán người dùng trong phạm vi quản lý',
+      );
     }
     return store.id;
   }
@@ -2578,24 +2588,24 @@ export class UserService implements OnModuleInit {
     ) {
       return;
     }
-    throw new ForbiddenException('Không có quyền quản trị user');
+    throw new ForbiddenException('Bạn không có quyền quản trị người dùng');
   }
 
   private async assertSuperAdmin(user: any) {
     if (user.role === SUPER_ADMIN_ROLE) {
       return;
     }
-    throw new ForbiddenException('Chỉ SUPER_ADMIN được quản lý role');
+    throw new ForbiddenException('Bạn không có quyền quản lý vai trò');
   }
 
   private async assertSuperAdminCanCreateUsers(user: any) {
     if (user.role === SUPER_ADMIN_ROLE) return;
-    throw new ForbiddenException('Chỉ SUPER_ADMIN được thêm user');
+    throw new ForbiddenException('Bạn không có quyền thêm người dùng');
   }
 
   private async assertSuperAdminCanDeleteUsers(user: any) {
     if (user.role === SUPER_ADMIN_ROLE) return;
-    throw new ForbiddenException('Chỉ SUPER_ADMIN được xóa user');
+    throw new ForbiddenException('Bạn không có quyền xóa người dùng');
   }
 
   private async assertPolicy(user: any, policyCode: string, message: string) {
@@ -2620,7 +2630,7 @@ export class UserService implements OnModuleInit {
     await this.assertPolicy(
       admin,
       ADMIN_POLICY_CODES.ADMIN_USER_ROLE_EDIT,
-      'Không có quyền sửa role',
+      'Bạn không có quyền sửa vai trò',
     );
   }
 
@@ -3909,27 +3919,27 @@ export class UserService implements OnModuleInit {
     await this.assertPolicy(
       admin,
       ADMIN_POLICY_CODES.ADMIN_ROLES,
-      'Không có quyền tạo role',
+      'Bạn không có quyền tạo vai trò',
     );
-    throw new GoneException('Quyền hệ thống cố định: SUPER_ADMIN, ADMIN, USER');
+    throw new GoneException('Quyền hệ thống là danh mục cố định');
   }
 
   async adminUpdateRole(admin: any, currentCode: string, body: any) {
     await this.assertPolicy(
       admin,
       ADMIN_POLICY_CODES.ADMIN_ROLES,
-      'Không có quyền sửa role',
+      'Bạn không có quyền sửa vai trò',
     );
-    throw new GoneException('Quyền hệ thống cố định: SUPER_ADMIN, ADMIN, USER');
+    throw new GoneException('Quyền hệ thống là danh mục cố định');
   }
 
   async adminDeleteRole(admin: any, codeInput: string) {
     await this.assertPolicy(
       admin,
       ADMIN_POLICY_CODES.ADMIN_ROLES,
-      'Không có quyền xóa role',
+      'Bạn không có quyền xóa vai trò',
     );
-    throw new GoneException('Quyền hệ thống cố định: SUPER_ADMIN, ADMIN, USER');
+    throw new GoneException('Quyền hệ thống là danh mục cố định');
   }
 
   async adminListStores(admin: any, q?: string) {
@@ -4204,9 +4214,11 @@ export class UserService implements OnModuleInit {
         _count: { select: { users: true, featureAccessRules: true } },
       },
     });
-    if (!store) throw new NotFoundException('Không tìm thấy store');
+    if (!store) throw new NotFoundException('Không tìm thấy showroom');
     if (store._count.users > 0) {
-      throw new BadRequestException('Store đang có user, không thể xóa');
+      throw new BadRequestException(
+        'Showroom đang có người dùng, không thể xóa',
+      );
     }
     if (store._count.featureAccessRules > 0) {
       throw new BadRequestException(
@@ -4798,7 +4810,9 @@ export class UserService implements OnModuleInit {
       this.isScopedAdmin(admin) &&
       !(await this.storeWithinAdminScope(admin, store))
     ) {
-      throw new ForbiddenException('Chỉ được gán user trong phạm vi quản lý');
+      throw new ForbiddenException(
+        'Bạn chỉ được gán người dùng trong phạm vi quản lý',
+      );
     }
     return store.id;
   }
@@ -5019,7 +5033,9 @@ export class UserService implements OnModuleInit {
         ' allowedRootId=' +
         rootId,
     );
-    throw new ForbiddenException('Chỉ được gán user trong phạm vi quản lý');
+    throw new ForbiddenException(
+      'Bạn chỉ được gán người dùng trong phạm vi quản lý',
+    );
   }
 
   private async organizationScopeContext(nodeId: string) {
@@ -5394,14 +5410,15 @@ export class UserService implements OnModuleInit {
     if (!/^[A-Z][A-Z0-9_]{1,39}$/.test(code)) {
       if (strict) {
         throw new BadRequestException(
-          'Mã role phải bắt đầu bằng chữ, tối đa 40 ký tự',
+          'Mã vai trò phải bắt đầu bằng chữ, tối đa 40 ký tự',
         );
       }
       return USER_ROLE;
     }
     const normalized = ROLE_ALIASES[code] ?? code;
     if (![SUPER_ADMIN_ROLE, ADMIN_ROLE, USER_ROLE].includes(normalized)) {
-      if (strict) throw new BadRequestException('Role hệ thống không hợp lệ');
+      if (strict)
+        throw new BadRequestException('Vai trò hệ thống không hợp lệ');
       return USER_ROLE;
     }
     if (normalized !== code) {
@@ -5454,7 +5471,7 @@ export class UserService implements OnModuleInit {
       where: { code },
     });
     if (!role) {
-      throw new BadRequestException('Role không tồn tại');
+      throw new BadRequestException('Vai trò không tồn tại');
     }
     return role.code;
   }
@@ -5541,7 +5558,7 @@ export class UserService implements OnModuleInit {
         scopeLabel,
     );
     throw new ForbiddenException(
-      admin.role + ' chỉ được quản lý user thuộc ' + scopeLabel,
+      'Bạn chỉ được quản lý người dùng thuộc ' + scopeLabel,
     );
   }
 

@@ -343,7 +343,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
-            title: const Text('Đổi mật khẩu user'),
+            title: const Text('Đổi mật khẩu người dùng'),
             content: Form(
               key: formKey,
               child: Column(
@@ -448,7 +448,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     for (final role in _roles) {
       if (role.value == value) return role.title;
     }
-    return value?.isNotEmpty == true ? value! : 'Chưa gán';
+    return value?.isNotEmpty == true ? User.roleDisplayName(value) : 'Chưa gán';
   }
 
   String _personnelTitle(User user) {
@@ -971,7 +971,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Đã tạo user nhưng chưa gửi được email chào mừng: $welcomeEmailError',
+              'Đã tạo người dùng nhưng chưa gửi được email chào mừng: $welcomeEmailError',
             ),
           ),
         );
@@ -1030,7 +1030,11 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     addIfChanged('firstName', user.name, 'Tên');
     addIfChanged('lastName', user.lastName, 'Họ');
     addIfChanged('status', user.status, 'Trạng thái');
-    addIfChanged('organizationNodeId', user.organizationNodeId, 'Node tổ chức');
+    addIfChanged(
+      'organizationNodeId',
+      user.organizationNodeId,
+      'Vị trí trong cây tổ chức',
+    );
     if (widget.canEditRole) addIfChanged('role', user.role, 'Quyền hệ thống');
     return changes;
   }
@@ -1090,7 +1094,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     for (final role in widget.roles) {
       if (role.value == value) return role.title;
     }
-    return value;
+    return User.roleDisplayName(value);
   }
 
   String _defaultScopeForRole(String role) {
@@ -1304,7 +1308,9 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                                     : Icons.public_rounded,
                               ),
                               title: const Text('Toàn hệ thống'),
-                              subtitle: const Text('SUPER_ADMIN global'),
+                              subtitle: const Text(
+                                'Áp dụng cho toàn bộ hệ thống',
+                              ),
                               onTap: () =>
                                   Navigator.of(context).pop('__GLOBAL__'),
                             );

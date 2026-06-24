@@ -9,6 +9,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../domain/admin_organization_node.dart';
 import '../../domain/admin_policy_definition.dart';
+import '../../domain/admin_role_definition.dart';
 
 class PolicyAdminScreen extends StatefulWidget {
   const PolicyAdminScreen({super.key});
@@ -380,15 +381,17 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
   String _ruleSummary(AdminPolicyRule rule) {
     final parts = <String>[
       rule.allowed ? 'Cho phép' : 'Chặn',
-      if (rule.emailDomain?.isNotEmpty == true) 'domain=${rule.emailDomain}',
-      if (rule.systemRole?.isNotEmpty == true) 'role=${rule.systemRole}',
+      if (rule.emailDomain?.isNotEmpty == true)
+        'Domain email: ${rule.emailDomain}',
+      if (rule.systemRole?.isNotEmpty == true)
+        'Vai trò: ${AdminRoles.displayTitle(rule.systemRole)}',
       if (rule.organizationNodeName?.isNotEmpty == true)
-        'node=${rule.organizationNodeName}',
+        'Node tổ chức: ${rule.organizationNodeName}',
       if (rule.organizationNodeId?.isNotEmpty == true &&
           rule.organizationNodeName == null)
-        'node=${rule.organizationNodeId}',
+        'Node tổ chức: ${rule.organizationNodeId}',
       if (_legacyRuleSummary(rule) != null)
-        'legacy=${_legacyRuleSummary(rule)}',
+        'Điều kiện cũ: ${_legacyRuleSummary(rule)}',
     ];
     return parts.join(' • ');
   }
@@ -396,17 +399,19 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
   String? _legacyRuleSummary(AdminPolicyRule rule) {
     final legacy = [
       if (rule.departmentCode?.isNotEmpty == true)
-        'phòng:${rule.departmentCode}',
-      if (rule.jobRoleCode?.isNotEmpty == true) 'chức:${rule.jobRoleCode}',
-      if (rule.workScopeType?.isNotEmpty == true) 'scope:${rule.workScopeType}',
-      if (rule.regionCode?.isNotEmpty == true) 'miền:${rule.regionCode}',
-      if (rule.areaCode?.isNotEmpty == true) 'vùng:${rule.areaCode}',
-      if (rule.storeCode?.isNotEmpty == true) 'SR:${rule.storeCode}',
-      if (rule.userId?.isNotEmpty == true) 'user:${rule.userId}',
+        'Phòng ban: ${rule.departmentCode}',
+      if (rule.jobRoleCode?.isNotEmpty == true)
+        'Chức danh: ${rule.jobRoleCode}',
+      if (rule.workScopeType?.isNotEmpty == true)
+        'Phạm vi: ${rule.workScopeType}',
+      if (rule.regionCode?.isNotEmpty == true) 'Miền: ${rule.regionCode}',
+      if (rule.areaCode?.isNotEmpty == true) 'Vùng: ${rule.areaCode}',
+      if (rule.storeCode?.isNotEmpty == true) 'SR: ${rule.storeCode}',
+      if (rule.userId?.isNotEmpty == true) 'Người dùng: ${rule.userId}',
       if (rule.scopeContains?.isNotEmpty == true)
-        'contains:${rule.scopeContains}',
+        'Có chứa: ${rule.scopeContains}',
     ];
-    return legacy.isEmpty ? null : legacy.join(',');
+    return legacy.isEmpty ? null : legacy.join(', ');
   }
 
   String _compactJson(dynamic value) {
@@ -731,7 +736,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
               title: Text(_allowed ? 'Cho phép' : 'Chặn'),
             ),
             _csvField(_emailDomains, 'Domain email'),
-            _csvField(_systemRoles, 'System role'),
+            _csvField(_systemRoles, 'Vai trò hệ thống'),
             _organizationNodePicker(),
             TextField(
               controller: _note,
@@ -758,7 +763,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
       controller: controller,
       decoration: InputDecoration(
         labelText: label,
-        helperText: 'Có thể nhập nhiều mã, phân tách bằng dấu phẩy',
+        helperText: 'Có thể nhập nhiều giá trị, phân tách bằng dấu phẩy',
       ),
     );
   }

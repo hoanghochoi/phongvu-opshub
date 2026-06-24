@@ -672,7 +672,7 @@ describe('UserService admin store management', () => {
         workScopeType: 'STORE',
         organizationNodeId: 'org-store-ac001',
       }),
-    ).rejects.toThrow('Chỉ SUPER_ADMIN');
+    ).rejects.toThrow('Bạn không có quyền thêm người dùng');
   });
 
   it('uses the linked store organization node for legacy store-assigned users', async () => {
@@ -855,7 +855,7 @@ describe('UserService admin store management', () => {
         workScopeType: 'NATIONAL',
         organizationNodeId: 'org-domain-phongvu-vn',
       }),
-    ).rejects.toThrow('Chỉ SUPER_ADMIN');
+    ).rejects.toThrow('Bạn không có quyền thêm người dùng');
   });
 
   it('blocks ADMIN_ACARE from creating users', async () => {
@@ -869,7 +869,7 @@ describe('UserService admin store management', () => {
         workScopeType: 'NATIONAL',
         organizationNodeId: 'org-domain-acare-vn',
       }),
-    ).rejects.toThrow('Chỉ SUPER_ADMIN');
+    ).rejects.toThrow('Bạn không có quyền thêm người dùng');
   });
 
   it('derives STORE scope from the selected showroom organization node', async () => {
@@ -1629,7 +1629,7 @@ describe('UserService admin store management', () => {
     });
     await expect(
       service.adminDeleteUser(superAdmin, 'super-2'),
-    ).rejects.toThrow('SUPER_ADMIN');
+    ).rejects.toThrow('quản trị toàn hệ thống');
 
     await expect(
       service.adminDeleteUser(superAdmin, superAdmin.id),
@@ -2068,7 +2068,7 @@ describe('UserService admin store management', () => {
           },
         ],
       }),
-    ).rejects.toThrow('Chỉ SUPER_ADMIN');
+    ).rejects.toThrow('Bạn không có quyền thêm người dùng');
     expect(prisma.user.create).not.toHaveBeenCalled();
   });
 

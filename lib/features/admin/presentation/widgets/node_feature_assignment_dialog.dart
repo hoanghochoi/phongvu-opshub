@@ -458,7 +458,7 @@ class _NodeFeatureAssignmentDialogState
               ),
               if (selectedNode != null)
                 Text(
-                  'Nhóm: ${AdminOrganizationNodeTypes.titleOf(selectedNode.type)} • ${selectedNode.businessCode ?? selectedNode.storeId ?? selectedNode.code} • user ảnh hưởng: $impactedUsers',
+                  'Nhóm: ${AdminOrganizationNodeTypes.titleOf(selectedNode.type)} • ${selectedNode.businessCode ?? selectedNode.storeId ?? selectedNode.code} • người dùng ảnh hưởng: $impactedUsers',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall,

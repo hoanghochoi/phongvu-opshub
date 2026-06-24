@@ -1099,7 +1099,7 @@ describe('MapVietinService', () => {
         {
           id: 'has-order',
           canEditOrders: false,
-          orderEditBlockedReason: expect.stringContaining('FIN_ACC'),
+          orderEditBlockedReason: 'Bạn không có quyền sửa đơn hàng.',
         },
         { id: 'null-order', canEditOrders: true, orderEditBlockedReason: null },
       ],
@@ -1237,7 +1237,7 @@ describe('MapVietinService', () => {
     ).resolves.toMatchObject({
       orders: ['26052287654321'],
       canEditOrders: false,
-      orderEditBlockedReason: expect.stringContaining('FIN_ACC'),
+      orderEditBlockedReason: 'Bạn không có quyền sửa đơn hàng.',
     });
   });
 
@@ -1264,7 +1264,7 @@ describe('MapVietinService', () => {
         'stored-protected',
         { orders: ['26052287654321'] },
       ),
-    ).rejects.toThrow('FIN_ACC');
+    ).rejects.toThrow('Bạn không có quyền sửa đơn hàng.');
     expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
   });
 

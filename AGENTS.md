@@ -43,6 +43,17 @@ before acting. Never claim done before verification.
 - Before marking a feature done, verify that the new/changed flow has logs that
   would let an engineer identify where it failed.
 
+## UI Copy Requirement
+
+- All visible UI copy, snackbar/dialog messages, and backend errors surfaced to
+  the app must be user-facing, Vietnamese-first, and action-oriented.
+- Do not expose implementation codes or role/department names such as
+  `FIN_ACC`, `SUPER_ADMIN`, `ADMIN_*`, policy keys, stack traces, HTTP/database
+  terms, or debug-style `key=value` summaries in normal UI.
+- Keep technical identifiers in logs, tests, docs, and admin-only configuration
+  inputs when they are required, but map them to plain labels before showing a
+  status, blocker reason, or permission message to staff.
+
 ## Source Of Truth
 
 Read in this order:

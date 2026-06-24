@@ -1479,7 +1479,7 @@ export class FeatureService implements OnModuleInit {
 
   private assertSuperAdmin(user: any) {
     if (!isSuperAdminRole(user?.role)) {
-      throw new ForbiddenException('Chỉ SUPER_ADMIN được quản lý tính năng');
+      throw new ForbiddenException('Bạn không có quyền quản lý tính năng');
     }
   }
 }

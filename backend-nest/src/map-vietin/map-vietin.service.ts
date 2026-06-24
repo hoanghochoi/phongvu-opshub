@@ -44,6 +44,7 @@ const VIETNAM_UTC_OFFSET_HOURS = 7;
 const ORDER_SOURCE_AUTO = 'AUTO';
 const ORDER_SOURCE_MANUAL = 'MANUAL';
 const FIN_ACC_DEPARTMENT_CODE = 'FIN_ACC';
+const ORDER_EDIT_FORBIDDEN_MESSAGE = 'Bạn không có quyền sửa đơn hàng.';
 const STATEMENT_ORDER_STATUS_ALL = 'ALL';
 const STATEMENT_ORDER_STATUS_HAS_ORDER = 'HAS_ORDER';
 const STATEMENT_ORDER_STATUS_MISSING_ORDER = 'MISSING_ORDER';
@@ -1002,9 +1003,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   ) {
     const existingOrders = this.normalizeOrderCodes(row.orders || []);
     if (existingOrders.length === 0 || canEditProtectedOrders) return;
-    throw new ForbiddenException(
-      'Chỉ FIN_ACC hoặc SUPER_ADMIN được sửa mã đơn đã có',
-    );
+    throw new ForbiddenException(ORDER_EDIT_FORBIDDEN_MESSAGE);
   }
 
   private async canEditProtectedStatementOrders(user: any): Promise<boolean> {
@@ -1518,7 +1517,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       canEditOrders,
       orderEditBlockedReason: canEditOrders
         ? null
-        : 'Chỉ FIN_ACC hoặc SUPER_ADMIN được sửa mã đơn đã có',
+        : ORDER_EDIT_FORBIDDEN_MESSAGE,
       status: row.status,
       paidAt: row.paidAt,
       payerName: payer.name,
