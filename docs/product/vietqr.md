@@ -193,9 +193,11 @@ a customer to scan and pay manually.
 - Manual order edits write an audit row with old orders, new orders, editor id,
   editor email, source, and timestamp. The history icon opens these audit rows;
   automatic MAP extraction is not shown as a manual edit.
-- CSV export returns UTF-8 with BOM for Excel, preserves long numeric
-  identifiers such as transaction numbers, order codes, and payer accounts as
-  text, and formats transaction timestamps in Vietnam local time. Statement
+- CSV export returns UTF-8 with BOM for Excel, exports MAP
+  `rawData.txnReference` under the `Sao kê` column, preserves long numeric
+  identifiers such as statement references, transaction numbers, order codes,
+  and payer accounts as text, and formats transaction timestamps in Vietnam
+  local time. Statement
   search uses server-side paging, while selected transaction ids stay selected
   when users move between pages and take precedence during export. If nothing is
   selected, export includes every row matching the current filter/date/status,

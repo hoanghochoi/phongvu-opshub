@@ -144,6 +144,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     'txnNo',
     'id',
   ];
+  private readonly transactionReferenceKeys = ['txnReference'];
   private readonly transactionTimeKeys = [
     'tranTime',
     'txnDate',
@@ -307,24 +308,39 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   async exportStatementsCsv(user: any, input: ExportMapVietinStatementsDto) {
-    await this.assertCanUseStatements(user);
-    this.assertStatementExportDateRangeAllowed(input);
     const selectedIds = this.normalizeTransactionIds(input.transactionIds);
-    const where = selectedIds.length
-      ? await this.buildSelectedStatementWhere(user, selectedIds)
-      : (
-          await this.buildStatementQuery(user, input, {
-            requireFilter: true,
-          })
-        ).where;
-    const rows = await this.prisma.mapVietinTransaction.findMany({
-      where,
-      orderBy: [{ paidAt: 'desc' }, { firstSeenAt: 'desc' }],
-    });
+    const mode = selectedIds.length ? 'selected' : 'filter';
+    const startedAt = Date.now();
     this.logger.log(
-      `Statement export succeeded: user=${this.safeUserLabel(user)} mode=${selectedIds.length ? 'selected' : 'filter'} count=${rows.length}`,
+      `Statement export started: user=${this.safeUserLabel(user)} mode=${mode} selectedCount=${selectedIds.length}`,
     );
-    return this.toStatementsCsv(rows);
+    try {
+      await this.assertCanUseStatements(user);
+      this.assertStatementExportDateRangeAllowed(input);
+      const where = selectedIds.length
+        ? await this.buildSelectedStatementWhere(user, selectedIds)
+        : (
+            await this.buildStatementQuery(user, input, {
+              requireFilter: true,
+            })
+          ).where;
+      const rows = await this.prisma.mapVietinTransaction.findMany({
+        where,
+        orderBy: [{ paidAt: 'desc' }, { firstSeenAt: 'desc' }],
+      });
+      const transactionReferenceCount = rows.filter((row) =>
+        Boolean(this.resolveStoredTransactionReference(row)),
+      ).length;
+      this.logger.log(
+        `Statement export succeeded: user=${this.safeUserLabel(user)} mode=${mode} count=${rows.length} transactionReferenceCount=${transactionReferenceCount} durationMs=${Date.now() - startedAt}`,
+      );
+      return this.toStatementsCsv(rows);
+    } catch (error) {
+      this.logger.error(
+        `Statement export failed: user=${this.safeUserLabel(user)} mode=${mode} selectedCount=${selectedIds.length} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
   }
 
   private assertStatementExportDateRangeAllowed(
@@ -1441,6 +1457,15 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  private resolveStoredTransactionReference(row: {
+    rawData?: Prisma.JsonValue | null;
+  }) {
+    const rawData = this.rawDataAsMapRow(row.rawData);
+    return rawData
+      ? this.readFirstText(rawData, this.transactionReferenceKeys) || null
+      : null;
+  }
+
   private rawDataAsMapRow(value?: Prisma.JsonValue | null) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return null;
@@ -1856,6 +1881,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const headers = [
       'Mã showroom',
       'Mã giao dịch',
+      'Sao kê',
       'Số tiền',
       'Nội dung chuyển khoản',
       'Mã đơn hàng',
@@ -1871,10 +1897,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const lines = [headers.map((value) => this.csvCell(value)).join(',')];
     for (const row of rows) {
       const payer = this.resolveStoredPayer(row);
+      const transactionReference = this.resolveStoredTransactionReference(row);
       lines.push(
         [
           this.csvCell(row.storeCode),
           this.csvExcelTextCell(row.transactionNumber),
+          this.csvExcelTextCell(transactionReference),
           this.csvAmountCell(row.amount),
           this.csvCell(row.content),
           this.csvExcelTextCell((row.orders || []).join(' | ')),

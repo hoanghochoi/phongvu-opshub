@@ -1113,6 +1113,7 @@ describe('MapVietinService', () => {
         rawData: {
           reqCardName: 'Nguyễn Văn A',
           reqCardNo: '9704361234567890',
+          txnReference: '00020300000000004567',
         },
         firstSeenAt: new Date('2026-06-03T09:40:05.000Z'),
         orderSource: 'AUTO',
@@ -1126,12 +1127,14 @@ describe('MapVietinService', () => {
 
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain('Mã showroom');
+    expect(csv).toContain('Mã giao dịch,Sao kê,Số tiền');
     expect(csv).toContain('Số tiền');
     expect(csv).toContain('Khách chuyển tiền, cần giữ tiếng Việt');
     expect(csv).toContain('5190000');
     expect(csv).toContain('03/06/2026 16:39:41');
     expect(csv).not.toContain('2026-06-03T09:39:41.000Z');
     expect(csv).toContain('"=""2030000000000"""');
+    expect(csv).toContain('"=""00020300000000004567"""');
     expect(csv).toContain('"=""26052912345678"""');
     expect(csv).toContain('Nguyễn Văn A');
     expect(csv).toContain('"=""9704361234567890"""');

@@ -55,6 +55,15 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PAYMENT-STATEMENT-001, 2026-06-24: statement CSV export now reads MAP
+  `rawData.txnReference` into a `Sao kê` column without adding a duplicate
+  database column. The value is emitted as Excel text so leading zeroes and long
+  numeric references remain intact; export logs start/success/failure plus row
+  and populated-reference counts without logging reference values. Validation:
+  focused MAP statement Jest (32 tests), NestJS build, full backend Jest
+  (39 suites, 306 tests), and `git diff --check`. Gap: the configured local
+  database contains only seed rows without `txnReference`; production payload
+  presence and opening a live exported CSV in Excel remain unverified.
 - PAYMENT-MONITOR-001, 2026-06-23: added an opt-in fixed-prefix payment audio
   trial through `PAYMENT_TTS_AUDIO_MODE=amount_only_with_prefix` plus
   `PAYMENT_PREFIX_WAV_PATH` and optional `PAYMENT_CUE_PREFIX_WAV_PATH`. When
