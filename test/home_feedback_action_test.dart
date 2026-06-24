@@ -109,6 +109,52 @@ void main() {
     expect(find.text('Đọc loa tiền vào'), findsNothing);
     debugDefaultTargetPlatformOverride = null;
   });
+
+  testWidgets('Home support icon opens QR and group link dialog', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+      appName: 'PhongVu OpsHub',
+      packageName: 'com.example.phongvu_opshub',
+      version: '1.1.1',
+      buildNumber: '2',
+      buildSignature: '',
+    );
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'user-1',
+        email: 'staff@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+      ),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Hỗ trợ'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hỗ trợ OpsHub'), findsOneWidget);
+    expect(find.textContaining('link.seatalk.io/group/open'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Image &&
+            widget.image is AssetImage &&
+            (widget.image as AssetImage).assetName ==
+                'data/group_invitation.jpg',
+      ),
+      findsOneWidget,
+    );
+  });
 }
 
 class _FakeAuthProvider extends AuthProvider {

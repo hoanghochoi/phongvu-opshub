@@ -56,6 +56,15 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- HOME-SUPPORT-001, 2026-06-24: Home header now shows a `Hỗ trợ` icon that
+  opens the Seatalk support group QR asset and invite link without changing the
+  Home feature-tile order. The flow logs dialog requested/shown/closed plus
+  link-open start/success/failure through `AppLogger` with sanitized host/path
+  context. Validation: focused Home widget tests
+  (`test\home_feedback_action_test.dart`, `test\home_avatar_test.dart`),
+  `flutter analyze --no-pub`, and `git diff --check`. Gap: live Seatalk app
+  handoff remains manual.
+
 - UPDATE-003, 2026-06-24: added deploy-triggered realtime update discovery while
   keeping public `/app-version` as the authority. NestJS publishes sanitized
   Android/Windows build metadata to Redis after startup; Go relays only update

@@ -24,6 +24,8 @@ Go realtime service.
 - Profile/Admin: personal profile, admin-assigned organization nodes, and user
   administration.
 - Settings: client-side preferences such as Windows startup behavior.
+- Support: Home header exposes the Seatalk support group QR and invite link for
+  staff help without requiring a feature permission.
 - Client diagnostics: authenticated clients upload a sanitized previous-day
   activity summary once per day for operational debugging. The upload uses the
   existing app-log pipeline and does not include the raw log file.
