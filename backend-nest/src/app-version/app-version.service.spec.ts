@@ -63,9 +63,68 @@ describe('AppVersionService', () => {
       latestVersion: '1.2.4',
       latestBuild: 43,
       minSupportedBuild: 43,
-      updateUrl: 'https://opshub.hoanghochoi.com/downloads/app-windows-setup.exe',
+      updateUrl:
+        'https://opshub.hoanghochoi.com/downloads/app-windows-setup.exe',
       releaseNotes: 'Windows fixes',
       forceUpdate: true,
     });
+  });
+
+  it('publishes Android and Windows metadata for realtime clients', async () => {
+    const redis = {
+      publishMessageOrThrow: jest.fn().mockResolvedValue(undefined),
+    };
+    const publishingService = new AppVersionService(redis as any);
+
+    await expect(
+      publishingService.publishCurrentVersionMetadata({
+        APP_VERSION: '1.2.3',
+        APP_BUILD_NUMBER: '42',
+        APP_MIN_SUPPORTED_BUILD: '40',
+        APP_FORCE_UPDATE: 'true',
+        APP_WINDOWS_APP_VERSION: '1.2.4',
+        APP_WINDOWS_APP_BUILD_NUMBER: '43',
+        APP_WINDOWS_APP_MIN_SUPPORTED_BUILD: '41',
+        APP_WINDOWS_APP_FORCE_UPDATE: 'false',
+      }),
+    ).resolves.toBe(true);
+
+    expect(redis.publishMessageOrThrow).toHaveBeenCalledWith(
+      'APP_VERSION_UPDATED',
+      expect.objectContaining({
+        schemaVersion: 1,
+        publishedAt: expect.any(String),
+        platforms: {
+          android: {
+            latestVersion: '1.2.3',
+            latestBuild: 42,
+            minSupportedBuild: 40,
+            forceUpdate: true,
+          },
+          windows: {
+            latestVersion: '1.2.4',
+            latestBuild: 43,
+            minSupportedBuild: 41,
+            forceUpdate: false,
+          },
+        },
+      }),
+    );
+  });
+
+  it('reports realtime publish failure without blocking application startup', async () => {
+    const redis = {
+      publishMessageOrThrow: jest
+        .fn()
+        .mockRejectedValue(new Error('Redis unavailable')),
+    };
+    const publishingService = new AppVersionService(redis as any);
+
+    await expect(
+      publishingService.publishCurrentVersionMetadata({
+        APP_BUILD_NUMBER: '42',
+        APP_WINDOWS_APP_BUILD_NUMBER: '43',
+      }),
+    ).resolves.toBe(false);
   });
 });

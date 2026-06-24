@@ -91,6 +91,17 @@ class ApiConstants {
         .toString();
   }
 
+  static String get appUpdateRealtimeWsUrl {
+    final base = Uri.parse(baseUrl);
+    return base
+        .replace(
+          scheme: base.scheme == 'https' ? 'wss' : 'ws',
+          path: '/ws/app-updates',
+          queryParameters: null,
+        )
+        .toString();
+  }
+
   // FIFO endpoints
   static const String fifoCheckEndpoint = '/fifo/check';
   static const String fifoExportEndpoint = '/fifo/export';

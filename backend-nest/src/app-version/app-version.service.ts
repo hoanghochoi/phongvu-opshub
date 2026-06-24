@@ -1,4 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnApplicationBootstrap,
+  Optional,
+} from '@nestjs/common';
+import { RedisService } from '../redis/redis.service';
+
+const APP_VERSION_UPDATED_CHANNEL = 'APP_VERSION_UPDATED';
 
 type EnvMap = Record<string, string | undefined>;
 
@@ -13,7 +21,54 @@ export interface AppVersionResponse {
 }
 
 @Injectable()
-export class AppVersionService {
+export class AppVersionService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(AppVersionService.name);
+
+  constructor(@Optional() private readonly redisService?: RedisService) {}
+
+  onApplicationBootstrap() {
+    void this.publishCurrentVersionMetadata();
+  }
+
+  async publishCurrentVersionMetadata(env: EnvMap = process.env) {
+    if (!this.redisService) {
+      this.logger.warn(
+        'App version realtime publish skipped: RedisService is unavailable',
+      );
+      return false;
+    }
+
+    const android = this.getVersion(env, 'android');
+    const windows = this.getVersion(env, 'windows');
+    const startedAt = Date.now();
+    this.logger.log(
+      `App version realtime publish started: androidBuild=${android.latestBuild} windowsBuild=${windows.latestBuild}`,
+    );
+    try {
+      await this.redisService.publishMessageOrThrow(
+        APP_VERSION_UPDATED_CHANNEL,
+        {
+          schemaVersion: 1,
+          publishedAt: new Date().toISOString(),
+          platforms: {
+            android: realtimeVersionMetadata(android),
+            windows: realtimeVersionMetadata(windows),
+          },
+        },
+      );
+      this.logger.log(
+        `App version realtime publish completed: androidBuild=${android.latestBuild} windowsBuild=${windows.latestBuild} durationMs=${Date.now() - startedAt}`,
+      );
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `App version realtime publish failed: androidBuild=${android.latestBuild} windowsBuild=${windows.latestBuild} durationMs=${Date.now() - startedAt}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      return false;
+    }
+  }
+
   getVersion(
     env: EnvMap = process.env,
     platformInput?: string,
@@ -51,6 +106,15 @@ export class AppVersionService {
       ),
     };
   }
+}
+
+function realtimeVersionMetadata(info: AppVersionResponse) {
+  return {
+    latestVersion: info.latestVersion,
+    latestBuild: info.latestBuild,
+    minSupportedBuild: info.minSupportedBuild,
+    forceUpdate: info.forceUpdate,
+  };
 }
 
 function normalizePlatform(value: string | undefined): string {

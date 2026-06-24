@@ -22,7 +22,14 @@ go test ./...
 go run .
 ```
 
-The WebSocket endpoint is `/ws`. Send the JWT with `Authorization: Bearer <jwt>`; avoid query-string tokens because URLs can be logged by proxies and diagnostics. The legacy `access_token` query parameter is still accepted for compatibility.
+The authenticated WebSocket endpoint is `/ws`. Send the JWT with
+`Authorization: Bearer <jwt>`; avoid query-string tokens because URLs can be
+logged by proxies and diagnostics. The legacy `access_token` query parameter is
+still accepted for compatibility.
+
+The public `/ws/app-updates` endpoint broadcasts only `APP_UPDATE` signals. It
+does not accept or expose warranty and payment events; clients verify the signal
+against the public `/api/app-version` HTTP contract before showing an update.
 
 The liveness endpoint is:
 
@@ -36,6 +43,9 @@ The service subscribes to:
 
 ```text
 WARRANTY_STATUS_UPDATED
+PAYMENT_NOTIFICATION_READY
+APP_VERSION_UPDATED
 ```
 
-NestJS publishes this event when a warranty status changes.
+NestJS publishes these events for warranty status, payment notifications, and
+new deploy version metadata respectively.

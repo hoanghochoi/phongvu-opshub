@@ -5,7 +5,9 @@ Backend-native architecture for the OpsHub mobile app. The Flutter app talks to 
 ## Services
 
 - `backend-nest/`: NestJS API with Prisma, JWT auth, first-use password login, inventory sync, FIFO check/sort, FIFO logs, warranty uploads, and feedback.
-- `backend-go/`: Go realtime service that subscribes to Redis and broadcasts warranty status updates on `/ws`.
+- `backend-go/`: Go realtime service that subscribes to Redis, broadcasts
+  authenticated workflow events on `/ws`, and isolates public update signals on
+  `/ws/app-updates`.
 - `docker-compose.yml`: Local PostgreSQL and Redis only.
 - `n8n/`: Legacy workflow exports kept as reference, not used by runtime app code.
 

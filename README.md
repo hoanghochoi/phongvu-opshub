@@ -44,7 +44,8 @@ go test ./...
 go run .
 ```
 
-The Go service listens for Redis events and exposes a WebSocket endpoint on `/ws`.
+The Go service listens for Redis events, exposes authenticated workflow events
+on `/ws`, and exposes public app-update-only signals on `/ws/app-updates`.
 
 ## Current Backend Status
 
