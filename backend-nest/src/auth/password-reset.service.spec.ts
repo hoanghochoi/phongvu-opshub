@@ -1,6 +1,6 @@
 import * as bcrypt from 'bcrypt';
 import { createHash } from 'crypto';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PasswordResetService } from './password-reset.service';
 
 function hashToken(token: string) {
@@ -83,12 +83,12 @@ describe('PasswordResetService', () => {
     expect(emailText).not.toContain(createData.codeHash);
   });
 
-  it('returns the same generic response when forgot-password email is missing', async () => {
+  it('rejects missing forgot-password accounts without sending mail', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
 
     await expect(
       service.sendResetCodeForEmail('missing@phongvu-shop.vn'),
-    ).resolves.toEqual({ ok: true, expiresInMinutes: 10 });
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(mailService.sendMail).not.toHaveBeenCalled();
   });
 

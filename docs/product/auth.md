@@ -42,8 +42,10 @@ Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
 - Users can change their password while authenticated by entering their current
   password and a new password that satisfies the password policy.
 - Users who forget their password can request a reset email from the login
-  screen. The email contains a 6-digit code that expires after 10 minutes. The
-  response is generic so the API does not reveal whether an email exists.
+  screen. If the allowed-domain email belongs to an OpsHub account, the email
+  contains a 6-digit code that expires after 10 minutes. If the email has no
+  account yet, the API returns an explicit not-found response and Flutter shows
+  a dialog that routes the user to registration with the email prefilled.
 - Users created by admin Excel import have no password initially. Their first
   password is created through the same in-app `Quên mật khẩu` email-code flow.
 - After verifying the reset code in the app, users enter the new password and

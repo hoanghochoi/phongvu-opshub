@@ -56,6 +56,20 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- AUTH-002, 2026-06-24: forgot-password now returns an explicit not-found
+  response when an allowed-domain email has no OpsHub account, and Flutter shows
+  a `Chưa có tài khoản` dialog with a `Đăng ký tài khoản` action that opens
+  registration with the email prefilled instead of advancing to reset-code
+  entry. The flow logs missing-account dialog shown, register navigation, and
+  dismiss decisions through `AppLogger`; backend keeps logging the missing-email
+  reset request without sending mail. Validation: focused backend auth/password
+  reset Jest (`src/auth/password-reset.service.spec.ts`,
+  `src/auth/auth.service.spec.ts`, `src/auth/auth.controller.spec.ts`; 3 suites,
+  40 tests), backend `npm run build`, focused Flutter auth tests
+  (`test\auth_device_info_test.dart`, `test\forgot_password_screen_test.dart`;
+  6 tests), rerun of the focused forgot-password widget test after lint fix,
+  `flutter analyze --no-pub`, and `git diff --check`. Gap: live SMTP delivery
+  and deployed app click-through remain manual.
 - HOME-SUPPORT-001, 2026-06-24: Home header now shows a `Hỗ trợ` icon that
   opens the Seatalk support group QR asset and invite link without changing the
   Home feature-tile order. The flow logs dialog requested/shown/closed plus

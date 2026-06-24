@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../../core/utils/validators.dart';
 import '../providers/auth_provider.dart';
 
@@ -69,10 +70,70 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         'Nếu email hợp lệ, OpsHub đã gửi mã đổi mật khẩu. Mã hết hạn sau 10 phút.',
         success: true,
       );
+    } else if (authProvider.passwordResetAccountMissing) {
+      await _showMissingAccountDialog(
+        context,
+        email,
+        authProvider.errorMessage,
+      );
     } else {
       _showSnack(
         context,
         authProvider.errorMessage ?? 'Không gửi được mã đổi mật khẩu.',
+      );
+    }
+  }
+
+  Future<void> _showMissingAccountDialog(
+    BuildContext context,
+    String email,
+    String? message,
+  ) async {
+    await AppLogger.instance.warn(
+      'Auth',
+      'Password reset missing account dialog shown',
+      context: {'email': email},
+    );
+    if (!context.mounted) return;
+
+    final goRegister = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Chưa có tài khoản'),
+          content: Text(
+            message ??
+                'Email này chưa có tài khoản OpsHub. Vui lòng đăng ký tài khoản trước.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Ở lại'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.person_add_alt_1_rounded),
+              label: const Text('Đăng ký tài khoản'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!context.mounted) return;
+    if (goRegister == true) {
+      final router = GoRouter.of(context);
+      await AppLogger.instance.info(
+        'Auth',
+        'Password reset missing account register navigation selected',
+        context: {'email': email},
+      );
+      router.go('/register', extra: email);
+    } else {
+      await AppLogger.instance.info(
+        'Auth',
+        'Password reset missing account dialog dismissed',
+        context: {'email': email},
       );
     }
   }

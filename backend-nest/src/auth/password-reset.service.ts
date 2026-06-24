@@ -50,7 +50,9 @@ export class PasswordResetService {
 
     if (!user) {
       this.logger.warn(`Password reset requested for missing email=${email}`);
-      return this.genericCodeResponse();
+      throw new NotFoundException(
+        'Email này chưa có tài khoản OpsHub. Vui lòng đăng ký tài khoản trước.',
+      );
     }
 
     await this.sendResetCodeForUser(user);

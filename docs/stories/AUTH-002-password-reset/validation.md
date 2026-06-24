@@ -13,8 +13,10 @@ Required proof:
 
 Manual smoke after deploy:
 
-- Forgot-password returns generic success and sends a 6-digit code from
-  `admin@hoanghochoi.com` when the email belongs to an OpsHub account.
+- Forgot-password sends a 6-digit code from `admin@hoanghochoi.com` when the
+  email belongs to an OpsHub account.
+- Missing forgot-password accounts return a clear not-found response and Flutter
+  shows a dialog with a registration action.
 - Reset code works once, expires after 10 minutes, and rejects wrong codes.
 - After code verification, the app shows password and confirm-password fields;
   a valid reset changes the password and requires login again.
