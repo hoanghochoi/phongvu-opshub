@@ -113,6 +113,13 @@ export class UserController {
   ) {
     return this.userService.adminUpdateUser(req.user, id, body);
   }
+
+  @Delete('admin/users/:id')
+  @RequireFeature(FEATURE_KEYS.ADMIN_USERS)
+  deleteUser(@Request() req: any, @Param('id') id: string) {
+    return this.userService.adminDeleteUser(req.user, id);
+  }
+
   @Post('admin/users/:id/reset-password')
   @RequireFeature(FEATURE_KEYS.ADMIN_USERS)
   resetUserPassword(

@@ -21,6 +21,33 @@ describe('MapVietinService', () => {
       MAP_VIETIN_CREDENTIAL_SECRET: 'test-map-secret',
     };
     prisma = {
+      user: {
+        findUnique: jest.fn(async ({ where }: any) => {
+          if (where.id === 'fin-node-user') {
+            return {
+              departmentCode: null,
+              organizationNodeId: 'org-fin-child',
+            };
+          }
+          return null;
+        }),
+      },
+      organizationNode: {
+        findMany: jest.fn(async () => [
+          {
+            id: 'org-fin',
+            parentId: null,
+            code: 'FIN_ACC',
+            businessCode: 'FIN_ACC',
+          },
+          {
+            id: 'org-fin-child',
+            parentId: 'org-fin',
+            code: 'FIN_CHILD',
+            businessCode: 'FIN_CHILD',
+          },
+        ]),
+      },
       store: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
@@ -1016,6 +1043,69 @@ describe('MapVietinService', () => {
     expect(JSON.stringify(where)).toContain('isEmpty');
   });
 
+  it('returns statement order edit flags for visible rows', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      {
+        id: 'has-order',
+        storeCode: 'CP01',
+        transactionKey: 'CP01:has-order',
+        transactionNumber: 'TXN-HAS',
+        amount: 1250000,
+        content: 'Auto order',
+        orders: ['26052912345678'],
+        orderSource: 'AUTO',
+        orderUpdatedAt: null,
+        orderUpdatedByUserId: null,
+        orderUpdatedByEmail: null,
+        status: '00',
+        paidAt: null,
+        payerName: null,
+        payerAccount: null,
+        firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+      },
+      {
+        id: 'null-order',
+        storeCode: 'CP01',
+        transactionKey: 'CP01:null-order',
+        transactionNumber: 'TXN-NULL',
+        amount: 1250000,
+        content: 'No order',
+        orders: [],
+        orderSource: null,
+        orderUpdatedAt: null,
+        orderUpdatedByUserId: null,
+        orderUpdatedByEmail: null,
+        status: '00',
+        paidAt: null,
+        payerName: null,
+        payerAccount: null,
+        firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+      },
+    ]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(2);
+
+    await expect(
+      service.listStatements(
+        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        { orderStatus: 'ALL', startDate: '2026-05-29', endDate: '2026-05-29' },
+      ),
+    ).resolves.toMatchObject({
+      total: 2,
+      list: [
+        {
+          id: 'has-order',
+          canEditOrders: false,
+          orderEditBlockedReason: expect.stringContaining('FIN_ACC'),
+        },
+        { id: 'null-order', canEditOrders: true, orderEditBlockedReason: null },
+      ],
+    });
+  });
+
   it('filters statements by selected SR codes for super admin', async () => {
     prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
     prisma.mapVietinTransaction.count.mockResolvedValue(0);
@@ -1078,24 +1168,161 @@ describe('MapVietinService', () => {
       service.updateStatementOrders(
         {
           id: 'user-1',
-          email: 'manager@example.com',
+          email: 'finance@example.com',
           role: 'MANAGER',
           storeId: 'store-uuid-1',
+          departmentCode: 'FIN_ACC',
         },
         'stored-1',
         { orders: ['26052287654321'] },
       ),
-    ).resolves.toMatchObject({ orders: ['26052287654321'] });
+    ).resolves.toMatchObject({
+      orders: ['26052287654321'],
+      canEditOrders: true,
+    });
 
     expect(prisma.mapVietinTransactionOrderAudit.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           oldOrders: ['26052112345678'],
           newOrders: ['26052287654321'],
-          changedByEmail: 'manager@example.com',
+          changedByEmail: 'finance@example.com',
         }),
       }),
     );
+  });
+
+  it('lets non-FIN statement users fill NULL orders only', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue({
+      id: 'stored-null',
+      storeCode: 'CP01',
+      orders: [],
+      orderSource: null,
+    });
+    prisma.mapVietinTransaction.update.mockResolvedValue({
+      id: 'stored-null',
+      storeCode: 'CP01',
+      transactionKey: 'CP01:null',
+      transactionNumber: 'TXN-NULL',
+      amount: 1250000,
+      content: 'Manual fill',
+      orders: ['26052287654321'],
+      orderSource: 'MANUAL',
+      orderUpdatedAt: new Date('2026-05-21T03:00:00.000Z'),
+      orderUpdatedByUserId: 'user-1',
+      orderUpdatedByEmail: 'manager@example.com',
+      status: '00',
+      paidAt: null,
+      payerName: null,
+      payerAccount: null,
+      firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+    });
+    prisma.mapVietinTransactionOrderAudit.create.mockResolvedValue({});
+
+    await expect(
+      service.updateStatementOrders(
+        {
+          id: 'user-1',
+          email: 'manager@example.com',
+          role: 'MANAGER',
+          storeId: 'store-uuid-1',
+        },
+        'stored-null',
+        { orders: ['26052287654321'] },
+      ),
+    ).resolves.toMatchObject({
+      orders: ['26052287654321'],
+      canEditOrders: false,
+      orderEditBlockedReason: expect.stringContaining('FIN_ACC'),
+    });
+  });
+
+  it('blocks non-FIN users from editing existing AUTO or MANUAL orders', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue({
+      id: 'stored-protected',
+      storeCode: 'CP01',
+      orders: ['26052112345678'],
+      orderSource: 'AUTO',
+    });
+
+    await expect(
+      service.updateStatementOrders(
+        {
+          id: 'user-1',
+          email: 'manager@example.com',
+          role: 'MANAGER',
+          storeId: 'store-uuid-1',
+        },
+        'stored-protected',
+        { orders: ['26052287654321'] },
+      ),
+    ).rejects.toThrow('FIN_ACC');
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+  });
+
+  it('lets SUPER_ADMIN and FIN_ACC node users edit protected statement orders', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue({
+      id: 'stored-protected',
+      storeCode: 'CP01',
+      orders: ['26052112345678'],
+      orderSource: 'MANUAL',
+    });
+    prisma.mapVietinTransaction.update.mockResolvedValue({
+      id: 'stored-protected',
+      storeCode: 'CP01',
+      transactionKey: 'CP01:protected',
+      transactionNumber: 'TXN-PROTECTED',
+      amount: 1250000,
+      content: 'Protected fix',
+      orders: ['26052287654321'],
+      orderSource: 'MANUAL',
+      orderUpdatedAt: new Date('2026-05-21T03:00:00.000Z'),
+      orderUpdatedByUserId: 'fin-node-user',
+      orderUpdatedByEmail: 'fin-node@example.com',
+      status: '00',
+      paidAt: null,
+      payerName: null,
+      payerAccount: null,
+      firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+    });
+    prisma.mapVietinTransactionOrderAudit.create.mockResolvedValue({});
+
+    await expect(
+      service.updateStatementOrders(
+        {
+          id: 'fin-node-user',
+          email: 'fin-node@example.com',
+          role: 'MANAGER',
+          storeId: 'store-uuid-1',
+        },
+        'stored-protected',
+        { orders: ['26052287654321'] },
+      ),
+    ).resolves.toMatchObject({ canEditOrders: true });
+
+    await expect(
+      service.updateStatementOrders(
+        {
+          id: 'super-1',
+          email: 'root@example.com',
+          role: 'SUPER_ADMIN',
+        },
+        'stored-protected',
+        { orders: ['26052287654321'] },
+      ),
+    ).resolves.toMatchObject({ canEditOrders: true });
   });
 
   it('exports selected statement rows as UTF-8 CSV', async () => {

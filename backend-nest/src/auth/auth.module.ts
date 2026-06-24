@@ -28,6 +28,6 @@ import { AuthSessionService } from './auth-session.service';
     PasswordResetService,
     AuthSessionService,
   ],
-  exports: [PasswordResetService],
+  exports: [OpshubMailService, PasswordResetService],
 })
 export class AuthModule {}

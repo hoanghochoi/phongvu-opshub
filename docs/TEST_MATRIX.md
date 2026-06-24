@@ -56,6 +56,22 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PROFILE-ADMIN-001 / PAYMENT-STATEMENT-001, 2026-06-24: tightened user
+  import/create/delete and statement-order edit permissions. `SUPER_ADMIN` is
+  now required for admin user creation/import, imports validate email syntax and
+  allowed domains before any write, newly created users receive welcome email
+  guidance for first password setup, SMTP failure is reported without rolling
+  back creation, and locked-user hard delete is blocked for active/self/
+  `SUPER_ADMIN`/history-backed accounts. Statement order edits now allow
+  non-FIN users to fill only currently empty orders; existing AUTO/MANUAL orders
+  can be edited only by `SUPER_ADMIN` or `FIN_ACC`, while existing showroom
+  scope remains unchanged. Validation: `npx prisma validate`, focused backend
+  user/import/MAP statement Jest (3 suites, 83 tests), backend `npm run build`,
+  full backend `npm test -- --runInBand` (39 suites, 317 tests), focused
+  Flutter bank statement provider test (15 tests), full Flutter
+  `flutter test --no-pub --reporter expanded` (142 tests), `flutter analyze
+  --no-pub`, and `git diff --check`. Gap: live SMTP delivery, user-admin
+  click-through, and Windows statement UI smoke remain manual.
 - AUTH-002, 2026-06-24: forgot-password now returns an explicit not-found
   response when an allowed-domain email has no OpsHub account, and Flutter shows
   a `Chưa có tài khoản` dialog with a `Đăng ký tài khoản` action that opens

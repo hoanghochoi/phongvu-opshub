@@ -46,8 +46,10 @@ Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
   contains a 6-digit code that expires after 10 minutes. If the email has no
   account yet, the API returns an explicit not-found response and Flutter shows
   a dialog that routes the user to registration with the email prefilled.
-- Users created by admin Excel import have no password initially. Their first
-  password is created through the same in-app `Quên mật khẩu` email-code flow.
+- Users created by `SUPER_ADMIN` through the user editor or Excel import have no
+  password initially. The backend validates imported email domains against
+  `AUTH_ALLOWED_EMAIL_DOMAINS`, sends a welcome email when possible, and keeps
+  first-password setup on the same in-app `Quên mật khẩu` email-code flow.
 - After verifying the reset code in the app, users enter the new password and
   confirmation in the app. The backend stores only a one-time reset-token hash
   between code verification and final password update.

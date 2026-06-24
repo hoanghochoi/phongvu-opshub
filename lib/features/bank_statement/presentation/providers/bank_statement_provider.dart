@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/logging/app_logger.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../data/bank_statement_repository.dart';
@@ -431,7 +432,10 @@ class BankStatementProvider extends ChangeNotifier {
         context: {'transactionId': transactionId, 'orderCount': orders.length},
       );
     } catch (error) {
-      _showRowMessage(transactionId, 'Chưa lưu được mã đơn.', false);
+      final message = error is ApiException
+          ? error.message
+          : 'Chưa lưu được mã đơn.';
+      _showRowMessage(transactionId, message, false);
       await AppLogger.instance.error(
         'BankStatement',
         'Bank statement inline order save failed',

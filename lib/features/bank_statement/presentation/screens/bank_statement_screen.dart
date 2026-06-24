@@ -1471,8 +1471,16 @@ class _OrderEditor extends StatelessWidget {
                   icon: const Icon(Icons.history_rounded),
                 ),
                 IconButton(
-                  tooltip: editing ? 'Lưu mã đơn' : 'Sửa mã đơn',
-                  onPressed: editing ? onSave : onEdit,
+                  tooltip: editing
+                      ? 'Lưu mã đơn'
+                      : transaction.canEditOrders
+                      ? 'Sửa mã đơn'
+                      : transaction.orderEditBlockedReason ?? 'Không được sửa',
+                  onPressed: editing
+                      ? onSave
+                      : transaction.canEditOrders
+                      ? onEdit
+                      : null,
                   icon: Icon(
                     editing ? Icons.check_rounded : Icons.edit_rounded,
                   ),
@@ -1518,6 +1526,19 @@ class _OrderEditor extends StatelessWidget {
                     )
                     .toList(),
               ),
+            if (!editing &&
+                !transaction.canEditOrders &&
+                transaction.orderEditBlockedReason?.isNotEmpty == true) ...[
+              const SizedBox(height: 8),
+              Text(
+                transaction.orderEditBlockedReason!,
+                style: const TextStyle(
+                  color: AppColors.warning,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ],
         ),
       ),

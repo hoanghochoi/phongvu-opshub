@@ -11,6 +11,7 @@ describe('UserService admin store management', () => {
   let prisma: any;
   let passwordResetService: { setPasswordForUserId: jest.Mock };
   let policyService: any;
+  let mailService: { sendMail: jest.Mock };
 
   const superAdmin = {
     id: 'admin-1',
@@ -213,6 +214,42 @@ describe('UserService admin store management', () => {
         deleteMany: jest.fn(async () => ({ count: 0 })),
         createMany: jest.fn(async ({ data }: any) => ({ count: data.length })),
       },
+      adminPolicyRule: {
+        deleteMany: jest.fn(async () => ({ count: 0 })),
+      },
+      featureAccessRule: {
+        deleteMany: jest.fn(async () => ({ count: 0 })),
+      },
+      userPlatformSession: {
+        deleteMany: jest.fn(async () => ({ count: 0 })),
+      },
+      passwordResetToken: {
+        deleteMany: jest.fn(async () => ({ count: 0 })),
+      },
+      emailVerificationCode: {
+        deleteMany: jest.fn(async () => ({ count: 0 })),
+      },
+      warranty: {
+        count: jest.fn(async () => 0),
+      },
+      feedback: {
+        count: jest.fn(async () => 0),
+      },
+      fifoLog: {
+        count: jest.fn(async () => 0),
+      },
+      vietQrPaymentIntent: {
+        count: jest.fn(async () => 0),
+      },
+      mapVietinTransaction: {
+        count: jest.fn(async () => 0),
+      },
+      mapVietinTransactionOrderAudit: {
+        count: jest.fn(async () => 0),
+      },
+      organizationNodeFeatureAssignment: {
+        count: jest.fn(async () => 0),
+      },
       user: {
         findUnique: jest.fn(),
         findMany: jest.fn(async () => []),
@@ -243,13 +280,19 @@ describe('UserService admin store management', () => {
         })),
         update: jest.fn(),
         updateMany: jest.fn(async () => ({ count: 0 })),
+        delete: jest.fn(async ({ where }: any) => ({ id: where.id })),
       },
     };
     passwordResetService = {
       setPasswordForUserId: jest.fn().mockResolvedValue({ ok: true }),
     };
+    mailService = { sendMail: jest.fn().mockResolvedValue(undefined) };
     process.env.JWT_SECRET = 'test-secret';
     policyService = {
+      getAllowedEmailDomains: jest.fn(async (fallback: string[]) => [
+        ...fallback,
+        'phongvu-mna.vn',
+      ]),
       canAccessPolicy: jest.fn(async (user: any, code: string) => {
         if (user?.role === 'SUPER_ADMIN') return true;
         const role = String(user?.role || '').toUpperCase();
@@ -268,6 +311,7 @@ describe('UserService admin store management', () => {
       {} as any,
       passwordResetService as any,
       policyService,
+      mailService as any,
     );
   });
 
@@ -628,15 +672,7 @@ describe('UserService admin store management', () => {
         workScopeType: 'STORE',
         organizationNodeId: 'org-store-ac001',
       }),
-    ).resolves.toMatchObject({ email: 'new@acare.vn', role: 'USER' });
-
-    await expect(
-      service.adminCreateUser(adminAcare, {
-        email: 'staff@phongvu.vn',
-        firstName: 'Wrong Domain',
-        role: 'STAFF',
-      }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toThrow('Chỉ SUPER_ADMIN');
   });
 
   it('blocks ADMIN_ACARE from updating users outside acare.vn', async () => {
@@ -772,7 +808,7 @@ describe('UserService admin store management', () => {
     );
   });
 
-  it('lets ADMIN_PHONGVU assign the Phong Vu root but not the A Care root', async () => {
+  it('blocks ADMIN_PHONGVU from creating users', async () => {
     installUserScopeTreeMock();
 
     await expect(
@@ -783,24 +819,10 @@ describe('UserService admin store management', () => {
         workScopeType: 'NATIONAL',
         organizationNodeId: 'org-domain-phongvu-vn',
       }),
-    ).resolves.toMatchObject({
-      email: 'national@phongvu.vn',
-      workScopeType: 'NATIONAL',
-      organizationNodeId: 'org-domain-phongvu-vn',
-    });
-
-    await expect(
-      service.adminCreateUser(admin, {
-        email: 'wrong-root@phongvu.vn',
-        firstName: 'Wrong Root',
-        role: 'STAFF',
-        workScopeType: 'NATIONAL',
-        organizationNodeId: 'org-domain-acare-vn',
-      }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toThrow('Chỉ SUPER_ADMIN');
   });
 
-  it('lets ADMIN_ACARE assign the A Care root but not the Phong Vu root', async () => {
+  it('blocks ADMIN_ACARE from creating users', async () => {
     installUserScopeTreeMock();
 
     await expect(
@@ -811,21 +833,7 @@ describe('UserService admin store management', () => {
         workScopeType: 'NATIONAL',
         organizationNodeId: 'org-domain-acare-vn',
       }),
-    ).resolves.toMatchObject({
-      email: 'national@acare.vn',
-      workScopeType: 'NATIONAL',
-      organizationNodeId: 'org-domain-acare-vn',
-    });
-
-    await expect(
-      service.adminCreateUser(adminAcare, {
-        email: 'wrong-root@acare.vn',
-        firstName: 'Wrong Root',
-        role: 'STAFF',
-        workScopeType: 'NATIONAL',
-        organizationNodeId: 'org-domain-phongvu-vn',
-      }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toThrow('Chỉ SUPER_ADMIN');
   });
 
   it('derives STORE scope from the selected showroom organization node', async () => {
@@ -879,6 +887,25 @@ describe('UserService admin store management', () => {
 
     expect(prisma.userFeatureAssignment.deleteMany).not.toHaveBeenCalled();
     expect(prisma.userFeatureAssignment.createMany).not.toHaveBeenCalled();
+  });
+
+  it('keeps a created user when welcome email fails', async () => {
+    installUserScopeTreeMock();
+    mailService.sendMail.mockRejectedValueOnce(new Error('smtp down'));
+
+    await expect(
+      service.adminCreateUser(superAdmin, {
+        email: 'welcome@phongvu.vn',
+        firstName: 'Welcome',
+        role: 'STAFF',
+        organizationNodeId: 'org-store-cp62',
+      }),
+    ).resolves.toMatchObject({
+      email: 'welcome@phongvu.vn',
+      welcomeEmailSent: false,
+      welcomeEmailError: expect.stringContaining('smtp down'),
+    });
+    expect(prisma.user.create).toHaveBeenCalled();
   });
 
   it('keeps the ROOT_DOMAIN organization node for NATIONAL scope', async () => {
@@ -1485,6 +1512,70 @@ describe('UserService admin store management', () => {
     expect(passwordResetService.setPasswordForUserId).toHaveBeenCalledTimes(2);
   });
 
+  it('hard deletes locked users with no history', async () => {
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'locked-user',
+      email: 'locked@phongvu.vn',
+      role: 'USER',
+      status: 'no',
+    });
+
+    await expect(
+      service.adminDeleteUser(superAdmin, 'locked-user'),
+    ).resolves.toEqual({
+      deleted: true,
+      id: 'locked-user',
+      email: 'locked@phongvu.vn',
+    });
+
+    expect(prisma.userPlatformSession.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'locked-user' },
+    });
+    expect(prisma.user.delete).toHaveBeenCalledWith({
+      where: { id: 'locked-user' },
+    });
+  });
+
+  it('blocks deleting active, super-admin, self, or history-backed users', async () => {
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'active-user',
+      email: 'active@phongvu.vn',
+      role: 'USER',
+      status: 'yes',
+    });
+    await expect(
+      service.adminDeleteUser(superAdmin, 'active-user'),
+    ).rejects.toThrow('đã khóa');
+
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'super-2',
+      email: 'root@phongvu.vn',
+      role: 'SUPER_ADMIN',
+      status: 'no',
+    });
+    await expect(
+      service.adminDeleteUser(superAdmin, 'super-2'),
+    ).rejects.toThrow('SUPER_ADMIN');
+
+    await expect(
+      service.adminDeleteUser(superAdmin, superAdmin.id),
+    ).rejects.toThrow('tự xóa');
+
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'history-user',
+      email: 'history@phongvu.vn',
+      role: 'USER',
+      status: 'no',
+    });
+    prisma.warranty.count.mockResolvedValueOnce(1);
+    await expect(
+      service.adminDeleteUser(superAdmin, 'history-user'),
+    ).rejects.toThrow('dữ liệu lịch sử');
+    expect(prisma.user.delete).not.toHaveBeenCalledWith({
+      where: { id: 'history-user' },
+    });
+  });
+
   it('blocks branch admin from mutating stores', async () => {
     await expect(
       service.adminCreateStore(admin, {
@@ -1751,6 +1842,8 @@ describe('UserService admin store management', () => {
       createdRows: 1,
       updatedRows: 1,
       skippedRows: 0,
+      welcomeEmailSentRows: 1,
+      welcomeEmailFailedRows: 0,
     });
     expect(result.results).toEqual(
       expect.arrayContaining([
@@ -1785,6 +1878,45 @@ describe('UserService admin store management', () => {
       }),
     );
     expect(updateCall.data).toEqual(expect.objectContaining({ status: 'no' }));
+    expect(mailService.sendMail).toHaveBeenCalledTimes(1);
+    expect(mailService.sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'new@phongvu.vn' }),
+    );
+  });
+
+  it('rejects imports outside AUTH_ALLOWED_EMAIL_DOMAINS before writing users', async () => {
+    const org = installUserScopeTreeMock();
+    org.saveNode({
+      id: 'org-store-cp62-pos-sa',
+      code: 'STORE_CP62_POS_SA',
+      businessCode: 'SA',
+      displayName: 'Nhân viên Bán hàng',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 10,
+    });
+    prisma.store.findMany.mockResolvedValue([]);
+    prisma.user.findMany.mockResolvedValue([]);
+    policyService.getAllowedEmailDomains.mockResolvedValueOnce(['phongvu.vn']);
+
+    await expect(
+      service.adminImportUsers(superAdmin, {
+        totalRows: 1,
+        skippedRows: 0,
+        rows: [
+          {
+            rowNumber: 2,
+            email: 'staff@blocked.vn',
+            fullName: 'Staff',
+            role: 'USER',
+            levelCodes: ['DOMAIN_PHONGVU_VN', '', '', '', 'CP62', 'SA'],
+          },
+        ],
+      }),
+    ).rejects.toThrow('Chỉ chấp nhận email');
+    expect(prisma.user.create).not.toHaveBeenCalled();
   });
 
   it('rejects ambiguous import node codes before writing users', async () => {
@@ -1832,7 +1964,7 @@ describe('UserService admin store management', () => {
     expect(prisma.user.create).not.toHaveBeenCalled();
   });
 
-  it('rejects user import outside the scoped admin organization root', async () => {
+  it('blocks non-super admins from importing users', async () => {
     const org = installUserScopeTreeMock();
     org.saveNode({
       id: 'org-store-cp62-pos-sa',
@@ -1862,7 +1994,7 @@ describe('UserService admin store management', () => {
           },
         ],
       }),
-    ).rejects.toThrow('Chỉ được gán user trong phạm vi quản lý');
+    ).rejects.toThrow('Chỉ SUPER_ADMIN');
     expect(prisma.user.create).not.toHaveBeenCalled();
   });
 

@@ -517,5 +517,7 @@ BankStatementTransaction _transaction(String id, List<String> orders) {
     firstSeenAt: DateTime.utc(2026, 5, 29, 2, 0, 5),
     payerName: null,
     payerAccount: null,
+    canEditOrders: true,
+    orderEditBlockedReason: null,
   );
 }

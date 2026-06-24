@@ -124,6 +124,12 @@ export class UserImportParserService {
   }) {
     const errors: string[] = [];
     if (!input.email) errors.push(`dòng ${input.rowNumber}: thiếu email`);
+    if (
+      input.email &&
+      !/^[^\s@]+@[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(input.email)
+    ) {
+      errors.push(`dòng ${input.rowNumber}: email không hợp lệ`);
+    }
     if (!input.fullName)
       errors.push(`dòng ${input.rowNumber}: thiếu full_name`);
     if (!input.role) errors.push(`dòng ${input.rowNumber}: thiếu system_role`);

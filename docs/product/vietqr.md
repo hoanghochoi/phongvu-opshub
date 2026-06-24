@@ -183,9 +183,12 @@ a customer to scan and pay manually.
 - Statement rows show transaction details beside a compact order area. The row
   summary uses short readable pills for payment source, SR code, amount, and
   successful transfer status, not the raw MAP API status; the current payment
-  source label is `VietinBank`. Users can edit orders inline, enter multiple
-  orders separated by whitespace, comma, or semicolon, save/cancel in place, and
-  see a short per-row success or failure message.
+  source label is `VietinBank`. Users can edit orders inline only while the
+  stored order list is `NULL`; protected rows that already have an AUTO or
+  MANUAL order can be changed only by `SUPER_ADMIN` or users in the `FIN_ACC`
+  organization/department. Users enter multiple orders separated by whitespace,
+  comma, or semicolon, save/cancel in place, and see a short per-row success or
+  failure message.
 - Statement rows include the MAP payer name/account when available. Tapping the
   transaction summary opens a selectable detail dialog with payer, payment,
   showroom, order, manual-edit metadata, and OpsHub first-seen information;

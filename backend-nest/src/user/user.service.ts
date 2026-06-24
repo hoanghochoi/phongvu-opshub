@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { BigQuery } from '@google-cloud/bigquery';
@@ -15,6 +16,11 @@ import { getDataSyncSource } from '../config/env';
 import { UploadService } from '../upload/upload.service';
 import { encryptSecret } from '../common/secret-cipher';
 import { PasswordResetService } from '../auth/password-reset.service';
+import { OpshubMailService } from '../auth/opshub-mail.service';
+import {
+  allowedEmailDomainMessage,
+  getAllowedEmailDomains,
+} from '../auth/email-domain-policy';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
 import {
@@ -53,6 +59,7 @@ const CHATSALE_REGION_CODE = 'CHATSALE';
 const TELESALE_REGION_CODE = 'TELESALE';
 const ORG_ROOT_PHONGVU_ID = 'org-domain-phongvu-vn';
 const ORG_ROOT_ACARE_ID = 'org-domain-acare-vn';
+const FIN_ACC_DEPARTMENT_CODE = 'FIN_ACC';
 const ORG_TYPE_LV0_DOMAIN = 'LV0_DOMAIN';
 const ORG_TYPE_LV1_BLOCK = 'LV1_BLOCK';
 const ORG_TYPE_LV2_DEPARTMENT = 'LV2_DEPARTMENT';
@@ -365,6 +372,8 @@ export class UserService implements OnModuleInit {
     private uploadService: UploadService,
     private passwordResetService: PasswordResetService,
     private policyService: PolicyService,
+    @Optional()
+    private mailService?: OpshubMailService,
   ) {
     if (getDataSyncSource() !== 'bigquery') {
       return;
@@ -643,6 +652,7 @@ export class UserService implements OnModuleInit {
 
   async adminCreateUser(admin: any, body: any) {
     await this.assertAdmin(admin);
+    await this.assertSuperAdminCanCreateUsers(admin);
     const prepared = await this.prepareAdminUserMutation(admin, body, null);
 
     const user = await this.prisma.user.create({
@@ -656,7 +666,15 @@ export class UserService implements OnModuleInit {
     this.logger.log(
       `Admin user created: email=${prepared.email} role=${prepared.role} scope=${prepared.workScopeType} personnelCode=${this.personnelCodeFor(user) ?? 'none'}`,
     );
-    return this.toUserDto(saved ?? user);
+    const welcomeEmail = await this.sendWelcomeEmail(saved ?? user, {
+      source: 'admin-create',
+      admin,
+    });
+    return {
+      ...this.toUserDto(saved ?? user),
+      welcomeEmailSent: welcomeEmail.sent,
+      welcomeEmailError: welcomeEmail.error,
+    };
   }
 
   async adminUpdateUser(admin: any, userId: string, body: any) {
@@ -685,8 +703,70 @@ export class UserService implements OnModuleInit {
     return this.toUserDto(saved ?? updated);
   }
 
+  async adminDeleteUser(admin: any, userId: string) {
+    await this.assertAdmin(admin);
+    await this.assertSuperAdminCanDeleteUsers(admin);
+    const id = String(userId || '').trim();
+    if (!id) throw new BadRequestException('userId không hợp lệ');
+    if (admin?.id && admin.id === id) {
+      throw new BadRequestException(
+        'Không thể tự xóa tài khoản đang đăng nhập',
+      );
+    }
+
+    const current = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        status: true,
+      },
+    });
+    if (!current) throw new NotFoundException('Không tìm thấy user');
+    if (this.normalizeRoleCode(current.role, true) === SUPER_ADMIN_ROLE) {
+      throw new BadRequestException('Không được xóa tài khoản SUPER_ADMIN');
+    }
+    if (String(current.status || '').toLowerCase() !== 'no') {
+      throw new BadRequestException('Chỉ xóa được tài khoản đã khóa');
+    }
+
+    const blockers = await this.userDeleteBlockers(current.id);
+    if (blockers.length > 0) {
+      this.logger.warn(
+        `Admin user delete blocked: admin=${admin.email || admin.id || 'unknown'} target=${current.email} blockers=${blockers.join(',')}`,
+      );
+      throw new BadRequestException(
+        'Tài khoản đang có dữ liệu lịch sử, không thể xóa hoàn toàn: ' +
+          blockers.join(', '),
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userPlatformSession.deleteMany({
+        where: { userId: current.id },
+      });
+      await tx.passwordResetToken.deleteMany({ where: { userId: current.id } });
+      await tx.emailVerificationCode.deleteMany({
+        where: { email: current.email },
+      });
+      await tx.adminPolicyRule.deleteMany({ where: { userId: current.id } });
+      await tx.featureAccessRule.deleteMany({ where: { userId: current.id } });
+      await tx.userFeatureAssignment.deleteMany({
+        where: { userId: current.id },
+      });
+      await tx.user.delete({ where: { id: current.id } });
+    });
+
+    this.logger.warn(
+      `Admin user deleted: admin=${admin.email || admin.id || 'unknown'} target=${current.email} userId=${current.id}`,
+    );
+    return { deleted: true, id: current.id, email: current.email };
+  }
+
   async adminImportUsers(admin: any, parsed: AdminUserImportParseResult) {
     await this.assertAdmin(admin);
+    await this.assertSuperAdminCanCreateUsers(admin);
     const startedAt = Date.now();
     this.logger.log(
       'Admin user import started: admin=' +
@@ -725,12 +805,24 @@ export class UserService implements OnModuleInit {
       const savedByEmail = new Map(
         savedUsers.map((user) => [String(user.email).toLowerCase(), user]),
       );
+      const welcomeEmailSummary = await this.sendWelcomeEmailsForImport(
+        admin,
+        prepared,
+        savedByEmail,
+      );
       const results = prepared.map((item) => {
         const saved = savedByEmail.get(item.email);
         return {
           rowNumber: item.rowNumber,
           email: item.email,
           action: item.action,
+          welcomeEmailSent:
+            item.action === 'created' &&
+            welcomeEmailSummary.sentEmails.has(item.email),
+          welcomeEmailError:
+            item.action === 'created'
+              ? (welcomeEmailSummary.failedByEmail.get(item.email) ?? null)
+              : null,
           role: saved?.role ?? item.role,
           organizationNodeId:
             saved?.organizationNodeId ?? item.organizationNodeId,
@@ -755,6 +847,10 @@ export class UserService implements OnModuleInit {
           updatedRows +
           ' skipped=' +
           parsed.skippedRows +
+          ' welcomeSent=' +
+          welcomeEmailSummary.sentRows +
+          ' welcomeFailed=' +
+          welcomeEmailSummary.failedRows +
           ' durationMs=' +
           (Date.now() - startedAt),
       );
@@ -763,6 +859,8 @@ export class UserService implements OnModuleInit {
         createdRows,
         updatedRows,
         skippedRows: parsed.skippedRows,
+        welcomeEmailSentRows: welcomeEmailSummary.sentRows,
+        welcomeEmailFailedRows: welcomeEmailSummary.failedRows,
         results,
       };
     } catch (error) {
@@ -788,11 +886,9 @@ export class UserService implements OnModuleInit {
       ? String(current.email || '')
           .trim()
           .toLowerCase()
-      : String(body.email || '')
-          .trim()
-          .toLowerCase();
+      : this.normalizeAccountEmail(body.email);
     if (!email) throw new BadRequestException('Email không được để trống');
-    if (!current) await this.assertEmailWithinAdminDomain(admin, email);
+    if (!current) await this.assertEmailCreatableByAdmin(admin, email);
 
     const role = body.role
       ? await this.resolveAssignableRole(body.role)
@@ -920,6 +1016,7 @@ export class UserService implements OnModuleInit {
 
     for (const row of rows) {
       try {
+        await this.assertAccountEmailAllowed(row.email);
         const node = await this.resolveImportOrganizationNode(
           admin,
           row,
@@ -1071,6 +1168,148 @@ export class UserService implements OnModuleInit {
   private errorMessageForImport(error: unknown) {
     if (error instanceof Error && error.message) return error.message;
     return 'dòng dữ liệu không hợp lệ';
+  }
+
+  private normalizeAccountEmail(value: unknown) {
+    const email = String(value || '')
+      .trim()
+      .toLowerCase();
+    if (
+      !email ||
+      email.length > 255 ||
+      !/^[^\s@]+@[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(email)
+    ) {
+      throw new BadRequestException('Email không hợp lệ');
+    }
+    return email;
+  }
+
+  private async assertEmailCreatableByAdmin(admin: any, email: string) {
+    await this.assertAccountEmailAllowed(email);
+    await this.assertEmailWithinAdminDomain(admin, email);
+  }
+
+  private async assertAccountEmailAllowed(emailInput: unknown) {
+    const email = this.normalizeAccountEmail(emailInput);
+    const fallbackDomains = getAllowedEmailDomains();
+    const allowedDomains =
+      await this.policyService.getAllowedEmailDomains(fallbackDomains);
+    const emailDomain = email.split('@')[1]?.toLowerCase();
+    if (!emailDomain || !allowedDomains.includes(emailDomain)) {
+      throw new ForbiddenException(allowedEmailDomainMessage());
+    }
+    return email;
+  }
+
+  private async sendWelcomeEmailsForImport(
+    admin: any,
+    prepared: PreparedAdminUserImport[],
+    savedByEmail: Map<string, any>,
+  ) {
+    const sentEmails = new Set<string>();
+    const failedByEmail = new Map<string, string>();
+    for (const item of prepared) {
+      if (item.action !== 'created') continue;
+      const user = savedByEmail.get(item.email);
+      if (!user) {
+        failedByEmail.set(item.email, 'Không tìm thấy user sau import');
+        continue;
+      }
+      const result = await this.sendWelcomeEmail(user, {
+        source: 'admin-import',
+        admin,
+        rowNumber: item.rowNumber,
+      });
+      if (result.sent) {
+        sentEmails.add(item.email);
+      } else {
+        failedByEmail.set(item.email, result.error || 'Không gửi được email');
+      }
+    }
+    return {
+      sentEmails,
+      failedByEmail,
+      sentRows: sentEmails.size,
+      failedRows: failedByEmail.size,
+    };
+  }
+
+  private async sendWelcomeEmail(
+    user: any,
+    context: { source: string; admin: any; rowNumber?: number },
+  ) {
+    const email = this.normalizeAccountEmail(user?.email);
+    if (!this.mailService) {
+      const error = 'Chưa cấu hình dịch vụ gửi email OpsHub.';
+      this.logger.error(
+        `Welcome email failed: source=${context.source} email=${email} reason=missing_mail_service`,
+      );
+      return { sent: false, error };
+    }
+    const displayName = String(user?.firstName || user?.name || email)
+      .trim()
+      .replace(/\s+/g, ' ');
+    try {
+      await this.mailService.sendMail({
+        to: email,
+        subject: 'Chào mừng bạn đến với OpsHub',
+        text:
+          `Chào ${displayName},\n\n` +
+          'Tài khoản OpsHub của bạn đã được tạo. Để đặt mật khẩu lần đầu, vui lòng mở ứng dụng OpsHub và dùng chức năng Quên mật khẩu với email này.\n\n' +
+          'Nếu bạn không yêu cầu tài khoản này, vui lòng liên hệ quản trị viên.',
+      });
+      this.logger.log(
+        `Welcome email sent: source=${context.source} email=${email} admin=${context.admin?.email || context.admin?.id || 'unknown'} row=${context.rowNumber ?? 'none'}`,
+      );
+      return { sent: true, error: null };
+    } catch (error) {
+      const message = this.errorMessageForImport(error);
+      this.logger.error(
+        `Welcome email failed: source=${context.source} email=${email} admin=${context.admin?.email || context.admin?.id || 'unknown'} row=${context.rowNumber ?? 'none'} error=${message}`,
+      );
+      return { sent: false, error: message };
+    }
+  }
+
+  private async userDeleteBlockers(userId: string) {
+    const [
+      warrantiesCreated,
+      warrantiesHandled,
+      feedbacks,
+      fifoLogs,
+      vietQrPayments,
+      mapOrderUpdates,
+      mapOrderAudits,
+      nodeFeatureAssignments,
+    ] = await Promise.all([
+      this.prisma.warranty.count({ where: { createdById: userId } }),
+      this.prisma.warranty.count({ where: { handledById: userId } }),
+      this.prisma.feedback.count({ where: { userId } }),
+      this.prisma.fifoLog.count({ where: { userId } }),
+      this.prisma.vietQrPaymentIntent.count({ where: { createdById: userId } }),
+      this.prisma.mapVietinTransaction.count({
+        where: { orderUpdatedByUserId: userId },
+      }),
+      this.prisma.mapVietinTransactionOrderAudit.count({
+        where: { changedByUserId: userId },
+      }),
+      this.prisma.organizationNodeFeatureAssignment.count({
+        where: { assignedById: userId },
+      }),
+    ]);
+    const blockers: string[] = [];
+    if (warrantiesCreated > 0)
+      blockers.push(`${warrantiesCreated} bảo hành tạo`);
+    if (warrantiesHandled > 0)
+      blockers.push(`${warrantiesHandled} bảo hành xử lý`);
+    if (feedbacks > 0) blockers.push(`${feedbacks} góp ý`);
+    if (fifoLogs > 0) blockers.push(`${fifoLogs} FIFO log`);
+    if (vietQrPayments > 0) blockers.push(`${vietQrPayments} VietQR`);
+    if (mapOrderUpdates > 0) blockers.push(`${mapOrderUpdates} sao kê đã sửa`);
+    if (mapOrderAudits > 0) blockers.push(`${mapOrderAudits} lịch sử mã đơn`);
+    if (nodeFeatureAssignments > 0)
+      blockers.push(`${nodeFeatureAssignments} quyền node đã gán`);
+    return blockers;
   }
 
   private normalizeFeatureCodeList(value: unknown) {
@@ -2325,6 +2564,16 @@ export class UserService implements OnModuleInit {
       return;
     }
     throw new ForbiddenException('Chỉ SUPER_ADMIN được quản lý role');
+  }
+
+  private async assertSuperAdminCanCreateUsers(user: any) {
+    if (user.role === SUPER_ADMIN_ROLE) return;
+    throw new ForbiddenException('Chỉ SUPER_ADMIN được thêm user');
+  }
+
+  private async assertSuperAdminCanDeleteUsers(user: any) {
+    if (user.role === SUPER_ADMIN_ROLE) return;
+    throw new ForbiddenException('Chỉ SUPER_ADMIN được xóa user');
   }
 
   private async assertPolicy(user: any, policyCode: string, message: string) {

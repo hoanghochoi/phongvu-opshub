@@ -14,6 +14,8 @@ class BankStatementTransaction {
   final DateTime? firstSeenAt;
   final String? payerName;
   final String? payerAccount;
+  final bool canEditOrders;
+  final String? orderEditBlockedReason;
 
   const BankStatementTransaction({
     required this.id,
@@ -31,6 +33,8 @@ class BankStatementTransaction {
     required this.firstSeenAt,
     required this.payerName,
     required this.payerAccount,
+    required this.canEditOrders,
+    required this.orderEditBlockedReason,
   });
 
   factory BankStatementTransaction.fromJson(Map<String, dynamic> json) {
@@ -48,6 +52,8 @@ class BankStatementTransaction {
       status: json['status']?.toString(),
       paidAt: _readDate(json['paidAt']),
       firstSeenAt: _readDate(json['firstSeenAt']),
+      canEditOrders: json['canEditOrders'] != false,
+      orderEditBlockedReason: json['orderEditBlockedReason']?.toString(),
       payerName: _readFirstText(json, const [
         'payerName',
         'payerFullName',
@@ -98,6 +104,8 @@ class BankStatementTransaction {
       firstSeenAt: firstSeenAt,
       payerName: payerName,
       payerAccount: payerAccount,
+      canEditOrders: canEditOrders,
+      orderEditBlockedReason: orderEditBlockedReason,
     );
   }
 

@@ -91,6 +91,32 @@ describe('UserImportParserService', () => {
       ),
     ).toThrow('email bị trùng trong file');
   });
+
+  it('rejects invalid email syntax before import writes users', () => {
+    expect(() =>
+      service.parse(
+        excelFile([
+          [
+            'email',
+            'full_name',
+            'system_role',
+            'lv0',
+            'lv1',
+            'lv2',
+            'lv3',
+            'lv4',
+            'lv5',
+          ],
+          [
+            'hiep.nm01@phongvu-mna.v',
+            'Ngo Minh Hiep',
+            'USER',
+            'DOMAIN_PHONGVU_VN',
+          ],
+        ]),
+      ),
+    ).toThrow('email không hợp lệ');
+  });
 });
 
 function excelFile(rows: unknown[][]) {

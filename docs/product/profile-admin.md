@@ -37,11 +37,21 @@ and basic administration for privileged roles.
   administration screens are not exposed; their data is maintained through the
   organization tree or runtime store flows.
 - Admin users can list, add, and edit users inside their permitted scope.
-- Admin users with `ADMIN_USERS` can import nhân sự from an Excel file using
+- Only `SUPER_ADMIN` can create users or import nhân sự from an Excel file using
   the template headers `email`, `full_name`, `system_role`, and `lv0` through
   `lv5`. The backend matches `lv*` values to active organization node
   `code`/`businessCode`, assigns the deepest matched node, creates passwordless
-  users, and upserts existing users without changing their password.
+  users, and upserts existing users without changing their password. Import
+  rejects the whole file before writing when any email has invalid syntax or a
+  domain outside `AUTH_ALLOWED_EMAIL_DOMAINS`.
+- New users created by `SUPER_ADMIN`, including import-created rows, receive a
+  welcome email that points them to the in-app `Quên mật khẩu` first-password
+  flow. SMTP failures do not roll back user creation; the UI reports the email
+  failure count.
+- `SUPER_ADMIN` can hard-delete a locked user only when the account has no
+  business/history references. Active users, `SUPER_ADMIN` accounts, self-delete,
+  and users tied to warranty, feedback, FIFO, VietQR, MAP order history, or node
+  assignment history are blocked with an explicit reason.
 - User management keeps name/email search and filters for domain, organization
   node, feature/screen, role, and status. The feature/screen filter resolves
   through node-group feature assignments; the user editor does not assign

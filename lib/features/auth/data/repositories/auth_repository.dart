@@ -19,6 +19,8 @@ class AdminUserImportRowResult {
   final int rowNumber;
   final String email;
   final String action;
+  final bool welcomeEmailSent;
+  final String? welcomeEmailError;
   final String role;
   final String? organizationNodeId;
   final String? organizationNodeName;
@@ -28,6 +30,8 @@ class AdminUserImportRowResult {
     required this.rowNumber,
     required this.email,
     required this.action,
+    required this.welcomeEmailSent,
+    this.welcomeEmailError,
     required this.role,
     this.organizationNodeId,
     this.organizationNodeName,
@@ -39,6 +43,8 @@ class AdminUserImportRowResult {
       rowNumber: _toInt(json['rowNumber']),
       email: json['email']?.toString() ?? '',
       action: json['action']?.toString() ?? '',
+      welcomeEmailSent: json['welcomeEmailSent'] == true,
+      welcomeEmailError: json['welcomeEmailError']?.toString(),
       role: json['role']?.toString() ?? '',
       organizationNodeId: json['organizationNodeId']?.toString(),
       organizationNodeName: json['organizationNodeName']?.toString(),
@@ -52,6 +58,8 @@ class AdminUserImportResult {
   final int createdRows;
   final int updatedRows;
   final int skippedRows;
+  final int welcomeEmailSentRows;
+  final int welcomeEmailFailedRows;
   final List<AdminUserImportRowResult> results;
 
   const AdminUserImportResult({
@@ -59,6 +67,8 @@ class AdminUserImportResult {
     required this.createdRows,
     required this.updatedRows,
     required this.skippedRows,
+    required this.welcomeEmailSentRows,
+    required this.welcomeEmailFailedRows,
     required this.results,
   });
 
@@ -68,6 +78,8 @@ class AdminUserImportResult {
       createdRows: _toInt(json['createdRows']),
       updatedRows: _toInt(json['updatedRows']),
       skippedRows: _toInt(json['skippedRows']),
+      welcomeEmailSentRows: _toInt(json['welcomeEmailSentRows']),
+      welcomeEmailFailedRows: _toInt(json['welcomeEmailFailedRows']),
       results: (json['results'] as List<dynamic>? ?? const [])
           .map(
             (item) =>
@@ -76,6 +88,18 @@ class AdminUserImportResult {
           .toList(),
     );
   }
+}
+
+class AdminUserCreateResult {
+  final User user;
+  final bool welcomeEmailSent;
+  final String? welcomeEmailError;
+
+  const AdminUserCreateResult({
+    required this.user,
+    required this.welcomeEmailSent,
+    this.welcomeEmailError,
+  });
 }
 
 int _toInt(Object? value) {
@@ -532,13 +556,19 @@ class AuthRepository {
     return users;
   }
 
-  Future<User> createAdminUser(Map<String, dynamic> body) async {
+  Future<AdminUserCreateResult> createAdminUser(
+    Map<String, dynamic> body,
+  ) async {
     final response = await _apiClient.post(
       ApiConstants.adminUsersEndpoint,
       body: body,
     );
-    final user = User.fromJson(
-      jsonDecode(response.body) as Map<String, dynamic>,
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final user = User.fromJson(data);
+    final result = AdminUserCreateResult(
+      user: user,
+      welcomeEmailSent: data['welcomeEmailSent'] == true,
+      welcomeEmailError: data['welcomeEmailError']?.toString(),
     );
     await AppLogger.instance.info(
       'Admin',
@@ -548,9 +578,11 @@ class AuthRepository {
         'role': user.role,
         'storeId': user.storeId,
         'personnelCode': user.personnelCode,
+        'welcomeEmailSent': result.welcomeEmailSent,
+        'welcomeEmailFailed': result.welcomeEmailError?.isNotEmpty == true,
       },
     );
-    return user;
+    return result;
   }
 
   Future<AdminUserImportResult> importAdminUsers(String path) async {
@@ -571,9 +603,20 @@ class AuthRepository {
         'createdRows': result.createdRows,
         'updatedRows': result.updatedRows,
         'skippedRows': result.skippedRows,
+        'welcomeEmailSentRows': result.welcomeEmailSentRows,
+        'welcomeEmailFailedRows': result.welcomeEmailFailedRows,
       },
     );
     return result;
+  }
+
+  Future<void> deleteAdminUser(String id, {required String email}) async {
+    await _apiClient.delete(ApiConstants.adminUserEndpoint(id));
+    await AppLogger.instance.warn(
+      'Admin',
+      'Admin user deleted',
+      context: {'userId': id, 'email': email},
+    );
   }
 
   Future<void> resetAdminUserPassword(
