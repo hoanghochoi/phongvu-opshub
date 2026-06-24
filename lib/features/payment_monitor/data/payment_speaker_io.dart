@@ -39,6 +39,7 @@ class PaymentSpeaker {
   static const _cueTimeout = Duration(seconds: 5);
   static const _cuePrefixTimeout = Duration(seconds: 8);
   static const _cueVolumePercent = 80.0;
+  static const _cuePrefixGap = Duration(milliseconds: 80);
 
   final PaymentMediaKitPlayer? _mediaKitPlayerForTesting;
   final PaymentPlaySoundPlayer? _playSoundPlayerForTesting;
@@ -122,12 +123,49 @@ class PaymentSpeaker {
 
     final directory =
         _temporaryDirectoryForTesting ?? await getTemporaryDirectory();
-    if (playLocalCuePrefix) {
-      await _playPaymentCuePrefix(
-        directory,
-        context: playbackContext,
-        audioPreflightStatus: audioPreflightStatus,
+    var playbackAudioBytes = audioBytes;
+    var cuePrefixCombined = false;
+    if (playLocalCuePrefix && extension == 'wav') {
+      try {
+        final combined = await _combinePaymentCuePrefix(
+          audioBytes,
+          context: playbackContext,
+        );
+        playbackAudioBytes = combined.bytes;
+        cuePrefixCombined = true;
+        playbackContext['playbackMode'] = 'client_combined_cue_prefix_amount';
+        playbackContext['combinedBytes'] = combined.bytes.length;
+      } catch (error, stackTrace) {
+        await AppLogger.instance.warn(
+          _source,
+          'Payment cue-prefix combine failed; using sequential playback',
+          context: {
+            ...playbackContext,
+            'playbackMode': 'client_sequential_cue_prefix_amount',
+            'error': _safeBackendError(error),
+            'stackTrace': stackTrace.toString(),
+          },
+        );
+      }
+    } else if (playLocalCuePrefix) {
+      await AppLogger.instance.warn(
+        _source,
+        'Payment cue-prefix combine skipped for non-WAV amount audio',
+        context: {
+          ...playbackContext,
+          'playbackMode': 'client_sequential_cue_prefix_amount',
+        },
       );
+    }
+
+    if (playLocalCuePrefix) {
+      if (!cuePrefixCombined) {
+        await _playPaymentCuePrefix(
+          directory,
+          context: playbackContext,
+          audioPreflightStatus: audioPreflightStatus,
+        );
+      }
     } else if (playLocalCue) {
       await _playTingTing(directory);
     }
@@ -135,7 +173,7 @@ class PaymentSpeaker {
     final file = File(
       '${directory.path}${Platform.pathSeparator}opshub-payment-${DateTime.now().microsecondsSinceEpoch}.$extension',
     );
-    await file.writeAsBytes(audioBytes, flush: true);
+    await file.writeAsBytes(playbackAudioBytes, flush: true);
 
     try {
       return await _playWithFallbacks(
@@ -148,6 +186,49 @@ class PaymentSpeaker {
     } finally {
       await file.delete().catchError((_) => file);
     }
+  }
+
+  Future<PaymentWavCombineResult> _combinePaymentCuePrefix(
+    List<int> voiceBytes, {
+    required Map<String, Object?> context,
+  }) async {
+    final startedAt = DateTime.now();
+    await AppLogger.instance.info(
+      _source,
+      'Payment cue-prefix WAV combine started',
+      context: {
+        ...context,
+        'asset': 'data/payment-cue-prefix.wav',
+        'targetGapMs': _cuePrefixGap.inMilliseconds,
+      },
+    );
+    final asset = await rootBundle.load('data/payment-cue-prefix.wav');
+    final prefixBytes = asset.buffer.asUint8List(
+      asset.offsetInBytes,
+      asset.lengthInBytes,
+    );
+    final result = PaymentWavTools.combinePcm16WithGap(
+      prefixBytes: prefixBytes,
+      voiceBytes: voiceBytes,
+      gap: _cuePrefixGap,
+    );
+    await AppLogger.instance.info(
+      _source,
+      'Payment cue-prefix WAV combine succeeded',
+      context: {
+        ...context,
+        'asset': 'data/payment-cue-prefix.wav',
+        'prefixBytes': asset.lengthInBytes,
+        'voiceBytes': voiceBytes.length,
+        'combinedBytes': result.bytes.length,
+        'gapMs': result.gapMs,
+        'prefixTrailingSilenceTrimmedMs': result.prefixTrailingSilenceTrimmedMs,
+        'voiceLeadingSilenceTrimmedMs': result.voiceLeadingSilenceTrimmedMs,
+        'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        ...result.combined.toLogContext(prefix: 'combinedWav'),
+      },
+    );
+    return result;
   }
 
   Future<void> _playTingTing(Directory directory) async {

@@ -75,6 +75,83 @@ void main() {
     },
   );
 
+  test(
+    'combines PCM WAVs with an exact short gap and removes zero padding',
+    () {
+      final prefix = _pcm16Wav(
+        sampleRateHz: 1000,
+        channels: 1,
+        frames: const [
+          [100],
+          [200],
+          [0],
+          [0],
+          [0],
+          [0],
+          [0],
+        ],
+      );
+      final voice = _pcm16Wav(
+        sampleRateHz: 1000,
+        channels: 1,
+        frames: const [
+          [0],
+          [0],
+          [300],
+          [400],
+          [0],
+        ],
+      );
+
+      final result = PaymentWavTools.combinePcm16WithGap(
+        prefixBytes: prefix,
+        voiceBytes: voice,
+        gap: const Duration(milliseconds: 2),
+      );
+
+      expect(result.prefixTrailingSilenceTrimmedMs, 3);
+      expect(result.voiceLeadingSilenceTrimmedMs, 2);
+      expect(result.gapMs, 2);
+      expect(result.combined.frameCount, 7);
+      expect(
+        List.generate(
+          result.combined.frameCount,
+          (index) => _int16(
+            result.bytes,
+            result.combined.dataOffset + index * result.combined.blockAlign,
+          ),
+        ),
+        [100, 200, 0, 0, 300, 400, 0],
+      );
+    },
+  );
+
+  test('rejects PCM WAV combine when formats differ', () {
+    final prefix = _pcm16Wav(
+      sampleRateHz: 22050,
+      channels: 1,
+      frames: const [
+        [100],
+      ],
+    );
+    final voice = _pcm16Wav(
+      sampleRateHz: 44100,
+      channels: 1,
+      frames: const [
+        [200],
+      ],
+    );
+
+    expect(
+      () => PaymentWavTools.combinePcm16WithGap(
+        prefixBytes: prefix,
+        voiceBytes: voice,
+        gap: const Duration(milliseconds: 80),
+      ),
+      throwsA(isA<PaymentWavException>()),
+    );
+  });
+
   test('rejects unsupported WAV formats without crashing', () {
     final wav = _wavHeader(
       audioFormat: 3,

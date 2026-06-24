@@ -118,8 +118,10 @@ Expected responses:
   `PAYMENT_AUDIO_DIR/amount-cache` by default, retained for
   `PAYMENT_AMOUNT_AUDIO_CACHE_RETENTION_DAYS` (default `90`), and can be served
   to newer clients through
-  `GET /payment-notifications/:id/audio?rawAmount=true` so the client can play
-  its bundled `payment-cue-prefix.wav` locally before the downloaded amount WAV.
+  `GET /payment-notifications/:id/audio?rawAmount=true`. The Windows client
+  trims zero padding, joins its bundled `payment-cue-prefix.wav` to the amount
+  with an 80 ms gap, and plays one WAV to avoid player-switch latency. It falls
+  back to sequential playback when the two PCM WAV formats are incompatible.
 - Keep placeholder values out of production; the Nest API validates env values on startup.
 - Run `npx prisma migrate deploy` before starting the Nest API.
 - Start the Go service with the same Redis connection as NestJS.
