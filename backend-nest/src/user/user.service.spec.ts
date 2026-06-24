@@ -675,6 +675,42 @@ describe('UserService admin store management', () => {
     ).rejects.toThrow('Chỉ SUPER_ADMIN');
   });
 
+  it('uses the linked store organization node for legacy store-assigned users', async () => {
+    installUserScopeTreeMock();
+    prisma.store.findMany.mockResolvedValueOnce([]);
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'legacy-store-user',
+        email: 'legacy@phongvu.vn',
+        firstName: 'Legacy',
+        lastName: null,
+        role: 'USER',
+        status: 'yes',
+        workScopeType: 'STORE',
+        storeId: store.id,
+        store: {
+          ...store,
+          organizationNode: {
+            id: 'org-store-cp62',
+            displayName: 'CP62',
+          },
+        },
+        organizationNodeId: null,
+        organizationNode: null,
+        userFeatureAssignments: [],
+      },
+    ]);
+
+    await expect(service.adminListUsers(superAdmin)).resolves.toEqual([
+      expect.objectContaining({
+        email: 'legacy@phongvu.vn',
+        organizationNodeId: 'org-store-cp62',
+        organizationNodeName: 'CP62',
+        assignmentPending: false,
+      }),
+    ]);
+  });
+
   it('blocks ADMIN_ACARE from updating users outside acare.vn', async () => {
     prisma.user.findUnique.mockResolvedValueOnce({
       id: 'phongvu-user',
@@ -1004,6 +1040,44 @@ describe('UserService admin store management', () => {
         jobRoleCode: 'CASH',
       },
     });
+  });
+
+  it('returns aggregate user counts for organization tree subtrees and legacy store links', async () => {
+    installUserScopeTreeMock().saveNode({
+      id: 'org-store-cp62-pos-sa',
+      code: 'STORE_CP62_POS_SA',
+      businessCode: 'SA',
+      displayName: 'Nhân viên Bán hàng',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 20,
+    });
+    prisma.store.findMany.mockResolvedValueOnce([]);
+    prisma.user.count.mockImplementation(async ({ where }: any) => {
+      const directIds = new Set(where.OR?.[0]?.organizationNodeId?.in ?? []);
+      const storeFallbackIds = new Set(
+        where.OR?.[1]?.AND?.[1]?.store?.organizationNodeId?.in ?? [],
+      );
+      let count = 0;
+      if (directIds.has('org-store-cp62-pos-sa')) count += 1;
+      if (storeFallbackIds.has('org-store-cp62')) count += 1;
+      return count;
+    });
+
+    const nodes = await service.adminListOrganizationTree(superAdmin);
+
+    expect(
+      nodes.find((node: any) => node.id === 'org-store-cp62')?._count.users,
+    ).toBe(2);
+    expect(
+      nodes.find((node: any) => node.id === 'org-area-hcm')?._count.users,
+    ).toBe(2);
+    expect(
+      nodes.find((node: any) => node.id === 'org-store-cp62-pos-sa')?._count
+        .users,
+    ).toBe(1);
   });
 
   it('creates Lv1-Lv3 organization nodes without legacy catalog coupling', async () => {

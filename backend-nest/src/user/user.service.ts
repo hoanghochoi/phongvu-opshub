@@ -601,6 +601,8 @@ export class UserService implements OnModuleInit {
 
   async adminListUsers(admin: any, filters: any = {}) {
     await this.assertAdmin(admin);
+    await this.seedDefaultOrganizationTree();
+    await this.syncStoreOrganizationNodes('admin-list-users');
     const query = String(filters.q || '').trim();
     const scope = await this.adminScope(admin);
     const where = await this.adminUserWhere(scope, filters, query);
@@ -1411,6 +1413,7 @@ export class UserService implements OnModuleInit {
   }
 
   private async listOrganizationTreeForAdmin(admin: any, source: string) {
+    const startedAt = Date.now();
     await this.seedDefaultOrganizationTree();
     await this.syncStoreOrganizationNodes(source);
     const where = await this.adminOrganizationNodeScopeWhere(admin);
@@ -1438,7 +1441,26 @@ export class UserService implements OnModuleInit {
         },
       },
     });
-    return nodes.map((node) => this.toOrganizationNodeDto(node));
+    const userCounts = await this.organizationNodeUserCounts(nodes);
+    this.logger.log(
+      'Organization tree user counts resolved: source=' +
+        source +
+        ' nodes=' +
+        nodes.length +
+        ' nonZeroNodes=' +
+        Array.from(userCounts.values()).filter((count) => count > 0).length +
+        ' durationMs=' +
+        (Date.now() - startedAt),
+    );
+    return nodes.map((node) =>
+      this.toOrganizationNodeDto({
+        ...node,
+        _count: {
+          ...node._count,
+          users: userCounts.get(node.id) ?? node._count?.users ?? 0,
+        },
+      }),
+    );
   }
 
   async adminCreateOrganizationNode(admin: any, body: any) {
@@ -2824,7 +2846,12 @@ export class UserService implements OnModuleInit {
 
   private userDtoInclude() {
     return {
-      store: { include: { area: { include: { region: true } } } },
+      store: {
+        include: {
+          area: { include: { region: true } },
+          organizationNode: true,
+        },
+      },
       region: true,
       area: { include: { region: true } },
       organizationNode: true,
@@ -2984,6 +3011,67 @@ export class UserService implements OnModuleInit {
     };
   }
 
+  private async organizationNodeUserCounts(
+    nodes: Array<{ id: string; _count?: { users?: number } | null }>,
+  ) {
+    const counts = new Map<string, number>();
+    await Promise.all(
+      nodes.map(async (node) => {
+        const where = await this.userOrganizationAssignmentWhere(node.id);
+        const count = where
+          ? await this.prisma.user.count({ where })
+          : (node._count?.users ?? 0);
+        counts.set(node.id, count);
+      }),
+    );
+    return counts;
+  }
+
+  private async userOrganizationAssignmentWhere(
+    orgNodeIdInput: unknown,
+  ): Promise<Prisma.UserWhereInput | null> {
+    const orgNodeId = String(orgNodeIdInput || '').trim();
+    if (!orgNodeId) return null;
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) return { organizationNodeId: orgNodeId };
+    const idList = await this.organizationDescendantIds(orgNodeId);
+    return {
+      OR: [
+        { organizationNodeId: { in: idList } },
+        {
+          AND: [
+            { organizationNodeId: null },
+            { store: { organizationNodeId: { in: idList } } },
+          ],
+        },
+        {
+          AND: [
+            { organizationNodeId: null },
+            { department: { organizationNodeId: { in: idList } } },
+          ],
+        },
+        {
+          AND: [
+            { organizationNodeId: null },
+            { jobRole: { organizationNodeId: { in: idList } } },
+          ],
+        },
+        {
+          AND: [
+            { organizationNodeId: null },
+            { region: { organizationNodeId: { in: idList } } },
+          ],
+        },
+        {
+          AND: [
+            { organizationNodeId: null },
+            { area: { organizationNodeId: { in: idList } } },
+          ],
+        },
+      ],
+    };
+  }
+
   private async userFeatureNodeAssignmentWhere(
     featureCodeInput: unknown,
   ): Promise<Prisma.UserWhereInput | null> {
@@ -3084,6 +3172,13 @@ export class UserService implements OnModuleInit {
   private toUserDto(user: any) {
     const region = this.regionForUser(user);
     const area = this.areaForUser(user);
+    const effectiveOrganizationNode =
+      user.organizationNode ?? user.store?.organizationNode ?? null;
+    const effectiveOrganizationNodeId =
+      user.organizationNodeId ??
+      effectiveOrganizationNode?.id ??
+      user.store?.organizationNodeId ??
+      null;
     return {
       id: user.id,
       email: user.email,
@@ -3105,14 +3200,17 @@ export class UserService implements OnModuleInit {
       areaCode: area?.code ?? null,
       areaName: area?.displayName ?? null,
       areaAbbreviation: area?.abbreviation ?? null,
-      organizationNodeId: user.organizationNodeId ?? null,
-      organizationNodeName: user.organizationNode?.displayName ?? null,
+      organizationNodeId: effectiveOrganizationNodeId,
+      organizationNodeName: effectiveOrganizationNode?.displayName ?? null,
       featureCodes: this.featureCodesForUser(user),
       resolvedFeatureAccess: this.featureAccessMapForUser(user),
       personnelCode: this.personnelCodeFor(user),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
-      assignmentPending: this.assignmentPending(user),
+      assignmentPending: this.assignmentPending({
+        role: user.role,
+        organizationNodeId: effectiveOrganizationNodeId,
+      }),
       mustSelectStore: this.mustSelectStore(user),
     };
   }
