@@ -27,7 +27,9 @@ class ApiConstants {
   static const String profileEndpoint = '/users/me';
   static const String avatarEndpoint = '/users/me/avatar';
   static const String adminUsersEndpoint = '/admin/users';
+  static const String adminUsersImportEndpoint = '/admin/users/import';
   static const String adminUserScopeTreeEndpoint = '/admin/users/scope-tree';
+  static String adminUserEndpoint(String id) => '/admin/users/$id';
   static String adminUserResetPasswordEndpoint(String id) =>
       '/admin/users/$id/reset-password';
   static const String adminRolesEndpoint = '/admin/roles';
@@ -86,6 +88,17 @@ class ApiConstants {
           scheme: scheme,
           path: '/ws',
           queryParameters: query.isEmpty ? null : query,
+        )
+        .toString();
+  }
+
+  static String get appUpdateRealtimeWsUrl {
+    final base = Uri.parse(baseUrl);
+    return base
+        .replace(
+          scheme: base.scheme == 'https' ? 'wss' : 'ws',
+          path: '/ws/app-updates',
+          queryParameters: null,
         )
         .toString();
   }

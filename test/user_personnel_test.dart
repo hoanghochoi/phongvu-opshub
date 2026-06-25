@@ -119,10 +119,45 @@ void main() {
       'email': 'super@phongvu.vn',
       'role': 'SUPER_ADMIN',
       'personnelCode': 'OPS_NATIONAL',
+      'resolvedFeatureAccess': {'FIFO': false, 'ADMIN': false},
+      'resolvedAdminPolicies': {'ADMIN_POLICIES': false},
     });
 
     expect(user.belongsToCp62, isFalse);
+    expect(user.isAdmin, isTrue);
+    expect(user.isSuperAdmin, isTrue);
     expect(user.canUseCp62RestrictedFlows, isTrue);
     expect(user.canUsePolicy('ADMIN_POLICIES'), isTrue);
+  });
+
+  test('User treats bank statement all-scope policy as statement access', () {
+    final user = User.fromJson({
+      'email': 'finance@phongvu.vn',
+      'role': 'USER',
+      'workScopeType': 'STORE',
+      'organizationNodeId': 'org-finance-accounting',
+      'resolvedFeatureAccess': {'BANK_STATEMENTS': false},
+      'resolvedAdminPolicies': {'BANK_STATEMENT_ALL_SCOPE': true},
+    });
+
+    expect(user.hasNationalWorkScope, isFalse);
+    expect(user.canUseFeature('BANK_STATEMENTS'), isFalse);
+    expect(user.canUseBankStatements, isTrue);
+    expect(user.canUseAllBankStatementStores, isTrue);
+  });
+
+  test('User does not infer all-showroom statement scope from admin role', () {
+    final user = User.fromJson({
+      'email': 'manager@phongvu.vn',
+      'role': 'MANAGER',
+      'storeId': 'CP01',
+      'workScopeType': 'STORE',
+      'resolvedFeatureAccess': {'BANK_STATEMENTS': true},
+      'resolvedAdminPolicies': {'BANK_STATEMENT_ALL_SCOPE': false},
+    });
+
+    expect(user.hasNationalWorkScope, isTrue);
+    expect(user.canUseBankStatements, isTrue);
+    expect(user.canUseAllBankStatementStores, isFalse);
   });
 }

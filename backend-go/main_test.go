@@ -3,11 +3,13 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/gorilla/websocket"
 )
 
 func TestHealthEndpoint(t *testing.T) {
@@ -85,6 +87,27 @@ func TestWebSocketAuthRejectsWrongSecret(t *testing.T) {
 	}
 }
 
+func TestPublicAppUpdateWebSocketDoesNotRequireAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	hub := newHub()
+	go hub.run()
+	router := gin.New()
+	registerRoutes(router, hub)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws/app-updates"
+	connection, response, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		status := 0
+		if response != nil {
+			status = response.StatusCode
+		}
+		t.Fatalf("expected public app-update websocket connection, status=%d error=%v", status, err)
+	}
+	defer connection.Close()
+}
+
 func TestPaymentEventFilteringByStore(t *testing.T) {
 	client := &Client{auth: &ClientAuth{Role: "MANAGER", StoreCode: "CP01"}}
 	message := []byte(`{"type":"PAYMENT_NOTIFICATION","payload":{"storeCode":"CP01"}}`)
@@ -108,6 +131,44 @@ func TestSuperAdminRequiresSelectedStoreForPaymentEvents(t *testing.T) {
 	missingSelection := &Client{auth: &ClientAuth{Role: "SUPER_ADMIN"}}
 	if missingSelection.canReceive(message) {
 		t.Fatal("expected super admin without selected store not to receive payment event")
+	}
+}
+
+func TestPublicAppUpdateClientOnlyReceivesUpdateEvents(t *testing.T) {
+	client := &Client{updatesOnly: true}
+	appUpdate := []byte(`{"type":"APP_UPDATE","payload":{"schemaVersion":1}}`)
+	if !client.canReceive(appUpdate) {
+		t.Fatal("expected public app-update client to receive update event")
+	}
+
+	warranty := []byte(`{"type":"WARRANTY_EVENT","payload":{"warrantyId":"w-1"}}`)
+	if client.canReceive(warranty) {
+		t.Fatal("expected public app-update client not to receive warranty event")
+	}
+
+	payment := []byte(`{"type":"PAYMENT_NOTIFICATION","payload":{"storeCode":"CP01"}}`)
+	if client.canReceive(payment) {
+		t.Fatal("expected public app-update client not to receive payment event")
+	}
+}
+
+func TestFormatsAppVersionRedisEvent(t *testing.T) {
+	message, ok := formatRedisEvent(
+		appVersionRedisChannel,
+		`{"schemaVersion":1,"platforms":{"windows":{"latestBuild":42}}}`,
+	)
+	if !ok {
+		t.Fatal("expected app version Redis event to be formatted")
+	}
+	expected := `{"type":"APP_UPDATE","payload":{"schemaVersion":1,"platforms":{"windows":{"latestBuild":42}}}}`
+	if string(message) != expected {
+		t.Fatalf("expected %s, got %s", expected, string(message))
+	}
+}
+
+func TestRejectsInvalidRedisEventPayload(t *testing.T) {
+	if _, ok := formatRedisEvent(appVersionRedisChannel, `{invalid`); ok {
+		t.Fatal("expected invalid JSON payload to be rejected")
 	}
 }
 

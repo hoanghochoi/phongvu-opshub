@@ -15,6 +15,7 @@ export const FEATURE_KEYS = {
   VIETQR: 'VIETQR',
   BANK_STATEMENTS: 'BANK_STATEMENTS',
   PAYMENT_MONITOR: 'PAYMENT_MONITOR',
+  PAYMENT_SPEAKER: 'PAYMENT_SPEAKER',
   FEEDBACK: 'FEEDBACK',
 } as const;
 
@@ -86,8 +87,8 @@ export const DEFAULT_FEATURE_DEFINITIONS = [
   },
   {
     code: FEATURE_KEYS.ADMIN_FEEDBACK,
-    displayName: 'Danh sách phản hồi',
-    description: 'Xem danh sách phản hồi nội bộ',
+    displayName: 'Danh sách góp ý',
+    description: 'Xem danh sách góp ý nội bộ',
     parentCode: FEATURE_KEYS.ADMIN,
     sortOrder: 90,
     visibleInUserPicker: false,
@@ -130,9 +131,16 @@ export const DEFAULT_FEATURE_DEFINITIONS = [
     sortOrder: 500,
   },
   {
+    code: FEATURE_KEYS.PAYMENT_SPEAKER,
+    displayName: 'Đọc loa',
+    description: 'Đọc loa thông báo tiền vào trên thiết bị hỗ trợ',
+    parentCode: FEATURE_KEYS.PAYMENT_MONITOR,
+    sortOrder: 510,
+  },
+  {
     code: FEATURE_KEYS.FEEDBACK,
-    displayName: 'Phản hồi',
-    description: 'Gửi phản hồi nội bộ',
+    displayName: 'Góp ý',
+    description: 'Gửi góp ý nội bộ',
     sortOrder: 600,
   },
 ] as const;

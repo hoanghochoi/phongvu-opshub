@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -45,6 +46,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   String? _roleFilter;
   String? _statusFilter;
   bool _loading = true;
+  bool _importing = false;
   Timer? _searchDebounce;
 
   @override
@@ -148,6 +150,78 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     }
   }
 
+  Future<void> _importUsers() async {
+    if (_importing) return;
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin user import file picker opened',
+    );
+    final picked = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['xlsx', 'xls'],
+      allowMultiple: false,
+      withData: false,
+    );
+    final file = picked?.files.single;
+    final path = file?.path;
+    if (file == null || path == null) return;
+
+    await AppLogger.instance.info(
+      'Admin',
+      'Admin user import file selected',
+      context: {'fileName': file.name, 'size': file.size},
+    );
+    if (!mounted) return;
+    setState(() => _importing = true);
+    final startedAt = DateTime.now();
+    try {
+      await AppLogger.instance.info(
+        'Admin',
+        'Admin user import started',
+        context: {'fileName': file.name, 'size': file.size},
+      );
+      final result = await _repository.importAdminUsers(path);
+      await AppLogger.instance.info(
+        'Admin',
+        'Admin user import succeeded',
+        context: {
+          'fileName': file.name,
+          'totalRows': result.totalRows,
+          'createdRows': result.createdRows,
+          'updatedRows': result.updatedRows,
+          'skippedRows': result.skippedRows,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => _UserImportResultDialog(result: result),
+      );
+      await _load();
+    } catch (error, stackTrace) {
+      final message = adminUserSaveErrorMessage(error);
+      await AppLogger.instance.error(
+        'Admin',
+        'Admin user import failed',
+        error: message,
+        stackTrace: stackTrace,
+        upload: true,
+        context: {
+          'fileName': file.name,
+          'errorType': error.runtimeType.toString(),
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
+
   Future<void> _resetPassword(User user) async {
     final userId = user.id;
     if (userId == null || userId.isEmpty) return;
@@ -197,6 +271,66 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     }
   }
 
+  Future<void> _deleteUser(User user) async {
+    final userId = user.id;
+    if (userId == null || userId.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xóa hoàn toàn tài khoản?'),
+        content: Text(
+          'Tài khoản ${user.email} sẽ bị xóa khỏi hệ thống nếu không còn dữ liệu lịch sử.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    await AppLogger.instance.warn(
+      'Admin',
+      'Admin user delete started',
+      context: {'userId': userId, 'email': user.email},
+    );
+    try {
+      await _repository.deleteAdminUser(userId, email: user.email);
+      await AppLogger.instance.warn(
+        'Admin',
+        'Admin user delete succeeded',
+        context: {'userId': userId, 'email': user.email},
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã xóa tài khoản ${user.email}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      await _load();
+    } catch (error) {
+      final message = adminUserSaveErrorMessage(error);
+      await AppLogger.instance.error(
+        'Admin',
+        'Admin user delete failed',
+        error: message,
+        upload: true,
+        context: {'userId': userId, 'email': user.email},
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
   Future<String?> _showAdminResetPasswordDialog(User user) async {
     final formKey = GlobalKey<FormState>();
     final passwordController = TextEditingController();
@@ -209,7 +343,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
-            title: const Text('Đổi mật khẩu user'),
+            title: const Text('Đổi mật khẩu người dùng'),
             content: Form(
               key: formKey,
               child: Column(
@@ -314,7 +448,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     for (final role in _roles) {
       if (role.value == value) return role.title;
     }
-    return value?.isNotEmpty == true ? value! : 'Chưa gán';
+    return value?.isNotEmpty == true ? User.roleDisplayName(value) : 'Chưa gán';
   }
 
   String _personnelTitle(User user) {
@@ -362,7 +496,9 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentRole = context.watch<AuthProvider>().user?.role;
+    final currentUser = context.watch<AuthProvider>().user;
+    final currentRole = currentUser?.role;
+    final canCreateUsers = currentRole == 'SUPER_ADMIN';
     final canResetPassword =
         currentRole == 'SUPER_ADMIN' || User.isAdminRole(currentRole);
     return Scaffold(
@@ -370,11 +506,24 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         title: 'Quản lý người dùng',
         showBack: true,
         actions: [
-          IconButton(
-            onPressed: () => _openEditor(),
-            icon: const Icon(Icons.person_add_alt_1_outlined),
-            tooltip: 'Thêm người dùng',
-          ),
+          if (canCreateUsers)
+            IconButton(
+              onPressed: _importing ? null : _importUsers,
+              icon: _importing
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.upload_file_outlined),
+              tooltip: 'Import nhân sự',
+            ),
+          if (canCreateUsers)
+            IconButton(
+              onPressed: () => _openEditor(),
+              icon: const Icon(Icons.person_add_alt_1_outlined),
+              tooltip: 'Thêm người dùng',
+            ),
         ],
       ),
       body: AppResponsiveContent(
@@ -500,6 +649,10 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                           const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final user = _users[index];
+                        final canDeleteUser =
+                            canCreateUsers &&
+                            user.id != currentUser?.id &&
+                            user.status?.toLowerCase() == 'no';
                         return ListTile(
                           tileColor: Colors.white,
                           shape: RoundedRectangleBorder(
@@ -531,6 +684,14 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                                 icon: Icons.edit_outlined,
                                 tooltip: 'Sửa người dùng',
                               ),
+                              if (canDeleteUser) ...[
+                                const SizedBox(width: 8),
+                                AppIconAction(
+                                  onPressed: () => _deleteUser(user),
+                                  icon: Icons.delete_outline,
+                                  tooltip: 'Xóa tài khoản đã khóa',
+                                ),
+                              ],
                             ],
                           ),
                         );
@@ -571,6 +732,117 @@ class _FilterDropdown<T> extends StatelessWidget {
           ...items,
         ],
         onChanged: onChanged,
+      ),
+    );
+  }
+}
+
+class _UserImportResultDialog extends StatelessWidget {
+  final AdminUserImportResult result;
+
+  const _UserImportResultDialog({required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = result.results.take(8).toList();
+    return AlertDialog(
+      title: const Text('Kết quả import'),
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ImportSummaryRow(label: 'Tổng dòng', value: result.totalRows),
+            _ImportSummaryRow(label: 'Tạo mới', value: result.createdRows),
+            _ImportSummaryRow(label: 'Cập nhật', value: result.updatedRows),
+            _ImportSummaryRow(label: 'Dòng bỏ qua', value: result.skippedRows),
+            _ImportSummaryRow(
+              label: 'Email đã gửi',
+              value: result.welcomeEmailSentRows,
+            ),
+            _ImportSummaryRow(
+              label: 'Email lỗi',
+              value: result.welcomeEmailFailedRows,
+            ),
+            if (rows.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 260),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: rows.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 6),
+                  itemBuilder: (context, index) {
+                    final row = rows[index];
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        row.welcomeEmailError?.isNotEmpty == true
+                            ? Icons.mark_email_unread_outlined
+                            : row.action == 'created'
+                            ? Icons.person_add_alt_1_outlined
+                            : Icons.manage_accounts_outlined,
+                      ),
+                      title: Text(row.email),
+                      subtitle: Text(
+                        [
+                          'Dòng ${row.rowNumber}',
+                          row.role,
+                          row.personnelCode ?? row.organizationNodeName ?? '-',
+                          if (row.action == 'created')
+                            row.welcomeEmailError?.isNotEmpty == true
+                                ? 'Email lỗi'
+                                : row.welcomeEmailSent
+                                ? 'Đã gửi email'
+                                : 'Chưa gửi email',
+                        ].join(' • '),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Đóng'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ImportSummaryRow extends StatelessWidget {
+  final String label;
+  final int value;
+
+  const _ImportSummaryRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          SizedBox(width: 120, child: Text(label)),
+          Expanded(
+            child: Text(
+              '$value',
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -673,8 +945,10 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
           'durationMs': 0,
         },
       );
+      String? welcomeEmailError;
       if (user == null) {
-        await widget.repository.createAdminUser(body);
+        final result = await widget.repository.createAdminUser(body);
+        welcomeEmailError = result.welcomeEmailError;
       } else {
         await widget.repository.updateAdminUser(user.id ?? '', body);
       }
@@ -689,9 +963,19 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
           'workScopeType': _workScopeType,
           'organizationNodeId': _organizationNodeId,
           'organizationNodeType': selectedNode?.type,
+          'welcomeEmailFailed': welcomeEmailError?.isNotEmpty == true,
           'durationMs': stopwatch.elapsedMilliseconds,
         },
       );
+      if (mounted && welcomeEmailError?.isNotEmpty == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Đã tạo người dùng nhưng chưa gửi được email chào mừng: $welcomeEmailError',
+            ),
+          ),
+        );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
       final message = adminUserSaveErrorMessage(error);
@@ -746,7 +1030,11 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     addIfChanged('firstName', user.name, 'Tên');
     addIfChanged('lastName', user.lastName, 'Họ');
     addIfChanged('status', user.status, 'Trạng thái');
-    addIfChanged('organizationNodeId', user.organizationNodeId, 'Node tổ chức');
+    addIfChanged(
+      'organizationNodeId',
+      user.organizationNodeId,
+      'Vị trí trong cây tổ chức',
+    );
     if (widget.canEditRole) addIfChanged('role', user.role, 'Quyền hệ thống');
     return changes;
   }
@@ -806,7 +1094,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     for (final role in widget.roles) {
       if (role.value == value) return role.title;
     }
-    return value;
+    return User.roleDisplayName(value);
   }
 
   String _defaultScopeForRole(String role) {
@@ -1020,7 +1308,9 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                                     : Icons.public_rounded,
                               ),
                               title: const Text('Toàn hệ thống'),
-                              subtitle: const Text('SUPER_ADMIN global'),
+                              subtitle: const Text(
+                                'Áp dụng cho toàn bộ hệ thống',
+                              ),
                               onTap: () =>
                                   Navigator.of(context).pop('__GLOBAL__'),
                             );

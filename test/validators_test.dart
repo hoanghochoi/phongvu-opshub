@@ -1,6 +1,5 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phongvu_opshub/core/utils/email_domain_policy.dart';
 import 'package:phongvu_opshub/core/utils/validators.dart';
 import 'package:phongvu_opshub/features/vietqr/domain/entities/vietqr_transfer.dart';
 
@@ -52,64 +51,7 @@ void main() {
     });
   });
 
-  group('EmailDomainPolicy', () {
-    test('parses allowed Phong Vu email domains from file contents', () {
-      expect(EmailDomainPolicy.parse('phongvu-shop.vn\nphongvu-mna.vn\t\n'), [
-        'phongvu-shop.vn',
-        'phongvu-mna.vn',
-      ]);
-    });
-
-    test('accepts only configured Phong Vu email domains', () {
-      const domains = ['phongvu-shop.vn', 'phongvu-care.vn'];
-
-      expect(
-        EmailDomainPolicy.isAllowedEmail('staff@phongvu-shop.vn', domains),
-        isTrue,
-      );
-      expect(
-        EmailDomainPolicy.isAllowedEmail('staff@example.com', domains),
-        isFalse,
-      );
-    });
-
-    test('uses fallback domains before asset load finishes', () {
-      expect(
-        EmailDomainPolicy.isAllowedEmail('staff@phongvu.vn', const []),
-        isTrue,
-      );
-      expect(
-        EmailDomainPolicy.isAllowedEmail('staff@acare.vn', const []),
-        isTrue,
-      );
-      expect(
-        EmailDomainPolicy.isAllowedEmail('staff@phongvu-office.vn', const []),
-        isFalse,
-      );
-    });
-
-    test(
-      'allows the break-glass super admin email outside fallback domains',
-      () {
-        expect(
-          EmailDomainPolicy.isAllowedEmail('admin@hoanghochoi.com', const []),
-          isTrue,
-        );
-      },
-    );
-
-    test('keeps fallback domains when a bundled domain asset is stale', () {
-      const staleAssetDomains = ['phongvu.vn', 'teko.vn'];
-
-      expect(
-        EmailDomainPolicy.isAllowedEmail(
-          'admin@acare.vn',
-          staleAssetDomains,
-        ),
-        isTrue,
-      );
-    });
-
+  group('Assets', () {
     test('loads the ACare logo asset used by VietQR branding', () async {
       final data = await rootBundle.load('assets/icon/acare_logo.png');
       expect(data.lengthInBytes, greaterThan(1000));

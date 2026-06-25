@@ -4,13 +4,14 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/logging/app_logger.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../data/bank_statement_repository.dart';
 import '../../domain/bank_statement_transaction.dart';
 
-const int _statementSnapshotPageSize = 100;
 const int _vietnamUtcOffsetHours = 7;
+const int _maxExportDateSpanDays = 31;
 
 class BankStatementRowMessage {
   final String text;
@@ -23,7 +24,6 @@ class BankStatementProvider extends ChangeNotifier {
   final BankStatementRepository _repository;
   final DateTime Function() _now;
   final List<BankStatementTransaction> _transactions = [];
-  final List<BankStatementTransaction> _snapshotTransactions = [];
   final List<StoreBranch> _stores = [];
   final Set<String> _selectedIds = {};
   final Map<String, BankStatementRowMessage> _rowMessages = {};
@@ -73,6 +73,16 @@ class BankStatementProvider extends ChangeNotifier {
   Set<String> get selectedStoreIds => Set.unmodifiable(_selectedStoreIds);
   bool get canGoPrevious => _page > 0;
   bool get canGoNext => (_page + 1) * _limit < _total;
+  bool get hasExportDateRangeLimitViolation =>
+      _exportDateSpanDays > _maxExportDateSpanDays;
+  String get exportDateRangeLimitMessage {
+    final start = _effectiveStartDate();
+    final end = _effectiveEndDate();
+    return 'Chỉ export tối đa 1 tháng (31 ngày). '
+        'Khoảng đang chọn ${_formatDateForMessage(start)} - '
+        '${_formatDateForMessage(end)} có $_exportDateSpanDays ngày.';
+  }
+
   bool get allVisibleSelected =>
       _transactions.isNotEmpty &&
       _transactions.every((item) => _selectedIds.contains(item.id));
@@ -81,7 +91,7 @@ class BankStatementProvider extends ChangeNotifier {
     return _hasEffectiveFilter && _primaryFilterCount <= 1;
   }
 
-  bool get canUseAllStores => _user?.hasNationalWorkScope == true;
+  bool get canUseAllStores => _user?.canUseAllBankStatementStores == true;
 
   BankStatementRowMessage? rowMessage(String id) => _rowMessages[id];
 
@@ -99,11 +109,19 @@ class BankStatementProvider extends ChangeNotifier {
   Future<void> loadStores() async {
     try {
       final user = _user;
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement store load started',
+        context: {
+          'scopeMode': canUseAllStores ? 'ALL_STORES' : 'ASSIGNED_STORE',
+          'hasAssignedStore': user?.storeId?.isNotEmpty == true,
+        },
+      );
       final stores = await _repository.fetchStores();
       _stores
         ..clear()
         ..addAll(
-          user?.hasNationalWorkScope == true
+          user?.canUseAllBankStatementStores == true
               ? stores
               : stores.where((store) => store.storeId == user?.storeId),
         );
@@ -111,7 +129,11 @@ class BankStatementProvider extends ChangeNotifier {
       await AppLogger.instance.info(
         'BankStatement',
         'Bank statement stores loaded',
-        context: {'count': _stores.length, 'national': canUseAllStores},
+        context: {
+          'scopeMode': canUseAllStores ? 'ALL_STORES' : 'ASSIGNED_STORE',
+          'availableCount': stores.length,
+          'visibleCount': _stores.length,
+        },
       );
       notifyListeners();
     } catch (error) {
@@ -120,6 +142,10 @@ class BankStatementProvider extends ChangeNotifier {
         'BankStatement',
         'Bank statement store load failed',
         error: error,
+        context: {
+          'scopeMode': canUseAllStores ? 'ALL_STORES' : 'ASSIGNED_STORE',
+          'hasAssignedStore': _user?.storeId?.isNotEmpty == true,
+        },
       );
       notifyListeners();
     }
@@ -199,22 +225,20 @@ class BankStatementProvider extends ChangeNotifier {
     if (_limit == value) return;
     _limit = value;
     _page = 0;
-    _applyVisiblePage();
+    if (_hasSearched && canSearch) {
+      unawaited(_fetchPage(0));
+    }
     notifyListeners();
   }
 
   Future<void> nextPage() async {
-    if (!canGoNext) return;
-    _page += 1;
-    _applyVisiblePage();
-    notifyListeners();
+    if (!canGoNext || _isLoading) return;
+    await _fetchPage(_page + 1);
   }
 
   Future<void> previousPage() async {
-    if (!canGoPrevious) return;
-    _page -= 1;
-    _applyVisiblePage();
-    notifyListeners();
+    if (!canGoPrevious || _isLoading) return;
+    await _fetchPage(_page - 1);
   }
 
   void toggleSelected(String id, bool selected) {
@@ -250,24 +274,22 @@ class BankStatementProvider extends ChangeNotifier {
         'Bank statement search started',
         context: _logContext(),
       );
-      final firstPage = await _repository.fetchStatements(query);
-      final snapshotRows = await _fetchSnapshotRows(firstPage);
-      _snapshotTransactions
+      final result = await _repository.fetchStatements(query);
+      _transactions
         ..clear()
-        ..addAll(snapshotRows);
-      _page = 0;
-      _total = _snapshotTransactions.length;
-      _applyVisiblePage();
+        ..addAll(result.transactions);
+      _page = result.page;
+      _total = result.total;
       _hasSearched = true;
       await AppLogger.instance.info(
         'BankStatement',
         'Bank statement search succeeded',
         context: {
           ..._logContext(),
-          'count': _snapshotTransactions.length,
+          'count': _transactions.length,
           'total': _total,
           'selectedCount': _selectedIds.length,
-          'snapshot': true,
+          'serverSidePaging': true,
         },
       );
     } catch (error) {
@@ -284,48 +306,26 @@ class BankStatementProvider extends ChangeNotifier {
     }
   }
 
-  Future<List<BankStatementTransaction>> _fetchSnapshotRows(
-    BankStatementPage firstPage,
-  ) async {
-    final total = firstPage.total;
-    if (total <= firstPage.transactions.length) {
-      return firstPage.transactions;
-    }
-
-    await AppLogger.instance.info(
-      'BankStatement',
-      'Bank statement snapshot paging started',
-      context: {
-        ..._logContext(),
-        'firstPageCount': firstPage.transactions.length,
-        'serverTotal': total,
-        'snapshotLimit': _statementSnapshotPageSize,
-      },
-    );
-
-    final rows = <BankStatementTransaction>[];
-    var page = 0;
-    while (rows.length < total) {
-      final result = await _repository.fetchStatements(
-        _query(page: page, limit: _statementSnapshotPageSize),
-      );
-      if (result.transactions.isEmpty) break;
-      rows.addAll(result.transactions);
-      page += 1;
-    }
-    return rows;
-  }
-
   Future<void> exportCsv() async {
     if (!canSearch || _isExporting) return;
+    if (hasExportDateRangeLimitViolation) {
+      _exportMessage = 'Không export quá 1 tháng.';
+      await AppLogger.instance.warn(
+        'BankStatement',
+        'Bank statement export blocked by date range limit',
+        context: {
+          ..._logContext(),
+          'dateSpanDays': _exportDateSpanDays,
+          'maxDateSpanDays': _maxExportDateSpanDays,
+        },
+      );
+      notifyListeners();
+      return;
+    }
     _isExporting = true;
     _exportMessage = null;
     notifyListeners();
     final selected = _selectedIds.toList(growable: false);
-    final snapshotIds = _snapshotTransactions
-        .map((transaction) => transaction.id)
-        .toList(growable: false);
-    final exportIds = selected.isNotEmpty ? selected : snapshotIds;
     try {
       await AppLogger.instance.info(
         'BankStatement',
@@ -333,12 +333,12 @@ class BankStatementProvider extends ChangeNotifier {
         context: {
           ..._logContext(),
           'selectedCount': selected.length,
-          'snapshotCount': snapshotIds.length,
+          'dateSpanDays': _exportDateSpanDays,
         },
       );
       final csvBytes = await _repository.exportCsv(
         _query(),
-        transactionIds: exportIds,
+        transactionIds: selected,
       );
       final path = await FilePicker.saveFile(
         dialogTitle: 'Lưu file sao kê',
@@ -354,7 +354,7 @@ class BankStatementProvider extends ChangeNotifier {
         'Bank statement export succeeded',
         context: {
           'selectedCount': selected.length,
-          'snapshotCount': snapshotIds.length,
+          'dateSpanDays': _exportDateSpanDays,
           'saved': path != null,
         },
       );
@@ -368,6 +368,49 @@ class BankStatementProvider extends ChangeNotifier {
       );
     } finally {
       _isExporting = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _fetchPage(int page) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement page load started',
+        context: {..._logContext(), 'targetPage': page},
+      );
+      final result = await _repository.fetchStatements(
+        _query(page: page, limit: _limit),
+      );
+      _transactions
+        ..clear()
+        ..addAll(result.transactions);
+      _page = result.page;
+      _total = result.total;
+      _hasSearched = true;
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement page load succeeded',
+        context: {
+          ..._logContext(),
+          'count': _transactions.length,
+          'total': _total,
+          'selectedCount': _selectedIds.length,
+        },
+      );
+    } catch (error) {
+      _errorMessage = 'Chưa tải được sao kê. Vui lòng kiểm tra filter.';
+      await AppLogger.instance.error(
+        'BankStatement',
+        'Bank statement page load failed',
+        error: error,
+        context: {..._logContext(), 'targetPage': page},
+      );
+    } finally {
+      _isLoading = false;
       notifyListeners();
     }
   }
@@ -389,7 +432,10 @@ class BankStatementProvider extends ChangeNotifier {
         context: {'transactionId': transactionId, 'orderCount': orders.length},
       );
     } catch (error) {
-      _showRowMessage(transactionId, 'Chưa lưu được mã đơn.', false);
+      final message = error is ApiException
+          ? error.message
+          : 'Chưa lưu được mã đơn.';
+      _showRowMessage(transactionId, message, false);
       await AppLogger.instance.error(
         'BankStatement',
         'Bank statement inline order save failed',
@@ -491,21 +537,6 @@ class BankStatementProvider extends ChangeNotifier {
     _hasSearched = false;
     _selectedIds.clear();
     _transactions.clear();
-    _snapshotTransactions.clear();
-  }
-
-  void _applyVisiblePage() {
-    _transactions.clear();
-    if (_snapshotTransactions.isEmpty || _limit <= 0) return;
-    final start = _page * _limit;
-    if (start >= _snapshotTransactions.length) {
-      _page = 0;
-      return _applyVisiblePage();
-    }
-    final end = start + _limit > _snapshotTransactions.length
-        ? _snapshotTransactions.length
-        : start + _limit;
-    _transactions.addAll(_snapshotTransactions.sublist(start, end));
   }
 
   void _replaceTransaction(BankStatementTransaction updated) {
@@ -513,10 +544,26 @@ class BankStatementProvider extends ChangeNotifier {
       (item) => item.id == updated.id,
     );
     if (visibleIndex >= 0) _transactions[visibleIndex] = updated;
-    final snapshotIndex = _snapshotTransactions.indexWhere(
-      (item) => item.id == updated.id,
-    );
-    if (snapshotIndex >= 0) _snapshotTransactions[snapshotIndex] = updated;
+  }
+
+  DateTime _effectiveStartDate() => _startDate ?? _todayInVietnam();
+
+  DateTime _effectiveEndDate() => _endDate ?? _todayInVietnam();
+
+  int get _exportDateSpanDays {
+    final start = _dateOnly(_effectiveStartDate());
+    final end = _dateOnly(_effectiveEndDate());
+    return end.difference(start).inDays.abs() + 1;
+  }
+
+  DateTime _dateOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
+  String _formatDateForMessage(DateTime value) {
+    final date = _dateOnly(value);
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}';
   }
 
   String? _clean(String value) {

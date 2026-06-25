@@ -9,6 +9,7 @@ import '../../../chat/presentation/widgets/barcode_scanner_screen.dart'
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../../core/utils/validators.dart';
 
 class WarrantyScreen extends StatefulWidget {
@@ -19,6 +20,8 @@ class WarrantyScreen extends StatefulWidget {
 }
 
 class _WarrantyScreenState extends State<WarrantyScreen> {
+  static const int _maxImages = 20;
+
   final _formKey = GlobalKey<FormState>();
   final _receiptController = TextEditingController();
   final _receiptFocusNode = FocusNode();
@@ -55,14 +58,56 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
     });
   }
 
+  Future<bool> _ensureImageCapacity(String source) async {
+    if (_images.length < _maxImages) return true;
+    await AppLogger.instance.warn(
+      'WarrantyUpload',
+      'Warranty image add blocked at limit',
+      context: {
+        'source': source,
+        'imageCount': _images.length,
+        'maxImages': _maxImages,
+      },
+    );
+    if (mounted) {
+      _showSnackBar(
+        'Mỗi biên nhận đính kèm tối đa $_maxImages ảnh.',
+        Colors.orange,
+      );
+    }
+    return false;
+  }
+
   Future<void> _pickImage(ImageSource source) async {
+    final sourceName = source == ImageSource.gallery ? 'gallery' : 'camera';
+    if (!await _ensureImageCapacity(sourceName)) return;
     try {
       if (source == ImageSource.gallery) {
         final List<XFile> selectedImages = await _picker.pickMultiImage();
         if (selectedImages.isNotEmpty) {
+          final remaining = _maxImages - _images.length;
+          final accepted = selectedImages.take(remaining).toList();
           setState(() {
-            _images.addAll(selectedImages);
+            _images.addAll(accepted);
           });
+          final truncated = selectedImages.length - accepted.length;
+          await AppLogger.instance.info(
+            'WarrantyUpload',
+            'Warranty images picked',
+            context: {
+              'pickedCount': selectedImages.length,
+              'acceptedCount': accepted.length,
+              'truncatedCount': truncated,
+              'totalCount': _images.length,
+              'maxImages': _maxImages,
+            },
+          );
+          if (truncated > 0 && mounted) {
+            _showSnackBar(
+              'Đã giữ $_maxImages ảnh đầu tiên theo giới hạn hệ thống.',
+              Colors.orange,
+            );
+          }
         }
       } else {
         final XFile? image = await _picker.pickImage(source: source);
@@ -70,16 +115,27 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
           setState(() {
             _images.add(image);
           });
+          await AppLogger.instance.info(
+            'WarrantyUpload',
+            'Warranty photo captured',
+            context: {'totalCount': _images.length, 'maxImages': _maxImages},
+          );
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      await AppLogger.instance.error(
+        'WarrantyUpload',
+        'Warranty image picker failed',
+        error: e,
+        stackTrace: stackTrace,
+        context: {
+          'source': sourceName,
+          'imageCount': _images.length,
+          'maxImages': _maxImages,
+        },
+      );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Chưa thêm được ảnh. Vui lòng thử lại.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showSnackBar('Chưa thêm được ảnh. Vui lòng thử lại.', Colors.red);
       }
     }
   }
@@ -109,6 +165,13 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
     setState(() {
       _images.removeAt(index);
     });
+  }
+
+  void _showSnackBar(String message, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
   }
 
   void _showImageSourceDialog() {
@@ -143,11 +206,19 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     if (_images.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng chọn ít nhất 1 hình ảnh'),
-          backgroundColor: Colors.orange,
-        ),
+      _showSnackBar('Vui lòng chọn ít nhất 1 hình ảnh', Colors.orange);
+      return;
+    }
+
+    if (_images.length > _maxImages) {
+      await AppLogger.instance.warn(
+        'WarrantyUpload',
+        'Warranty save blocked by image limit',
+        context: {'imageCount': _images.length, 'maxImages': _maxImages},
+      );
+      _showSnackBar(
+        'Mỗi biên nhận đính kèm tối đa $_maxImages ảnh.',
+        Colors.orange,
       );
       return;
     }
@@ -280,11 +351,17 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                Text(
+                  'Tối đa $_maxImages ảnh',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
                 const SizedBox(height: AppLayoutTokens.formInlineGap),
 
                 // Add image button
                 AppSecondaryButton(
-                  onPressed: _showImageSourceDialog,
+                  onPressed: _images.length >= _maxImages
+                      ? null
+                      : _showImageSourceDialog,
                   icon: Icons.add_photo_alternate,
                   label: 'Thêm hình ảnh',
                 ),

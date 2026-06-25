@@ -13,10 +13,12 @@ using Microsoft Store or buying a public code-signing certificate.
   installer EXE after Inno compilation.
 - If signing secrets are missing, the workflow continues unsigned and logs the
   unsigned state instead of failing release builds.
-- When signing secrets are present, the workflow exports the public `.cer` from
-  the PFX and passes it to Inno so the installer imports the certificate into the
-  current user's `Trusted Root Certification Authorities` and `Trusted
-  Publishers` stores on first run.
+- The installer never bundles, imports, or trusts its own signing certificate.
+  The public `.cer` is provisioned separately through GPO, Intune, device
+  management, or a documented administrator step.
+- After signing, CI updates Microsoft Defender security intelligence and scans
+  the final installer and portable ZIP. Any unavailable scanner, failed update,
+  detection, quarantine, or non-zero scan exit blocks publication.
 - Direct Windows downloads publish a SHA256 checksum file beside the ZIP and
   installer EXE. Checksums are generated after signing.
 - Documentation defines the internal trust requirement: deploy the public code-
@@ -29,10 +31,12 @@ using Microsoft Store or buying a public code-signing certificate.
 - Run Flutter dependency resolution, static analysis, and tests.
 - Build the Windows release app.
 - Compile the Inno installer.
-- Compile the Inno installer with and without the optional internal certificate
-  define.
+- Compile the Inno installer and verify it contains no certificate-import path.
+- Parse and smoke-test the Defender release-gate PowerShell script.
+- Scan the local installer and portable ZIP with Microsoft Defender.
 - Generate and inspect the Windows `.sha256` file.
 - Parse the GitHub workflow YAML.
 - Run `git diff --check`.
-- Manual gap: signed CI run requires real GitHub signing secrets; target-PC
-  warning smoke requires a managed PC with the public `.cer` installed.
+- Signed CI proof must show the final Defender gate passing before checksums and
+  upload. Target-PC trust still requires a managed PC with the public `.cer`
+  installed separately.

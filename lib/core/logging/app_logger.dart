@@ -11,6 +11,7 @@ import '../constants/api_constants.dart';
 import '../network/api_client.dart';
 import '../storage/app_storage_keys.dart';
 import 'daily_activity_log.dart';
+import 'app_log_file.dart';
 
 class AppLogger {
   AppLogger._();
@@ -22,6 +23,7 @@ class AppLogger {
   String? _clientId;
   bool _uploadsEnabled = true;
   bool _dailyUploadInFlight = false;
+  Future<void> _fileOperation = Future<void>.value();
 
   static const _clientIdPreferenceKey = 'payment_monitor_client_id';
   static const _dailyUploadSuccessKey =
@@ -48,7 +50,9 @@ class AppLogger {
       _logFile = File(
         '${logDirectory.path}${Platform.pathSeparator}opshub.log',
       );
-      await _trimIfNeeded();
+      await _runSerializedFileOperation(
+        () => _withLogFileLock(_normalizeAndTrimExistingLog),
+      );
     } catch (error) {
       if (kDebugMode) debugPrint('[AppLogger] init failed: $error');
     }
@@ -101,11 +105,12 @@ class AppLogger {
       await _apiClient.post(
         ApiConstants.appLogsEndpoint,
         body: {
-          'level': level,
-          'source': source,
-          'message': message,
-          if (_clientId != null) 'clientId': _clientId,
-          if (storeCode != null) 'storeCode': storeCode,
+          'level': _sanitize(level),
+          'source': _sanitize(source),
+          'message': _sanitize(message),
+          'environment': AppStorageKeys.environment,
+          if (_clientId != null) 'clientId': _sanitize(_clientId!),
+          if (storeCode != null) 'storeCode': _sanitize(storeCode),
           if (context != null) 'context': _sanitizeJson(context),
         },
       );
@@ -220,31 +225,58 @@ class AppLogger {
   }) async {
     final entry = jsonEncode({
       'ts': DateTime.now().toIso8601String(),
-      'level': level,
-      'source': source,
+      'level': _sanitize(level),
+      'source': _sanitize(source),
       'message': _sanitize(message),
-      if (_clientId != null) 'clientId': _clientId,
+      'environment': AppStorageKeys.environment,
+      if (_clientId != null) 'clientId': _sanitize(_clientId!),
       if (context != null) 'context': _sanitizeJson(context),
     });
     if (kDebugMode) debugPrint(entry);
     final file = _logFile;
     if (file == null) return;
     try {
-      await file.writeAsString('$entry\n', mode: FileMode.append, flush: false);
+      await _runSerializedFileOperation(
+        () => _withLogFileLock(() async {
+          await file.writeAsString(
+            '$entry\n',
+            mode: FileMode.append,
+            flush: false,
+          );
+          if (await file.length() > appLogMaxBytes) {
+            await _normalizeAndTrimExistingLog();
+          }
+        }),
+      );
     } catch (_) {
       // Local logging must never break user flows.
     }
   }
 
-  Future<void> _trimIfNeeded() async {
+  Future<void> _normalizeAndTrimExistingLog() async {
     final file = _logFile;
-    if (file == null || !await file.exists()) return;
-    final bytes = await file.length();
-    const maxBytes = 2 * 1024 * 1024;
-    if (bytes <= maxBytes) return;
-    final content = await file.readAsString();
-    final keepFrom = (content.length * 0.5).floor();
-    await file.writeAsString(content.substring(keepFrom));
+    if (file == null) return;
+    await compactAppLogFile(file);
+  }
+
+  Future<void> _runSerializedFileOperation(Future<void> Function() operation) {
+    final next = _fileOperation.then((_) => operation());
+    _fileOperation = next.catchError((Object _) {});
+    return next;
+  }
+
+  Future<void> _withLogFileLock(Future<void> Function() operation) async {
+    final file = _logFile;
+    if (file == null) return;
+    final lockFile = File('${file.path}.lock');
+    final lockHandle = await lockFile.open(mode: FileMode.append);
+    try {
+      await lockHandle.lock(FileLock.exclusive);
+      await operation();
+    } finally {
+      await lockHandle.unlock();
+      await lockHandle.close();
+    }
   }
 
   Future<String> _ensureClientId() async {
@@ -272,31 +304,11 @@ class AppLogger {
   }
 
   Object? _sanitizeJson(Object? value) {
-    if (value is Map) {
-      return value.map((key, dynamic item) {
-        final keyText = key.toString();
-        if (RegExp(
-          'token|password|secret|authorization',
-          caseSensitive: false,
-        ).hasMatch(keyText)) {
-          return MapEntry(keyText, '[redacted]');
-        }
-        return MapEntry(keyText, _sanitizeJson(item));
-      });
-    }
-    if (value is List) return value.map(_sanitizeJson).toList();
-    if (value is String) return _sanitize(value);
-    return value;
+    return sanitizeLogValue(value);
   }
 
   String _sanitize(String value) {
-    return value.replaceAll(
-      RegExp(
-        r'(Bearer\s+)[A-Za-z0-9._-]+|("?(?:password|token|secret|authorization)"?\s*[:=]\s*)("[^"]+"|[^\s,}]+)',
-        caseSensitive: false,
-      ),
-      '[redacted]',
-    );
+    return sanitizeLogText(value, maxLength: 4000);
   }
 }
 

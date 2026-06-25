@@ -8,6 +8,7 @@ import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/utils/validators.dart';
+import '../../domain/entities/user.dart';
 import '../providers/auth_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -146,6 +147,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
     final avatarUrl = user?.avatarUrl;
+    final organizationNodeLabel =
+        _nonEmpty(user?.organizationNodeName) ??
+        _nonEmpty(user?.organizationNodeId);
 
     return Scaffold(
       appBar: const GradientHeader(title: 'Thông tin cá nhân', showBack: true),
@@ -200,16 +204,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.email_outlined),
               title: Text(user?.email ?? ''),
-              subtitle: Text('Quyền hệ thống: ${user?.role ?? ''}'),
+              subtitle: Text('Vai trò: ${User.roleDisplayName(user?.role)}'),
             ),
-            if (user?.personnelCode != null || user?.workScopeType != null)
+            if (organizationNodeLabel != null)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.badge_outlined),
-                title: Text(user?.personnelCode ?? 'Chưa gán mã nhân sự'),
-                subtitle: Text(
-                  'Phòng ban: ${user?.departmentCode ?? 'Chưa gán'} • Chức danh: ${user?.jobRoleCode ?? 'Chưa gán'} • Phạm vi: ${user?.workScopeType ?? 'Chưa gán'}',
-                ),
+                leading: const Icon(Icons.account_tree_outlined),
+                title: Text(organizationNodeLabel),
+                subtitle: const Text('Cây tổ chức'),
               ),
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -242,6 +244,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  String? _nonEmpty(String? value) {
+    final text = value?.trim();
+    if (text == null || text.isEmpty) return null;
+    return text;
   }
 }
 

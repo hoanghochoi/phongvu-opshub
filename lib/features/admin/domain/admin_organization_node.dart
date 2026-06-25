@@ -9,7 +9,6 @@ class AdminOrganizationNode {
   final int level;
   final String? parentId;
   final String? emailDomain;
-  final bool loginAllowed;
   final bool isSystem;
   final bool isActive;
   final int sortOrder;
@@ -40,7 +39,6 @@ class AdminOrganizationNode {
     this.level = 0,
     this.parentId,
     this.emailDomain,
-    this.loginAllowed = false,
     this.isSystem = false,
     this.isActive = true,
     this.sortOrder = 0,
@@ -78,7 +76,6 @@ class AdminOrganizationNode {
           levelOf(json['type']?.toString() ?? 'LV1_BLOCK'),
       parentId: json['parentId']?.toString(),
       emailDomain: json['emailDomain']?.toString(),
-      loginAllowed: json['loginAllowed'] == true,
       isSystem: json['isSystem'] == true,
       isActive: json['isActive'] != false,
       sortOrder: int.tryParse(json['sortOrder']?.toString() ?? '') ?? 0,
@@ -115,7 +112,6 @@ class AdminOrganizationNode {
       'isActive': isActive,
       'sortOrder': sortOrder,
       if (isDomain) 'emailDomain': emailDomain,
-      if (isDomain) 'loginAllowed': loginAllowed,
       if (isShowroom) 'storeId': storeId,
       if (isShowroom) 'storeName': storeName,
       if (isShowroom) 'transferAccountNumber': transferAccountNumber,
@@ -170,6 +166,11 @@ class AdminOrganizationNodeTypes {
 
   static const definitions = [
     ('LV0_DOMAIN', 'Lv0 Domain'),
+    ('LV1_BLOCK', 'Lv1 Khối'),
+    ('LV2_DEPARTMENT', 'Lv2 Phòng/Bộ phận'),
+    ('LV2_REGION', 'Lv2 Miền'),
+    ('LV3_AREA', 'Lv3 Vùng'),
+    ('LV3_UNIT', 'Lv3 Bộ phận'),
     ('LV4_STORE', 'Lv4 Cửa hàng'),
     ('LV5_POSITION', 'Lv5 Vị trí'),
   ];

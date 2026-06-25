@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/network/api_client.dart';
-import '../../core/platform/app_platform_capabilities.dart';
+import '../../features/auth/domain/entities/user.dart';
 import '../../features/bank_statement/data/bank_statement_repository.dart';
 import '../../features/bank_statement/presentation/providers/bank_statement_provider.dart';
 import '../../features/bank_statement/presentation/screens/bank_statement_screen.dart';
@@ -25,7 +25,6 @@ import '../../features/warranty/presentation/screens/warranty_main_screen.dart';
 import '../../features/warranty/presentation/screens/check_warranty_screen.dart';
 import '../../features/feedback/presentation/screens/feedback_screen.dart';
 import '../../features/payment_monitor/presentation/screens/payment_monitor_screen.dart';
-import '../../features/payment_monitor/presentation/screens/payment_monitor_unsupported_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../features/vietqr/presentation/screens/vietqr_screen.dart';
 import '../../features/fifo/presentation/screens/fifo_check_screen.dart';
@@ -79,7 +78,7 @@ class AppRouter {
 
         final routeFeature = _featureForRoute(location);
         if (routeFeature != null &&
-            authProvider.user?.canUseFeature(routeFeature) != true) {
+            !_canUseRouteFeature(authProvider.user, routeFeature)) {
           return '/home';
         }
 
@@ -190,10 +189,7 @@ class AppRouter {
         ),
         GoRoute(
           path: '/payment-monitor',
-          builder: (context, state) =>
-              AppPlatformCapabilities.isPaymentMonitorSupported()
-              ? const PaymentMonitorScreen()
-              : const PaymentMonitorUnsupportedScreen(),
+          builder: (context, state) => const PaymentMonitorScreen(),
         ),
         GoRoute(
           path: '/bank-statement',
@@ -237,5 +233,12 @@ class AppRouter {
       '/feedback' => 'FEEDBACK',
       _ => null,
     };
+  }
+
+  static bool _canUseRouteFeature(User? user, String featureCode) {
+    if (featureCode == 'BANK_STATEMENTS') {
+      return user?.canUseBankStatements == true;
+    }
+    return user?.canUseFeature(featureCode) == true;
   }
 }

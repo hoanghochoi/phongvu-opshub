@@ -47,6 +47,7 @@ class AuthProvider extends ChangeNotifier {
   User? _user;
   bool _isLoading = false;
   String? _errorMessage;
+  bool _passwordResetAccountMissing = false;
   String? _sessionExpiredDialogMessage;
   bool _isInitialized = false;
 
@@ -59,6 +60,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _user != null;
   String? get errorMessage => _errorMessage;
+  bool get passwordResetAccountMissing => _passwordResetAccountMissing;
   String? get sessionExpiredDialogMessage => _sessionExpiredDialogMessage;
   bool get isInitialized => _isInitialized;
 
@@ -303,6 +305,12 @@ class AuthProvider extends ChangeNotifier {
   void clearSessionExpiredDialogMessage() {
     if (_sessionExpiredDialogMessage == null) return;
     _sessionExpiredDialogMessage = null;
+    notifyListeners();
+  }
+
+  @visibleForTesting
+  void setSessionExpiredDialogMessageForTesting(String? message) {
+    _sessionExpiredDialogMessage = message;
     notifyListeners();
   }
 
@@ -576,6 +584,7 @@ class AuthProvider extends ChangeNotifier {
     );
     _isLoading = true;
     _errorMessage = null;
+    _passwordResetAccountMissing = false;
     notifyListeners();
 
     try {
@@ -585,15 +594,23 @@ class AuthProvider extends ChangeNotifier {
         'Password reset request succeeded',
         context: {'email': email},
       );
+      _passwordResetAccountMissing = false;
       _isLoading = false;
       notifyListeners();
       return true;
     } on ApiException catch (e) {
+      final accountMissing = e.statusCode == 404;
       await AppLogger.instance.warn(
         'Auth',
         'Password reset request failed',
-        context: {'email': email, 'message': e.message},
+        context: {
+          'email': email,
+          'message': e.message,
+          'statusCode': e.statusCode,
+          'accountMissing': accountMissing,
+        },
       );
+      _passwordResetAccountMissing = accountMissing;
       _errorMessage = e.message;
       _isLoading = false;
       notifyListeners();
@@ -606,6 +623,7 @@ class AuthProvider extends ChangeNotifier {
         upload: true,
         context: {'email': email},
       );
+      _passwordResetAccountMissing = false;
       _errorMessage = 'Không gửi được email đổi mật khẩu. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
@@ -808,6 +826,7 @@ class AuthProvider extends ChangeNotifier {
 
   void clearError() {
     _errorMessage = null;
+    _passwordResetAccountMissing = false;
     notifyListeners();
   }
 

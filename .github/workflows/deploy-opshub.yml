@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: opshub-production-deploy
+  cancel-in-progress: false
+
 env:
   OPSHUB_PUBLIC_BASE_URL: https://opshub.hoanghochoi.com
   OPSHUB_API_BASE_URL: https://opshub.hoanghochoi.com/api
@@ -63,12 +67,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: prepare
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true }}
+    environment: production
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: stable
           cache: true
@@ -108,7 +113,7 @@ jobs:
             --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}"
 
       - name: Connect Tailscale
-        uses: tailscale/github-action@v4
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
@@ -151,12 +156,13 @@ jobs:
     runs-on: windows-latest
     needs: prepare
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true }}
+    environment: production
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: stable
           cache: true
@@ -186,12 +192,8 @@ jobs:
           }
           $certPath = Join-Path $env:RUNNER_TEMP 'opshub-windows-signing.pfx'
           [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64))
-          $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certPath, $env:WINDOWS_SIGNING_PFX_PASSWORD)
-          $publicCertPath = Join-Path $env:RUNNER_TEMP 'opshub-windows-signing.cer'
-          [IO.File]::WriteAllBytes($publicCertPath, $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
           'WINDOWS_SIGNING_ENABLED=true' | Out-File -FilePath $env:GITHUB_ENV -Append
           "WINDOWS_SIGNING_PFX_PATH=$certPath" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "WINDOWS_SIGNING_CERT_PATH=$publicCertPath" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Sign Windows app executable
         if: env.WINDOWS_SIGNING_ENABLED == 'true'
@@ -276,12 +278,6 @@ jobs:
             "/DOutputDir=$outputDir",
             "/DOutputBaseFilename=${{ needs.prepare.outputs.windows_installer_basename }}"
           )
-          if ($env:WINDOWS_SIGNING_ENABLED -eq 'true') {
-            if (-not (Test-Path $env:WINDOWS_SIGNING_CERT_PATH)) {
-              throw 'WINDOWS_SIGNING_CERT_PATH is missing while Windows signing is enabled.'
-            }
-            $isccArgs += "/DInternalCodeSigningCertPath=${env:WINDOWS_SIGNING_CERT_PATH}"
-          }
           $isccArgs += 'deploy\windows\phongvu-opshub.iss'
           & $iscc @isccArgs
 
@@ -292,6 +288,14 @@ jobs:
           WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
         run: |
           .\scripts\sign-windows-artifact.ps1 -Path 'build\windows\x64\runner\${{ needs.prepare.outputs.windows_installer_name }}'
+
+      - name: Scan final Windows artifacts with Microsoft Defender
+        shell: pwsh
+        run: |
+          .\scripts\scan-windows-artifact-defender.ps1 -Path @(
+            'build\windows\x64\runner\${{ needs.prepare.outputs.windows_zip_name }}',
+            'build\windows\x64\runner\${{ needs.prepare.outputs.windows_installer_name }}'
+          )
 
       - name: Write Windows checksums
         shell: pwsh
@@ -313,7 +317,7 @@ jobs:
           Set-Content -Path $checksumPath -Value $lines -Encoding ascii
 
       - name: Connect Tailscale
-        uses: tailscale/github-action@v4
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
@@ -362,12 +366,13 @@ jobs:
       - build_android
       - build_windows
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true }}
+    environment: production
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Connect Tailscale
-        uses: tailscale/github-action@v4
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
@@ -538,6 +543,8 @@ jobs:
             -v "$REMOTE_RELEASE_DIR/deploy/home-server/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile < /dev/null
 
+          previous_current="$(readlink -f "$CURRENT_DIR" || true)"
+          remote_release_real="$(readlink -f "$REMOTE_RELEASE_DIR" || true)"
           ln -sfn "$REMOTE_RELEASE_DIR" "${CURRENT_DIR}.next"
           mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
           cd "$CURRENT_DIR"
@@ -545,6 +552,76 @@ jobs:
           compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
           compose_cmd() {
             "${compose[@]}" "$@" < /dev/null
+          }
+
+          dump_deploy_diagnostics() {
+            set +e
+            echo "::group::Docker deployment diagnostics"
+            compose_cmd ps
+            compose_cmd logs --tail=200 api
+            compose_cmd logs --tail=120 realtime
+            compose_cmd logs --tail=120 caddy
+            docker inspect home-server-api-1 --format '{{json .State.Health}}'
+            echo "::endgroup::"
+            set -e
+          }
+
+          rollback_to_release() {
+            candidate="$1"
+            if [ ! -d "$candidate" ]; then
+              return 1
+            fi
+            echo "Attempting rollback to release: $candidate"
+            ln -sfn "$candidate" "${CURRENT_DIR}.rollback"
+            mv -Tf "${CURRENT_DIR}.rollback" "$CURRENT_DIR"
+            cd "$CURRENT_DIR"
+            compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+            if compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 api realtime caddy; then
+              echo "Rollback release is healthy: $candidate"
+              compose_cmd ps
+              return 0
+            fi
+            dump_deploy_diagnostics
+            return 1
+          }
+
+          rollback_on_error() {
+            status="$1"
+            echo "Deploy failed with status $status" >&2
+            dump_deploy_diagnostics
+
+            rollback_candidates=()
+            if [ -n "${previous_current:-}" ] && [ -d "$previous_current" ]; then
+              rollback_candidates+=("$previous_current")
+            fi
+
+            releases_dir="$(dirname "$REMOTE_RELEASE_DIR")"
+            while IFS= read -r dir; do
+              dir_real="$(readlink -f "$dir" || true)"
+              if [ -z "$dir_real" ] || [ "$dir_real" = "$remote_release_real" ]; then
+                continue
+              fi
+              already_added=false
+              for existing in "${rollback_candidates[@]}"; do
+                existing_real="$(readlink -f "$existing" || true)"
+                if [ "$existing_real" = "$dir_real" ]; then
+                  already_added=true
+                  break
+                fi
+              done
+              if [ "$already_added" = false ]; then
+                rollback_candidates+=("$dir_real")
+              fi
+            done < <(find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
+
+            for candidate in "${rollback_candidates[@]}"; do
+              if rollback_to_release "$candidate"; then
+                exit "$status"
+              fi
+            done
+
+            echo "Rollback did not find a healthy release" >&2
+            exit "$status"
           }
 
           compose_cmd config >/dev/null
@@ -555,7 +632,13 @@ jobs:
 
           compose_cmd --profile migrate run --rm -T --build migrate
 
-          compose_cmd up -d --build --force-recreate --wait api realtime caddy
+          set +e
+          compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 api realtime caddy
+          deploy_status=$?
+          set -e
+          if [ "$deploy_status" -ne 0 ]; then
+            rollback_on_error "$deploy_status"
+          fi
 
           expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}"
           for attempt in {1..12}; do
@@ -683,9 +766,10 @@ jobs:
   deploy_download_static:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_client_build == true }}
+    environment: production
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Confirm static-only deploy
         shell: bash
@@ -710,7 +794,7 @@ jobs:
           node scripts/download-manifest.mjs from-live
 
       - name: Connect Tailscale
-        uses: tailscale/github-action@v4
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}

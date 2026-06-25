@@ -36,6 +36,8 @@ void main() {
         'status': '00',
         'paidAt': '2026-05-29T02:00:00.000Z',
         'firstSeenAt': '2026-05-29T02:00:05.000Z',
+        'payerName': 'NGUYEN VAN A',
+        'payerAccount': '9704361234567890',
       });
       final history = BankStatementOrderHistoryEntry.fromJson({
         'id': 'audit-1',
@@ -48,9 +50,33 @@ void main() {
       expect(transaction.amount, 1250000);
       expect(transaction.hasOrders, isTrue);
       expect(transaction.orders, ['26052912345678', '26052987654321']);
+      expect(transaction.payerName, 'NGUYEN VAN A');
+      expect(transaction.payerAccount, '9704361234567890');
+      expect(transaction.payerLabel, 'NGUYEN VAN A • 9704361234567890');
       expect(history.oldOrders, ['26052912345678']);
       expect(history.newOrders, ['26052987654321']);
       expect(history.changedByEmail, 'manager@example.com');
+    });
+
+    test('reads VietinBank MAP request card payer fields', () {
+      final transaction = BankStatementTransaction.fromJson({
+        'id': 'tx-req-card',
+        'storeId': 'CP01',
+        'transactionKey': 'key-req-card',
+        'transactionNumber': 'MAP-REQ-001',
+        'amount': 1250000,
+        'content': 'PAY 26052912345678',
+        'orders': ['26052912345678'],
+        'status': '00',
+        'paidAt': '2026-05-29T02:00:00.000Z',
+        'firstSeenAt': '2026-05-29T02:00:05.000Z',
+        'reqCardName': 'NGUYEN VAN A',
+        'reqCardNo': '9704361234567890',
+      });
+
+      expect(transaction.payerName, 'NGUYEN VAN A');
+      expect(transaction.payerAccount, '9704361234567890');
+      expect(transaction.payerLabel, 'NGUYEN VAN A • 9704361234567890');
     });
   });
 
@@ -64,6 +90,34 @@ void main() {
       expect(provider.stores.map((store) => store.storeId), ['CP01', 'CP02']);
       expect(provider.hasSearched, isFalse);
       expect(repository.fetchStatementsCount, 0);
+
+      provider.dispose();
+    });
+
+    test('uses bank statement all-scope policy for all-store access', () async {
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+
+      await provider.initialize(_financeAllScopeUser);
+
+      expect(provider.canUseAllStores, isTrue);
+      expect(provider.stores.map((store) => store.storeId), ['CP01', 'CP02']);
+
+      provider.setStoreSelection(allStores: true, ids: const {});
+
+      expect(provider.allStores, isTrue);
+
+      provider.dispose();
+    });
+
+    test('limits a store-scoped manager to the assigned showroom', () async {
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+
+      await provider.initialize(_storeScopedManager);
+
+      expect(provider.canUseAllStores, isFalse);
+      expect(provider.stores.map((store) => store.storeId), ['CP01']);
 
       provider.dispose();
     });
@@ -165,13 +219,12 @@ void main() {
       provider.setLimit(2);
       await provider.search();
       provider.toggleAllVisible(true);
-      final callsAfterSearch = repository.fetchStatementsCount;
-
       expect(provider.page, 0);
       expect(provider.selectedIds, {'tx-1', 'tx-2'});
+      expect(repository.fetchStatementsCount, 1);
 
       await provider.nextPage();
-      expect(repository.fetchStatementsCount, callsAfterSearch);
+      expect(repository.fetchStatementsCount, 2);
       provider.toggleSelected('tx-3', true);
 
       expect(provider.page, 1);
@@ -179,7 +232,7 @@ void main() {
       expect(provider.selectedIds, {'tx-1', 'tx-2', 'tx-3'});
 
       await provider.previousPage();
-      expect(repository.fetchStatementsCount, callsAfterSearch);
+      expect(repository.fetchStatementsCount, 3);
 
       expect(provider.page, 0);
       expect(provider.transactions.map((item) => item.id), ['tx-1', 'tx-2']);
@@ -188,7 +241,7 @@ void main() {
       provider.dispose();
     });
 
-    test('keeps SR snapshot fetches under backend page limit', () async {
+    test('loads only the current server page for broad SR searches', () async {
       final repository = _FakeBankStatementRepository(
         pages: [
           List.generate(
@@ -209,12 +262,8 @@ void main() {
       expect(provider.hasSearched, isTrue);
       expect(provider.total, 125);
       expect(provider.transactions.length, 20);
-      expect(repository.fetchStatementsCount, 3);
-      expect(repository.seenQueries.map((query) => query.limit), [
-        20,
-        100,
-        100,
-      ]);
+      expect(repository.fetchStatementsCount, 1);
+      expect(repository.seenQueries.single.limit, 20);
       expect(
         repository.seenQueries.every(
           (query) => query.storeIds.single == 'CP01',
@@ -229,6 +278,51 @@ void main() {
         ),
         isTrue,
       );
+
+      provider.dispose();
+    });
+
+    test('exports selected ids kept across pages', () async {
+      final repository = _FakeBankStatementRepository(
+        pages: [
+          [
+            _transaction('tx-1', ['26052912345678']),
+            _transaction('tx-2', const []),
+          ],
+          [_transaction('tx-3', const []), _transaction('tx-4', const [])],
+        ],
+      );
+      final provider = BankStatementProvider(repository);
+      await provider.initialize(_nationalManager);
+
+      provider.setOrderStatus('MISSING_ORDER');
+      provider.setLimit(2);
+      await provider.search();
+      provider.toggleSelected('tx-1', true);
+      await provider.nextPage();
+      provider.toggleSelected('tx-3', true);
+      await provider.exportCsv();
+
+      expect(repository.exportCsvCount, 1);
+      expect(repository.lastExportTransactionIds, ['tx-1', 'tx-3']);
+
+      provider.dispose();
+    });
+
+    test('blocks CSV export when the date range is over one month', () async {
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+      await provider.initialize(_nationalManager);
+
+      provider.setStoreSelection(allStores: true, ids: const {});
+      provider.setDateRange(DateTime(2026, 5), DateTime(2026, 6, 5));
+
+      expect(provider.hasExportDateRangeLimitViolation, isTrue);
+
+      await provider.exportCsv();
+
+      expect(repository.exportCsvCount, 0);
+      expect(provider.exportMessage, 'Không export quá 1 tháng.');
 
       provider.dispose();
     });
@@ -288,6 +382,7 @@ const _nationalManager = User(
   email: 'manager@example.com',
   role: 'MANAGER',
   workScopeType: 'NATIONAL',
+  policyAccess: {'BANK_STATEMENT_ALL_SCOPE': true},
 );
 
 const _superAdmin = User(
@@ -296,12 +391,34 @@ const _superAdmin = User(
   role: 'SUPER_ADMIN',
 );
 
+const _financeAllScopeUser = User(
+  id: 'finance-1',
+  email: 'finance@phongvu.vn',
+  role: 'USER',
+  storeId: 'CP01',
+  workScopeType: 'STORE',
+  policyAccess: {'BANK_STATEMENT_ALL_SCOPE': true},
+);
+
+const _storeScopedManager = User(
+  id: 'manager-1',
+  email: 'manager@phongvu.vn',
+  role: 'MANAGER',
+  storeId: 'CP01',
+  workScopeType: 'STORE',
+  featureAccess: {'BANK_STATEMENTS': true},
+  policyAccess: {'BANK_STATEMENT_ALL_SCOPE': false},
+);
+
 class _FakeBankStatementRepository extends BankStatementRepository {
   int fetchStatementsCount = 0;
   int updateOrdersCount = 0;
+  int exportCsvCount = 0;
   BankStatementQuery? lastQuery;
+  BankStatementQuery? lastExportQuery;
   final List<BankStatementQuery> seenQueries = [];
   List<String> lastUpdatedOrders = const [];
+  List<String> lastExportTransactionIds = const [];
 
   final List<List<BankStatementTransaction>> _pages;
 
@@ -376,6 +493,9 @@ class _FakeBankStatementRepository extends BankStatementRepository {
     BankStatementQuery query, {
     List<String> transactionIds = const [],
   }) async {
+    exportCsvCount += 1;
+    lastExportQuery = query;
+    lastExportTransactionIds = List.of(transactionIds);
     return Uint8List.fromList([0xef, 0xbb, 0xbf, 0x63, 0x73, 0x76]);
   }
 }
@@ -397,5 +517,7 @@ BankStatementTransaction _transaction(String id, List<String> orders) {
     firstSeenAt: DateTime.utc(2026, 5, 29, 2, 0, 5),
     payerName: null,
     payerAccount: null,
+    canEditOrders: true,
+    orderEditBlockedReason: null,
   );
 }

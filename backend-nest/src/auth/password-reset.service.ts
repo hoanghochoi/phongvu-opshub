@@ -50,7 +50,9 @@ export class PasswordResetService {
 
     if (!user) {
       this.logger.warn(`Password reset requested for missing email=${email}`);
-      return this.genericCodeResponse();
+      throw new NotFoundException(
+        'Email này chưa có tài khoản OpsHub. Vui lòng đăng ký tài khoản trước.',
+      );
     }
 
     await this.sendResetCodeForUser(user);
@@ -247,7 +249,7 @@ export class PasswordResetService {
       where: { id: userId },
       select: { id: true, email: true, status: true },
     });
-    if (!user) throw new NotFoundException('Không tìm thấy user');
+    if (!user) throw new NotFoundException('Không tìm thấy người dùng');
 
     const password = await bcrypt.hash(newPassword, RESET_TOKEN_SALT_ROUNDS);
     const revokedAt = new Date();

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -17,6 +18,15 @@ import (
 )
 
 var ctx = context.Background()
+
+const (
+	warrantyRedisChannel   = "WARRANTY_STATUS_UPDATED"
+	paymentRedisChannel    = "PAYMENT_NOTIFICATION_READY"
+	appVersionRedisChannel = "APP_VERSION_UPDATED"
+	warrantyEventType      = "WARRANTY_EVENT"
+	paymentEventType       = "PAYMENT_NOTIFICATION"
+	appUpdateEventType     = "APP_UPDATE"
+)
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -125,8 +135,9 @@ func extractBearerToken(r *http.Request) string {
 }
 
 type Client struct {
-	conn *websocket.Conn
-	auth *ClientAuth
+	conn        *websocket.Conn
+	auth        *ClientAuth
+	updatesOnly bool
 }
 
 // Hub manages WebSocket clients
@@ -147,17 +158,27 @@ func newHub() *Hub {
 }
 
 func (h *Hub) run() {
+	pingTicker := time.NewTicker(30 * time.Second)
+	defer pingTicker.Stop()
 	for {
 		select {
 		case client := <-h.register:
 			h.clients[client] = true
-			log.Printf("New client connected user=%s role=%s store=%s selectedStore=%s total=%d",
-				client.auth.UserID, client.auth.Role, client.auth.StoreCode, client.auth.SelectedStore, len(h.clients))
+			if client.updatesOnly {
+				log.Printf("New public app-update client connected total=%d", len(h.clients))
+			} else {
+				log.Printf("New client connected user=%s role=%s store=%s selectedStore=%s total=%d",
+					client.auth.UserID, client.auth.Role, client.auth.StoreCode, client.auth.SelectedStore, len(h.clients))
+			}
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				client.conn.Close()
-				log.Printf("Client disconnected user=%s total=%d", client.auth.UserID, len(h.clients))
+				if client.updatesOnly {
+					log.Printf("Public app-update client disconnected total=%d", len(h.clients))
+				} else {
+					log.Printf("Client disconnected user=%s total=%d", client.auth.UserID, len(h.clients))
+				}
 			}
 		case message := <-h.broadcast:
 			for client := range h.clients {
@@ -167,6 +188,18 @@ func (h *Hub) run() {
 				err := client.conn.WriteMessage(websocket.TextMessage, message)
 				if err != nil {
 					log.Printf("error: %v", err)
+					client.conn.Close()
+					delete(h.clients, client)
+				}
+			}
+		case <-pingTicker.C:
+			for client := range h.clients {
+				if err := client.conn.WriteControl(
+					websocket.PingMessage,
+					nil,
+					time.Now().Add(5*time.Second),
+				); err != nil {
+					log.Printf("WebSocket heartbeat failed: %v", err)
 					client.conn.Close()
 					delete(h.clients, client)
 				}
@@ -183,7 +216,13 @@ func (c *Client) canReceive(message []byte) bool {
 	if err := json.Unmarshal(message, &envelope); err != nil {
 		return false
 	}
-	if envelope.Type != "PAYMENT_NOTIFICATION" {
+	if c.updatesOnly {
+		return envelope.Type == appUpdateEventType
+	}
+	if c.auth == nil {
+		return false
+	}
+	if envelope.Type != paymentEventType {
 		return true
 	}
 	var payload struct {
@@ -214,31 +253,52 @@ func (h *Hub) listenToRedis() {
 		Addr: redisHost + ":" + redisPort,
 	})
 
-	pubsub := rdb.Subscribe(ctx, "WARRANTY_STATUS_UPDATED", "PAYMENT_NOTIFICATION_READY")
+	pubsub := rdb.Subscribe(
+		ctx,
+		warrantyRedisChannel,
+		paymentRedisChannel,
+		appVersionRedisChannel,
+	)
 	defer pubsub.Close()
-	log.Println("Listening to Redis channels: WARRANTY_STATUS_UPDATED, PAYMENT_NOTIFICATION_READY...")
+	log.Println("Listening to Redis channels: WARRANTY_STATUS_UPDATED, PAYMENT_NOTIFICATION_READY, APP_VERSION_UPDATED...")
 
 	ch := pubsub.Channel()
 
 	for msg := range ch {
 		log.Printf("Received event from Redis channel=%s payloadBytes=%d", msg.Channel, len(msg.Payload))
-		// Transform message if needed, or just broadcast raw JSON
-		type BroadcastMsg struct {
-			Type    string          `json:"type"`
-			Payload json.RawMessage `json:"payload"`
+		formattedMsg, ok := formatRedisEvent(msg.Channel, msg.Payload)
+		if !ok {
+			log.Printf("Ignored unsupported or invalid Redis event channel=%s", msg.Channel)
+			continue
 		}
-
-		eventType := "WARRANTY_EVENT"
-		if msg.Channel == "PAYMENT_NOTIFICATION_READY" {
-			eventType = "PAYMENT_NOTIFICATION"
-		}
-		formattedMsg, _ := json.Marshal(BroadcastMsg{
-			Type:    eventType,
-			Payload: json.RawMessage(msg.Payload),
-		})
-
 		h.broadcast <- formattedMsg
 	}
+}
+
+func formatRedisEvent(channel string, payload string) ([]byte, bool) {
+	eventType := ""
+	switch channel {
+	case warrantyRedisChannel:
+		eventType = warrantyEventType
+	case paymentRedisChannel:
+		eventType = paymentEventType
+	case appVersionRedisChannel:
+		eventType = appUpdateEventType
+	default:
+		return nil, false
+	}
+
+	if !json.Valid([]byte(payload)) {
+		return nil, false
+	}
+	formatted, err := json.Marshal(struct {
+		Type    string          `json:"type"`
+		Payload json.RawMessage `json:"payload"`
+	}{
+		Type:    eventType,
+		Payload: json.RawMessage(payload),
+	})
+	return formatted, err == nil
 }
 
 func main() {
@@ -273,30 +333,40 @@ func registerRoutes(r *gin.Engine, hub *Hub) {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-
-		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-		if err != nil {
-			log.Println("upgrade error:", err)
-			return
-		}
-		client := &Client{conn: conn, auth: auth}
-		hub.register <- client
-
-		// Listen for incoming websocket messages (e.g for chat)
-		go func(client *Client) {
-			defer func() {
-				hub.unregister <- client
-			}()
-			for {
-				_, message, err := client.conn.ReadMessage()
-				if err != nil {
-					if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-						log.Printf("error: %v", err)
-					}
-					break
-				}
-				log.Printf("Received client message (%d bytes)", len(message))
-			}
-		}(client)
+		serveWebSocket(c, hub, auth, false)
 	})
+
+	r.GET("/ws/app-updates", func(c *gin.Context) {
+		serveWebSocket(c, hub, nil, true)
+	})
+}
+
+func serveWebSocket(c *gin.Context, hub *Hub, auth *ClientAuth, updatesOnly bool) {
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Println("upgrade error:", err)
+		return
+	}
+	client := &Client{conn: conn, auth: auth, updatesOnly: updatesOnly}
+	conn.SetReadLimit(4096)
+	hub.register <- client
+
+	go func(client *Client) {
+		defer func() {
+			hub.unregister <- client
+		}()
+		for {
+			_, message, err := client.conn.ReadMessage()
+			if err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					log.Printf("error: %v", err)
+				}
+				break
+			}
+			if client.updatesOnly {
+				break
+			}
+			log.Printf("Received client message (%d bytes)", len(message))
+		}
+	}(client)
 }

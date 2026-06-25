@@ -35,6 +35,8 @@ receive status updates.
   data. The API may tolerate the legacy `user` field for old clients, but the
   creator must be resolved from the authenticated JWT user, not from a client
   supplied user/email field.
+- Warranty image uploads accept up to 20 image files per request. The Flutter
+  picker caps the selected list to the same limit before submitting.
 - Changes to file paths, image URL construction, file size/type validation, or
   status event payloads require explicit proof.
 - `UPLOAD_BASE_DIR` must point to persistent storage in production.

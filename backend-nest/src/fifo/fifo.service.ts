@@ -270,7 +270,7 @@ export class FifoService {
       select: { storeId: true },
     });
     if (!store?.storeId) {
-      throw new ForbiddenException('Không tìm thấy SR/showroom của user');
+      throw new ForbiddenException('Không tìm thấy showroom của tài khoản này');
     }
     return store.storeId.trim().toUpperCase();
   }
@@ -312,7 +312,7 @@ export class FifoService {
 
   private assertInventoryImportAdmin(user: any) {
     if (!isAdminRole(user?.role) && !isSuperAdminRole(user?.role)) {
-      throw new ForbiddenException('Chỉ ADMIN trở lên được cập nhật tồn kho');
+      throw new ForbiddenException('Bạn không có quyền cập nhật tồn kho');
     }
   }
 

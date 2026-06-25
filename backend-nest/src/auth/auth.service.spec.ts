@@ -306,6 +306,37 @@ describe('AuthService', () => {
     );
   });
 
+  it('allows password login for AUTH_ALLOWED_EMAIL_DOMAINS entries like phongvu-mna.vn', async () => {
+    (policyService.getAllowedEmailDomains as jest.Mock).mockResolvedValueOnce([
+      'phongvu-mna.vn',
+    ]);
+    const password = await bcrypt.hash('Password1!', 4);
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-mna',
+      email: 'hoang.nv1@phongvu-mna.vn',
+      firstName: 'Hoang',
+      password,
+      role: 'USER',
+      status: 'yes',
+      storeId: null,
+      store: null,
+      organizationNodeId: null,
+      organizationNode: null,
+    });
+
+    await expect(
+      service.passwordLogin(
+        'hoang.nv1@phongvu-mna.vn',
+        'Password1!',
+        loginDevice,
+      ),
+    ).resolves.toMatchObject({
+      login: true,
+      email: 'hoang.nv1@phongvu-mna.vn',
+      assignmentPending: true,
+    });
+  });
+
   it('normalizes legacy ADMIN role to ADMIN in login response and token', async () => {
     const password = await bcrypt.hash('Password1!', 4);
     prisma.user.findUnique.mockResolvedValue({

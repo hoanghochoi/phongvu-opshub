@@ -1,26 +1,35 @@
 class MapPaymentTransaction {
   final String id;
+  final String storeId;
   final int amount;
   final String content;
   final String transactionNumber;
   final List<String> orders;
+  final String status;
   final DateTime? paidAt;
   final DateTime? firstSeenAt;
+  final String payerName;
+  final String payerAccount;
   final bool successful;
 
   const MapPaymentTransaction({
     required this.id,
+    required this.storeId,
     required this.amount,
     required this.content,
     required this.transactionNumber,
     required this.orders,
+    required this.status,
     required this.paidAt,
     required this.firstSeenAt,
+    required this.payerName,
+    required this.payerAccount,
     required this.successful,
   });
 
   factory MapPaymentTransaction.fromJson(Map<String, dynamic> json) {
     final amount = _readAmount(json);
+    final storeId = _readFirstText(json, const ['storeId', 'storeCode']);
     final transactionNumber = _readFirstText(json, const [
       'transactionNumber',
       'txnNumber',
@@ -43,6 +52,41 @@ class MapPaymentTransaction {
       'transactionContent',
       'paymentContent',
     ]);
+    final status = _readFirstText(json, const [
+      'statusText',
+      'status',
+      'statusName',
+      'transactionStatus',
+      'transactionStatusName',
+      'txnStatus',
+      'txnStatusName',
+      'paymentStatus',
+      'paymentStatusName',
+    ]);
+    final payerName = _readFirstText(json, const [
+      'payerName',
+      'payerFullName',
+      'reqCardName',
+      'requestCardName',
+      'senderName',
+      'senderFullName',
+      'fromAccountName',
+      'debitAccountName',
+      'customerName',
+      'buyerName',
+    ]);
+    final payerAccount = _readFirstText(json, const [
+      'payerAccount',
+      'payerAccountNo',
+      'reqCardNo',
+      'requestCardNo',
+      'senderAccount',
+      'senderAccountNo',
+      'fromAccount',
+      'fromAccountNo',
+      'debitAccount',
+      'debitAccountNo',
+    ]);
     final paidAt = _readDate(json);
     final firstSeenAt = _readDate(json, keys: const ['firstSeenAt']);
     final orders = _readOrders(json['orders']);
@@ -55,18 +99,24 @@ class MapPaymentTransaction {
 
     return MapPaymentTransaction(
       id: transactionNumber.isNotEmpty ? transactionNumber : fallbackId,
+      storeId: storeId,
       amount: amount ?? 0,
       content: content,
       transactionNumber: transactionNumber,
       orders: orders,
+      status: status,
       paidAt: paidAt,
       firstSeenAt: firstSeenAt,
+      payerName: payerName,
+      payerAccount: payerAccount,
       successful: _readSuccessful(json),
     );
   }
 
   bool get isValidIncoming => amount > 0 && successful;
   bool get hasOrders => orders.isNotEmpty;
+  String get payerLabel =>
+      [payerName, payerAccount].where((value) => value.isNotEmpty).join(' • ');
 
   static int? _readAmount(Map<String, dynamic> json) {
     for (final key in const [

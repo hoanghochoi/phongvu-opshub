@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_logo.dart';
 import '../../../../app/widgets/gradient_header.dart';
-import '../../../../core/utils/email_domain_policy.dart';
 import '../../../../core/utils/validators.dart';
 import '../providers/auth_provider.dart';
 
@@ -19,19 +18,7 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  List<String> _allowedDomains = const [];
   bool _obscurePassword = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadDomains();
-  }
-
-  Future<void> _loadDomains() async {
-    final domains = await EmailDomainPolicy.loadAllowedDomains();
-    if (mounted) setState(() => _allowedDomains = domains);
-  }
 
   @override
   void dispose() {
@@ -64,7 +51,6 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
                       formKey: _formKey,
                       emailController: _emailController,
                       passwordController: _passwordController,
-                      allowedDomains: _allowedDomains,
                       obscurePassword: _obscurePassword,
                       isLoading: authProvider.isLoading,
                       onTogglePassword: () {
@@ -176,7 +162,6 @@ class _LoginCard extends StatelessWidget {
     required this.formKey,
     required this.emailController,
     required this.passwordController,
-    required this.allowedDomains,
     required this.obscurePassword,
     required this.isLoading,
     required this.onTogglePassword,
@@ -188,7 +173,6 @@ class _LoginCard extends StatelessWidget {
   final GlobalKey<FormState> formKey;
   final TextEditingController emailController;
   final TextEditingController passwordController;
-  final List<String> allowedDomains;
   final bool obscurePassword;
   final bool isLoading;
   final VoidCallback onTogglePassword;
@@ -230,7 +214,7 @@ class _LoginCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              EmailDomainPolicy.promptText,
+              'Dùng email được OpsHub chấp nhận và mật khẩu OpsHub',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.65),
@@ -257,9 +241,6 @@ class _LoginCard extends StatelessWidget {
                 if (!Validators.isValidEmail(email)) {
                   return 'Email không hợp lệ';
                 }
-                if (!EmailDomainPolicy.isAllowedEmail(email, allowedDomains)) {
-                  return EmailDomainPolicy.invalidDomainMessage;
-                }
                 return null;
               },
             ),
@@ -284,8 +265,10 @@ class _LoginCard extends StatelessWidget {
                 ),
               ),
               validator: (value) {
-                final password = value ?? '';
-                return Validators.getPasswordError(password);
+                if ((value ?? '').isEmpty) {
+                  return 'Vui lòng nhập mật khẩu';
+                }
+                return null;
               },
             ),
             const SizedBox(height: AppLayoutTokens.formSectionGap),

@@ -1,4 +1,11 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PaymentNotificationsService } from './payment-notifications.service';
 
@@ -7,18 +14,27 @@ describe('PaymentNotificationsService', () => {
   let prisma: any;
   let redis: any;
   let policyService: { canAccessPolicy: jest.Mock };
+  let featureService: { canAccessFeature: jest.Mock };
   let service: PaymentNotificationsService;
   const speakerUser = (overrides: Record<string, unknown> = {}) => ({
     id: 'user-speaker',
     role: 'USER',
     storeId: 'store-uuid-1',
     organizationNodeId: 'org-store-cp01-pos-store-manager',
+    hasPaymentSpeakerFeature: true,
     ...overrides,
   });
 
   beforeEach(() => {
     process.env = { ...originalEnv };
     delete process.env.TTS_SERVICE_URL;
+    delete process.env.PAYMENT_CUE_GAIN;
+    delete process.env.PAYMENT_TTS_AUDIO_MODE;
+    delete process.env.PAYMENT_TTS_AMOUNT_ONLY;
+    delete process.env.PAYMENT_PREFIX_WAV_PATH;
+    delete process.env.PAYMENT_CUE_PREFIX_WAV_PATH;
+    delete process.env.PAYMENT_AUDIO_DIR;
+    delete process.env.PAYMENT_AMOUNT_AUDIO_CACHE_DIR;
     prisma = {
       paymentNotification: {
         findUnique: jest.fn(),
@@ -58,6 +74,14 @@ describe('PaymentNotificationsService', () => {
             ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE,
       ),
     };
+    featureService = {
+      canAccessFeature: jest.fn(
+        async (user: any, code: string) =>
+          String(code || '').toUpperCase() === 'PAYMENT_SPEAKER' &&
+          (user?.role === 'SUPER_ADMIN' ||
+            user?.hasPaymentSpeakerFeature !== false),
+      ),
+    };
     prisma.organizationNode.findUnique.mockImplementation(
       async ({ where }: any) => {
         const id = String(where?.id || '');
@@ -82,6 +106,7 @@ describe('PaymentNotificationsService', () => {
       prisma,
       redis,
       policyService as any,
+      featureService as any,
     );
   });
 
@@ -189,6 +214,215 @@ describe('PaymentNotificationsService', () => {
     });
   });
 
+  it('sends amount-only TTS text when fixed prefix audio mode is enabled', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-prefix-'));
+    const prefixPath = join(temp, 'payment-prefix.wav');
+    try {
+      await writeFile(prefixPath, pcm16Wav({ frames: [300, -300] }));
+      process.env.PAYMENT_PREFIX_WAV_PATH = prefixPath;
+      process.env.PAYMENT_TTS_AUDIO_MODE = 'amount_only_with_prefix';
+      process.env.TTS_SERVICE_URL = 'http://piper-tts:8000';
+      service = new PaymentNotificationsService(
+        prisma,
+        redis,
+        policyService as any,
+        featureService as any,
+      );
+      const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: false,
+        status: 500,
+      } as Response);
+      prisma.paymentNotification.findUnique.mockResolvedValue(null);
+      prisma.paymentNotification.create.mockResolvedValue({
+        id: 'note-amount-only',
+        storeCode: 'CP01',
+        transactionId: 'txn-amount-only',
+        amount: 28756321,
+        text: 'Phong Vũ đã nhận: hai mươi tám triệu bảy trăm năm mươi sáu nghìn ba trăm hai mươi mốt đồng.',
+        audioStatus: 'PENDING',
+        audioError: null,
+      });
+      prisma.paymentNotification.update.mockResolvedValue({
+        id: 'note-amount-only',
+        storeCode: 'CP01',
+        transactionId: 'txn-amount-only',
+        amount: 28756321,
+        audioStatus: 'FAILED',
+        audioError: 'TTS returned HTTP 500',
+      });
+      prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({});
+
+      await service.createForTransaction({
+        id: 'txn-amount-only',
+        storeCode: 'CP01',
+        amount: 28756321,
+      });
+
+      expect(prisma.paymentNotification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            text: 'Phong Vũ đã nhận: hai mươi tám triệu bảy trăm năm mươi sáu nghìn ba trăm hai mươi mốt đồng.',
+          }),
+        }),
+      );
+      const [, request] = fetchMock.mock.calls[0];
+      expect(JSON.parse(String((request as RequestInit).body))).toEqual({
+        text: 'hai mươi tám triệu bảy trăm năm mươi sáu nghìn ba trăm hai mươi mốt đồng.',
+        format: 'wav',
+        voice_id: 'piper:vi-vais1000',
+        speed: 0.9,
+        pitch: 1.0,
+      });
+    } finally {
+      delete process.env.PAYMENT_PREFIX_WAV_PATH;
+      delete process.env.PAYMENT_TTS_AUDIO_MODE;
+      await rm(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('reuses cached amount-only WAV for repeated amount text', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-amount-cache-'));
+    const prefixPath = join(temp, 'payment-prefix.wav');
+    const audioDir = join(temp, 'audio');
+    try {
+      await writeFile(prefixPath, pcm16Wav({ frames: [300, -300] }));
+      process.env.PAYMENT_PREFIX_WAV_PATH = prefixPath;
+      process.env.PAYMENT_AUDIO_DIR = audioDir;
+      process.env.PAYMENT_TTS_AUDIO_MODE = 'amount_only_with_prefix';
+      process.env.TTS_SERVICE_URL = 'http://piper-tts:8000';
+      service = new PaymentNotificationsService(
+        prisma,
+        redis,
+        policyService as any,
+        featureService as any,
+      );
+      const amountAudio = pcm16Wav({
+        sampleRateHz: 1000,
+        frames: [100, -100, 50, -50],
+      });
+      const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: jest.fn().mockReturnValue('audio/wav') },
+        arrayBuffer: jest
+          .fn()
+          .mockResolvedValue(
+            amountAudio.buffer.slice(
+              amountAudio.byteOffset,
+              amountAudio.byteOffset + amountAudio.byteLength,
+            ),
+          ),
+      } as unknown as Response);
+      const notes = [
+        {
+          id: 'note-cache-1',
+          storeCode: 'CP01',
+          transactionId: 'txn-cache-1',
+          amount: 1250000,
+          text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng.',
+          audioStatus: 'PENDING',
+          audioError: null,
+        },
+        {
+          id: 'note-cache-2',
+          storeCode: 'CP01',
+          transactionId: 'txn-cache-2',
+          amount: 1250000,
+          text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng.',
+          audioStatus: 'PENDING',
+          audioError: null,
+        },
+      ];
+      prisma.paymentNotification.findUnique.mockResolvedValue(null);
+      prisma.paymentNotification.create
+        .mockResolvedValueOnce(notes[0])
+        .mockResolvedValueOnce(notes[1]);
+      prisma.paymentNotification.update.mockImplementation(
+        async ({ where, data }: any) => ({
+          ...notes.find((note) => note.id === where.id),
+          ...data,
+        }),
+      );
+      prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({});
+
+      await service.createForTransaction({
+        id: 'txn-cache-1',
+        storeCode: 'CP01',
+        amount: 1250000,
+      });
+      await service.createForTransaction({
+        id: 'txn-cache-2',
+        storeCode: 'CP01',
+        amount: 1250000,
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const audioPaths = prisma.paymentNotification.update.mock.calls.map(
+        ([input]: any[]) => input.data.audioPath,
+      );
+      expect(audioPaths).toHaveLength(2);
+      expect(audioPaths[0]).toContain('-amount-only-cache-');
+      expect(audioPaths[1]).toContain('-amount-only-cache-');
+      expect(audioPaths[0]).not.toEqual(audioPaths[1]);
+      await expect(readFile(audioPaths[0])).resolves.toEqual(amountAudio);
+      await expect(readFile(audioPaths[1])).resolves.toEqual(amountAudio);
+    } finally {
+      await rm(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('falls back to full TTS text when fixed prefix mode is enabled without a prefix WAV', async () => {
+    process.env.PAYMENT_PREFIX_WAV_PATH = join(
+      tmpdir(),
+      'missing-payment-prefix.wav',
+    );
+    process.env.PAYMENT_TTS_AUDIO_MODE = 'amount_only_with_prefix';
+    process.env.TTS_SERVICE_URL = 'http://piper-tts:8000';
+    service = new PaymentNotificationsService(
+      prisma,
+      redis,
+      policyService as any,
+      featureService as any,
+    );
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 500,
+    } as Response);
+    prisma.paymentNotification.findUnique.mockResolvedValue(null);
+    prisma.paymentNotification.create.mockResolvedValue({
+      id: 'note-missing-prefix',
+      storeCode: 'CP01',
+      transactionId: 'txn-missing-prefix',
+      amount: 1250000,
+      text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng.',
+      audioStatus: 'PENDING',
+      audioError: null,
+    });
+    prisma.paymentNotification.update.mockResolvedValue({
+      id: 'note-missing-prefix',
+      storeCode: 'CP01',
+      transactionId: 'txn-missing-prefix',
+      amount: 1250000,
+      audioStatus: 'FAILED',
+      audioError: 'TTS returned HTTP 500',
+    });
+    prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({});
+
+    await service.createForTransaction({
+      id: 'txn-missing-prefix',
+      storeCode: 'CP01',
+      amount: 1250000,
+    });
+
+    const [, request] = fetchMock.mock.calls[0];
+    expect(JSON.parse(String((request as RequestInit).body))).toEqual(
+      expect.objectContaining({
+        text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng.',
+        format: 'mp3',
+      }),
+    );
+  });
+
   it('blocks audio access outside the signed-in user store', async () => {
     prisma.paymentNotification.findUnique.mockResolvedValue({
       id: 'note-1',
@@ -201,6 +435,283 @@ describe('PaymentNotificationsService', () => {
     await expect(
       service.getAudioForUser(speakerUser({ id: 'user-1' }), 'note-1'),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('returns original TTS-only audio by default', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-tts-only-'));
+    const voicePath = join(temp, 'ready.wav');
+    try {
+      await writeFile(voicePath, pcm16Wav({ frames: [0, 1000, -1000] }));
+      prisma.paymentNotification.findUnique.mockResolvedValue({
+        id: 'note-tts-only',
+        storeCode: 'CP01',
+        audioStatus: 'READY',
+        audioPath: voicePath,
+        audioMime: 'audio/wav',
+      });
+      prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+
+      await expect(
+        service.getAudioForUser(speakerUser(), 'note-tts-only'),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          fileName: 'ready.wav',
+          mimeType: 'audio/wav',
+        }),
+      );
+    } finally {
+      await rm(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('returns a cached cue plus full TTS WAV when includeCue is requested', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-audio-'));
+    const cuePath = join(temp, 'payment-cue.wav');
+    const voicePath = join(temp, 'ready.wav');
+    const combinedPath = join(temp, 'ready-with-cue-g0800.wav');
+    const cueWav = pcm16Wav({
+      sampleRateHz: 1000,
+      frames: [0, 1000, -1000],
+    });
+    const voiceWav = pcm16Wav({
+      sampleRateHz: 1000,
+      frames: [...Array(120).fill(0), 2000, -2000, ...Array(400).fill(0)],
+    });
+    try {
+      await writeFile(cuePath, cueWav);
+      await writeFile(voicePath, voiceWav);
+      process.env.PAYMENT_CUE_WAV_PATH = cuePath;
+      service = new PaymentNotificationsService(
+        prisma,
+        redis,
+        policyService as any,
+        featureService as any,
+      );
+      prisma.paymentNotification.findUnique.mockResolvedValue({
+        id: 'note-combined',
+        storeCode: 'CP01',
+        audioStatus: 'READY',
+        audioPath: voicePath,
+        audioMime: 'audio/wav',
+      });
+      prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+
+      await expect(
+        service.getAudioForUser(speakerUser(), 'note-combined', {
+          includeCue: true,
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          fileName: 'ready-with-cue-g0800.wav',
+          mimeType: 'audio/wav',
+        }),
+      );
+
+      const combined = await readFile(combinedPath);
+      const expectedFrames = 3 + 120 + 2 + 400;
+      expect(wavDataBytes(combined)).toBe(expectedFrames * 2);
+      const combinedSamples = wavPcm16Samples(combined);
+      expect(combinedSamples.slice(0, 3)).toEqual([0, 800, -800]);
+      expect(combinedSamples.slice(3)).toEqual([
+        ...Array(120).fill(0),
+        2000,
+        -2000,
+        ...Array(400).fill(0),
+      ]);
+
+      await expect(
+        service.getAudioForUser(speakerUser(), 'note-combined', {
+          includeCue: true,
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          fileName: 'ready-with-cue-g0800.wav',
+          mimeType: 'audio/wav',
+        }),
+      );
+    } finally {
+      delete process.env.PAYMENT_CUE_WAV_PATH;
+      await rm(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('joins fixed prefix and amount-only WAV, with cue when requested', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-prefix-audio-'));
+    const cuePath = join(temp, 'payment-cue.wav');
+    const prefixPath = join(temp, 'payment-prefix.wav');
+    const cuePrefixPath = join(temp, 'payment-cue-prefix.wav');
+    const voicePath = join(temp, 'note-amount-only-voice.wav');
+    const prefixCombinedPath = join(
+      temp,
+      'note-amount-only-voice-with-prefix.wav',
+    );
+    const cuePrefixCombinedPath = join(
+      temp,
+      'note-amount-only-voice-with-cue-g0800-prefix.wav',
+    );
+    try {
+      await writeFile(
+        cuePath,
+        pcm16Wav({ sampleRateHz: 1000, frames: [0, 1000, -1000] }),
+      );
+      await writeFile(
+        prefixPath,
+        pcm16Wav({ sampleRateHz: 1000, frames: [300, -300] }),
+      );
+      await writeFile(
+        cuePrefixPath,
+        pcm16Wav({ sampleRateHz: 1000, frames: [0, 800, -800, 300, -300] }),
+      );
+      await writeFile(
+        voicePath,
+        pcm16Wav({ sampleRateHz: 1000, frames: [2000, -2000, 1000] }),
+      );
+      process.env.PAYMENT_CUE_WAV_PATH = join(temp, 'missing-payment-cue.wav');
+      process.env.PAYMENT_PREFIX_WAV_PATH = prefixPath;
+      process.env.PAYMENT_CUE_PREFIX_WAV_PATH = cuePrefixPath;
+      service = new PaymentNotificationsService(
+        prisma,
+        redis,
+        policyService as any,
+        featureService as any,
+      );
+      prisma.paymentNotification.findUnique.mockResolvedValue({
+        id: 'note-prefix-combined',
+        storeCode: 'CP01',
+        audioStatus: 'READY',
+        audioPath: voicePath,
+        audioMime: 'audio/wav',
+      });
+      prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+
+      await expect(
+        service.getAudioForUser(speakerUser(), 'note-prefix-combined', {
+          rawAmount: true,
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          fileName: 'note-amount-only-voice.wav',
+          mimeType: 'audio/wav',
+        }),
+      );
+
+      await expect(
+        service.getAudioForUser(speakerUser(), 'note-prefix-combined'),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          fileName: 'note-amount-only-voice-with-prefix.wav',
+          mimeType: 'audio/wav',
+        }),
+      );
+      expect(wavPcm16Samples(await readFile(prefixCombinedPath))).toEqual([
+        300, -300, 2000, -2000, 1000,
+      ]);
+
+      await expect(
+        service.getAudioForUser(speakerUser(), 'note-prefix-combined', {
+          includeCue: true,
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          fileName: 'note-amount-only-voice-with-cue-g0800-prefix.wav',
+          mimeType: 'audio/wav',
+        }),
+      );
+      expect(wavPcm16Samples(await readFile(cuePrefixCombinedPath))).toEqual([
+        0, 800, -800, 300, -300, 2000, -2000, 1000,
+      ]);
+    } finally {
+      delete process.env.PAYMENT_CUE_WAV_PATH;
+      delete process.env.PAYMENT_PREFIX_WAV_PATH;
+      delete process.env.PAYMENT_CUE_PREFIX_WAV_PATH;
+      await rm(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects combined cue audio for non-WAV legacy audio', async () => {
+    prisma.paymentNotification.findUnique.mockResolvedValue({
+      id: 'note-mp3',
+      storeCode: 'CP01',
+      audioStatus: 'READY',
+      audioPath: 'ready.mp3',
+      audioMime: 'audio/mpeg',
+    });
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+
+    await expect(
+      service.getAudioForUser(speakerUser(), 'note-mp3', {
+        includeCue: true,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects combined cue audio when the server cue WAV is missing', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-missing-cue-'));
+    const voicePath = join(temp, 'ready.wav');
+    try {
+      await writeFile(voicePath, pcm16Wav({ frames: [0, 1000, -1000] }));
+      process.env.PAYMENT_CUE_WAV_PATH = join(temp, 'missing-cue.wav');
+      service = new PaymentNotificationsService(
+        prisma,
+        redis,
+        policyService as any,
+        featureService as any,
+      );
+      prisma.paymentNotification.findUnique.mockResolvedValue({
+        id: 'note-missing-cue',
+        storeCode: 'CP01',
+        audioStatus: 'READY',
+        audioPath: voicePath,
+        audioMime: 'audio/wav',
+      });
+      prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+
+      await expect(
+        service.getAudioForUser(speakerUser(), 'note-missing-cue', {
+          includeCue: true,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    } finally {
+      delete process.env.PAYMENT_CUE_WAV_PATH;
+      await rm(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('deletes cached combined cue audio when notification audio expires', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-cleanup-'));
+    const voicePath = join(temp, 'ready.wav');
+    const legacyCombinedPath = join(temp, 'ready-with-cue.wav');
+    const currentCombinedPath = join(temp, 'ready-with-cue-g0800.wav');
+    const staleGainCombinedPath = join(temp, 'ready-with-cue-g0500.wav');
+    try {
+      await writeFile(voicePath, pcm16Wav({ frames: [1, 2, 3] }));
+      await Promise.all(
+        [legacyCombinedPath, currentCombinedPath, staleGainCombinedPath].map(
+          (path) => writeFile(path, pcm16Wav({ frames: [1, 2, 3, 4] })),
+        ),
+      );
+      prisma.paymentNotification.findMany.mockResolvedValue([
+        { id: 'note-expired', audioPath: voicePath },
+      ]);
+      prisma.paymentNotification.update.mockResolvedValue({});
+
+      await service.cleanupExpiredData();
+
+      await expect(readFile(voicePath)).rejects.toThrow();
+      await expect(readFile(legacyCombinedPath)).rejects.toThrow();
+      await expect(readFile(currentCombinedPath)).rejects.toThrow();
+      await expect(readFile(staleGainCombinedPath)).rejects.toThrow();
+      expect(prisma.paymentNotification.update).toHaveBeenCalledWith({
+        where: { id: 'note-expired' },
+        data: {
+          audioPath: null,
+          audioMime: null,
+          audioStatus: 'EXPIRED',
+        },
+      });
+    } finally {
+      await rm(temp, { recursive: true, force: true });
+    }
   });
 
   it('records client acknowledgement with store scope', async () => {
@@ -321,12 +832,18 @@ describe('PaymentNotificationsService', () => {
     ['SA', 'org-store-cp01-pos-sa'],
     ['WAREHOUSE', 'org-store-cp01-pos-warehouse'],
   ])(
-    'returns no ready audio notifications for non-speaker Lv5 position %s',
+    'returns no ready audio notifications without PAYMENT_SPEAKER for Lv5 position %s',
     async (_position, organizationNodeId) => {
       await expect(
-        service.listReadyForClient(speakerUser({ organizationNodeId }), {
-          clientId: 'pc-1',
-        }),
+        service.listReadyForClient(
+          speakerUser({
+            organizationNodeId,
+            hasPaymentSpeakerFeature: false,
+          }),
+          {
+            clientId: 'pc-1',
+          },
+        ),
       ).resolves.toEqual({ list: [] });
 
       expect(prisma.store.findUnique).not.toHaveBeenCalled();
@@ -337,7 +854,7 @@ describe('PaymentNotificationsService', () => {
     },
   );
 
-  it('rejects audio and ack for non-speaker Lv5 positions', async () => {
+  it('rejects audio and ack without PAYMENT_SPEAKER', async () => {
     prisma.paymentNotification.findUnique.mockResolvedValue({
       id: 'note-1',
       transactionId: 'txn-1',
@@ -348,6 +865,7 @@ describe('PaymentNotificationsService', () => {
 
     const warehouseUser = speakerUser({
       organizationNodeId: 'org-store-cp01-pos-warehouse',
+      hasPaymentSpeakerFeature: false,
     });
 
     await expect(
@@ -362,6 +880,28 @@ describe('PaymentNotificationsService', () => {
 
     expect(prisma.store.findUnique).not.toHaveBeenCalled();
     expect(prisma.paymentNotificationDeliveryLog.create).not.toHaveBeenCalled();
+  });
+
+  it('allows a non-legacy Lv5 position when PAYMENT_SPEAKER is assigned', async () => {
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+    prisma.paymentNotification.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.listReadyForClient(
+        speakerUser({ organizationNodeId: 'org-store-cp01-pos-sa' }),
+        {
+          clientId: 'pc-1',
+        },
+      ),
+    ).resolves.toEqual({ list: [] });
+
+    expect(featureService.canAccessFeature).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationNodeId: 'org-store-cp01-pos-sa',
+      }),
+      'PAYMENT_SPEAKER',
+    );
+    expect(prisma.paymentNotification.findMany).toHaveBeenCalled();
   });
 
   it('lists ready audio notifications not yet terminal for this client', async () => {
@@ -548,3 +1088,61 @@ describe('PaymentNotificationsService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
+
+function pcm16Wav({
+  sampleRateHz = 22050,
+  frames,
+}: {
+  sampleRateHz?: number;
+  frames: number[];
+}) {
+  const channels = 1;
+  const blockAlign = channels * 2;
+  const dataBytes = frames.length * blockAlign;
+  const buffer = Buffer.alloc(44 + dataBytes);
+  buffer.write('RIFF', 0, 'ascii');
+  buffer.writeUInt32LE(36 + dataBytes, 4);
+  buffer.write('WAVE', 8, 'ascii');
+  buffer.write('fmt ', 12, 'ascii');
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(channels, 22);
+  buffer.writeUInt32LE(sampleRateHz, 24);
+  buffer.writeUInt32LE(sampleRateHz * blockAlign, 28);
+  buffer.writeUInt16LE(blockAlign, 32);
+  buffer.writeUInt16LE(16, 34);
+  buffer.write('data', 36, 'ascii');
+  buffer.writeUInt32LE(dataBytes, 40);
+  frames.forEach((sample, index) => {
+    buffer.writeInt16LE(sample, 44 + index * blockAlign);
+  });
+  return buffer;
+}
+
+function wavDataBytes(buffer: Buffer) {
+  let offset = 12;
+  while (offset + 8 <= buffer.length) {
+    const chunkId = buffer.toString('ascii', offset, offset + 4);
+    const chunkSize = buffer.readUInt32LE(offset + 4);
+    if (chunkId === 'data') return chunkSize;
+    offset += 8 + chunkSize + (chunkSize % 2);
+  }
+  throw new Error('WAV data chunk not found');
+}
+
+function wavPcm16Samples(buffer: Buffer) {
+  let offset = 12;
+  while (offset + 8 <= buffer.length) {
+    const chunkId = buffer.toString('ascii', offset, offset + 4);
+    const chunkSize = buffer.readUInt32LE(offset + 4);
+    if (chunkId === 'data') {
+      const samples: number[] = [];
+      for (let index = offset + 8; index < offset + 8 + chunkSize; index += 2) {
+        samples.push(buffer.readInt16LE(index));
+      }
+      return samples;
+    }
+    offset += 8 + chunkSize + (chunkSize % 2);
+  }
+  throw new Error('WAV data chunk not found');
+}

@@ -5,7 +5,9 @@ Backend-native architecture for the OpsHub mobile app. The Flutter app talks to 
 ## Services
 
 - `backend-nest/`: NestJS API with Prisma, JWT auth, first-use password login, inventory sync, FIFO check/sort, FIFO logs, warranty uploads, and feedback.
-- `backend-go/`: Go realtime service that subscribes to Redis and broadcasts warranty status updates on `/ws`.
+- `backend-go/`: Go realtime service that subscribes to Redis, broadcasts
+  authenticated workflow events on `/ws`, and isolates public update signals on
+  `/ws/app-updates`.
 - `docker-compose.yml`: Local PostgreSQL and Redis only.
 - `n8n/`: Legacy workflow exports kept as reference, not used by runtime app code.
 
@@ -92,11 +94,36 @@ Expected responses:
   defaulting to 600, and refreshes automatically after MAP auth errors.
 - Set `UPLOAD_BASE_DIR` to a persistent VPS directory, for example `/data/app_images`.
 - Set `IMAGE_BASE_URL` to the public image domain that serves `UPLOAD_BASE_DIR`.
+- `UPLOAD_MAX_BYTES` limits each warranty/feedback image and defaults to 10 MiB.
+- `AVATAR_UPLOAD_MAX_BYTES` limits each avatar image and defaults to 2 MiB.
 - For payment notification audio, run the Piper sidecar from
   `deploy/home-server/tts-piper/` and point `TTS_SERVICE_URL` to
   `http://172.20.0.1:18081`. The sidecar keeps the existing `/synthesize`
   contract, returns `audio/wav`, and accepts the legacy VieNeu voice id for
-  rollback-friendly deploys.
+  rollback-friendly deploys. Production uses `PIPER_LEADING_SILENCE_MS=0` and
+  `PIPER_TAIL_SILENCE_MS=500`; combined audio applies
+  `PAYMENT_CUE_GAIN=0.80` to the cue so speech starts immediately at full level
+  while the final word keeps its tail padding. The Windows local-cue fallback
+  also plays its MP3 cue at `80%` and keeps voice playback at `100%`. New
+  clients may call
+  `GET /payment-notifications/:id/audio?includeCue=true` to download one
+  server-combined WAV with the cue plus TTS; the default endpoint remains
+  TTS-only for older app versions. To trial shorter TTS generation, set
+  `PAYMENT_TTS_AUDIO_MODE=amount_only_with_prefix` and provide a compatible
+  `PAYMENT_PREFIX_WAV_PATH` such as `/data/import/payment-prefix.wav`; the
+  backend then sends only the amount text to TTS and joins the fixed prefix back
+  into both combined and fallback audio. For the fastest server-combined path,
+  also provide `PAYMENT_CUE_PREFIX_WAV_PATH` such as
+  `/data/import/payment-cue-prefix.wav`; this file should be the prejoined cue
+  plus prefix WAV generated with the configured `PAYMENT_CUE_GAIN`. Amount-only
+  WAVs are cached by text/voice/speed/pitch under
+  `PAYMENT_AUDIO_DIR/amount-cache` by default, retained for
+  `PAYMENT_AMOUNT_AUDIO_CACHE_RETENTION_DAYS` (default `90`), and can be served
+  to newer clients through
+  `GET /payment-notifications/:id/audio?rawAmount=true`. The Windows client
+  trims zero padding, joins its bundled `payment-cue-prefix.wav` to the amount
+  with an 80 ms gap, and plays one WAV to avoid player-switch latency. It falls
+  back to sequential playback when the two PCM WAV formats are incompatible.
 - Keep placeholder values out of production; the Nest API validates env values on startup.
 - Run `npx prisma migrate deploy` before starting the Nest API.
 - Start the Go service with the same Redis connection as NestJS.

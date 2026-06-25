@@ -17,6 +17,7 @@ typedef PaymentMediaKitPlayer =
       required File file,
       required String extension,
       required Duration timeout,
+      required double volume,
     });
 
 typedef PaymentPlaySoundPlayer =
@@ -36,6 +37,9 @@ class PaymentSpeaker {
   static const _source = 'PaymentSpeaker';
   static const _voiceTimeout = Duration(seconds: 20);
   static const _cueTimeout = Duration(seconds: 5);
+  static const _cuePrefixTimeout = Duration(seconds: 8);
+  static const _cueVolumePercent = 80.0;
+  static const _cuePrefixGap = Duration(milliseconds: 80);
 
   final PaymentMediaKitPlayer? _mediaKitPlayerForTesting;
   final PaymentPlaySoundPlayer? _playSoundPlayerForTesting;
@@ -63,6 +67,8 @@ class PaymentSpeaker {
     required String storeCode,
     required String clientId,
     required int attempt,
+    bool playLocalCue = true,
+    bool playLocalCuePrefix = false,
   }) async {
     if (!Platform.isWindows) {
       return const PaymentSpeakerResult(
@@ -97,6 +103,8 @@ class PaymentSpeaker {
       'bytes': audioBytes.length,
       'waveOutDevices': waveOutDevices,
       'audioPreflightStatus': audioPreflightStatus,
+      'playLocalCue': playLocalCue,
+      'playLocalCuePrefix': playLocalCuePrefix,
       if (wavInfo != null) ...wavInfo.toLogContext(prefix: 'sourceWav'),
       if (extension == 'wav' && wavInfo == null) 'wavHeader': 'unreadable',
     };
@@ -115,12 +123,57 @@ class PaymentSpeaker {
 
     final directory =
         _temporaryDirectoryForTesting ?? await getTemporaryDirectory();
-    await _playTingTing(directory);
+    var playbackAudioBytes = audioBytes;
+    var cuePrefixCombined = false;
+    if (playLocalCuePrefix && extension == 'wav') {
+      try {
+        final combined = await _combinePaymentCuePrefix(
+          audioBytes,
+          context: playbackContext,
+        );
+        playbackAudioBytes = combined.bytes;
+        cuePrefixCombined = true;
+        playbackContext['playbackMode'] = 'client_combined_cue_prefix_amount';
+        playbackContext['combinedBytes'] = combined.bytes.length;
+      } catch (error, stackTrace) {
+        await AppLogger.instance.warn(
+          _source,
+          'Payment cue-prefix combine failed; using sequential playback',
+          context: {
+            ...playbackContext,
+            'playbackMode': 'client_sequential_cue_prefix_amount',
+            'error': _safeBackendError(error),
+            'stackTrace': stackTrace.toString(),
+          },
+        );
+      }
+    } else if (playLocalCuePrefix) {
+      await AppLogger.instance.warn(
+        _source,
+        'Payment cue-prefix combine skipped for non-WAV amount audio',
+        context: {
+          ...playbackContext,
+          'playbackMode': 'client_sequential_cue_prefix_amount',
+        },
+      );
+    }
+
+    if (playLocalCuePrefix) {
+      if (!cuePrefixCombined) {
+        await _playPaymentCuePrefix(
+          directory,
+          context: playbackContext,
+          audioPreflightStatus: audioPreflightStatus,
+        );
+      }
+    } else if (playLocalCue) {
+      await _playTingTing(directory);
+    }
 
     final file = File(
       '${directory.path}${Platform.pathSeparator}opshub-payment-${DateTime.now().microsecondsSinceEpoch}.$extension',
     );
-    await file.writeAsBytes(audioBytes, flush: true);
+    await file.writeAsBytes(playbackAudioBytes, flush: true);
 
     try {
       return await _playWithFallbacks(
@@ -128,10 +181,54 @@ class PaymentSpeaker {
         extension: extension,
         context: playbackContext,
         audioPreflightStatus: audioPreflightStatus,
+        timeout: _voiceTimeout,
       );
     } finally {
       await file.delete().catchError((_) => file);
     }
+  }
+
+  Future<PaymentWavCombineResult> _combinePaymentCuePrefix(
+    List<int> voiceBytes, {
+    required Map<String, Object?> context,
+  }) async {
+    final startedAt = DateTime.now();
+    await AppLogger.instance.info(
+      _source,
+      'Payment cue-prefix WAV combine started',
+      context: {
+        ...context,
+        'asset': 'data/payment-cue-prefix.wav',
+        'targetGapMs': _cuePrefixGap.inMilliseconds,
+      },
+    );
+    final asset = await rootBundle.load('data/payment-cue-prefix.wav');
+    final prefixBytes = asset.buffer.asUint8List(
+      asset.offsetInBytes,
+      asset.lengthInBytes,
+    );
+    final result = PaymentWavTools.combinePcm16WithGap(
+      prefixBytes: prefixBytes,
+      voiceBytes: voiceBytes,
+      gap: _cuePrefixGap,
+    );
+    await AppLogger.instance.info(
+      _source,
+      'Payment cue-prefix WAV combine succeeded',
+      context: {
+        ...context,
+        'asset': 'data/payment-cue-prefix.wav',
+        'prefixBytes': asset.lengthInBytes,
+        'voiceBytes': voiceBytes.length,
+        'combinedBytes': result.bytes.length,
+        'gapMs': result.gapMs,
+        'prefixTrailingSilenceTrimmedMs': result.prefixTrailingSilenceTrimmedMs,
+        'voiceLeadingSilenceTrimmedMs': result.voiceLeadingSilenceTrimmedMs,
+        'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        ...result.combined.toLogContext(prefix: 'combinedWav'),
+      },
+    );
+    return result;
   }
 
   Future<void> _playTingTing(Directory directory) async {
@@ -142,10 +239,25 @@ class PaymentSpeaker {
       );
       await file.writeAsBytes(asset.buffer.asUint8List(), flush: true);
       try {
-        await _playWithMediaKit(
+        await AppLogger.instance.info(
+          _source,
+          'Payment sound cue playback started',
+          context: {'cueVolumePercent': _cueVolumePercent},
+        );
+        final result = await _playWithMediaKit(
           file: file,
           extension: 'mp3',
           timeout: _cueTimeout,
+          volume: _cueVolumePercent,
+        );
+        await AppLogger.instance.info(
+          _source,
+          'Payment sound cue playback succeeded',
+          context: {
+            'cueVolumePercent': _cueVolumePercent,
+            'backend': result.backend,
+            'durationMs': result.durationMs,
+          },
         );
       } finally {
         await file.delete().catchError((_) => file);
@@ -162,11 +274,59 @@ class PaymentSpeaker {
     }
   }
 
+  Future<void> _playPaymentCuePrefix(
+    Directory directory, {
+    required Map<String, Object?> context,
+    required String audioPreflightStatus,
+  }) async {
+    final asset = await rootBundle.load('data/payment-cue-prefix.wav');
+    final file = File(
+      '${directory.path}${Platform.pathSeparator}opshub-payment-cue-prefix.wav',
+    );
+    await file.writeAsBytes(asset.buffer.asUint8List(), flush: true);
+    try {
+      final wavInfo = PaymentWavTools.tryReadInfo(asset.buffer.asUint8List());
+      await AppLogger.instance.info(
+        _source,
+        'Payment local cue-prefix playback started',
+        context: {
+          ...context,
+          'asset': 'data/payment-cue-prefix.wav',
+          'bytes': asset.lengthInBytes,
+          if (wavInfo != null) ...wavInfo.toLogContext(prefix: 'cuePrefixWav'),
+        },
+      );
+      final result = await _playWithFallbacks(
+        file: file,
+        extension: 'wav',
+        context: {
+          ...context,
+          'asset': 'data/payment-cue-prefix.wav',
+          'bytes': asset.lengthInBytes,
+        },
+        audioPreflightStatus: audioPreflightStatus,
+        timeout: _cuePrefixTimeout,
+      );
+      await AppLogger.instance.info(
+        _source,
+        'Payment local cue-prefix playback succeeded',
+        context: {
+          ...context,
+          'backend': result.backend,
+          'durationMs': result.durationMs,
+        },
+      );
+    } finally {
+      await file.delete().catchError((_) => file);
+    }
+  }
+
   Future<PaymentSpeakerResult> _playWithFallbacks({
     required File file,
     required String extension,
     required Map<String, Object?> context,
     required String audioPreflightStatus,
+    required Duration timeout,
     bool allowMci326Normalize = true,
     bool normalized = false,
   }) async {
@@ -177,7 +337,8 @@ class PaymentSpeaker {
       final result = await _playWithMediaKit(
         file: file,
         extension: extension,
-        timeout: _voiceTimeout,
+        timeout: timeout,
+        volume: 100.0,
       );
       return _withAudioContext(
         result,
@@ -200,10 +361,7 @@ class PaymentSpeaker {
 
     if (extension == 'wav') {
       try {
-        final result = await _playWithPlaySound(
-          file: file,
-          timeout: _voiceTimeout,
-        );
+        final result = await _playWithPlaySound(file: file, timeout: timeout);
         return _withAudioContext(
           result,
           wavInfo,
@@ -228,7 +386,7 @@ class PaymentSpeaker {
       final result = await _playWithMci(
         file: file,
         extension: extension,
-        timeout: _voiceTimeout,
+        timeout: timeout,
       );
       return _withAudioContext(
         result,
@@ -263,6 +421,7 @@ class PaymentSpeaker {
                 ),
               },
               audioPreflightStatus: audioPreflightStatus,
+              timeout: timeout,
               allowMci326Normalize: false,
               normalized: true,
             );
@@ -290,10 +449,16 @@ class PaymentSpeaker {
     required File file,
     required String extension,
     required Duration timeout,
+    required double volume,
   }) async {
     final override = _mediaKitPlayerForTesting;
     if (override != null) {
-      return override(file: file, extension: extension, timeout: timeout);
+      return override(
+        file: file,
+        extension: extension,
+        timeout: timeout,
+        volume: volume,
+      );
     }
 
     final stopwatch = Stopwatch()..start();
@@ -306,6 +471,7 @@ class PaymentSpeaker {
           .then<void>((message) {
             throw StateError('media_kit error: $message');
           });
+      await player.setVolume(volume);
       await player.open(Media(file.uri.toString()), play: true);
       await Future.any<void>([completed.then((_) {}), failed]).timeout(timeout);
       return PaymentSpeakerResult(

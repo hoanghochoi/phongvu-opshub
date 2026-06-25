@@ -10,7 +10,7 @@ import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/payment_monitor_provider.dart';
-import '../../domain/map_payment_transaction.dart';
+import '../widgets/payment_transaction_tile.dart';
 
 class PaymentMonitorScreen extends StatefulWidget {
   const PaymentMonitorScreen({super.key});
@@ -90,7 +90,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            'Máy này tự cập nhật giao dịch tiền vào mỗi 5 giây. Khi bật đọc loa, giao dịch mới sẽ được đọc thành tiếng; khi tắt, danh sách vẫn cập nhật bình thường.',
+                            'Giao dịch mới tự cập nhật theo realtime; nếu mất kết nối, máy sẽ tự kiểm tra lại định kỳ.',
                             style: TextStyle(
                               color: Theme.of(
                                 context,
@@ -165,8 +165,10 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                         : ListView.builder(
                             itemCount: monitor.latestTransactions.length,
                             itemBuilder: (context, index) =>
-                                _buildTransactionTile(
-                                  monitor.latestTransactions[index],
+                                PaymentTransactionTile(
+                                  transaction:
+                                      monitor.latestTransactions[index],
+                                  amountFormatter: _currencyFormatter,
                                 ),
                           ),
                     if (monitor.isLoading)
@@ -194,52 +196,6 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
     context.read<PaymentMonitorProvider>().setStoreOverride(
       _storeController.text,
     );
-  }
-
-  Widget _buildTransactionTile(MapPaymentTransaction transaction) {
-    final displayTime = _toVietnamTime(
-      transaction.paidAt ?? transaction.firstSeenAt,
-    );
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = transaction.hasOrders
-        ? AppColors.success
-        : AppColors.error;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        side: BorderSide(
-          color: borderColor.withValues(alpha: 0.65),
-          width: 1.2,
-        ),
-      ),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: isDark
-              ? AppColors.success.withValues(alpha: 0.15)
-              : AppColors.success.withValues(alpha: 0.08),
-          child: const Icon(Icons.payments_rounded, color: AppColors.success),
-        ),
-        title: Text(
-          '${_currencyFormatter.format(transaction.amount)} VND',
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Text(
-          [
-            if (displayTime != null)
-              DateFormat('HH:mm:ss dd/MM').format(displayTime),
-            if (transaction.content.isNotEmpty) transaction.content,
-          ].join(' - '),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    );
-  }
-
-  DateTime? _toVietnamTime(DateTime? value) {
-    if (value == null) return null;
-    return value.toUtc().add(const Duration(hours: 7));
   }
 }
 
@@ -387,6 +343,15 @@ class _TransactionFilters extends StatelessWidget {
                             : null,
                         icon: const Icon(Icons.chevron_right_rounded),
                       ),
+                      IconButton(
+                        tooltip: 'Làm mới',
+                        onPressed: monitor.isLoading
+                            ? null
+                            : () => context
+                                  .read<PaymentMonitorProvider>()
+                                  .refreshNow(),
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
                     ],
                   ),
                 ],
@@ -496,6 +461,15 @@ class _TransactionFilters extends StatelessWidget {
                                 .nextPage()
                           : null,
                       icon: const Icon(Icons.chevron_right_rounded),
+                    ),
+                    IconButton(
+                      tooltip: 'Làm mới',
+                      onPressed: monitor.isLoading
+                          ? null
+                          : () => context
+                                .read<PaymentMonitorProvider>()
+                                .refreshNow(),
+                      icon: const Icon(Icons.refresh_rounded),
                     ),
                   ],
                 ),

@@ -67,6 +67,10 @@ visual systems that make the app feel assembled from unrelated screens.
 - Do not expose backend, provider, token, stack trace, HTTP, or database terms
   in user-facing UI. Map technical failures to plain operational language, for
   example `Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.`
+- Do not expose role, department, policy, or feature codes such as `FIN_ACC`,
+  `SUPER_ADMIN`, `ADMIN_*`, or `PAYMENT_SPEAKER` in normal UI copy. Map them to
+  human labels or permission messages, for example `Bạn không có quyền sửa đơn
+  hàng.`
 - Use one product vocabulary consistently:
   - `showroom` or `SR`, not `store`, `branch`, or `shop` in visible UI.
   - `biên nhận` for warranty/repair receipts.
@@ -92,17 +96,25 @@ visual systems that make the app feel assembled from unrelated screens.
 ## Platform Contracts
 
 - Android and Windows are the primary UI proof targets for current OpsHub work.
-- Payment monitor is Windows-only because it depends on desktop audio behavior
-  and long-running local polling. Route guards, Home tiles, and provider logic
-  must share the same platform capability helper.
-- If a feature is platform-specific, direct route access on unsupported
-  platforms must not run the feature flow. It must render a shared unsupported
-  state and log the branch through `AppLogger`.
+- Payment monitor list access is available on supported non-web clients,
+  including Android and Windows, when the user has `PAYMENT_MONITOR`.
+  The speaker path is Windows-only because it depends on desktop audio
+  behavior. Home tiles, speaker controls, and provider logic must not conflate
+  those platform capabilities.
+- If a feature or sub-feature is platform-specific, direct route access on
+  unsupported platforms must not run that sub-feature flow. It must render a
+  shared unsupported state or hide the unsupported control and log the branch
+  through `AppLogger`.
 
 ## Logging And Proof
 
 - New or changed user-facing flows must log start, success, failure, and key
   branch decisions through `AppLogger` with sanitized context.
+- Local and uploaded log context must redact secrets, authorization values,
+  email addresses, and local Windows user profile paths. Windows logs live at
+  `%APPDATA%\com.example\OpsHub\logs\opshub.log`.
+- Log retention must preserve complete JSON lines. Malformed fragments may be
+  discarded during compaction; retention must not cut a record in the middle.
 - Minimum UI validation for code changes:
   - `dart format --output=none --set-exit-if-changed <changed Dart files>`
   - `git diff --check`

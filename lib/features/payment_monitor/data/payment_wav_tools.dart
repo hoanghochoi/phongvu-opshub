@@ -61,6 +61,26 @@ class PaymentWavNormalizeResult {
   });
 }
 
+class PaymentWavCombineResult {
+  final Uint8List bytes;
+  final PaymentWavInfo prefix;
+  final PaymentWavInfo voice;
+  final PaymentWavInfo combined;
+  final int prefixTrailingSilenceTrimmedMs;
+  final int voiceLeadingSilenceTrimmedMs;
+  final int gapMs;
+
+  const PaymentWavCombineResult({
+    required this.bytes,
+    required this.prefix,
+    required this.voice,
+    required this.combined,
+    required this.prefixTrailingSilenceTrimmedMs,
+    required this.voiceLeadingSilenceTrimmedMs,
+    required this.gapMs,
+  });
+}
+
 class PaymentWavTools {
   static const int targetSampleRateHz = 44100;
 
@@ -166,6 +186,143 @@ class PaymentWavTools {
     );
   }
 
+  static PaymentWavCombineResult combinePcm16WithGap({
+    required List<int> prefixBytes,
+    required List<int> voiceBytes,
+    required Duration gap,
+  }) {
+    final prefixData = _asUint8List(prefixBytes);
+    final voiceData = _asUint8List(voiceBytes);
+    final prefix = readInfo(prefixData);
+    final voice = readInfo(voiceData);
+    _validateCompatiblePcm16(prefix, voice);
+
+    final prefixFrames = prefix.frameCount;
+    final voiceFrames = voice.frameCount;
+    final prefixLastActiveFrame = _lastNonZeroFrame(
+      prefixData,
+      prefix,
+    );
+    final voiceFirstActiveFrame = _firstNonZeroFrame(voiceData, voice);
+    if (prefixLastActiveFrame < 0 || voiceFirstActiveFrame >= voiceFrames) {
+      throw const PaymentWavException(
+        'Prefix or voice WAV does not contain audible PCM data',
+      );
+    }
+
+    final gapFrames = math.max(
+      0,
+      (prefix.sampleRateHz *
+              gap.inMicroseconds /
+              Duration.microsecondsPerSecond)
+          .round(),
+    );
+    final prefixActiveFrames = prefixLastActiveFrame + 1;
+    final prefixTrailingFrames = prefixFrames - prefixActiveFrames;
+    final keptPrefixSilenceFrames = math.min(prefixTrailingFrames, gapFrames);
+    final insertedGapFrames = gapFrames - keptPrefixSilenceFrames;
+    final prefixKeptFrames = prefixActiveFrames + keptPrefixSilenceFrames;
+    final voiceKeptFrames = voiceFrames - voiceFirstActiveFrame;
+    final outputDataBytes =
+        (prefixKeptFrames + insertedGapFrames + voiceKeptFrames) *
+        prefix.blockAlign;
+    final outputPcm = Uint8List(outputDataBytes);
+    var outputOffset = 0;
+
+    final prefixByteCount = prefixKeptFrames * prefix.blockAlign;
+    outputPcm.setRange(
+      outputOffset,
+      outputOffset + prefixByteCount,
+      prefixData,
+      prefix.dataOffset,
+    );
+    outputOffset += prefixByteCount;
+    outputOffset += insertedGapFrames * prefix.blockAlign;
+
+    final voiceStart =
+        voice.dataOffset + voiceFirstActiveFrame * voice.blockAlign;
+    final voiceByteCount = voiceKeptFrames * voice.blockAlign;
+    outputPcm.setRange(
+      outputOffset,
+      outputOffset + voiceByteCount,
+      voiceData,
+      voiceStart,
+    );
+
+    final output = _writePcm16Wav(outputPcm, prefix);
+    return PaymentWavCombineResult(
+      bytes: output,
+      prefix: prefix,
+      voice: voice,
+      combined: readInfo(output),
+      prefixTrailingSilenceTrimmedMs: _framesToMs(
+        prefixTrailingFrames - keptPrefixSilenceFrames,
+        prefix.sampleRateHz,
+      ),
+      voiceLeadingSilenceTrimmedMs: _framesToMs(
+        voiceFirstActiveFrame,
+        voice.sampleRateHz,
+      ),
+      gapMs: _framesToMs(gapFrames, prefix.sampleRateHz),
+    );
+  }
+
+  static void _validateCompatiblePcm16(
+    PaymentWavInfo prefix,
+    PaymentWavInfo voice,
+  ) {
+    if (!prefix.isPcm16 || !voice.isPcm16) {
+      throw const PaymentWavException(
+        'Only PCM 16-bit WAV files can be combined',
+      );
+    }
+    if (prefix.channels != voice.channels ||
+        prefix.sampleRateHz != voice.sampleRateHz ||
+        prefix.blockAlign != voice.blockAlign) {
+      throw PaymentWavException(
+        'WAV formats do not match; prefix=${prefix.channels}ch/${prefix.sampleRateHz}Hz '
+        'voice=${voice.channels}ch/${voice.sampleRateHz}Hz',
+      );
+    }
+    if (prefix.blockAlign != prefix.channels * 2 ||
+        prefix.dataBytes <= 0 ||
+        voice.dataBytes <= 0 ||
+        prefix.dataBytes % prefix.blockAlign != 0 ||
+        voice.dataBytes % voice.blockAlign != 0) {
+      throw const PaymentWavException('WAV PCM data is not frame aligned');
+    }
+  }
+
+  static int _firstNonZeroFrame(Uint8List bytes, PaymentWavInfo info) {
+    for (var frame = 0; frame < info.frameCount; frame += 1) {
+      if (_frameIsNonZero(bytes, info, frame)) return frame;
+    }
+    return info.frameCount;
+  }
+
+  static int _lastNonZeroFrame(Uint8List bytes, PaymentWavInfo info) {
+    for (var frame = info.frameCount - 1; frame >= 0; frame -= 1) {
+      if (_frameIsNonZero(bytes, info, frame)) return frame;
+    }
+    return -1;
+  }
+
+  static bool _frameIsNonZero(
+    Uint8List bytes,
+    PaymentWavInfo info,
+    int frame,
+  ) {
+    final offset = info.dataOffset + frame * info.blockAlign;
+    for (var byte = 0; byte < info.blockAlign; byte += 1) {
+      if (bytes[offset + byte] != 0) return true;
+    }
+    return false;
+  }
+
+  static int _framesToMs(int frames, int sampleRateHz) {
+    return (frames * 1000 / sampleRateHz).round();
+  }
+
   static List<int> _readMonoSamples(Uint8List bytes, PaymentWavInfo info) {
     final samples = <int>[];
     for (var frame = 0; frame < info.frameCount; frame += 1) {
@@ -225,6 +382,28 @@ class PaymentWavTools {
       _writeInt16(bytes, offset, _clampInt16(sample));
       offset += 2;
     }
+    return bytes;
+  }
+
+  static Uint8List _writePcm16Wav(
+    Uint8List pcmData,
+    PaymentWavInfo format,
+  ) {
+    final bytes = Uint8List(44 + pcmData.length);
+    _writeAscii(bytes, 0, 'RIFF');
+    _writeUint32(bytes, 4, 36 + pcmData.length);
+    _writeAscii(bytes, 8, 'WAVE');
+    _writeAscii(bytes, 12, 'fmt ');
+    _writeUint32(bytes, 16, 16);
+    _writeUint16(bytes, 20, 1);
+    _writeUint16(bytes, 22, format.channels);
+    _writeUint32(bytes, 24, format.sampleRateHz);
+    _writeUint32(bytes, 28, format.sampleRateHz * format.blockAlign);
+    _writeUint16(bytes, 32, format.blockAlign);
+    _writeUint16(bytes, 34, 16);
+    _writeAscii(bytes, 36, 'data');
+    _writeUint32(bytes, 40, pcmData.length);
+    bytes.setRange(44, bytes.length, pcmData);
     return bytes;
   }
 

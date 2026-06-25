@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../core/platform/app_platform_capabilities.dart';
@@ -10,8 +13,14 @@ import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_logo.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../payment_monitor/presentation/providers/payment_monitor_provider.dart';
+
+const _supportQrAssetPath = 'data/group_invitation.jpg';
+const _supportGroupInviteUrl =
+    'https://link.seatalk.io/group/open?invite_id=IkaYSKrlQkImmkCfNj4aBdpd5cpcCWFPaaegCUhYXjgcfi1Tzn9E9Gbuac_qt8Jk5mruc0AJGqQLaQeSWG1e';
+const _supportLogSource = 'HomeSupport';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -59,8 +68,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final canUsePaymentMonitor = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('PAYMENT_MONITOR') == true,
     );
-    final supportsPaymentMonitor =
-        AppPlatformCapabilities.isPaymentMonitorSupported();
+    final canUseFeedback = context.select<AuthProvider, bool>(
+      (auth) => auth.user?.canUseFeature('FEEDBACK') == true,
+    );
+    final canUsePaymentSpeaker = context.select<AuthProvider, bool>(
+      (auth) => auth.user?.canUseFeature('PAYMENT_SPEAKER') == true,
+    );
+    final supportsPaymentSpeaker =
+        AppPlatformCapabilities.isPaymentSpeakerSupported();
     final actions = _buildHomeActions(
       context,
       isAdmin,
@@ -69,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
       canUseBankStatements,
       canUseVietQr,
       canUsePaymentMonitor,
-      supportsPaymentMonitor,
+      canUseFeedback,
     );
 
     return Scaffold(
@@ -94,6 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     avatarUrl: data.avatarUrl,
                     onMenu: () => Scaffold.of(scaffoldContext).openDrawer(),
                     onProfile: () => context.push('/profile'),
+                    onSupport: () => _showSupportDialog(context),
                     onLogout: () => _logout(context),
                   );
                 },
@@ -105,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (canUsePaymentMonitor && supportsPaymentMonitor) ...[
+                  if (canUsePaymentSpeaker && supportsPaymentSpeaker) ...[
                     const _PaymentMonitorQuickToggle(),
                     const SizedBox(height: 16),
                   ],
@@ -128,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
     bool canUseBankStatements,
     bool canUseVietQr,
     bool canUsePaymentMonitor,
-    bool supportsPaymentMonitor,
+    bool canUseFeedback,
   ) {
     return [
       if (isAdmin)
@@ -171,13 +187,27 @@ class _HomeScreenState extends State<HomeScreen> {
           color: AppColors.info,
           onTap: () => context.push('/bank-statement'),
         ),
-      if (canUsePaymentMonitor && supportsPaymentMonitor)
+      if (canUsePaymentMonitor)
         AppFeatureAction(
-          icon: Icons.volume_up_rounded,
+          icon: Icons.payments_outlined,
           title: 'Tiền vào',
           description: 'Cập nhật giao dịch',
           color: AppColors.violet600,
           onTap: () => context.push('/payment-monitor'),
+        ),
+      if (canUseFeedback)
+        AppFeatureAction(
+          icon: Icons.lightbulb_outline_rounded,
+          title: 'Góp ý',
+          description: 'Đề xuất & báo lỗi',
+          color: AppColors.amber500,
+          onTap: () async {
+            await AppLogger.instance.info(
+              'Feedback',
+              'Suggestion opened from home',
+            );
+            if (context.mounted) context.push('/feedback');
+          },
         ),
     ];
   }
@@ -186,6 +216,165 @@ class _HomeScreenState extends State<HomeScreen> {
     await context.read<AuthProvider>().logout();
     if (context.mounted) {
       context.go('/login');
+    }
+  }
+
+  Future<void> _showSupportDialog(BuildContext context) async {
+    final inviteUri = Uri.parse(_supportGroupInviteUrl);
+    final logContext = {
+      'asset': _supportQrAssetPath,
+      'urlHost': inviteUri.host,
+      'urlPath': inviteUri.path,
+    };
+    unawaited(
+      AppLogger.instance.info(
+        _supportLogSource,
+        'Support group dialog requested',
+        context: logContext,
+      ),
+    );
+    if (!context.mounted) {
+      unawaited(
+        AppLogger.instance.warn(
+          _supportLogSource,
+          'Support group dialog skipped',
+          context: {...logContext, 'reason': 'context_unmounted'},
+        ),
+      );
+      return;
+    }
+    unawaited(
+      AppLogger.instance.info(
+        _supportLogSource,
+        'Support group dialog shown',
+        context: logContext,
+      ),
+    );
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.support_agent_rounded, color: AppTheme.primaryBlue),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Hỗ trợ OpsHub')),
+          ],
+        ),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.neutral200),
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.asset(
+                      _supportQrAssetPath,
+                      semanticLabel: 'QR mời vào group hỗ trợ Seatalk',
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text(
+                            'Không tải được QR. Đại Ca dùng link bên dưới nhé.',
+                            textAlign: TextAlign.center,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Quét QR bằng Seatalk hoặc mở link group hỗ trợ:',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.neutral600,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SelectableText(
+                  _supportGroupInviteUrl,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppTheme.primaryBlue,
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Đóng'),
+          ),
+          FilledButton.icon(
+            onPressed: () => _openSupportGroupLink(dialogContext),
+            icon: const Icon(Icons.open_in_new_rounded),
+            label: const Text('Mở group'),
+          ),
+        ],
+      ),
+    );
+    await AppLogger.instance.info(
+      _supportLogSource,
+      'Support group dialog closed',
+      context: logContext,
+    );
+  }
+
+  Future<void> _openSupportGroupLink(BuildContext context) async {
+    final inviteUri = Uri.parse(_supportGroupInviteUrl);
+    final logContext = {'urlHost': inviteUri.host, 'urlPath': inviteUri.path};
+    await AppLogger.instance.info(
+      _supportLogSource,
+      'Support group link opening',
+      context: logContext,
+    );
+    try {
+      final opened = await launchUrl(
+        inviteUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (opened) {
+        await AppLogger.instance.info(
+          _supportLogSource,
+          'Support group link opened',
+          context: logContext,
+        );
+        return;
+      }
+      await AppLogger.instance.warn(
+        _supportLogSource,
+        'Support group link launcher returned false',
+        context: logContext,
+      );
+    } catch (error) {
+      await AppLogger.instance.error(
+        _supportLogSource,
+        'Support group link open failed',
+        error: error,
+        context: logContext,
+      );
+    }
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chưa mở được link. Đại Ca copy link trong hộp thoại.'),
+        ),
+      );
     }
   }
 
@@ -252,20 +441,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     context.push('/admin');
                   },
                 ),
-              ListTile(
-                leading: const Icon(
-                  Icons.question_answer_rounded,
-                  color: Colors.white,
-                ),
-                title: const Text(
-                  'Phản hồi',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  context.push('/feedback');
-                },
-              ),
               ListTile(
                 leading: const Icon(
                   Icons.settings_outlined,
@@ -414,6 +589,7 @@ class _CompactHomeHeader extends StatelessWidget {
   final String? avatarUrl;
   final VoidCallback onMenu;
   final VoidCallback onProfile;
+  final VoidCallback onSupport;
   final VoidCallback onLogout;
 
   const _CompactHomeHeader({
@@ -422,6 +598,7 @@ class _CompactHomeHeader extends StatelessWidget {
     required this.avatarUrl,
     required this.onMenu,
     required this.onProfile,
+    required this.onSupport,
     required this.onLogout,
   });
 
@@ -480,6 +657,14 @@ class _CompactHomeHeader extends StatelessWidget {
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Hỗ trợ',
+                onPressed: onSupport,
+                icon: const Icon(
+                  Icons.support_agent_rounded,
+                  color: Colors.white,
                 ),
               ),
               IconButton(

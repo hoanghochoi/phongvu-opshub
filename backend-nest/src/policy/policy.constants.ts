@@ -94,8 +94,8 @@ export const DEFAULT_ADMIN_POLICY_DEFINITIONS = [
   },
   {
     code: ADMIN_POLICY_CODES.ADMIN_FEEDBACK,
-    displayName: 'Danh sách phản hồi',
-    description: 'Xem danh sách phản hồi nội bộ',
+    displayName: 'Danh sách góp ý',
+    description: 'Xem danh sách góp ý nội bộ',
     category: 'FEATURE',
   },
   {
@@ -138,8 +138,8 @@ export const DEFAULT_ADMIN_POLICY_DEFINITIONS = [
   },
   {
     code: ADMIN_POLICY_CODES.FEEDBACK,
-    displayName: 'Phản hồi',
-    description: 'Gửi phản hồi nội bộ',
+    displayName: 'Góp ý',
+    description: 'Gửi góp ý nội bộ',
     category: 'FEATURE',
     defaultAllowed: true,
   },

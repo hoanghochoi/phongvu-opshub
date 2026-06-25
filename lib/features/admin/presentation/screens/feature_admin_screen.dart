@@ -722,7 +722,7 @@ class _NodeAssignmentCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '$scope • $typeTitle ${assignment.nodeKey} • ${assignment.impactedUserCount} user',
+                    '$scope • $typeTitle ${assignment.nodeKey} • ${assignment.impactedUserCount} người dùng',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(

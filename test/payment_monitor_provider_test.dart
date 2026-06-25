@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
@@ -72,7 +74,7 @@ void main() {
   });
 
   test(
-    'loads transactions but skips notification polling for ineligible job role',
+    'loads transactions but skips notification polling without speaker feature',
     () async {
       final repository = _FakePaymentMonitorRepository(
         notifications: [_readyNotification()],
@@ -86,13 +88,13 @@ void main() {
       );
 
       await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(jobRoleCode: 'SA'), isInitialized: true);
+      provider.syncAuth(_storeUser(canReadSpeaker: false), isInitialized: true);
       await _waitUntil(
         () => repository.transactionFetchCount > 0 && !provider.isLoading,
       );
 
       expect(provider.canUsePaymentSpeaker, isFalse);
-      expect(provider.isActive, isFalse);
+      expect(provider.isActive, isTrue);
       expect(repository.transactionFetchCount, greaterThan(0));
       expect(repository.readyFetchCount, 0);
       expect(repository.downloadCount, 0);
@@ -104,9 +106,9 @@ void main() {
   );
 
   test(
-    'normalizes STORE_MANAGER and CASH job role codes for speaker polling',
+    'uses PAYMENT_SPEAKER feature instead of job role for speaker polling',
     () async {
-      for (final roleCode in ['store_manager', ' cash ']) {
+      for (final roleCode in ['SA', 'warehouse']) {
         final repository = _FakePaymentMonitorRepository(
           notifications: const [],
         );
@@ -134,6 +136,66 @@ void main() {
     },
   );
 
+  test('loads transactions on Android but does not enable speaker', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final repository = _FakePaymentMonitorRepository(
+      notifications: [_readyNotification()],
+    );
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+
+    expect(provider.canUsePaymentSpeaker, isFalse);
+    expect(provider.isActive, isTrue);
+    expect(repository.transactionFetchCount, greaterThan(0));
+    expect(repository.readyFetchCount, 0);
+    expect(repository.downloadCount, 0);
+
+    provider.dispose();
+  });
+
+  test('lets SUPER_ADMIN use speaker polling after choosing a store', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: [_readyNotification()],
+    );
+    final speaker = _FakePaymentSpeaker();
+    final provider = PaymentMonitorProvider(
+      repository,
+      speaker,
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_superAdmin(), isInitialized: true);
+
+    expect(provider.canUsePaymentSpeaker, isTrue);
+    expect(provider.hasMonitorScope, isFalse);
+    expect(repository.readyFetchCount, 0);
+
+    provider.setStoreOverride('cp62');
+    await _waitUntil(
+      () => repository.readyFetchCount > 0 && !provider.isLoading,
+    );
+
+    expect(provider.hasMonitorScope, isTrue);
+    expect(repository.readyFetchCount, greaterThan(0));
+    expect(repository.downloadCount, 1);
+    expect(repository.ackEvents, contains('PLAYED'));
+    expect(speaker.playCount, 1);
+
+    provider.dispose();
+  });
+
   test('requests stored transactions with the selected date range', () async {
     final repository = _FakePaymentMonitorRepository(notifications: const []);
     final speaker = _FakePaymentSpeaker();
@@ -159,6 +221,113 @@ void main() {
 
     expect(repository.requestedStartDates, contains('2026-05-23'));
     expect(repository.requestedEndDates, contains('2026-05-27'));
+
+    provider.dispose();
+  });
+
+  test(
+    'realtime payment event triggers lightweight transaction refresh',
+    () async {
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
+      final initialFetchCount = repository.transactionFetchCount;
+
+      await provider.handleRealtimeMessageForTesting(
+        jsonEncode({
+          'type': 'PAYMENT_NOTIFICATION',
+          'payload': {
+            'notificationId': 'note-1',
+            'transactionId': 'txn-1',
+            'storeCode': 'CP01',
+            'amount': 1250000,
+            'audioStatus': 'READY',
+          },
+        }),
+      );
+      await _waitUntil(
+        () =>
+            repository.transactionFetchCount > initialFetchCount &&
+            !provider.isLoading,
+      );
+
+      expect(repository.requestedIncludeTotals.first, isTrue);
+      expect(repository.requestedIncludeTotals.last, isFalse);
+
+      provider.dispose();
+    },
+  );
+
+  test('manual refresh requests total count for pagination', () async {
+    final repository = _FakePaymentMonitorRepository(notifications: const []);
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+    repository.requestedIncludeTotals.clear();
+
+    await provider.refreshNow();
+    await _waitUntil(() => !provider.isLoading);
+
+    expect(repository.requestedIncludeTotals, contains(true));
+
+    provider.dispose();
+  });
+
+  test('realtime refresh respects poll backoff after throttling', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: const [],
+      transactionError: ApiException('Too Many Requests', 429),
+    );
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount == 1 && !provider.isLoading,
+    );
+
+    await provider.handleRealtimeMessageForTesting(
+      jsonEncode({
+        'type': 'PAYMENT_NOTIFICATION',
+        'payload': {
+          'notificationId': 'note-throttled',
+          'transactionId': 'txn-throttled',
+          'storeCode': 'CP01',
+          'amount': 1250000,
+          'audioStatus': 'READY',
+        },
+      }),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+
+    expect(repository.transactionFetchCount, 1);
+
+    await provider.refreshNow();
+    expect(repository.transactionFetchCount, 2);
 
     provider.dispose();
   });
@@ -221,6 +390,96 @@ void main() {
       expect(repository.ackEvents, contains('PLAYED'));
       expect(repository.ackEvents, isNot(contains('FAILED')));
       expect(provider.speakerError, isNull);
+
+      provider.dispose();
+    },
+  );
+
+  test('plays raw amount audio with local cue-prefix when available', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: [_readyNotification()],
+    );
+    final speaker = _FakePaymentSpeaker();
+    final provider = PaymentMonitorProvider(
+      repository,
+      speaker,
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
+    );
+
+    expect(repository.requestedRawAmounts, [true]);
+    expect(repository.requestedIncludeCues, [false]);
+    expect(speaker.playLocalCueValues, [false]);
+    expect(speaker.playLocalCuePrefixValues, [true]);
+    expect(repository.downloadCount, 1);
+
+    provider.dispose();
+  });
+
+  test(
+    'falls back to server-combined cue audio when raw amount is unavailable',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: [_readyNotification()],
+        rawAmountAudioError: ApiException('Raw amount unavailable', 400),
+      );
+      final speaker = _FakePaymentSpeaker();
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(), isInitialized: true);
+      await _waitUntil(
+        () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
+      );
+
+      expect(repository.requestedRawAmounts, [true, false]);
+      expect(repository.requestedIncludeCues, [false, true]);
+      expect(speaker.playLocalCueValues, [false]);
+      expect(speaker.playLocalCuePrefixValues, [false]);
+      expect(repository.downloadCount, 2);
+
+      provider.dispose();
+    },
+  );
+
+  test(
+    'falls back to TTS-only download with local cue when raw and combined audio fail',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: [_readyNotification()],
+        rawAmountAudioError: ApiException('Raw amount unavailable', 400),
+        combinedAudioError: ApiException('Combined audio unavailable', 400),
+      );
+      final speaker = _FakePaymentSpeaker();
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(), isInitialized: true);
+      await _waitUntil(
+        () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
+      );
+
+      expect(repository.requestedRawAmounts, [true, false, false]);
+      expect(repository.requestedIncludeCues, [false, true, false]);
+      expect(speaker.playLocalCueValues, [true]);
+      expect(speaker.playLocalCuePrefixValues, [false]);
+      expect(repository.downloadCount, 3);
 
       provider.dispose();
     },
@@ -327,13 +586,30 @@ Future<void> _waitUntil(bool Function() condition) async {
   }
 }
 
-User _storeUser({String? jobRoleCode = 'CASH'}) {
+User _storeUser({
+  String? jobRoleCode = 'CASH',
+  String storeId = 'store-uuid-1',
+  bool canReadSpeaker = true,
+  bool canMonitor = true,
+}) {
   return User(
     id: 'user-1',
     email: 'staff@example.com',
     role: 'MANAGER',
-    storeId: 'store-uuid-1',
+    storeId: storeId,
     jobRoleCode: jobRoleCode,
+    featureAccess: {
+      if (canMonitor) 'PAYMENT_MONITOR': true,
+      if (canReadSpeaker) 'PAYMENT_SPEAKER': true,
+    },
+  );
+}
+
+User _superAdmin() {
+  return const User(
+    id: 'super-1',
+    email: 'admin@example.com',
+    role: 'SUPER_ADMIN',
   );
 }
 
@@ -352,10 +628,15 @@ PaymentNotification _readyNotification() {
 class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<PaymentNotification> notifications;
   final Object? transactionError;
+  final Object? rawAmountAudioError;
+  final Object? combinedAudioError;
   final List<String> ackEvents = [];
   final List<String> ackErrors = [];
   final List<String?> requestedStartDates = [];
   final List<String?> requestedEndDates = [];
+  final List<bool> requestedIncludeTotals = [];
+  final List<bool> requestedIncludeCues = [];
+  final List<bool> requestedRawAmounts = [];
   int transactionFetchCount = 0;
   int readyFetchCount = 0;
   int downloadCount = 0;
@@ -363,6 +644,8 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   _FakePaymentMonitorRepository({
     required this.notifications,
     this.transactionError,
+    this.rawAmountAudioError,
+    this.combinedAudioError,
   }) : super(ApiClient());
 
   @override
@@ -373,12 +656,14 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     String? endDate,
     int page = 0,
     int limit = 10,
+    bool includeTotal = true,
   }) async {
     transactionFetchCount += 1;
     final error = transactionError;
     if (error != null) throw error;
     requestedStartDates.add(startDate);
     requestedEndDates.add(endDate);
+    requestedIncludeTotals.add(includeTotal);
     return StoredPaymentTransactionsPage(
       transactions: const [],
       page: page,
@@ -399,8 +684,18 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   }
 
   @override
-  Future<List<int>> downloadNotificationAudio(String notificationId) async {
+  Future<List<int>> downloadNotificationAudio(
+    String notificationId, {
+    bool includeCue = false,
+    bool rawAmount = false,
+  }) async {
     downloadCount += 1;
+    requestedIncludeCues.add(includeCue);
+    requestedRawAmounts.add(rawAmount);
+    final rawError = rawAmountAudioError;
+    if (rawAmount && rawError != null) throw rawError;
+    final error = combinedAudioError;
+    if (includeCue && error != null) throw error;
     return const [0x52, 0x49, 0x46, 0x46, 0x00];
   }
 
@@ -419,6 +714,8 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
 class _FakePaymentSpeaker extends PaymentSpeaker {
   final int failuresBeforeSuccess;
   final bool nonRetryableFailure;
+  final List<bool> playLocalCueValues = [];
+  final List<bool> playLocalCuePrefixValues = [];
   int playCount = 0;
 
   _FakePaymentSpeaker({
@@ -435,8 +732,12 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
     required String storeCode,
     required String clientId,
     required int attempt,
+    bool playLocalCue = true,
+    bool playLocalCuePrefix = false,
   }) async {
     playCount += 1;
+    playLocalCueValues.add(playLocalCue);
+    playLocalCuePrefixValues.add(playLocalCuePrefix);
     if (nonRetryableFailure) {
       throw const PaymentSpeakerException(
         'Windows does not report any audio output device',

@@ -171,6 +171,7 @@ model PaymentNotificationDeliveryLog {
 
   @@index([notificationId, createdAt])
   @@index([storeCode, createdAt])
+  @@index([clientId, storeCode, event, createdAt], map: "PaymentDeliveryLog_client_store_event_createdAt_idx")
   @@index([createdAt])
 }
 

@@ -37,6 +37,21 @@ and basic administration for privileged roles.
   administration screens are not exposed; their data is maintained through the
   organization tree or runtime store flows.
 - Admin users can list, add, and edit users inside their permitted scope.
+- Only `SUPER_ADMIN` can create users or import nhân sự from an Excel file using
+  the template headers `email`, `full_name`, `system_role`, and `lv0` through
+  `lv5`. The backend matches `lv*` values to active organization node
+  `code`/`businessCode`, assigns the deepest matched node, creates passwordless
+  users, and upserts existing users without changing their password. Import
+  rejects the whole file before writing when any email has invalid syntax or a
+  domain outside `AUTH_ALLOWED_EMAIL_DOMAINS`.
+- New users created by `SUPER_ADMIN`, including import-created rows, receive a
+  welcome email that points them to the in-app `Quên mật khẩu` first-password
+  flow. SMTP failures do not roll back user creation; the UI reports the email
+  failure count.
+- `SUPER_ADMIN` can hard-delete a locked user only when the account has no
+  business/history references. Active users, `SUPER_ADMIN` accounts, self-delete,
+  and users tied to warranty, feedback, FIFO, VietQR, MAP order history, or node
+  assignment history are blocked with an explicit reason.
 - User management keeps name/email search and filters for domain, organization
   node, feature/screen, role, and status. The feature/screen filter resolves
   through node-group feature assignments; the user editor does not assign
@@ -45,6 +60,11 @@ and basic administration for privileged roles.
   `SUPER_ADMIN` can manage all roots. `ADMIN` is scoped by its assigned
   organization root, with email-domain fallback during rollout. `USER` has no
   administration surface by role alone.
+- For user and store administration, an `ADMIN` assigned directly to a Lv5
+  position under a Lv4 showroom manages the owning showroom subtree, not only
+  that single Lv5 position. This lets a store-manager account with `ADMIN_USERS`
+  see and manage the staff assigned to other Lv5 positions in the same
+  showroom, while still excluding other showrooms.
 - The backend migration normalizes legacy role aliases during rollout:
   `ADMIN`, `ADMIN_PHONGVU`, `ADMIN_ACARE`, and `MANAGER` become `ADMIN`;
   `STAFF` becomes `USER`. Login, JWT, feature, and policy checks normalize
@@ -84,18 +104,24 @@ and basic administration for privileged roles.
   feature-management Node tab or from the selected node in the organization
   tree. The backend expands selected feature-tree descendants to include their
   ancestors and stores one row per root + node type + node key + feature.
+  The node-feature assignment dialog shows related policy reminders, for
+  example `BANK_STATEMENTS` points admins to `BANK_STATEMENT_ALL_SCOPE` when
+  national all-showroom statement access is intended; it does not create policy
+  rules automatically.
   Migration audit still reports orphaned per-user feature rows, but rollout
   blocks only divergent node groups; users without an active direct node are
   skipped from backfill because runtime node-group access already denies them.
   `SUPER_ADMIN` bypasses feature gates to avoid lockout.
 - Policy management lets `SUPER_ADMIN` manage admin policy definitions, policy
-  rules, and system settings. Policy rules support the same detailed selectors
-  as feature rules plus `scopeContains`, and app rule create/edit uses
-  organization tree nodes instead of legacy Region/Area/SR selectors. Policy
-  rule matching keeps the assigned organization node as the source of truth, so
-  rules can target a user's exact Lv5 node or any ancestor node. Auth domain,
-  password policy, and OTP policy settings are managed from the policy settings
-  tab and can store JSON object or array values.
+  rules, and system settings. New and edited policy rules require at least one
+  organization tree node; legacy Department/JobRole/work-scope/Region/Area/SR/
+  user/scope-contains selectors remain readable for historical rules but are
+  rejected on create/update. Optional email-domain and system-role selectors
+  can further narrow each selected node rule. Policy matching keeps the assigned
+  organization node as the source of truth, so rules can target a user's exact
+  Lv5 node or any ancestor node. Auth domain, password policy, and OTP policy
+  settings are managed from the policy settings tab and can store JSON object
+  or array values.
 - `ADMIN` can reset passwords only for users inside their organization scope
   and cannot reset `SUPER_ADMIN`.
 - `SUPER_ADMIN` can manage all users.
@@ -129,10 +155,15 @@ and basic administration for privileged roles.
   as `CHATSALE`, `TELESALE`, `AREA_MANAGER`, `REGIONAL_MANAGER`, back office,
   BOD, and CEO. These are operational personnel roles, separate from the three
   fixed system access roles.
-- Payment speaker polling/audio/ack is limited to staff assigned directly to
-  active Lv5 positions with business code `STORE_MANAGER` or `CASH`. Other
-  positions can still use allowed store/runtime views but do not receive or
-  acknowledge payment audio notifications.
+- Payment speaker ready-claim/audio/ack is controlled by the separate
+  `PAYMENT_SPEAKER` (`Đọc loa`) feature assigned to the user's direct
+  organization node group. `PAYMENT_MONITOR` opens the `Tiền vào` transaction
+  view, while `PAYMENT_SPEAKER` permits audio polling, audio download, and
+  payment-notification ack on supported Windows PCs. Mobile and other
+  unsupported platforms do not enable the speaker path by default. The rollout
+  backfills `PAYMENT_SPEAKER` only for Lv5 `STORE_MANAGER` and `CASH` node
+  groups that already have `PAYMENT_MONITOR`, so current speaker users keep
+  working without opening speaker access to every monitor user.
 - Work scope values are `NATIONAL`, `REGION`, `AREA`, and `STORE`.
   `MULTI_STORE` is not accepted. Legacy `ONLINE` is migrated to
   `REGION + CHATSALE` and is not exposed in the public contract.

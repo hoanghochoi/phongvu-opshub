@@ -79,7 +79,7 @@ class _FeedbackAdminScreenState extends State<FeedbackAdminScreen> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không tải được danh sách phản hồi')),
+          const SnackBar(content: Text('Chưa tải được danh sách góp ý')),
         );
       }
     } finally {
@@ -91,7 +91,7 @@ class _FeedbackAdminScreenState extends State<FeedbackAdminScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: GradientHeader(
-        title: 'Danh sách phản hồi',
+        title: 'Danh sách góp ý',
         showBack: true,
         actions: [
           IconButton(
@@ -137,7 +137,7 @@ class _FeedbackTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       child: ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        leading: const Icon(Icons.feedback_outlined),
+        leading: const Icon(Icons.lightbulb_outline_rounded),
         title: Text(
           name?.isNotEmpty == true ? '$name • $email' : email,
           maxLines: 1,
@@ -200,7 +200,7 @@ class _FeedbackImageThumbnail extends StatelessWidget {
   Widget build(BuildContext context) {
     final borderRadius = BorderRadius.circular(8);
     return Semantics(
-      label: 'Ảnh phản hồi ${imageIndex + 1}',
+      label: 'Ảnh góp ý ${imageIndex + 1}',
       child: Material(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: borderRadius,
@@ -280,7 +280,7 @@ Future<void> _showFeedbackImagePreview(
                   children: [
                     Expanded(
                       child: Text(
-                        'Ảnh phản hồi ${imageIndex + 1}',
+                        'Ảnh góp ý ${imageIndex + 1}',
                         style: Theme.of(dialogContext).textTheme.titleMedium,
                       ),
                     ),

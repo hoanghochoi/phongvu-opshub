@@ -48,9 +48,7 @@ export class FeedbackService {
           ' role=' +
           (admin?.role || 'unknown'),
       );
-      throw new ForbiddenException(
-        'Chỉ SUPER_ADMIN được xem danh sách phản hồi',
-      );
+      throw new ForbiddenException('Bạn không có quyền xem danh sách góp ý');
     }
     this.logger.log(
       'Feedback admin list started: admin=' +

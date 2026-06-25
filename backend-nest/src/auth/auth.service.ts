@@ -82,7 +82,7 @@ export class AuthService {
 
     if (!user.password) {
       throw new UnauthorizedException(
-        'Tài khoản chưa có mật khẩu. Vui lòng tạo tài khoản trước.',
+        'Tài khoản chưa có mật khẩu. Vui lòng dùng Quên mật khẩu để tạo mật khẩu lần đầu.',
       );
     }
 
@@ -414,10 +414,7 @@ export class AuthService {
       .toUpperCase();
     if (WORK_SCOPE_TYPES.has(scope)) return scope;
     const role = this.normalizeRoleForOutput(user.role);
-    if (
-      role === SUPER_ADMIN_ROLE ||
-      role === ADMIN_ROLE
-    ) {
+    if (role === SUPER_ADMIN_ROLE || role === ADMIN_ROLE) {
       return NATIONAL_SCOPE;
     }
     return STORE_SCOPE;

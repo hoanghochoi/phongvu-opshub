@@ -62,6 +62,11 @@ account import from CSV, and administration for privileged roles.
 - `SUPER_ADMIN` bypasses feature gates to avoid lockout.
 - User management supports filters by name/email search, domain,
   organization node, feature/screen, role, and status.
+- User management supports Excel import through `ADMIN_USERS` using the
+  `user_temp.xlsx` header contract. Imports match `lv0`-`lv5` values by active
+  organization node `code`/`businessCode`, assign the deepest matched node,
+  create passwordless users, and upsert existing users without changing their
+  password; imported users set their first password through `Quên mật khẩu`.
 - Policy management supports configurable policy definitions, detailed policy
   rules, and system settings for login domains, password policy, and OTP
   policies. App policy and feature rule editing uses organization tree nodes

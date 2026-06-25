@@ -35,8 +35,8 @@ a customer to scan and pay manually.
 - Each generated QR is stored as a payment intent so staff can run payment
   confirmation after showing the QR to the customer.
 - The QR result screen automatically checks payment status while the screen is
-  open when amount and transfer content are fixed. Staff can also tap `Kiá»ƒm tra
-  ngay` to run the same check immediately.
+  open when amount and transfer content are fixed. Staff can also tap
+  `Kiểm tra ngay` to run the same check immediately.
 - Once payment is confirmed, the app hides the QR and shows a green success
   state with MAP transaction details when available: payer, received amount,
   transfer content, transaction number, and transaction time.
@@ -52,9 +52,11 @@ a customer to scan and pay manually.
   directly. If an intent is still `PENDING` after its Vietnam-local creation day
   has passed, the backend marks it `FAILED` with reason `EXPIRED_VIETNAM_DAY`.
 
-## PC Payment Monitor
+## Payment Monitor
 
-- The Windows PC app exposes a `Tiá»n vÃ o` home action.
+- The app exposes a `Tiền vào` home action for users with `PAYMENT_MONITOR` on
+  supported non-web clients, including Android and Windows. Mobile clients show
+  the stored transaction list without enabling the speaker path.
 - The NestJS API is the source of truth for MAP transactions. It polls
   configured showroom MAP accounts in the background, stores successful incoming
   transactions in Postgres, and exposes the stored list to scoped clients.
@@ -74,16 +76,38 @@ a customer to scan and pay manually.
   showroom, not only transfers that match an OpsHub QR.
 - The monitor transaction list can be filtered by a Vietnam-local date range,
   for example 23-27/05, and remains paginated by the selected row count.
-- The Windows app starts the monitor after sign-in when the account has a
-  showroom scope. It seeds currently visible server transactions silently so old
-  rows are not announced again.
-- While the app is running, the PC polls OpsHub every 5 seconds. Each newly
-  observed successful incoming transaction is announced through generated audio
-  as `Phong VÅ© Ä‘Ã£ nháº­n: <amount> Ä‘á»“ng.`. Piper audio uses speed `0.90` by
-  default so the final word has more room to finish.
-- Turning off `Äá»c thÃ´ng bÃ¡o tiá»n vÃ o` mutes only the speaker path. The PC keeps
-  polling/syncing transactions every 5 seconds, and muted notifications are
-  recorded as `SILENCED` so they are not played later as backlog.
+- Each transaction card shows the payer name/account when MAP provides it.
+  Tapping a card opens a selectable detail dialog with the full available payer,
+  amount, transaction time/number, content, status, showroom, and OpsHub
+  first-seen timestamp. Missing MAP fields are shown explicitly as unavailable.
+- The app starts the monitor after sign-in when the account has a showroom
+  scope. It seeds currently visible server transactions silently so old rows
+  are not announced again on speaker-capable clients.
+- While the app is running, the PC listens for scoped realtime payment events
+  and refreshes stored transactions when a new notification arrives. A
+  30-second fallback refresh remains active so the list can recover from missed
+  socket events.
+- Failed transaction refreshes apply bounded backoff. Realtime/fallback refresh
+  cannot bypass that backoff; only an explicit user refresh or filter/page
+  action may retry immediately. This prevents socket bursts from amplifying
+  backend `429 Too Many Requests` responses.
+- Each newly observed successful incoming transaction can be announced through
+  generated audio as `Phong Vũ đã nhận: <amount> đồng.` when the signed-in
+  user has both `PAYMENT_MONITOR` and the separate node feature
+  `PAYMENT_SPEAKER` (`Đọc loa`) on a supported Windows PC. Piper audio uses
+  speed `0.90`, no configured leading silence, and 500 ms of tail silence. The
+  server-combined WAV reduces only the payment cue to `80%` amplitude, then
+  appends the full TTS WAV immediately so there is no configured gap before the
+  first spoken word. If combined audio is unavailable, the Windows local-cue
+  fallback also plays the cue at `80%` while keeping voice playback at `100%`.
+  Mobile and other unsupported platforms do not start the speaker path by
+  default.
+- Turning off `Đọc loa tiền vào` mutes only the speaker path. The PC keeps
+  syncing transactions from realtime/fallback refreshes, and muted
+  notifications are recorded as `SILENCED` so they are not played later as
+  backlog. Users with `PAYMENT_MONITOR` but without `PAYMENT_SPEAKER` keep the
+  transaction list and realtime refreshes, but they do not poll ready audio,
+  download audio, or acknowledge speaker events.
 - QR payment confirmation checks stored MAP transactions first. If a matching
   stored transaction exists, the QR screen moves to the paid state and the PC
   monitor also announces that transaction. If no stored match exists yet, the
@@ -95,15 +119,23 @@ a customer to scan and pay manually.
   server-side TTS service, publishes a scoped realtime event, and serves audio
   only through JWT-protected endpoints. Production uses Piper `vi-vais1000`
   through `TTS_VOICE_ID=piper:vi-vais1000`; the sidecar still accepts the
-  legacy `custom:suong-vo` voice id for rollback-friendly deploys. The Windows
-  app plays `data/ting_ting.mp3` before the generated audio, then attempts
-  playback in this order for each notification: `media_kit` on Windows, Win32
-  `PlaySoundW` for WAV files, and MCI as the final fallback. If MCI returns
-  error `326` for WAV audio, the client normalizes only that local temp file to
-  `WAV PCM 16-bit mono 44100 Hz` and retries once without requesting a larger
-  server audio payload. The Windows installer also runs a non-blocking audio
-  preflight for `Audiosrv`, `AudioEndpointBuilder`, and WinMM output devices;
-  missing service/device checks warn the user but do not block installation.
+  legacy `custom:suong-vo` voice id for rollback-friendly deploys. The audio
+  endpoint stays backward compatible: `GET /payment-notifications/:id/audio`
+  returns TTS-only audio for older clients, while new clients request
+  `includeCue=true` to receive one server-combined WAV containing the payment
+  cue followed by the full TTS WAV, including Piper's leading and tail silence.
+  The server caches the combined WAV beside the generated TTS file and deletes
+  both during audio cleanup. If combined audio is
+  unavailable, for example legacy MP3 audio or a missing cue WAV, the Windows
+  client falls back to downloading TTS-only audio and playing the local
+  `data/ting_ting.mp3` cue. Playback then attempts `media_kit` on Windows,
+  Win32 `PlaySoundW` for WAV files, and MCI as the final fallback. If MCI
+  returns error `326` for WAV audio, the client normalizes only that local temp
+  file to `WAV PCM 16-bit mono 44100 Hz` and retries once without requesting a
+  larger server audio payload. The Windows installer also runs a non-blocking
+  audio preflight for `Audiosrv`, `AudioEndpointBuilder`, and WinMM output
+  devices; missing service/device checks warn the user but do not block
+  installation.
 - When a speaker attempt fails, the client uploads `PaymentSpeaker` started /
   succeeded / failed logs with sanitized context and acknowledges
   `PLAYBACK_FAILED` for attempts 1-2. The client waits 10 seconds between
@@ -116,9 +148,11 @@ a customer to scan and pay manually.
 
 ## Bank Statement Reconciliation
 
-- The Windows PC app exposes a `Sao ke` home action for MANAGER and
-  SUPER_ADMIN users. The NestJS API enforces the same role gate on statement
-  list, export, inline order update, and order-history endpoints.
+- The app exposes the `Sao ke` home action when the resolved
+  `BANK_STATEMENTS` feature is allowed or the user has the
+  `BANK_STATEMENT_ALL_SCOPE` policy. The NestJS feature guard and statement
+  endpoints apply the same fallback, so a finance user can receive national
+  statement access without also receiving unrelated manager capabilities.
 - MAP sync extracts every valid order code from the transfer content. A valid
   order is an independent 14-digit number whose first 6 digits are a real
   `yymmdd` date. Duplicates are removed while preserving first-seen order; no
@@ -130,10 +164,10 @@ a customer to scan and pay manually.
 - Primary filters are mutually exclusive: showroom, order code, amount, and
   transfer content. Order status and date range can be used alone or combined
   with one primary filter.
-- Showroom filtering follows V1 scope: national users can search all or
-  multiple showrooms; showroom-scoped users can search only their own showroom.
-  Order, amount, and content filters are allowed across the user's statement
-  scope.
+- Showroom filtering follows effective statement scope: national users and
+  users with `BANK_STATEMENT_ALL_SCOPE` can search all or multiple showrooms;
+  showroom-scoped users can search only their own showroom. Order, amount, and
+  content filters are allowed across the user's statement scope.
 - Order filter is an exact match against any stored order in the transaction.
   Amount filter is exact integer amount. Content filter is case-insensitive
   contains matching.
@@ -144,22 +178,34 @@ a customer to scan and pay manually.
 - The statement date-range control shows `Hôm nay` when no explicit range is
   selected. A custom date range must include both start and end dates; an
   incomplete range is treated as no explicit range.
-- `ÄÃ£ cÃ³ Ä‘Æ¡n hÃ ng` means the stored order list is not empty. `ChÆ°a cÃ³ Ä‘Æ¡n hÃ ng`
-  means the order list is empty.
+- `Đã có đơn hàng` means the stored order list is not empty.
+  `Chưa có đơn hàng` means the order list is empty.
 - Statement rows show transaction details beside a compact order area. The row
   summary uses short readable pills for payment source, SR code, amount, and
   successful transfer status, not the raw MAP API status; the current payment
-  source label is `VietinBank`. Users can edit orders inline, enter multiple
-  orders separated by whitespace, comma, or semicolon, save/cancel in place, and
-  see a short per-row success or failure message.
+  source label is `VietinBank`. Users can edit orders inline only while the
+  stored order list is `NULL`; protected rows that already have an AUTO or
+  MANUAL order can be changed only by `SUPER_ADMIN` or users in the `FIN_ACC`
+  organization/department. Users enter multiple orders separated by whitespace,
+  comma, or semicolon, save/cancel in place, and see a short per-row success or
+  failure message.
+- Statement rows include the MAP payer name/account when available. Tapping the
+  transaction summary opens a selectable detail dialog with payer, payment,
+  showroom, order, manual-edit metadata, and OpsHub first-seen information;
+  checkbox selection and inline order actions remain separate controls.
 - Manual order edits write an audit row with old orders, new orders, editor id,
   editor email, source, and timestamp. The history icon opens these audit rows;
   automatic MAP extraction is not shown as a manual edit.
-- CSV export returns UTF-8 with BOM for Excel, preserves long numeric
-  identifiers such as transaction numbers, order codes, and payer accounts as
-  text, and formats transaction timestamps in Vietnam local time. Selected
-  transaction ids take precedence; if nothing is selected, export includes every
-  row matching the current filter/date/status, not just the visible page.
+- CSV export returns UTF-8 with BOM for Excel, exports MAP
+  `rawData.txnReference` under the `Sao kê` column, preserves long numeric
+  identifiers such as statement references, transaction numbers, order codes,
+  and payer accounts as text, and formats transaction timestamps in Vietnam
+  local time. Statement
+  search uses server-side paging, while selected transaction ids stay selected
+  when users move between pages and take precedence during export. If nothing is
+  selected, export includes every row matching the current filter/date/status,
+  not just the visible page. CSV export is limited to a date span of 31 days; a
+  longer selected range is blocked before the export request is sent.
 - `Sao ke` keeps header, filters, selection bar, and export controls fixed while
   only the transaction list scrolls. The page allows selecting and copying text.
 - `Sao ke` and `Tien vao` cards use a green border when the transaction has at
@@ -172,7 +218,7 @@ Bank-web confirmation is possible only as a separate reconciliation feature
 after the bank portal is identified and approved for automation. Current
 research against VietinBank MAP merchant transaction payment page shows a
 searchable transaction list with filters for amount, transaction code, date
-range, status, and a `Táº£i káº¿t quáº£` export action.
+range, status, and a `Tải kết quả` export action.
 
 Preferred paths, from safest to riskiest:
 

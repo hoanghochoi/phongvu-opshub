@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/features/auth/data/auth_device_info.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 
@@ -174,6 +175,38 @@ void main() {
       'newPassword': 'Password2!',
     });
   });
+
+  test(
+    'AuthRepository surfaces missing forgot-password account as 404',
+    () async {
+      final repo = AuthRepository(
+        ApiClient(),
+        publicClient: MockClient((http.Request request) async {
+          return http.Response(
+            jsonEncode({
+              'message':
+                  'Email này chưa có tài khoản OpsHub. Vui lòng đăng ký tài khoản trước.',
+            }),
+            404,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+
+      await expectLater(
+        repo.requestPasswordReset(email: 'missing@phongvu.vn'),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.statusCode, 'statusCode', 404)
+              .having(
+                (e) => e.message,
+                'message',
+                contains('chưa có tài khoản'),
+              ),
+        ),
+      );
+    },
+  );
 }
 
 class _FakeAuthDeviceInfoProvider extends AuthDeviceInfoProvider {

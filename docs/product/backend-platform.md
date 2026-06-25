@@ -12,7 +12,13 @@ development services for OpsHub.
 - PostgreSQL and Redis are started with `docker-compose.yml`.
 - Prisma owns the database schema.
 - BigQuery configuration is required for inventory-related backend behavior.
-- Mobile update metadata is exposed by `GET /app-version`.
+- Client update metadata is exposed by `GET /app-version` and remains the source
+  of truth for update availability, force/minimum-build rules, and download URL.
+- A full API startup publishes `APP_VERSION_UPDATED` through Redis. Go exposes
+  that signal as `APP_UPDATE` on the public, updates-only `/ws/app-updates`
+  endpoint. Running clients recheck `GET /app-version` after the signal,
+  WebSocket reconnect, and app resume; no update decision trusts WebSocket
+  payload alone.
 - Staff client downloads are exposed by `GET /download`, backed by the public
   manifest at `GET /downloads/latest.json`.
 

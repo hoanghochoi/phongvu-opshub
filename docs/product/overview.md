@@ -17,13 +17,15 @@ Go realtime service.
 - FIFO: FIFO check, FIFO sorting, and history.
 - Sort: SKU grouping and sorting workflow.
 - Warranty: image capture/upload and repair status updates.
-- Feedback: staff feedback submission.
+- Góp ý: staff suggestions and issue reports from the final Home action.
 - VietQR/MAP payments: manual bank-transfer QR generation, incoming payment
   monitor, and bank statement reconciliation for MAP transactions that may not
   include an order code in the transfer content.
 - Profile/Admin: personal profile, admin-assigned organization nodes, and user
   administration.
 - Settings: client-side preferences such as Windows startup behavior.
+- Support: Home header exposes the Seatalk support group QR and invite link for
+  staff help without requiring a feature permission.
 - Client diagnostics: authenticated clients upload a sanitized previous-day
   activity summary once per day for operational debugging. The upload uses the
   existing app-log pipeline and does not include the raw log file.

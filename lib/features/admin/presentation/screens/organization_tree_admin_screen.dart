@@ -471,7 +471,6 @@ class _OrganizationNodeDetail extends StatelessWidget {
               Chip(label: Text(node.isActive ? 'Đang hoạt động' : 'Đã tắt')),
               if (node.emailDomain?.isNotEmpty == true)
                 Chip(label: Text(node.emailDomain!)),
-              if (node.loginAllowed) const Chip(label: Text('Cho đăng nhập')),
             ],
           ),
           if (node.type == 'LV4_STORE') ...[
@@ -620,7 +619,6 @@ class _OrganizationNodeEditorDialogState
   final _mapVietinPasswordController = TextEditingController();
   String _type = 'BLOCK';
   String? _parentId;
-  bool _loginAllowed = false;
   bool _isActive = true;
   bool _saving = false;
 
@@ -644,7 +642,6 @@ class _OrganizationNodeEditorDialogState
         node?.type ??
         _defaultChildType(widget.parentId == null ? null : _parentNode());
     _parentId = node?.parentId ?? widget.parentId;
-    _loginAllowed = node?.loginAllowed ?? _type == 'LV0_DOMAIN';
     _isActive = node?.isActive ?? true;
   }
 
@@ -687,7 +684,6 @@ class _OrganizationNodeEditorDialogState
       emailDomain: _emailDomainController.text.trim().isEmpty
           ? null
           : _emailDomainController.text.trim(),
-      loginAllowed: _loginAllowed,
       isActive: _isActive,
       sortOrder: int.tryParse(_sortOrderController.text.trim()) ?? 0,
       storeId: _businessCodeController.text.trim().isEmpty
@@ -820,8 +816,7 @@ class _OrganizationNodeEditorDialogState
                     .toList(),
                 onChanged: !canEditStructure || widget.node?.isSystem == true
                     ? null
-                    : (value) =>
-                        setState(() => _setType(value ?? 'LV4_STORE')),
+                    : (value) => setState(() => _setType(value ?? 'LV4_STORE')),
               ),
               DropdownButtonFormField<String?>(
                 key: ValueKey('parent-$_type-${parentValue ?? 'none'}'),
@@ -905,15 +900,6 @@ class _OrganizationNodeEditorDialogState
                     ? (value) => setState(() => _isActive = value)
                     : null,
               ),
-              if (isDomain)
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _loginAllowed,
-                  title: const Text('Cho phép đăng nhập'),
-                  onChanged: canEditStructure
-                      ? (value) => setState(() => _loginAllowed = value)
-                      : null,
-                ),
             ],
           ),
         ),
@@ -933,7 +919,6 @@ class _OrganizationNodeEditorDialogState
 
   void _setType(String type) {
     _type = AdminOrganizationNode.canonicalType(type);
-    _loginAllowed = _type == 'LV0_DOMAIN';
     final parentOptions = _parentOptions();
     _parentId = _validParentId(parentOptions);
     if (_parentId == null && !_allowsEmptyParent(_type)) {
@@ -952,8 +937,12 @@ class _OrganizationNodeEditorDialogState
 
   String _defaultChildType(AdminOrganizationNode? parent) {
     if (parent == null) return 'LV0_DOMAIN';
-    return switch (parent.type) {
-      'LV0_DOMAIN' => 'LV4_STORE',
+    return switch (AdminOrganizationNode.canonicalType(parent.type)) {
+      'LV0_DOMAIN' => 'LV1_BLOCK',
+      'LV1_BLOCK' => 'LV2_REGION',
+      'LV2_DEPARTMENT' => 'LV3_UNIT',
+      'LV2_REGION' => 'LV3_AREA',
+      'LV3_AREA' || 'LV3_UNIT' => 'LV4_STORE',
       'LV4_STORE' => 'LV5_POSITION',
       _ => 'LV5_POSITION',
     };
@@ -992,9 +981,10 @@ class _OrganizationNodeEditorDialogState
   bool _canUseParentForType(AdminOrganizationNode parent, String type) {
     if (!parent.isActive) return false;
     final childType = AdminOrganizationNode.canonicalType(type);
-    if (childType == 'LV4_STORE') return parent.type == 'LV0_DOMAIN';
-    if (childType == 'LV5_POSITION') return parent.type == 'LV4_STORE';
-    return false;
+    if (childType == 'LV0_DOMAIN') return false;
+    final childLevel = AdminOrganizationNode.levelOf(childType);
+    final parentLevel = AdminOrganizationNode.levelOf(parent.type);
+    return parentLevel < childLevel;
   }
 }
 

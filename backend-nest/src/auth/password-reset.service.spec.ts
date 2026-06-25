@@ -1,6 +1,6 @@
 import * as bcrypt from 'bcrypt';
 import { createHash } from 'crypto';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PasswordResetService } from './password-reset.service';
 
 function hashToken(token: string) {
@@ -83,12 +83,12 @@ describe('PasswordResetService', () => {
     expect(emailText).not.toContain(createData.codeHash);
   });
 
-  it('returns the same generic response when forgot-password email is missing', async () => {
+  it('rejects missing forgot-password accounts without sending mail', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
 
     await expect(
       service.sendResetCodeForEmail('missing@phongvu-shop.vn'),
-    ).resolves.toEqual({ ok: true, expiresInMinutes: 10 });
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(mailService.sendMail).not.toHaveBeenCalled();
   });
 
@@ -199,6 +199,36 @@ describe('PasswordResetService', () => {
         revokedReason: 'PASSWORD_RESET',
       },
     });
+  });
+
+  it('sets the first password for an imported passwordless user', async () => {
+    const token = 'first-password-token';
+    prisma.passwordResetToken.findUnique.mockResolvedValue({
+      id: 'token-1',
+      userId: 'user-1',
+      email: 'imported@phongvu.vn',
+      source: 'SELF_SERVICE',
+      tokenHash: hashToken(token),
+      expiresAt: new Date(Date.now() + 30_000),
+      consumedAt: null,
+      attempts: 0,
+      user: {
+        id: 'user-1',
+        email: 'imported@phongvu.vn',
+        password: '',
+        store: null,
+      },
+    });
+
+    await expect(service.resetPassword(token, 'Password2!')).resolves.toEqual({
+      ok: true,
+    });
+
+    const savedPassword = prisma.user.update.mock.calls[0][0].data.password;
+    expect(savedPassword).toEqual(expect.any(String));
+    await expect(bcrypt.compare('Password2!', savedPassword)).resolves.toBe(
+      true,
+    );
   });
 
   it('increments attempts for a valid token with a weak new password', async () => {

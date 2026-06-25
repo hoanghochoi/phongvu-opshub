@@ -14,6 +14,8 @@ import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { decryptSecret } from '../common/secret-cipher';
 import { PaymentNotificationsService } from '../payment-notifications/payment-notifications.service';
+import { FEATURE_KEYS } from '../feature/feature.constants';
+import { FeatureService } from '../feature/feature.service';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
 import {
@@ -25,7 +27,7 @@ import {
 } from './map-vietin.dto';
 
 const MAP_CLIENT_ID = 'c4a59ac3630f6d8f1abe722eac7052b5';
-const MAP_SIGNATURE_KEY = '5B51114141BECE821F9E631D371A9821';
+const MAP_SIGNATURE_KEY = '***REMOVED***';
 const MAP_NO_AUTH_BASE_URL =
   'https://map.vietinbank.vn/vtb/public/map/api/ma/no-auth';
 const MAP_TRANSACTION_BASE_URL =
@@ -41,9 +43,13 @@ const DEFAULT_GLOBAL_SESSION_TTL_SECONDS = 10 * 60;
 const VIETNAM_UTC_OFFSET_HOURS = 7;
 const ORDER_SOURCE_AUTO = 'AUTO';
 const ORDER_SOURCE_MANUAL = 'MANUAL';
+const FIN_ACC_DEPARTMENT_CODE = 'FIN_ACC';
+const ORDER_EDIT_FORBIDDEN_MESSAGE = 'Bạn không có quyền sửa đơn hàng.';
 const STATEMENT_ORDER_STATUS_ALL = 'ALL';
 const STATEMENT_ORDER_STATUS_HAS_ORDER = 'HAS_ORDER';
 const STATEMENT_ORDER_STATUS_MISSING_ORDER = 'MISSING_ORDER';
+const STATEMENT_EXPORT_MAX_DATE_SPAN_DAYS = 31;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 type MapLoginResponse = {
   error_code?: string;
@@ -140,6 +146,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     'txnNo',
     'id',
   ];
+  private readonly transactionReferenceKeys = ['txnReference'];
   private readonly transactionTimeKeys = [
     'tranTime',
     'txnDate',
@@ -151,6 +158,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private readonly payerNameKeys = [
     'payerName',
     'payerFullName',
+    'reqCardName',
+    'requestCardName',
     'senderName',
     'senderFullName',
     'fromAccountName',
@@ -161,6 +170,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private readonly payerAccountKeys = [
     'payerAccount',
     'payerAccountNo',
+    'reqCardNo',
+    'requestCardNo',
     'senderAccount',
     'senderAccountNo',
     'fromAccount',
@@ -183,6 +194,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private prisma: PrismaService,
     private policyService: PolicyService,
+    private featureService: FeatureService,
     @Optional()
     private paymentNotifications?: PaymentNotificationsService,
   ) {}
@@ -222,6 +234,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const localDateRange = this.resolveStoredTransactionDateRange(input);
     const limit = input.limit ?? 10;
     const page = input.page ?? 0;
+    const includeTotal =
+      String(input.includeTotal ?? 'true')
+        .trim()
+        .toLowerCase() !== 'false';
     const where: Prisma.MapVietinTransactionWhereInput = {
       storeCode: store.storeId,
       ...(afterFirstSeenAt ? { firstSeenAt: { gt: afterFirstSeenAt } } : {}),
@@ -245,21 +261,24 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           }
         : {}),
     };
+    const rowsPromise = this.prisma.mapVietinTransaction.findMany({
+      where,
+      orderBy: [{ paidAt: 'desc' }, { firstSeenAt: 'desc' }],
+      skip: page * limit,
+      take: limit,
+    });
     const [rows, total] = await Promise.all([
-      this.prisma.mapVietinTransaction.findMany({
-        where,
-        orderBy: [{ paidAt: 'desc' }, { firstSeenAt: 'desc' }],
-        skip: page * limit,
-        take: limit,
-      }),
-      this.prisma.mapVietinTransaction.count({ where }),
+      rowsPromise,
+      includeTotal
+        ? this.prisma.mapVietinTransaction.count({ where })
+        : Promise.resolve(null),
     ]);
 
     return {
       storeId: store.storeId,
       page,
       limit,
-      total,
+      ...(total !== null ? { total } : {}),
       list: rows.map((row) => this.toStoredTransactionDto(row)),
     };
   }
@@ -281,33 +300,68 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     this.logger.log(
       `Statement search succeeded: user=${this.safeUserLabel(user)} total=${total} page=${query.page} limit=${query.limit} filters=${query.filterSummary}`,
     );
+    const canEditProtectedOrders =
+      await this.canEditProtectedStatementOrders(user);
 
     return {
       page: query.page,
       limit: query.limit,
       total,
-      list: rows.map((row) => this.toStoredTransactionDto(row)),
+      list: rows.map((row) =>
+        this.toStoredTransactionDto(row, { canEditProtectedOrders }),
+      ),
     };
   }
 
   async exportStatementsCsv(user: any, input: ExportMapVietinStatementsDto) {
-    await this.assertCanUseStatements(user);
     const selectedIds = this.normalizeTransactionIds(input.transactionIds);
-    const where = selectedIds.length
-      ? await this.buildSelectedStatementWhere(user, selectedIds)
-      : (
-          await this.buildStatementQuery(user, input, {
-            requireFilter: true,
-          })
-        ).where;
-    const rows = await this.prisma.mapVietinTransaction.findMany({
-      where,
-      orderBy: [{ paidAt: 'desc' }, { firstSeenAt: 'desc' }],
-    });
+    const mode = selectedIds.length ? 'selected' : 'filter';
+    const startedAt = Date.now();
     this.logger.log(
-      `Statement export succeeded: user=${this.safeUserLabel(user)} mode=${selectedIds.length ? 'selected' : 'filter'} count=${rows.length}`,
+      `Statement export started: user=${this.safeUserLabel(user)} mode=${mode} selectedCount=${selectedIds.length}`,
     );
-    return this.toStatementsCsv(rows);
+    try {
+      await this.assertCanUseStatements(user);
+      this.assertStatementExportDateRangeAllowed(input);
+      const where = selectedIds.length
+        ? await this.buildSelectedStatementWhere(user, selectedIds)
+        : (
+            await this.buildStatementQuery(user, input, {
+              requireFilter: true,
+            })
+          ).where;
+      const rows = await this.prisma.mapVietinTransaction.findMany({
+        where,
+        orderBy: [{ paidAt: 'desc' }, { firstSeenAt: 'desc' }],
+      });
+      const transactionReferenceCount = rows.filter((row) =>
+        Boolean(this.resolveStoredTransactionReference(row)),
+      ).length;
+      this.logger.log(
+        `Statement export succeeded: user=${this.safeUserLabel(user)} mode=${mode} count=${rows.length} transactionReferenceCount=${transactionReferenceCount} durationMs=${Date.now() - startedAt}`,
+      );
+      return this.toStatementsCsv(rows);
+    } catch (error) {
+      this.logger.error(
+        `Statement export failed: user=${this.safeUserLabel(user)} mode=${mode} selectedCount=${selectedIds.length} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  private assertStatementExportDateRangeAllowed(
+    input: ExportMapVietinStatementsDto,
+  ) {
+    const dateRange = this.resolveStoredTransactionDateRange(input);
+    if (!dateRange) return;
+    const spanDays = Math.round(
+      (dateRange.end.getTime() - dateRange.start.getTime()) / MS_PER_DAY,
+    );
+    if (spanDays > STATEMENT_EXPORT_MAX_DATE_SPAN_DAYS) {
+      throw new BadRequestException(
+        'Chỉ được export sao kê trong tối đa 1 tháng',
+      );
+    }
   }
 
   async updateStatementOrders(
@@ -327,6 +381,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
 
     const oldOrders = this.normalizeOrderCodes(existing.orders || []);
     const changed = !this.sameOrderList(oldOrders, orders);
+    const canEditProtectedOrders =
+      await this.canEditProtectedStatementOrders(user);
+    this.assertStatementOrderEditAllowed(existing, canEditProtectedOrders);
     const now = new Date();
     const updated = await this.prisma.mapVietinTransaction.update({
       where: { id },
@@ -354,9 +411,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     }
 
     this.logger.log(
-      `Statement orders updated: user=${this.safeUserLabel(user)} transaction=${id} store=${existing.storeCode} oldCount=${oldOrders.length} newCount=${orders.length} changed=${changed}`,
+      `Statement orders updated: user=${this.safeUserLabel(user)} transaction=${id} store=${existing.storeCode} oldCount=${oldOrders.length} newCount=${orders.length} changed=${changed} protected=${oldOrders.length > 0} finAcc=${canEditProtectedOrders}`,
     );
-    return this.toStoredTransactionDto(updated);
+    return this.toStoredTransactionDto(updated, { canEditProtectedOrders });
   }
 
   async listStatementOrderHistory(user: any, transactionId: string) {
@@ -913,11 +970,99 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  private async canUseStatements(user: any) {
+    if (
+      await this.policyService.canAccessPolicy(
+        user,
+        ADMIN_POLICY_CODES.BANK_STATEMENTS,
+      )
+    ) {
+      return true;
+    }
+    if (
+      await this.featureService.canAccessFeature(
+        user,
+        FEATURE_KEYS.BANK_STATEMENTS,
+      )
+    ) {
+      return true;
+    }
+    return this.hasNationalStatementScope(user);
+  }
+
   private async assertCanUseStatements(user: any) {
-    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.BANK_STATEMENTS)) {
+    if (await this.canUseStatements(user)) {
       return;
     }
     throw new ForbiddenException('Không có quyền xem sao kê');
+  }
+
+  private assertStatementOrderEditAllowed(
+    row: { orders?: string[] | null; orderSource?: string | null },
+    canEditProtectedOrders: boolean,
+  ) {
+    const existingOrders = this.normalizeOrderCodes(row.orders || []);
+    if (existingOrders.length === 0 || canEditProtectedOrders) return;
+    throw new ForbiddenException(ORDER_EDIT_FORBIDDEN_MESSAGE);
+  }
+
+  private async canEditProtectedStatementOrders(user: any): Promise<boolean> {
+    if (String(user?.role || '').toUpperCase() === 'SUPER_ADMIN') return true;
+    let departmentCode = this.normalizeStatementAccessCode(
+      user?.departmentCode,
+    );
+    let organizationNodeId = String(user?.organizationNodeId || '').trim();
+
+    if ((!departmentCode || !organizationNodeId) && user?.id) {
+      const userModel = (this.prisma as any).user;
+      const stored = userModel?.findUnique
+        ? await userModel.findUnique({
+            where: { id: user.id },
+            select: { departmentCode: true, organizationNodeId: true },
+          })
+        : null;
+      departmentCode ||= this.normalizeStatementAccessCode(
+        stored?.departmentCode,
+      );
+      organizationNodeId ||= String(stored?.organizationNodeId || '').trim();
+    }
+
+    if (departmentCode === FIN_ACC_DEPARTMENT_CODE) return true;
+    if (!organizationNodeId) return false;
+    return this.organizationNodeIsFinAcc(organizationNodeId);
+  }
+
+  private async organizationNodeIsFinAcc(nodeId: string) {
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) return false;
+    const nodes: Array<{
+      id: string;
+      parentId: string | null;
+      code: string | null;
+      businessCode: string | null;
+    }> = await organizationNode.findMany({
+      select: { id: true, parentId: true, code: true, businessCode: true },
+    });
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    let cursor = byId.get(nodeId);
+    for (let guard = 0; cursor && guard < 50; guard += 1) {
+      if (
+        this.normalizeStatementAccessCode(cursor.code) ===
+          FIN_ACC_DEPARTMENT_CODE ||
+        this.normalizeStatementAccessCode(cursor.businessCode) ===
+          FIN_ACC_DEPARTMENT_CODE
+      ) {
+        return true;
+      }
+      cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
+    }
+    return false;
+  }
+
+  private normalizeStatementAccessCode(value: unknown) {
+    return String(value || '')
+      .trim()
+      .toUpperCase();
   }
 
   private parseStoreCodes(value?: string) {
@@ -983,7 +1128,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       .trim()
       .toUpperCase();
 
-    if (await this.policyService.canAccessPolicy(admin, ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE)) {
+    if (
+      await this.policyService.canAccessPolicy(
+        admin,
+        ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE,
+      )
+    ) {
       if (!normalizedStoreCode) {
         throw new BadRequestException('Vui lòng chọn showroom cần kiểm tra');
       }
@@ -1013,7 +1163,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       .trim()
       .toUpperCase();
 
-    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE)) {
+    if (
+      await this.policyService.canAccessPolicy(
+        user,
+        ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE,
+      )
+    ) {
       if (!normalizedStoreCode) {
         throw new BadRequestException('Vui lòng chọn showroom cần theo dõi');
       }
@@ -1321,24 +1476,32 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return left.every((value, index) => value === right[index]);
   }
 
-  private toStoredTransactionDto(row: {
-    id: string;
-    storeCode: string;
-    transactionKey: string;
-    transactionNumber: string | null;
-    amount: number;
-    content: string;
-    orders?: string[] | null;
-    orderSource?: string | null;
-    orderUpdatedAt?: Date | null;
-    orderUpdatedByUserId?: string | null;
-    orderUpdatedByEmail?: string | null;
-    status: string | null;
-    paidAt: Date | null;
-    payerName: string | null;
-    payerAccount: string | null;
-    firstSeenAt: Date;
-  }) {
+  private toStoredTransactionDto(
+    row: {
+      id: string;
+      storeCode: string;
+      transactionKey: string;
+      transactionNumber: string | null;
+      amount: number;
+      content: string;
+      orders?: string[] | null;
+      orderSource?: string | null;
+      orderUpdatedAt?: Date | null;
+      orderUpdatedByUserId?: string | null;
+      orderUpdatedByEmail?: string | null;
+      status: string | null;
+      paidAt: Date | null;
+      payerName: string | null;
+      payerAccount: string | null;
+      rawData?: Prisma.JsonValue | null;
+      firstSeenAt: Date;
+    },
+    options: { canEditProtectedOrders?: boolean } = {},
+  ) {
+    const payer = this.resolveStoredPayer(row);
+    const orders = row.orders || [];
+    const canEditOrders =
+      orders.length === 0 || options.canEditProtectedOrders === true;
     return {
       id: row.id,
       storeId: row.storeCode,
@@ -1346,17 +1509,55 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       transactionNumber: row.transactionNumber,
       amount: row.amount,
       content: row.content,
-      orders: row.orders || [],
+      orders,
       orderSource: row.orderSource || null,
       orderUpdatedAt: row.orderUpdatedAt || null,
       orderUpdatedByUserId: row.orderUpdatedByUserId || null,
       orderUpdatedByEmail: row.orderUpdatedByEmail || null,
+      canEditOrders,
+      orderEditBlockedReason: canEditOrders
+        ? null
+        : ORDER_EDIT_FORBIDDEN_MESSAGE,
       status: row.status,
       paidAt: row.paidAt,
-      payerName: row.payerName,
-      payerAccount: row.payerAccount,
+      payerName: payer.name,
+      payerAccount: payer.account,
       firstSeenAt: row.firstSeenAt,
     };
+  }
+
+  private resolveStoredPayer(row: {
+    payerName?: string | null;
+    payerAccount?: string | null;
+    rawData?: Prisma.JsonValue | null;
+  }) {
+    const rawData = this.rawDataAsMapRow(row.rawData);
+    const rawName = rawData
+      ? this.readFirstText(rawData, this.payerNameKeys)
+      : '';
+    const rawAccount = rawData
+      ? this.readFirstText(rawData, this.payerAccountKeys)
+      : '';
+    return {
+      name: this.firstNonEmptyText(row.payerName, rawName) || null,
+      account: this.firstNonEmptyText(row.payerAccount, rawAccount) || null,
+    };
+  }
+
+  private resolveStoredTransactionReference(row: {
+    rawData?: Prisma.JsonValue | null;
+  }) {
+    const rawData = this.rawDataAsMapRow(row.rawData);
+    return rawData
+      ? this.readFirstText(rawData, this.transactionReferenceKeys) || null
+      : null;
+  }
+
+  private rawDataAsMapRow(value?: Prisma.JsonValue | null) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    return value as MapTransactionRow;
   }
 
   private isSuccessfulTransaction(row: MapTransactionRow) {
@@ -1419,6 +1620,15 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     for (const key of keys) {
       const value = this.readText(row, key);
       if (value) return value;
+    }
+    return '';
+  }
+
+  private firstNonEmptyText(...values: unknown[]) {
+    for (const value of values) {
+      const text =
+        value === null || value === undefined ? '' : String(value).trim();
+      if (text) return text;
     }
     return '';
   }
@@ -1520,7 +1730,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async assertCanSearch(admin: any) {
-    if (await this.policyService.canAccessPolicy(admin, ADMIN_POLICY_CODES.BANK_STATEMENTS)) {
+    if (await this.canUseStatements(admin)) {
       return;
     }
     throw new ForbiddenException('Không có quyền kiểm tra giao dịch MAP');
@@ -1758,6 +1968,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const headers = [
       'Mã showroom',
       'Mã giao dịch',
+      'Sao kê',
       'Số tiền',
       'Nội dung chuyển khoản',
       'Mã đơn hàng',
@@ -1772,17 +1983,20 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     ];
     const lines = [headers.map((value) => this.csvCell(value)).join(',')];
     for (const row of rows) {
+      const payer = this.resolveStoredPayer(row);
+      const transactionReference = this.resolveStoredTransactionReference(row);
       lines.push(
         [
           this.csvCell(row.storeCode),
           this.csvExcelTextCell(row.transactionNumber),
+          this.csvExcelTextCell(transactionReference),
           this.csvAmountCell(row.amount),
           this.csvCell(row.content),
           this.csvExcelTextCell((row.orders || []).join(' | ')),
           this.csvCell(row.status),
           this.csvCell(this.csvVietnamDate(row.paidAt)),
-          this.csvCell(row.payerName),
-          this.csvExcelTextCell(row.payerAccount),
+          this.csvCell(payer.name),
+          this.csvExcelTextCell(payer.account),
           this.csvCell(this.csvVietnamDate(row.firstSeenAt)),
           this.csvCell(row.orderSource),
           this.csvCell(row.orderUpdatedByEmail),

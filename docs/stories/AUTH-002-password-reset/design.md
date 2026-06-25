@@ -3,7 +3,9 @@
 - Keep `User.tokenVersion`, `PasswordResetToken`, and `EmailVerificationCode` as
   the reset primitives; no new Prisma table is required for this flow.
 - `POST /auth/forgot-password` sends a 6-digit reset code through the shared mail
-  service and returns a generic response for all allowed-domain emails.
+  service when the allowed-domain email belongs to an OpsHub account. Missing
+  accounts return a clear 404 so Flutter can show a registration dialog instead
+  of advancing to code entry.
 - `POST /auth/forgot-password/verify-code` consumes a valid reset code and
   creates a one-time `PasswordResetToken`; `POST /auth/reset-password` consumes
   that token and updates the password.

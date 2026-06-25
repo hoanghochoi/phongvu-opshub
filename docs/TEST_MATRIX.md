@@ -14,6 +14,22 @@ This file maps product behavior to proof. Existing flows are marked
 | changed             | Contract changed after earlier implementation                              |
 | retired             | No longer part of the product contract                                     |
 
+## Current Release Security Proof
+
+- `WINDOWS-DIST-001`, 2026-06-24: production setup `v2026.06.23.88+100088`
+  was reproduced as `Trojan:Win32/Wacatac.B!ml` while its checksum-matched
+  portable ZIP, extracted app, and previous setup `100087` scanned clean.
+  Removed the installer's self-trust path, added a fail-closed Defender gate to
+  production and staging after signing and before checksums/upload, and logged
+  definition version, file size, SHA256, duration, and result. Local validation:
+  PowerShell parser passed, both workflow YAML files parsed, no self-trust
+  references remain, `flutter analyze --no-pub` passed, full
+  `flutter test --no-pub --reporter compact` passed (133 tests), Windows release
+  build passed, Inno compile passed, temporary self-signed app/installer signing
+  passed, and Defender definition `1.453.245.0` scanned the final local signed
+  ZIP and installer with no threats. Pending: signed production CI gate and live
+  download verification.
+
 ## Matrix
 
 | Story                 | Contract                                                                                                                                                                                                                                                                                                                      | Unit    | Integration                             | E2E                          | Platform                                       | Status              | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -36,9 +52,260 @@ This file maps product behavior to proof. Existing flows are marked
 | WINDOWS-INSTALL-001   | Windows installer bundles Microsoft Visual C++ Redistributable x64, installs it before app launch when the runtime is missing/old/incomplete, keeps Windows update metadata pointed at the setup EXE, and leaves the portable ZIP as manual/internal distribution                                                             | no      | no                                      | installer smoke partial      | Windows installer build proof                  | changed             | 2026-06-03: installer now performs a non-blocking Windows audio preflight before install by checking `Audiosrv`, `AudioEndpointBuilder`, and WinMM `waveOutGetNumDevs`; interactive installs show a warning when audio service/device checks fail, while silent installs only log the warning and continue. Validation: Microsoft `vc_redist.x64.exe` downloaded with valid signature, `flutter build windows --release --no-pub --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api`, Inno Setup 6.7.0 compile succeeded with the bundled redist and updated preflight code, `git diff --check`. Gap: clean-VM missing-service/no-output interactive warning smoke and missing-runtime/UAC path remain pending. 2026-05-27: installer now embeds official Microsoft `vc_redist.x64.exe`, checks registry version plus required DLLs, runs the prerequisite elevated with `/install /quiet /norestart /log`, accepts reboot-required outcomes, and skips postinstall launch when reboot is needed. Validation: redist downloaded with valid Microsoft signature, `git diff --check`, `flutter build windows --release --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api`, Inno Setup 6.7.0 compile confirmed `vc_redist.x64.exe` included, and silent installer smoke exited 0 on a machine where runtime 14.44 was already present. Gap: missing-runtime/UAC path still needs clean Windows VM smoke before push.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | PLATFORM-001          | NestJS, Go realtime, PostgreSQL, Redis local stack health                                                                                                                                                                                                                                                                     | partial | no                                      | no                           | health checks needed                           | existing_unverified | Product docs seeded from README/code inspection                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | UPDATE-001            | Mobile clients check backend version metadata and require APK updates when server build is newer or minimum supported build is raised; staff can use `/download` backed by `/downloads/latest.json` to download the latest APK, Windows installer, Windows ZIP, and checksum                                                  | yes     | no                                      | mobile/download smoke needed | Android, Windows, public web                   | changed             | 2026-06-05: fixed old Android/Windows clients losing the update prompt during startup redirects by keeping the update result in `AppUpdateGate` state and rendering a blocking modal overlay above the router instead of a transient navigator dialog; optional prompts dismiss only from `Äá»ƒ sau`, required prompts keep blocking and open the update URL. Validation: focused `flutter test --no-pub test/app_update_gate_test.dart --reporter expanded`, `flutter analyze --no-pub`, full `flutter test --no-pub --reporter expanded` (59 tests), `flutter build windows --debug --no-pub`, `flutter build apk --debug --no-pub`, `git diff --check`. Gap: live old APK/Windows installer startup smoke against production metadata remains manual. 2026-06-04: added the public `/download` landing page, CI-generated `latest.json`, and manual `skip_client_build=true` static-only deploy path that does not change app-version metadata or rebuild APK/EXE/ZIP. Validation: `git diff --check`, workflow YAML parse, `node --check scripts/download-manifest.mjs`, temp artifact manifest smoke, live artifact manifest smoke against current public files (`2026.06.03.55+100055`), inline HTML JavaScript syntax check, and local static route smoke. Gap: local Caddy validation unavailable because local `caddy` is missing and Docker daemon is not running; live workflow dispatch smoke remains pending.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| UPDATE-003            | Running Android and Windows clients receive a public app-version WebSocket event after backend deploy, then re-read public `/app-version` metadata before showing the existing optional or required update prompt                                                                                                          | yes     | mocked Redis/WebSocket contracts        | widget flow verified         | Android and Windows builds                    | implemented         | 2026-06-24: NestJS publishes sanitized Android/Windows build metadata to Redis after startup, Go exposes public update-only `/ws/app-updates`, and Flutter reconnects with backoff then re-checks HTTP metadata on event, connection, resume, and metadata retry. Public clients cannot receive warranty/payment events. Validation: focused Flutter update-gate tests (7), full Flutter tests (139), Flutter analyze, Windows release build, Android production-debug APK build, focused NestJS app-version tests (5), full backend Jest (39 suites, 308 tests), NestJS build, and Go tests. Gap: live post-deploy Redis/WebSocket delivery and prompt smoke remain pending; clients must first install this realtime-enabled build. |
 
 ## Recent Evidence
 
+- PROFILE-ADMIN-001 / PAYMENT-STATEMENT-001, 2026-06-24: tightened user
+  import/create/delete and statement-order edit permissions. `SUPER_ADMIN` is
+  now required for admin user creation/import, imports validate email syntax and
+  allowed domains before any write, newly created users receive welcome email
+  guidance for first password setup, SMTP failure is reported without rolling
+  back creation, and locked-user hard delete is blocked for active/self/
+  `SUPER_ADMIN`/history-backed accounts. Statement order edits now allow
+  non-FIN users to fill only currently empty orders; existing AUTO/MANUAL orders
+  can be edited only by `SUPER_ADMIN` or `FIN_ACC`, while existing showroom
+  scope remains unchanged. Validation: `npx prisma validate`, focused backend
+  user/import/MAP statement Jest (3 suites, 83 tests), backend `npm run build`,
+  full backend `npm test -- --runInBand` (39 suites, 317 tests), focused
+  Flutter bank statement provider test (15 tests), full Flutter
+  `flutter test --no-pub --reporter expanded` (142 tests), `flutter analyze
+  --no-pub`, and `git diff --check`. Gap: live SMTP delivery, user-admin
+  click-through, and Windows statement UI smoke remain manual.
+- AUTH-002, 2026-06-24: forgot-password now returns an explicit not-found
+  response when an allowed-domain email has no OpsHub account, and Flutter shows
+  a `Chưa có tài khoản` dialog with a `Đăng ký tài khoản` action that opens
+  registration with the email prefilled instead of advancing to reset-code
+  entry. The flow logs missing-account dialog shown, register navigation, and
+  dismiss decisions through `AppLogger`; backend keeps logging the missing-email
+  reset request without sending mail. Validation: focused backend auth/password
+  reset Jest (`src/auth/password-reset.service.spec.ts`,
+  `src/auth/auth.service.spec.ts`, `src/auth/auth.controller.spec.ts`; 3 suites,
+  40 tests), backend `npm run build`, focused Flutter auth tests
+  (`test\auth_device_info_test.dart`, `test\forgot_password_screen_test.dart`;
+  6 tests), rerun of the focused forgot-password widget test after lint fix,
+  `flutter analyze --no-pub`, and `git diff --check`. Gap: live SMTP delivery
+  and deployed app click-through remain manual.
+- HOME-SUPPORT-001, 2026-06-24: Home header now shows a `Hỗ trợ` icon that
+  opens the Seatalk support group QR asset and invite link without changing the
+  Home feature-tile order. The flow logs dialog requested/shown/closed plus
+  link-open start/success/failure through `AppLogger` with sanitized host/path
+  context. Validation: focused Home widget tests
+  (`test\home_feedback_action_test.dart`, `test\home_avatar_test.dart`),
+  `flutter analyze --no-pub`, and `git diff --check`. Gap: live Seatalk app
+  handoff remains manual.
+
+- UPDATE-003, 2026-06-24: added deploy-triggered realtime update discovery while
+  keeping public `/app-version` as the authority. NestJS publishes sanitized
+  Android/Windows build metadata to Redis after startup; Go relays only update
+  events to unauthenticated `/ws/app-updates` clients; Flutter reconnects with
+  backoff and re-checks HTTP metadata on an event, successful connection, app
+  resume, or metadata retry before rendering the existing update prompt. Logs
+  cover publish/connect/event/check/retry success and failure without tokens or
+  sensitive payloads. Validation: focused update-gate widget tests (7), full
+  Flutter tests (139), `flutter analyze --no-pub`, Windows release build,
+  Android production-debug APK build, focused app-version Jest (5), NestJS
+  build, full backend Jest (39 suites, 308 tests), and `go test ./...`. Gap:
+  live post-deploy Redis/WebSocket delivery and prompt smoke remain pending;
+  previously installed clients gain realtime behavior only after installing
+  this first realtime-enabled build.
+
+- PAYMENT-STATEMENT-001, 2026-06-24: statement CSV export now reads MAP
+  `rawData.txnReference` into a `Sao kê` column without adding a duplicate
+  database column. The value is emitted as Excel text so leading zeroes and long
+  numeric references remain intact; export logs start/success/failure plus row
+  and populated-reference counts without logging reference values. Validation:
+  focused MAP statement Jest (32 tests), NestJS build, full backend Jest
+  (39 suites, 306 tests), and `git diff --check`. Gap: the configured local
+  database contains only seed rows without `txnReference`; production payload
+  presence and opening a live exported CSV in Excel remain unverified.
+- PAYMENT-MONITOR-001, 2026-06-23: added an opt-in fixed-prefix payment audio
+  trial through `PAYMENT_TTS_AUDIO_MODE=amount_only_with_prefix` plus
+  `PAYMENT_PREFIX_WAV_PATH` and optional `PAYMENT_CUE_PREFIX_WAV_PATH`. When
+  the compatible prefix WAV exists, backend TTS receives only the dynamic amount
+  text and playback/download paths rejoin the fixed prefix; `includeCue=true`
+  now prefers the prejoined cue+prefix WAV before appending the amount audio.
+  Amount WAVs are cached by text/voice/speed/pitch and newer clients first
+  request `rawAmount=true`, trim zero padding, join bundled
+  `data/payment-cue-prefix.wav` to the downloaded amount with an 80 ms gap, and
+  play one WAV. Incompatible PCM formats fall back to sequential playback, and
+  missing prefix assets fall back to the
+  existing full-sentence TTS path, and TTS/cache generation logs mode, cache
+  source, text length, bytes, MIME type, and duration.
+  The prefix WAV was generated by the production Piper sidecar on `hoang-n8n`;
+  prefix and cue+prefix WAVs were installed at `/srv/opshub/import/`, and
+  `/srv/opshub/env` now points the API container to both `/data/import` paths.
+  Validation: focused payment-notification Jest (24 tests), full backend Jest
+  (39 suites, 306 tests), NestJS build, focused Flutter repository/provider/
+  speaker tests, Flutter analyze, `git diff --check`, dist asset copy
+  inspection, and WAV header inspection
+  (`payment-prefix.wav` 82,502 bytes/about 1.87s; `payment-cue-prefix.wav`
+  154,550 bytes/about 3.50s; both mono/22050Hz/16-bit). Gap: new-code deploy
+  and physical Windows speaker smoke remain pending.
+  2026-06-24 follow-up: local client joining removes 420 ms of the prefix's
+  500 ms zero tail, preserves an exact 80 ms phrase gap, trims amount leading
+  zero padding, and avoids opening the player twice. Validation: direct Dart
+  smoke against the production-format assets (`gapMs=80`,
+  `prefixTrimMs=420`, combined 239,618 bytes), focused payment monitor/speaker/
+  WAV tests (30 tests), full Flutter tests (135 tests),
+  `flutter analyze --no-pub`, Windows release build, and `git diff --check`.
+  Gap: physical
+  Windows speaker playback remains pending.
+- PLATFORM-001, 2026-06-22: production and staging workflows now serialize
+  deploys, use GitHub Environments, and pin checkout, Flutter, and Tailscale
+  actions to immutable commits. Added public-cutover/environment-secret
+  runbooks plus PowerShell helpers that generate secret bundles only outside
+  the repo and tighten their local ACLs. Validation: production/staging workflow
+  YAML parse, PowerShell parser checks, live read-only confirmation that both
+  environments contain 12 secret names, staged `gitleaks` scan with no findings,
+  full project validation, and `git diff --check`. Gap: staging and production
+  workflow smoke remain pending.
+- PROFILE-ADMIN-001, 2026-06-22: policy rule create/edit is now tree-only and
+  requires an organization node. Legacy selectors remain readable for old
+  rules but are rejected on write; the Flutter editor logs blocked saves and
+  create/update outcomes through `AppLogger`. Validation: focused policy and
+  feature-guard coverage within full Flutter/backend suites, `flutter analyze
+  --no-pub`, full Flutter tests (109 tests), NestJS build, full NestJS tests
+  (38 suites, 294 tests), Go realtime tests, and `git diff --check`. Gap: live
+  policy-admin click-through remains manual.
+- PAYMENT-STATEMENT-001, 2026-06-22: `BANK_STATEMENT_ALL_SCOPE` now grants the
+  bank-statement route, backend feature-guard fallback, statement APIs, and
+  all-showroom selection without requiring the base feature or a manager role.
+  Validation: focused Flutter/backend coverage within full suites, Flutter
+  analyze/tests, NestJS build/tests, Go tests, and `git diff --check`. Gap:
+  live finance-user Windows click-through remains manual.
+- PAYMENT-MONITOR-001, 2026-06-23: production payment audio now applies
+  `PAYMENT_CUE_GAIN=0.80` only to the server cue, uses a gain-versioned combined
+  WAV cache, and removes both legacy and gain-versioned cache files on expiry.
+  Piper defaults and the systemd unit use `PIPER_LEADING_SILENCE_MS=0` while
+  preserving the 500ms tail, so speech joins the quieter cue without a
+  configured gap. The Windows local fallback uses cue volume `80%` and voice
+  volume `100%`. Validation: focused payment-notification Jest (20 tests),
+  focused Flutter speaker tests (3 tests), full NestJS Jest (38 suites, 295
+  tests), full Flutter tests (123 tests), NestJS build, Flutter analyze, Python
+  compile, focused Piper padding unittest, and `git diff --check`. Gap:
+  production sidecar/API rollout and physical Windows speaker smoke remain
+  pending.
+- PAYMENT-MONITOR-001, 2026-06-23: `Tiền vào` now preserves MAP payer name and
+  account fields in the Flutter transaction model, shows the payer summary on
+  each card, and opens a selectable full-detail dialog when the card is tapped.
+  AppLogger records detail open/close/failure using sanitized identifiers only.
+  Validation: focused payment transaction model/widget tests (5 tests),
+  `flutter analyze --no-pub`, full Flutter tests (121 tests), and
+  `git diff --check`. Gap: live Windows MAP transaction click-through remains
+  manual.
+- PAYMENT-STATEMENT-001, 2026-06-23: `Sao kê` now shows the MAP payer
+  name/account in each transaction summary and opens a selectable full-detail
+  dialog from that summary without changing checkbox selection or inline order
+  actions. The dialog includes payment, showroom, order, manual-edit, and
+  first-seen metadata; AppLogger records open/close/failure with sanitized
+  context. Validation: focused statement provider/detail tests (13 tests),
+  `flutter analyze --no-pub`, full Flutter tests (122 tests), and
+  `git diff --check`. Gap: live Windows statement click-through remains manual.
+- PAYMENT-STATEMENT-001, 2026-06-23: `Sao kê` now pages statement results from
+  the backend instead of fetching a full client snapshot, keeps selected
+  transaction ids across page changes, exports selected ids when present, and
+  blocks CSV export ranges over 31 days in both Flutter and the statement API.
+  Validation: focused statement provider tests (14 tests), focused MAP
+  statement service tests (30 tests), `flutter analyze --no-pub`,
+  `npm run build`, and `git diff --check`. Gap: live Windows statement
+  click-through remains manual.
+- PAYMENT-MONITOR-001, 2026-06-22: server-combined payment audio now preserves
+  the full Piper-generated TTS WAV when appending it after `payment-cue.wav`,
+  including Piper's configured 650ms leading silence and 500ms tail silence, so
+  long amount announcements keep the original voice ending. The combined-audio
+  log now records `voiceDataBytes` instead of trim window settings. Validation:
+  focused backend coverage within the full NestJS suite (38 suites, 294 tests),
+  NestJS build, full Flutter analyze/tests (109 tests), Go tests, and
+  `git diff --check`.
+- PROFILE-ADMIN-001, 2026-06-15: fixed production deploy boot failure in
+  org-tree legacy catalog sync when existing Lv2/Lv3 organization nodes have
+  blank display names. The sync now falls back to node name/business code and
+  logs the fallback instead of crashing `onModuleInit`; the deploy workflow
+  now emits container diagnostics and rolls back to the last healthy release
+  when backend health fails. Validation in current patch: focused backend
+  `user.service.spec.ts` (38 tests), backend `npm run build`, full backend
+  `npm test -- --runInBand` (37 suites, 285 tests), and `git diff --check`.
+- PROFILE-ADMIN-001, 2026-06-15: fixed moving an Lv4 showroom under a newly
+  created Lv3 area node from the organization tree. Backend now syncs the
+  ancestor Lv2/Lv3 legacy Region/Area rows inside the same transaction before
+  updating Store/User location fields, avoiding the previous 500 from missing
+  legacy area references. Validation in current patch: focused backend
+  `user.service.spec.ts`, backend `npm run build`, full backend
+  `npm test -- --runInBand`, and `git diff --check`.
+- PAYMENT-MONITOR-001, 2026-06-15: increased server-combined payment audio
+  tail silence from 150ms to 300ms and logs the combined-audio leading/tail
+  silence settings when generating cached cue+TTS WAV files. Validation in
+  current patch: focused backend `payment-notifications.service.spec.ts`,
+  backend `npm run build`, full backend `npm test -- --runInBand`, and
+  `git diff --check`.
+- PROFILE-ADMIN-001, 2026-06-15: restored full Lv0-Lv5 organization-node
+  creation in the admin org-tree editor/API. The node type dropdown again
+  exposes Lv1/Lv2/Lv3 options, parent validation uses level ordering instead
+  of a root-showroom-only allowlist, and manual org-tree create/update no
+  longer syncs or blocks on legacy Region/Area/Department/JobRole catalogs.
+  Lv4 showroom nodes still sync Store runtime metadata for QR/MAP/payment
+  behavior. Validation in current patch: focused backend
+  `user.service.spec.ts` (36 tests), backend `npm run build`, focused Flutter
+  `admin_user_tree_scope_test.dart` (7 tests), `flutter analyze --no-pub`, and
+  `git diff --check`.
+- PROFILE-ADMIN-001, 2026-06-15: fixed scoped admin user listing for store
+  managers assigned to Lv5 position nodes. Admin data scope now lifts a direct
+  Lv5 position under a Lv4 showroom to the owning showroom subtree for user and
+  store management, so accounts such as `hoang.nv1@phongvu-mna.vn` can see all
+  staff in their managed showroom instead of only users assigned to the same
+  Lv5 position. Validation in current patch: focused backend
+  `user.service.spec.ts` (36 tests), backend `npm run build`, and
+  `git diff --check`.
+- PAYMENT-MONITOR-001/PROFILE-ADMIN-001, 2026-06-15: split payment speaker
+  access into node feature `PAYMENT_SPEAKER` (`Đọc loa`) under
+  `PAYMENT_MONITOR`. `PAYMENT_MONITOR` keeps the transaction view and realtime
+  refreshes, while `PAYMENT_SPEAKER` controls ready notification polling, audio
+  streaming, and speaker ack on supported Windows PCs. The rollout backfills
+  `PAYMENT_SPEAKER` only for Lv5 `STORE_MANAGER`/`CASH` node groups that
+  already have `PAYMENT_MONITOR`; other node groups can receive speaker access
+  by assigning `Đọc loa` directly. Mobile/non-Windows still do not start the
+  speaker path by default. Validation in current patch: `npx prisma validate`,
+  focused backend `feature.service` + `payment-notifications.service` Jest (32
+  tests), backend `npm run build`, `flutter analyze --no-pub`, focused Flutter
+  `payment_monitor_provider_test.dart` (15 tests), and `git diff --check`.
+- PAYMENT-MONITOR-001, 2026-06-15: added opt-in server-side combined payment
+  audio. `GET /payment-notifications/:id/audio` remains TTS-only for older
+  clients, while `includeCue=true` returns one cached WAV containing
+  `payment-cue.wav` plus Piper TTS when the source audio is WAV. Legacy
+  non-WAV audio or missing cue assets return a clear error so the Flutter
+  client falls back to TTS-only download plus local `data/ting_ting.mp3`.
+  Flutter now logs and plays either `server_combined_cue` without local cue or
+  `local_cue_fallback` with local cue. Validation in current patch: cue WAV
+  inspected as PCM 16-bit mono 22050 Hz, focused backend
+  `payment-notifications` Jest (19 tests), focused Flutter payment monitor /
+  repository / speaker tests, backend `npm run build` with cue asset copied to
+  `dist`, `go test ./...`, `flutter analyze --no-pub`, full Flutter
+  `flutter test --no-pub --reporter compact` (102 tests), Windows release
+  build with production API define, `git diff --check`, and local combined WAV
+  smoke sample generated under `build/tts-tests/`. Gap: physical Windows
+  speaker smoke on production artifact remains manual.
+- PAYMENT-MONITOR-001/UPDATE-001, 2026-06-15: changed the payment monitor from
+  5-second transaction polling to realtime payment-notification events with a
+  30-second fallback refresh. Initial/manual/page/date loads still request a
+  total count, while realtime/fallback refreshes send `includeTotal=false` to
+  skip the count query. Flutter added a manual icon-only refresh action,
+  debounced/coalesced realtime refreshes, and keeps muted speakers from
+  downloading audio while acknowledging ready notifications as `SILENCED`.
+  Backend added the lightweight transaction-list contract and a delivery-log
+  index for `clientId/storeCode/event/createdAt`. Piper TTS leading silence is
+  now 650ms with 500ms tail silence, and the client asset
+  `data/ting_ting.mp3` remains bundled for full production client builds.
+  Validation in current patch: focused Flutter payment monitor test,
+  focused backend map-vietin/payment-notifications Jest, `npx prisma validate`,
+  `npx prisma generate`, backend `npm run build`, `go test ./...`,
+  `python -m py_compile deploy/home-server/tts-piper/app.py`,
+  `flutter analyze --no-pub`, full Flutter
+  `flutter test --no-pub --reporter compact` (101 tests), Windows
+  release build with production API define, and matching SHA256 for
+  `data/ting_ting.mp3` in the release `flutter_assets` bundle. Gap: live
+  production artifact endpoint checks and physical Windows speaker smoke remain
+  manual.
 - PROFILE-ADMIN-001, 2026-06-13: changed runtime feature access from per-user
   allowlists to direct organization node-group assignments. Backend added
   `OrganizationNodeFeatureAssignment`, migration preflight/backfill, read-only
@@ -66,6 +333,23 @@ This file maps product behavior to proof. Existing flows are marked
   stdin-closed helper so Compose cannot consume the rest of the remote script.
   Gap: staging/prod must run `npm run audit:node-features` against live data
   before migration, and live admin UI plus `/features/me` smoke remains manual.
+- PAYMENT-MONITOR-001, 2026-06-23: split payment monitor list access from the
+  Windows-only speaker capability. Android/non-web clients with
+  `PAYMENT_MONITOR` now see the `Tiền vào` Home action and load stored
+  transactions, while `PAYMENT_SPEAKER` audio polling/download/ack remains
+  Windows-only. Validation: focused Flutter
+  `flutter test --no-pub test\app_platform_capabilities_test.dart test\home_feedback_action_test.dart test\payment_monitor_provider_test.dart test\payment_monitor_unsupported_screen_test.dart --reporter expanded`.
+  Gap: live Android APK click-through remains manual.
+- WARRANTY-001/FEEDBACK-001, 2026-06-23: raised the shared image upload limit
+  from 10 to 20 files for warranty image save and staff feedback attachments.
+  Flutter now caps warranty picker selections at 20 before submitting, feedback
+  UI copy matches 20, and NestJS warranty/feedback multipart interceptors use
+  the shared backend limit. Validation: focused backend Jest
+  `npm test -- --runInBand src/upload/image-upload.options.spec.ts src/upload/upload.controller.spec.ts src/feedback/feedback.controller.spec.ts`,
+  backend `npm run build`, focused Flutter
+  `flutter test --no-pub test\feedback_screen_test.dart test\warranty_upload_contract_test.dart --reporter expanded`,
+  `flutter analyze --no-pub`, and `git diff --check`. Gap: live device
+  picker/upload smoke remains manual.
 - WARRANTY-001, 2026-06-13: fixed warranty image upload failing with
   `property user should not exist` by aligning the Flutter multipart payload
   with the Nest `UploadWarrantyImagesDto`; the client now sends only `receipt`,
@@ -79,6 +363,19 @@ This file maps product behavior to proof. Existing flows are marked
   261 tests), `flutter analyze --no-pub`, full Flutter
   `flutter test --no-pub --reporter expanded` (96 tests), and `git diff
   --check`. Gap: live authenticated upload smoke remains pending.
+- AUTH-001, 2026-06-15: removed Flutter-side bundled-domain gating from login,
+  registration-code, registration, and forgot-password email validation so
+  `AUTH_ALLOWED_EMAIL_DOMAINS` remains the backend source of truth. Login also
+  stops applying password-strength policy before auth, and only requires a
+  non-empty password so existing valid accounts can reach the backend credential
+  check. This fixes runtime domains such as `phongvu-mna.vn` being rejected
+  before `/auth/login` or related public auth endpoints are called. Validation:
+  focused Flutter
+  validators/auth repository tests (`flutter test --no-pub test/validators_test.dart
+  test/auth_device_info_test.dart`), focused backend auth/policy domain tests
+  (`npm test -- --runInBand src/auth/auth.service.spec.ts
+  src/policy/policy.service.spec.ts src/auth/email-domain-policy.spec.ts`),
+  `flutter analyze --no-pub`, backend `npm run build`, and `git diff --check`.
 - AUTH-001/PROFILE-ADMIN-001, 2026-06-13: changed registration/login so new
   users do not self-select SR/store. Auth/profile responses now expose
   `assignmentPending`; Flutter routes pending users to `/assignment-pending`
@@ -100,9 +397,12 @@ This file maps product behavior to proof. Existing flows are marked
   stores. Backend user assignment keeps the selected Lv5 node as
   `organizationNodeId`, derives legacy personnel codes from the tree, and syncs
   compatibility job-role catalog rows without changing SR identity/payment/MAP
-  fields. Payment speaker ready/audio/ack is limited to active Lv5
-  `STORE_MANAGER` or `CASH`; other positions receive an empty ready list and
-  cannot stream or ack payment audio. Validation in current patch: `npx prisma
+  fields. Payment speaker ready/audio/ack is now controlled by the separate
+  node feature `PAYMENT_SPEAKER` (`Đọc loa`) on supported Windows PCs; users
+  with only `PAYMENT_MONITOR` keep transaction list/realtime refresh access but
+  do not poll, stream, or ack speaker audio. Rollout backfills `PAYMENT_SPEAKER`
+  only for active Lv5 `STORE_MANAGER`/`CASH` node groups that already have
+  `PAYMENT_MONITOR`. Validation in current patch: `npx prisma
   validate`, `npx prisma generate`, backend `npm run build`, focused backend
   feedback/payment Jest (3 suites, 19 tests), full backend
   `npm test -- --runInBand` (35 suites, 259 tests), `flutter analyze --no-pub`,
@@ -128,6 +428,17 @@ This file maps product behavior to proof. Existing flows are marked
   tree-scope test (4 tests), `flutter analyze --no-pub`, full Flutter
   `flutter test --no-pub --reporter expanded` (84 tests), and `git diff
   --check`. Gap: live staging smoke remains manual.
+- PROFILE-ADMIN-001/AUTH-002, 2026-06-15: added Excel-based admin user import
+  through `POST /admin/users/import` guarded by `ADMIN_USERS`. The import
+  accepts the `user_temp.xlsx` header contract, resolves `lv0`-`lv5` values by
+  active organization node `code`/`businessCode`, assigns the deepest matched
+  node, creates passwordless users, upserts existing users without changing
+  passwords, and keeps first-password setup on the in-app forgot-password
+  email-code flow. Validation in current patch: `npx prisma validate`, backend
+  `npm run build`, full backend `npm test -- --runInBand` (37 suites, 280
+  tests), `flutter analyze --no-pub`, and full Flutter
+  `flutter test --no-pub --reporter expanded` (103 tests), plus
+  `git diff --check`.
 - PROFILE-ADMIN-001, 2026-06-12: fixed organization node creation for Region
   nodes under Block parents such as `Kinh Doanh`. Backend parent validation now
   allows `REGION` under `BLOCK`, preserves existing showroom-under-block trees,
@@ -179,7 +490,7 @@ This file maps product behavior to proof. Existing flows are marked
   organization tree plus strict per-user feature allowlist. Backend now adds
   `OrganizationNode`, `UserFeatureAssignment`, org-node links, `/admin/org-tree`
   CRUD APIs, `/admin/features/tree`, user filters by search/domain/org
-  node/feature/role/status, active organization-domain login resolution,
+  node/feature/role/status, `AUTH_ALLOWED_EMAIL_DOMAINS` login resolution,
   strict feature assignment enforcement, and break-glass bootstrap for
   `admin@hoanghochoi.com` while retiring `super_admin@phongvu-mna.vn` by delete
   or tombstone depending on references. Flutter adds organization tree admin UI,

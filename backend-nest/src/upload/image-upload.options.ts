@@ -1,7 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { memoryStorage, type Options } from 'multer';
 
-const DEFAULT_IMAGE_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+const DEFAULT_IMAGE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+const DEFAULT_AVATAR_UPLOAD_MAX_BYTES = 2 * 1024 * 1024;
+export const IMAGE_UPLOAD_MAX_FILES = 20;
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -13,29 +15,61 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set([
 export function getImageUploadMaxBytes(
   env: Record<string, string | undefined> = process.env,
 ): number {
-  const rawValue = env.UPLOAD_MAX_BYTES?.trim();
+  return getPositiveByteLimit(
+    env,
+    'UPLOAD_MAX_BYTES',
+    DEFAULT_IMAGE_UPLOAD_MAX_BYTES,
+  );
+}
+
+export function getAvatarUploadMaxBytes(
+  env: Record<string, string | undefined> = process.env,
+): number {
+  return getPositiveByteLimit(
+    env,
+    'AVATAR_UPLOAD_MAX_BYTES',
+    DEFAULT_AVATAR_UPLOAD_MAX_BYTES,
+  );
+}
+
+function getPositiveByteLimit(
+  env: Record<string, string | undefined>,
+  envKey: string,
+  fallback: number,
+): number {
+  const rawValue = env[envKey]?.trim();
   if (!rawValue) {
-    return DEFAULT_IMAGE_UPLOAD_MAX_BYTES;
+    return fallback;
   }
 
   const value = Number(rawValue);
   if (!Number.isInteger(value) || value <= 0) {
-    throw new Error(`Invalid UPLOAD_MAX_BYTES value: ${rawValue}`);
+    throw new Error(`Invalid ${envKey} value: ${rawValue}`);
   }
   return value;
 }
 
+const imageFileFilter: Options['fileFilter'] = (_req, file, callback) => {
+  if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
+    callback(new BadRequestException('Chỉ cho phép upload file ảnh'));
+    return;
+  }
+  callback(null, true);
+};
+
 export const imageUploadOptions: Options = {
   storage: memoryStorage(),
   limits: {
-    files: 10,
+    files: IMAGE_UPLOAD_MAX_FILES,
     fileSize: getImageUploadMaxBytes(),
   },
-  fileFilter: (_req, file, callback) => {
-    if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
-      callback(new BadRequestException('Chỉ cho phép upload file ảnh'));
-      return;
-    }
-    callback(null, true);
+  fileFilter: imageFileFilter,
+};
+
+export const avatarUploadOptions: Options = {
+  storage: memoryStorage(),
+  limits: {
+    fileSize: getAvatarUploadMaxBytes(),
   },
+  fileFilter: imageFileFilter,
 };

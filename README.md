@@ -1,6 +1,6 @@
 # PhongVu OpsHub
 
-PhongVu OpsHub is an internal operations app for Phong Vu staff. The Flutter app covers daily store and warehouse workflows: email/password registration and sign-in, FIFO check, FIFO sorting, warranty/repair image capture, feedback, and admin FIFO history.
+PhongVu OpsHub is an internal operations app for Phong Vu staff. The Flutter app covers daily store and warehouse workflows: email/password registration and sign-in, FIFO check, FIFO sorting, warranty/repair image capture, staff suggestions, and admin FIFO history.
 
 ## Project Layout
 
@@ -44,7 +44,8 @@ go test ./...
 go run .
 ```
 
-The Go service listens for Redis events and exposes a WebSocket endpoint on `/ws`.
+The Go service listens for Redis events, exposes authenticated workflow events
+on `/ws`, and exposes public app-update-only signals on `/ws/app-updates`.
 
 ## Current Backend Status
 

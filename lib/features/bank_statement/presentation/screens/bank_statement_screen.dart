@@ -12,6 +12,7 @@ import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/bank_statement_transaction.dart';
 import '../providers/bank_statement_provider.dart';
+import '../widgets/bank_statement_transaction_details.dart';
 
 const double _localBreakpoint = 800;
 
@@ -971,15 +972,13 @@ class _StatementToolbar extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
-                    width: 130,
+                    width: 150,
                     child: AppSecondaryButton(
                       onPressed: provider.canSearch && !provider.isExporting
-                          ? provider.exportCsv
+                          ? () => _handleExport(context)
                           : null,
                       icon: Icons.download_rounded,
-                      label: provider.isExporting
-                          ? 'Exporting...'
-                          : 'Export CSV',
+                      label: _exportLabel,
                     ),
                   ),
                 ],
@@ -1038,16 +1037,41 @@ class _StatementToolbar extends StatelessWidget {
               width: 150,
               child: AppSecondaryButton(
                 onPressed: provider.canSearch && !provider.isExporting
-                    ? provider.exportCsv
+                    ? () => _handleExport(context)
                     : null,
                 icon: Icons.download_rounded,
-                label: provider.isExporting ? 'Đang export' : 'Export CSV',
+                label: _exportLabel,
               ),
             ),
           ],
         );
       },
     );
+  }
+
+  String get _exportLabel {
+    if (provider.isExporting) return 'Đang export';
+    return provider.selectedIds.isEmpty ? 'Export CSV' : 'Export đã chọn';
+  }
+
+  Future<void> _handleExport(BuildContext context) async {
+    if (provider.hasExportDateRangeLimitViolation) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Không thể export'),
+          content: Text(provider.exportDateRangeLimitMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Đã hiểu'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    await provider.exportCsv();
   }
 }
 
@@ -1123,7 +1147,14 @@ class _StatementCardState extends State<_StatementCard> {
                             provider.toggleSelected(tx.id, value == true),
                       ),
                       Expanded(
-                        child: _TransactionDetails(tx: tx, money: widget.money),
+                        child: BankStatementTransactionDetailsLauncher(
+                          transaction: tx,
+                          amountFormatter: widget.money,
+                          child: _TransactionDetails(
+                            tx: tx,
+                            money: widget.money,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -1188,7 +1219,11 @@ class _StatementCardState extends State<_StatementCard> {
                       provider.toggleSelected(tx.id, value == true),
                 ),
                 Expanded(
-                  child: _TransactionDetails(tx: tx, money: widget.money),
+                  child: BankStatementTransactionDetailsLauncher(
+                    transaction: tx,
+                    amountFormatter: widget.money,
+                    child: _TransactionDetails(tx: tx, money: widget.money),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 SizedBox(
@@ -1357,7 +1392,7 @@ class _TransactionDetails extends StatelessWidget {
             if (tx.transactionNumber.isNotEmpty) 'GD: ${tx.transactionNumber}',
             if (time != null)
               DateFormat('HH:mm:ss dd/MM/yyyy').format(time.toLocal()),
-            if ((tx.payerName ?? '').isNotEmpty) tx.payerName!,
+            if (tx.payerLabel.isNotEmpty) tx.payerLabel,
           ].join(' • '),
           style: TextStyle(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1436,8 +1471,16 @@ class _OrderEditor extends StatelessWidget {
                   icon: const Icon(Icons.history_rounded),
                 ),
                 IconButton(
-                  tooltip: editing ? 'Lưu mã đơn' : 'Sửa mã đơn',
-                  onPressed: editing ? onSave : onEdit,
+                  tooltip: editing
+                      ? 'Lưu mã đơn'
+                      : transaction.canEditOrders
+                      ? 'Sửa mã đơn'
+                      : transaction.orderEditBlockedReason ?? 'Không được sửa',
+                  onPressed: editing
+                      ? onSave
+                      : transaction.canEditOrders
+                      ? onEdit
+                      : null,
                   icon: Icon(
                     editing ? Icons.check_rounded : Icons.edit_rounded,
                   ),
@@ -1483,6 +1526,19 @@ class _OrderEditor extends StatelessWidget {
                     )
                     .toList(),
               ),
+            if (!editing &&
+                !transaction.canEditOrders &&
+                transaction.orderEditBlockedReason?.isNotEmpty == true) ...[
+              const SizedBox(height: 8),
+              Text(
+                transaction.orderEditBlockedReason!,
+                style: const TextStyle(
+                  color: AppColors.warning,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ],
         ),
       ),

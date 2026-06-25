@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { BigQuery } from '@google-cloud/bigquery';
@@ -15,6 +16,11 @@ import { getDataSyncSource } from '../config/env';
 import { UploadService } from '../upload/upload.service';
 import { encryptSecret } from '../common/secret-cipher';
 import { PasswordResetService } from '../auth/password-reset.service';
+import { OpshubMailService } from '../auth/opshub-mail.service';
+import {
+  allowedEmailDomainMessage,
+  getAllowedEmailDomains,
+} from '../auth/email-domain-policy';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
 import {
@@ -22,6 +28,10 @@ import {
   BREAK_GLASS_SUPER_ADMIN_PASSWORD_HASH,
   LEGACY_SUPER_ADMIN_EMAIL,
 } from '../auth/break-glass-admin.constants';
+import {
+  AdminUserImportParseResult,
+  AdminUserImportRow,
+} from './user-import-parser.service';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 const ADMIN_ROLE = 'ADMIN';
@@ -49,6 +59,7 @@ const CHATSALE_REGION_CODE = 'CHATSALE';
 const TELESALE_REGION_CODE = 'TELESALE';
 const ORG_ROOT_PHONGVU_ID = 'org-domain-phongvu-vn';
 const ORG_ROOT_ACARE_ID = 'org-domain-acare-vn';
+const FIN_ACC_DEPARTMENT_CODE = 'FIN_ACC';
 const ORG_TYPE_LV0_DOMAIN = 'LV0_DOMAIN';
 const ORG_TYPE_LV1_BLOCK = 'LV1_BLOCK';
 const ORG_TYPE_LV2_DEPARTMENT = 'LV2_DEPARTMENT';
@@ -69,6 +80,11 @@ const ORG_TYPES = new Set([
 ]);
 const RUNTIME_ORG_TREE_NODE_TYPES = new Set([
   ORG_TYPE_LV0_DOMAIN,
+  ORG_TYPE_LV1_BLOCK,
+  ORG_TYPE_LV2_DEPARTMENT,
+  ORG_TYPE_LV2_REGION,
+  ORG_TYPE_LV3_AREA,
+  ORG_TYPE_LV3_UNIT,
   ORG_TYPE_LV4_STORE,
   ORG_TYPE_LV5_POSITION,
 ]);
@@ -103,20 +119,47 @@ const ROLE_ALIASES: Record<string, string> = {
 const DEFAULT_ROLE_DEFINITIONS = [
   {
     code: SUPER_ADMIN_ROLE,
-    displayName: 'Super Admin',
+    displayName: 'Quản trị toàn hệ thống',
     description: 'Toàn quyền hệ thống',
   },
   {
     code: ADMIN_ROLE,
-    displayName: 'Admin',
+    displayName: 'Quản trị viên',
     description: 'Quản trị theo phạm vi cây tổ chức',
   },
   {
     code: USER_ROLE,
-    displayName: 'User',
+    displayName: 'Nhân viên',
     description: 'Quyền thao tác hằng ngày',
   },
 ];
+
+type PreparedAdminUserMutation = {
+  email: string;
+  role: string;
+  workScopeType: string;
+  personnel: {
+    departmentCode?: string | null;
+    jobRoleCode?: string | null;
+    regionCode?: string | null;
+    areaCode?: string | null;
+    organizationNodeId?: string | null;
+  };
+  createData: Record<string, unknown>;
+  updateData: Record<string, unknown>;
+};
+
+type PreparedAdminUserImport = {
+  rowNumber: number;
+  email: string;
+  action: 'created' | 'updated';
+  userId?: string;
+  role: string;
+  organizationNodeId: string | null;
+  organizationNodeName: string | null;
+  createData?: Record<string, unknown>;
+  updateData?: Record<string, unknown>;
+};
 
 const DEFAULT_DEPARTMENT_DEFINITIONS = [
   {
@@ -329,6 +372,8 @@ export class UserService implements OnModuleInit {
     private uploadService: UploadService,
     private passwordResetService: PasswordResetService,
     private policyService: PolicyService,
+    @Optional()
+    private mailService?: OpshubMailService,
   ) {
     if (getDataSyncSource() !== 'bigquery') {
       return;
@@ -510,7 +555,7 @@ export class UserService implements OnModuleInit {
       where: { id: userId },
       include: this.userDtoInclude(),
     });
-    if (!user) throw new NotFoundException('Không tìm thấy user');
+    if (!user) throw new NotFoundException('Không tìm thấy người dùng');
     return this.toUserDto(user);
   }
 
@@ -556,6 +601,8 @@ export class UserService implements OnModuleInit {
 
   async adminListUsers(admin: any, filters: any = {}) {
     await this.assertAdmin(admin);
+    await this.seedDefaultOrganizationTree();
+    await this.syncStoreOrganizationNodes('admin-list-users');
     const query = String(filters.q || '').trim();
     const scope = await this.adminScope(admin);
     const where = await this.adminUserWhere(scope, filters, query);
@@ -607,49 +654,11 @@ export class UserService implements OnModuleInit {
 
   async adminCreateUser(admin: any, body: any) {
     await this.assertAdmin(admin);
-    const email = String(body.email || '')
-      .trim()
-      .toLowerCase();
-    if (!email) throw new BadRequestException('Email không được để trống');
-    await this.assertEmailWithinAdminDomain(admin, email);
-
-    const role = await this.resolveAssignableRole(body.role || USER_ROLE);
-    await this.assertRoleEditable(admin, role);
-    const workScopeType = await this.resolveWorkScopeTypeForAssignment(
-      body,
-      null,
-      role,
-    );
-    const storeUuid = await this.resolveUserAssignmentStoreUuid(admin, body, {
-      workScopeType,
-    });
-    const personnel = await this.resolvePersonnelAssignment(admin, body, {
-      role,
-      storeUuid,
-      workScopeType,
-    });
+    await this.assertSuperAdminCanCreateUsers(admin);
+    const prepared = await this.prepareAdminUserMutation(admin, body, null);
 
     const user = await this.prisma.user.create({
-      data: {
-        email,
-        password: '',
-        firstName: String(body.firstName || email.split('@')[0]).trim(),
-        lastName: String(body.lastName || '').trim() || null,
-        role,
-        status:
-          String(body.status || 'yes').toLowerCase() === 'no' ? 'no' : 'yes',
-        workScopeType: personnel.workScopeType,
-        ...this.userRelationMutationData({
-          storeUuid,
-          departmentCode: personnel.departmentCode,
-          jobRoleCode: personnel.jobRoleCode,
-          regionCode: personnel.regionCode,
-          areaCode: personnel.areaCode,
-          organizationNodeId: personnel.organizationNodeId,
-        }),
-        branchLockedAt: storeUuid ? new Date() : null,
-        profileCompletedAt: storeUuid ? new Date() : null,
-      },
+      data: prepared.createData as any,
       include: this.userDtoInclude(),
     });
     const saved = await this.prisma.user.findUnique({
@@ -657,9 +666,17 @@ export class UserService implements OnModuleInit {
       include: this.userDtoInclude(),
     });
     this.logger.log(
-      `Admin user created: email=${email} role=${role} scope=${personnel.workScopeType} personnelCode=${this.personnelCodeFor(user) ?? 'none'}`,
+      `Admin user created: email=${prepared.email} role=${prepared.role} scope=${prepared.workScopeType} personnelCode=${this.personnelCodeFor(user) ?? 'none'}`,
     );
-    return this.toUserDto(saved ?? user);
+    const welcomeEmail = await this.sendWelcomeEmail(saved ?? user, {
+      source: 'admin-create',
+      admin,
+    });
+    return {
+      ...this.toUserDto(saved ?? user),
+      welcomeEmailSent: welcomeEmail.sent,
+      welcomeEmailError: welcomeEmail.error,
+    };
   }
 
   async adminUpdateUser(admin: any, userId: string, body: any) {
@@ -668,13 +685,303 @@ export class UserService implements OnModuleInit {
       where: { id: userId },
       include: this.userDtoInclude(),
     });
-    if (!current) throw new NotFoundException('Không tìm thấy user');
+    if (!current) throw new NotFoundException('Không tìm thấy người dùng');
 
+    await this.assertAdminCanUpdateUser(admin, userId, current);
+    const prepared = await this.prepareAdminUserMutation(admin, body, current);
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: prepared.updateData as any,
+      include: this.userDtoInclude(),
+    });
+    const saved = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: this.userDtoInclude(),
+    });
+    this.logger.log(
+      `Admin user updated: id=${userId} role=${prepared.role} scope=${prepared.workScopeType} personnelCode=${this.personnelCodeFor(updated) ?? 'none'}`,
+    );
+    return this.toUserDto(saved ?? updated);
+  }
+
+  async adminDeleteUser(admin: any, userId: string) {
+    await this.assertAdmin(admin);
+    await this.assertSuperAdminCanDeleteUsers(admin);
+    const id = String(userId || '').trim();
+    if (!id) throw new BadRequestException('Người dùng không hợp lệ');
+    if (admin?.id && admin.id === id) {
+      throw new BadRequestException(
+        'Không thể tự xóa tài khoản đang đăng nhập',
+      );
+    }
+
+    const current = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        status: true,
+      },
+    });
+    if (!current) throw new NotFoundException('Không tìm thấy người dùng');
+    if (this.normalizeRoleCode(current.role, true) === SUPER_ADMIN_ROLE) {
+      throw new BadRequestException(
+        'Không thể xóa tài khoản quản trị toàn hệ thống',
+      );
+    }
+    if (String(current.status || '').toLowerCase() !== 'no') {
+      throw new BadRequestException('Chỉ xóa được tài khoản đã khóa');
+    }
+
+    const blockers = await this.userDeleteBlockers(current.id);
+    if (blockers.length > 0) {
+      this.logger.warn(
+        `Admin user delete blocked: admin=${admin.email || admin.id || 'unknown'} target=${current.email} blockers=${blockers.join(',')}`,
+      );
+      throw new BadRequestException(
+        'Tài khoản đang có dữ liệu lịch sử, không thể xóa hoàn toàn: ' +
+          blockers.join(', '),
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userPlatformSession.deleteMany({
+        where: { userId: current.id },
+      });
+      await tx.passwordResetToken.deleteMany({ where: { userId: current.id } });
+      await tx.emailVerificationCode.deleteMany({
+        where: { email: current.email },
+      });
+      await tx.adminPolicyRule.deleteMany({ where: { userId: current.id } });
+      await tx.featureAccessRule.deleteMany({ where: { userId: current.id } });
+      await tx.userFeatureAssignment.deleteMany({
+        where: { userId: current.id },
+      });
+      await tx.user.delete({ where: { id: current.id } });
+    });
+
+    this.logger.warn(
+      `Admin user deleted: admin=${admin.email || admin.id || 'unknown'} target=${current.email} userId=${current.id}`,
+    );
+    return { deleted: true, id: current.id, email: current.email };
+  }
+
+  async adminImportUsers(admin: any, parsed: AdminUserImportParseResult) {
+    await this.assertAdmin(admin);
+    await this.assertSuperAdminCanCreateUsers(admin);
+    const startedAt = Date.now();
+    this.logger.log(
+      'Admin user import started: admin=' +
+        (admin.email || admin.id || 'unknown') +
+        ' role=' +
+        admin.role +
+        ' rows=' +
+        parsed.rows.length +
+        ' skipped=' +
+        parsed.skippedRows,
+    );
+
+    try {
+      await this.seedDefaultOrganizationTree();
+      await this.syncStoreOrganizationNodes('admin-user-import');
+      const prepared = await this.prepareAdminUserImport(admin, parsed.rows);
+
+      await this.prisma.$transaction(async (tx) => {
+        for (const item of prepared) {
+          if (item.action === 'created') {
+            await tx.user.create({ data: item.createData as any });
+          } else if (item.userId) {
+            await tx.user.update({
+              where: { id: item.userId },
+              data: item.updateData as any,
+            });
+          }
+        }
+      });
+
+      const emails = prepared.map((item) => item.email);
+      const savedUsers = await this.prisma.user.findMany({
+        where: { email: { in: emails } },
+        include: this.userDtoInclude(),
+      });
+      const savedByEmail = new Map(
+        savedUsers.map((user) => [String(user.email).toLowerCase(), user]),
+      );
+      const welcomeEmailSummary = await this.sendWelcomeEmailsForImport(
+        admin,
+        prepared,
+        savedByEmail,
+      );
+      const results = prepared.map((item) => {
+        const saved = savedByEmail.get(item.email);
+        return {
+          rowNumber: item.rowNumber,
+          email: item.email,
+          action: item.action,
+          welcomeEmailSent:
+            item.action === 'created' &&
+            welcomeEmailSummary.sentEmails.has(item.email),
+          welcomeEmailError:
+            item.action === 'created'
+              ? (welcomeEmailSummary.failedByEmail.get(item.email) ?? null)
+              : null,
+          role: saved?.role ?? item.role,
+          organizationNodeId:
+            saved?.organizationNodeId ?? item.organizationNodeId,
+          organizationNodeName:
+            saved?.organizationNode?.displayName ?? item.organizationNodeName,
+          personnelCode: saved ? this.personnelCodeFor(saved) : null,
+        };
+      });
+      const createdRows = results.filter(
+        (item) => item.action === 'created',
+      ).length;
+      const updatedRows = results.filter(
+        (item) => item.action === 'updated',
+      ).length;
+
+      this.logger.log(
+        'Admin user import completed: admin=' +
+          (admin.email || admin.id || 'unknown') +
+          ' created=' +
+          createdRows +
+          ' updated=' +
+          updatedRows +
+          ' skipped=' +
+          parsed.skippedRows +
+          ' welcomeSent=' +
+          welcomeEmailSummary.sentRows +
+          ' welcomeFailed=' +
+          welcomeEmailSummary.failedRows +
+          ' durationMs=' +
+          (Date.now() - startedAt),
+      );
+      return {
+        totalRows: parsed.totalRows,
+        createdRows,
+        updatedRows,
+        skippedRows: parsed.skippedRows,
+        welcomeEmailSentRows: welcomeEmailSummary.sentRows,
+        welcomeEmailFailedRows: welcomeEmailSummary.failedRows,
+        results,
+      };
+    } catch (error) {
+      this.logger.error(
+        'Admin user import failed: admin=' +
+          (admin.email || admin.id || 'unknown') +
+          ' rows=' +
+          parsed.rows.length +
+          ' durationMs=' +
+          (Date.now() - startedAt),
+        error,
+      );
+      throw error;
+    }
+  }
+
+  private async prepareAdminUserMutation(
+    admin: any,
+    body: any,
+    current: any | null,
+  ): Promise<PreparedAdminUserMutation> {
+    const email = current
+      ? String(current.email || '')
+          .trim()
+          .toLowerCase()
+      : this.normalizeAccountEmail(body.email);
+    if (!email) throw new BadRequestException('Email không được để trống');
+    if (!current) await this.assertEmailCreatableByAdmin(admin, email);
+
+    const role = body.role
+      ? await this.resolveAssignableRole(body.role)
+      : current
+        ? this.normalizeRoleCode(current.role, true)
+        : await this.resolveAssignableRole(USER_ROLE);
+    await this.assertRoleEditable(admin, role, current?.role);
+    const workScopeType = await this.resolveWorkScopeTypeForAssignment(
+      body,
+      current,
+      role,
+    );
+    const storeUuid = await this.resolveUserAssignmentStoreUuid(admin, body, {
+      current,
+      workScopeType,
+    });
+    const personnel = await this.resolvePersonnelAssignment(admin, body, {
+      current,
+      role,
+      storeUuid,
+      workScopeType,
+    });
+    const relationInput = {
+      storeUuid,
+      departmentCode: personnel.departmentCode,
+      jobRoleCode: personnel.jobRoleCode,
+      regionCode: personnel.regionCode,
+      areaCode: personnel.areaCode,
+      organizationNodeId: personnel.organizationNodeId,
+    };
+    const createData = {
+      email,
+      password: '',
+      firstName: String(body.firstName || email.split('@')[0]).trim(),
+      lastName: String(body.lastName || '').trim() || null,
+      role,
+      status:
+        String(body.status || 'yes').toLowerCase() === 'no' ? 'no' : 'yes',
+      workScopeType: personnel.workScopeType,
+      ...this.userRelationMutationData(relationInput),
+      branchLockedAt: storeUuid ? new Date() : null,
+      profileCompletedAt: storeUuid ? new Date() : null,
+    };
+    const updateData = {
+      firstName: body.firstName?.trim() || current?.firstName,
+      lastName:
+        body.lastName === undefined
+          ? current?.lastName
+          : String(body.lastName || '').trim() || null,
+      role,
+      status:
+        body.status === undefined
+          ? current?.status
+          : String(body.status).toLowerCase() === 'no'
+            ? 'no'
+            : 'yes',
+      workScopeType: personnel.workScopeType,
+      ...this.userRelationMutationData(relationInput, {
+        disconnectNulls: true,
+      }),
+      branchLockedAt: storeUuid
+        ? (current?.branchLockedAt ?? new Date())
+        : null,
+      profileCompletedAt: storeUuid
+        ? (current?.profileCompletedAt ?? new Date())
+        : current?.profileCompletedAt,
+    };
+    return {
+      email,
+      role,
+      workScopeType: personnel.workScopeType,
+      personnel,
+      createData,
+      updateData,
+    };
+  }
+
+  private async assertAdminCanUpdateUser(
+    admin: any,
+    userId: string,
+    current: any,
+  ) {
     if (
       this.isScopedAdmin(admin) &&
       this.normalizeRoleCode(current.role) === SUPER_ADMIN_ROLE
     ) {
-      throw new ForbiddenException('Không có quyền sửa tài khoản SUPER_ADMIN');
+      throw new ForbiddenException(
+        'Bạn không có quyền sửa tài khoản quản trị toàn hệ thống',
+      );
     }
 
     if (
@@ -695,71 +1002,320 @@ export class UserService implements OnModuleInit {
         'Khong co quyen sua user ngoai pham vi quan ly',
       );
     }
+  }
 
-    const role = body.role
-      ? await this.resolveAssignableRole(body.role)
-      : this.normalizeRoleCode(current.role, true);
-    await this.assertRoleEditable(admin, role, current.role);
-    const workScopeType = await this.resolveWorkScopeTypeForAssignment(
-      body,
-      current,
-      role,
+  private async prepareAdminUserImport(
+    admin: any,
+    rows: AdminUserImportRow[],
+  ): Promise<PreparedAdminUserImport[]> {
+    const emails = rows.map((row) => row.email);
+    const existingUsers = await this.prisma.user.findMany({
+      where: { email: { in: emails } },
+      include: this.userDtoInclude(),
+    });
+    const existingByEmail = new Map(
+      existingUsers.map((user) => [String(user.email).toLowerCase(), user]),
     );
-    const storeUuid = await this.resolveUserAssignmentStoreUuid(admin, body, {
-      current,
-      workScopeType,
-    });
-    const personnel = await this.resolvePersonnelAssignment(admin, body, {
-      current,
-      role,
-      storeUuid,
-      workScopeType,
-    });
+    const organizationNodes = await this.listActiveOrganizationNodesForImport();
+    const prepared: PreparedAdminUserImport[] = [];
+    const errors: string[] = [];
 
-    const updated = await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        firstName: body.firstName?.trim() || current.firstName,
-        lastName:
-          body.lastName === undefined
-            ? current.lastName
-            : String(body.lastName || '').trim() || null,
-        role,
-        status:
-          body.status === undefined
-            ? current.status
-            : String(body.status).toLowerCase() === 'no'
-              ? 'no'
-              : 'yes',
-        workScopeType: personnel.workScopeType,
-        ...this.userRelationMutationData(
-          {
-            storeUuid,
-            departmentCode: personnel.departmentCode,
-            jobRoleCode: personnel.jobRoleCode,
-            regionCode: personnel.regionCode,
-            areaCode: personnel.areaCode,
-            organizationNodeId: personnel.organizationNodeId,
-          },
-          { disconnectNulls: true },
-        ),
-        branchLockedAt: storeUuid
-          ? (current.branchLockedAt ?? new Date())
-          : null,
-        profileCompletedAt: storeUuid
-          ? (current.profileCompletedAt ?? new Date())
-          : current.profileCompletedAt,
+    for (const row of rows) {
+      try {
+        await this.assertAccountEmailAllowed(row.email);
+        const node = await this.resolveImportOrganizationNode(
+          admin,
+          row,
+          organizationNodes,
+        );
+        const current = existingByEmail.get(row.email) ?? null;
+        if (current) {
+          await this.assertAdminCanUpdateUser(admin, current.id, current);
+        }
+        const body = {
+          email: row.email,
+          firstName: row.fullName,
+          lastName: '',
+          role: row.role,
+          status: current ? undefined : 'yes',
+          organizationNodeId: node.id,
+        };
+        const mutation = await this.prepareAdminUserMutation(
+          admin,
+          body,
+          current,
+        );
+        prepared.push({
+          rowNumber: row.rowNumber,
+          email: row.email,
+          action: current ? 'updated' : 'created',
+          userId: current?.id,
+          role: mutation.role,
+          organizationNodeId: mutation.personnel.organizationNodeId ?? node.id,
+          organizationNodeName: node.displayName,
+          createData: current ? undefined : mutation.createData,
+          updateData: current ? mutation.updateData : undefined,
+        });
+      } catch (error) {
+        errors.push(
+          `dòng ${row.rowNumber}: ${this.errorMessageForImport(error)}`,
+        );
+      }
+    }
+
+    if (errors.length > 0) {
+      const preview = errors.slice(0, 8).join('; ');
+      const suffix =
+        errors.length > 8 ? `; và ${errors.length - 8} lỗi khác` : '';
+      throw new BadRequestException(
+        `File nhân sự chưa hợp lệ: ${preview}${suffix}`,
+      );
+    }
+    return prepared;
+  }
+
+  private async listActiveOrganizationNodesForImport() {
+    return this.prisma.organizationNode.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        parentId: true,
+        type: true,
+        code: true,
+        businessCode: true,
+        displayName: true,
+        isActive: true,
       },
-      include: this.userDtoInclude(),
     });
-    const saved = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: this.userDtoInclude(),
-    });
-    this.logger.log(
-      `Admin user updated: id=${userId} role=${role} scope=${personnel.workScopeType} personnelCode=${this.personnelCodeFor(updated) ?? 'none'}`,
-    );
-    return this.toUserDto(saved ?? updated);
+  }
+
+  private async resolveImportOrganizationNode(
+    admin: any,
+    row: AdminUserImportRow,
+    nodes: Array<{
+      id: string;
+      parentId: string | null;
+      type: string;
+      code: string;
+      businessCode: string | null;
+      displayName: string;
+      isActive: boolean;
+    }>,
+  ) {
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    let previous: (typeof nodes)[number] | null = null;
+    let target: (typeof nodes)[number] | null = null;
+
+    for (let level = 0; level < row.levelCodes.length; level += 1) {
+      const value = row.levelCodes[level];
+      if (!value) continue;
+      const candidates = nodes.filter(
+        (node) =>
+          node.isActive &&
+          this.organizationNodeLevel(node.type) === level &&
+          this.importNodeMatches(node, value) &&
+          (!previous ||
+            this.organizationNodeIsDescendantOf(node, previous, byId)),
+      );
+      if (candidates.length === 0) {
+        throw new BadRequestException(
+          `không tìm thấy node lv${level} với mã ${value}`,
+        );
+      }
+      if (candidates.length > 1) {
+        throw new BadRequestException(
+          `mã node lv${level} bị trùng/mơ hồ: ${value}`,
+        );
+      }
+      previous = candidates[0];
+      target = candidates[0];
+    }
+
+    if (!target) {
+      throw new BadRequestException('thiếu node tổ chức');
+    }
+    await this.assertOrganizationNodeAssignableByAdmin(admin, target.id);
+    return target;
+  }
+
+  private organizationNodeIsDescendantOf(
+    node: { id: string; parentId: string | null },
+    ancestor: { id: string },
+    byId: Map<string, { id: string; parentId: string | null }>,
+  ) {
+    let cursor: { id: string; parentId: string | null } | undefined = node;
+    for (let guard = 0; cursor && guard < 50; guard += 1) {
+      if (cursor.id === ancestor.id) return true;
+      cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
+    }
+    return false;
+  }
+
+  private importNodeMatches(
+    node: { code: string; businessCode: string | null },
+    value: string,
+  ) {
+    const keys = this.importLookupKeys(value);
+    const nodeKeys = [
+      ...this.importLookupKeys(node.code),
+      ...this.importLookupKeys(node.businessCode),
+    ];
+    return nodeKeys.some((key) => keys.has(key));
+  }
+
+  private importLookupKeys(value: unknown) {
+    const raw = String(value || '')
+      .trim()
+      .toUpperCase();
+    const normalized = raw.replace(/[^A-Z0-9_]/g, '_');
+    return new Set([raw, normalized].filter(Boolean));
+  }
+
+  private errorMessageForImport(error: unknown) {
+    if (error instanceof Error && error.message) return error.message;
+    return 'dòng dữ liệu không hợp lệ';
+  }
+
+  private normalizeAccountEmail(value: unknown) {
+    const email = String(value || '')
+      .trim()
+      .toLowerCase();
+    if (
+      !email ||
+      email.length > 255 ||
+      !/^[^\s@]+@[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(email)
+    ) {
+      throw new BadRequestException('Email không hợp lệ');
+    }
+    return email;
+  }
+
+  private async assertEmailCreatableByAdmin(admin: any, email: string) {
+    await this.assertAccountEmailAllowed(email);
+    await this.assertEmailWithinAdminDomain(admin, email);
+  }
+
+  private async assertAccountEmailAllowed(emailInput: unknown) {
+    const email = this.normalizeAccountEmail(emailInput);
+    const fallbackDomains = getAllowedEmailDomains();
+    const allowedDomains =
+      await this.policyService.getAllowedEmailDomains(fallbackDomains);
+    const emailDomain = email.split('@')[1]?.toLowerCase();
+    if (!emailDomain || !allowedDomains.includes(emailDomain)) {
+      throw new ForbiddenException(allowedEmailDomainMessage());
+    }
+    return email;
+  }
+
+  private async sendWelcomeEmailsForImport(
+    admin: any,
+    prepared: PreparedAdminUserImport[],
+    savedByEmail: Map<string, any>,
+  ) {
+    const sentEmails = new Set<string>();
+    const failedByEmail = new Map<string, string>();
+    for (const item of prepared) {
+      if (item.action !== 'created') continue;
+      const user = savedByEmail.get(item.email);
+      if (!user) {
+        failedByEmail.set(item.email, 'Không tìm thấy người dùng sau import');
+        continue;
+      }
+      const result = await this.sendWelcomeEmail(user, {
+        source: 'admin-import',
+        admin,
+        rowNumber: item.rowNumber,
+      });
+      if (result.sent) {
+        sentEmails.add(item.email);
+      } else {
+        failedByEmail.set(item.email, result.error || 'Không gửi được email');
+      }
+    }
+    return {
+      sentEmails,
+      failedByEmail,
+      sentRows: sentEmails.size,
+      failedRows: failedByEmail.size,
+    };
+  }
+
+  private async sendWelcomeEmail(
+    user: any,
+    context: { source: string; admin: any; rowNumber?: number },
+  ) {
+    const email = this.normalizeAccountEmail(user?.email);
+    if (!this.mailService) {
+      const error = 'Chưa cấu hình dịch vụ gửi email OpsHub.';
+      this.logger.error(
+        `Welcome email failed: source=${context.source} email=${email} reason=missing_mail_service`,
+      );
+      return { sent: false, error };
+    }
+    const displayName = String(user?.firstName || user?.name || email)
+      .trim()
+      .replace(/\s+/g, ' ');
+    try {
+      await this.mailService.sendMail({
+        to: email,
+        subject: 'Chào mừng bạn đến với OpsHub',
+        text:
+          `Chào ${displayName},\n\n` +
+          'Tài khoản OpsHub của bạn đã được tạo. Để đặt mật khẩu lần đầu, vui lòng mở ứng dụng OpsHub và dùng chức năng Quên mật khẩu với email này.\n\n' +
+          'Nếu bạn không yêu cầu tài khoản này, vui lòng liên hệ quản trị viên.',
+      });
+      this.logger.log(
+        `Welcome email sent: source=${context.source} email=${email} admin=${context.admin?.email || context.admin?.id || 'unknown'} row=${context.rowNumber ?? 'none'}`,
+      );
+      return { sent: true, error: null };
+    } catch (error) {
+      const message = this.errorMessageForImport(error);
+      this.logger.error(
+        `Welcome email failed: source=${context.source} email=${email} admin=${context.admin?.email || context.admin?.id || 'unknown'} row=${context.rowNumber ?? 'none'} error=${message}`,
+      );
+      return { sent: false, error: message };
+    }
+  }
+
+  private async userDeleteBlockers(userId: string) {
+    const [
+      warrantiesCreated,
+      warrantiesHandled,
+      feedbacks,
+      fifoLogs,
+      vietQrPayments,
+      mapOrderUpdates,
+      mapOrderAudits,
+      nodeFeatureAssignments,
+    ] = await Promise.all([
+      this.prisma.warranty.count({ where: { createdById: userId } }),
+      this.prisma.warranty.count({ where: { handledById: userId } }),
+      this.prisma.feedback.count({ where: { userId } }),
+      this.prisma.fifoLog.count({ where: { userId } }),
+      this.prisma.vietQrPaymentIntent.count({ where: { createdById: userId } }),
+      this.prisma.mapVietinTransaction.count({
+        where: { orderUpdatedByUserId: userId },
+      }),
+      this.prisma.mapVietinTransactionOrderAudit.count({
+        where: { changedByUserId: userId },
+      }),
+      this.prisma.organizationNodeFeatureAssignment.count({
+        where: { assignedById: userId },
+      }),
+    ]);
+    const blockers: string[] = [];
+    if (warrantiesCreated > 0)
+      blockers.push(`${warrantiesCreated} bảo hành tạo`);
+    if (warrantiesHandled > 0)
+      blockers.push(`${warrantiesHandled} bảo hành xử lý`);
+    if (feedbacks > 0) blockers.push(`${feedbacks} góp ý`);
+    if (fifoLogs > 0) blockers.push(`${fifoLogs} FIFO log`);
+    if (vietQrPayments > 0) blockers.push(`${vietQrPayments} VietQR`);
+    if (mapOrderUpdates > 0) blockers.push(`${mapOrderUpdates} sao kê đã sửa`);
+    if (mapOrderAudits > 0) blockers.push(`${mapOrderAudits} lịch sử mã đơn`);
+    if (nodeFeatureAssignments > 0)
+      blockers.push(`${nodeFeatureAssignments} quyền node đã gán`);
+    return blockers;
   }
 
   private normalizeFeatureCodeList(value: unknown) {
@@ -791,21 +1347,25 @@ export class UserService implements OnModuleInit {
       where: { id: userId },
       include: this.userDtoInclude(),
     });
-    if (!target) throw new NotFoundException('Không tìm thấy user');
+    if (!target) throw new NotFoundException('Không tìm thấy người dùng');
 
     if (
       this.normalizeRoleCode(target.role) === SUPER_ADMIN_ROLE &&
       this.normalizeRoleCode(admin.role) !== SUPER_ADMIN_ROLE
     ) {
-      throw new ForbiddenException('Không được reset mật khẩu SUPER_ADMIN');
+      throw new ForbiddenException(
+        'Bạn không có quyền reset mật khẩu tài khoản quản trị toàn hệ thống',
+      );
     }
     if (this.normalizeRoleCode(admin.role) !== SUPER_ADMIN_ROLE) {
       if (!this.isDomainAdmin(admin)) {
-        throw new ForbiddenException('Không có quyền reset mật khẩu user');
+        throw new ForbiddenException(
+          'Bạn không có quyền reset mật khẩu người dùng',
+        );
       }
       if (!(await this.userWithinAdminScope(admin, target))) {
         throw new ForbiddenException(
-          'Không có quyền reset mật khẩu user ngoài phạm vi quản lý',
+          'Bạn không có quyền reset mật khẩu người dùng ngoài phạm vi quản lý',
         );
       }
     }
@@ -861,6 +1421,7 @@ export class UserService implements OnModuleInit {
   }
 
   private async listOrganizationTreeForAdmin(admin: any, source: string) {
+    const startedAt = Date.now();
     await this.seedDefaultOrganizationTree();
     await this.syncStoreOrganizationNodes(source);
     const where = await this.adminOrganizationNodeScopeWhere(admin);
@@ -888,7 +1449,26 @@ export class UserService implements OnModuleInit {
         },
       },
     });
-    return nodes.map((node) => this.toOrganizationNodeDto(node));
+    const userCounts = await this.organizationNodeUserCounts(nodes);
+    this.logger.log(
+      'Organization tree user counts resolved: source=' +
+        source +
+        ' nodes=' +
+        nodes.length +
+        ' nonZeroNodes=' +
+        Array.from(userCounts.values()).filter((count) => count > 0).length +
+        ' durationMs=' +
+        (Date.now() - startedAt),
+    );
+    return nodes.map((node) =>
+      this.toOrganizationNodeDto({
+        ...node,
+        _count: {
+          ...node._count,
+          users: userCounts.get(node.id) ?? node._count?.users ?? 0,
+        },
+      }),
+    );
   }
 
   async adminCreateOrganizationNode(admin: any, body: any) {
@@ -896,9 +1476,6 @@ export class UserService implements OnModuleInit {
     const data = await this.normalizeOrganizationNodeInput(body);
     const node = await this.prisma.$transaction(async (tx) => {
       const created = await tx.organizationNode.create({ data });
-      if (this.isLegacyCatalogNodeType(created.type)) {
-        await this.syncLegacyCatalogFromOrganizationNode(tx, created);
-      }
       if (this.isStoreNodeType(created.type)) {
         await this.syncShowroomStoreFromNode(tx, created, body, null);
       }
@@ -940,9 +1517,6 @@ export class UserService implements OnModuleInit {
         where: { id },
         data,
       });
-      if (this.isLegacyCatalogNodeType(updated.type)) {
-        await this.syncLegacyCatalogFromOrganizationNode(tx, updated);
-      }
       if (this.isStoreNodeType(updated.type)) {
         await this.syncShowroomStoreFromNode(tx, updated, body, current);
       }
@@ -1019,7 +1593,7 @@ export class UserService implements OnModuleInit {
     );
     if (!RUNTIME_ORG_TREE_NODE_TYPES.has(type)) {
       throw new BadRequestException(
-        'Cây tổ chức runtime chỉ hỗ trợ Lv0 Domain, Lv4 Cửa hàng và Lv5 Vị trí',
+        'Cây tổ chức runtime chỉ hỗ trợ node Lv0-Lv5',
       );
     }
     const displayName = this.normalizeRequiredText(
@@ -1072,11 +1646,7 @@ export class UserService implements OnModuleInit {
       type,
       parentId,
       emailDomain,
-      loginAllowed: this.isDomainNodeType(type)
-        ? input.loginAllowed !== undefined
-          ? input.loginAllowed === true
-          : (current?.loginAllowed ?? true)
-        : false,
+      loginAllowed: false,
       isActive:
         input.isActive === undefined
           ? (current?.isActive ?? true)
@@ -1130,15 +1700,6 @@ export class UserService implements OnModuleInit {
 
   private isLegacyPositionNodeType(type: string) {
     return this.normalizeOrganizationNodeType(type) === ORG_TYPE_LV5_POSITION;
-  }
-
-  private isLegacyCatalogNodeType(type: string) {
-    return (
-      this.isLegacyRegionNodeType(type) ||
-      this.isLegacyAreaNodeType(type) ||
-      this.isLegacyDepartmentNodeType(type) ||
-      this.isLegacyPositionNodeType(type)
-    );
   }
 
   private normalizeOrganizationNodeCode(value: unknown) {
@@ -1231,16 +1792,9 @@ export class UserService implements OnModuleInit {
   private assertOrganizationParentType(type: string, parentType: string) {
     const childType = this.normalizeOrganizationNodeType(type);
     const normalizedParentType = this.normalizeOrganizationNodeType(parentType);
-    if (
-      childType === ORG_TYPE_LV4_STORE &&
-      normalizedParentType === ORG_TYPE_LV0_DOMAIN
-    )
-      return;
-    if (
-      childType === ORG_TYPE_LV5_POSITION &&
-      normalizedParentType === ORG_TYPE_LV4_STORE
-    )
-      return;
+    const childLevel = this.organizationNodeLevel(childType);
+    const parentLevel = this.organizationNodeLevel(normalizedParentType);
+    if (parentLevel < childLevel) return;
     throw new BadRequestException(
       `${this.organizationNodeTypeLabel(type)} phải nằm dưới node cấp cao hơn`,
     );
@@ -1343,7 +1897,6 @@ export class UserService implements OnModuleInit {
       level: this.organizationNodeLevel(type),
       parentId: node.parentId ?? null,
       emailDomain: node.emailDomain ?? null,
-      loginAllowed: node.loginAllowed === true,
       isSystem: node.isSystem === true,
       isActive: node.isActive !== false,
       sortOrder: node.sortOrder ?? 0,
@@ -1566,11 +2119,17 @@ export class UserService implements OnModuleInit {
     );
     if (!businessCode)
       throw new BadRequestException('Mã nghiệp vụ không hợp lệ');
+    const rawDisplayName = String(node.displayName || '').trim();
     const displayName = this.normalizeRequiredText(
-      node.displayName,
+      rawDisplayName || node.name || businessCode,
       'Tên node tổ chức không được để trống',
       120,
     );
+    if (!rawDisplayName) {
+      this.logger.warn(
+        `Legacy catalog sync used fallback displayName for organizationNode=${node.id} type=${node.type} code=${businessCode}`,
+      );
+    }
     const abbreviation = this.normalizeCatalogAbbreviation(
       node.abbreviation || businessCode,
     );
@@ -1956,6 +2515,11 @@ export class UserService implements OnModuleInit {
     const regionNode = ancestors.find((item) =>
       this.isLegacyRegionNodeType(item.type),
     );
+    if (areaNode) {
+      await this.syncLegacyCatalogFromOrganizationNode(client, areaNode);
+    } else if (regionNode) {
+      await this.syncLegacyCatalogFromOrganizationNode(client, regionNode);
+    }
     return {
       areaCode: this.legacyPersonnelCodeFromOrganizationNode(
         areaNode,
@@ -2011,7 +2575,9 @@ export class UserService implements OnModuleInit {
       this.isScopedAdmin(admin) &&
       !(await this.storeWithinAdminScope(admin, store))
     ) {
-      throw new ForbiddenException('Chỉ được gán user trong phạm vi quản lý');
+      throw new ForbiddenException(
+        'Bạn chỉ được gán người dùng trong phạm vi quản lý',
+      );
     }
     return store.id;
   }
@@ -2022,14 +2588,24 @@ export class UserService implements OnModuleInit {
     ) {
       return;
     }
-    throw new ForbiddenException('Không có quyền quản trị user');
+    throw new ForbiddenException('Bạn không có quyền quản trị người dùng');
   }
 
   private async assertSuperAdmin(user: any) {
     if (user.role === SUPER_ADMIN_ROLE) {
       return;
     }
-    throw new ForbiddenException('Chỉ SUPER_ADMIN được quản lý role');
+    throw new ForbiddenException('Bạn không có quyền quản lý vai trò');
+  }
+
+  private async assertSuperAdminCanCreateUsers(user: any) {
+    if (user.role === SUPER_ADMIN_ROLE) return;
+    throw new ForbiddenException('Bạn không có quyền thêm người dùng');
+  }
+
+  private async assertSuperAdminCanDeleteUsers(user: any) {
+    if (user.role === SUPER_ADMIN_ROLE) return;
+    throw new ForbiddenException('Bạn không có quyền xóa người dùng');
   }
 
   private async assertPolicy(user: any, policyCode: string, message: string) {
@@ -2054,7 +2630,7 @@ export class UserService implements OnModuleInit {
     await this.assertPolicy(
       admin,
       ADMIN_POLICY_CODES.ADMIN_USER_ROLE_EDIT,
-      'Không có quyền sửa role',
+      'Bạn không có quyền sửa vai trò',
     );
   }
 
@@ -2064,8 +2640,9 @@ export class UserService implements OnModuleInit {
       const domainScope = await this.adminDomainScope(admin);
       if (scope === NATIONAL_SCOPE) return domainScope;
       if (admin.organizationNodeId) {
+        const scopeRootId = await this.adminManagementScopeRootId(admin);
         const organizationScope = await this.userOrganizationNodeWhere(
-          admin.organizationNodeId,
+          scopeRootId ?? admin.organizationNodeId,
         );
         if (organizationScope) {
           return this.combineUserScope(domainScope, organizationScope);
@@ -2142,6 +2719,41 @@ export class UserService implements OnModuleInit {
     return Array.from(ids);
   }
 
+  private async adminManagementScopeRootId(admin: any) {
+    const organizationNodeId = String(admin?.organizationNodeId || '').trim();
+    if (!organizationNodeId) return null;
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) return organizationNodeId;
+    const nodes: Array<{
+      id: string;
+      parentId: string | null;
+      type: string;
+    }> = await organizationNode.findMany({
+      select: { id: true, parentId: true, type: true },
+    });
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const node = byId.get(organizationNodeId);
+    if (!node) return organizationNodeId;
+    if (this.normalizeOrganizationNodeType(node.type) !== ORG_TYPE_LV5_POSITION)
+      return organizationNodeId;
+    const parent = node.parentId ? byId.get(node.parentId) : null;
+    if (
+      parent &&
+      this.normalizeOrganizationNodeType(parent.type) === ORG_TYPE_LV4_STORE
+    ) {
+      this.logger.debug(
+        'Admin management scope lifted from Lv5 to showroom: admin=' +
+          (admin?.email || admin?.id || 'unknown') +
+          ' nodeId=' +
+          organizationNodeId +
+          ' scopeRootId=' +
+          parent.id,
+      );
+      return parent.id;
+    }
+    return organizationNodeId;
+  }
+
   private async organizationUserScopeForRoot(rootId: string) {
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.findMany)
@@ -2216,8 +2828,9 @@ export class UserService implements OnModuleInit {
     const scope = this.effectiveWorkScope(admin);
     if (scope === NATIONAL_SCOPE) return true;
     if (admin.organizationNodeId && store?.organizationNodeId) {
+      const scopeRootId = await this.adminManagementScopeRootId(admin);
       const organizationNodeIds = await this.organizationDescendantIds(
-        admin.organizationNodeId,
+        scopeRootId ?? admin.organizationNodeId,
       );
       return organizationNodeIds.includes(store.organizationNodeId);
     }
@@ -2243,7 +2856,12 @@ export class UserService implements OnModuleInit {
 
   private userDtoInclude() {
     return {
-      store: { include: { area: { include: { region: true } } } },
+      store: {
+        include: {
+          area: { include: { region: true } },
+          organizationNode: true,
+        },
+      },
       region: true,
       area: { include: { region: true } },
       organizationNode: true,
@@ -2403,6 +3021,67 @@ export class UserService implements OnModuleInit {
     };
   }
 
+  private async organizationNodeUserCounts(
+    nodes: Array<{ id: string; _count?: { users?: number } | null }>,
+  ) {
+    const counts = new Map<string, number>();
+    await Promise.all(
+      nodes.map(async (node) => {
+        const where = await this.userOrganizationAssignmentWhere(node.id);
+        const count = where
+          ? await this.prisma.user.count({ where })
+          : (node._count?.users ?? 0);
+        counts.set(node.id, count);
+      }),
+    );
+    return counts;
+  }
+
+  private async userOrganizationAssignmentWhere(
+    orgNodeIdInput: unknown,
+  ): Promise<Prisma.UserWhereInput | null> {
+    const orgNodeId = String(orgNodeIdInput || '').trim();
+    if (!orgNodeId) return null;
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) return { organizationNodeId: orgNodeId };
+    const idList = await this.organizationDescendantIds(orgNodeId);
+    return {
+      OR: [
+        { organizationNodeId: { in: idList } },
+        {
+          AND: [
+            { organizationNodeId: null },
+            { store: { organizationNodeId: { in: idList } } },
+          ],
+        },
+        {
+          AND: [
+            { organizationNodeId: null },
+            { department: { organizationNodeId: { in: idList } } },
+          ],
+        },
+        {
+          AND: [
+            { organizationNodeId: null },
+            { jobRole: { organizationNodeId: { in: idList } } },
+          ],
+        },
+        {
+          AND: [
+            { organizationNodeId: null },
+            { region: { organizationNodeId: { in: idList } } },
+          ],
+        },
+        {
+          AND: [
+            { organizationNodeId: null },
+            { area: { organizationNodeId: { in: idList } } },
+          ],
+        },
+      ],
+    };
+  }
+
   private async userFeatureNodeAssignmentWhere(
     featureCodeInput: unknown,
   ): Promise<Prisma.UserWhereInput | null> {
@@ -2503,6 +3182,13 @@ export class UserService implements OnModuleInit {
   private toUserDto(user: any) {
     const region = this.regionForUser(user);
     const area = this.areaForUser(user);
+    const effectiveOrganizationNode =
+      user.organizationNode ?? user.store?.organizationNode ?? null;
+    const effectiveOrganizationNodeId =
+      user.organizationNodeId ??
+      effectiveOrganizationNode?.id ??
+      user.store?.organizationNodeId ??
+      null;
     return {
       id: user.id,
       email: user.email,
@@ -2524,14 +3210,17 @@ export class UserService implements OnModuleInit {
       areaCode: area?.code ?? null,
       areaName: area?.displayName ?? null,
       areaAbbreviation: area?.abbreviation ?? null,
-      organizationNodeId: user.organizationNodeId ?? null,
-      organizationNodeName: user.organizationNode?.displayName ?? null,
+      organizationNodeId: effectiveOrganizationNodeId,
+      organizationNodeName: effectiveOrganizationNode?.displayName ?? null,
       featureCodes: this.featureCodesForUser(user),
       resolvedFeatureAccess: this.featureAccessMapForUser(user),
       personnelCode: this.personnelCodeFor(user),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
-      assignmentPending: this.assignmentPending(user),
+      assignmentPending: this.assignmentPending({
+        role: user.role,
+        organizationNodeId: effectiveOrganizationNodeId,
+      }),
       mustSelectStore: this.mustSelectStore(user),
     };
   }
@@ -3230,27 +3919,27 @@ export class UserService implements OnModuleInit {
     await this.assertPolicy(
       admin,
       ADMIN_POLICY_CODES.ADMIN_ROLES,
-      'Không có quyền tạo role',
+      'Bạn không có quyền tạo vai trò',
     );
-    throw new GoneException('Quyền hệ thống cố định: SUPER_ADMIN, ADMIN, USER');
+    throw new GoneException('Quyền hệ thống là danh mục cố định');
   }
 
   async adminUpdateRole(admin: any, currentCode: string, body: any) {
     await this.assertPolicy(
       admin,
       ADMIN_POLICY_CODES.ADMIN_ROLES,
-      'Không có quyền sửa role',
+      'Bạn không có quyền sửa vai trò',
     );
-    throw new GoneException('Quyền hệ thống cố định: SUPER_ADMIN, ADMIN, USER');
+    throw new GoneException('Quyền hệ thống là danh mục cố định');
   }
 
   async adminDeleteRole(admin: any, codeInput: string) {
     await this.assertPolicy(
       admin,
       ADMIN_POLICY_CODES.ADMIN_ROLES,
-      'Không có quyền xóa role',
+      'Bạn không có quyền xóa vai trò',
     );
-    throw new GoneException('Quyền hệ thống cố định: SUPER_ADMIN, ADMIN, USER');
+    throw new GoneException('Quyền hệ thống là danh mục cố định');
   }
 
   async adminListStores(admin: any, q?: string) {
@@ -3525,9 +4214,11 @@ export class UserService implements OnModuleInit {
         _count: { select: { users: true, featureAccessRules: true } },
       },
     });
-    if (!store) throw new NotFoundException('Không tìm thấy store');
+    if (!store) throw new NotFoundException('Không tìm thấy showroom');
     if (store._count.users > 0) {
-      throw new BadRequestException('Store đang có user, không thể xóa');
+      throw new BadRequestException(
+        'Showroom đang có người dùng, không thể xóa',
+      );
     }
     if (store._count.featureAccessRules > 0) {
       throw new BadRequestException(
@@ -3881,8 +4572,12 @@ export class UserService implements OnModuleInit {
     const storeCode = String(store?.storeId || '')
       .trim()
       .toUpperCase();
-    const storeName = String(store?.storeName || '').trim().toLowerCase();
-    const areaCode = String(store?.areaCode || '').trim().toUpperCase();
+    const storeName = String(store?.storeName || '')
+      .trim()
+      .toLowerCase();
+    const areaCode = String(store?.areaCode || '')
+      .trim()
+      .toUpperCase();
     const isAcare =
       storeCode.startsWith('AC') ||
       storeCode.startsWith('AP') ||
@@ -4115,7 +4810,9 @@ export class UserService implements OnModuleInit {
       this.isScopedAdmin(admin) &&
       !(await this.storeWithinAdminScope(admin, store))
     ) {
-      throw new ForbiddenException('Chỉ được gán user trong phạm vi quản lý');
+      throw new ForbiddenException(
+        'Bạn chỉ được gán người dùng trong phạm vi quản lý',
+      );
     }
     return store.id;
   }
@@ -4336,7 +5033,9 @@ export class UserService implements OnModuleInit {
         ' allowedRootId=' +
         rootId,
     );
-    throw new ForbiddenException('Chỉ được gán user trong phạm vi quản lý');
+    throw new ForbiddenException(
+      'Bạn chỉ được gán người dùng trong phạm vi quản lý',
+    );
   }
 
   private async organizationScopeContext(nodeId: string) {
@@ -4711,14 +5410,15 @@ export class UserService implements OnModuleInit {
     if (!/^[A-Z][A-Z0-9_]{1,39}$/.test(code)) {
       if (strict) {
         throw new BadRequestException(
-          'Mã role phải bắt đầu bằng chữ, tối đa 40 ký tự',
+          'Mã vai trò phải bắt đầu bằng chữ, tối đa 40 ký tự',
         );
       }
       return USER_ROLE;
     }
     const normalized = ROLE_ALIASES[code] ?? code;
     if (![SUPER_ADMIN_ROLE, ADMIN_ROLE, USER_ROLE].includes(normalized)) {
-      if (strict) throw new BadRequestException('Role hệ thống không hợp lệ');
+      if (strict)
+        throw new BadRequestException('Vai trò hệ thống không hợp lệ');
       return USER_ROLE;
     }
     if (normalized !== code) {
@@ -4771,7 +5471,7 @@ export class UserService implements OnModuleInit {
       where: { code },
     });
     if (!role) {
-      throw new BadRequestException('Role không tồn tại');
+      throw new BadRequestException('Vai trò không tồn tại');
     }
     return role.code;
   }
@@ -4858,7 +5558,7 @@ export class UserService implements OnModuleInit {
         scopeLabel,
     );
     throw new ForbiddenException(
-      admin.role + ' chỉ được quản lý user thuộc ' + scopeLabel,
+      'Bạn chỉ được quản lý người dùng thuộc ' + scopeLabel,
     );
   }
 
@@ -4995,8 +5695,9 @@ export class UserService implements OnModuleInit {
       return this.combineStoreScope(organizationScope, undefined);
     }
     if (admin.organizationNodeId) {
+      const scopeRootId = await this.adminManagementScopeRootId(admin);
       const organizationNodeIds = await this.organizationDescendantIds(
-        admin.organizationNodeId,
+        scopeRootId ?? admin.organizationNodeId,
       );
       return this.combineStoreScope(organizationScope, {
         organizationNodeId: { in: organizationNodeIds },
