@@ -65,6 +65,16 @@ class ApiConstants {
       '/admin/map-vietin/statements/export';
   static String adminMapVietinStatementOrdersEndpoint(String id) =>
       '/admin/map-vietin/statements/$id/orders';
+  static String adminMapVietinStatementOrderTransferRequestsEndpoint(
+    String id,
+  ) => '/admin/map-vietin/statements/$id/order-transfer-requests';
+  static const String adminMapVietinStatementOrderTransferRequestsListEndpoint =
+      '/admin/map-vietin/statement-order-transfer-requests';
+  static String adminMapVietinStatementOrderTransferApproveEndpoint(
+    String id,
+  ) => '/admin/map-vietin/statement-order-transfer-requests/$id/approve';
+  static String adminMapVietinStatementOrderTransferRejectEndpoint(String id) =>
+      '/admin/map-vietin/statement-order-transfer-requests/$id/reject';
   static String adminMapVietinStatementOrderHistoryEndpoint(String id) =>
       '/admin/map-vietin/statements/$id/order-history';
   static String paymentNotificationAudioEndpoint(String id) =>

@@ -86,6 +86,7 @@ model MapVietinTransaction {
   updatedAt            DateTime  @updatedAt
 
   orderAudits MapVietinTransactionOrderAudit[]
+  orderTransferRequests MapVietinStatementOrderTransferRequest[]
 
   @@index([storeCode, paidAt])
   @@index([storeCode, firstSeenAt])
@@ -107,6 +108,27 @@ model MapVietinTransactionOrderAudit {
 
   @@index([transactionId, createdAt])
   @@index([storeCode, createdAt])
+}
+
+model MapVietinStatementOrderTransferRequest {
+  id                    String               @id @default(uuid())
+  transactionId         String
+  transaction           MapVietinTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  storeCode             String
+  oldOrders             String[]             @default([])
+  requestedOrders       String[]             @default([])
+  status                String               @default("PENDING")
+  requestedByUserId     String?
+  requestedByEmail      String?
+  reviewedByUserId      String?
+  reviewedByEmail       String?
+  reviewedAt            DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@index([transactionId, status])
+  @@index([storeCode, status, createdAt])
+  @@index([status, createdAt])
 }
 
 model MapVietinUnmappedTransaction {

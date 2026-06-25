@@ -10,6 +10,7 @@ describe('MapVietinService', () => {
   let prisma: any;
   let fetchMock: jest.Mock;
   let paymentNotifications: { createForTransaction: jest.Mock };
+  let redisService: { publishMessage: jest.Mock };
   let policyService: { canAccessPolicy: jest.Mock };
   let featureService: { canAccessFeature: jest.Mock };
   let service: MapVietinService;
@@ -29,6 +30,12 @@ describe('MapVietinService', () => {
               organizationNodeId: 'org-fin-child',
             };
           }
+          if (where.id === 'acc-node-user') {
+            return {
+              departmentCode: null,
+              organizationNodeId: 'org-acc-child',
+            };
+          }
           return null;
         }),
       },
@@ -45,6 +52,18 @@ describe('MapVietinService', () => {
             parentId: 'org-fin',
             code: 'FIN_CHILD',
             businessCode: 'FIN_CHILD',
+          },
+          {
+            id: 'org-acc',
+            parentId: null,
+            code: 'ACC',
+            businessCode: 'ACC',
+          },
+          {
+            id: 'org-acc-child',
+            parentId: 'org-acc',
+            code: 'ACC_CHILD',
+            businessCode: 'ACC_CHILD',
           },
         ]),
       },
@@ -63,6 +82,14 @@ describe('MapVietinService', () => {
         create: jest.fn(),
         findMany: jest.fn(),
       },
+      mapVietinStatementOrderTransferRequest: {
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        findMany: jest.fn(),
+        count: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+      },
       mapVietinUnmappedTransaction: {
         upsert: jest.fn(),
       },
@@ -77,6 +104,7 @@ describe('MapVietinService', () => {
     delete process.env.MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS;
     delete process.env.MAP_VIETIN_SYNC_ENABLED;
     paymentNotifications = { createForTransaction: jest.fn() };
+    redisService = { publishMessage: jest.fn().mockResolvedValue(undefined) };
     policyService = {
       canAccessPolicy: jest.fn(async (user: any, code: string) => {
         if (user?.role === 'SUPER_ADMIN') return true;
@@ -111,6 +139,7 @@ describe('MapVietinService', () => {
       policyService as any,
       featureService as any,
       paymentNotifications as any,
+      redisService as any,
     );
   });
 
@@ -473,6 +502,7 @@ describe('MapVietinService', () => {
       policyService as any,
       featureService as any,
       paymentNotifications as any,
+      redisService as any,
     );
 
     disabledService.onModuleInit();
@@ -1134,6 +1164,281 @@ describe('MapVietinService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('filters statements by pending and confirmed offset statuses', async () => {
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(0);
+
+    await expect(
+      service.listStatements(
+        { role: 'SUPER_ADMIN' },
+        { orderStatus: 'OFFSET_PENDING', page: 0, limit: 20 },
+      ),
+    ).resolves.toMatchObject({ total: 0, list: [] });
+
+    expect(prisma.mapVietinTransaction.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: {
+          orderTransferRequests: { some: { status: 'PENDING' } },
+        },
+      }),
+    );
+
+    await expect(
+      service.listStatements(
+        { role: 'SUPER_ADMIN' },
+        { orderStatus: 'OFFSET_CONFIRMED', page: 0, limit: 20 },
+      ),
+    ).resolves.toMatchObject({ total: 0, list: [] });
+
+    expect(prisma.mapVietinTransaction.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { orderSource: 'OFFSET' },
+      }),
+    );
+  });
+
+  it('creates statement order transfer requests inside the 24h window', async () => {
+    const transaction = statementTransactionRow({
+      id: 'stored-1',
+      orders: ['26052112345678'],
+      paidAt: new Date('2026-05-21T02:00:00.000Z'),
+    });
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+    prisma.mapVietinStatementOrderTransferRequest.findFirst.mockResolvedValue(
+      null,
+    );
+    prisma.mapVietinStatementOrderTransferRequest.create.mockImplementation(
+      async ({ data }: any) => ({
+        id: 'request-1',
+        ...data,
+        status: 'PENDING',
+        createdAt: new Date('2026-05-21T03:00:00.000Z'),
+        updatedAt: new Date('2026-05-21T03:00:00.000Z'),
+        reviewedAt: null,
+        reviewedByEmail: null,
+        transaction,
+      }),
+    );
+
+    await expect(
+      service.createStatementOrderTransferRequest(
+        {
+          id: 'user-1',
+          email: 'staff@example.com',
+          role: 'MANAGER',
+          storeId: 'store-uuid-1',
+        },
+        'stored-1',
+        { orders: ['26052187654321'] },
+      ),
+    ).resolves.toMatchObject({
+      id: 'request-1',
+      transactionId: 'stored-1',
+      requestedOrders: ['26052187654321'],
+      status: 'PENDING',
+    });
+
+    expect(redisService.publishMessage).toHaveBeenCalledWith(
+      'STATEMENT_ORDER_TRANSFER_REQUESTED',
+      expect.objectContaining({
+        requestId: 'request-1',
+        transactionId: 'stored-1',
+        storeCode: 'CP01',
+      }),
+    );
+  });
+
+  it('blocks statement order transfer requests after 24h', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(
+      statementTransactionRow({
+        id: 'stored-old',
+        paidAt: new Date('2026-05-19T02:00:00.000Z'),
+      }),
+    );
+
+    await expect(
+      service.createStatementOrderTransferRequest(
+        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        'stored-old',
+        { orders: ['26052187654321'] },
+      ),
+    ).rejects.toThrow(
+      'Quá thời hạn cập nhật trong ngày. Vui lòng dùng chức năng Cấn trừ.',
+    );
+    expect(
+      prisma.mapVietinStatementOrderTransferRequest.create,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('blocks duplicate pending statement order transfer requests', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(
+      statementTransactionRow({ id: 'stored-1', orders: ['26052112345678'] }),
+    );
+    prisma.mapVietinStatementOrderTransferRequest.findFirst.mockResolvedValue({
+      id: 'request-existing',
+    });
+
+    await expect(
+      service.createStatementOrderTransferRequest(
+        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        'stored-1',
+        { orders: ['26052187654321'] },
+      ),
+    ).rejects.toThrow('Giao dịch đang chờ ACC xác nhận');
+    expect(
+      prisma.mapVietinStatementOrderTransferRequest.create,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('lets ACC approve order transfer requests and writes order audit', async () => {
+    const transaction = statementTransactionRow({
+      id: 'stored-1',
+      orders: ['26052112345678'],
+    });
+    const request = {
+      id: 'request-1',
+      transactionId: 'stored-1',
+      storeCode: 'CP01',
+      oldOrders: ['26052112345678'],
+      requestedOrders: ['26052187654321'],
+      status: 'PENDING',
+      requestedByUserId: 'staff-1',
+      requestedByEmail: 'staff@example.com',
+      reviewedByUserId: null,
+      reviewedByEmail: null,
+      reviewedAt: null,
+      createdAt: new Date('2026-05-21T03:00:00.000Z'),
+      updatedAt: new Date('2026-05-21T03:00:00.000Z'),
+      transaction,
+    };
+    const updatedTransaction = {
+      ...transaction,
+      orders: ['26052187654321'],
+      orderSource: 'OFFSET',
+      orderUpdatedAt: new Date('2026-05-21T03:00:00.000Z'),
+      orderUpdatedByEmail: 'acc@example.com',
+    };
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinStatementOrderTransferRequest.findUnique.mockResolvedValue(
+      request,
+    );
+    prisma.mapVietinTransaction.update.mockResolvedValue(updatedTransaction);
+    prisma.mapVietinTransactionOrderAudit.create.mockResolvedValue({});
+    prisma.mapVietinStatementOrderTransferRequest.update.mockResolvedValue({
+      ...request,
+      status: 'APPROVED',
+      reviewedByUserId: 'acc-1',
+      reviewedByEmail: 'acc@example.com',
+      reviewedAt: new Date('2026-05-21T03:00:00.000Z'),
+      transaction: updatedTransaction,
+    });
+
+    await expect(
+      service.approveStatementOrderTransferRequest(
+        {
+          id: 'acc-1',
+          email: 'acc@example.com',
+          role: 'USER',
+          storeId: 'store-uuid-1',
+          featureBankStatements: true,
+          departmentCode: 'ACC',
+        },
+        'request-1',
+      ),
+    ).resolves.toMatchObject({
+      request: { id: 'request-1', status: 'APPROVED' },
+      transaction: {
+        id: 'stored-1',
+        orders: ['26052187654321'],
+        orderSource: 'OFFSET',
+        isOrderOffsetConfirmed: true,
+      },
+    });
+
+    expect(prisma.mapVietinTransaction.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orders: ['26052187654321'],
+          orderSource: 'OFFSET',
+          orderUpdatedByEmail: 'acc@example.com',
+        }),
+      }),
+    );
+    expect(prisma.mapVietinTransactionOrderAudit.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          oldOrders: ['26052112345678'],
+          newOrders: ['26052187654321'],
+          source: 'OFFSET',
+        }),
+      }),
+    );
+  });
+
+  it('blocks non-ACC users from reviewing order transfer requests', async () => {
+    await expect(
+      service.approveStatementOrderTransferRequest(
+        {
+          id: 'user-1',
+          role: 'USER',
+          storeId: 'store-uuid-1',
+          featureBankStatements: true,
+        },
+        'request-1',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(
+      prisma.mapVietinStatementOrderTransferRequest.findUnique,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('lets ACC org-node users list pending order transfer requests', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinStatementOrderTransferRequest.findMany.mockResolvedValue(
+      [],
+    );
+    prisma.mapVietinStatementOrderTransferRequest.count.mockResolvedValue(0);
+
+    await expect(
+      service.listStatementOrderTransferRequests(
+        {
+          id: 'acc-node-user',
+          role: 'USER',
+          storeId: 'store-uuid-1',
+          featureBankStatements: true,
+        },
+        { page: 0, limit: 50 },
+      ),
+    ).resolves.toMatchObject({ total: 0, list: [] });
+
+    expect(
+      prisma.mapVietinStatementOrderTransferRequest.findMany,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: 'PENDING', storeCode: 'CP01' },
+      }),
+    );
+  });
+
   it('updates statement orders and records audit history', async () => {
     prisma.store.findUnique.mockResolvedValue({
       id: 'store-uuid-1',
@@ -1332,7 +1637,7 @@ describe('MapVietinService', () => {
         transactionNumber: '2030000000000',
         amount: 5190000,
         content: 'Khách chuyển tiền, cần giữ tiếng Việt',
-        orders: ['26052912345678'],
+        orders: ['26052912345678', '26053087654321'],
         status: 'Thành công',
         paidAt: new Date('2026-06-03T09:39:41.000Z'),
         payerName: null,
@@ -1362,7 +1667,8 @@ describe('MapVietinService', () => {
     expect(csv).not.toContain('2026-06-03T09:39:41.000Z');
     expect(csv).toContain('"=""2030000000000"""');
     expect(csv).toContain('"=""00020300000000004567"""');
-    expect(csv).toContain('"=""26052912345678"""');
+    expect(csv).toContain('"=""26052912345678\n26053087654321"""');
+    expect(csv).not.toContain('26052912345678 | 26053087654321');
     expect(csv).toContain('Nguyễn Văn A');
     expect(csv).toContain('"=""9704361234567890"""');
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
@@ -1412,5 +1718,29 @@ function globalTransaction(txnNo: string, virtualAccount = '18PVICU') {
     txnDesc: 'Khach chuyen tien',
     status: '00',
     virtualAccount,
+  };
+}
+
+function statementTransactionRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'stored-1',
+    storeCode: 'CP01',
+    transactionKey: 'CP01:key',
+    transactionNumber: 'TXN-001',
+    amount: 1250000,
+    content: 'Khach chuyen tien 26052112345678',
+    orders: ['26052112345678'],
+    orderSource: 'AUTO',
+    orderUpdatedAt: null,
+    orderUpdatedByUserId: null,
+    orderUpdatedByEmail: null,
+    status: '00',
+    paidAt: new Date('2026-05-21T02:00:00.000Z'),
+    payerName: null,
+    payerAccount: null,
+    rawData: {},
+    firstSeenAt: new Date('2026-05-21T02:00:05.000Z'),
+    orderTransferRequests: [],
+    ...overrides,
   };
 }

@@ -153,7 +153,13 @@ export class ListMapVietinStatementsDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['ALL', 'HAS_ORDER', 'MISSING_ORDER'])
+  @IsIn([
+    'ALL',
+    'HAS_ORDER',
+    'MISSING_ORDER',
+    'OFFSET_PENDING',
+    'OFFSET_CONFIRMED',
+  ])
   orderStatus?: string;
 
   @IsOptional()
@@ -193,4 +199,41 @@ export class UpdateMapVietinStatementOrdersDto {
   @IsString({ each: true })
   @MaxLength(80, { each: true })
   orders!: string[];
+}
+
+export class CreateMapVietinStatementOrderTransferRequestDto {
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(80, { each: true })
+  orders!: string[];
+}
+
+export class ListMapVietinStatementOrderTransferRequestsDto {
+  @IsOptional()
+  @IsString()
+  @IsIn(['PENDING', 'APPROVED', 'REJECTED'])
+  status?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(400)
+  storeIds?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  allStores?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
 }

@@ -16,7 +16,9 @@ import { FEATURE_KEYS } from '../feature/feature.constants';
 import { RequireFeature } from '../feature/feature.decorator';
 import { FeatureGuard } from '../feature/feature.guard';
 import {
+  CreateMapVietinStatementOrderTransferRequestDto,
   ExportMapVietinStatementsDto,
+  ListMapVietinStatementOrderTransferRequestsDto,
   ListStoredMapVietinTransactionsDto,
   ListMapVietinStatementsDto,
   SearchMapVietinTransactionsDto,
@@ -80,6 +82,56 @@ export class MapVietinController {
     @Body() body: UpdateMapVietinStatementOrdersDto,
   ) {
     return this.mapVietinService.updateStatementOrders(req.user, id, body);
+  }
+
+  @Post('statements/:id/order-transfer-requests')
+  @RequireFeature(FEATURE_KEYS.BANK_STATEMENTS)
+  createStatementOrderTransferRequest(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: CreateMapVietinStatementOrderTransferRequestDto,
+  ) {
+    return this.mapVietinService.createStatementOrderTransferRequest(
+      req.user,
+      id,
+      body,
+    );
+  }
+
+  @Get('statement-order-transfer-requests')
+  @RequireFeature(FEATURE_KEYS.BANK_STATEMENTS)
+  listStatementOrderTransferRequests(
+    @Request() req: any,
+    @Query() query: ListMapVietinStatementOrderTransferRequestsDto,
+  ) {
+    return this.mapVietinService.listStatementOrderTransferRequests(
+      req.user,
+      query,
+    );
+  }
+
+  @Post('statement-order-transfer-requests/:id/approve')
+  @RequireFeature(FEATURE_KEYS.BANK_STATEMENTS)
+  approveStatementOrderTransferRequest(
+    @Request() req: any,
+    @Param('id') id: string,
+  ) {
+    return this.mapVietinService.approveStatementOrderTransferRequest(
+      req.user,
+      id,
+    );
+  }
+
+  @Post('statement-order-transfer-requests/:id/reject')
+  @RequireFeature(FEATURE_KEYS.BANK_STATEMENTS)
+  rejectStatementOrderTransferRequest(
+    @Request() req: any,
+    @Param('id') id: string,
+  ) {
+    return this.mapVietinService.rejectStatementOrderTransferRequest(
+      req.user,
+      id,
+    );
   }
 
   @Get('statements/:id/order-history')

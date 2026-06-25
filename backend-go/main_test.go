@@ -134,6 +134,38 @@ func TestSuperAdminRequiresSelectedStoreForPaymentEvents(t *testing.T) {
 	}
 }
 
+func TestStatementOrderTransferEventFilteringByStore(t *testing.T) {
+	client := &Client{auth: &ClientAuth{Role: "MANAGER", StoreCode: "CP01"}}
+	message := []byte(`{"type":"STATEMENT_ORDER_TRANSFER_REQUEST","payload":{"storeCode":"CP01"}}`)
+	if !client.canReceive(message) {
+		t.Fatal("expected client to receive own store statement transfer event")
+	}
+
+	otherMessage := []byte(`{"type":"STATEMENT_ORDER_TRANSFER_REQUEST","payload":{"storeCode":"CP02"}}`)
+	if client.canReceive(otherMessage) {
+		t.Fatal("expected client not to receive another store statement transfer event")
+	}
+}
+
+func TestSuperAdminCanReceiveAllStatementOrderTransferEvents(t *testing.T) {
+	message := []byte(`{"type":"STATEMENT_ORDER_TRANSFER_REQUEST","payload":{"storeCode":"CP02"}}`)
+
+	allStores := &Client{auth: &ClientAuth{Role: "SUPER_ADMIN"}}
+	if !allStores.canReceive(message) {
+		t.Fatal("expected super admin without selected store to receive statement transfer event")
+	}
+
+	selectedStore := &Client{auth: &ClientAuth{Role: "SUPER_ADMIN", SelectedStore: "CP02"}}
+	if !selectedStore.canReceive(message) {
+		t.Fatal("expected super admin to receive selected store statement transfer event")
+	}
+
+	otherStore := &Client{auth: &ClientAuth{Role: "SUPER_ADMIN", SelectedStore: "CP01"}}
+	if otherStore.canReceive(message) {
+		t.Fatal("expected super admin not to receive another selected store statement transfer event")
+	}
+}
+
 func TestPublicAppUpdateClientOnlyReceivesUpdateEvents(t *testing.T) {
 	client := &Client{updatesOnly: true}
 	appUpdate := []byte(`{"type":"APP_UPDATE","payload":{"schemaVersion":1}}`)
@@ -149,6 +181,20 @@ func TestPublicAppUpdateClientOnlyReceivesUpdateEvents(t *testing.T) {
 	payment := []byte(`{"type":"PAYMENT_NOTIFICATION","payload":{"storeCode":"CP01"}}`)
 	if client.canReceive(payment) {
 		t.Fatal("expected public app-update client not to receive payment event")
+	}
+}
+
+func TestFormatsStatementOrderTransferRedisEvent(t *testing.T) {
+	message, ok := formatRedisEvent(
+		statementOrderTransferRedisChannel,
+		`{"requestId":"request-1","transactionId":"tx-1","storeCode":"CP01"}`,
+	)
+	if !ok {
+		t.Fatal("expected statement transfer Redis event to be formatted")
+	}
+	expected := `{"type":"STATEMENT_ORDER_TRANSFER_REQUEST","payload":{"requestId":"request-1","transactionId":"tx-1","storeCode":"CP01"}}`
+	if string(message) != expected {
+		t.Fatalf("expected %s, got %s", expected, string(message))
 	}
 }
 

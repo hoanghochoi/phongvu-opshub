@@ -56,6 +56,20 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PAYMENT-STATEMENT-001, 2026-06-25: added ACC-reviewed statement order
+  transfer requests. Visible statement users can request order replacement
+  within 24 hours from `paidAt ?? firstSeenAt`; duplicate pending requests and
+  over-24h requests are blocked; `SUPER_ADMIN`, `FIN_ACC`, and `ACC`
+  department/org-node users can approve or reject. Pending rows use yellow
+  border and `Chờ ACC xác nhận`; approved rows replace orders, write order
+  audit with source `OFFSET`, and show `Đã cấn trừ`; status filters now include
+  `Chờ xác nhận` and `Giao dịch cấn trừ`; ACC users receive a scoped
+  notification bell backed by sanitized Redis/WebSocket events. Validation:
+  `npx prisma validate`, `npx prisma generate`, focused MAP statement service
+  Jest (43 tests), backend `npm run build`, Go realtime `go test ./...`,
+  focused Flutter provider/widget tests (20 tests), `flutter analyze --no-pub`,
+  and `git diff --check`. Gap: live DB migration, deployed Redis/WebSocket
+  delivery, and ACC click-through remain manual.
 - PROFILE-ADMIN-001 / PAYMENT-STATEMENT-001, 2026-06-24: tightened user
   import/create/delete and statement-order edit permissions. `SUPER_ADMIN` is
   now required for admin user creation/import, imports validate email syntax and
@@ -110,6 +124,13 @@ This file maps product behavior to proof. Existing flows are marked
   previously installed clients gain realtime behavior only after installing
   this first realtime-enabled build.
 
+- PAYMENT-STATEMENT-001, 2026-06-25: inline statement order editing now renders
+  existing multiple order codes one per line and accepts newline-separated saves
+  alongside comma/semicolon/whitespace input. CSV export preserves long numeric
+  order codes as Excel text and emits multiple order codes as line breaks inside
+  the `Mã đơn hàng` cell. Validation: focused statement provider tests (16
+  tests), focused MAP statement service tests (36 tests), and `git diff
+  --check`. Gap: opening a live exported CSV in Excel remains manual.
 - PAYMENT-STATEMENT-001, 2026-06-24: statement CSV export now reads MAP
   `rawData.txnReference` into a `Sao kê` column without adding a duplicate
   database column. The value is emitted as Excel text so leading zeroes and long

@@ -20,12 +20,14 @@ import (
 var ctx = context.Background()
 
 const (
-	warrantyRedisChannel   = "WARRANTY_STATUS_UPDATED"
-	paymentRedisChannel    = "PAYMENT_NOTIFICATION_READY"
-	appVersionRedisChannel = "APP_VERSION_UPDATED"
-	warrantyEventType      = "WARRANTY_EVENT"
-	paymentEventType       = "PAYMENT_NOTIFICATION"
-	appUpdateEventType     = "APP_UPDATE"
+	warrantyRedisChannel               = "WARRANTY_STATUS_UPDATED"
+	paymentRedisChannel                = "PAYMENT_NOTIFICATION_READY"
+	appVersionRedisChannel             = "APP_VERSION_UPDATED"
+	statementOrderTransferRedisChannel = "STATEMENT_ORDER_TRANSFER_REQUESTED"
+	warrantyEventType                  = "WARRANTY_EVENT"
+	paymentEventType                   = "PAYMENT_NOTIFICATION"
+	appUpdateEventType                 = "APP_UPDATE"
+	statementOrderTransferEventType    = "STATEMENT_ORDER_TRANSFER_REQUEST"
 )
 
 var upgrader = websocket.Upgrader{
@@ -222,7 +224,7 @@ func (c *Client) canReceive(message []byte) bool {
 	if c.auth == nil {
 		return false
 	}
-	if envelope.Type != paymentEventType {
+	if envelope.Type != paymentEventType && envelope.Type != statementOrderTransferEventType {
 		return true
 	}
 	var payload struct {
@@ -232,6 +234,9 @@ func (c *Client) canReceive(message []byte) bool {
 		return false
 	}
 	storeCode := strings.ToUpper(strings.TrimSpace(payload.StoreCode))
+	if c.auth.Role == "SUPER_ADMIN" && envelope.Type == statementOrderTransferEventType {
+		return c.auth.SelectedStore == "" || c.auth.SelectedStore == storeCode
+	}
 	if c.auth.Role == "SUPER_ADMIN" {
 		return c.auth.SelectedStore != "" && c.auth.SelectedStore == storeCode
 	}
@@ -258,9 +263,10 @@ func (h *Hub) listenToRedis() {
 		warrantyRedisChannel,
 		paymentRedisChannel,
 		appVersionRedisChannel,
+		statementOrderTransferRedisChannel,
 	)
 	defer pubsub.Close()
-	log.Println("Listening to Redis channels: WARRANTY_STATUS_UPDATED, PAYMENT_NOTIFICATION_READY, APP_VERSION_UPDATED...")
+	log.Println("Listening to Redis channels: WARRANTY_STATUS_UPDATED, PAYMENT_NOTIFICATION_READY, APP_VERSION_UPDATED, STATEMENT_ORDER_TRANSFER_REQUESTED...")
 
 	ch := pubsub.Channel()
 
@@ -284,6 +290,8 @@ func formatRedisEvent(channel string, payload string) ([]byte, bool) {
 		eventType = paymentEventType
 	case appVersionRedisChannel:
 		eventType = appUpdateEventType
+	case statementOrderTransferRedisChannel:
+		eventType = statementOrderTransferEventType
 	default:
 		return nil, false
 	}

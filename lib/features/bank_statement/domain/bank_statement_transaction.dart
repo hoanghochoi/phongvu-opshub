@@ -16,6 +16,13 @@ class BankStatementTransaction {
   final String? payerAccount;
   final bool canEditOrders;
   final String? orderEditBlockedReason;
+  final bool canRequestOrderTransfer;
+  final String? orderTransferRequestBlockedReason;
+  final bool hasPendingOrderTransferRequest;
+  final String? orderTransferRequestId;
+  final List<String> orderTransferRequestedOrders;
+  final String? orderTransferStatus;
+  final bool isOrderOffsetConfirmed;
 
   const BankStatementTransaction({
     required this.id,
@@ -35,6 +42,13 @@ class BankStatementTransaction {
     required this.payerAccount,
     required this.canEditOrders,
     required this.orderEditBlockedReason,
+    required this.canRequestOrderTransfer,
+    required this.orderTransferRequestBlockedReason,
+    required this.hasPendingOrderTransferRequest,
+    required this.orderTransferRequestId,
+    required this.orderTransferRequestedOrders,
+    required this.orderTransferStatus,
+    required this.isOrderOffsetConfirmed,
   });
 
   factory BankStatementTransaction.fromJson(Map<String, dynamic> json) {
@@ -54,6 +68,17 @@ class BankStatementTransaction {
       firstSeenAt: _readDate(json['firstSeenAt']),
       canEditOrders: json['canEditOrders'] != false,
       orderEditBlockedReason: json['orderEditBlockedReason']?.toString(),
+      canRequestOrderTransfer: json['canRequestOrderTransfer'] == true,
+      orderTransferRequestBlockedReason:
+          json['orderTransferRequestBlockedReason']?.toString(),
+      hasPendingOrderTransferRequest:
+          json['hasPendingOrderTransferRequest'] == true,
+      orderTransferRequestId: json['orderTransferRequestId']?.toString(),
+      orderTransferRequestedOrders: _readOrders(
+        json['orderTransferRequestedOrders'],
+      ),
+      orderTransferStatus: json['orderTransferStatus']?.toString(),
+      isOrderOffsetConfirmed: json['isOrderOffsetConfirmed'] == true,
       payerName: _readFirstText(json, const [
         'payerName',
         'payerFullName',
@@ -106,6 +131,13 @@ class BankStatementTransaction {
       payerAccount: payerAccount,
       canEditOrders: canEditOrders,
       orderEditBlockedReason: orderEditBlockedReason,
+      canRequestOrderTransfer: canRequestOrderTransfer,
+      orderTransferRequestBlockedReason: orderTransferRequestBlockedReason,
+      hasPendingOrderTransferRequest: hasPendingOrderTransferRequest,
+      orderTransferRequestId: orderTransferRequestId,
+      orderTransferRequestedOrders: orderTransferRequestedOrders,
+      orderTransferStatus: orderTransferStatus,
+      isOrderOffsetConfirmed: isOrderOffsetConfirmed,
     );
   }
 
@@ -167,6 +199,66 @@ class BankStatementOrderHistoryEntry {
       newOrders: BankStatementTransaction._readOrders(json['newOrders']),
       changedByEmail: json['changedByEmail']?.toString(),
       createdAt: BankStatementTransaction._readDate(json['createdAt']),
+    );
+  }
+}
+
+class BankStatementOrderTransferRequest {
+  final String id;
+  final String transactionId;
+  final String storeCode;
+  final List<String> oldOrders;
+  final List<String> requestedOrders;
+  final String status;
+  final String? requestedByEmail;
+  final String? reviewedByEmail;
+  final DateTime? reviewedAt;
+  final DateTime? createdAt;
+  final String? transactionNumber;
+  final int amount;
+  final String content;
+  final DateTime? paidAt;
+  final DateTime? firstSeenAt;
+
+  const BankStatementOrderTransferRequest({
+    required this.id,
+    required this.transactionId,
+    required this.storeCode,
+    required this.oldOrders,
+    required this.requestedOrders,
+    required this.status,
+    required this.requestedByEmail,
+    required this.reviewedByEmail,
+    required this.reviewedAt,
+    required this.createdAt,
+    required this.transactionNumber,
+    required this.amount,
+    required this.content,
+    required this.paidAt,
+    required this.firstSeenAt,
+  });
+
+  factory BankStatementOrderTransferRequest.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return BankStatementOrderTransferRequest(
+      id: json['id']?.toString() ?? '',
+      transactionId: json['transactionId']?.toString() ?? '',
+      storeCode: json['storeCode']?.toString() ?? '',
+      oldOrders: BankStatementTransaction._readOrders(json['oldOrders']),
+      requestedOrders: BankStatementTransaction._readOrders(
+        json['requestedOrders'],
+      ),
+      status: json['status']?.toString() ?? '',
+      requestedByEmail: json['requestedByEmail']?.toString(),
+      reviewedByEmail: json['reviewedByEmail']?.toString(),
+      reviewedAt: BankStatementTransaction._readDate(json['reviewedAt']),
+      createdAt: BankStatementTransaction._readDate(json['createdAt']),
+      transactionNumber: json['transactionNumber']?.toString(),
+      amount: BankStatementTransaction._readAmount(json['amount']),
+      content: json['content']?.toString() ?? '',
+      paidAt: BankStatementTransaction._readDate(json['paidAt']),
+      firstSeenAt: BankStatementTransaction._readDate(json['firstSeenAt']),
     );
   }
 }

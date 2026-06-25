@@ -180,15 +180,35 @@ a customer to scan and pay manually.
   incomplete range is treated as no explicit range.
 - `Đã có đơn hàng` means the stored order list is not empty.
   `Chưa có đơn hàng` means the order list is empty.
+  `Chờ xác nhận` means the transaction has a pending ACC order-transfer
+  request. `Giao dịch cấn trừ` means ACC approved an order-transfer request and
+  the transaction order source is `OFFSET`.
 - Statement rows show transaction details beside a compact order area. The row
   summary uses short readable pills for payment source, SR code, amount, and
   successful transfer status, not the raw MAP API status; the current payment
   source label is `VietinBank`. Users can edit orders inline only while the
   stored order list is `NULL`; protected rows that already have an AUTO or
   MANUAL order can be changed only by `SUPER_ADMIN` or users in the `FIN_ACC`
-  organization/department. Users enter multiple orders separated by whitespace,
-  comma, or semicolon, save/cancel in place, and see a short per-row success or
-  failure message.
+  organization/department. Users enter multiple orders one per line or
+  separated by comma/semicolon/whitespace, save/cancel in place, and see a
+  short per-row success or failure message.
+- Users who can view a statement transaction can request an order update for
+  that transaction within 24 hours from `paidAt ?? firstSeenAt`. After that
+  window, the app disables the update action with `Quá thời hạn cập nhật trong
+  ngày. Vui lòng dùng chức năng Cấn trừ.`, and the backend rejects the same
+  request. The separate over-24h `Cấn trừ` flow is out of scope for this
+  contract.
+- Only one order-transfer request may be pending for a transaction. Pending
+  rows use a yellow border and show the requested order codes as `Chờ ACC xác
+  nhận`. ACC approval is available to `SUPER_ADMIN` and users in `FIN_ACC` or
+  `ACC` through department or organization-node code/businessCode. Approval
+  replaces the transaction orders with the requested orders, sets order source
+  `OFFSET`, writes the order audit, and shows a small `Đã cấn trừ` tag beside
+  `Đơn hàng`; rejection leaves the current orders unchanged.
+- ACC users see a statement notification bell with the pending count in their
+  current statement scope. The realtime event only carries request id,
+  transaction id, showroom, status, and timestamp; the client reloads pending
+  request details through the scoped API before showing approve/reject actions.
 - Statement rows include the MAP payer name/account when available. Tapping the
   transaction summary opens a selectable detail dialog with payer, payment,
   showroom, order, manual-edit metadata, and OpsHub first-seen information;
@@ -200,7 +220,8 @@ a customer to scan and pay manually.
   `rawData.txnReference` under the `Sao kê` column, preserves long numeric
   identifiers such as statement references, transaction numbers, order codes,
   and payer accounts as text, and formats transaction timestamps in Vietnam
-  local time. Statement
+  local time. When a transaction has multiple orders, the order-code CSV cell
+  exports one code per line. Statement
   search uses server-side paging, while selected transaction ids stay selected
   when users move between pages and take precedence during export. If nothing is
   selected, export includes every row matching the current filter/date/status,
@@ -208,9 +229,10 @@ a customer to scan and pay manually.
   longer selected range is blocked before the export request is sent.
 - `Sao ke` keeps header, filters, selection bar, and export controls fixed while
   only the transaction list scrolls. The page allows selecting and copying text.
-- `Sao ke` and `Tien vao` cards use a green border when the transaction has at
-  least one stored order and a red border when the order list is empty. `Tien
-  vao` uses the order list only for the border and does not display order codes.
+- `Sao ke` cards use a yellow border while an order-transfer request is
+  pending, otherwise green when the transaction has at least one stored order
+  and red when the order list is empty. `Tien vao` cards keep the green/red
+  order-present border and do not display order codes.
 
 ## Payment Confirmation Research
 

@@ -20,6 +20,30 @@ class BankStatementPage {
   });
 }
 
+class BankStatementOrderTransferRequestPage {
+  final List<BankStatementOrderTransferRequest> requests;
+  final int page;
+  final int limit;
+  final int total;
+
+  const BankStatementOrderTransferRequestPage({
+    required this.requests,
+    required this.page,
+    required this.limit,
+    required this.total,
+  });
+}
+
+class BankStatementOrderTransferReviewResult {
+  final BankStatementOrderTransferRequest request;
+  final BankStatementTransaction? transaction;
+
+  const BankStatementOrderTransferReviewResult({
+    required this.request,
+    required this.transaction,
+  });
+}
+
 class BankStatementQuery {
   final bool allStores;
   final List<String> storeIds;
@@ -125,6 +149,98 @@ class BankStatementRepository {
     );
     return BankStatementTransaction.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<BankStatementOrderTransferRequest> createOrderTransferRequest(
+    String transactionId,
+    List<String> orders,
+  ) async {
+    final response = await _apiClient.post(
+      ApiConstants.adminMapVietinStatementOrderTransferRequestsEndpoint(
+        transactionId,
+      ),
+      body: {'orders': orders},
+    );
+    return BankStatementOrderTransferRequest.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<BankStatementOrderTransferRequestPage> fetchOrderTransferRequests({
+    String status = 'PENDING',
+    bool allStores = false,
+    List<String> storeIds = const [],
+    int page = 0,
+    int limit = 50,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConstants.adminMapVietinStatementOrderTransferRequestsListEndpoint,
+      queryParameters: {
+        'status': status,
+        if (allStores) 'allStores': 'true',
+        if (storeIds.isNotEmpty) 'storeIds': storeIds.join(','),
+        'page': page.toString(),
+        'limit': limit.toString(),
+      },
+    );
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final rows = data['list'] is List ? data['list'] as List : const [];
+    final requests = rows
+        .whereType<Map>()
+        .map(
+          (row) => BankStatementOrderTransferRequest.fromJson(
+            row.map((key, value) => MapEntry(key.toString(), value)),
+          ),
+        )
+        .toList();
+    return BankStatementOrderTransferRequestPage(
+      requests: requests,
+      page: int.tryParse(data['page']?.toString() ?? '') ?? page,
+      limit: int.tryParse(data['limit']?.toString() ?? '') ?? limit,
+      total: int.tryParse(data['total']?.toString() ?? '') ?? requests.length,
+    );
+  }
+
+  Future<BankStatementOrderTransferReviewResult> approveOrderTransferRequest(
+    String requestId,
+  ) {
+    return _reviewOrderTransferRequest(
+      ApiConstants.adminMapVietinStatementOrderTransferApproveEndpoint(
+        requestId,
+      ),
+    );
+  }
+
+  Future<BankStatementOrderTransferReviewResult> rejectOrderTransferRequest(
+    String requestId,
+  ) {
+    return _reviewOrderTransferRequest(
+      ApiConstants.adminMapVietinStatementOrderTransferRejectEndpoint(
+        requestId,
+      ),
+    );
+  }
+
+  Future<BankStatementOrderTransferReviewResult> _reviewOrderTransferRequest(
+    String endpoint,
+  ) async {
+    final response = await _apiClient.post(endpoint, body: const {});
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final transaction = data['transaction'] is Map
+        ? BankStatementTransaction.fromJson(
+            (data['transaction'] as Map).map(
+              (key, value) => MapEntry(key.toString(), value),
+            ),
+          )
+        : null;
+    return BankStatementOrderTransferReviewResult(
+      request: BankStatementOrderTransferRequest.fromJson(
+        (data['request'] as Map).map(
+          (key, value) => MapEntry(key.toString(), value),
+        ),
+      ),
+      transaction: transaction,
     );
   }
 

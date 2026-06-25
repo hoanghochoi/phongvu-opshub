@@ -12,8 +12,13 @@
   scoped by store code.
 - Add statement endpoints under `/admin/map-vietin/statements` for list, CSV
   export, inline order update, and order history.
+- Add an ACC-reviewed order-transfer request table and endpoints so visible
+  statement users can request order replacement within 24 hours from
+  `paidAt ?? firstSeenAt`; `SUPER_ADMIN`, `FIN_ACC`, and `ACC` reviewers can
+  approve or reject.
 - Build a Flutter `bank_statement` feature that reuses existing responsive
-  layout, buttons, state panels, chips, and logging patterns.
+  layout, buttons, state panels, chips, and logging patterns, including a
+  scoped ACC notification bell for pending order-transfer requests.
 
 ## Alternatives Considered
 
@@ -26,11 +31,17 @@
 
 ## Data And Contract Changes
 
-- API: add statement list/export/update/history endpoints and return `orders`
-  metadata on stored MAP transactions.
+- API: add statement list/export/update/history and order-transfer
+  create/list/approve/reject endpoints, return `orders` plus pending/offset
+  metadata on stored MAP transactions, and filter `OFFSET_PENDING` /
+  `OFFSET_CONFIRMED`.
 - Database: add order array/metadata columns and
-  `MapVietinTransactionOrderAudit`.
-- Redis/WebSocket: no contract change.
+  `MapVietinTransactionOrderAudit`; add
+  `MapVietinStatementOrderTransferRequest` with one pending request per
+  transaction.
+- Redis/WebSocket: publish scoped `STATEMENT_ORDER_TRANSFER_REQUESTED` from
+  NestJS and relay it as `STATEMENT_ORDER_TRANSFER_REQUEST` from Go without
+  sending order contents over realtime.
 - Environment: no new environment variable.
 
 ## Rollback Plan

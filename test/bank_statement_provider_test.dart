@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/bank_statement/data/bank_statement_repository.dart';
@@ -341,6 +342,104 @@ void main() {
 
       provider.dispose();
     });
+
+    test('accepts newline separated inline order input', () async {
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+      await provider.initialize(_nationalManager);
+      provider.setOrder('26052912345678');
+      await provider.search();
+
+      await provider.updateOrders(
+        'tx-1',
+        '26052912345678\n26053087654321, 26052912345678',
+      );
+
+      expect(repository.updateOrdersCount, 1);
+      expect(repository.lastUpdatedOrders, [
+        '26052912345678',
+        '26053087654321',
+      ]);
+      expect(provider.transactions.first.orders, [
+        '26052912345678',
+        '26053087654321',
+      ]);
+
+      provider.dispose();
+    });
+
+    test('passes offset order status filters to statement query', () async {
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+      await provider.initialize(_nationalManager);
+
+      provider.setOrderStatus('OFFSET_PENDING');
+      await provider.search();
+      expect(repository.lastQuery?.orderStatus, 'OFFSET_PENDING');
+
+      provider.setOrderStatus('OFFSET_CONFIRMED');
+      await provider.search();
+      expect(repository.lastQuery?.orderStatus, 'OFFSET_CONFIRMED');
+
+      provider.dispose();
+    });
+
+    test('creates pending order transfer request with newline input', () async {
+      final repository = _FakeBankStatementRepository(
+        canReviewOrderTransfers: true,
+      );
+      final provider = BankStatementProvider(repository);
+      await provider.initialize(_accUser);
+      provider.setOrder('26052912345678');
+      await provider.search();
+
+      final ok = await provider.requestOrderTransfer(
+        'tx-1',
+        '26052987654321\n26053000000000, 26052987654321',
+      );
+
+      expect(ok, isTrue);
+      expect(repository.createOrderTransferRequestCount, 1);
+      expect(repository.lastTransferRequestedOrders, [
+        '26052987654321',
+        '26053000000000',
+      ]);
+      expect(provider.canReviewOrderTransfers, isTrue);
+      expect(provider.pendingOrderTransferTotal, 1);
+      expect(
+        provider.transactions.first.hasPendingOrderTransferRequest,
+        isTrue,
+      );
+      expect(provider.transactions.first.orderTransferRequestedOrders, [
+        '26052987654321',
+        '26053000000000',
+      ]);
+
+      provider.dispose();
+    });
+
+    test(
+      'approves pending order transfer and marks offset transaction',
+      () async {
+        final repository = _FakeBankStatementRepository(
+          canReviewOrderTransfers: true,
+        );
+        final provider = BankStatementProvider(repository);
+        await provider.initialize(_accUser);
+        provider.setOrder('26052912345678');
+        await provider.search();
+        await provider.requestOrderTransfer('tx-1', '26052987654321');
+
+        await provider.approveOrderTransferRequest('request-1');
+
+        expect(repository.approveOrderTransferRequestCount, 1);
+        expect(provider.pendingOrderTransferTotal, 0);
+        expect(provider.transactions.first.orders, ['26052987654321']);
+        expect(provider.transactions.first.isOrderOffsetConfirmed, isTrue);
+
+        provider.dispose();
+      },
+    );
   });
 
   test('export body sends selected ids when present', () {
@@ -410,28 +509,47 @@ const _storeScopedManager = User(
   policyAccess: {'BANK_STATEMENT_ALL_SCOPE': false},
 );
 
+const _accUser = User(
+  id: 'acc-1',
+  email: 'acc@example.com',
+  role: 'USER',
+  storeId: 'CP01',
+  workScopeType: 'STORE',
+  departmentCode: 'ACC',
+  featureAccess: {'BANK_STATEMENTS': true},
+);
+
 class _FakeBankStatementRepository extends BankStatementRepository {
   int fetchStatementsCount = 0;
   int updateOrdersCount = 0;
+  int createOrderTransferRequestCount = 0;
+  int fetchOrderTransferRequestsCount = 0;
+  int approveOrderTransferRequestCount = 0;
+  int rejectOrderTransferRequestCount = 0;
   int exportCsvCount = 0;
   BankStatementQuery? lastQuery;
   BankStatementQuery? lastExportQuery;
   final List<BankStatementQuery> seenQueries = [];
   List<String> lastUpdatedOrders = const [];
+  List<String> lastTransferRequestedOrders = const [];
   List<String> lastExportTransactionIds = const [];
+  final bool canReviewOrderTransfers;
+  final List<BankStatementOrderTransferRequest> _pendingRequests = [];
 
   final List<List<BankStatementTransaction>> _pages;
 
-  _FakeBankStatementRepository({List<List<BankStatementTransaction>>? pages})
-    : _pages =
-          pages ??
-          [
-            [
-              _transaction('tx-1', ['26052912345678']),
-              _transaction('tx-2', const []),
-            ],
-          ],
-      super(ApiClient());
+  _FakeBankStatementRepository({
+    List<List<BankStatementTransaction>>? pages,
+    this.canReviewOrderTransfers = false,
+  }) : _pages =
+           pages ??
+           [
+             [
+               _transaction('tx-1', ['26052912345678']),
+               _transaction('tx-2', const []),
+             ],
+           ],
+       super(ApiClient());
 
   @override
   Future<List<StoreBranch>> fetchStores() async {
@@ -482,6 +600,124 @@ class _FakeBankStatementRepository extends BankStatementRepository {
   }
 
   @override
+  Future<BankStatementOrderTransferRequest> createOrderTransferRequest(
+    String transactionId,
+    List<String> orders,
+  ) async {
+    createOrderTransferRequestCount += 1;
+    lastTransferRequestedOrders = List.of(orders);
+    final transaction = _findTransaction(transactionId);
+    final request = _transferRequest(
+      id: 'request-${_pendingRequests.length + 1}',
+      transaction: transaction,
+      requestedOrders: orders,
+      status: 'PENDING',
+    );
+    _pendingRequests.add(request);
+    _replaceTransaction(
+      _copyTransaction(
+        transaction,
+        canEditOrders: false,
+        orderEditBlockedReason: 'Giao dịch đang chờ ACC xác nhận',
+        canRequestOrderTransfer: false,
+        orderTransferRequestBlockedReason: 'Giao dịch đang chờ ACC xác nhận',
+        hasPendingOrderTransferRequest: true,
+        orderTransferRequestId: request.id,
+        orderTransferRequestedOrders: orders,
+        orderTransferStatus: 'PENDING',
+      ),
+    );
+    return request;
+  }
+
+  @override
+  Future<BankStatementOrderTransferRequestPage> fetchOrderTransferRequests({
+    String status = 'PENDING',
+    bool allStores = false,
+    List<String> storeIds = const [],
+    int page = 0,
+    int limit = 50,
+  }) async {
+    fetchOrderTransferRequestsCount += 1;
+    if (!canReviewOrderTransfers) {
+      throw ApiException('Bạn không có quyền thực hiện thao tác này.', 403);
+    }
+    final matching = _pendingRequests
+        .where((request) => request.status == status)
+        .toList(growable: false);
+    return BankStatementOrderTransferRequestPage(
+      requests: matching,
+      page: page,
+      limit: limit,
+      total: matching.length,
+    );
+  }
+
+  @override
+  Future<BankStatementOrderTransferReviewResult> approveOrderTransferRequest(
+    String requestId,
+  ) async {
+    approveOrderTransferRequestCount += 1;
+    final request = _removePendingRequest(requestId);
+    final transaction = _findTransaction(request.transactionId);
+    final updatedTransaction = _copyTransaction(
+      transaction,
+      orders: request.requestedOrders,
+      orderSource: 'OFFSET',
+      canEditOrders: true,
+      orderEditBlockedReason: null,
+      canRequestOrderTransfer: true,
+      orderTransferRequestBlockedReason: null,
+      hasPendingOrderTransferRequest: false,
+      orderTransferRequestId: null,
+      orderTransferRequestedOrders: const [],
+      orderTransferStatus: 'APPROVED',
+      isOrderOffsetConfirmed: true,
+    );
+    _replaceTransaction(updatedTransaction);
+    return BankStatementOrderTransferReviewResult(
+      request: _transferRequest(
+        id: request.id,
+        transaction: updatedTransaction,
+        requestedOrders: request.requestedOrders,
+        status: 'APPROVED',
+      ),
+      transaction: updatedTransaction,
+    );
+  }
+
+  @override
+  Future<BankStatementOrderTransferReviewResult> rejectOrderTransferRequest(
+    String requestId,
+  ) async {
+    rejectOrderTransferRequestCount += 1;
+    final request = _removePendingRequest(requestId);
+    final transaction = _findTransaction(request.transactionId);
+    _replaceTransaction(
+      _copyTransaction(
+        transaction,
+        canEditOrders: true,
+        orderEditBlockedReason: null,
+        canRequestOrderTransfer: true,
+        orderTransferRequestBlockedReason: null,
+        hasPendingOrderTransferRequest: false,
+        orderTransferRequestId: null,
+        orderTransferRequestedOrders: const [],
+        orderTransferStatus: 'REJECTED',
+      ),
+    );
+    return BankStatementOrderTransferReviewResult(
+      request: _transferRequest(
+        id: request.id,
+        transaction: transaction,
+        requestedOrders: request.requestedOrders,
+        status: 'REJECTED',
+      ),
+      transaction: null,
+    );
+  }
+
+  @override
   Future<List<BankStatementOrderHistoryEntry>> fetchOrderHistory(
     String transactionId,
   ) async {
@@ -498,7 +734,38 @@ class _FakeBankStatementRepository extends BankStatementRepository {
     lastExportTransactionIds = List.of(transactionIds);
     return Uint8List.fromList([0xef, 0xbb, 0xbf, 0x63, 0x73, 0x76]);
   }
+
+  BankStatementTransaction _findTransaction(String transactionId) {
+    for (final page in _pages) {
+      for (final transaction in page) {
+        if (transaction.id == transactionId) return transaction;
+      }
+    }
+    throw StateError('Missing fake transaction $transactionId');
+  }
+
+  void _replaceTransaction(BankStatementTransaction transaction) {
+    for (var pageIndex = 0; pageIndex < _pages.length; pageIndex += 1) {
+      final index = _pages[pageIndex].indexWhere(
+        (row) => row.id == transaction.id,
+      );
+      if (index < 0) continue;
+      _pages[pageIndex][index] = transaction;
+      return;
+    }
+    throw StateError('Missing fake transaction ${transaction.id}');
+  }
+
+  BankStatementOrderTransferRequest _removePendingRequest(String requestId) {
+    final index = _pendingRequests.indexWhere(
+      (request) => request.id == requestId,
+    );
+    if (index < 0) throw StateError('Missing fake request $requestId');
+    return _pendingRequests.removeAt(index);
+  }
 }
+
+const Object _unchanged = Object();
 
 BankStatementTransaction _transaction(String id, List<String> orders) {
   return BankStatementTransaction(
@@ -519,5 +786,92 @@ BankStatementTransaction _transaction(String id, List<String> orders) {
     payerAccount: null,
     canEditOrders: true,
     orderEditBlockedReason: null,
+    canRequestOrderTransfer: true,
+    orderTransferRequestBlockedReason: null,
+    hasPendingOrderTransferRequest: false,
+    orderTransferRequestId: null,
+    orderTransferRequestedOrders: const [],
+    orderTransferStatus: null,
+    isOrderOffsetConfirmed: false,
+  );
+}
+
+BankStatementTransaction _copyTransaction(
+  BankStatementTransaction transaction, {
+  List<String>? orders,
+  String? orderSource,
+  bool? canEditOrders,
+  Object? orderEditBlockedReason = _unchanged,
+  bool? canRequestOrderTransfer,
+  Object? orderTransferRequestBlockedReason = _unchanged,
+  bool? hasPendingOrderTransferRequest,
+  Object? orderTransferRequestId = _unchanged,
+  List<String>? orderTransferRequestedOrders,
+  String? orderTransferStatus,
+  bool? isOrderOffsetConfirmed,
+}) {
+  return BankStatementTransaction(
+    id: transaction.id,
+    storeId: transaction.storeId,
+    transactionKey: transaction.transactionKey,
+    transactionNumber: transaction.transactionNumber,
+    amount: transaction.amount,
+    content: transaction.content,
+    orders: orders ?? transaction.orders,
+    orderSource: orderSource ?? transaction.orderSource,
+    orderUpdatedAt: transaction.orderUpdatedAt,
+    orderUpdatedByEmail: transaction.orderUpdatedByEmail,
+    status: transaction.status,
+    paidAt: transaction.paidAt,
+    firstSeenAt: transaction.firstSeenAt,
+    payerName: transaction.payerName,
+    payerAccount: transaction.payerAccount,
+    canEditOrders: canEditOrders ?? transaction.canEditOrders,
+    orderEditBlockedReason: identical(orderEditBlockedReason, _unchanged)
+        ? transaction.orderEditBlockedReason
+        : orderEditBlockedReason as String?,
+    canRequestOrderTransfer:
+        canRequestOrderTransfer ?? transaction.canRequestOrderTransfer,
+    orderTransferRequestBlockedReason:
+        identical(orderTransferRequestBlockedReason, _unchanged)
+        ? transaction.orderTransferRequestBlockedReason
+        : orderTransferRequestBlockedReason as String?,
+    hasPendingOrderTransferRequest:
+        hasPendingOrderTransferRequest ??
+        transaction.hasPendingOrderTransferRequest,
+    orderTransferRequestId: identical(orderTransferRequestId, _unchanged)
+        ? transaction.orderTransferRequestId
+        : orderTransferRequestId as String?,
+    orderTransferRequestedOrders:
+        orderTransferRequestedOrders ??
+        transaction.orderTransferRequestedOrders,
+    orderTransferStatus: orderTransferStatus ?? transaction.orderTransferStatus,
+    isOrderOffsetConfirmed:
+        isOrderOffsetConfirmed ?? transaction.isOrderOffsetConfirmed,
+  );
+}
+
+BankStatementOrderTransferRequest _transferRequest({
+  required String id,
+  required BankStatementTransaction transaction,
+  required List<String> requestedOrders,
+  required String status,
+}) {
+  return BankStatementOrderTransferRequest(
+    id: id,
+    transactionId: transaction.id,
+    storeCode: transaction.storeId,
+    oldOrders: transaction.orders,
+    requestedOrders: requestedOrders,
+    status: status,
+    requestedByEmail: 'staff@example.com',
+    reviewedByEmail: null,
+    reviewedAt: null,
+    createdAt: DateTime.utc(2026, 5, 29, 3),
+    transactionNumber: transaction.transactionNumber,
+    amount: transaction.amount,
+    content: transaction.content,
+    paidAt: transaction.paidAt,
+    firstSeenAt: transaction.firstSeenAt,
   );
 }

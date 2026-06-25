@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
@@ -12,6 +16,10 @@ import '../../domain/bank_statement_transaction.dart';
 
 const int _vietnamUtcOffsetHours = 7;
 const int _maxExportDateSpanDays = 31;
+const String _orderTransferRealtimeEventType =
+    'STATEMENT_ORDER_TRANSFER_REQUEST';
+
+typedef BankStatementRealtimeConnector = WebSocketChannel Function(Uri uri);
 
 class BankStatementRowMessage {
   final String text;
@@ -23,17 +31,25 @@ class BankStatementRowMessage {
 class BankStatementProvider extends ChangeNotifier {
   final BankStatementRepository _repository;
   final DateTime Function() _now;
+  final BankStatementRealtimeConnector _realtimeConnector;
   final List<BankStatementTransaction> _transactions = [];
+  final List<BankStatementOrderTransferRequest> _pendingOrderTransferRequests =
+      [];
   final List<StoreBranch> _stores = [];
   final Set<String> _selectedIds = {};
   final Map<String, BankStatementRowMessage> _rowMessages = {};
   final Map<String, Timer> _messageTimers = {};
+  StreamSubscription<dynamic>? _orderTransferRealtimeSubscription;
+  WebSocketChannel? _orderTransferRealtimeChannel;
+  String? _orderTransferRealtimeUrl;
 
   User? _user;
   bool _storesLoaded = false;
   bool _allStores = false;
   bool _isLoading = false;
   bool _isExporting = false;
+  bool _isLoadingOrderTransferRequests = false;
+  bool _canReviewOrderTransfers = false;
   bool _hasSearched = false;
   String? _errorMessage;
   String? _exportMessage;
@@ -46,18 +62,28 @@ class BankStatementProvider extends ChangeNotifier {
   int _page = 0;
   int _limit = 20;
   int _total = 0;
+  int _pendingOrderTransferTotal = 0;
   Set<String> _selectedStoreIds = {};
 
-  BankStatementProvider(this._repository, {DateTime Function()? now})
-    : _now = now ?? DateTime.now;
+  BankStatementProvider(
+    this._repository, {
+    DateTime Function()? now,
+    BankStatementRealtimeConnector? realtimeConnector,
+  }) : _now = now ?? DateTime.now,
+       _realtimeConnector =
+           realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri));
 
   List<BankStatementTransaction> get transactions =>
       List.unmodifiable(_transactions);
+  List<BankStatementOrderTransferRequest> get pendingOrderTransferRequests =>
+      List.unmodifiable(_pendingOrderTransferRequests);
   List<StoreBranch> get stores => List.unmodifiable(_stores);
   Set<String> get selectedIds => Set.unmodifiable(_selectedIds);
   bool get allStores => _allStores;
   bool get isLoading => _isLoading;
   bool get isExporting => _isExporting;
+  bool get isLoadingOrderTransferRequests => _isLoadingOrderTransferRequests;
+  bool get canReviewOrderTransfers => _canReviewOrderTransfers;
   bool get hasSearched => _hasSearched;
   String? get errorMessage => _errorMessage;
   String? get exportMessage => _exportMessage;
@@ -70,6 +96,7 @@ class BankStatementProvider extends ChangeNotifier {
   int get page => _page;
   int get limit => _limit;
   int get total => _total;
+  int get pendingOrderTransferTotal => _pendingOrderTransferTotal;
   Set<String> get selectedStoreIds => Set.unmodifiable(_selectedStoreIds);
   bool get canGoPrevious => _page > 0;
   bool get canGoNext => (_page + 1) * _limit < _total;
@@ -102,8 +129,11 @@ class BankStatementProvider extends ChangeNotifier {
       'Bank statement screen opened',
       context: {'role': user?.role, 'scope': user?.workScopeType},
     );
-    if (_storesLoaded) return;
-    await loadStores();
+    if (!_storesLoaded) {
+      await loadStores();
+    }
+    await loadPendingOrderTransferRequests(silent: true);
+    _connectOrderTransferRealtime();
   }
 
   Future<void> loadStores() async {
@@ -161,6 +191,10 @@ class BankStatementProvider extends ChangeNotifier {
     }
     _resetPagingAndSelection();
     notifyListeners();
+    if (_canReviewOrderTransfers) {
+      unawaited(loadPendingOrderTransferRequests(silent: true));
+      _connectOrderTransferRealtime();
+    }
   }
 
   void setOrder(String value) {
@@ -432,9 +466,10 @@ class BankStatementProvider extends ChangeNotifier {
         context: {'transactionId': transactionId, 'orderCount': orders.length},
       );
     } catch (error) {
-      final message = error is ApiException
-          ? error.message
-          : 'Chưa lưu được mã đơn.';
+      final message = _orderInputErrorMessage(
+        error,
+        fallback: 'Chưa lưu được mã đơn.',
+      );
       _showRowMessage(transactionId, message, false);
       await AppLogger.instance.error(
         'BankStatement',
@@ -443,6 +478,116 @@ class BankStatementProvider extends ChangeNotifier {
         context: {'transactionId': transactionId},
       );
     }
+  }
+
+  Future<bool> requestOrderTransfer(
+    String transactionId,
+    String rawInput,
+  ) async {
+    try {
+      final orders = parseOrderInput(rawInput);
+      if (orders.isEmpty) {
+        throw const FormatException('Missing order codes');
+      }
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement order transfer request started',
+        context: {'transactionId': transactionId, 'orderCount': orders.length},
+      );
+      await _repository.createOrderTransferRequest(transactionId, orders);
+      _showRowMessage(transactionId, 'Đã gửi ACC xác nhận.', true);
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement order transfer request succeeded',
+        context: {'transactionId': transactionId, 'orderCount': orders.length},
+      );
+      await loadPendingOrderTransferRequests(silent: true);
+      if (_hasSearched) {
+        await _fetchPage(_page);
+      } else {
+        notifyListeners();
+      }
+      return true;
+    } catch (error) {
+      final message = _orderInputErrorMessage(
+        error,
+        fallback: 'Chưa gửi được yêu cầu cập nhật mã đơn.',
+      );
+      _showRowMessage(transactionId, message, false);
+      await AppLogger.instance.error(
+        'BankStatement',
+        'Bank statement order transfer request failed',
+        error: error,
+        context: {'transactionId': transactionId},
+      );
+      return false;
+    }
+  }
+
+  Future<void> loadPendingOrderTransferRequests({bool silent = false}) async {
+    if (_isLoadingOrderTransferRequests) return;
+    _isLoadingOrderTransferRequests = true;
+    if (!silent) notifyListeners();
+    try {
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement pending order transfer load started',
+        context: _orderTransferLogContext(),
+      );
+      final result = await _repository.fetchOrderTransferRequests(
+        status: 'PENDING',
+        allStores: _allStores || (canUseAllStores && _selectedStoreIds.isEmpty),
+        storeIds: _selectedStoreIds.toList()..sort(),
+      );
+      _pendingOrderTransferRequests
+        ..clear()
+        ..addAll(result.requests);
+      _pendingOrderTransferTotal = result.total;
+      _canReviewOrderTransfers = true;
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement pending order transfer load succeeded',
+        context: {
+          ..._orderTransferLogContext(),
+          'count': _pendingOrderTransferRequests.length,
+          'total': _pendingOrderTransferTotal,
+        },
+      );
+    } catch (error) {
+      final reviewUnavailable =
+          error is ApiException &&
+          (error.statusCode == 401 || error.statusCode == 403);
+      if (reviewUnavailable) {
+        _canReviewOrderTransfers = false;
+        _pendingOrderTransferRequests.clear();
+        _pendingOrderTransferTotal = 0;
+        _closeOrderTransferRealtime();
+      }
+      if (reviewUnavailable) {
+        await AppLogger.instance.info(
+          'BankStatement',
+          'Bank statement pending order transfer unavailable for user',
+          context: _orderTransferLogContext(),
+        );
+      } else {
+        await AppLogger.instance.warn(
+          'BankStatement',
+          'Bank statement pending order transfer load failed',
+          context: {..._orderTransferLogContext(), 'error': error.toString()},
+        );
+      }
+    } finally {
+      _isLoadingOrderTransferRequests = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> approveOrderTransferRequest(String requestId) {
+    return _reviewOrderTransferRequest(requestId, approved: true);
+  }
+
+  Future<void> rejectOrderTransferRequest(String requestId) {
+    return _reviewOrderTransferRequest(requestId, approved: false);
   }
 
   Future<List<BankStatementOrderHistoryEntry>> fetchHistory(
@@ -487,6 +632,7 @@ class BankStatementProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _closeOrderTransferRealtime();
     for (final timer in _messageTimers.values) {
       timer.cancel();
     }
@@ -546,6 +692,179 @@ class BankStatementProvider extends ChangeNotifier {
     if (visibleIndex >= 0) _transactions[visibleIndex] = updated;
   }
 
+  Future<void> _reviewOrderTransferRequest(
+    String requestId, {
+    required bool approved,
+  }) async {
+    try {
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement order transfer review started',
+        context: {'requestId': requestId, 'approved': approved},
+      );
+      final result = approved
+          ? await _repository.approveOrderTransferRequest(requestId)
+          : await _repository.rejectOrderTransferRequest(requestId);
+      final transaction = result.transaction;
+      if (transaction != null) {
+        _replaceTransaction(transaction);
+        _showRowMessage(
+          transaction.id,
+          approved ? 'Đã xác nhận cấn trừ.' : 'Đã từ chối cấn trừ.',
+          true,
+        );
+      }
+      await loadPendingOrderTransferRequests(silent: true);
+      if (_hasSearched) {
+        await _fetchPage(_page);
+      } else {
+        notifyListeners();
+      }
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement order transfer review succeeded',
+        context: {'requestId': requestId, 'approved': approved},
+      );
+    } catch (error) {
+      await AppLogger.instance.error(
+        'BankStatement',
+        'Bank statement order transfer review failed',
+        error: error,
+        context: {'requestId': requestId, 'approved': approved},
+      );
+      rethrow;
+    }
+  }
+
+  void _connectOrderTransferRealtime() {
+    if (!_canReviewOrderTransfers) {
+      _closeOrderTransferRealtime();
+      return;
+    }
+    final token = ApiClient().authToken?.trim();
+    if (token == null || token.isEmpty) return;
+    final url = ApiConstants.realtimeWsUrl(
+      storeId: _orderTransferRealtimeStoreId(),
+      accessToken: token,
+    );
+    if (_orderTransferRealtimeUrl == url &&
+        _orderTransferRealtimeChannel != null) {
+      return;
+    }
+    _closeOrderTransferRealtime();
+    try {
+      final channel = _realtimeConnector(Uri.parse(url));
+      _orderTransferRealtimeChannel = channel;
+      _orderTransferRealtimeUrl = url;
+      _orderTransferRealtimeSubscription = channel.stream.listen(
+        _handleOrderTransferRealtimeMessage,
+        onError: (error, stackTrace) {
+          unawaited(
+            AppLogger.instance.warn(
+              'BankStatement',
+              'Bank statement order transfer realtime failed',
+              context: {
+                ..._orderTransferLogContext(),
+                'error': error.toString(),
+                'stackTrace': stackTrace.toString(),
+              },
+            ),
+          );
+        },
+        onDone: () {
+          _orderTransferRealtimeChannel = null;
+          _orderTransferRealtimeSubscription = null;
+          _orderTransferRealtimeUrl = null;
+        },
+      );
+      unawaited(
+        AppLogger.instance.info(
+          'BankStatement',
+          'Bank statement order transfer realtime connected',
+          context: _orderTransferLogContext(),
+        ),
+      );
+    } catch (error, stackTrace) {
+      unawaited(
+        AppLogger.instance.warn(
+          'BankStatement',
+          'Bank statement order transfer realtime connect failed',
+          context: {
+            ..._orderTransferLogContext(),
+            'error': error.toString(),
+            'stackTrace': stackTrace.toString(),
+          },
+        ),
+      );
+    }
+  }
+
+  void _closeOrderTransferRealtime() {
+    final subscription = _orderTransferRealtimeSubscription;
+    if (subscription != null) {
+      unawaited(subscription.cancel());
+    }
+    _orderTransferRealtimeSubscription = null;
+    final channel = _orderTransferRealtimeChannel;
+    if (channel != null) {
+      unawaited(channel.sink.close());
+    }
+    _orderTransferRealtimeChannel = null;
+    _orderTransferRealtimeUrl = null;
+  }
+
+  void _handleOrderTransferRealtimeMessage(dynamic message) {
+    try {
+      final text = switch (message) {
+        String value => value,
+        List<int> value => utf8.decode(value),
+        _ => '',
+      };
+      if (text.isEmpty) return;
+      final decoded = jsonDecode(text);
+      if (decoded is! Map ||
+          decoded['type']?.toString() != _orderTransferRealtimeEventType) {
+        return;
+      }
+      final payload = decoded['payload'];
+      final transactionId = payload is Map
+          ? payload['transactionId']?.toString()
+          : null;
+      unawaited(
+        AppLogger.instance.info(
+          'BankStatement',
+          'Bank statement order transfer realtime received',
+          context: {
+            ..._orderTransferLogContext(),
+            'hasTransactionId': transactionId?.isNotEmpty == true,
+          },
+        ),
+      );
+      unawaited(loadPendingOrderTransferRequests(silent: true));
+      if (_hasSearched) {
+        unawaited(_fetchPage(_page));
+      }
+    } catch (error, stackTrace) {
+      unawaited(
+        AppLogger.instance.warn(
+          'BankStatement',
+          'Bank statement order transfer realtime parse failed',
+          context: {
+            ..._orderTransferLogContext(),
+            'error': error.toString(),
+            'stackTrace': stackTrace.toString(),
+          },
+        ),
+      );
+    }
+  }
+
+  String? _orderTransferRealtimeStoreId() {
+    if (_selectedStoreIds.length == 1) return _selectedStoreIds.single;
+    if (!canUseAllStores) return _user?.storeId;
+    return null;
+  }
+
   DateTime _effectiveStartDate() => _startDate ?? _todayInVietnam();
 
   DateTime _effectiveEndDate() => _endDate ?? _todayInVietnam();
@@ -569,6 +888,14 @@ class BankStatementProvider extends ChangeNotifier {
   String? _clean(String value) {
     final text = value.trim();
     return text.isEmpty ? null : text;
+  }
+
+  String _orderInputErrorMessage(Object error, {required String fallback}) {
+    if (error is ApiException) return error.message;
+    if (error is FormatException) {
+      return 'Mã đơn hàng phải gồm 14 chữ số, ngăn cách bằng dòng hoặc dấu phẩy.';
+    }
+    return fallback;
   }
 
   void _showRowMessage(String id, String text, bool success) {
@@ -604,6 +931,15 @@ class BankStatementProvider extends ChangeNotifier {
       'defaultTodayDate': _usesDefaultTodayDateRange,
       'page': _page,
       'limit': _limit,
+    };
+  }
+
+  Map<String, Object?> _orderTransferLogContext() {
+    return {
+      'allStores': _allStores || (canUseAllStores && _selectedStoreIds.isEmpty),
+      'storeCount': _selectedStoreIds.length,
+      'canReview': _canReviewOrderTransfers,
+      'pendingTotal': _pendingOrderTransferTotal,
     };
   }
 

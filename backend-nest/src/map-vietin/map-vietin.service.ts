@@ -18,8 +18,11 @@ import { FEATURE_KEYS } from '../feature/feature.constants';
 import { FeatureService } from '../feature/feature.service';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
+import { RedisService } from '../redis/redis.service';
 import {
+  CreateMapVietinStatementOrderTransferRequestDto,
   ExportMapVietinStatementsDto,
+  ListMapVietinStatementOrderTransferRequestsDto,
   ListStoredMapVietinTransactionsDto,
   ListMapVietinStatementsDto,
   SearchMapVietinTransactionsDto,
@@ -43,13 +46,24 @@ const DEFAULT_GLOBAL_SESSION_TTL_SECONDS = 10 * 60;
 const VIETNAM_UTC_OFFSET_HOURS = 7;
 const ORDER_SOURCE_AUTO = 'AUTO';
 const ORDER_SOURCE_MANUAL = 'MANUAL';
+const ORDER_SOURCE_OFFSET = 'OFFSET';
 const FIN_ACC_DEPARTMENT_CODE = 'FIN_ACC';
+const ACC_DEPARTMENT_CODE = 'ACC';
 const ORDER_EDIT_FORBIDDEN_MESSAGE = 'Bạn không có quyền sửa đơn hàng.';
+const ORDER_TRANSFER_WINDOW_FORBIDDEN_MESSAGE =
+  'Quá thời hạn cập nhật trong ngày. Vui lòng dùng chức năng Cấn trừ.';
 const STATEMENT_ORDER_STATUS_ALL = 'ALL';
 const STATEMENT_ORDER_STATUS_HAS_ORDER = 'HAS_ORDER';
 const STATEMENT_ORDER_STATUS_MISSING_ORDER = 'MISSING_ORDER';
+const STATEMENT_ORDER_STATUS_OFFSET_PENDING = 'OFFSET_PENDING';
+const STATEMENT_ORDER_STATUS_OFFSET_CONFIRMED = 'OFFSET_CONFIRMED';
 const STATEMENT_EXPORT_MAX_DATE_SPAN_DAYS = 31;
+const STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING = 'PENDING';
+const STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_APPROVED = 'APPROVED';
+const STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_REJECTED = 'REJECTED';
+const STATEMENT_ORDER_TRANSFER_CHANNEL = 'STATEMENT_ORDER_TRANSFER_REQUESTED';
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const STATEMENT_ORDER_TRANSFER_WINDOW_MS = MS_PER_DAY;
 
 type MapLoginResponse = {
   error_code?: string;
@@ -197,6 +211,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     private featureService: FeatureService,
     @Optional()
     private paymentNotifications?: PaymentNotificationsService,
+    @Optional()
+    private redisService?: RedisService,
   ) {}
 
   onModuleInit() {
@@ -290,6 +306,13 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const [rows, total] = await Promise.all([
       this.prisma.mapVietinTransaction.findMany({
         where: query.where,
+        include: {
+          orderTransferRequests: {
+            where: { status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
         orderBy: [{ paidAt: 'desc' }, { firstSeenAt: 'desc' }],
         skip: query.page * query.limit,
         take: query.limit,
@@ -378,6 +401,16 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     });
     if (!existing) throw new BadRequestException('Giao dịch không hợp lệ');
     await this.assertCanReadStatementStore(user, existing.storeCode);
+    const pendingTransferRequest =
+      await this.prisma.mapVietinStatementOrderTransferRequest.findFirst({
+        where: {
+          transactionId: id,
+          status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING,
+        },
+      });
+    if (pendingTransferRequest) {
+      throw new BadRequestException('Giao dịch đang chờ ACC xác nhận');
+    }
 
     const oldOrders = this.normalizeOrderCodes(existing.orders || []);
     const changed = !this.sameOrderList(oldOrders, orders);
@@ -414,6 +447,112 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       `Statement orders updated: user=${this.safeUserLabel(user)} transaction=${id} store=${existing.storeCode} oldCount=${oldOrders.length} newCount=${orders.length} changed=${changed} protected=${oldOrders.length > 0} finAcc=${canEditProtectedOrders}`,
     );
     return this.toStoredTransactionDto(updated, { canEditProtectedOrders });
+  }
+
+  async createStatementOrderTransferRequest(
+    user: any,
+    transactionId: string,
+    input: CreateMapVietinStatementOrderTransferRequestDto,
+  ) {
+    await this.assertCanUseStatements(user);
+    const startedAt = Date.now();
+    const id = String(transactionId || '').trim();
+    if (!id) throw new BadRequestException('transactionId không hợp lệ');
+    const requestedOrders = this.normalizeOrderCodes(input.orders || []);
+    if (requestedOrders.length === 0) {
+      throw new BadRequestException('Vui lòng nhập mã đơn hàng mới');
+    }
+    const existing = await this.prisma.mapVietinTransaction.findUnique({
+      where: { id },
+    });
+    if (!existing) throw new BadRequestException('Giao dịch không hợp lệ');
+    await this.assertCanReadStatementStore(user, existing.storeCode);
+    this.assertStatementOrderTransferWindow(existing);
+    const oldOrders = this.normalizeOrderCodes(existing.orders || []);
+    if (this.sameOrderList(oldOrders, requestedOrders)) {
+      throw new BadRequestException('Mã đơn mới đang trùng mã hiện tại');
+    }
+    const pending =
+      await this.prisma.mapVietinStatementOrderTransferRequest.findFirst({
+        where: {
+          transactionId: id,
+          status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING,
+        },
+      });
+    if (pending) {
+      throw new BadRequestException('Giao dịch đang chờ ACC xác nhận');
+    }
+
+    try {
+      const request =
+        await this.prisma.mapVietinStatementOrderTransferRequest.create({
+          data: {
+            transactionId: id,
+            storeCode: existing.storeCode,
+            oldOrders,
+            requestedOrders,
+            requestedByUserId: user.id || null,
+            requestedByEmail: this.safeUserEmail(user),
+          },
+          include: { transaction: true },
+        });
+      await this.publishStatementOrderTransferRequestEvent(request);
+      this.logger.log(
+        `Statement order transfer requested: user=${this.safeUserLabel(user)} transaction=${id} request=${request.id} store=${existing.storeCode} oldCount=${oldOrders.length} requestedCount=${requestedOrders.length} durationMs=${Date.now() - startedAt}`,
+      );
+      return this.toStatementOrderTransferRequestDto(request);
+    } catch (error) {
+      if ((error as any)?.code === 'P2002') {
+        throw new BadRequestException('Giao dịch đang chờ ACC xác nhận');
+      }
+      this.logger.error(
+        `Statement order transfer request failed: user=${this.safeUserLabel(user)} transaction=${id} store=${existing.storeCode} requestedCount=${requestedOrders.length} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  async listStatementOrderTransferRequests(
+    user: any,
+    input: ListMapVietinStatementOrderTransferRequestsDto,
+  ) {
+    await this.assertCanReviewStatementOrderTransferRequests(user);
+    const filters = this.normalizeStatementTransferRequestFilters(input);
+    const scopeWhere = await this.buildStatementScopeWhere(user, {
+      requestedAllStores: filters.requestedAllStores,
+      storeIds: filters.storeIds,
+    });
+    const where: Prisma.MapVietinStatementOrderTransferRequestWhereInput = {
+      status: filters.status,
+      ...this.statementScopeWhereForTransferRequests(scopeWhere),
+    };
+    const [rows, total] = await Promise.all([
+      this.prisma.mapVietinStatementOrderTransferRequest.findMany({
+        where,
+        include: { transaction: true },
+        orderBy: { createdAt: 'desc' },
+        skip: filters.page * filters.limit,
+        take: filters.limit,
+      }),
+      this.prisma.mapVietinStatementOrderTransferRequest.count({ where }),
+    ]);
+    this.logger.log(
+      `Statement order transfer requests listed: user=${this.safeUserLabel(user)} status=${filters.status} count=${rows.length} total=${total} page=${filters.page} limit=${filters.limit}`,
+    );
+    return {
+      page: filters.page,
+      limit: filters.limit,
+      total,
+      list: rows.map((row) => this.toStatementOrderTransferRequestDto(row)),
+    };
+  }
+
+  async approveStatementOrderTransferRequest(user: any, requestId: string) {
+    return this.reviewStatementOrderTransferRequest(user, requestId, true);
+  }
+
+  async rejectStatementOrderTransferRequest(user: any, requestId: string) {
+    return this.reviewStatementOrderTransferRequest(user, requestId, false);
   }
 
   async listStatementOrderHistory(user: any, transactionId: string) {
@@ -838,7 +977,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       primaryCount > 0 ||
       Boolean(dateRange) ||
       orderStatus === STATEMENT_ORDER_STATUS_HAS_ORDER ||
-      orderStatus === STATEMENT_ORDER_STATUS_MISSING_ORDER;
+      orderStatus === STATEMENT_ORDER_STATUS_MISSING_ORDER ||
+      orderStatus === STATEMENT_ORDER_STATUS_OFFSET_PENDING ||
+      orderStatus === STATEMENT_ORDER_STATUS_OFFSET_CONFIRMED;
 
     return {
       requestedAllStores,
@@ -887,6 +1028,13 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return { storeCode: store.storeId };
   }
 
+  private statementScopeWhereForTransferRequests(
+    scopeWhere: Prisma.MapVietinTransactionWhereInput,
+  ): Prisma.MapVietinStatementOrderTransferRequestWhereInput {
+    const storeCode = (scopeWhere as any).storeCode;
+    return storeCode ? { storeCode } : {};
+  }
+
   private buildStatementFilterWhere(filters: {
     order?: string | null;
     amount?: number | null;
@@ -911,6 +1059,16 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       parts.push({ orders: { isEmpty: false } });
     } else if (filters.orderStatus === STATEMENT_ORDER_STATUS_MISSING_ORDER) {
       parts.push({ orders: { isEmpty: true } });
+    } else if (filters.orderStatus === STATEMENT_ORDER_STATUS_OFFSET_PENDING) {
+      parts.push({
+        orderTransferRequests: {
+          some: { status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING },
+        },
+      });
+    } else if (
+      filters.orderStatus === STATEMENT_ORDER_STATUS_OFFSET_CONFIRMED
+    ) {
+      parts.push({ orderSource: ORDER_SOURCE_OFFSET });
     }
     if (filters.dateRange) {
       parts.push({
@@ -1007,7 +1165,106 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async canEditProtectedStatementOrders(user: any): Promise<boolean> {
+    return this.userMatchesStatementAccessCodes(user, [
+      FIN_ACC_DEPARTMENT_CODE,
+    ]);
+  }
+
+  private async canReviewStatementOrderTransferRequests(
+    user: any,
+  ): Promise<boolean> {
+    return this.userMatchesStatementAccessCodes(user, [
+      FIN_ACC_DEPARTMENT_CODE,
+      ACC_DEPARTMENT_CODE,
+    ]);
+  }
+
+  private async assertCanReviewStatementOrderTransferRequests(user: any) {
+    await this.assertCanUseStatements(user);
+    if (await this.canReviewStatementOrderTransferRequests(user)) return;
+    throw new ForbiddenException('Bạn không có quyền xác nhận cấn trừ.');
+  }
+
+  private async reviewStatementOrderTransferRequest(
+    user: any,
+    requestId: string,
+    approved: boolean,
+  ) {
+    await this.assertCanReviewStatementOrderTransferRequests(user);
+    const id = String(requestId || '').trim();
+    if (!id) throw new BadRequestException('Yêu cầu không hợp lệ');
+    const request =
+      await this.prisma.mapVietinStatementOrderTransferRequest.findUnique({
+        where: { id },
+        include: { transaction: true },
+      });
+    if (!request) throw new BadRequestException('Yêu cầu không hợp lệ');
+    if (request.status !== STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING) {
+      throw new BadRequestException('Yêu cầu đã được xử lý');
+    }
+    await this.assertCanReadStatementStore(user, request.storeCode);
+    const reviewedAt = new Date();
+    const nextStatus = approved
+      ? STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_APPROVED
+      : STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_REJECTED;
+
+    let updatedTransaction: any = null;
+    if (approved) {
+      updatedTransaction = await this.prisma.mapVietinTransaction.update({
+        where: { id: request.transactionId },
+        data: {
+          orders: request.requestedOrders,
+          orderSource: ORDER_SOURCE_OFFSET,
+          orderUpdatedAt: reviewedAt,
+          orderUpdatedByUserId: user.id || null,
+          orderUpdatedByEmail: this.safeUserEmail(user),
+        },
+      });
+      await this.prisma.mapVietinTransactionOrderAudit.create({
+        data: {
+          transactionId: request.transactionId,
+          storeCode: request.storeCode,
+          oldOrders: request.oldOrders,
+          newOrders: request.requestedOrders,
+          changedByUserId: user.id || null,
+          changedByEmail: this.safeUserEmail(user),
+          source: ORDER_SOURCE_OFFSET,
+        },
+      });
+    }
+
+    const updatedRequest =
+      await this.prisma.mapVietinStatementOrderTransferRequest.update({
+        where: { id },
+        data: {
+          status: nextStatus,
+          reviewedByUserId: user.id || null,
+          reviewedByEmail: this.safeUserEmail(user),
+          reviewedAt,
+        },
+        include: { transaction: true },
+      });
+    this.logger.log(
+      `Statement order transfer ${approved ? 'approved' : 'rejected'}: user=${this.safeUserLabel(user)} request=${id} transaction=${request.transactionId} store=${request.storeCode}`,
+    );
+    return {
+      request: this.toStatementOrderTransferRequestDto(updatedRequest),
+      transaction: updatedTransaction
+        ? this.toStoredTransactionDto(updatedTransaction, {
+            canEditProtectedOrders: true,
+          })
+        : null,
+    };
+  }
+
+  private async userMatchesStatementAccessCodes(
+    user: any,
+    allowedCodes: string[],
+  ): Promise<boolean> {
     if (String(user?.role || '').toUpperCase() === 'SUPER_ADMIN') return true;
+    const allowed = new Set(
+      allowedCodes.map((code) => this.normalizeStatementAccessCode(code)),
+    );
     let departmentCode = this.normalizeStatementAccessCode(
       user?.departmentCode,
     );
@@ -1027,12 +1284,18 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       organizationNodeId ||= String(stored?.organizationNodeId || '').trim();
     }
 
-    if (departmentCode === FIN_ACC_DEPARTMENT_CODE) return true;
+    if (allowed.has(departmentCode)) return true;
     if (!organizationNodeId) return false;
-    return this.organizationNodeIsFinAcc(organizationNodeId);
+    return this.organizationNodeMatchesStatementAccessCodes(
+      organizationNodeId,
+      allowed,
+    );
   }
 
-  private async organizationNodeIsFinAcc(nodeId: string) {
+  private async organizationNodeMatchesStatementAccessCodes(
+    nodeId: string,
+    allowedCodes: Set<string>,
+  ) {
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.findMany) return false;
     const nodes: Array<{
@@ -1047,10 +1310,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     let cursor = byId.get(nodeId);
     for (let guard = 0; cursor && guard < 50; guard += 1) {
       if (
-        this.normalizeStatementAccessCode(cursor.code) ===
-          FIN_ACC_DEPARTMENT_CODE ||
-        this.normalizeStatementAccessCode(cursor.businessCode) ===
-          FIN_ACC_DEPARTMENT_CODE
+        allowedCodes.has(this.normalizeStatementAccessCode(cursor.code)) ||
+        allowedCodes.has(this.normalizeStatementAccessCode(cursor.businessCode))
       ) {
         return true;
       }
@@ -1083,6 +1344,55 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         .trim()
         .toLowerCase(),
     );
+  }
+
+  private normalizeStatementTransferRequestFilters(
+    input: ListMapVietinStatementOrderTransferRequestsDto,
+  ) {
+    const storeIds = this.parseStoreCodes(input.storeIds);
+    const requestedAllStores = this.parseBoolean(input.allStores);
+    if (requestedAllStores && storeIds.length > 0) {
+      throw new BadRequestException('Chỉ chọn tất cả hoặc danh sách showroom');
+    }
+    const status = String(
+      input.status || STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING,
+    )
+      .trim()
+      .toUpperCase();
+    const page = Math.max(0, Math.trunc(Number(input.page ?? 0)));
+    const rawLimit = Math.trunc(Number(input.limit ?? 50));
+    const limit = Math.min(100, Math.max(1, rawLimit));
+    return {
+      requestedAllStores,
+      storeIds,
+      status,
+      page,
+      limit,
+    };
+  }
+
+  private statementOrderTransferWindowAnchor(row: {
+    paidAt?: Date | null;
+    firstSeenAt?: Date | null;
+  }) {
+    return row.paidAt || row.firstSeenAt || null;
+  }
+
+  private isStatementOrderTransferWindowOpen(row: {
+    paidAt?: Date | null;
+    firstSeenAt?: Date | null;
+  }) {
+    const anchor = this.statementOrderTransferWindowAnchor(row);
+    if (!anchor) return false;
+    return Date.now() - anchor.getTime() <= STATEMENT_ORDER_TRANSFER_WINDOW_MS;
+  }
+
+  private assertStatementOrderTransferWindow(row: {
+    paidAt?: Date | null;
+    firstSeenAt?: Date | null;
+  }) {
+    if (this.isStatementOrderTransferWindowOpen(row)) return;
+    throw new BadRequestException(ORDER_TRANSFER_WINDOW_FORBIDDEN_MESSAGE);
   }
 
   private normalizeStatementAmount(value?: string) {
@@ -1495,13 +1805,28 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       payerAccount: string | null;
       rawData?: Prisma.JsonValue | null;
       firstSeenAt: Date;
+      orderTransferRequests?: Array<{
+        id: string;
+        requestedOrders: string[];
+        status: string;
+        requestedByEmail?: string | null;
+        createdAt: Date;
+      }>;
     },
     options: { canEditProtectedOrders?: boolean } = {},
   ) {
     const payer = this.resolveStoredPayer(row);
     const orders = row.orders || [];
+    const pendingTransferRequest = row.orderTransferRequests?.[0] || null;
+    const transferWindowOpen = this.isStatementOrderTransferWindowOpen(row);
     const canEditOrders =
-      orders.length === 0 || options.canEditProtectedOrders === true;
+      !pendingTransferRequest &&
+      (orders.length === 0 || options.canEditProtectedOrders === true);
+    const orderTransferBlockedReason = pendingTransferRequest
+      ? 'Giao dịch đang chờ ACC xác nhận.'
+      : transferWindowOpen
+        ? null
+        : ORDER_TRANSFER_WINDOW_FORBIDDEN_MESSAGE;
     return {
       id: row.id,
       storeId: row.storeCode,
@@ -1517,13 +1842,93 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       canEditOrders,
       orderEditBlockedReason: canEditOrders
         ? null
-        : ORDER_EDIT_FORBIDDEN_MESSAGE,
+        : pendingTransferRequest
+          ? 'Giao dịch đang chờ ACC xác nhận.'
+          : ORDER_EDIT_FORBIDDEN_MESSAGE,
+      canRequestOrderTransfer: !pendingTransferRequest && transferWindowOpen,
+      orderTransferRequestBlockedReason: orderTransferBlockedReason,
+      hasPendingOrderTransferRequest: Boolean(pendingTransferRequest),
+      orderTransferRequestId: pendingTransferRequest?.id || null,
+      orderTransferRequestedOrders:
+        pendingTransferRequest?.requestedOrders || [],
+      orderTransferStatus: pendingTransferRequest
+        ? STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING
+        : row.orderSource === ORDER_SOURCE_OFFSET
+          ? STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_APPROVED
+          : null,
+      isOrderOffsetConfirmed: row.orderSource === ORDER_SOURCE_OFFSET,
       status: row.status,
       paidAt: row.paidAt,
       payerName: payer.name,
       payerAccount: payer.account,
       firstSeenAt: row.firstSeenAt,
     };
+  }
+
+  private toStatementOrderTransferRequestDto(row: {
+    id: string;
+    transactionId: string;
+    storeCode: string;
+    oldOrders: string[];
+    requestedOrders: string[];
+    status: string;
+    requestedByUserId?: string | null;
+    requestedByEmail?: string | null;
+    reviewedByUserId?: string | null;
+    reviewedByEmail?: string | null;
+    reviewedAt?: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+    transaction?: {
+      transactionNumber?: string | null;
+      amount?: number | null;
+      content?: string | null;
+      paidAt?: Date | null;
+      firstSeenAt?: Date | null;
+    } | null;
+  }) {
+    return {
+      id: row.id,
+      transactionId: row.transactionId,
+      storeCode: row.storeCode,
+      oldOrders: row.oldOrders || [],
+      requestedOrders: row.requestedOrders || [],
+      status: row.status,
+      requestedByUserId: row.requestedByUserId || null,
+      requestedByEmail: row.requestedByEmail || null,
+      reviewedByUserId: row.reviewedByUserId || null,
+      reviewedByEmail: row.reviewedByEmail || null,
+      reviewedAt: row.reviewedAt || null,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      transactionNumber: row.transaction?.transactionNumber || null,
+      amount: row.transaction?.amount ?? null,
+      content: row.transaction?.content || null,
+      paidAt: row.transaction?.paidAt || null,
+      firstSeenAt: row.transaction?.firstSeenAt || null,
+    };
+  }
+
+  private async publishStatementOrderTransferRequestEvent(row: {
+    id: string;
+    transactionId: string;
+    storeCode: string;
+    status: string;
+    createdAt: Date;
+  }) {
+    if (!this.redisService) {
+      this.logger.warn(
+        `Statement order transfer realtime skipped: redis unavailable request=${row.id}`,
+      );
+      return;
+    }
+    await this.redisService.publishMessage(STATEMENT_ORDER_TRANSFER_CHANNEL, {
+      requestId: row.id,
+      transactionId: row.transactionId,
+      storeCode: row.storeCode,
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+    });
   }
 
   private resolveStoredPayer(row: {
@@ -1992,7 +2397,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           this.csvExcelTextCell(transactionReference),
           this.csvAmountCell(row.amount),
           this.csvCell(row.content),
-          this.csvExcelTextCell((row.orders || []).join(' | ')),
+          this.csvExcelTextCell((row.orders || []).join('\n'), {
+            preserveLineBreaks: true,
+          }),
           this.csvCell(row.status),
           this.csvCell(this.csvVietnamDate(row.paidAt)),
           this.csvCell(payer.name),
@@ -2013,10 +2420,16 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return `"${text.replace(/"/g, '""')}"`;
   }
 
-  private csvExcelTextCell(value: unknown) {
+  private csvExcelTextCell(
+    value: unknown,
+    options: { preserveLineBreaks?: boolean } = {},
+  ) {
     const text = this.csvText(value);
     if (!text) return '';
-    const formulaText = text.replace(/"/g, '""').replace(/[\r\n]+/g, ' ');
+    const normalizedText = options.preserveLineBreaks
+      ? text.replace(/\r\n?/g, '\n')
+      : text.replace(/[\r\n]+/g, ' ');
+    const formulaText = normalizedText.replace(/"/g, '""');
     return this.csvCell(`="${formulaText}"`);
   }
 
