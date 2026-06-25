@@ -9,6 +9,7 @@ class AdminUserEditorPayload {
     required String role,
     required bool canEditRole,
     String? organizationNodeId,
+    List<String> organizationNodeIds = const [],
   }) {
     return {
       'email': email.trim(),
@@ -16,6 +17,7 @@ class AdminUserEditorPayload {
       'lastName': lastName.trim(),
       'status': status,
       'organizationNodeId': organizationNodeId,
+      'organizationNodeIds': organizationNodeIds,
       if (canEditRole) 'role': role,
     };
   }

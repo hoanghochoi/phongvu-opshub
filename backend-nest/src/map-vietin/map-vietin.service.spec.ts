@@ -458,7 +458,7 @@ describe('MapVietinService', () => {
     expect(prisma.mapVietinUnmappedTransaction.upsert).not.toHaveBeenCalled();
   });
 
-  it('skips configured MAP sync before the Vietnam active window', async () => {
+  it('runs configured MAP sync before the Vietnam fast window', async () => {
     (Date.now as jest.Mock).mockReturnValue(
       new Date('2026-05-21T00:59:59.000Z').getTime(),
     );
@@ -467,11 +467,10 @@ describe('MapVietinService', () => {
 
     await expect(service.syncConfiguredStores()).resolves.toBeUndefined();
 
-    expect(prisma.store.findMany).not.toHaveBeenCalled();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalled();
   });
 
-  it('skips configured MAP sync at 22:00 Vietnam time', async () => {
+  it('runs configured MAP sync at 22:00 Vietnam time', async () => {
     (Date.now as jest.Mock).mockReturnValue(
       new Date('2026-05-21T15:00:00.000Z').getTime(),
     );
@@ -480,8 +479,7 @@ describe('MapVietinService', () => {
 
     await expect(service.syncConfiguredStores()).resolves.toBeUndefined();
 
-    expect(prisma.store.findMany).not.toHaveBeenCalled();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it('uses a 3000-5000ms random delay for scheduled MAP history sync', () => {

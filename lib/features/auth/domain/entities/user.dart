@@ -1,3 +1,45 @@
+import 'store_branch.dart';
+
+class UserOrganizationAssignment {
+  final String? id;
+  final String organizationNodeId;
+  final String? organizationNodeName;
+  final String? organizationNodeType;
+  final String? storeId;
+  final String? storeName;
+  final bool isPrimary;
+
+  const UserOrganizationAssignment({
+    this.id,
+    required this.organizationNodeId,
+    this.organizationNodeName,
+    this.organizationNodeType,
+    this.storeId,
+    this.storeName,
+    this.isPrimary = false,
+  });
+
+  factory UserOrganizationAssignment.fromJson(Map<String, dynamic> json) {
+    return UserOrganizationAssignment(
+      id: json['id']?.toString(),
+      organizationNodeId: json['organizationNodeId']?.toString() ?? '',
+      organizationNodeName: json['organizationNodeName']?.toString(),
+      organizationNodeType: json['organizationNodeType']?.toString(),
+      storeId: json['storeId']?.toString(),
+      storeName: json['storeName']?.toString(),
+      isPrimary: json['isPrimary'] == true || json['isPrimary'] == 'true',
+    );
+  }
+
+  String get displayName {
+    final parts = [storeId, storeName ?? organizationNodeName]
+        .whereType<String>()
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
+    return parts.isEmpty ? organizationNodeId : parts.join(' - ');
+  }
+}
+
 class User {
   final String? id;
   final String email;
@@ -20,6 +62,9 @@ class User {
   final String? areaAbbreviation;
   final String? organizationNodeId;
   final String? organizationNodeName;
+  final List<String> organizationNodeIds;
+  final List<UserOrganizationAssignment> organizationAssignments;
+  final List<StoreBranch> assignedStores;
   final List<String> organizationAccessCodes;
   final List<String> featureCodes;
   final String? personnelCode;
@@ -50,6 +95,9 @@ class User {
     this.areaAbbreviation,
     this.organizationNodeId,
     this.organizationNodeName,
+    this.organizationNodeIds = const [],
+    this.organizationAssignments = const [],
+    this.assignedStores = const [],
     this.organizationAccessCodes = const [],
     this.featureCodes = const [],
     this.personnelCode,
@@ -87,6 +135,23 @@ class User {
   bool get isSuperAdmin => role == 'SUPER_ADMIN';
 
   factory User.fromJson(Map<String, dynamic> json, {String? fallbackEmail}) {
+    final assignedStores = _storeListFromJson(json['assignedStores']);
+    final primaryStoreId = json['storeId']?.toString();
+    final primaryStoreName = json['storeName']?.toString();
+    final effectiveAssignedStores = assignedStores.isNotEmpty
+        ? assignedStores
+        : [
+            if (primaryStoreId != null || primaryStoreName != null)
+              StoreBranch(
+                id: '',
+                storeId: primaryStoreId ?? '',
+                storeName: primaryStoreName ?? '',
+              ),
+          ];
+    final organizationAssignments = _assignmentListFromJson(
+      json['organizationAssignments'],
+    );
+    final organizationNodeIds = _stringListFromJson(json['organizationNodeIds']);
     return User(
       id: json['id']?.toString(),
       email: json['email']?.toString() ?? fallbackEmail ?? '',
@@ -109,6 +174,14 @@ class User {
       areaAbbreviation: json['areaAbbreviation']?.toString(),
       organizationNodeId: json['organizationNodeId']?.toString(),
       organizationNodeName: json['organizationNodeName']?.toString(),
+      organizationNodeIds: organizationNodeIds.isNotEmpty
+          ? organizationNodeIds
+          : [
+              if (json['organizationNodeId'] != null)
+                json['organizationNodeId'].toString(),
+            ],
+      organizationAssignments: organizationAssignments,
+      assignedStores: effectiveAssignedStores,
       organizationAccessCodes: _stringListFromJson(
         json['organizationAccessCodes'],
       ),
@@ -141,6 +214,13 @@ class User {
 
   bool get needsOrganizationAssignment =>
       assignmentPending || (!isAdminRole(role) && organizationNodeId == null);
+
+  bool get hasMultipleAssignedStores => assignedStores.length > 1;
+
+  List<String> get assignedStoreIds => assignedStores
+      .map((store) => store.storeId)
+      .where((storeId) => storeId.isNotEmpty)
+      .toList(growable: false);
 
   bool get belongsToCp62 {
     final values = [
@@ -219,6 +299,9 @@ class User {
       areaAbbreviation: areaAbbreviation,
       organizationNodeId: organizationNodeId,
       organizationNodeName: organizationNodeName,
+      organizationNodeIds: organizationNodeIds,
+      organizationAssignments: organizationAssignments,
+      assignedStores: assignedStores,
       organizationAccessCodes: organizationAccessCodes,
       featureCodes: featureCodes,
       personnelCode: personnelCode,
@@ -275,6 +358,8 @@ class User {
         other.areaAbbreviation == areaAbbreviation &&
         other.organizationNodeId == organizationNodeId &&
         other.organizationNodeName == organizationNodeName &&
+        _listEquals(other.organizationNodeIds, organizationNodeIds) &&
+        _storeListEquals(other.assignedStores, assignedStores) &&
         _listEquals(other.organizationAccessCodes, organizationAccessCodes) &&
         _listEquals(other.featureCodes, featureCodes) &&
         other.personnelCode == personnelCode &&
@@ -314,6 +399,8 @@ class User {
       areaAbbreviation.hashCode ^
       organizationNodeId.hashCode ^
       organizationNodeName.hashCode ^
+      Object.hashAll(organizationNodeIds) ^
+      Object.hashAll(assignedStoreIds) ^
       Object.hashAll(organizationAccessCodes) ^
       Object.hashAll(featureCodes) ^
       personnelCode.hashCode ^
@@ -332,10 +419,47 @@ List<String> _stringListFromJson(Object? value) {
   return value.map((item) => item.toString()).toList(growable: false);
 }
 
+List<UserOrganizationAssignment> _assignmentListFromJson(Object? value) {
+  if (value is! List) return const [];
+  return value
+      .whereType<Map>()
+      .map(
+        (item) => UserOrganizationAssignment.fromJson(
+          item.map((key, value) => MapEntry(key.toString(), value)),
+        ),
+      )
+      .where((item) => item.organizationNodeId.isNotEmpty)
+      .toList(growable: false);
+}
+
+List<StoreBranch> _storeListFromJson(Object? value) {
+  if (value is! List) return const [];
+  return value
+      .whereType<Map>()
+      .map(
+        (item) => StoreBranch.fromJson(
+          item.map((key, value) => MapEntry(key.toString(), value)),
+        ),
+      )
+      .where((store) => store.storeId.isNotEmpty)
+      .toList(growable: false);
+}
+
 bool _listEquals(List<String> a, List<String> b) {
   if (a.length != b.length) return false;
   for (var index = 0; index < a.length; index += 1) {
     if (a[index] != b[index]) return false;
+  }
+  return true;
+}
+
+bool _storeListEquals(List<StoreBranch> a, List<StoreBranch> b) {
+  if (a.length != b.length) return false;
+  for (var index = 0; index < a.length; index += 1) {
+    if (a[index].storeId != b[index].storeId ||
+        a[index].storeName != b[index].storeName) {
+      return false;
+    }
   }
   return true;
 }

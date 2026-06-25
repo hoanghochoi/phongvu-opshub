@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsEmail,
   IsOptional,
   IsString,
@@ -73,6 +74,12 @@ export class AdminUserDto extends UpdateProfileDto {
   @IsString()
   @MaxLength(80)
   organizationNodeId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(80, { each: true })
+  organizationNodeIds?: string[];
 }
 
 export class AdminUserQueryDto {

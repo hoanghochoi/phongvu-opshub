@@ -883,6 +883,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   String? _regionCode;
   String? _areaCode;
   String? _organizationNodeId;
+  final Set<String> _organizationNodeIds = {};
   bool _saving = false;
 
   @override
@@ -900,6 +901,16 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     _regionCode = user?.regionCode;
     _areaCode = user?.areaCode;
     _organizationNodeId = user?.organizationNodeId ?? _legacyScopeNodeId(user);
+    _organizationNodeIds
+      ..clear()
+      ..addAll(
+        user?.organizationNodeIds.isNotEmpty == true
+            ? user!.organizationNodeIds
+            : [
+                if (_organizationNodeId?.isNotEmpty == true)
+                  _organizationNodeId!,
+              ],
+      );
     _applyOrganizationNodeToState(_selectedOrganizationNode());
   }
 
@@ -1014,6 +1025,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       status: _status,
       role: _role,
       organizationNodeId: _organizationNodeId,
+      organizationNodeIds: _sortedOrganizationNodeIds(),
       canEditRole: widget.canEditRole,
     );
   }
@@ -1030,11 +1042,15 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     addIfChanged('firstName', user.name, 'Tên');
     addIfChanged('lastName', user.lastName, 'Họ');
     addIfChanged('status', user.status, 'Trạng thái');
-    addIfChanged(
-      'organizationNodeId',
-      user.organizationNodeId,
-      'Vị trí trong cây tổ chức',
-    );
+    final previousNodeIds = user.organizationNodeIds.isNotEmpty
+        ? user.organizationNodeIds
+        : [
+            if (user.organizationNodeId?.isNotEmpty == true)
+              user.organizationNodeId!,
+          ];
+    if (previousNodeIds.join('|') != _sortedOrganizationNodeIds().join('|')) {
+      changes.add('Vị trí trong cây tổ chức');
+    }
     if (widget.canEditRole) addIfChanged('role', user.role, 'Quyền hệ thống');
     return changes;
   }
@@ -1086,6 +1102,16 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       _regionCode = user.regionCode;
       _areaCode = user.areaCode;
       _organizationNodeId = user.organizationNodeId ?? _legacyScopeNodeId(user);
+      _organizationNodeIds
+        ..clear()
+        ..addAll(
+          user.organizationNodeIds.isNotEmpty
+              ? user.organizationNodeIds
+              : [
+                  if (_organizationNodeId?.isNotEmpty == true)
+                    _organizationNodeId!,
+                ],
+        );
       _applyOrganizationNodeToState(_selectedOrganizationNode());
     });
   }
@@ -1174,9 +1200,27 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     if (_organizationNodeId == null && _allowsGlobalNationalScope) {
       return 'Toàn hệ thống';
     }
+    if (_organizationNodeIds.length > 1) {
+      final primary = _selectedOrganizationNode();
+      final primaryText = primary == null ? null : _nodeCompactLabel(primary);
+      return [
+        '${_organizationNodeIds.length} node đã chọn',
+        if (primaryText != null) 'chính: $primaryText',
+      ].join(' • ');
+    }
     final node = _selectedOrganizationNode();
     if (node == null) return '';
     return _nodeBreadcrumb(node);
+  }
+
+  List<String> _sortedOrganizationNodeIds() {
+    final ids = _organizationNodeIds
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList();
+    ids.sort();
+    return ids;
   }
 
   AdminOrganizationNode? _selectedOrganizationNode() =>
@@ -1251,7 +1295,8 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   Future<void> _openOrganizationNodePicker() async {
     var query = '';
     String? type;
-    final selected = await showDialog<String>(
+    final selectedIds = _organizationNodeIds.toSet();
+    final selected = await showDialog<Set<String>>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
@@ -1299,32 +1344,39 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                             const Divider(height: 1),
                         itemBuilder: (context, index) {
                           if (_allowsGlobalNationalScope && index == 0) {
-                            final selected = _organizationNodeId == null;
-                            return ListTile(
-                              selected: selected,
-                              leading: Icon(
-                                selected
-                                    ? Icons.check_circle_rounded
-                                    : Icons.public_rounded,
-                              ),
+                            final isGlobal = selectedIds.isEmpty;
+                            return CheckboxListTile(
+                              value: isGlobal,
+                              controlAffinity: ListTileControlAffinity.leading,
+                              secondary: const Icon(Icons.public_rounded),
                               title: const Text('Toàn hệ thống'),
                               subtitle: const Text(
                                 'Áp dụng cho toàn bộ hệ thống',
                               ),
-                              onTap: () =>
-                                  Navigator.of(context).pop('__GLOBAL__'),
+                              onChanged: (value) =>
+                                  setDialogState(selectedIds.clear),
                             );
                           }
                           final nodeIndex = _allowsGlobalNationalScope
                               ? index - 1
                               : index;
                           final node = nodes[nodeIndex];
-                          return _OrganizationNodeOptionTile(
-                            node: node,
-                            selected: node.id == _organizationNodeId,
-                            title: _nodeBreadcrumb(node),
-                            code: _nodeCode(node),
-                            onTap: () => Navigator.of(context).pop(node.id),
+                          final isSelected = selectedIds.contains(node.id);
+                          return CheckboxListTile(
+                            value: isSelected,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            secondary: _NodeTypeBadge(type: node.type),
+                            title: Text(_nodeBreadcrumb(node)),
+                            subtitle: Text(_nodeCode(node)),
+                            onChanged: (value) {
+                              setDialogState(() {
+                                if (value == true) {
+                                  selectedIds.add(node.id);
+                                } else {
+                                  selectedIds.remove(node.id);
+                                }
+                              });
+                            },
                           );
                         },
                       ),
@@ -1337,6 +1389,10 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                   onPressed: () => Navigator.of(context).pop(),
                   child: const Text('Đóng'),
                 ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(selectedIds),
+                  child: const Text('Áp dụng'),
+                ),
               ],
             );
           },
@@ -1345,10 +1401,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     );
     if (!mounted) return;
     if (selected == null) return;
-    final nextNodeId = selected == '__GLOBAL__' ? null : selected;
-    if (nextNodeId != _organizationNodeId) {
-      _applyOrganizationNode(nextNodeId);
-    }
+    _applyOrganizationNodes(selected);
   }
 
   AdminOrganizationNode? _scopeNodeByBusinessCode(String type, String? code) {
@@ -1374,10 +1427,17 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     return _scopeNodeByBusinessCode(nodeType, code)?.id;
   }
 
-  void _applyOrganizationNode(String? nodeId) {
+  void _applyOrganizationNodes(Set<String> nodeIds) {
+    final normalized = nodeIds
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toSet();
     setState(() {
-      _organizationNodeId = nodeId;
-      _applyOrganizationNodeToState(_nodeById(nodeId));
+      _organizationNodeIds
+        ..clear()
+        ..addAll(normalized);
+      _organizationNodeId = normalized.isEmpty ? null : normalized.first;
+      _applyOrganizationNodeToState(_nodeById(_organizationNodeId));
     });
   }
 
@@ -1602,46 +1662,6 @@ class _OrganizationNodeSelector extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _OrganizationNodeOptionTile extends StatelessWidget {
-  final AdminOrganizationNode node;
-  final bool selected;
-  final String title;
-  final String code;
-  final VoidCallback onTap;
-
-  const _OrganizationNodeOptionTile({
-    required this.node,
-    required this.selected,
-    required this.title,
-    required this.code,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final typeTitle = AdminOrganizationNodeTypes.titleOf(node.type);
-    final metadata = [
-      typeTitle,
-      if (code.isNotEmpty) code,
-      if (node.emailDomain?.isNotEmpty == true) node.emailDomain!,
-      if (node.storeName?.isNotEmpty == true) node.storeName!,
-    ].join(' • ');
-    return ListTile(
-      selected: selected,
-      leading: _NodeTypeBadge(type: node.type),
-      title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
-      subtitle: Text(metadata, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: selected
-          ? Icon(
-              Icons.check_circle_rounded,
-              color: Theme.of(context).colorScheme.primary,
-            )
-          : null,
-      onTap: onTap,
     );
   }
 }

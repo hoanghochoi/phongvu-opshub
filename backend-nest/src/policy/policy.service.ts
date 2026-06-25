@@ -59,6 +59,7 @@ export type PolicyContext = {
   storeCode?: string | null;
   storeName?: string | null;
   organizationScopeNames?: string[];
+  alternateContexts?: PolicyContext[];
 };
 
 type NormalizedRuleInput = {
@@ -206,8 +207,11 @@ export class PolicyService implements OnModuleInit {
     const rules = await this.prisma.adminPolicyRule.findMany({
       where: { policyCode },
     });
+    const contexts = [context, ...(context.alternateContexts ?? [])];
     const matches = rules
-      .filter((rule) => this.ruleMatches(rule, context))
+      .filter((rule) =>
+        contexts.some((candidate) => this.ruleMatches(rule, candidate)),
+      )
       .map((rule) => ({ rule, score: this.ruleScore(rule) }))
       .sort((a, b) => b.score - a.score);
 
@@ -758,6 +762,20 @@ export class PolicyService implements OnModuleInit {
         },
         region: true,
         area: { include: { region: true } },
+        organizationAssignments: {
+          where: { isActive: true },
+          orderBy: [
+            { isPrimary: Prisma.SortOrder.desc },
+            { createdAt: Prisma.SortOrder.asc },
+          ],
+          include: {
+            organizationNode: {
+              include: {
+                stores: { orderBy: { storeId: Prisma.SortOrder.asc } },
+              },
+            },
+          },
+        },
       },
     });
     const source = full ?? user;
@@ -769,7 +787,7 @@ export class PolicyService implements OnModuleInit {
       await this.resolveOrganizationRuleContext(scopeNodeId);
     const area = this.areaForContextSource(source);
     const region = this.regionForContextSource(source);
-    return {
+    const baseContext: PolicyContext = {
       id: source.id ?? null,
       email: source.email ?? null,
       emailDomain: this.emailDomainFromEmail(source.email),
@@ -794,6 +812,54 @@ export class PolicyService implements OnModuleInit {
       storeName: source.store?.storeName ?? source.storeName ?? null,
       organizationScopeNames: organizationContext.scopeNames,
     };
+    baseContext.alternateContexts = await this.resolveAlternatePolicyContexts(
+      source,
+      baseContext.organizationNodeId,
+    );
+    return baseContext;
+  }
+
+  private async resolveAlternatePolicyContexts(
+    source: any,
+    primaryOrganizationNodeId?: string | null,
+  ) {
+    const assignments = Array.isArray(source?.organizationAssignments)
+      ? source.organizationAssignments
+      : [];
+    const seen = new Set<string>(
+      [primaryOrganizationNodeId].filter(Boolean) as string[],
+    );
+    const contexts: PolicyContext[] = [];
+    for (const assignment of assignments) {
+      const nodeId = String(assignment?.organizationNodeId || '').trim();
+      if (!nodeId || seen.has(nodeId)) continue;
+      seen.add(nodeId);
+      const organizationContext =
+        await this.resolveOrganizationRuleContext(nodeId);
+      const assignmentStore = assignment?.organizationNode?.stores?.[0] ?? null;
+      contexts.push({
+        id: source.id ?? null,
+        email: source.email ?? null,
+        emailDomain: this.emailDomainFromEmail(source.email),
+        role: this.normalizeSystemRole(source.role),
+        departmentCode: source.departmentCode ?? null,
+        jobRoleCode: source.jobRoleCode ?? null,
+        workScopeType: this.effectiveScope(source),
+        regionCode:
+          organizationContext.regionCode ?? source.regionCode ?? null,
+        areaCode: organizationContext.areaCode ?? source.areaCode ?? null,
+        organizationNodeId: organizationContext.organizationNodeId,
+        organizationNodeIds: organizationContext.organizationNodeIds,
+        storeCode:
+          organizationContext.storeCode ??
+          assignmentStore?.storeId ??
+          source.storeCode ??
+          null,
+        storeName: assignmentStore?.storeName ?? null,
+        organizationScopeNames: organizationContext.scopeNames,
+      });
+    }
+    return contexts;
   }
 
   private async resolveOrganizationRuleContext(nodeId?: string | null) {

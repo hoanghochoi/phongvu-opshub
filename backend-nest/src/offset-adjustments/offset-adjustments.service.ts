@@ -721,11 +721,14 @@ export class OffsetAdjustmentsService {
   }
 
   private parseDateOnly(value: string) {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').trim());
+    const text = String(value || '').trim();
+    const slashMatch = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text);
+    const dashMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+    const match = slashMatch || dashMatch;
     if (!match) throw new BadRequestException('Ngày không hợp lệ.');
-    const year = Number(match[1]);
+    const day = slashMatch ? Number(match[1]) : Number(match[3]);
     const month = Number(match[2]);
-    const day = Number(match[3]);
+    const year = slashMatch ? Number(match[3]) : Number(match[1]);
     const date = this.vietnamDateToUtcStart(year, month, day);
     const check = new Date(date.getTime() + VIETNAM_UTC_OFFSET_MS);
     if (

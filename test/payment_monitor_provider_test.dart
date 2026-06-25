@@ -178,7 +178,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     provider.syncAuth(_superAdmin(), isInitialized: true);
 
-    expect(provider.canUsePaymentSpeaker, isTrue);
+    expect(provider.canUsePaymentSpeaker, isFalse);
     expect(provider.hasMonitorScope, isFalse);
     expect(repository.readyFetchCount, 0);
 
@@ -651,6 +651,8 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   @override
   Future<StoredPaymentTransactionsPage> fetchStoredTransactions({
     String? storeId,
+    String? storeIds,
+    bool allStores = false,
     String? date,
     String? startDate,
     String? endDate,

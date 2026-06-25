@@ -41,6 +41,7 @@ const MAP_SYNC_START_HOUR_VN = 8;
 const MAP_SYNC_END_HOUR_VN = 22;
 const MAP_HISTORY_SYNC_DELAY_MIN_MS = 3000;
 const MAP_HISTORY_SYNC_DELAY_MAX_MS = 5000;
+const MAP_HISTORY_SYNC_NIGHT_DELAY_MS = 30 * 60 * 1000;
 const DEFAULT_GLOBAL_SYNC_MAX_PAGES = 2;
 const DEFAULT_GLOBAL_SESSION_TTL_SECONDS = 10 * 60;
 const VIETNAM_UTC_OFFSET_HOURS = 7;
@@ -243,7 +244,11 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     user: any,
     input: ListStoredMapVietinTransactionsDto,
   ) {
-    const store = await this.resolveReadableStore(user, input.storeId);
+    const storeScope = await this.resolveReadableStoreScope(user, {
+      storeId: input.storeId,
+      storeIds: input.storeIds,
+      allStores: input.allStores,
+    });
     const afterFirstSeenAt = input.afterFirstSeenAt
       ? this.parseDate(input.afterFirstSeenAt, 'afterFirstSeenAt')
       : null;
@@ -255,7 +260,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         .trim()
         .toLowerCase() !== 'false';
     const where: Prisma.MapVietinTransactionWhereInput = {
-      storeCode: store.storeId,
+      ...(storeScope.storeCodes.length > 0
+        ? { storeCode: this.storeCodeWhere(storeScope.storeCodes) }
+        : {}),
       ...(afterFirstSeenAt ? { firstSeenAt: { gt: afterFirstSeenAt } } : {}),
       ...(localDateRange
         ? {
@@ -291,7 +298,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     ]);
 
     return {
-      storeId: store.storeId,
+      storeId: storeScope.storeCodes[0] ?? null,
+      storeIds: storeScope.storeCodes,
+      allStores: storeScope.allStores,
       page,
       limit,
       ...(total !== null ? { total } : {}),
@@ -588,7 +597,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
 
   private scheduleNextMapHistorySync() {
     if (this.mapHistorySyncStopped || this.isMapHistorySyncDisabled()) return;
-    const delayMs = this.randomMapHistorySyncDelayMs();
+    const delayMs = this.nextMapHistorySyncDelayMs();
     if (this.mapHistorySyncTimer) {
       clearTimeout(this.mapHistorySyncTimer);
     }
@@ -618,25 +627,27 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  private nextMapHistorySyncDelayMs(value = new Date(Date.now())) {
+    return this.isWithinMapSyncWindow(value)
+      ? this.randomMapHistorySyncDelayMs()
+      : MAP_HISTORY_SYNC_NIGHT_DELAY_MS;
+  }
+
   private isMapHistorySyncDisabled() {
     return process.env.MAP_VIETIN_SYNC_ENABLED === 'false';
   }
 
   async syncConfiguredStores() {
     if (this.isMapHistorySyncDisabled()) return;
-    if (!this.isWithinMapSyncWindow()) {
-      if (this.lastSyncWindowOpen !== false) {
-        this.logger.log(
-          `MAP sync skipped outside active window ${MAP_SYNC_START_HOUR_VN}:00-${MAP_SYNC_END_HOUR_VN}:00 Vietnam time`,
-        );
-      }
-      this.lastSyncWindowOpen = false;
-      return;
+    const inFastWindow = this.isWithinMapSyncWindow();
+    if (this.lastSyncWindowOpen !== inFastWindow) {
+      this.logger.log(
+        inFastWindow
+          ? 'MAP sync fast cadence active'
+          : 'MAP sync night cadence active',
+      );
     }
-    if (this.lastSyncWindowOpen === false) {
-      this.logger.log('MAP sync active window resumed');
-    }
-    this.lastSyncWindowOpen = true;
+    this.lastSyncWindowOpen = inFastWindow;
     if (this.syncInProgress) return;
     this.syncInProgress = true;
     try {
@@ -1015,24 +1026,33 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       return { storeCode: { in: storeIds } };
     }
 
-    const store = await this.resolveUserStore(user);
+    const allowedStores = await this.resolveUserStores(user);
+    const allowedStoreCodes = allowedStores.map((store) => store.storeId);
     if (requestedAllStores) {
       throw new ForbiddenException('Không có quyền xem tất cả showroom');
     }
-    if (
-      storeIds.length > 0 &&
-      (storeIds.length > 1 || storeIds[0] !== store.storeId)
-    ) {
-      throw new ForbiddenException('Chỉ được xem giao dịch showroom của mình');
+    const selectedStoreCodes = storeIds.length > 0 ? storeIds : allowedStoreCodes;
+    const invalidStore = selectedStoreCodes.find(
+      (storeCode) => !allowedStoreCodes.includes(storeCode),
+    );
+    if (invalidStore) {
+      throw new ForbiddenException('Chỉ được xem giao dịch showroom được gán');
     }
-    return { storeCode: store.storeId };
+    return { storeCode: this.storeCodeWhere(selectedStoreCodes) };
   }
 
   private statementScopeWhereForTransferRequests(
     scopeWhere: Prisma.MapVietinTransactionWhereInput,
   ): Prisma.MapVietinStatementOrderTransferRequestWhereInput {
     const storeCode = (scopeWhere as any).storeCode;
-    return storeCode ? { storeCode } : {};
+    if (!storeCode) return {};
+    if (typeof storeCode === 'string') return { storeCode };
+    const storeCodes = Array.isArray(storeCode.in) ? storeCode.in : null;
+    return storeCodes ? { storeCode: { in: storeCodes } } : { storeCode };
+  }
+
+  private storeCodeWhere(storeCodes: string[]) {
+    return storeCodes.length === 1 ? storeCodes[0] : { in: storeCodes };
   }
 
   private buildStatementFilterWhere(filters: {
@@ -1104,27 +1124,86 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private async assertCanReadStatementStore(user: any, storeCode: string) {
     await this.assertCanUseStatements(user);
     if (await this.hasNationalStatementScope(user)) return;
-    const store = await this.resolveUserStore(user);
-    if (store.storeId !== storeCode) {
-      throw new ForbiddenException('Chỉ được xem giao dịch showroom của mình');
+    const stores = await this.resolveUserStores(user);
+    if (!stores.some((store) => store.storeId === storeCode)) {
+      throw new ForbiddenException('Chỉ được xem giao dịch showroom được gán');
     }
   }
 
   private async resolveUserStore(user: any) {
-    if (!user.storeId) {
+    const stores = await this.resolveUserStores(user);
+    return stores[0];
+  }
+
+  private async resolveUserStores(user: any) {
+    const storesByCode = new Map<string, any>();
+    const pushStore = (store: any) => {
+      const storeCode = String(store?.storeId || '').trim().toUpperCase();
+      if (storeCode && !storesByCode.has(storeCode)) {
+        storesByCode.set(storeCode, store);
+      }
+    };
+
+    if (user?.id) {
+      const savedUser = await this.prisma.user.findUnique({
+        where: { id: user.id },
+        include: {
+          store: true,
+          organizationAssignments: {
+            where: { isActive: true },
+            orderBy: [
+              { isPrimary: Prisma.SortOrder.desc },
+              { createdAt: Prisma.SortOrder.asc },
+            ],
+            include: {
+              organizationNode: {
+                include: {
+                  stores: { orderBy: { storeId: Prisma.SortOrder.asc } },
+                },
+              },
+            },
+          },
+        },
+      });
+      pushStore(savedUser?.store);
+      for (const assignment of savedUser?.organizationAssignments ?? []) {
+        for (const store of assignment.organizationNode?.stores ?? []) {
+          pushStore(store);
+        }
+      }
+    }
+
+    if (storesByCode.size === 0 && user?.storeId) {
+      const store = await this.prisma.store.findUnique({
+        where: { id: user.storeId },
+      });
+      pushStore(store);
+    }
+
+    const stores = Array.from(storesByCode.values());
+    if (stores.length === 0) {
       throw new ForbiddenException('Tài khoản chưa được gán showroom');
     }
-    const store = await this.prisma.store.findUnique({
-      where: { id: user.storeId },
-    });
-    if (!store) throw new BadRequestException('Showroom không hợp lệ');
-    return store;
+    return stores;
   }
 
   private async hasNationalStatementScope(user: any) {
     return this.policyService.canAccessPolicy(
       user,
       ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE,
+    );
+  }
+
+  private async hasStoredTransactionAllScope(user: any) {
+    return (
+      (await this.policyService.canAccessPolicy(
+        user,
+        ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE,
+      )) ||
+      (await this.policyService.canAccessPolicy(
+        user,
+        ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE,
+      ))
     );
   }
 
@@ -1468,39 +1547,70 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return store;
   }
 
-  private async resolveReadableStore(user: any, storeCode?: string) {
-    const normalizedStoreCode = String(storeCode || '')
-      .trim()
-      .toUpperCase();
+  private async resolveReadableStoreScope(
+    user: any,
+    input: { storeId?: string; storeIds?: string; allStores?: string },
+  ) {
+    const requestedStoreIds = Array.from(
+      new Set([
+        ...this.parseStoreCodes(input.storeId),
+        ...this.parseStoreCodes(input.storeIds),
+      ]),
+    );
+    const requestedAllStores = this.parseBoolean(input.allStores);
+    if (requestedAllStores && requestedStoreIds.length > 0) {
+      throw new BadRequestException('Chỉ chọn tất cả hoặc danh sách showroom');
+    }
 
-    if (
-      await this.policyService.canAccessPolicy(
-        user,
-        ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE,
-      )
-    ) {
-      if (!normalizedStoreCode) {
+    if (await this.hasStoredTransactionAllScope(user)) {
+      if (requestedAllStores) {
+        return { storeCodes: [] as string[], allStores: true };
+      }
+      if (requestedStoreIds.length === 0) {
         throw new BadRequestException('Vui lòng chọn showroom cần theo dõi');
       }
-      const store = await this.prisma.store.findUnique({
-        where: { storeId: normalizedStoreCode },
-      });
-      if (!store) throw new BadRequestException('Showroom không hợp lệ');
-      return store;
+      await this.assertStoresExist(requestedStoreIds);
+      return { storeCodes: requestedStoreIds, allStores: false };
     }
 
-    if (!user.storeId) {
-      throw new ForbiddenException('Tài khoản chưa được gán showroom');
+    if (requestedAllStores) {
+      throw new ForbiddenException('Không có quyền xem tất cả showroom');
     }
+    const allowedStores = await this.resolveUserStores(user);
+    const allowedStoreCodes = allowedStores.map((store) => store.storeId);
+    const selectedStoreCodes =
+      requestedStoreIds.length > 0 ? requestedStoreIds : allowedStoreCodes;
+    const invalidStore = selectedStoreCodes.find(
+      (storeCode) => !allowedStoreCodes.includes(storeCode),
+    );
+    if (invalidStore) {
+      throw new ForbiddenException('Chỉ được xem giao dịch showroom được gán');
+    }
+    return { storeCodes: selectedStoreCodes, allStores: false };
+  }
 
+  private async resolveReadableStore(user: any, storeCode?: string) {
+    const scope = await this.resolveReadableStoreScope(user, {
+      storeId: storeCode,
+    });
+    if (scope.storeCodes.length !== 1) {
+      throw new BadRequestException('Vui lòng chọn đúng một showroom');
+    }
     const store = await this.prisma.store.findUnique({
-      where: { id: user.storeId },
+      where: { storeId: scope.storeCodes[0] },
     });
     if (!store) throw new BadRequestException('Showroom không hợp lệ');
-    if (normalizedStoreCode && normalizedStoreCode !== store.storeId) {
-      throw new ForbiddenException('Chỉ được xem giao dịch showroom của mình');
-    }
     return store;
+  }
+
+  private async assertStoresExist(storeCodes: string[]) {
+    const stores = await this.prisma.store.findMany({
+      where: { storeId: { in: storeCodes } },
+      select: { storeId: true },
+    });
+    const existing = new Set(stores.map((store) => store.storeId));
+    const missing = storeCodes.find((storeCode) => !existing.has(storeCode));
+    if (missing) throw new BadRequestException('Showroom không hợp lệ');
   }
 
   private async persistTransactions(storeCode: string, rows: unknown[]) {
@@ -2242,9 +2352,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(text)) return text;
     const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
     if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
-    throw new BadRequestException(
-      'Ngày MAP phải có dạng dd/MM/yyyy hoặc yyyy-MM-dd',
-    );
+    throw new BadRequestException('Ngày MAP không hợp lệ');
   }
 
   private formatMapDate(value: Date) {

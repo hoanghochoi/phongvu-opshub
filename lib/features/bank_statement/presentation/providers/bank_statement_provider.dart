@@ -148,12 +148,13 @@ class BankStatementProvider extends ChangeNotifier {
         },
       );
       final stores = await _repository.fetchStores();
+      final assignedStoreIds = _assignedStoreIdsFor(user);
       _stores
         ..clear()
         ..addAll(
           user?.canUseAllBankStatementStores == true
               ? stores
-              : stores.where((store) => store.storeId == user?.storeId),
+              : stores.where((store) => assignedStoreIds.contains(store.storeId)),
         );
       _storesLoaded = true;
       await AppLogger.instance.info(
@@ -179,6 +180,19 @@ class BankStatementProvider extends ChangeNotifier {
       );
       notifyListeners();
     }
+  }
+
+  static Set<String> _assignedStoreIdsFor(User? user) {
+    final ids = user?.assignedStoreIds
+            .map((value) => value.trim().toUpperCase())
+            .where((value) => value.isNotEmpty)
+            .toSet() ??
+        <String>{};
+    final legacyStoreId = user?.storeId?.trim().toUpperCase();
+    if (ids.isEmpty && legacyStoreId?.isNotEmpty == true) {
+      ids.add(legacyStoreId!);
+    }
+    return ids;
   }
 
   void setStoreSelection({required bool allStores, required Set<String> ids}) {

@@ -145,6 +145,7 @@ type PreparedAdminUserMutation = {
     areaCode?: string | null;
     organizationNodeId?: string | null;
   };
+  organizationNodeIds: string[];
   createData: Record<string, unknown>;
   updateData: Record<string, unknown>;
 };
@@ -155,6 +156,7 @@ type PreparedAdminUserImport = {
   action: 'created' | 'updated';
   userId?: string;
   role: string;
+  organizationNodeIds: string[];
   organizationNodeId: string | null;
   organizationNodeName: string | null;
   createData?: Record<string, unknown>;
@@ -661,6 +663,11 @@ export class UserService implements OnModuleInit {
       data: prepared.createData as any,
       include: this.userDtoInclude(),
     });
+    await this.syncUserOrganizationAssignments(
+      user.id,
+      prepared.organizationNodeIds,
+      admin,
+    );
     const saved = await this.prisma.user.findUnique({
       where: { id: user.id },
       include: this.userDtoInclude(),
@@ -695,6 +702,11 @@ export class UserService implements OnModuleInit {
       data: prepared.updateData as any,
       include: this.userDtoInclude(),
     });
+    await this.syncUserOrganizationAssignments(
+      userId,
+      prepared.organizationNodeIds,
+      admin,
+    );
     const saved = await this.prisma.user.findUnique({
       where: { id: userId },
       include: this.userDtoInclude(),
@@ -809,6 +821,15 @@ export class UserService implements OnModuleInit {
       const savedByEmail = new Map(
         savedUsers.map((user) => [String(user.email).toLowerCase(), user]),
       );
+      for (const item of prepared) {
+        const saved = savedByEmail.get(item.email);
+        if (!saved?.id) continue;
+        await this.syncUserOrganizationAssignments(
+          saved.id,
+          item.organizationNodeIds,
+          admin,
+        );
+      }
       const welcomeEmailSummary = await this.sendWelcomeEmailsForImport(
         admin,
         prepared,
@@ -900,16 +921,23 @@ export class UserService implements OnModuleInit {
         ? this.normalizeRoleCode(current.role, true)
         : await this.resolveAssignableRole(USER_ROLE);
     await this.assertRoleEditable(admin, role, current?.role);
+    const organizationNodeIds =
+      await this.resolveUserOrganizationAssignmentNodeIds(admin, body, current);
+    const primaryOrganizationNodeId = organizationNodeIds[0] ?? null;
+    const assignmentBody =
+      body.organizationNodeIds !== undefined
+        ? { ...body, organizationNodeId: primaryOrganizationNodeId ?? '' }
+        : body;
     const workScopeType = await this.resolveWorkScopeTypeForAssignment(
-      body,
+      assignmentBody,
       current,
       role,
     );
-    const storeUuid = await this.resolveUserAssignmentStoreUuid(admin, body, {
+    const storeUuid = await this.resolveUserAssignmentStoreUuid(admin, assignmentBody, {
       current,
       workScopeType,
     });
-    const personnel = await this.resolvePersonnelAssignment(admin, body, {
+    const personnel = await this.resolvePersonnelAssignment(admin, assignmentBody, {
       current,
       role,
       storeUuid,
@@ -965,6 +993,7 @@ export class UserService implements OnModuleInit {
       role,
       workScopeType: personnel.workScopeType,
       personnel,
+      organizationNodeIds,
       createData,
       updateData,
     };
@@ -1023,11 +1052,12 @@ export class UserService implements OnModuleInit {
     for (const row of rows) {
       try {
         await this.assertAccountEmailAllowed(row.email);
-        const node = await this.resolveImportOrganizationNode(
+        const nodes = await this.resolveImportOrganizationNodes(
           admin,
           row,
           organizationNodes,
         );
+        const node = nodes[0];
         const current = existingByEmail.get(row.email) ?? null;
         if (current) {
           await this.assertAdminCanUpdateUser(admin, current.id, current);
@@ -1038,7 +1068,7 @@ export class UserService implements OnModuleInit {
           lastName: '',
           role: row.role,
           status: current ? undefined : 'yes',
-          organizationNodeId: node.id,
+          organizationNodeIds: nodes.map((item) => item.id),
         };
         const mutation = await this.prepareAdminUserMutation(
           admin,
@@ -1051,6 +1081,7 @@ export class UserService implements OnModuleInit {
           action: current ? 'updated' : 'created',
           userId: current?.id,
           role: mutation.role,
+          organizationNodeIds: mutation.organizationNodeIds,
           organizationNodeId: mutation.personnel.organizationNodeId ?? node.id,
           organizationNodeName: node.displayName,
           createData: current ? undefined : mutation.createData,
@@ -1136,6 +1167,58 @@ export class UserService implements OnModuleInit {
     }
     await this.assertOrganizationNodeAssignableByAdmin(admin, target.id);
     return target;
+  }
+
+  private async resolveImportOrganizationNodes(
+    admin: any,
+    row: AdminUserImportRow,
+    nodes: Array<{
+      id: string;
+      parentId: string | null;
+      type: string;
+      code: string;
+      businessCode: string | null;
+      displayName: string;
+      isActive: boolean;
+    }>,
+  ) {
+    if (!row.storeIds?.length) {
+      return [await this.resolveImportOrganizationNode(admin, row, nodes)];
+    }
+
+    const storeCodes = row.storeIds.map((value) =>
+      this.normalizeStoreCode(value),
+    );
+    const stores = await this.prisma.store.findMany({
+      where: { storeId: { in: storeCodes } },
+      include: { organizationNode: true },
+    });
+    const byCode = new Map(
+      stores.map((store) => [String(store.storeId).toUpperCase(), store]),
+    );
+    const resolvedNodes: Array<(typeof nodes)[number]> = [];
+    for (const storeCode of storeCodes) {
+      const store = byCode.get(storeCode);
+      if (!store?.organizationNodeId || !store.organizationNode) {
+        throw new BadRequestException(
+          `không tìm thấy showroom ${storeCode} trên cây tổ chức`,
+        );
+      }
+      await this.assertOrganizationNodeAssignableByAdmin(
+        admin,
+        store.organizationNodeId,
+      );
+      resolvedNodes.push({
+        id: store.organizationNode.id,
+        parentId: store.organizationNode.parentId,
+        type: store.organizationNode.type,
+        code: store.organizationNode.code,
+        businessCode: store.organizationNode.businessCode,
+        displayName: store.organizationNode.displayName,
+        isActive: store.organizationNode.isActive,
+      });
+    }
+    return resolvedNodes;
   }
 
   private organizationNodeIsDescendantOf(
@@ -2865,6 +2948,20 @@ export class UserService implements OnModuleInit {
       region: true,
       area: { include: { region: true } },
       organizationNode: true,
+      organizationAssignments: {
+        where: { isActive: true },
+        orderBy: [
+          { isPrimary: Prisma.SortOrder.desc },
+          { createdAt: Prisma.SortOrder.asc },
+        ],
+        include: {
+          organizationNode: {
+            include: {
+              stores: { orderBy: { storeId: Prisma.SortOrder.asc } },
+            },
+          },
+        },
+      },
       userFeatureAssignments: {
         where: { enabled: true },
         select: { featureCode: true },
@@ -3014,6 +3111,14 @@ export class UserService implements OnModuleInit {
         { jobRole: { organizationNodeId: { in: idList } } },
         { region: { organizationNodeId: { in: idList } } },
         { area: { organizationNodeId: { in: idList } } },
+        {
+          organizationAssignments: {
+            some: {
+              isActive: true,
+              organizationNodeId: { in: idList },
+            },
+          },
+        },
         ...domains.map((domain: string) => ({
           email: { endsWith: '@' + domain, mode: Prisma.QueryMode.insensitive },
         })),
@@ -3078,6 +3183,14 @@ export class UserService implements OnModuleInit {
             { area: { organizationNodeId: { in: idList } } },
           ],
         },
+        {
+          organizationAssignments: {
+            some: {
+              isActive: true,
+              organizationNodeId: { in: idList },
+            },
+          },
+        },
       ],
     };
   }
@@ -3135,7 +3248,20 @@ export class UserService implements OnModuleInit {
     if (matchingNodeIds.size === 0) {
       return { id: '__NO_NODE_FEATURE_ASSIGNMENT__' };
     }
-    return { organizationNodeId: { in: Array.from(matchingNodeIds) } };
+    const nodeIds = Array.from(matchingNodeIds);
+    return {
+      OR: [
+        { organizationNodeId: { in: nodeIds } },
+        {
+          organizationAssignments: {
+            some: {
+              isActive: true,
+              organizationNodeId: { in: nodeIds },
+            },
+          },
+        },
+      ],
+    };
   }
 
   private nodeFeatureType(value: unknown) {
@@ -3182,13 +3308,66 @@ export class UserService implements OnModuleInit {
   private toUserDto(user: any) {
     const region = this.regionForUser(user);
     const area = this.areaForUser(user);
+    const activeAssignments = Array.isArray(user.organizationAssignments)
+      ? user.organizationAssignments.filter(
+          (assignment: any) => assignment?.isActive !== false,
+        )
+      : [];
+    const primaryAssignment =
+      activeAssignments.find((assignment: any) => assignment?.isPrimary) ??
+      activeAssignments[0] ??
+      null;
+    const primaryAssignmentNode = primaryAssignment?.organizationNode ?? null;
+    const primaryAssignmentStore =
+      primaryAssignmentNode?.stores?.[0] ?? user.store ?? null;
     const effectiveOrganizationNode =
-      user.organizationNode ?? user.store?.organizationNode ?? null;
+      primaryAssignmentNode ??
+      user.organizationNode ??
+      user.store?.organizationNode ??
+      null;
     const effectiveOrganizationNodeId =
+      primaryAssignment?.organizationNodeId ??
       user.organizationNodeId ??
       effectiveOrganizationNode?.id ??
       user.store?.organizationNodeId ??
       null;
+    const assignedStoresByCode = new Map<string, any>();
+    for (const assignment of activeAssignments) {
+      const stores = assignment?.organizationNode?.stores ?? [];
+      for (const store of stores) {
+        const code = String(store?.storeId || '').trim();
+        if (code && !assignedStoresByCode.has(code)) {
+          assignedStoresByCode.set(code, store);
+        }
+      }
+    }
+    if (primaryAssignmentStore?.storeId) {
+      assignedStoresByCode.set(
+        String(primaryAssignmentStore.storeId),
+        primaryAssignmentStore,
+      );
+    }
+    const assignedStores = Array.from(assignedStoresByCode.values()).map(
+      (store) => ({
+        id: store.id ?? null,
+        storeId: store.storeId ?? null,
+        storeName: store.storeName ?? null,
+        organizationNodeId: store.organizationNodeId ?? null,
+      }),
+    );
+    const organizationAssignments = activeAssignments.map((assignment: any) => {
+      const node = assignment?.organizationNode ?? null;
+      const store = node?.stores?.[0] ?? null;
+      return {
+        id: assignment.id,
+        organizationNodeId: assignment.organizationNodeId,
+        organizationNodeName: node?.displayName ?? null,
+        organizationNodeType: node?.type ?? null,
+        storeId: store?.storeId ?? null,
+        storeName: store?.storeName ?? null,
+        isPrimary: assignment.isPrimary === true,
+      };
+    });
     return {
       id: user.id,
       email: user.email,
@@ -3197,8 +3376,8 @@ export class UserService implements OnModuleInit {
       firstName: user.firstName,
       lastName: user.lastName,
       avatarUrl: user.avatarUrl,
-      storeId: user.store?.storeId ?? null,
-      storeName: user.store?.storeName ?? null,
+      storeId: primaryAssignmentStore?.storeId ?? null,
+      storeName: primaryAssignmentStore?.storeName ?? null,
       role: user.role,
       status: user.status,
       departmentCode: user.departmentCode ?? null,
@@ -3212,6 +3391,12 @@ export class UserService implements OnModuleInit {
       areaAbbreviation: area?.abbreviation ?? null,
       organizationNodeId: effectiveOrganizationNodeId,
       organizationNodeName: effectiveOrganizationNode?.displayName ?? null,
+      organizationAssignments,
+      organizationNodeIds: organizationAssignments.map(
+        (assignment: { organizationNodeId: string }) =>
+          assignment.organizationNodeId,
+      ),
+      assignedStores,
       featureCodes: this.featureCodesForUser(user),
       resolvedFeatureAccess: this.featureAccessMapForUser(user),
       personnelCode: this.personnelCodeFor(user),
@@ -4815,6 +5000,122 @@ export class UserService implements OnModuleInit {
       );
     }
     return store.id;
+  }
+
+  private async resolveUserOrganizationAssignmentNodeIds(
+    admin: any,
+    body: any,
+    current: any | null,
+  ) {
+    const nodeIds = this.normalizedOrganizationNodeIdInput(body, current);
+    if (nodeIds.length === 0) return [];
+
+    const contexts = [];
+    for (const nodeId of nodeIds) {
+      const context = await this.organizationScopeContext(nodeId);
+      await this.assertOrganizationNodeAssignableByAdmin(
+        admin,
+        context.organizationNodeId,
+      );
+      contexts.push(context);
+    }
+
+    if (contexts.length > 1) {
+      const invalid = contexts.find((context) => !context.storeNodeId);
+      if (invalid) {
+        throw new BadRequestException(
+          'Khi gán nhiều SR, mỗi lựa chọn phải là showroom hoặc vị trí trong showroom',
+        );
+      }
+    }
+
+    return nodeIds;
+  }
+
+  private normalizedOrganizationNodeIdInput(body: any, current: any | null) {
+    if (body.organizationNodeIds !== undefined) {
+      return this.normalizeOrganizationNodeIds(body.organizationNodeIds);
+    }
+    if (body.organizationNodeId !== undefined) {
+      return this.normalizeOrganizationNodeIds([body.organizationNodeId]);
+    }
+    const currentAssignments = Array.isArray(current?.organizationAssignments)
+      ? current.organizationAssignments
+      : [];
+    const activeAssignmentIds = currentAssignments
+      .filter((assignment: any) => assignment?.isActive !== false)
+      .map((assignment: any) => assignment.organizationNodeId)
+      .filter(Boolean);
+    if (activeAssignmentIds.length > 0) {
+      return this.normalizeOrganizationNodeIds(activeAssignmentIds);
+    }
+    return this.normalizeOrganizationNodeIds([
+      current?.organizationNodeId ?? current?.store?.organizationNodeId,
+    ]);
+  }
+
+  private normalizeOrganizationNodeIds(value: unknown) {
+    const rawItems = Array.isArray(value)
+      ? value
+      : String(value ?? '')
+          .split(/[;,]/)
+          .map((item) => item.trim());
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const item of rawItems) {
+      const nodeId = String(item ?? '').trim();
+      if (!nodeId || seen.has(nodeId)) continue;
+      if (nodeId.length > 80) {
+        throw new BadRequestException('Node tổ chức không hợp lệ');
+      }
+      seen.add(nodeId);
+      result.push(nodeId);
+    }
+    return result;
+  }
+
+  private async syncUserOrganizationAssignments(
+    userId: string,
+    organizationNodeIds: string[],
+    admin: any,
+  ) {
+    const assignmentModel = (this.prisma as any).userOrganizationAssignment;
+    if (!assignmentModel?.upsert) return;
+    const selected = new Set(organizationNodeIds);
+    await assignmentModel.updateMany({
+      where: {
+        userId,
+        ...(organizationNodeIds.length > 0
+          ? { organizationNodeId: { notIn: organizationNodeIds } }
+          : {}),
+      },
+      data: { isActive: false, isPrimary: false },
+    });
+    for (const [index, organizationNodeId] of organizationNodeIds.entries()) {
+      await assignmentModel.upsert({
+        where: {
+          userId_organizationNodeId: { userId, organizationNodeId },
+        },
+        create: {
+          userId,
+          organizationNodeId,
+          isPrimary: index === 0,
+          isActive: true,
+          assignedById: admin?.id ?? null,
+          note: 'Admin user assignment',
+        },
+        update: {
+          isPrimary: index === 0,
+          isActive: true,
+          assignedById: admin?.id ?? null,
+        },
+      });
+    }
+    if (selected.size > 0) {
+      this.logger.log(
+        `User organization assignments synced: userId=${userId} count=${selected.size}`,
+      );
+    }
   }
 
   private async resolvePersonnelAssignment(

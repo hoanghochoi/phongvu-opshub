@@ -1052,8 +1052,8 @@ export class PaymentNotificationsService {
       )
     )
       return;
-    const userStoreCode = await this.userStoreCode(user);
-    if (!userStoreCode || userStoreCode !== storeCode) {
+    const userStoreCodes = await this.userStoreCodes(user);
+    if (!userStoreCodes.includes(storeCode)) {
       throw new ForbiddenException('Không có quyền truy cập showroom này');
     }
   }
@@ -1071,11 +1071,17 @@ export class PaymentNotificationsService {
       }
       return normalized;
     }
-    const userStoreCode = await this.userStoreCode(user);
-    if (!userStoreCode || (normalized && normalized !== userStoreCode)) {
-      throw new ForbiddenException('Không có quyền truy cập showroom này');
+    const userStoreCodes = await this.userStoreCodes(user);
+    if (normalized) {
+      if (!userStoreCodes.includes(normalized)) {
+        throw new ForbiddenException('Không có quyền truy cập showroom này');
+      }
+      return normalized;
     }
-    return userStoreCode;
+    if (userStoreCodes.length !== 1) {
+      throw new ForbiddenException('Vui lòng chọn showroom');
+    }
+    return userStoreCodes[0];
   }
 
   private async resolveAllowedLogStore(user: any, requested?: string) {
@@ -1087,20 +1093,65 @@ export class PaymentNotificationsService {
       )
     )
       return normalized || null;
-    const userStoreCode = await this.userStoreCode(user);
-    if (normalized && normalized !== userStoreCode) {
+    const userStoreCodes = await this.userStoreCodes(user);
+    if (normalized && !userStoreCodes.includes(normalized)) {
       throw new ForbiddenException('Không có quyền ghi log showroom này');
     }
-    return normalized || userStoreCode || null;
+    if (normalized) return normalized;
+    return userStoreCodes.length === 1 ? userStoreCodes[0] : null;
   }
 
-  private async userStoreCode(user: any) {
-    if (!user?.storeId) return null;
-    const store = await this.prisma.store.findUnique({
-      where: { id: user.storeId },
-      select: { storeId: true },
-    });
-    return store?.storeId ?? null;
+  private async userStoreCodes(user: any) {
+    const storesByCode = new Map<string, string>();
+    const pushStoreCode = (value: unknown) => {
+      const code = String(value || '')
+        .trim()
+        .toUpperCase();
+      if (code) storesByCode.set(code, code);
+    };
+
+    const userModel = (this.prisma as any).user;
+    if (user?.id && userModel?.findUnique) {
+      const savedUser = await userModel.findUnique({
+        where: { id: user.id },
+        include: {
+          store: { select: { storeId: true } },
+          organizationAssignments: {
+            where: { isActive: true },
+            orderBy: [
+              { isPrimary: Prisma.SortOrder.desc },
+              { createdAt: Prisma.SortOrder.asc },
+            ],
+            include: {
+              organizationNode: {
+                include: {
+                  stores: {
+                    select: { storeId: true },
+                    orderBy: { storeId: Prisma.SortOrder.asc },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      pushStoreCode(savedUser?.store?.storeId);
+      for (const assignment of savedUser?.organizationAssignments ?? []) {
+        for (const store of assignment.organizationNode?.stores ?? []) {
+          pushStoreCode(store.storeId);
+        }
+      }
+    }
+
+    if (storesByCode.size === 0 && user?.storeId) {
+      const store = await this.prisma.store.findUnique({
+        where: { id: user.storeId },
+        select: { storeId: true },
+      });
+      pushStoreCode(store?.storeId);
+    }
+
+    return Array.from(storesByCode.values());
   }
 
   private audioRetentionDays() {

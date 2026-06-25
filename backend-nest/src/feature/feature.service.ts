@@ -6,6 +6,7 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { DEFAULT_FEATURE_DEFINITIONS } from './feature.constants';
 import {
@@ -45,6 +46,7 @@ type FeatureContext = {
   organizationNodeKey?: string | null;
   organizationNodeFeatureTargets?: FeatureNodeTarget[];
   storeName?: string | null;
+  alternateContexts?: FeatureContext[];
 };
 
 @Injectable()
@@ -99,22 +101,24 @@ export class FeatureService implements OnModuleInit {
     }
 
     const featureCodes = features.map((feature) => feature.code);
-    const targets = this.requiredFeatureNodeTargets(context);
-    if (!this.hasUsableFeatureContext(context) || targets.length === 0) {
+    const targetGroups = this.requiredFeatureTargetGroups(context);
+    if (targetGroups.length === 0) {
       return Object.fromEntries(
         featureCodes.map((featureCode) => [featureCode, false]),
       );
     }
 
     const enabledAssignments = await this.enabledFeatureAssignmentKeys(
-      targets,
+      targetGroups.flat(),
       featureCodes,
     );
     return Object.fromEntries(
       featureCodes.map((featureCode) => [
         featureCode,
-        targets.every((target) =>
-          enabledAssignments.has(this.featureTargetKey(target, featureCode)),
+        targetGroups.some((targets) =>
+          targets.every((target) =>
+            enabledAssignments.has(this.featureTargetKey(target, featureCode)),
+          ),
         ),
       ]),
     );
@@ -717,16 +721,16 @@ export class FeatureService implements OnModuleInit {
       select: { isActive: true },
     });
     if (!feature || !feature.isActive) return false;
-    if (!this.hasUsableFeatureContext(context)) return false;
-
-    const targets = this.requiredFeatureNodeTargets(context);
-    if (targets.length === 0) return false;
+    const targetGroups = this.requiredFeatureTargetGroups(context);
+    if (targetGroups.length === 0) return false;
     const enabledAssignments = await this.enabledFeatureAssignmentKeys(
-      targets,
+      targetGroups.flat(),
       [featureCode],
     );
-    return targets.every((target) =>
-      enabledAssignments.has(this.featureTargetKey(target, featureCode)),
+    return targetGroups.some((targets) =>
+      targets.every((target) =>
+        enabledAssignments.has(this.featureTargetKey(target, featureCode)),
+      ),
     );
   }
 
@@ -777,6 +781,13 @@ export class FeatureService implements OnModuleInit {
       result.push(normalized);
     }
     return result;
+  }
+
+  private requiredFeatureTargetGroups(context: FeatureContext) {
+    return [context, ...(context.alternateContexts ?? [])]
+      .filter((candidate) => this.hasUsableFeatureContext(candidate))
+      .map((candidate) => this.requiredFeatureNodeTargets(candidate))
+      .filter((targets) => targets.length > 0);
   }
 
   private async enabledFeatureAssignmentKeys(
@@ -1245,6 +1256,20 @@ export class FeatureService implements OnModuleInit {
         },
         region: true,
         area: { include: { region: true } },
+        organizationAssignments: {
+          where: { isActive: true },
+          orderBy: [
+            { isPrimary: Prisma.SortOrder.desc },
+            { createdAt: Prisma.SortOrder.asc },
+          ],
+          include: {
+            organizationNode: {
+              include: {
+                stores: { orderBy: { storeId: Prisma.SortOrder.asc } },
+              },
+            },
+          },
+        },
       },
     });
     const source = full ?? user;
@@ -1254,7 +1279,7 @@ export class FeatureService implements OnModuleInit {
       await this.resolveOrganizationRuleContext(scopeNodeId);
     const area = this.areaForContextSource(source);
     const region = this.regionForContextSource(source);
-    return {
+    const baseContext: FeatureContext = {
       id: source.id ?? null,
       email: source.email ?? null,
       emailDomain: this.emailDomainFromEmail(source.email),
@@ -1279,6 +1304,58 @@ export class FeatureService implements OnModuleInit {
       storeCode: organizationContext.storeCode ?? source.store?.storeId ?? null,
       storeName: source.store?.storeName ?? null,
     };
+    baseContext.alternateContexts = await this.resolveAlternateFeatureContexts(
+      source,
+      baseContext.organizationNodeId,
+    );
+    return baseContext;
+  }
+
+  private async resolveAlternateFeatureContexts(
+    source: any,
+    primaryOrganizationNodeId?: string | null,
+  ) {
+    const assignments = Array.isArray(source?.organizationAssignments)
+      ? source.organizationAssignments
+      : [];
+    const seen = new Set<string>(
+      [primaryOrganizationNodeId].filter(Boolean) as string[],
+    );
+    const contexts: FeatureContext[] = [];
+    for (const assignment of assignments) {
+      const nodeId = String(assignment?.organizationNodeId || '').trim();
+      if (!nodeId || seen.has(nodeId)) continue;
+      seen.add(nodeId);
+      const organizationContext =
+        await this.resolveOrganizationRuleContext(nodeId);
+      const assignmentStore = assignment?.organizationNode?.stores?.[0] ?? null;
+      contexts.push({
+        id: source.id ?? null,
+        email: source.email ?? null,
+        emailDomain: this.emailDomainFromEmail(source.email),
+        role: this.normalizeSystemRole(source.role),
+        departmentCode: source.departmentCode ?? null,
+        jobRoleCode: source.jobRoleCode ?? null,
+        workScopeType: this.effectiveScope(source),
+        regionCode:
+          organizationContext.regionCode ?? source.regionCode ?? null,
+        areaCode: organizationContext.areaCode ?? source.areaCode ?? null,
+        organizationNodeId: organizationContext.organizationNodeId,
+        organizationNodeIds: organizationContext.organizationNodeIds,
+        organizationNodeActive: organizationContext.organizationNodeActive,
+        organizationScopeRootId: organizationContext.scopeRootNodeId,
+        organizationNodeType: organizationContext.nodeType,
+        organizationNodeKey: organizationContext.nodeKey,
+        organizationNodeFeatureTargets: organizationContext.nodeFeatureTargets,
+        storeCode:
+          organizationContext.storeCode ??
+          assignmentStore?.storeId ??
+          source.storeCode ??
+          null,
+        storeName: assignmentStore?.storeName ?? null,
+      });
+    }
+    return contexts;
   }
 
   private async resolveOrganizationRuleContext(nodeId?: string | null) {

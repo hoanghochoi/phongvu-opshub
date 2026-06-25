@@ -98,108 +98,120 @@ class AppRouter {
       routes: [
         GoRoute(
           path: '/loading',
-          builder: (context, state) =>
-              const Scaffold(body: Center(child: CircularProgressIndicator())),
+          builder: (context, state) => _selectable(
+            const Scaffold(body: Center(child: CircularProgressIndicator())),
+          ),
         ),
         GoRoute(
           path: '/login',
-          builder: (context, state) => const EmailCheckScreen(),
+          builder: (context, state) => _selectable(const EmailCheckScreen()),
         ),
         GoRoute(
           path: '/register',
           builder: (context, state) {
             final email = state.extra as String?;
-            return RegisterScreen(initialEmail: email);
+            return _selectable(RegisterScreen(initialEmail: email));
           },
         ),
         GoRoute(
           path: '/forgot-password',
-          builder: (context, state) => const ForgotPasswordScreen(),
+          builder: (context, state) =>
+              _selectable(const ForgotPasswordScreen()),
         ),
         GoRoute(
           path: '/assignment-pending',
-          builder: (context, state) => const AssignmentPendingScreen(),
+          builder: (context, state) =>
+              _selectable(const AssignmentPendingScreen()),
         ),
         GoRoute(
           path: '/home',
-          builder: (context, state) => const MainNavigationScreen(),
+          builder: (context, state) =>
+              _selectable(const MainNavigationScreen()),
         ),
         GoRoute(
           path: '/profile',
-          builder: (context, state) => const ProfileScreen(),
+          builder: (context, state) => _selectable(const ProfileScreen()),
         ),
         GoRoute(
           path: '/admin',
-          builder: (context, state) => const AdminMenuScreen(),
+          builder: (context, state) => _selectable(const AdminMenuScreen()),
         ),
         GoRoute(
           path: '/admin/users',
-          builder: (context, state) => const UserAdminScreen(),
+          builder: (context, state) => _selectable(const UserAdminScreen()),
         ),
         GoRoute(
           path: '/admin/roles',
-          builder: (context, state) => const RoleAdminScreen(),
+          builder: (context, state) => _selectable(const RoleAdminScreen()),
         ),
         GoRoute(
           path: '/admin/organization',
-          builder: (context, state) => const OrganizationTreeAdminScreen(),
+          builder: (context, state) =>
+              _selectable(const OrganizationTreeAdminScreen()),
         ),
         GoRoute(
           path: '/admin/policies',
-          builder: (context, state) => const PolicyAdminScreen(),
+          builder: (context, state) => _selectable(const PolicyAdminScreen()),
         ),
         GoRoute(
           path: '/admin/inventory-import',
-          builder: (context, state) => const InventoryImportScreen(),
+          builder: (context, state) =>
+              _selectable(const InventoryImportScreen()),
         ),
         GoRoute(
           path: '/admin/feedback',
-          builder: (context, state) => const FeedbackAdminScreen(),
+          builder: (context, state) => _selectable(const FeedbackAdminScreen()),
         ),
         GoRoute(
           path: '/fifo-menu',
-          builder: (context, state) => const FifoMenuScreen(),
+          builder: (context, state) => _selectable(const FifoMenuScreen()),
         ),
         GoRoute(
           path: '/fifo-check',
-          builder: (context, state) => const FifoCheckScreen(),
+          builder: (context, state) => _selectable(const FifoCheckScreen()),
         ),
         GoRoute(
           path: '/fifo-history',
-          builder: (context, state) => const FifoHistoryScreen(),
+          builder: (context, state) => _selectable(const FifoHistoryScreen()),
         ),
         GoRoute(
           path: '/fifo/inventory-import',
-          builder: (context, state) => const InventoryImportScreen(),
+          builder: (context, state) =>
+              _selectable(const InventoryImportScreen()),
         ),
-        GoRoute(path: '/sort', builder: (context, state) => const SortScreen()),
+        GoRoute(
+          path: '/sort',
+          builder: (context, state) => _selectable(const SortScreen()),
+        ),
         GoRoute(
           path: '/warranty-main',
-          builder: (context, state) =>
-              WarrantyMainScreen(onBackToHome: () => context.go('/home')),
+          builder: (context, state) => _selectable(
+            WarrantyMainScreen(onBackToHome: () => context.go('/home')),
+          ),
         ),
         GoRoute(
           path: '/warranty',
-          builder: (context, state) => const WarrantyScreen(),
+          builder: (context, state) => _selectable(const WarrantyScreen()),
         ),
         GoRoute(
           path: '/check-warranty',
-          builder: (context, state) => const CheckWarrantyScreen(),
+          builder: (context, state) => _selectable(const CheckWarrantyScreen()),
         ),
         GoRoute(
           path: '/vietqr',
-          builder: (context, state) => const VietQrScreen(),
+          builder: (context, state) => _selectable(const VietQrScreen()),
         ),
         GoRoute(
           path: '/payment-monitor',
-          builder: (context, state) => const PaymentMonitorScreen(),
+          builder: (context, state) =>
+              _selectable(const PaymentMonitorScreen()),
         ),
         GoRoute(
           path: '/bank-statement',
           builder: (context, state) => ChangeNotifierProvider(
             create: (_) =>
                 BankStatementProvider(BankStatementRepository(ApiClient())),
-            child: const BankStatementScreen(),
+            child: _selectable(const BankStatementScreen()),
           ),
         ),
         GoRoute(
@@ -208,16 +220,16 @@ class AppRouter {
             create: (_) => OffsetAdjustmentProvider(
               OffsetAdjustmentRepository(ApiClient()),
             ),
-            child: const OffsetAdjustmentScreen(),
+            child: _selectable(const OffsetAdjustmentScreen()),
           ),
         ),
         GoRoute(
           path: '/feedback',
-          builder: (context, state) => const FeedbackScreen(),
+          builder: (context, state) => _selectable(const FeedbackScreen()),
         ),
         GoRoute(
           path: '/settings',
-          builder: (context, state) => const SettingsScreen(),
+          builder: (context, state) => _selectable(const SettingsScreen()),
         ),
       ],
     );
@@ -257,4 +269,6 @@ class AppRouter {
     }
     return user?.canUseFeature(featureCode) == true;
   }
+
+  static Widget _selectable(Widget child) => SelectionArea(child: child);
 }

@@ -9,8 +9,8 @@ account import from CSV, and administration for privileged roles.
 
 - `data/store_account.csv` is present in the repo.
 - Backend can import store account rows into `Store`.
-- Newly registered users without an organization node authenticate into the
-  assignment-pending screen and do not self-select an SR/store.
+- Newly registered users without any active organization assignment authenticate
+  into the assignment-pending screen and do not self-select an SR/store.
 - Users can edit profile display names and upload an avatar.
 - `SUPER_ADMIN` and scoped `ADMIN` users can open administration from the app
   when their resolved feature map allows it.
@@ -36,11 +36,12 @@ account import from CSV, and administration for privileged roles.
   metadata. Tree saves sync the related `Store` row without overwriting existing
   SR identity, payment, transfer, or MAP fields unless those fields are
   explicitly edited in the Lv4 store editor.
-- Store-scoped users derive Region/Area from their assigned SR and do not need
+- Store-scoped users derive Region/Area from their assigned SRs and do not need
   a direct Region/Area assignment.
 - Admin user editing uses the organization tree for assignment. The app sends
-  `organizationNodeId`; legacy work scope, store, region, area, department, and
-  job-role columns are backend-derived compatibility fields, not editor inputs.
+  `organizationNodeIds`; legacy work scope, store, region, area, department,
+  and job-role columns are backend-derived compatibility fields, not editor
+  inputs.
 - Organization management supports `LV0_DOMAIN`, `LV1_BLOCK`,
   `LV2_DEPARTMENT`, `LV2_REGION`, `LV3_AREA`, `LV3_UNIT`, `LV4_STORE`, and
   `LV5_POSITION`. Lv0 is the only parentless root. Other nodes can attach to
@@ -61,12 +62,15 @@ account import from CSV, and administration for privileged roles.
   already denies them.
 - `SUPER_ADMIN` bypasses feature gates to avoid lockout.
 - User management supports filters by name/email search, domain,
-  organization node, feature/screen, role, and status.
+  organization node, feature/screen, role, and status. List filters use
+  dropdown/anchored menus, and dropdowns with more than 10 options include
+  search.
 - User management supports Excel import through `ADMIN_USERS` using the
   `user_temp.xlsx` header contract. Imports match `lv0`-`lv5` values by active
-  organization node `code`/`businessCode`, assign the deepest matched node,
-  create passwordless users, and upsert existing users without changing their
-  password; imported users set their first password through `Quên mật khẩu`.
+  organization node `code`/`businessCode` or `store_ids`, sync every resolved
+  active assignment, create passwordless users, and upsert existing users
+  without changing their password; imported users set their first password
+  through `Quên mật khẩu`.
 - Policy management supports configurable policy definitions, detailed policy
   rules, and system settings for login domains, password policy, and OTP
   policies. App policy and feature rule editing uses organization tree nodes

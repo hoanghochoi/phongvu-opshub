@@ -5,9 +5,11 @@ import 'package:provider/provider.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/payment_monitor_provider.dart';
 import '../widgets/payment_transaction_tile.dart';
@@ -146,7 +148,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                 ),
               ],
               const SizedBox(height: 14),
-              _TransactionFilters(monitor: monitor),
+              _TransactionFilters(monitor: monitor, user: user),
               const SizedBox(height: 16),
               Text(
                 'Giao dịch tiền vào',
@@ -234,8 +236,9 @@ class _SyncStatusPill extends StatelessWidget {
 
 class _TransactionFilters extends StatelessWidget {
   final PaymentMonitorProvider monitor;
+  final User? user;
 
-  const _TransactionFilters({required this.monitor});
+  const _TransactionFilters({required this.monitor, required this.user});
 
   @override
   Widget build(BuildContext context) {
@@ -250,38 +253,31 @@ class _TransactionFilters extends StatelessWidget {
               padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
               child: Column(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _DateDropdown(
-                          label: 'Từ ngày',
-                          date: monitor.rangeStartDate,
-                          firstDate: DateTime(2024),
-                          lastDate: monitor.rangeEndDate,
-                          onPicked: (date) {
-                            context.read<PaymentMonitorProvider>().setDateRange(
-                              date,
-                              monitor.rangeEndDate,
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _DateDropdown(
-                          label: 'Đến ngày',
-                          date: monitor.rangeEndDate,
-                          firstDate: monitor.rangeStartDate,
-                          lastDate: DateTime.now().add(const Duration(days: 1)),
-                          onPicked: (date) {
-                            context.read<PaymentMonitorProvider>().setDateRange(
-                              monitor.rangeStartDate,
-                              date,
-                            );
-                          },
-                        ),
-                      ),
-                    ],
+                  if (_storeOptions.isNotEmpty) ...[
+                    AppMultiSelectFilterDropdown<String>(
+                      label: 'SR',
+                      values: monitor.selectedStoreIds,
+                      options: _storeOptions,
+                      emptyLabel: 'SR được gán',
+                      onChanged: context
+                          .read<PaymentMonitorProvider>()
+                          .setSelectedStoreIds,
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  AppDateRangeDropdown(
+                    label: 'Ngày',
+                    start: monitor.rangeStartDate,
+                    end: monitor.rangeEndDate,
+                    allowEmptyRange: false,
+                    onChanged: (start, end) {
+                      final nextStart = start ?? monitor.rangeStartDate;
+                      final nextEnd = end ?? start ?? monitor.rangeEndDate;
+                      context.read<PaymentMonitorProvider>().setDateRange(
+                        nextStart,
+                        nextEnd,
+                      );
+                    },
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<int>(
@@ -367,31 +363,32 @@ class _TransactionFilters extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Expanded(
-                      child: _DateDropdown(
-                        label: 'Từ ngày',
-                        date: monitor.rangeStartDate,
-                        firstDate: DateTime(2024),
-                        lastDate: monitor.rangeEndDate,
-                        onPicked: (date) {
-                          context.read<PaymentMonitorProvider>().setDateRange(
-                            date,
-                            monitor.rangeEndDate,
-                          );
-                        },
+                    if (_storeOptions.isNotEmpty) ...[
+                      Expanded(
+                        child: AppMultiSelectFilterDropdown<String>(
+                          label: 'SR',
+                          values: monitor.selectedStoreIds,
+                          options: _storeOptions,
+                          emptyLabel: 'SR được gán',
+                          onChanged: context
+                              .read<PaymentMonitorProvider>()
+                              .setSelectedStoreIds,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
+                      const SizedBox(width: 8),
+                    ],
                     Expanded(
-                      child: _DateDropdown(
-                        label: 'Đến ngày',
-                        date: monitor.rangeEndDate,
-                        firstDate: monitor.rangeStartDate,
-                        lastDate: DateTime.now().add(const Duration(days: 1)),
-                        onPicked: (date) {
+                      child: AppDateRangeDropdown(
+                        label: 'Ngày',
+                        start: monitor.rangeStartDate,
+                        end: monitor.rangeEndDate,
+                        allowEmptyRange: false,
+                        onChanged: (start, end) {
+                          final nextStart = start ?? monitor.rangeStartDate;
+                          final nextEnd = end ?? start ?? monitor.rangeEndDate;
                           context.read<PaymentMonitorProvider>().setDateRange(
-                            monitor.rangeStartDate,
-                            date,
+                            nextStart,
+                            nextEnd,
                           );
                         },
                       ),
@@ -480,57 +477,18 @@ class _TransactionFilters extends StatelessWidget {
       },
     );
   }
-}
 
-/// A single date dropdown: displays the date in dd/MM/yyyy format,
-/// tapping it opens [showDatePicker].
-class _DateDropdown extends StatelessWidget {
-  final String label;
-  final DateTime date;
-  final DateTime firstDate;
-  final DateTime lastDate;
-  final ValueChanged<DateTime> onPicked;
-
-  const _DateDropdown({
-    required this.label,
-    required this.date,
-    required this.firstDate,
-    required this.lastDate,
-    required this.onPicked,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: date,
-          firstDate: firstDate,
-          lastDate: lastDate,
-          helpText: label,
-          cancelText: 'Hủy',
-          confirmText: 'Chọn',
-        );
-        if (picked != null) onPicked(picked);
-      },
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          isDense: true,
-          constraints: const BoxConstraints(minHeight: 52),
-          border: const OutlineInputBorder(),
-          suffixIcon: const Icon(Icons.calendar_month_rounded, size: 20),
-        ),
-        child: Text(
-          DateFormat('dd/MM/yyyy').format(date),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          softWrap: false,
-        ),
-      ),
-    );
+  List<AppFilterOption<String>> get _storeOptions {
+    final stores = user?.assignedStores ?? const [];
+    return stores
+        .where((store) => store.storeId.trim().isNotEmpty)
+        .map(
+          (store) => AppFilterOption(
+            value: store.storeId.trim().toUpperCase(),
+            label: store.displayName,
+          ),
+        )
+        .toList(growable: false);
   }
 }
 

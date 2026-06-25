@@ -88,6 +88,16 @@ export class ListStoredMapVietinTransactionsDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(400)
+  storeIds?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  allStores?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(40)
   afterFirstSeenAt?: string;
 

@@ -8,8 +8,8 @@ and basic administration for privileged roles.
 - Staff can view and update their display name.
 - Staff can upload an avatar image.
 - Staff do not choose a branch/store during registration or first login. If
-  their account has no `organizationNodeId`, the app shows the assignment
-  pending screen and asks them to contact support.
+  their account has no active organization assignment, the app shows the
+  assignment pending screen and asks them to contact support.
 - The backend rejects the retired self-service store-selection API with
   `410 Gone`.
 
@@ -37,13 +37,18 @@ and basic administration for privileged roles.
   administration screens are not exposed; their data is maintained through the
   organization tree or runtime store flows.
 - Admin users can list, add, and edit users inside their permitted scope.
+  A user can be assigned to one or many active organization nodes/showrooms.
+  `UserOrganizationAssignment` is the source of truth for those assignments;
+  legacy `organizationNodeId`, `storeId`, personnel scope, Region, and Area
+  fields are compatibility output during rollout.
 - Only `SUPER_ADMIN` can create users or import nhân sự from an Excel file using
   the template headers `email`, `full_name`, `system_role`, and `lv0` through
-  `lv5`. The backend matches `lv*` values to active organization node
-  `code`/`businessCode`, assigns the deepest matched node, creates passwordless
-  users, and upserts existing users without changing their password. Import
-  rejects the whole file before writing when any email has invalid syntax or a
-  domain outside `AUTH_ALLOWED_EMAIL_DOMAINS`.
+  `lv5`; import can also use `store_ids` for semicolon/comma-separated showroom
+  assignments. The backend matches `lv*` values to active organization node
+  `code`/`businessCode`, assigns the deepest matched node, syncs every resolved
+  assignment, creates passwordless users, and upserts existing users without
+  changing their password. Import rejects the whole file before writing when
+  any email has invalid syntax or a domain outside `AUTH_ALLOWED_EMAIL_DOMAINS`.
 - New users created by `SUPER_ADMIN`, including import-created rows, receive a
   welcome email that points them to the in-app `Quên mật khẩu` first-password
   flow. SMTP failures do not roll back user creation; the UI reports the email
@@ -53,9 +58,10 @@ and basic administration for privileged roles.
   and users tied to warranty, feedback, FIFO, VietQR, MAP order history, or node
   assignment history are blocked with an explicit reason.
 - User management keeps name/email search and filters for domain, organization
-  node, feature/screen, role, and status. The feature/screen filter resolves
-  through node-group feature assignments; the user editor does not assign
-  per-user feature exceptions.
+  node, feature/screen, role, and status. List filters use dropdown/anchored
+  menus, and dropdowns with more than 10 options include search. The
+  feature/screen filter resolves through node-group feature assignments; the
+  user editor does not assign per-user feature exceptions.
 - System access roles are fixed to `SUPER_ADMIN`, `ADMIN`, and `USER`.
   `SUPER_ADMIN` can manage all roots. `ADMIN` is scoped by its assigned
   organization root, with email-domain fallback during rollout. `USER` has no
@@ -157,13 +163,15 @@ and basic administration for privileged roles.
   fixed system access roles.
 - Payment speaker ready-claim/audio/ack is controlled by the separate
   `PAYMENT_SPEAKER` (`Đọc loa`) feature assigned to the user's direct
-  organization node group. `PAYMENT_MONITOR` opens the `Tiền vào` transaction
-  view, while `PAYMENT_SPEAKER` permits audio polling, audio download, and
-  payment-notification ack on supported Windows PCs. Mobile and other
-  unsupported platforms do not enable the speaker path by default. The rollout
-  backfills `PAYMENT_SPEAKER` only for Lv5 `STORE_MANAGER` and `CASH` node
-  groups that already have `PAYMENT_MONITOR`, so current speaker users keep
-  working without opening speaker access to every monitor user.
+  organization node group or any active assigned node group. `PAYMENT_MONITOR`
+  opens the `Tiền vào` transaction view across the user's assigned showrooms,
+  while `PAYMENT_SPEAKER` permits audio polling, audio download, and
+  payment-notification ack only after the app has exactly one active showroom
+  selected on a supported Windows PC. Mobile and other unsupported platforms do
+  not enable the speaker path by default. The rollout backfills
+  `PAYMENT_SPEAKER` only for Lv5 `STORE_MANAGER` and `CASH` node groups that
+  already have `PAYMENT_MONITOR`, so current speaker users keep working without
+  opening speaker access to every monitor user.
 - Work scope values are `NATIONAL`, `REGION`, `AREA`, and `STORE`.
   `MULTI_STORE` is not accepted. Legacy `ONLINE` is migrated to
   `REGION + CHATSALE` and is not exposed in the public contract.

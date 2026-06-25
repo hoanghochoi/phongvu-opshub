@@ -7,7 +7,9 @@ import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_notification_action.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -389,15 +391,11 @@ class _FilterPanel extends StatelessWidget {
                 SizedBox(width: fieldWidth, child: _amountField()),
                 SizedBox(
                   width: fieldWidth,
-                  height: 56,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _pickDateRange(context),
-                    icon: const Icon(Icons.date_range_rounded),
-                    label: Text(
-                      _dateLabel(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  child: AppDateRangeDropdown(
+                    label: 'Ngày',
+                    start: provider.startDate,
+                    end: provider.endDate,
+                    onChanged: provider.setDateRange,
                   ),
                 ),
                 SizedBox(
@@ -516,28 +514,6 @@ class _FilterPanel extends StatelessWidget {
       decoration: const InputDecoration(labelText: 'Số tiền'),
       onChanged: provider.setAmount,
     );
-  }
-
-  Future<void> _pickDateRange(BuildContext context) async {
-    final now = DateTime.now();
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(now.year - 2),
-      lastDate: DateTime(now.year + 1),
-      initialDateRange: DateTimeRange(
-        start: provider.startDate ?? DateTime(now.year, now.month, now.day),
-        end: provider.endDate ?? DateTime(now.year, now.month, now.day),
-      ),
-    );
-    if (picked != null) provider.setDateRange(picked.start, picked.end);
-  }
-
-  String _dateLabel() {
-    final format = DateFormat('dd/MM/yyyy');
-    final start = provider.startDate;
-    final end = provider.endDate;
-    if (start == null || end == null) return 'Hôm nay';
-    return '${format.format(start)} - ${format.format(end)}';
   }
 }
 
@@ -840,7 +816,7 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
     );
     _orderController = TextEditingController(text: initial?.orderCode ?? '');
     _scanDateController = TextEditingController(
-      text: initial?.scanDate ?? _todayText(),
+      text: _displayDateText(initial?.scanDate) ?? _todayText(),
     );
     _transactionController = TextEditingController(
       text: initial?.transactionCode ?? '',
@@ -989,29 +965,7 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
   }
 
   Widget _dateField(String label) {
-    return TextField(
-      controller: _scanDateController,
-      decoration: InputDecoration(
-        labelText: label,
-        suffixIcon: IconButton(
-          tooltip: 'Chọn ngày',
-          onPressed: _pickScanDate,
-          icon: const Icon(Icons.calendar_today_rounded),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickScanDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      firstDate: DateTime(now.year - 2),
-      lastDate: DateTime(now.year + 1),
-      initialDate: _parseDate(_scanDateController.text) ?? now,
-    );
-    if (picked == null) return;
-    _scanDateController.text = _formatDate(picked);
+    return AppDateTextField(controller: _scanDateController, label: label);
   }
 
   Future<void> _submit() async {
@@ -1072,21 +1026,11 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  String _todayText() => _formatDate(DateTime.now());
+  String _todayText() => appFormatDateInput(DateTime.now());
 
-  String _formatDate(DateTime value) {
-    String two(int part) => part.toString().padLeft(2, '0');
-    return '${value.year}-${two(value.month)}-${two(value.day)}';
-  }
-
-  DateTime? _parseDate(String value) {
-    final parts = value.split('-');
-    if (parts.length != 3) return null;
-    final year = int.tryParse(parts[0]);
-    final month = int.tryParse(parts[1]);
-    final day = int.tryParse(parts[2]);
-    if (year == null || month == null || day == null) return null;
-    return DateTime(year, month, day);
+  String? _displayDateText(String? value) {
+    final parsed = value == null ? null : appParseDateInput(value);
+    return parsed == null ? null : appFormatDateInput(parsed);
   }
 }
 
@@ -1098,37 +1042,12 @@ class _OffsetBell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        IconButton(
-          tooltip: 'Hồ sơ chờ ACC xác nhận',
-          onPressed: onPressed,
-          icon: const Icon(Icons.notifications_none_rounded),
-        ),
-        if (count > 0)
-          Positioned(
-            right: 6,
-            top: 6,
-            child: Container(
-              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: AppColors.warning,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                count > 99 ? '99+' : '$count',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ),
-      ],
+    return AppNotificationIconButton(
+      count: count,
+      tooltip: count > 0
+          ? '$count hồ sơ chờ ACC xác nhận'
+          : 'Hồ sơ chờ ACC xác nhận',
+      onPressed: onPressed,
     );
   }
 }

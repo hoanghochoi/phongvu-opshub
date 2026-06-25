@@ -9,6 +9,7 @@ export type AdminUserImportRow = {
   fullName: string;
   role: string;
   levelCodes: string[];
+  storeIds: string[];
 };
 
 export type AdminUserImportParseResult = {
@@ -73,12 +74,14 @@ export class UserImportParserService {
       const fullName = toText(row[1]);
       const role = toText(row[2]).toUpperCase();
       const levelCodes = row.slice(3, 9).map(toText);
+      const storeIds = splitList(row[9]);
       const rowErrors = this.validateRow({
         rowNumber,
         email,
         fullName,
         role,
         levelCodes,
+        storeIds,
         seenEmails,
       });
       if (rowErrors.length > 0) {
@@ -86,7 +89,7 @@ export class UserImportParserService {
         continue;
       }
       seenEmails.add(email);
-      parsed.push({ rowNumber, email, fullName, role, levelCodes });
+      parsed.push({ rowNumber, email, fullName, role, levelCodes, storeIds });
     }
 
     if (parsed.length === 0 && errors.length === 0) {
@@ -106,10 +109,12 @@ export class UserImportParserService {
     const headers = row.map((value) => toText(value).toLowerCase());
     const matches =
       headers.length >= REQUIRED_HEADERS.length &&
-      REQUIRED_HEADERS.every((header, index) => headers[index] === header);
+      REQUIRED_HEADERS.every((header, index) => headers[index] === header) &&
+      (!headers[REQUIRED_HEADERS.length] ||
+        headers[REQUIRED_HEADERS.length] === 'store_ids');
     if (!matches) {
       throw new BadRequestException(
-        'File nhân sự không đúng mẫu: cần header email, full_name, system_role, lv0, lv1, lv2, lv3, lv4, lv5',
+        'File nhân sự không đúng mẫu: cần header email, full_name, system_role, lv0, lv1, lv2, lv3, lv4, lv5; có thể thêm store_ids',
       );
     }
   }
@@ -120,6 +125,7 @@ export class UserImportParserService {
     fullName: string;
     role: string;
     levelCodes: string[];
+    storeIds: string[];
     seenEmails: Set<string>;
   }) {
     const errors: string[] = [];
@@ -133,8 +139,11 @@ export class UserImportParserService {
     if (!input.fullName)
       errors.push(`dòng ${input.rowNumber}: thiếu full_name`);
     if (!input.role) errors.push(`dòng ${input.rowNumber}: thiếu system_role`);
-    if (!input.levelCodes.some((value) => value.length > 0)) {
-      errors.push(`dòng ${input.rowNumber}: thiếu lv0-lv5`);
+    if (
+      !input.levelCodes.some((value) => value.length > 0) &&
+      input.storeIds.length === 0
+    ) {
+      errors.push(`dòng ${input.rowNumber}: thiếu lv0-lv5 hoặc store_ids`);
     }
     if (input.email && input.seenEmails.has(input.email)) {
       errors.push(`dòng ${input.rowNumber}: email bị trùng trong file`);
@@ -158,4 +167,11 @@ function toText(value: Row[number]) {
   if (value === null || value === undefined) return '';
   if (value instanceof Date) return value.toISOString();
   return String(value).trim();
+}
+
+function splitList(value: Row[number]) {
+  return toText(value)
+    .split(/[;,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }

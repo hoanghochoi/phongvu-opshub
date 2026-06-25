@@ -61,6 +61,20 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PROFILE-ADMIN-001 / PAYMENT-MONITOR-001 / PAYMENT-STATEMENT-001,
+  2026-06-26: added multi-showroom user assignments through
+  `UserOrganizationAssignment`, admin create/update/import assignment sync,
+  assigned-showroom scope for statement/payment MAP APIs, active-showroom speaker
+  gating, SR chips on `Tiền vào`, shared dropdown filters/date-range controls,
+  staff-facing `dd/mm/yyyy` date input formatting, app-wide route content
+  selection, synced notification icon buttons, and MAP night sync at a
+  30-minute cadence while preserving `MAP_VIETIN_SYNC_ENABLED=false` as the
+  full stop switch. Validation: `npx prisma validate`, `npx prisma generate`,
+  backend `npm run build`, focused backend Jest for user/MAP/payment
+  notifications (3 suites, 111 tests), focused Flutter payment monitor tests,
+  `flutter analyze --no-pub`, full `flutter test --no-pub` (152 tests), and
+  `git diff --check`. Gap: live database migration, admin multi-SR click-through,
+  Windows speaker active-SR smoke, and staging/prod deploy smoke remain manual.
 - OFFSET-ADJUSTMENT-001, 2026-06-25: added the dedicated `Cấn trừ` feature for
   SR-created offset adjustment requests and ACC/FIN_ACC review. The backend now
   stores request/history rows, blocks same old/new order codes for single-order

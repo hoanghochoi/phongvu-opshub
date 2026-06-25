@@ -56,21 +56,48 @@ visual systems that make the app feel assembled from unrelated screens.
   inactive labels must remain readable on both Android and Windows; do not rely
   on default `TabBar` primary/grey colors on brand-blue backgrounds.
 
+## Filter Controls
+
+- List, report, and admin-index filters must use dropdowns or anchored menus.
+  Do not open dialogs for filter selection.
+- Date range filters must use one shared dropdown component with common presets
+  and inline custom start/end controls. Do not use date-picker dialogs for
+  list filters.
+- Any staff-facing manual date input, including filters and form fields, uses
+  visible format `dd/mm/yyyy` and auto-inserts `/` separators while typing. Do
+  not show internal formats such as `yyyy-mm-dd` in normal UI.
+- Single-select filters use one dropdown field. Multi-select filters use an
+  anchored dropdown with checkbox rows and selected-value chips or a compact
+  selected summary.
+- Any filter dropdown with more than 10 selectable items must include search
+  inside the dropdown panel before the list.
+- Filter panels must keep actions close to the control: apply, clear, and
+  close behavior should be visible in the dropdown instead of requiring a modal
+  workflow.
+- Dialogs are reserved for confirmations, detail views, and large editors. If a
+  UI only narrows or sorts a list, it is a filter and must stay dropdown-based.
+
 ## Content And Microcopy
 
-- User-facing text is Vietnamese-first. Keep English only for stable product or
-  file-format terms that staff already use, such as `FIFO`, `VietQR`, `SR`,
-  `CSV`, `Windows`, and `Export CSV`.
+- User-facing text is Vietnamese-first, action-oriented, and written for staff
+  doing the task, not for developers reading an implementation detail. Keep
+  English only for stable product or file-format terms that staff already use,
+  such as `FIFO`, `VietQR`, `SR`, `CSV`, `Windows`, and `Export CSV`.
 - Copy must explain the state and the next useful action. Prefer
   `Chưa tải được sao kê. Kiểm tra bộ lọc rồi thử lại.` over `Request failed` or
   `Lỗi API`.
-- Do not expose backend, provider, token, stack trace, HTTP, or database terms
-  in user-facing UI. Map technical failures to plain operational language, for
-  example `Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.`
+- Do not expose backend, provider, token, stack trace, HTTP, database terms, or
+  debug-style `key=value` summaries in user-facing UI. Map technical failures
+  to plain operational language, for example `Phiên làm việc đã hết hạn. Vui
+  lòng đăng nhập lại.`
 - Do not expose role, department, policy, or feature codes such as `FIN_ACC`,
   `SUPER_ADMIN`, `ADMIN_*`, or `PAYMENT_SPEAKER` in normal UI copy. Map them to
   human labels or permission messages, for example `Bạn không có quyền sửa đơn
   hàng.`
+- Technical identifiers may appear in logs, tests, docs, and admin-only
+  configuration inputs when they are required to operate the system, but normal
+  staff-facing status, blocker, snackbar, dialog, and error copy must stay
+  user-facing.
 - Use one product vocabulary consistently:
   - `showroom` or `SR`, not `store`, `branch`, or `shop` in visible UI.
   - `biên nhận` for warranty/repair receipts.

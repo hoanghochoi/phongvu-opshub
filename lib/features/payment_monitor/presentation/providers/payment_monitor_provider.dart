@@ -83,6 +83,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   WebSocketChannel? _realtimeChannel;
   User? _user;
   String? _storeOverride;
+  final Set<String> _selectedStoreIds = {};
   String? _clientId;
   String? _realtimeKey;
   DateTime? _notificationCheckpointAt;
@@ -124,6 +125,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   DateTime? get lastCheckedAt => _lastCheckedAt;
   String? get storeOverride => _storeOverride;
+  Set<String> get selectedStoreIds => Set.unmodifiable(_selectedStoreIds);
   DateTime get selectedDate => _rangeStartDate;
   DateTime get rangeStartDate => _rangeStartDate;
   DateTime get rangeEndDate => _rangeEndDate;
@@ -146,6 +148,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
     if (previousUserKey != nextUserKey) {
       _lastSpeakerEligibilityLogKey = null;
       _latestTransactions.clear();
+      _selectedStoreIds.clear();
+      _storeOverride = _defaultActiveStoreIdFor(user);
     }
     if (!_isSpeakerPreferenceLoaded) return;
     if (!isInitialized || user == null || !_canMonitorOnThisDevice) {
@@ -229,6 +233,23 @@ class PaymentMonitorProvider extends ChangeNotifier {
     final normalized = value.trim().toUpperCase();
     if (_storeOverride == normalized) return;
     _storeOverride = normalized.isEmpty ? null : normalized;
+    _selectedStoreIds
+      ..clear()
+      ..addAll([if (_storeOverride?.isNotEmpty == true) _storeOverride!]);
+    _pageIndex = 0;
+    _restart();
+  }
+
+  void setSelectedStoreIds(Set<String> values) {
+    final normalized = values
+        .map((value) => value.trim().toUpperCase())
+        .where((value) => value.isNotEmpty)
+        .toSet();
+    if (setEquals(_selectedStoreIds, normalized)) return;
+    _selectedStoreIds
+      ..clear()
+      ..addAll(normalized);
+    _storeOverride = normalized.length == 1 ? normalized.first : null;
     _pageIndex = 0;
     _restart();
   }
@@ -345,20 +366,33 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   bool get _canUsePaymentSpeaker {
     return _canUseSpeakerOnThisDevice &&
-        _userCanUsePaymentSpeakerFeature(_user);
+        _userCanUsePaymentSpeakerFeature(_user) &&
+        (_requestStoreId?.isNotEmpty == true);
   }
 
   bool get _hasMonitorScope {
     final user = _user;
     if (user == null) return false;
     if (user.isSuperAdmin) return _storeOverride?.isNotEmpty == true;
-    return user.storeId?.isNotEmpty == true;
+    return _assignedStoreIdsFor(user).isNotEmpty;
   }
 
   String? get _requestStoreId {
     final user = _user;
     if (user?.isSuperAdmin == true) return _storeOverride;
-    return null;
+    return _storeOverride ?? _defaultActiveStoreIdFor(user);
+  }
+
+  String? get _listStoreIdsParam {
+    final user = _user;
+    if (user == null) return null;
+    if (user.isSuperAdmin) return _storeOverride;
+    final selected = _selectedStoreIds.isNotEmpty
+        ? _selectedStoreIds.toList(growable: false)
+        : _assignedStoreIdsFor(user);
+    if (selected.isEmpty) return null;
+    selected.sort();
+    return selected.join(',');
   }
 
   static bool _userCanUsePaymentSpeakerFeature(User? user) {
@@ -371,6 +405,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     if (!_userCanUsePaymentSpeakerFeature(_user)) {
       return 'missing_speaker_feature';
     }
+    if (_requestStoreId?.isNotEmpty != true) return 'store_not_selected';
     return 'eligible';
   }
 
@@ -378,7 +413,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     if (user == null) return null;
     return [
       user.id ?? user.email,
-      user.storeId ?? '',
+      user.assignedStoreIds.join(','),
       user.role ?? '',
       _userCanUsePaymentSpeakerFeature(user).toString(),
     ].join('|');
@@ -509,8 +544,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
       _disconnectRealtime('missing_token');
       return;
     }
-    final storeCode = _requestStoreId ?? user.storeId;
-    final nextKey = [user.id ?? user.email, storeCode ?? '', token].join('|');
+    final storeCode = _requestStoreId;
+    if (storeCode == null || storeCode.trim().isEmpty) {
+      _disconnectRealtime('store_not_selected');
+      return;
+    }
+    final nextKey = [user.id ?? user.email, storeCode, token].join('|');
     if (_realtimeKey == nextKey && _realtimeChannel != null) return;
     _disconnectRealtime('reconnect');
 
@@ -710,7 +749,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
       }
       phase = 'stored_transactions';
       final transactionPage = await _repository.fetchStoredTransactions(
-        storeId: _requestStoreId,
+        storeId: _user?.isSuperAdmin == true ? _requestStoreId : null,
+        storeIds: _user?.isSuperAdmin == true ? null : _listStoreIdsParam,
         startDate: _formatDateForApi(_rangeStartDate),
         endDate: _formatDateForApi(_rangeEndDate),
         page: _pageIndex,
@@ -810,6 +850,25 @@ class PaymentMonitorProvider extends ChangeNotifier {
         );
       }
     }
+  }
+
+  static List<String> _assignedStoreIdsFor(User? user) {
+    if (user == null) return const [];
+    final ids = user.assignedStoreIds
+        .map((value) => value.trim().toUpperCase())
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList();
+    if (ids.isEmpty && user.storeId?.trim().isNotEmpty == true) {
+      ids.add(user.storeId!.trim().toUpperCase());
+    }
+    ids.sort();
+    return ids;
+  }
+
+  static String? _defaultActiveStoreIdFor(User? user) {
+    final ids = _assignedStoreIdsFor(user);
+    return ids.length == 1 ? ids.first : null;
   }
 
   @override

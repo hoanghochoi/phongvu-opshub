@@ -10,8 +10,10 @@ a customer to scan and pay manually.
   payer's banking app can fill it in.
 - Staff may enter an order code or other transfer content. This field may also
   be left blank so the payer can fill in the transfer content.
-- The app reads the store code from the signed-in user session and keeps it
-  read-only.
+- The app reads the active showroom from the signed-in user session and keeps it
+  read-only. If the signed-in user has multiple assigned showrooms, the app must
+  ask for one active showroom before creating a QR or running any single-SR
+  payment flow.
 - When staff enters transfer content, the final content is generated as
   `{CONTENT} {STORE_CODE} BOT` and is read-only in the preview.
 - When amount or transfer content is blank, the backend omits the matching EMV
@@ -67,22 +69,26 @@ a customer to scan and pay manually.
   disabled or not configured. Global sync reads 100 MAP rows per page and
   defaults to 2 pages per sync loop. After each backend MAP-history fetch
   finishes, the backend waits a random 3000-5000ms before starting the next
-  scheduled fetch. Background MAP sync runs only from 08:00 to before 22:00
-  Vietnam time each day.
+  scheduled fetch during the 08:00-to-before-22:00 Vietnam-time fast window.
+  From 22:00 to before 08:00, MAP sync still runs but uses a 30-minute cadence.
+  `MAP_VIETIN_SYNC_ENABLED=false` remains the full off switch.
 - Successful global MAP rows that cannot be mapped to exactly one showroom are
   quarantined for debug and do not create payment notifications or play audio.
 - The monitor is independent from OpsHub-created QR/payment intents. It reads
   all successful incoming VietinBank MAP transactions stored for the selected
   showroom, not only transfers that match an OpsHub QR.
-- The monitor transaction list can be filtered by a Vietnam-local date range,
-  for example 23-27/05, and remains paginated by the selected row count.
+- The monitor transaction list can be filtered by assigned showroom and a
+  Vietnam-local date range, for example 23-27/05, and remains paginated by the
+  selected row count. List filters use dropdown/anchored menus; custom date
+  entry uses `dd/mm/yyyy` with `/` separators while typing.
 - Each transaction card shows the payer name/account when MAP provides it.
   Tapping a card opens a selectable detail dialog with the full available payer,
   amount, transaction time/number, content, status, showroom, and OpsHub
   first-seen timestamp. Missing MAP fields are shown explicitly as unavailable.
-- The app starts the monitor after sign-in when the account has a showroom
-  scope. It seeds currently visible server transactions silently so old rows
-  are not announced again on speaker-capable clients.
+- Each transaction card shows an SR pill so multi-showroom views remain clear.
+- The app starts the monitor after sign-in when the account has at least one
+  assigned showroom. It seeds currently visible server transactions silently so
+  old rows are not announced again on speaker-capable clients.
 - While the app is running, the PC listens for scoped realtime payment events
   and refreshes stored transactions when a new notification arrives. A
   30-second fallback refresh remains active so the list can recover from missed
@@ -94,8 +100,12 @@ a customer to scan and pay manually.
 - Each newly observed successful incoming transaction can be announced through
   generated audio as `Phong Vũ đã nhận: <amount> đồng.` when the signed-in
   user has both `PAYMENT_MONITOR` and the separate node feature
-  `PAYMENT_SPEAKER` (`Đọc loa`) on a supported Windows PC. Piper audio uses
-  speed `0.90`, no configured leading silence, and 500 ms of tail silence. The
+  `PAYMENT_SPEAKER` (`Đọc loa`) on a supported Windows PC, and the app is
+  currently scoped to exactly one active showroom. Users assigned to many
+  showrooms can view many-showroom transaction lists, but speaker polling,
+  audio download, and ack stay tied to the selected active showroom. Piper
+  audio uses speed `0.90`, no configured leading silence, and 500 ms of tail
+  silence. The
   server-combined WAV reduces only the payment cue to `80%` amplitude, then
   appends the full TTS WAV immediately so there is no configured gap before the
   first spoken word. If combined audio is unavailable, the Windows local-cue
@@ -113,7 +123,8 @@ a customer to scan and pay manually.
   monitor also announces that transaction. If no stored match exists yet, the
   existing direct MAP check remains a fallback.
 - SUPER_ADMIN users choose the showroom to monitor. Other users are scoped by
-  the backend to their assigned showroom.
+  the backend to their active assignments; all-showroom views still require the
+  matching explicit policy.
 - New incoming transaction audio is delivered through backend-generated payment
   notifications. The backend stores notification/audit rows, optionally calls a
   server-side TTS service, publishes a scoped realtime event, and serves audio
@@ -166,8 +177,9 @@ a customer to scan and pay manually.
   with one primary filter.
 - Showroom filtering follows effective statement scope: national users and
   users with `BANK_STATEMENT_ALL_SCOPE` can search all or multiple showrooms;
-  showroom-scoped users can search only their own showroom. Order, amount, and
-  content filters are allowed across the user's statement scope.
+  assigned-showroom users can search one or more of their assigned showrooms.
+  Order, amount, and content filters are allowed across the user's statement
+  scope.
 - Order filter is an exact match against any stored order in the transaction.
   Amount filter is exact integer amount. Content filter is case-insensitive
   contains matching.
@@ -175,9 +187,10 @@ a customer to scan and pay manually.
   today's Vietnam-local date as both start and end date. SR searches therefore
   load the full snapshot for the current day instead of scanning all stored
   history.
-- The statement date-range control shows `Hôm nay` when no explicit range is
-  selected. A custom date range must include both start and end dates; an
-  incomplete range is treated as no explicit range.
+- The statement date-range control is a shared dropdown and shows `Hôm nay`
+  when no explicit range is selected. A custom date range must include both
+  start and end dates; an incomplete range is treated as no explicit range.
+  Manual date entry uses `dd/mm/yyyy` with `/` inserted while typing.
 - `Đã có đơn hàng` means the stored order list is not empty.
   `Chưa có đơn hàng` means the order list is empty.
   `Chờ xác nhận` means the transaction has a pending ACC order-transfer

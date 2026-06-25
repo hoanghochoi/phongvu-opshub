@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/info_row.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -61,6 +62,14 @@ class PaymentTransactionTile extends StatelessWidget {
           children: [
             if (displayTime != null)
               Text(DateFormat('HH:mm:ss dd/MM').format(displayTime)),
+            if (transaction.storeId.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              AppStatusChip(
+                label: 'SR ${transaction.storeId}',
+                color: AppColors.info,
+                maxWidth: 180,
+              ),
+            ],
             if (transaction.payerLabel.isNotEmpty)
               Text(
                 'Người chuyển: ${transaction.payerLabel}',

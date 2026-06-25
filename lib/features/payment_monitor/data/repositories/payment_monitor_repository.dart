@@ -26,6 +26,8 @@ class PaymentMonitorRepository {
 
   Future<StoredPaymentTransactionsPage> fetchStoredTransactions({
     String? storeId,
+    String? storeIds,
+    bool allStores = false,
     String? date,
     String? startDate,
     String? endDate,
@@ -38,6 +40,9 @@ class PaymentMonitorRepository {
       queryParameters: {
         if (storeId != null && storeId.trim().isNotEmpty)
           'storeId': storeId.trim().toUpperCase(),
+        if (storeIds != null && storeIds.trim().isNotEmpty)
+          'storeIds': storeIds.trim().toUpperCase(),
+        if (allStores) 'allStores': 'true',
         if (date != null && date.trim().isNotEmpty) 'date': date.trim(),
         if (startDate != null && startDate.trim().isNotEmpty)
           'startDate': startDate.trim(),
