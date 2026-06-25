@@ -29,6 +29,11 @@ This file maps product behavior to proof. Existing flows are marked
   passed, and Defender definition `1.453.245.0` scanned the final local signed
   ZIP and installer with no threats. Pending: signed production CI gate and live
   download verification.
+- 2026-06-25 staging follow-up: Defender signature update now retries transient
+  Windows runner update/installer locks such as `0x80070652`, while preserving
+  the fail-closed artifact scan gate. Validation: PowerShell parser passed and
+  local Defender smoke scan passed with `-SkipSignatureUpdate` against a temp
+  file.
 
 ## Matrix
 

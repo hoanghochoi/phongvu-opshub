@@ -2,7 +2,11 @@ param(
   [Parameter(Mandatory = $true)]
   [string[]]$Path,
 
-  [switch]$SkipSignatureUpdate
+  [switch]$SkipSignatureUpdate,
+
+  [int]$SignatureUpdateAttempts = 5,
+
+  [int]$SignatureUpdateDelaySeconds = 30
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,6 +54,47 @@ function Write-DefenderStatus {
   )
 }
 
+function Invoke-DefenderSignatureUpdate {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Scanner,
+
+    [int]$Attempts = 5,
+
+    [int]$DelaySeconds = 30
+  )
+
+  if ($Attempts -lt 1) {
+    $Attempts = 1
+  }
+  if ($DelaySeconds -lt 1) {
+    $DelaySeconds = 1
+  }
+
+  for ($attempt = 1; $attempt -le $Attempts; $attempt += 1) {
+    Write-Host "Defender signature update attempt $attempt of $Attempts."
+    & $Scanner -SignatureUpdate
+    $exitCode = $LASTEXITCODE
+
+    if ($exitCode -eq 0) {
+      Write-Host "Defender signature update succeeded on attempt $attempt."
+      return
+    }
+
+    if ($attempt -lt $Attempts) {
+      Write-Warning (
+        'Defender signature update failed with exit code {0}. Retrying in {1}s because GitHub runners can have a transient installer/update lock.' -f
+          $exitCode,
+          $DelaySeconds
+      )
+      Start-Sleep -Seconds $DelaySeconds
+      continue
+    }
+
+    throw "Microsoft Defender signature update failed with exit code $exitCode after $Attempts attempts. Refusing to publish artifacts."
+  }
+}
+
 $scanner = Get-MpCmdRunPath
 Write-Host "Microsoft Defender release gate starting. scanner=$scanner artifactCount=$($Path.Count)"
 Write-DefenderStatus
@@ -58,10 +103,10 @@ if ($SkipSignatureUpdate) {
   Write-Host 'Defender signature update skipped by explicit local validation option.'
 } else {
   Write-Host 'Updating Microsoft Defender security intelligence before scanning release artifacts.'
-  & $scanner -SignatureUpdate
-  if ($LASTEXITCODE -ne 0) {
-    throw "Microsoft Defender signature update failed with exit code $LASTEXITCODE. Refusing to publish artifacts."
-  }
+  Invoke-DefenderSignatureUpdate `
+    -Scanner $scanner `
+    -Attempts $SignatureUpdateAttempts `
+    -DelaySeconds $SignatureUpdateDelaySeconds
   Write-DefenderStatus
 }
 

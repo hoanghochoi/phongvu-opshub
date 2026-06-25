@@ -21,7 +21,9 @@
 - CI updates Microsoft Defender security intelligence and scans the final signed
   installer and portable ZIP before checksums are generated or files are
   uploaded. A missing scanner, failed update, detection, quarantine, or non-zero
-  scan exit code blocks the release.
+  scan exit code blocks the release. CI may retry a transient Defender
+  signature-update lock from the Windows runner, but it must not skip the final
+  artifact scan.
 - Direct downloads still publish a SHA256 checksum file beside the Windows ZIP
   and installer EXE. The checksum is generated after signing, so it matches the
   final downloadable files.
