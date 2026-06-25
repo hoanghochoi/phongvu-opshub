@@ -309,14 +309,15 @@ describe('AuthService', () => {
     );
   });
 
-  it('allows password login for AUTH_ALLOWED_EMAIL_DOMAINS entries like phongvu-mna.vn', async () => {
+  it('allows password login for AUTH_ALLOWED_EMAIL_DOMAINS entries', async () => {
     (policyService.getAllowedEmailDomains as jest.Mock).mockResolvedValueOnce([
-      'phongvu-mna.vn',
+      'allowed.example.test',
     ]);
-    const password = await bcrypt.hash('Password1!', 4);
+    const testLoginSecret = 'unit-test-login-secret';
+    const password = await bcrypt.hash(testLoginSecret, 4);
     prisma.user.findUnique.mockResolvedValue({
       id: 'user-mna',
-      email: 'hoang.nv1@phongvu-mna.vn',
+      email: 'staff.member@allowed.example.test',
       firstName: 'Hoang',
       password,
       role: 'USER',
@@ -329,13 +330,13 @@ describe('AuthService', () => {
 
     await expect(
       service.passwordLogin(
-        'hoang.nv1@phongvu-mna.vn',
-        'Password1!',
+        'staff.member@allowed.example.test',
+        testLoginSecret,
         loginDevice,
       ),
     ).resolves.toMatchObject({
       login: true,
-      email: 'hoang.nv1@phongvu-mna.vn',
+      email: 'staff.member@allowed.example.test',
       assignmentPending: true,
     });
   });

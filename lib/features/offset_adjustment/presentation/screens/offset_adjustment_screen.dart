@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -233,11 +235,17 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: maxLines,
-          decoration: InputDecoration(labelText: label),
+        content: SizedBox(
+          width: math.max(
+            240.0,
+            math.min(MediaQuery.sizeOf(context).width - 48, 520.0),
+          ),
+          child: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLines: maxLines,
+            decoration: InputDecoration(labelText: label),
+          ),
         ),
         actions: [
           TextButton(
@@ -274,39 +282,68 @@ class _ActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _createButton(
-          context,
-          OffsetAdjustmentType.singleOrder,
-          Icons.swap_calls_rounded,
-        ),
-        _createButton(
-          context,
-          OffsetAdjustmentType.vnpayQroff,
-          Icons.qr_code_2_rounded,
-        ),
-        _createButton(
-          context,
-          OffsetAdjustmentType.zaloPay,
-          Icons.account_balance_wallet_outlined,
-        ),
-        _createButton(
-          context,
-          OffsetAdjustmentType.shopeePay,
-          Icons.shopping_bag_outlined,
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 10.0;
+        final columns = constraints.maxWidth >= 960
+            ? 4
+            : constraints.maxWidth >= 560
+            ? 2
+            : 1;
+        final buttonWidth =
+            (constraints.maxWidth - (gap * (columns - 1))) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            _createButton(
+              context,
+              OffsetAdjustmentType.singleOrder,
+              Icons.swap_calls_rounded,
+              buttonWidth,
+            ),
+            _createButton(
+              context,
+              OffsetAdjustmentType.vnpayQroff,
+              Icons.qr_code_2_rounded,
+              buttonWidth,
+            ),
+            _createButton(
+              context,
+              OffsetAdjustmentType.zaloPay,
+              Icons.account_balance_wallet_outlined,
+              buttonWidth,
+            ),
+            _createButton(
+              context,
+              OffsetAdjustmentType.shopeePay,
+              Icons.shopping_bag_outlined,
+              buttonWidth,
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _createButton(BuildContext context, String type, IconData icon) {
-    return ElevatedButton.icon(
-      onPressed: () => onCreate(type),
-      icon: Icon(icon),
-      label: Text(OffsetAdjustmentType.label(type)),
+  Widget _createButton(
+    BuildContext context,
+    String type,
+    IconData icon,
+    double width,
+  ) {
+    return SizedBox(
+      width: width,
+      height: 56,
+      child: ElevatedButton.icon(
+        onPressed: () => onCreate(type),
+        icon: Icon(icon),
+        label: Text(
+          OffsetAdjustmentType.label(type),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
     );
   }
 }
@@ -330,11 +367,19 @@ class _FilterPanel extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final compact = constraints.maxWidth < _breakpoint;
-            final fieldWidth = compact ? constraints.maxWidth : 220.0;
+            const gap = 12.0;
+            final columns = constraints.maxWidth >= 1040
+                ? 4
+                : constraints.maxWidth >= _breakpoint
+                ? 3
+                : constraints.maxWidth >= 520
+                ? 2
+                : 1;
+            final fieldWidth =
+                (constraints.maxWidth - (gap * (columns - 1))) / columns;
             return Wrap(
-              spacing: 10,
-              runSpacing: 10,
+              spacing: gap,
+              runSpacing: gap,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 SizedBox(width: fieldWidth, child: _storeFilter()),
@@ -342,17 +387,29 @@ class _FilterPanel extends StatelessWidget {
                 SizedBox(width: fieldWidth, child: _statusFilter()),
                 SizedBox(width: fieldWidth, child: _orderField()),
                 SizedBox(width: fieldWidth, child: _amountField()),
-                OutlinedButton.icon(
-                  onPressed: () => _pickDateRange(context),
-                  icon: const Icon(Icons.date_range_rounded),
-                  label: Text(_dateLabel()),
+                SizedBox(
+                  width: fieldWidth,
+                  height: 56,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickDateRange(context),
+                    icon: const Icon(Icons.date_range_rounded),
+                    label: Text(
+                      _dateLabel(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: provider.isLoading
-                      ? null
-                      : () => provider.search(),
-                  icon: const Icon(Icons.search_rounded),
-                  label: const Text('Tìm'),
+                SizedBox(
+                  width: fieldWidth,
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    onPressed: provider.isLoading
+                        ? null
+                        : () => provider.search(),
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Tìm'),
+                  ),
                 ),
               ],
             );
@@ -813,50 +870,84 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
   @override
   Widget build(BuildContext context) {
     final isSingle = widget.type == OffsetAdjustmentType.singleOrder;
+    final dialogWidth = math.max(
+      280.0,
+      math.min(MediaQuery.sizeOf(context).width - 48, 760.0),
+    );
+    final useTwoColumns = dialogWidth >= 640;
+    final gap = useTwoColumns ? 12.0 : 0.0;
+    final halfWidth = (dialogWidth - gap) / 2;
     return AlertDialog(
       title: Text(
         widget.initial == null
             ? OffsetAdjustmentType.label(widget.type)
             : 'Sửa ${OffsetAdjustmentType.label(widget.type)}',
       ),
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
+      content: SizedBox(
+        width: dialogWidth,
         child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Wrap(
+            spacing: gap,
+            runSpacing: 12,
             children: [
               if (isSingle) ...[
-                _field(_oldOrderController, 'Đơn hàng cũ'),
-                _field(_newOrderController, 'Đơn hàng mới'),
-              ] else ...[
-                _field(_orderController, 'Đơn hàng'),
-                _dateField(_scanDateLabel(widget.type)),
-                DropdownButtonFormField<String>(
-                  initialValue: _editContentKind,
-                  decoration: const InputDecoration(
-                    labelText: 'Nội dung cần sửa',
-                  ),
-                  items: OffsetEditContentKind.values
-                      .map(
-                        (kind) => DropdownMenuItem(
-                          value: kind,
-                          child: Text(OffsetEditContentKind.label(kind)),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) setState(() => _editContentKind = value);
-                  },
+                _dialogField(
+                  width: useTwoColumns ? halfWidth : dialogWidth,
+                  child: _field(_oldOrderController, 'Đơn hàng cũ'),
                 ),
-                _field(_transactionController, 'Mã giao dịch'),
+                _dialogField(
+                  width: useTwoColumns ? halfWidth : dialogWidth,
+                  child: _field(_newOrderController, 'Đơn hàng mới'),
+                ),
+              ] else ...[
+                _dialogField(
+                  width: useTwoColumns ? halfWidth : dialogWidth,
+                  child: _field(_orderController, 'Đơn hàng'),
+                ),
+                _dialogField(
+                  width: useTwoColumns ? halfWidth : dialogWidth,
+                  child: _dateField(_scanDateLabel(widget.type)),
+                ),
+                _dialogField(
+                  width: useTwoColumns ? halfWidth : dialogWidth,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _editContentKind,
+                    decoration: const InputDecoration(
+                      labelText: 'Nội dung cần sửa',
+                    ),
+                    items: OffsetEditContentKind.values
+                        .map(
+                          (kind) => DropdownMenuItem(
+                            value: kind,
+                            child: Text(OffsetEditContentKind.label(kind)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _editContentKind = value);
+                      }
+                    },
+                  ),
+                ),
+                _dialogField(
+                  width: useTwoColumns ? halfWidth : dialogWidth,
+                  child: _field(_transactionController, 'Mã giao dịch'),
+                ),
               ],
-              TextField(
-                controller: _amountController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [ThousandsSeparatorInputFormatter()],
-                decoration: const InputDecoration(labelText: 'Số tiền'),
+              _dialogField(
+                width: useTwoColumns ? halfWidth : dialogWidth,
+                child: TextField(
+                  controller: _amountController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [ThousandsSeparatorInputFormatter()],
+                  decoration: const InputDecoration(labelText: 'Số tiền'),
+                ),
               ),
-              _field(_noteController, 'Ghi chú', maxLines: 3),
+              _dialogField(
+                width: dialogWidth,
+                child: _field(_noteController, 'Ghi chú', maxLines: 3),
+              ),
             ],
           ),
         ),
@@ -891,6 +982,10 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
       maxLines: maxLines,
       decoration: InputDecoration(labelText: label),
     );
+  }
+
+  Widget _dialogField({required double width, required Widget child}) {
+    return SizedBox(width: width, child: child);
   }
 
   Widget _dateField(String label) {

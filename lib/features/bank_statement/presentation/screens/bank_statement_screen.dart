@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -38,6 +40,8 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
   final _amountFocus = FocusNode();
   final _contentFocus = FocusNode();
   final _money = NumberFormat.decimalPattern('vi_VN');
+  final _orderTransferBellLink = LayerLink();
+  OverlayEntry? _orderTransferOverlay;
 
   @override
   void initState() {
@@ -50,6 +54,7 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
 
   @override
   void dispose() {
+    _hideOrderTransferRequests();
     _orderController.dispose();
     _amountController.dispose();
     _contentController.dispose();
@@ -72,7 +77,8 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
           if (provider.canReviewOrderTransfers)
             _OrderTransferBell(
               count: provider.pendingOrderTransferTotal,
-              onPressed: () => _showOrderTransferRequests(provider),
+              link: _orderTransferBellLink,
+              onPressed: () => _toggleOrderTransferRequests(provider),
             ),
         ],
       ),
@@ -173,93 +179,69 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
     sync(_contentController, _contentFocus, provider.content ?? '');
   }
 
-  Future<void> _showOrderTransferRequests(
+  Future<void> _toggleOrderTransferRequests(
     BankStatementProvider provider,
   ) async {
+    if (_orderTransferOverlay != null) {
+      _hideOrderTransferRequests();
+      return;
+    }
+    _showOrderTransferOverlay();
     await provider.loadPendingOrderTransferRequests();
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return Consumer<BankStatementProvider>(
-          builder: (context, dialogProvider, _) {
-            final requests = dialogProvider.pendingOrderTransferRequests;
-            final isSmallScreen = MediaQuery.of(context).size.width < 620;
-            return AlertDialog(
-              title: const Text('Yêu cầu cập nhật mã đơn'),
-              content: SizedBox(
-                width: isSmallScreen ? double.maxFinite : 620,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 520),
-                  child:
-                      dialogProvider.isLoadingOrderTransferRequests &&
-                          requests.isEmpty
-                      ? const Center(child: CircularProgressIndicator())
-                      : requests.isEmpty
-                      ? const Text('Không có yêu cầu chờ xác nhận.')
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: requests.length,
-                          separatorBuilder: (_, _) => const Divider(height: 18),
-                          itemBuilder: (context, index) {
-                            final request = requests[index];
-                            return _OrderTransferRequestTile(
-                              request: request,
-                              money: _money,
-                              onApprove: () async {
-                                try {
-                                  await dialogProvider
-                                      .approveOrderTransferRequest(request.id);
-                                } catch (error) {
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Chưa xác nhận được yêu cầu.',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                }
-                              },
-                              onReject: () async {
-                                try {
-                                  await dialogProvider
-                                      .rejectOrderTransferRequest(request.id);
-                                } catch (error) {
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Chưa từ chối được yêu cầu.',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                }
-                              },
-                            );
-                          },
-                        ),
-                ),
+  }
+
+  void _showOrderTransferOverlay() {
+    final overlay = Overlay.of(context);
+    _orderTransferOverlay = OverlayEntry(
+      builder: (overlayContext) {
+        final screenSize = MediaQuery.sizeOf(overlayContext);
+        final bubbleWidth = math.max(
+          240.0,
+          math.min(440.0, screenSize.width - 24),
+        );
+        final bubbleHeight = math.max(
+          260.0,
+          math.min(520.0, screenSize.height - 120),
+        );
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _hideOrderTransferRequests,
               ),
-              actions: [
-                TextButton(
-                  onPressed: dialogProvider.isLoadingOrderTransferRequests
-                      ? null
-                      : () => dialogProvider.loadPendingOrderTransferRequests(),
-                  child: const Text('Tải lại'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Đóng'),
-                ),
-              ],
-            );
-          },
+            ),
+            CompositedTransformFollower(
+              link: _orderTransferBellLink,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.bottomRight,
+              followerAnchor: Alignment.topRight,
+              offset: const Offset(-8, 8),
+              child: _OrderTransferRequestsBubble(
+                width: bubbleWidth,
+                maxHeight: bubbleHeight,
+                money: _money,
+                onClose: _hideOrderTransferRequests,
+                onActionError: _showSnack,
+              ),
+            ),
+          ],
         );
       },
     );
+    overlay.insert(_orderTransferOverlay!);
+  }
+
+  void _hideOrderTransferRequests() {
+    _orderTransferOverlay?.remove();
+    _orderTransferOverlay = null;
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -1157,44 +1139,183 @@ class _StatementToolbar extends StatelessWidget {
 
 class _OrderTransferBell extends StatelessWidget {
   final int count;
+  final LayerLink link;
   final VoidCallback onPressed;
 
-  const _OrderTransferBell({required this.count, required this.onPressed});
+  const _OrderTransferBell({
+    required this.count,
+    required this.link,
+    required this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: count > 0
-          ? '$count yêu cầu cập nhật mã đơn'
-          : 'Yêu cầu cập nhật mã đơn',
-      onPressed: onPressed,
-      icon: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          const Icon(Icons.notifications_none_rounded),
-          if (count > 0)
-            Positioned(
-              right: -8,
-              top: -8,
-              child: Container(
-                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.warning,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  count > 99 ? '99+' : '$count',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
+    return CompositedTransformTarget(
+      link: link,
+      child: IconButton(
+        tooltip: count > 0
+            ? '$count yêu cầu cập nhật mã đơn'
+            : 'Yêu cầu cập nhật mã đơn',
+        onPressed: onPressed,
+        icon: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const Icon(Icons.notifications_none_rounded),
+            if (count > 0)
+              Positioned(
+                right: -8,
+                top: -8,
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 18,
+                    minHeight: 18,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    count > 99 ? '99+' : '$count',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OrderTransferRequestsBubble extends StatelessWidget {
+  final double width;
+  final double maxHeight;
+  final NumberFormat money;
+  final VoidCallback onClose;
+  final void Function(String message) onActionError;
+
+  const _OrderTransferRequestsBubble({
+    required this.width,
+    required this.maxHeight,
+    required this.money,
+    required this.onClose,
+    required this.onActionError,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: 12,
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
+        width: width,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: Padding(
+            padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+            child: Consumer<BankStatementProvider>(
+              builder: (context, provider, _) {
+                final requests = provider.pendingOrderTransferRequests;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.notifications_none_rounded,
+                          color: AppColors.primary500,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Yêu cầu cập nhật mã đơn',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Tải lại',
+                          onPressed: provider.isLoadingOrderTransferRequests
+                              ? null
+                              : () =>
+                                    provider.loadPendingOrderTransferRequests(),
+                          icon: const Icon(Icons.refresh_rounded),
+                        ),
+                        IconButton(
+                          tooltip: 'Đóng',
+                          onPressed: onClose,
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Flexible(
+                      child:
+                          provider.isLoadingOrderTransferRequests &&
+                              requests.isEmpty
+                          ? const Center(child: CircularProgressIndicator())
+                          : requests.isEmpty
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 24),
+                                child: Text(
+                                  'Không có yêu cầu chờ xác nhận.',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: requests.length,
+                              separatorBuilder: (_, _) =>
+                                  const Divider(height: 18),
+                              itemBuilder: (context, index) {
+                                final request = requests[index];
+                                return _OrderTransferRequestTile(
+                                  request: request,
+                                  money: money,
+                                  onApprove: () async {
+                                    try {
+                                      await provider
+                                          .approveOrderTransferRequest(
+                                            request.id,
+                                          );
+                                    } catch (_) {
+                                      onActionError(
+                                        'Chưa xác nhận được yêu cầu.',
+                                      );
+                                    }
+                                  },
+                                  onReject: () async {
+                                    try {
+                                      await provider.rejectOrderTransferRequest(
+                                        request.id,
+                                      );
+                                    } catch (_) {
+                                      onActionError(
+                                        'Chưa từ chối được yêu cầu.',
+                                      );
+                                    }
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                );
+              },
             ),
-        ],
+          ),
+        ),
       ),
     );
   }

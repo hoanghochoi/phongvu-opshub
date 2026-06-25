@@ -52,6 +52,14 @@ void main() {
     expect(find.byTooltip('Giao dịch đang chờ ACC xác nhận'), findsWidgets);
 
     expect(provider.pendingOrderTransferTotal, 1);
+
+    await tester.tap(find.byTooltip('1 yêu cầu cập nhật mã đơn'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.text('Yêu cầu cập nhật mã đơn'), findsOneWidget);
+    expect(find.text('26062512345678 → 26062587654321'), findsOneWidget);
+    expect(find.text('Người gửi: staff@example.com'), findsOneWidget);
   });
 }
 
