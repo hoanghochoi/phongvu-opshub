@@ -30,6 +30,9 @@ describe('FeatureGuard', () => {
     };
     const policyService = {
       canAccessPolicy: jest.fn(async (_user: any, code: string) => {
+        if (code === ADMIN_POLICY_CODES.OFFSET_ADJUSTMENTS) {
+          return policyAllowed;
+        }
         return (
           code === ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE && policyAllowed
         );
@@ -68,6 +71,20 @@ describe('FeatureGuard', () => {
 
     await expect(guard.canActivate(executionContext)).rejects.toBeInstanceOf(
       ForbiddenException,
+    );
+  });
+
+  it('allows offset adjustment routes when offset policy is allowed', async () => {
+    const { guard, policyService } = createGuard({
+      featureAllowed: false,
+      policyAllowed: true,
+      featureKey: FEATURE_KEYS.OFFSET_ADJUSTMENTS,
+    });
+
+    await expect(guard.canActivate(executionContext)).resolves.toBe(true);
+    expect(policyService.canAccessPolicy).toHaveBeenCalledWith(
+      requestUser,
+      ADMIN_POLICY_CODES.OFFSET_ADJUSTMENTS,
     );
   });
 });

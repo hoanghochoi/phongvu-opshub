@@ -295,6 +295,9 @@ describe('AuthService', () => {
       role: 'ADMIN',
       storeUuid: 'store-1',
       storeCode: 'CP01',
+      departmentCode: null,
+      organizationNodeId: null,
+      organizationAccessCodes: [],
       tokenVersion: 0,
       sessionId: 'session-1',
       platform: 'windows',
@@ -505,6 +508,42 @@ describe('AuthService', () => {
       storeName: 'Chi nhanh 1',
       role: 'ADMIN',
       mustSelectStore: false,
+    });
+  });
+
+  it('returns organization access codes from the assigned org-tree ancestors', async () => {
+    (prisma as any).organizationNode = {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'root-finance',
+          parentId: null,
+          code: 'ORG_FIN',
+          businessCode: 'FIN_ACC',
+        },
+        {
+          id: 'lv5-acc',
+          parentId: 'root-finance',
+          code: 'POS_ACC',
+          businessCode: 'ACC',
+        },
+      ]),
+    };
+    prisma.user.findUnique.mockResolvedValue({
+      storeId: null,
+      firstName: 'Accountant',
+      role: 'STAFF',
+      status: 'yes',
+      departmentCode: null,
+      organizationNodeId: 'lv5-acc',
+      organizationNode: { displayName: 'ACC' },
+      store: null,
+    });
+
+    await expect(
+      service.getUserData('acc@phongvu-shop.vn'),
+    ).resolves.toMatchObject({
+      organizationNodeId: 'lv5-acc',
+      organizationAccessCodes: ['POS_ACC', 'ACC', 'ORG_FIN', 'FIN_ACC'],
     });
   });
 

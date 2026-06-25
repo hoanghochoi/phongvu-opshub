@@ -7,6 +7,9 @@ import '../../features/auth/domain/entities/user.dart';
 import '../../features/bank_statement/data/bank_statement_repository.dart';
 import '../../features/bank_statement/presentation/providers/bank_statement_provider.dart';
 import '../../features/bank_statement/presentation/screens/bank_statement_screen.dart';
+import '../../features/offset_adjustment/data/offset_adjustment_repository.dart';
+import '../../features/offset_adjustment/presentation/providers/offset_adjustment_provider.dart';
+import '../../features/offset_adjustment/presentation/screens/offset_adjustment_screen.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/assignment_pending_screen.dart';
 import '../../features/auth/presentation/screens/email_check_screen.dart';
@@ -200,6 +203,15 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: '/offset-adjustments',
+          builder: (context, state) => ChangeNotifierProvider(
+            create: (_) => OffsetAdjustmentProvider(
+              OffsetAdjustmentRepository(ApiClient()),
+            ),
+            child: const OffsetAdjustmentScreen(),
+          ),
+        ),
+        GoRoute(
           path: '/feedback',
           builder: (context, state) => const FeedbackScreen(),
         ),
@@ -229,6 +241,7 @@ class AppRouter {
       '/check-warranty' => 'WARRANTY',
       '/vietqr' => 'VIETQR',
       '/bank-statement' => 'BANK_STATEMENTS',
+      '/offset-adjustments' => 'OFFSET_ADJUSTMENTS',
       '/payment-monitor' => 'PAYMENT_MONITOR',
       '/feedback' => 'FEEDBACK',
       _ => null,
@@ -238,6 +251,9 @@ class AppRouter {
   static bool _canUseRouteFeature(User? user, String featureCode) {
     if (featureCode == 'BANK_STATEMENTS') {
       return user?.canUseBankStatements == true;
+    }
+    if (featureCode == 'OFFSET_ADJUSTMENTS') {
+      return user?.canUseOffsetAdjustments == true;
     }
     return user?.canUseFeature(featureCode) == true;
   }

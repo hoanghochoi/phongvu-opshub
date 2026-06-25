@@ -1,0 +1,64 @@
+# Offset Adjustments
+
+OpsHub exposes a dedicated `Cấn trừ` flow for SR-submitted correction requests
+that must be reviewed by ACC before being treated as complete.
+
+## Contract
+
+- Staff opens `Cấn trừ` from the home feature list when the
+  `OFFSET_ADJUSTMENTS` feature or matching admin policy is allowed.
+- SR users create and edit only their own showroom requests. ACC, FIN_ACC, and
+  SUPER_ADMIN reviewers can view requests across SRs, filter by SR, and review
+  submitted requests. ACC/FIN_ACC can be resolved from either the user's
+  department code or their assigned organization-tree ancestors.
+- The main list defaults to today's Vietnam-local date range, filters by
+  `submittedAt`, uses server-side paging, and sorts newest first.
+- The list supports filters for SR, type, old/new/order code, exact amount, and
+  status.
+- Row borders follow the statement color contract: green for ACC-approved,
+  red for waiting ACC review, and yellow for rejected requests waiting for SR
+  correction.
+- Each row shows a type tag. `Cấn trừ đơn` rows also show a count chip for how
+  many visible requests reuse the same old order code, independent of the
+  current filters.
+- Tapping a row opens a detail dialog. Review actions are visible only to
+  reviewers. Reject requires a reason; VNPAY QROFF completion requires ACC to
+  enter `Mã CT`.
+- Rejected requests notify the submitting SR through the offset realtime event.
+  After SR resubmits, reviewers receive the same offset realtime event and can
+  confirm again.
+
+## Request Types
+
+- `Cấn trừ đơn`: old order, new order, amount, and optional note. Saving is
+  blocked when old and new order codes are the same.
+- `VNPAY QROFF`: order, QR scan date, edit-content kind, transaction code, and
+  amount. Order code and transaction code must be unique within VNPAY QROFF.
+  ACC must enter `Mã CT` when completing the request.
+- `Zalo Pay`: order, Zalo Pay scan date, edit-content kind, transaction code,
+  and amount. Order code and transaction code must be unique within Zalo Pay.
+- `Shopee Pay`: order, Shopee Pay scan date, edit-content kind, transaction
+  code, and amount. Order code and transaction code must be unique within
+  Shopee Pay.
+
+## Realtime Isolation
+
+- Offset adjustments publish to Redis channel `OFFSET_ADJUSTMENT_UPDATED` and
+  WebSocket event type `OFFSET_ADJUSTMENT_NOTIFICATION`.
+- Offset adjustment payloads must not reuse `PAYMENT_NOTIFICATION_READY`,
+  `PAYMENT_NOTIFICATION`, `/payment-notifications/ready`, `/audio`, or `/ack`.
+- Go realtime keeps the existing payment notification branch filtered by
+  `storeCode`. Offset notifications use a separate branch: reviewers can
+  receive all selected SRs, while SR users receive only their own showroom.
+- The first implementation shares the existing Redis connection because offset
+  events are lightweight. If load smoke shows payment speaker impact, the
+  offset publisher/subscriber can move to a separate Redis connection through
+  `OFFSET_REDIS_URL` or `OFFSET_REDIS_HOST/PORT`.
+
+## Out Of Scope V1
+
+- OS push notifications.
+- CSV export.
+- Delete or cancel requests.
+- File attachments.
+- Editing an ACC-approved request.

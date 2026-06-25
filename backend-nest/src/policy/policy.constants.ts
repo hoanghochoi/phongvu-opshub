@@ -14,6 +14,7 @@ export const ADMIN_POLICY_CODES = {
   WARRANTY: 'WARRANTY',
   VIETQR: 'VIETQR',
   BANK_STATEMENTS: 'BANK_STATEMENTS',
+  OFFSET_ADJUSTMENTS: 'OFFSET_ADJUSTMENTS',
   PAYMENT_MONITOR: 'PAYMENT_MONITOR',
   FEEDBACK: 'FEEDBACK',
   ADMIN_USER_ROLE_EDIT: 'ADMIN_USER_ROLE_EDIT',
@@ -130,6 +131,12 @@ export const DEFAULT_ADMIN_POLICY_DEFINITIONS = [
     category: 'FEATURE',
   },
   {
+    code: ADMIN_POLICY_CODES.OFFSET_ADJUSTMENTS,
+    displayName: 'Cấn trừ',
+    description: 'Tạo và xác nhận hồ sơ cấn trừ',
+    category: 'FEATURE',
+  },
+  {
     code: ADMIN_POLICY_CODES.PAYMENT_MONITOR,
     displayName: 'Tiền vào',
     description: 'Theo dõi giao dịch tiền vào',
@@ -216,6 +223,11 @@ export const DEFAULT_ADMIN_POLICY_RULES = [
   },
   {
     policyCode: ADMIN_POLICY_CODES.BANK_STATEMENTS,
+    allowed: true,
+    systemRole: 'ADMIN',
+  },
+  {
+    policyCode: ADMIN_POLICY_CODES.OFFSET_ADJUSTMENTS,
     allowed: true,
     systemRole: 'ADMIN',
   },

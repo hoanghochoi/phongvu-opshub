@@ -14,6 +14,7 @@ export const FEATURE_KEYS = {
   WARRANTY: 'WARRANTY',
   VIETQR: 'VIETQR',
   BANK_STATEMENTS: 'BANK_STATEMENTS',
+  OFFSET_ADJUSTMENTS: 'OFFSET_ADJUSTMENTS',
   PAYMENT_MONITOR: 'PAYMENT_MONITOR',
   PAYMENT_SPEAKER: 'PAYMENT_SPEAKER',
   FEEDBACK: 'FEEDBACK',
@@ -123,6 +124,12 @@ export const DEFAULT_FEATURE_DEFINITIONS = [
     displayName: 'Sao kê',
     description: 'Rà soát sao kê MAP/VietinBank',
     sortOrder: 400,
+  },
+  {
+    code: FEATURE_KEYS.OFFSET_ADJUSTMENTS,
+    displayName: 'Cấn trừ',
+    description: 'Tạo và xác nhận hồ sơ cấn trừ',
+    sortOrder: 450,
   },
   {
     code: FEATURE_KEYS.PAYMENT_MONITOR,

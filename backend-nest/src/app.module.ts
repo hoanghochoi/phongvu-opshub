@@ -21,6 +21,7 @@ import { PolicyModule } from './policy/policy.module';
 import { PaymentNotificationsModule } from './payment-notifications/payment-notifications.module';
 import { FifoModule } from './fifo/fifo.module';
 import { FeatureModule } from './feature/feature.module';
+import { OffsetAdjustmentsModule } from './offset-adjustments/offset-adjustments.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { FeatureModule } from './feature/feature.module';
     FeatureModule,
     PaymentNotificationsModule,
     MapVietinModule,
+    OffsetAdjustmentsModule,
     FifoModule,
   ],
   controllers: [AppController],

@@ -20,6 +20,7 @@ class User {
   final String? areaAbbreviation;
   final String? organizationNodeId;
   final String? organizationNodeName;
+  final List<String> organizationAccessCodes;
   final List<String> featureCodes;
   final String? personnelCode;
   final Map<String, bool> featureAccess;
@@ -49,6 +50,7 @@ class User {
     this.areaAbbreviation,
     this.organizationNodeId,
     this.organizationNodeName,
+    this.organizationAccessCodes = const [],
     this.featureCodes = const [],
     this.personnelCode,
     this.featureAccess = const {},
@@ -107,6 +109,9 @@ class User {
       areaAbbreviation: json['areaAbbreviation']?.toString(),
       organizationNodeId: json['organizationNodeId']?.toString(),
       organizationNodeName: json['organizationNodeName']?.toString(),
+      organizationAccessCodes: _stringListFromJson(
+        json['organizationAccessCodes'],
+      ),
       featureCodes: _stringListFromJson(json['featureCodes']),
       personnelCode: json['personnelCode']?.toString(),
       featureAccess: _featureAccessFromJson(
@@ -161,6 +166,19 @@ class User {
   bool get canUseAllBankStatementStores =>
       canUsePolicy('BANK_STATEMENT_ALL_SCOPE');
 
+  bool get canUseOffsetAdjustments =>
+      canUseFeature('OFFSET_ADJUSTMENTS') || canUsePolicy('OFFSET_ADJUSTMENTS');
+
+  bool get canReviewOffsetAdjustments {
+    if (isSuperAdmin) return true;
+    final code = (departmentCode ?? '').trim().toUpperCase();
+    if (code == 'ACC' || code == 'FIN_ACC') return true;
+    final accessCodes = organizationAccessCodes.map(
+      (value) => value.trim().toUpperCase(),
+    );
+    return accessCodes.contains('ACC') || accessCodes.contains('FIN_ACC');
+  }
+
   bool canUseFeature(String featureCode) {
     if (isSuperAdmin) return true;
     final resolved = featureAccess[featureCode];
@@ -201,6 +219,7 @@ class User {
       areaAbbreviation: areaAbbreviation,
       organizationNodeId: organizationNodeId,
       organizationNodeName: organizationNodeName,
+      organizationAccessCodes: organizationAccessCodes,
       featureCodes: featureCodes,
       personnelCode: personnelCode,
       featureAccess: featureAccess ?? this.featureAccess,
@@ -256,6 +275,7 @@ class User {
         other.areaAbbreviation == areaAbbreviation &&
         other.organizationNodeId == organizationNodeId &&
         other.organizationNodeName == organizationNodeName &&
+        _listEquals(other.organizationAccessCodes, organizationAccessCodes) &&
         _listEquals(other.featureCodes, featureCodes) &&
         other.personnelCode == personnelCode &&
         _mapEquals(other.featureAccess, featureAccess) &&
@@ -294,6 +314,7 @@ class User {
       areaAbbreviation.hashCode ^
       organizationNodeId.hashCode ^
       organizationNodeName.hashCode ^
+      Object.hashAll(organizationAccessCodes) ^
       Object.hashAll(featureCodes) ^
       personnelCode.hashCode ^
       featureAccess.hashCode ^

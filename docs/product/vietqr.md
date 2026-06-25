@@ -196,8 +196,8 @@ a customer to scan and pay manually.
   that transaction within 24 hours from `paidAt ?? firstSeenAt`. After that
   window, the app disables the update action with `Quá thời hạn cập nhật trong
   ngày. Vui lòng dùng chức năng Cấn trừ.`, and the backend rejects the same
-  request. The separate over-24h `Cấn trừ` flow is out of scope for this
-  contract.
+  request. The separate over-24h `Cấn trừ` flow is handled by the dedicated
+  offset adjustment contract.
 - Only one order-transfer request may be pending for a transaction. Pending
   rows use a yellow border and show the requested order codes as `Chờ ACC xác
   nhận`. ACC approval is available to `SUPER_ADMIN` and users in `FIN_ACC` or

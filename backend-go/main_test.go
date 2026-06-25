@@ -134,6 +134,44 @@ func TestSuperAdminRequiresSelectedStoreForPaymentEvents(t *testing.T) {
 	}
 }
 
+func TestOffsetAdjustmentEventFilteringByStore(t *testing.T) {
+	client := &Client{auth: &ClientAuth{Role: "MANAGER", StoreCode: "CP01"}}
+	message := []byte(`{"type":"OFFSET_ADJUSTMENT_NOTIFICATION","payload":{"storeCode":"CP01"}}`)
+	if !client.canReceive(message) {
+		t.Fatal("expected client to receive own store offset event")
+	}
+
+	otherMessage := []byte(`{"type":"OFFSET_ADJUSTMENT_NOTIFICATION","payload":{"storeCode":"CP02"}}`)
+	if client.canReceive(otherMessage) {
+		t.Fatal("expected client not to receive another store offset event")
+	}
+}
+
+func TestAccCanReceiveAllOffsetAdjustmentEventsWithoutChangingPaymentFilter(t *testing.T) {
+	client := &Client{auth: &ClientAuth{Role: "USER", StoreCode: "CP01", DepartmentCode: "ACC"}}
+	offset := []byte(`{"type":"OFFSET_ADJUSTMENT_NOTIFICATION","payload":{"storeCode":"CP02"}}`)
+	if !client.canReceive(offset) {
+		t.Fatal("expected ACC user to receive all-store offset event")
+	}
+
+	payment := []byte(`{"type":"PAYMENT_NOTIFICATION","payload":{"storeCode":"CP02"}}`)
+	if client.canReceive(payment) {
+		t.Fatal("expected ACC user not to receive another store payment event")
+	}
+
+	orgTreeReviewer := &Client{auth: &ClientAuth{
+		Role:                    "USER",
+		StoreCode:               "CP01",
+		OrganizationAccessCodes: []string{"FIN_ACC"},
+	}}
+	if !orgTreeReviewer.canReceive(offset) {
+		t.Fatal("expected org-tree FIN_ACC user to receive all-store offset event")
+	}
+	if orgTreeReviewer.canReceive(payment) {
+		t.Fatal("expected org-tree FIN_ACC user not to receive another store payment event")
+	}
+}
+
 func TestStatementOrderTransferEventFilteringByStore(t *testing.T) {
 	client := &Client{auth: &ClientAuth{Role: "MANAGER", StoreCode: "CP01"}}
 	message := []byte(`{"type":"STATEMENT_ORDER_TRANSFER_REQUEST","payload":{"storeCode":"CP01"}}`)
@@ -193,6 +231,20 @@ func TestFormatsStatementOrderTransferRedisEvent(t *testing.T) {
 		t.Fatal("expected statement transfer Redis event to be formatted")
 	}
 	expected := `{"type":"STATEMENT_ORDER_TRANSFER_REQUEST","payload":{"requestId":"request-1","transactionId":"tx-1","storeCode":"CP01"}}`
+	if string(message) != expected {
+		t.Fatalf("expected %s, got %s", expected, string(message))
+	}
+}
+
+func TestFormatsOffsetAdjustmentRedisEvent(t *testing.T) {
+	message, ok := formatRedisEvent(
+		offsetAdjustmentRedisChannel,
+		`{"adjustmentId":"offset-1","storeCode":"CP01","status":"PENDING_ACC"}`,
+	)
+	if !ok {
+		t.Fatal("expected offset adjustment Redis event to be formatted")
+	}
+	expected := `{"type":"OFFSET_ADJUSTMENT_NOTIFICATION","payload":{"adjustmentId":"offset-1","storeCode":"CP01","status":"PENDING_ACC"}}`
 	if string(message) != expected {
 		t.Fatalf("expected %s, got %s", expected, string(message))
 	}

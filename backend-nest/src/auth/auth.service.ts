@@ -246,6 +246,7 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('User not found');
 
     const role = this.normalizeRoleForOutput(user.role);
+    const organizationAccessCodes = await this.organizationAccessCodesFor(user);
 
     return {
       name: user.firstName,
@@ -267,6 +268,7 @@ export class AuthService {
       areaAbbreviation: this.areaForUser(user)?.abbreviation ?? null,
       organizationNodeId: user.organizationNodeId ?? null,
       organizationNodeName: user.organizationNode?.displayName ?? null,
+      organizationAccessCodes,
       personnelCode: this.personnelCodeFor(user),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
@@ -312,7 +314,7 @@ export class AuthService {
     };
   }
 
-  private buildLoginResponse(
+  private async buildLoginResponse(
     user: {
       id: string;
       email: string;
@@ -343,12 +345,16 @@ export class AuthService {
     session: AuthSessionClaims,
   ) {
     const role = this.normalizeRoleForOutput(user.role);
+    const organizationAccessCodes = await this.organizationAccessCodesFor(user);
     const jwtPayload = {
       email: user.email,
       sub: user.id,
       role,
       storeUuid: user.storeId ?? null,
       storeCode: user.store?.storeId ?? null,
+      departmentCode: user.departmentCode ?? null,
+      organizationNodeId: user.organizationNodeId ?? null,
+      organizationAccessCodes,
       tokenVersion: user.tokenVersion ?? 0,
       sessionId: session.sessionId,
       platform: session.platform,
@@ -377,12 +383,50 @@ export class AuthService {
       areaAbbreviation: this.areaForUser(user)?.abbreviation ?? null,
       organizationNodeId: user.organizationNodeId ?? null,
       organizationNodeName: user.organizationNode?.displayName ?? null,
+      organizationAccessCodes,
       personnelCode: this.personnelCodeFor(user),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
       assignmentPending: this.assignmentPending(user),
       mustSelectStore: this.mustSelectStore(user),
     };
+  }
+
+  private async organizationAccessCodesFor(user: {
+    departmentCode?: string | null;
+    organizationNodeId?: string | null;
+  }) {
+    const codes = new Set<string>();
+    const addCode = (value: unknown) => {
+      const code = this.normalizeAccessCode(value);
+      if (code) codes.add(code);
+    };
+    addCode(user.departmentCode);
+
+    const organizationNodeId = String(user.organizationNodeId || '').trim();
+    if (!organizationNodeId) return Array.from(codes);
+
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) return Array.from(codes);
+
+    const nodes: Array<{
+      id: string;
+      parentId: string | null;
+      code: string;
+      businessCode: string | null;
+    }> = await organizationNode.findMany({
+      select: { id: true, parentId: true, code: true, businessCode: true },
+    });
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const visited = new Set<string>();
+    let cursor = byId.get(organizationNodeId);
+    while (cursor && !visited.has(cursor.id)) {
+      visited.add(cursor.id);
+      addCode(cursor.code);
+      addCode(cursor.businessCode);
+      cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
+    }
+    return Array.from(codes);
   }
 
   private mustSelectStore(user: {
@@ -422,6 +466,12 @@ export class AuthService {
 
   private normalizeRoleForOutput(role: string | null | undefined) {
     return normalizeSystemRoleCode(role) ?? '';
+  }
+
+  private normalizeAccessCode(value: unknown) {
+    return String(value || '')
+      .trim()
+      .toUpperCase();
   }
 
   private personnelCodeFor(user: {

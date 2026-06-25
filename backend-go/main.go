@@ -24,10 +24,12 @@ const (
 	paymentRedisChannel                = "PAYMENT_NOTIFICATION_READY"
 	appVersionRedisChannel             = "APP_VERSION_UPDATED"
 	statementOrderTransferRedisChannel = "STATEMENT_ORDER_TRANSFER_REQUESTED"
+	offsetAdjustmentRedisChannel       = "OFFSET_ADJUSTMENT_UPDATED"
 	warrantyEventType                  = "WARRANTY_EVENT"
 	paymentEventType                   = "PAYMENT_NOTIFICATION"
 	appUpdateEventType                 = "APP_UPDATE"
 	statementOrderTransferEventType    = "STATEMENT_ORDER_TRANSFER_REQUEST"
+	offsetAdjustmentEventType          = "OFFSET_ADJUSTMENT_NOTIFICATION"
 )
 
 var upgrader = websocket.Upgrader{
@@ -65,10 +67,12 @@ func isOriginAllowed(r *http.Request) bool {
 }
 
 type ClientAuth struct {
-	UserID        string
-	Role          string
-	StoreCode     string
-	SelectedStore string
+	UserID                  string
+	Role                    string
+	StoreCode               string
+	DepartmentCode          string
+	OrganizationAccessCodes []string
+	SelectedStore           string
 }
 
 func authenticateWebSocket(r *http.Request) (*ClientAuth, error) {
@@ -101,9 +105,13 @@ func authenticateWebSocket(r *http.Request) (*ClientAuth, error) {
 		return nil, errors.New("missing JWT subject")
 	}
 	auth := &ClientAuth{
-		UserID:    subject,
-		Role:      strings.ToUpper(strings.TrimSpace(readClaimString(claims, "role"))),
-		StoreCode: strings.ToUpper(strings.TrimSpace(readClaimString(claims, "storeCode"))),
+		UserID:         subject,
+		Role:           strings.ToUpper(strings.TrimSpace(readClaimString(claims, "role"))),
+		StoreCode:      strings.ToUpper(strings.TrimSpace(readClaimString(claims, "storeCode"))),
+		DepartmentCode: strings.ToUpper(strings.TrimSpace(readClaimString(claims, "departmentCode"))),
+		OrganizationAccessCodes: normalizeAccessCodes(
+			readClaimStringList(claims, "organizationAccessCodes"),
+		),
 	}
 	selectedStore := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("store_id")))
 	if auth.Role == "SUPER_ADMIN" {
@@ -125,6 +133,41 @@ func readClaimString(claims jwt.MapClaims, key string) string {
 	default:
 		return ""
 	}
+}
+
+func readClaimStringList(claims jwt.MapClaims, key string) []string {
+	value, ok := claims[key]
+	if !ok || value == nil {
+		return nil
+	}
+	switch typed := value.(type) {
+	case []string:
+		return typed
+	case []any:
+		values := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if text, ok := item.(string); ok {
+				values = append(values, text)
+			}
+		}
+		return values
+	default:
+		return nil
+	}
+}
+
+func normalizeAccessCodes(values []string) []string {
+	normalized := make([]string, 0, len(values))
+	seen := make(map[string]bool, len(values))
+	for _, value := range values {
+		code := strings.ToUpper(strings.TrimSpace(value))
+		if code == "" || seen[code] {
+			continue
+		}
+		seen[code] = true
+		normalized = append(normalized, code)
+	}
+	return normalized
 }
 
 func extractBearerToken(r *http.Request) string {
@@ -224,7 +267,7 @@ func (c *Client) canReceive(message []byte) bool {
 	if c.auth == nil {
 		return false
 	}
-	if envelope.Type != paymentEventType && envelope.Type != statementOrderTransferEventType {
+	if envelope.Type != paymentEventType && envelope.Type != statementOrderTransferEventType && envelope.Type != offsetAdjustmentEventType {
 		return true
 	}
 	var payload struct {
@@ -234,6 +277,12 @@ func (c *Client) canReceive(message []byte) bool {
 		return false
 	}
 	storeCode := strings.ToUpper(strings.TrimSpace(payload.StoreCode))
+	if envelope.Type == offsetAdjustmentEventType {
+		if c.auth.canReviewOffsetAdjustments() {
+			return c.auth.SelectedStore == "" || c.auth.SelectedStore == storeCode
+		}
+		return c.auth.StoreCode != "" && c.auth.StoreCode == storeCode
+	}
 	if c.auth.Role == "SUPER_ADMIN" && envelope.Type == statementOrderTransferEventType {
 		return c.auth.SelectedStore == "" || c.auth.SelectedStore == storeCode
 	}
@@ -241,6 +290,24 @@ func (c *Client) canReceive(message []byte) bool {
 		return c.auth.SelectedStore != "" && c.auth.SelectedStore == storeCode
 	}
 	return c.auth.StoreCode != "" && c.auth.StoreCode == storeCode
+}
+
+func (auth *ClientAuth) canReviewOffsetAdjustments() bool {
+	if auth == nil {
+		return false
+	}
+	if auth.Role == "SUPER_ADMIN" {
+		return true
+	}
+	if auth.DepartmentCode == "ACC" || auth.DepartmentCode == "FIN_ACC" {
+		return true
+	}
+	for _, code := range auth.OrganizationAccessCodes {
+		if code == "ACC" || code == "FIN_ACC" {
+			return true
+		}
+	}
+	return false
 }
 
 // Subscribe to Redis events from NestJS
@@ -264,9 +331,10 @@ func (h *Hub) listenToRedis() {
 		paymentRedisChannel,
 		appVersionRedisChannel,
 		statementOrderTransferRedisChannel,
+		offsetAdjustmentRedisChannel,
 	)
 	defer pubsub.Close()
-	log.Println("Listening to Redis channels: WARRANTY_STATUS_UPDATED, PAYMENT_NOTIFICATION_READY, APP_VERSION_UPDATED, STATEMENT_ORDER_TRANSFER_REQUESTED...")
+	log.Println("Listening to Redis channels: WARRANTY_STATUS_UPDATED, PAYMENT_NOTIFICATION_READY, APP_VERSION_UPDATED, STATEMENT_ORDER_TRANSFER_REQUESTED, OFFSET_ADJUSTMENT_UPDATED...")
 
 	ch := pubsub.Channel()
 
@@ -292,6 +360,8 @@ func formatRedisEvent(channel string, payload string) ([]byte, bool) {
 		eventType = appUpdateEventType
 	case statementOrderTransferRedisChannel:
 		eventType = statementOrderTransferEventType
+	case offsetAdjustmentRedisChannel:
+		eventType = offsetAdjustmentEventType
 	default:
 		return nil, false
 	}

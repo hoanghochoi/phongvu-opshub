@@ -160,4 +160,34 @@ void main() {
     expect(user.canUseBankStatements, isTrue);
     expect(user.canUseAllBankStatementStores, isFalse);
   });
+
+  test('User resolves offset adjustment access and ACC review flag', () {
+    final featureUser = User.fromJson({
+      'email': 'sr@phongvu.vn',
+      'role': 'USER',
+      'resolvedFeatureAccess': {'OFFSET_ADJUSTMENTS': true},
+    });
+    final policyUser = User.fromJson({
+      'email': 'admin@phongvu.vn',
+      'role': 'ADMIN',
+      'resolvedAdminPolicies': {'OFFSET_ADJUSTMENTS': true},
+    });
+    final accUser = User.fromJson({
+      'email': 'acc@phongvu.vn',
+      'role': 'USER',
+      'departmentCode': 'ACC',
+      'resolvedFeatureAccess': {'OFFSET_ADJUSTMENTS': true},
+    });
+    final orgTreeAccUser = User.fromJson({
+      'email': 'org-acc@phongvu.vn',
+      'role': 'USER',
+      'organizationAccessCodes': ['POS_ACC', 'FIN_ACC'],
+      'resolvedFeatureAccess': {'OFFSET_ADJUSTMENTS': true},
+    });
+
+    expect(featureUser.canUseOffsetAdjustments, isTrue);
+    expect(policyUser.canUseOffsetAdjustments, isTrue);
+    expect(accUser.canReviewOffsetAdjustments, isTrue);
+    expect(orgTreeAccUser.canReviewOffsetAdjustments, isTrue);
+  });
 }

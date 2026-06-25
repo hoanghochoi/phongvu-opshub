@@ -14,6 +14,7 @@ import { FeatureService } from './feature.service';
 
 const FEATURE_POLICY_FALLBACKS: Partial<Record<string, string[]>> = {
   [FEATURE_KEYS.BANK_STATEMENTS]: [ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE],
+  [FEATURE_KEYS.OFFSET_ADJUSTMENTS]: [ADMIN_POLICY_CODES.OFFSET_ADJUSTMENTS],
 };
 
 @Injectable()

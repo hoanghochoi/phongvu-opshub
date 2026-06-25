@@ -77,6 +77,15 @@ class ApiConstants {
       '/admin/map-vietin/statement-order-transfer-requests/$id/reject';
   static String adminMapVietinStatementOrderHistoryEndpoint(String id) =>
       '/admin/map-vietin/statements/$id/order-history';
+  static const String offsetAdjustmentsEndpoint = '/offset-adjustments';
+  static String offsetAdjustmentEndpoint(String id) =>
+      '/offset-adjustments/$id';
+  static String offsetAdjustmentResubmitEndpoint(String id) =>
+      '/offset-adjustments/$id/resubmit';
+  static String offsetAdjustmentCompleteEndpoint(String id) =>
+      '/offset-adjustments/$id/complete';
+  static String offsetAdjustmentRejectEndpoint(String id) =>
+      '/offset-adjustments/$id/reject';
   static String paymentNotificationAudioEndpoint(String id) =>
       '/payment-notifications/$id/audio';
   static String paymentNotificationAckEndpoint(String id) =>

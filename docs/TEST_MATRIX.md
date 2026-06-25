@@ -56,6 +56,24 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- OFFSET-ADJUSTMENT-001, 2026-06-25: added the dedicated `Cấn trừ` feature for
+  SR-created offset adjustment requests and ACC/FIN_ACC review. The backend now
+  stores request/history rows, blocks same old/new order codes for single-order
+  requests, blocks duplicate wallet order/transaction codes per wallet type,
+  requires reject reasons, and requires `Mã CT` only when completing VNPAY
+  QROFF. Flutter adds the home route, four entry dialogs, detail/review dialog,
+  server-side filters, status borders, single-order reuse count chip, and
+  offset realtime refresh. Realtime is isolated on Redis channel
+  `OFFSET_ADJUSTMENT_UPDATED` and WebSocket event
+  `OFFSET_ADJUSTMENT_NOTIFICATION`; payment notification ready/audio/ack
+  contracts remain on their existing paths and event types. Validation:
+  `npx prisma validate`, `npx prisma generate`, focused backend Jest for
+  offset/auth/feature/payment notification (4 suites, 56 tests), backend
+  `npm run build`, Go realtime `go test ./...`, focused Flutter offset/user/
+  payment monitor tests (31 tests), `flutter analyze --no-pub`, and
+  `git diff --check`. Gap: live database migration, deployed Redis/WebSocket
+  delivery, ACC/SR click-through, and the manual runtime smoke with `Tiền vào`
+  speaker enabled remain pending.
 - PAYMENT-STATEMENT-001, 2026-06-25: added ACC-reviewed statement order
   transfer requests. Visible statement users can request order replacement
   within 24 hours from `paidAt ?? firstSeenAt`; duplicate pending requests and

@@ -62,6 +62,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final canUseBankStatements = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseBankStatements == true,
     );
+    final canUseOffsetAdjustments = context.select<AuthProvider, bool>(
+      (auth) => auth.user?.canUseOffsetAdjustments == true,
+    );
     final canUseVietQr = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('VIETQR') == true,
     );
@@ -82,6 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
       canUseFifoMenu,
       canUseWarranty,
       canUseBankStatements,
+      canUseOffsetAdjustments,
       canUseVietQr,
       canUsePaymentMonitor,
       canUseFeedback,
@@ -142,6 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
     bool canUseFifoMenu,
     bool canUseWarranty,
     bool canUseBankStatements,
+    bool canUseOffsetAdjustments,
     bool canUseVietQr,
     bool canUsePaymentMonitor,
     bool canUseFeedback,
@@ -186,6 +191,14 @@ class _HomeScreenState extends State<HomeScreen> {
           description: 'Rà soát mã đơn',
           color: AppColors.info,
           onTap: () => context.push('/bank-statement'),
+        ),
+      if (canUseOffsetAdjustments)
+        AppFeatureAction(
+          icon: Icons.swap_horiz_rounded,
+          title: 'Cấn trừ',
+          description: 'Gửi ACC xác nhận',
+          color: AppColors.teal600,
+          onTap: () => context.push('/offset-adjustments'),
         ),
       if (canUsePaymentMonitor)
         AppFeatureAction(

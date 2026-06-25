@@ -162,6 +162,59 @@ model MapVietinSyncState {
   updatedAt     DateTime  @updatedAt
 }
 
+model OffsetAdjustment {
+  id                   String    @id @default(uuid())
+  type                 String
+  status               String    @default("PENDING_ACC")
+  storeCode            String
+  oldOrderCode         String?
+  newOrderCode         String?
+  orderCode            String?
+  scanDate             DateTime?
+  editContentKind      String?
+  transactionCode      String?
+  amount               Int
+  note                 String?
+  ctCode               String?
+  rejectReason         String?
+  createdByUserId      String?
+  createdByEmail       String?
+  reviewedByUserId     String?
+  reviewedByEmail      String?
+  submittedAt          DateTime  @default(now())
+  reviewedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  history OffsetAdjustmentHistory[]
+
+  @@unique([type, orderCode])
+  @@unique([type, transactionCode])
+  @@index([storeCode, submittedAt])
+  @@index([status, submittedAt])
+  @@index([type, submittedAt])
+  @@index([oldOrderCode])
+  @@index([newOrderCode])
+  @@index([amount])
+}
+
+model OffsetAdjustmentHistory {
+  id              String   @id @default(uuid())
+  adjustmentId    String
+  adjustment      OffsetAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  action          String
+  fromStatus      String?
+  toStatus        String?
+  actorUserId     String?
+  actorEmail      String?
+  reason          String?
+  snapshot        Json?
+  createdAt       DateTime @default(now())
+
+  @@index([adjustmentId, createdAt])
+  @@index([action, createdAt])
+}
+
 model PaymentNotification {
   id            String   @id @default(uuid())
   storeCode     String
