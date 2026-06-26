@@ -1,0 +1,322 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_notification_action.dart';
+import '../../../bank_statement/domain/bank_statement_transaction.dart';
+import '../providers/app_notifications_provider.dart';
+
+class AppNotificationsBell extends StatelessWidget {
+  const AppNotificationsBell({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    late final AppNotificationsProvider notifications;
+    try {
+      notifications = context.watch<AppNotificationsProvider>();
+    } on ProviderNotFoundException {
+      return const SizedBox.shrink();
+    }
+    if (!notifications.isEnabled) return const SizedBox.shrink();
+    return MenuAnchor(
+      menuChildren: [_NotificationsMenu(provider: notifications)],
+      builder: (context, controller, child) {
+        return AppNotificationIconButton(
+          count: notifications.count,
+          tooltip: notifications.count > 0
+              ? '${notifications.count} thông báo'
+              : 'Thông báo',
+          onPressed: () async {
+            if (controller.isOpen) {
+              controller.close();
+              return;
+            }
+            controller.open();
+            await notifications.load();
+          },
+        );
+      },
+    );
+  }
+}
+
+class _NotificationsMenu extends StatelessWidget {
+  final AppNotificationsProvider provider;
+
+  const _NotificationsMenu({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final menuWidth = width < 460 ? width - 24 : 440.0;
+    final maxHeight = MediaQuery.sizeOf(context).height - 120;
+    final requests = provider.statementOrderRequests;
+    return SizedBox(
+      width: menuWidth,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: maxHeight.clamp(260.0, 560.0).toDouble(),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+          child: SelectionArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.notifications_none_rounded,
+                      color: AppColors.primary500,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Thông báo',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Tải lại',
+                      onPressed: provider.isLoading
+                          ? null
+                          : () => provider.load(),
+                      icon: const Icon(Icons.refresh_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: provider.isLoading && requests.isEmpty
+                      ? const Center(child: CircularProgressIndicator())
+                      : requests.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Center(
+                            child: SelectableText('Chưa có thông báo.'),
+                          ),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: requests.length,
+                          separatorBuilder: (_, _) => const Divider(height: 18),
+                          itemBuilder: (context, index) {
+                            return _StatementOrderNotificationTile(
+                              request: requests[index],
+                              canReview:
+                                  provider.canReviewStatementOrderTransfers,
+                              onApprove: () => _handleReview(
+                                context,
+                                provider,
+                                requests[index],
+                                approved: true,
+                              ),
+                              onReject: () => _handleReview(
+                                context,
+                                provider,
+                                requests[index],
+                                approved: false,
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleReview(
+    BuildContext context,
+    AppNotificationsProvider provider,
+    BankStatementOrderTransferRequest request, {
+    required bool approved,
+  }) async {
+    final note = approved ? null : await _showRejectNoteDialog(context);
+    if (!approved && note == null) return;
+    try {
+      if (approved) {
+        await provider.approveStatementOrderTransfer(request.id);
+      } else {
+        await provider.rejectStatementOrderTransfer(request.id, note: note);
+      }
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            approved
+                ? 'Chưa xác nhận được yêu cầu.'
+                : 'Chưa từ chối được yêu cầu.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<String?> _showRejectNoteDialog(BuildContext context) async {
+    final controller = TextEditingController();
+    try {
+      return showDialog<String?>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Từ chối yêu cầu'),
+          content: SelectionArea(
+            child: SizedBox(
+              width: MediaQuery.of(dialogContext).size.width < 560
+                  ? double.maxFinite
+                  : 420,
+              child: TextField(
+                controller: controller,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Ghi chú cho người gửi (không bắt buộc)',
+                  hintText: 'Ví dụ: Mã đơn chưa đúng, vui lòng kiểm tra lại.',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(null),
+              child: const Text('Hủy'),
+            ),
+            FilledButton.icon(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              icon: const Icon(Icons.close_rounded),
+              label: const Text('Từ chối'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+}
+
+class _StatementOrderNotificationTile extends StatelessWidget {
+  final BankStatementOrderTransferRequest request;
+  final bool canReview;
+  final Future<void> Function() onApprove;
+  final Future<void> Function() onReject;
+
+  const _StatementOrderNotificationTile({
+    required this.request,
+    required this.canReview,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final money = NumberFormat.decimalPattern('vi_VN');
+    final pending = request.status == 'PENDING';
+    final rejected = request.status == 'REJECTED';
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        rejected ? Icons.error_outline_rounded : Icons.swap_horiz_rounded,
+        color: rejected ? AppColors.error : AppColors.warning,
+      ),
+      title: SelectableText(
+        _title,
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SelectableText(
+              [
+                if (request.storeCode.isNotEmpty) 'SR ${request.storeCode}',
+                if (request.statementNumber.isNotEmpty)
+                  'Mã sao kê ${request.statementNumber}',
+                '${money.format(request.amount)} VND',
+              ].join(' • '),
+            ),
+            SelectableText('Đơn cũ: ${_ordersText(request.oldOrders)}'),
+            SelectableText(
+              'Đơn đề nghị: ${_ordersText(request.requestedOrders)}',
+            ),
+            if (_transactionTimeText.isNotEmpty)
+              SelectableText('Thời gian giao dịch: $_transactionTimeText'),
+            if (_requestTimeText.isNotEmpty)
+              SelectableText('Thời gian yêu cầu: $_requestTimeText'),
+            if ((request.requestedByEmail ?? '').isNotEmpty)
+              SelectableText('Người gửi: ${request.requestedByEmail}'),
+            if (rejected) ...[
+              const SizedBox(height: 6),
+              SelectableText('Lý do: ${_rejectReasonText(request)}'),
+              const SelectableText(
+                'Cần làm: Kiểm tra lại mã đơn. Nếu giao dịch còn trong ngày, gửi yêu cầu mới; nếu đã qua 00:00, dùng chức năng Cấn trừ.',
+              ),
+            ],
+            if (request.content.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              SelectableText(request.content),
+            ],
+            if (canReview && pending) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onReject,
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text('Từ chối'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: onApprove,
+                    icon: const Icon(Icons.check_rounded),
+                    label: const Text('Xác nhận'),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String get _title {
+    if (request.status == 'REJECTED') return 'Yêu cầu đổi mã đơn bị từ chối';
+    if (request.status == 'APPROVED') return 'Yêu cầu đổi mã đơn đã xác nhận';
+    if (canReview) return 'Yêu cầu phê duyệt đổi mã đơn';
+    return 'Yêu cầu đổi mã đơn đang chờ duyệt';
+  }
+
+  String get _transactionTimeText {
+    final time = request.paidAt ?? request.firstSeenAt;
+    return time == null
+        ? ''
+        : DateFormat('HH:mm:ss dd/MM/yyyy').format(time.toLocal());
+  }
+
+  String get _requestTimeText {
+    final time = request.createdAt;
+    return time == null
+        ? ''
+        : DateFormat('HH:mm:ss dd/MM/yyyy').format(time.toLocal());
+  }
+
+  String _ordersText(List<String> orders) =>
+      orders.isEmpty ? 'NULL' : orders.join(', ');
+
+  String _rejectReasonText(BankStatementOrderTransferRequest request) {
+    final note = request.reviewNote?.trim() ?? '';
+    return note.isEmpty ? 'Kế toán chưa nhập lý do cụ thể.' : note;
+  }
+}

@@ -4,6 +4,7 @@ class MapPaymentTransaction {
   final int amount;
   final String content;
   final String transactionNumber;
+  final String transactionReference;
   final List<String> orders;
   final String status;
   final DateTime? paidAt;
@@ -18,6 +19,7 @@ class MapPaymentTransaction {
     required this.amount,
     required this.content,
     required this.transactionNumber,
+    required this.transactionReference,
     required this.orders,
     required this.status,
     required this.paidAt,
@@ -37,6 +39,10 @@ class MapPaymentTransaction {
       'transactionNo',
       'txnNo',
       'id',
+    ]);
+    final transactionReference = _readFirstText(json, const [
+      'transactionReference',
+      'txnReference',
     ]);
     final content = _readFirstText(json, const [
       'transactionDescription',
@@ -103,6 +109,7 @@ class MapPaymentTransaction {
       amount: amount ?? 0,
       content: content,
       transactionNumber: transactionNumber,
+      transactionReference: transactionReference,
       orders: orders,
       status: status,
       paidAt: paidAt,
@@ -115,6 +122,8 @@ class MapPaymentTransaction {
 
   bool get isValidIncoming => amount > 0 && successful;
   bool get hasOrders => orders.isNotEmpty;
+  String get statementNumber =>
+      transactionReference.isNotEmpty ? transactionReference : transactionNumber;
   String get payerLabel =>
       [payerName, payerAccount].where((value) => value.isNotEmpty).join(' • ');
 

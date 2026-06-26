@@ -218,10 +218,17 @@ export class CreateMapVietinStatementOrderTransferRequestDto {
   orders!: string[];
 }
 
+export class ReviewMapVietinStatementOrderTransferRequestDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
 export class ListMapVietinStatementOrderTransferRequestsDto {
   @IsOptional()
   @IsString()
-  @IsIn(['PENDING', 'APPROVED', 'REJECTED'])
+  @IsIn(['PENDING', 'APPROVED', 'REJECTED', 'EXPIRED', 'NOTIFICATION'])
   status?: string;
 
   @IsOptional()

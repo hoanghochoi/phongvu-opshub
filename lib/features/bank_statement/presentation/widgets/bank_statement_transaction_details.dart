@@ -58,6 +58,8 @@ Future<void> showBankStatementTransactionDetails(
   final stopwatch = Stopwatch()..start();
   final logContext = <String, Object?>{
     if (transaction.id.isNotEmpty) 'transactionId': transaction.id,
+    if (transaction.statementNumber.isNotEmpty)
+      'statementNumber': transaction.statementNumber,
     if (transaction.transactionNumber.isNotEmpty)
       'transactionNumber': transaction.transactionNumber,
     'storeId': transaction.storeId,
@@ -156,8 +158,8 @@ class BankStatementTransactionDetailDialog extends StatelessWidget {
                   labelWidth: 142,
                 ),
                 AppInfoRow(
-                  label: 'Mã giao dịch',
-                  value: transaction.transactionNumber,
+                  label: 'Mã sao kê',
+                  value: transaction.statementNumber,
                   labelWidth: 142,
                 ),
                 AppInfoRow(

@@ -271,12 +271,19 @@ func (c *Client) canReceive(message []byte) bool {
 		return true
 	}
 	var payload struct {
-		StoreCode string `json:"storeCode"`
+		StoreCode       string `json:"storeCode"`
+		RecipientUserID string `json:"recipientUserId"`
 	}
 	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
 		return false
 	}
 	storeCode := strings.ToUpper(strings.TrimSpace(payload.StoreCode))
+	recipientUserID := strings.TrimSpace(payload.RecipientUserID)
+	if envelope.Type == statementOrderTransferEventType &&
+		recipientUserID != "" &&
+		recipientUserID == c.auth.UserID {
+		return true
+	}
 	if envelope.Type == offsetAdjustmentEventType {
 		if c.auth.canReviewOffsetAdjustments() {
 			return c.auth.SelectedStore == "" || c.auth.SelectedStore == storeCode

@@ -162,6 +162,10 @@ export class VietQrService {
     'transactionNo',
     'txnNo',
   ];
+  private readonly mapTransactionReferenceKeys = [
+    'transactionReference',
+    'txnReference',
+  ];
   private readonly mapTransactionTimeKeys = [
     'tranTime',
     'txnDate',
@@ -562,7 +566,7 @@ export class VietQrService {
       const updated = await this.updatePendingReconcileResult(intent.id, {
         status: 'PAID',
         matchedTransactionId: match.id,
-        matchedTransactionNumber: match.transactionNumber,
+        matchedTransactionNumber: this.readStoredStatementNumber(match),
         matchedAmount: match.amount,
         matchedTranTime: match.paidAt,
         matchedPayerName: match.payerName,
@@ -672,7 +676,7 @@ export class VietQrService {
         data: {
           status: 'PAID',
           matchedTransactionId: match.id,
-          matchedTransactionNumber: match.transactionNumber,
+          matchedTransactionNumber: this.readStoredStatementNumber(match),
           matchedAmount: match.amount,
           matchedTranTime: match.paidAt,
           matchedPayerName: match.payerName,
@@ -731,10 +735,7 @@ export class VietQrService {
         data: {
           status: 'PAID',
           matchedTransactionId: this.readText(match, 'id'),
-          matchedTransactionNumber: this.readFirstText(
-            match,
-            this.mapTransactionNumberKeys,
-          ),
+          matchedTransactionNumber: this.readMapStatementNumber(match),
           matchedAmount: this.readAmount(match),
           matchedTranTime,
           matchedPayerName: this.readFirstText(match, this.mapPayerNameKeys),
@@ -856,6 +857,32 @@ export class VietQrService {
     return Boolean(
       transferContent && transactionContent.includes(transferContent),
     );
+  }
+
+  private readStoredStatementNumber(row: {
+    transactionNumber?: string | null;
+    rawData?: Prisma.JsonValue | null;
+  }) {
+    const rawData = this.rawDataAsMapTransaction(row.rawData);
+    const reference = rawData
+      ? this.readFirstText(rawData, this.mapTransactionReferenceKeys)
+      : '';
+    return reference || row.transactionNumber?.trim() || null;
+  }
+
+  private readMapStatementNumber(row: MapTransaction) {
+    return (
+      this.readFirstText(row, this.mapTransactionReferenceKeys) ||
+      this.readFirstText(row, this.mapTransactionNumberKeys) ||
+      null
+    );
+  }
+
+  private rawDataAsMapTransaction(value?: Prisma.JsonValue | null) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    return value as MapTransaction;
   }
 
   private isSuccessfulTransaction(row: MapTransaction) {

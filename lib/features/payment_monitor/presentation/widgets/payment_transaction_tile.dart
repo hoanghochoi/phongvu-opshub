@@ -101,6 +101,8 @@ Future<void> showPaymentTransactionDetails(
     'PaymentMonitor',
     'Payment transaction details opening',
     context: {
+      if (transaction.statementNumber.isNotEmpty)
+        'statementNumber': transaction.statementNumber,
       if (transaction.transactionNumber.isNotEmpty)
         'transactionNumber': transaction.transactionNumber,
       'storeId': transaction.storeId,
@@ -113,6 +115,8 @@ Future<void> showPaymentTransactionDetails(
       'PaymentMonitor',
       'Payment transaction details opening cancelled',
       context: {
+        if (transaction.statementNumber.isNotEmpty)
+          'statementNumber': transaction.statementNumber,
         if (transaction.transactionNumber.isNotEmpty)
           'transactionNumber': transaction.transactionNumber,
         'storeId': transaction.storeId,
@@ -134,6 +138,8 @@ Future<void> showPaymentTransactionDetails(
       'PaymentMonitor',
       'Payment transaction details closed',
       context: {
+        if (transaction.statementNumber.isNotEmpty)
+          'statementNumber': transaction.statementNumber,
         if (transaction.transactionNumber.isNotEmpty)
           'transactionNumber': transaction.transactionNumber,
         'storeId': transaction.storeId,
@@ -147,6 +153,8 @@ Future<void> showPaymentTransactionDetails(
       error: error,
       stackTrace: stackTrace,
       context: {
+        if (transaction.statementNumber.isNotEmpty)
+          'statementNumber': transaction.statementNumber,
         if (transaction.transactionNumber.isNotEmpty)
           'transactionNumber': transaction.transactionNumber,
         'storeId': transaction.storeId,
@@ -211,8 +219,8 @@ class PaymentTransactionDetailDialog extends StatelessWidget {
                   labelWidth: 132,
                 ),
                 AppInfoRow(
-                  label: 'Mã giao dịch',
-                  value: transaction.transactionNumber,
+                  label: 'Mã sao kê',
+                  value: transaction.statementNumber,
                   labelWidth: 132,
                 ),
                 AppInfoRow(

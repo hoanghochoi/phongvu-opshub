@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
-import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/bank_statement/data/bank_statement_repository.dart';
@@ -671,17 +670,19 @@ class _FakeBankStatementRepository extends BankStatementRepository {
     int limit = 50,
   }) async {
     fetchOrderTransferRequestsCount += 1;
-    if (!canReviewOrderTransfers) {
-      throw ApiException('Bạn không có quyền thực hiện thao tác này.', 403);
-    }
     final matching = _pendingRequests
-        .where((request) => request.status == status)
+        .where(
+          (request) => status == 'NOTIFICATION'
+              ? request.status == 'PENDING' || request.status == 'REJECTED'
+              : request.status == status,
+        )
         .toList(growable: false);
     return BankStatementOrderTransferRequestPage(
       requests: matching,
       page: page,
       limit: limit,
       total: matching.length,
+      canReview: canReviewOrderTransfers,
     );
   }
 
@@ -720,8 +721,9 @@ class _FakeBankStatementRepository extends BankStatementRepository {
 
   @override
   Future<BankStatementOrderTransferReviewResult> rejectOrderTransferRequest(
-    String requestId,
-  ) async {
+    String requestId, {
+    String? note,
+  }) async {
     rejectOrderTransferRequestCount += 1;
     final request = _removePendingRequest(requestId);
     final transaction = _findTransaction(request.transactionId);
@@ -744,6 +746,7 @@ class _FakeBankStatementRepository extends BankStatementRepository {
         transaction: transaction,
         requestedOrders: request.requestedOrders,
         status: 'REJECTED',
+        reviewNote: note,
       ),
       transaction: null,
     );
@@ -823,6 +826,9 @@ BankStatementTransaction _transaction(String id, List<String> orders) {
     hasPendingOrderTransferRequest: false,
     orderTransferRequestId: null,
     orderTransferRequestedOrders: const [],
+    orderTransferRequestedByEmail: null,
+    orderTransferRequestedAt: null,
+    orderTransferReviewNote: null,
     orderTransferStatus: null,
     isOrderOffsetConfirmed: false,
   );
@@ -839,6 +845,9 @@ BankStatementTransaction _copyTransaction(
   bool? hasPendingOrderTransferRequest,
   Object? orderTransferRequestId = _unchanged,
   List<String>? orderTransferRequestedOrders,
+  Object? orderTransferRequestedByEmail = _unchanged,
+  Object? orderTransferRequestedAt = _unchanged,
+  Object? orderTransferReviewNote = _unchanged,
   String? orderTransferStatus,
   bool? isOrderOffsetConfirmed,
 }) {
@@ -847,6 +856,7 @@ BankStatementTransaction _copyTransaction(
     storeId: transaction.storeId,
     transactionKey: transaction.transactionKey,
     transactionNumber: transaction.transactionNumber,
+    transactionReference: transaction.transactionReference,
     amount: transaction.amount,
     content: transaction.content,
     orders: orders ?? transaction.orders,
@@ -877,6 +887,16 @@ BankStatementTransaction _copyTransaction(
     orderTransferRequestedOrders:
         orderTransferRequestedOrders ??
         transaction.orderTransferRequestedOrders,
+    orderTransferRequestedByEmail:
+        identical(orderTransferRequestedByEmail, _unchanged)
+        ? transaction.orderTransferRequestedByEmail
+        : orderTransferRequestedByEmail as String?,
+    orderTransferRequestedAt: identical(orderTransferRequestedAt, _unchanged)
+        ? transaction.orderTransferRequestedAt
+        : orderTransferRequestedAt as DateTime?,
+    orderTransferReviewNote: identical(orderTransferReviewNote, _unchanged)
+        ? transaction.orderTransferReviewNote
+        : orderTransferReviewNote as String?,
     orderTransferStatus: orderTransferStatus ?? transaction.orderTransferStatus,
     isOrderOffsetConfirmed:
         isOrderOffsetConfirmed ?? transaction.isOrderOffsetConfirmed,
@@ -888,6 +908,7 @@ BankStatementOrderTransferRequest _transferRequest({
   required BankStatementTransaction transaction,
   required List<String> requestedOrders,
   required String status,
+  String? reviewNote,
 }) {
   return BankStatementOrderTransferRequest(
     id: id,
@@ -898,9 +919,11 @@ BankStatementOrderTransferRequest _transferRequest({
     status: status,
     requestedByEmail: 'staff@example.com',
     reviewedByEmail: null,
+    reviewNote: reviewNote,
     reviewedAt: null,
     createdAt: DateTime.utc(2026, 5, 29, 3),
     transactionNumber: transaction.transactionNumber,
+    transactionReference: transaction.transactionReference,
     amount: transaction.amount,
     content: transaction.content,
     paidAt: transaction.paidAt,

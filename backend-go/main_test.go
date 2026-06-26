@@ -185,6 +185,19 @@ func TestStatementOrderTransferEventFilteringByStore(t *testing.T) {
 	}
 }
 
+func TestStatementOrderTransferEventFilteringByRecipient(t *testing.T) {
+	client := &Client{auth: &ClientAuth{Role: "USER", UserID: "user-1"}}
+	message := []byte(`{"type":"STATEMENT_ORDER_TRANSFER_REQUEST","payload":{"storeCode":"CP02","recipientUserId":"user-1"}}`)
+	if !client.canReceive(message) {
+		t.Fatal("expected recipient user to receive statement transfer event")
+	}
+
+	otherUser := &Client{auth: &ClientAuth{Role: "USER", UserID: "user-2"}}
+	if otherUser.canReceive(message) {
+		t.Fatal("expected another user not to receive recipient-only statement transfer event")
+	}
+}
+
 func TestSuperAdminCanReceiveAllStatementOrderTransferEvents(t *testing.T) {
 	message := []byte(`{"type":"STATEMENT_ORDER_TRANSFER_REQUEST","payload":{"storeCode":"CP02"}}`)
 

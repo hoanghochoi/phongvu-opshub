@@ -46,10 +46,9 @@ class PaymentConfirmationCard extends StatelessWidget {
                       'Số tiền: ${amountFormatter.format(confirmation.matchedAmount)} VND',
                     ),
                   ],
-                  if (confirmation.matchedTransactionNumber != null &&
-                      confirmation.matchedTransactionNumber!.isNotEmpty) ...[
+                  if (confirmation.matchedStatementNumber != null) ...[
                     const SizedBox(height: 4),
-                    Text('Mã GD: ${confirmation.matchedTransactionNumber}'),
+                    Text('Mã sao kê: ${confirmation.matchedStatementNumber}'),
                   ],
                 ],
               ),

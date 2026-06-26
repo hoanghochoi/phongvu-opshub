@@ -13,12 +13,14 @@
 - Add statement endpoints under `/admin/map-vietin/statements` for list, CSV
   export, inline order update, and order history.
 - Add an ACC-reviewed order-transfer request table and endpoints so visible
-  statement users can request order replacement within 24 hours from
-  `paidAt ?? firstSeenAt`; `SUPER_ADMIN`, `FIN_ACC`, and `ACC` reviewers can
-  approve or reject.
+  statement users can request order replacement until the Vietnam-local day of
+  `paidAt ?? firstSeenAt` closes at 00:00 UTC+7; `SUPER_ADMIN`, `FIN_ACC`, and
+  `ACC` reviewers can approve or reject with an optional rejection note, and
+  stale pending requests expire out of the pending state.
 - Build a Flutter `bank_statement` feature that reuses existing responsive
   layout, buttons, state panels, chips, and logging patterns, including a
-  scoped ACC notification bell for pending order-transfer requests.
+  generic `Thông báo` bell for reviewer and requester order-transfer
+  notifications.
 
 ## Alternatives Considered
 

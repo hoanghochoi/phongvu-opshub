@@ -58,10 +58,10 @@ class PaymentSuccessPanel extends StatelessWidget {
                 value: confirmation.matchedTransactionContent!,
                 labelWidth: 118,
               ),
-            if (confirmation.matchedTransactionNumber != null)
+            if (confirmation.matchedStatementNumber != null)
               AppInfoRow(
-                label: 'Mã GD',
-                value: confirmation.matchedTransactionNumber!,
+                label: 'Mã sao kê',
+                value: confirmation.matchedStatementNumber!,
                 labelWidth: 118,
               ),
             if (confirmation.matchedTranTime != null)

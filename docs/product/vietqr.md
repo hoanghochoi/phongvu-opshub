@@ -206,22 +206,28 @@ a customer to scan and pay manually.
   separated by comma/semicolon/whitespace, save/cancel in place, and see a
   short per-row success or failure message.
 - Users who can view a statement transaction can request an order update for
-  that transaction within 24 hours from `paidAt ?? firstSeenAt`. After that
-  window, the app disables the update action with `Quá thời hạn cập nhật trong
-  ngày. Vui lòng dùng chức năng Cấn trừ.`, and the backend rejects the same
-  request. The separate over-24h `Cấn trừ` flow is handled by the dedicated
-  offset adjustment contract.
+  that transaction only while it is still the same Vietnam-local calendar day
+  as `paidAt ?? firstSeenAt`. After 00:00 UTC+7, the app disables the update
+  action with `Quá thời hạn cập nhật trong ngày. Vui lòng dùng chức năng Cấn
+  trừ.`, the backend rejects the same request, and stale pending requests are
+  moved to `EXPIRED` so rows no longer show `Chờ xác nhận`. The separate
+  after-day-close `Cấn trừ` flow is handled by the dedicated offset adjustment
+  contract.
 - Only one order-transfer request may be pending for a transaction. Pending
   rows use a yellow border and show the requested order codes as `Chờ ACC xác
   nhận`. ACC approval is available to `SUPER_ADMIN` and users in `FIN_ACC` or
   `ACC` through department or organization-node code/businessCode. Approval
   replaces the transaction orders with the requested orders, sets order source
   `OFFSET`, writes the order audit, and shows a small `Đã cấn trừ` tag beside
-  `Đơn hàng`; rejection leaves the current orders unchanged.
-- ACC users see a statement notification bell with the pending count in their
-  current statement scope. The realtime event only carries request id,
-  transaction id, showroom, status, and timestamp; the client reloads pending
-  request details through the scoped API before showing approve/reject actions.
+  `Đơn hàng`; rejection leaves the current orders unchanged and may include an
+  optional reviewer note.
+- Statement users see a generic `Thông báo` bell. Reviewers see pending
+  order-transfer requests in their statement scope; requesters see their own
+  pending/rejected requests. Each notification names the notification type and
+  shows transaction time, request time, current/requested orders, and rejection
+  reason/instructions when rejected. The realtime event carries sanitized ids,
+  showroom/status/timestamp, and recipient id for requester notifications; the
+  client reloads details through the scoped API before showing actions.
 - Statement rows include the MAP payer name/account when available. Tapping the
   transaction summary opens a selectable detail dialog with payer, payment,
   showroom, order, manual-edit metadata, and OpsHub first-seen information;

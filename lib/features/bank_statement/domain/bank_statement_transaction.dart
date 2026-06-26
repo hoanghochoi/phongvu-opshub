@@ -22,6 +22,9 @@ class BankStatementTransaction {
   final bool hasPendingOrderTransferRequest;
   final String? orderTransferRequestId;
   final List<String> orderTransferRequestedOrders;
+  final String? orderTransferRequestedByEmail;
+  final DateTime? orderTransferRequestedAt;
+  final String? orderTransferReviewNote;
   final String? orderTransferStatus;
   final bool isOrderOffsetConfirmed;
 
@@ -49,6 +52,9 @@ class BankStatementTransaction {
     required this.hasPendingOrderTransferRequest,
     required this.orderTransferRequestId,
     required this.orderTransferRequestedOrders,
+    required this.orderTransferRequestedByEmail,
+    required this.orderTransferRequestedAt,
+    required this.orderTransferReviewNote,
     required this.orderTransferStatus,
     required this.isOrderOffsetConfirmed,
   });
@@ -83,6 +89,10 @@ class BankStatementTransaction {
       orderTransferRequestedOrders: _readOrders(
         json['orderTransferRequestedOrders'],
       ),
+      orderTransferRequestedByEmail: json['orderTransferRequestedByEmail']
+          ?.toString(),
+      orderTransferRequestedAt: _readDate(json['orderTransferRequestedAt']),
+      orderTransferReviewNote: json['orderTransferReviewNote']?.toString(),
       orderTransferStatus: json['orderTransferStatus']?.toString(),
       isOrderOffsetConfirmed: json['isOrderOffsetConfirmed'] == true,
       payerName: _readFirstText(json, const [
@@ -149,6 +159,9 @@ class BankStatementTransaction {
       hasPendingOrderTransferRequest: hasPendingOrderTransferRequest,
       orderTransferRequestId: orderTransferRequestId,
       orderTransferRequestedOrders: orderTransferRequestedOrders,
+      orderTransferRequestedByEmail: orderTransferRequestedByEmail,
+      orderTransferRequestedAt: orderTransferRequestedAt,
+      orderTransferReviewNote: orderTransferReviewNote,
       orderTransferStatus: orderTransferStatus,
       isOrderOffsetConfirmed: isOrderOffsetConfirmed,
     );
@@ -225,9 +238,11 @@ class BankStatementOrderTransferRequest {
   final String status;
   final String? requestedByEmail;
   final String? reviewedByEmail;
+  final String? reviewNote;
   final DateTime? reviewedAt;
   final DateTime? createdAt;
   final String? transactionNumber;
+  final String? transactionReference;
   final int amount;
   final String content;
   final DateTime? paidAt;
@@ -242,9 +257,11 @@ class BankStatementOrderTransferRequest {
     required this.status,
     required this.requestedByEmail,
     required this.reviewedByEmail,
+    required this.reviewNote,
     required this.reviewedAt,
     required this.createdAt,
     required this.transactionNumber,
+    required this.transactionReference,
     required this.amount,
     required this.content,
     required this.paidAt,
@@ -265,13 +282,24 @@ class BankStatementOrderTransferRequest {
       status: json['status']?.toString() ?? '',
       requestedByEmail: json['requestedByEmail']?.toString(),
       reviewedByEmail: json['reviewedByEmail']?.toString(),
+      reviewNote: json['reviewNote']?.toString(),
       reviewedAt: BankStatementTransaction._readDate(json['reviewedAt']),
       createdAt: BankStatementTransaction._readDate(json['createdAt']),
       transactionNumber: json['transactionNumber']?.toString(),
+      transactionReference: BankStatementTransaction._readFirstText(
+        json,
+        const ['transactionReference', 'txnReference'],
+      ),
       amount: BankStatementTransaction._readAmount(json['amount']),
       content: json['content']?.toString() ?? '',
       paidAt: BankStatementTransaction._readDate(json['paidAt']),
       firstSeenAt: BankStatementTransaction._readDate(json['firstSeenAt']),
     );
+  }
+
+  String get statementNumber {
+    final reference = transactionReference?.trim() ?? '';
+    if (reference.isNotEmpty) return reference;
+    return transactionNumber?.trim() ?? '';
   }
 }

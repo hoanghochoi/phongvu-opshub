@@ -123,6 +123,8 @@ class VietQrPaymentConfirmation {
     );
   }
 
+  String? get matchedStatementNumber => _parseString(matchedTransactionNumber);
+
   static String? _parseString(Object? value) {
     final text = value?.toString().trim() ?? '';
     return text.isEmpty ? null : text;

@@ -7,6 +7,8 @@ import '../core/network/api_client.dart';
 import '../features/auth/data/repositories/auth_repository.dart';
 import '../features/auth/presentation/providers/auth_provider.dart';
 import '../features/app_update/presentation/app_update_gate.dart';
+import '../features/bank_statement/data/bank_statement_repository.dart';
+import '../features/notifications/presentation/providers/app_notifications_provider.dart';
 import '../features/warranty/data/repositories/warranty_repository.dart';
 import '../features/warranty/presentation/providers/warranty_provider.dart';
 import '../features/payment_monitor/data/payment_speaker.dart';
@@ -51,6 +53,23 @@ class App extends StatelessWidget {
         ),
         ChangeNotifierProvider(
           create: (_) => SortProvider(SortRepository(ApiClient())),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, AppNotificationsProvider>(
+          lazy: false,
+          create: (_) =>
+              AppNotificationsProvider(BankStatementRepository(ApiClient())),
+          update: (_, auth, notifications) {
+            final provider =
+                notifications ??
+                AppNotificationsProvider(BankStatementRepository(ApiClient()));
+            Future.microtask(
+              () => provider.syncAuth(
+                auth.user,
+                isInitialized: auth.isInitialized,
+              ),
+            );
+            return provider;
+          },
         ),
         ChangeNotifierProxyProvider<AuthProvider, PaymentMonitorProvider>(
           lazy: false,

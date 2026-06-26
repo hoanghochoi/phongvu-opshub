@@ -21,6 +21,7 @@ import {
   ListMapVietinStatementOrderTransferRequestsDto,
   ListStoredMapVietinTransactionsDto,
   ListMapVietinStatementsDto,
+  ReviewMapVietinStatementOrderTransferRequestDto,
   SearchMapVietinTransactionsDto,
   UpdateMapVietinStatementOrdersDto,
 } from './map-vietin.dto';
@@ -127,10 +128,12 @@ export class MapVietinController {
   rejectStatementOrderTransferRequest(
     @Request() req: any,
     @Param('id') id: string,
+    @Body() body: ReviewMapVietinStatementOrderTransferRequestDto,
   ) {
     return this.mapVietinService.rejectStatementOrderTransferRequest(
       req.user,
       id,
+      body,
     );
   }
 

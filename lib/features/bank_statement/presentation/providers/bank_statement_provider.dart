@@ -51,6 +51,7 @@ class BankStatementProvider extends ChangeNotifier {
   bool _isLoadingOrderTransferRequests = false;
   bool _canReviewOrderTransfers = false;
   bool _hasSearched = false;
+  bool _disposed = false;
   String? _errorMessage;
   String? _exportMessage;
   String _orderStatus = 'ALL';
@@ -84,6 +85,7 @@ class BankStatementProvider extends ChangeNotifier {
   bool get isExporting => _isExporting;
   bool get isLoadingOrderTransferRequests => _isLoadingOrderTransferRequests;
   bool get canReviewOrderTransfers => _canReviewOrderTransfers;
+  bool get hasOrderTransferNotifications => _user?.canUseBankStatements == true;
   bool get hasSearched => _hasSearched;
   String? get errorMessage => _errorMessage;
   String? get exportMessage => _exportMessage;
@@ -208,10 +210,8 @@ class BankStatementProvider extends ChangeNotifier {
     }
     _resetPagingAndSelection();
     notifyListeners();
-    if (_canReviewOrderTransfers) {
-      unawaited(loadPendingOrderTransferRequests(silent: true));
-      _connectOrderTransferRealtime();
-    }
+    unawaited(loadPendingOrderTransferRequests(silent: true));
+    _connectOrderTransferRealtime();
   }
 
   void setOrder(String value) {
@@ -542,9 +542,9 @@ class BankStatementProvider extends ChangeNotifier {
   }
 
   Future<void> loadPendingOrderTransferRequests({bool silent = false}) async {
-    if (_isLoadingOrderTransferRequests) return;
+    if (_disposed || _isLoadingOrderTransferRequests) return;
     _isLoadingOrderTransferRequests = true;
-    if (!silent) notifyListeners();
+    if (!silent && !_disposed) notifyListeners();
     try {
       await AppLogger.instance.info(
         'BankStatement',
@@ -552,15 +552,16 @@ class BankStatementProvider extends ChangeNotifier {
         context: _orderTransferLogContext(),
       );
       final result = await _repository.fetchOrderTransferRequests(
-        status: 'PENDING',
+        status: 'NOTIFICATION',
         allStores: _allStores || (canUseAllStores && _selectedStoreIds.isEmpty),
         storeIds: _selectedStoreIds.toList()..sort(),
       );
+      if (_disposed) return;
       _pendingOrderTransferRequests
         ..clear()
         ..addAll(result.requests);
       _pendingOrderTransferTotal = result.total;
-      _canReviewOrderTransfers = true;
+      _canReviewOrderTransfers = result.canReview;
       await AppLogger.instance.info(
         'BankStatement',
         'Bank statement pending order transfer load succeeded',
@@ -575,6 +576,7 @@ class BankStatementProvider extends ChangeNotifier {
           error is ApiException &&
           (error.statusCode == 401 || error.statusCode == 403);
       if (reviewUnavailable) {
+        if (_disposed) return;
         _canReviewOrderTransfers = false;
         _pendingOrderTransferRequests.clear();
         _pendingOrderTransferTotal = 0;
@@ -595,7 +597,7 @@ class BankStatementProvider extends ChangeNotifier {
       }
     } finally {
       _isLoadingOrderTransferRequests = false;
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     }
   }
 
@@ -603,8 +605,8 @@ class BankStatementProvider extends ChangeNotifier {
     return _reviewOrderTransferRequest(requestId, approved: true);
   }
 
-  Future<void> rejectOrderTransferRequest(String requestId) {
-    return _reviewOrderTransferRequest(requestId, approved: false);
+  Future<void> rejectOrderTransferRequest(String requestId, {String? note}) {
+    return _reviewOrderTransferRequest(requestId, approved: false, note: note);
   }
 
   Future<List<BankStatementOrderHistoryEntry>> fetchHistory(
@@ -649,6 +651,7 @@ class BankStatementProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _closeOrderTransferRealtime();
     for (final timer in _messageTimers.values) {
       timer.cancel();
@@ -712,6 +715,7 @@ class BankStatementProvider extends ChangeNotifier {
   Future<void> _reviewOrderTransferRequest(
     String requestId, {
     required bool approved,
+    String? note,
   }) async {
     try {
       await AppLogger.instance.info(
@@ -721,7 +725,7 @@ class BankStatementProvider extends ChangeNotifier {
       );
       final result = approved
           ? await _repository.approveOrderTransferRequest(requestId)
-          : await _repository.rejectOrderTransferRequest(requestId);
+          : await _repository.rejectOrderTransferRequest(requestId, note: note);
       final transaction = result.transaction;
       if (transaction != null) {
         _replaceTransaction(transaction);
@@ -754,7 +758,7 @@ class BankStatementProvider extends ChangeNotifier {
   }
 
   void _connectOrderTransferRealtime() {
-    if (!_canReviewOrderTransfers) {
+    if (!hasOrderTransferNotifications) {
       _closeOrderTransferRealtime();
       return;
     }

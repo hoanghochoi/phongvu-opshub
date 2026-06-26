@@ -46,19 +46,19 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('1 yêu cầu cập nhật mã đơn'), findsOneWidget);
+    expect(find.byTooltip('1 thông báo'), findsOneWidget);
     expect(find.text('Chờ Kế toán xác nhận'), findsOneWidget);
     expect(find.text('Đã cấn trừ'), findsOneWidget);
     expect(find.byTooltip('Giao dịch đang chờ Kế toán xác nhận'), findsWidgets);
 
     expect(provider.pendingOrderTransferTotal, 1);
 
-    await tester.tap(find.byTooltip('1 yêu cầu cập nhật mã đơn'));
+    await tester.tap(find.byTooltip('1 thông báo'));
     await tester.pumpAndSettle();
 
     expect(find.byType(AlertDialog), findsNothing);
-    expect(find.text('Yêu cầu cập nhật mã đơn'), findsOneWidget);
-    expect(find.text('26062512345678 → 26062587654321'), findsOneWidget);
+    expect(find.text('Thông báo'), findsOneWidget);
+    expect(find.text('Yêu cầu phê duyệt đổi mã đơn'), findsOneWidget);
     expect(find.text('Người gửi: staff@example.com'), findsOneWidget);
   });
 
@@ -154,9 +154,11 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
           status: 'PENDING',
           requestedByEmail: 'staff@example.com',
           reviewedByEmail: null,
+          reviewNote: null,
           reviewedAt: null,
           createdAt: null,
           transactionNumber: 'MAP-PENDING',
+          transactionReference: null,
           amount: 1250000,
           content: 'Customer transfer',
           paidAt: null,
@@ -166,6 +168,7 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
       page: page,
       limit: limit,
       total: 1,
+      canReview: true,
     );
   }
 
@@ -200,6 +203,8 @@ final _pendingTransaction = _transaction(
   hasPendingOrderTransferRequest: true,
   orderTransferRequestId: 'request-1',
   orderTransferRequestedOrders: const ['26062587654321'],
+  orderTransferRequestedByEmail: 'staff@example.com',
+  orderTransferRequestedAt: DateTime.utc(2026, 6, 25, 3),
   orderTransferStatus: 'PENDING',
   canEditOrders: false,
   orderEditBlockedReason: 'Giao dịch đang chờ Kế toán xác nhận',
@@ -226,6 +231,9 @@ BankStatementTransaction _transaction({
   bool hasPendingOrderTransferRequest = false,
   String? orderTransferRequestId,
   List<String> orderTransferRequestedOrders = const [],
+  String? orderTransferRequestedByEmail,
+  DateTime? orderTransferRequestedAt,
+  String? orderTransferReviewNote,
   String? orderTransferStatus,
   bool isOrderOffsetConfirmed = false,
 }) {
@@ -253,6 +261,9 @@ BankStatementTransaction _transaction({
     hasPendingOrderTransferRequest: hasPendingOrderTransferRequest,
     orderTransferRequestId: orderTransferRequestId,
     orderTransferRequestedOrders: orderTransferRequestedOrders,
+    orderTransferRequestedByEmail: orderTransferRequestedByEmail,
+    orderTransferRequestedAt: orderTransferRequestedAt,
+    orderTransferReviewNote: orderTransferReviewNote,
     orderTransferStatus: orderTransferStatus,
     isOrderOffsetConfirmed: isOrderOffsetConfirmed,
   );

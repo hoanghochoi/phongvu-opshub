@@ -33,6 +33,7 @@ class UserAdminScreen extends StatefulWidget {
 class _UserAdminScreenState extends State<UserAdminScreen> {
   final _repository = AuthRepository(ApiClient());
   final _searchController = TextEditingController();
+  List<User> _allUsers = [];
   List<User> _users = [];
   List<AdminRoleDefinition> _roles = AdminRoles.definitions;
   List<AdminPersonnelDefinition> _jobRoles = [];
@@ -47,6 +48,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   String? _statusFilter;
   bool _loading = true;
   bool _importing = false;
+  bool _metadataLoaded = false;
   Timer? _searchDebounce;
 
   @override
@@ -65,12 +67,12 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
 
   void _onSearchChanged() {
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
-      if (mounted) _load();
+    _searchDebounce = Timer(const Duration(milliseconds: 80), () {
+      if (mounted) _applyLocalSearch(logSearch: true);
     });
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool reloadMetadata = false}) async {
     setState(() => _loading = true);
     final currentUser = context.read<AuthProvider>().user;
     final canUseRoles = currentUser?.canUseFeature('ADMIN_ROLES') == true;
@@ -89,37 +91,44 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         'canUseRoles': canUseRoles,
         'canUseUserScopeTree': canUseUserScopeTree,
         'canUseFeatures': canUseFeatures,
+        'reloadMetadata': reloadMetadata || !_metadataLoaded,
       },
     );
     try {
+      final shouldLoadMetadata = reloadMetadata || !_metadataLoaded;
       final results = await Future.wait<Object>([
         _repository.listUsers(
-          query: _searchController.text,
           domain: _domainFilter,
           orgNodeId: _orgNodeFilter,
           featureCode: _featureFilter,
           role: _roleFilter,
           status: _statusFilter,
         ),
-        canUseRoles
+        canUseRoles && shouldLoadMetadata
             ? _repository.listAdminRoles()
-            : Future.value(AdminRoles.definitions),
+            : Future.value(_roles),
         canUseFeatures
-            ? _repository.listAdminFeatureTree()
+            ? shouldLoadMetadata
+                  ? _repository.listAdminFeatureTree()
+                  : Future.value(_features)
             : Future.value(<AdminFeatureDefinition>[]),
         canUseUserScopeTree
-            ? _repository.listAdminUserScopeTree()
+            ? shouldLoadMetadata
+                  ? _repository.listAdminUserScopeTree()
+                  : Future.value(_orgNodes)
             : Future.value(<AdminOrganizationNode>[]),
       ]);
       if (!mounted) return;
       setState(() {
-        _users = results[0] as List<User>;
+        _allUsers = results[0] as List<User>;
         _roles = results[1] as List<AdminRoleDefinition>;
         _jobRoles = const <AdminPersonnelDefinition>[];
         _regions = const <AdminRegionDefinition>[];
         _areas = const <AdminAreaDefinition>[];
         _features = results[2] as List<AdminFeatureDefinition>;
         _orgNodes = results[3] as List<AdminOrganizationNode>;
+        _metadataLoaded = true;
+        _users = _filterUsers(_allUsers, _searchController.text);
       });
       await AppLogger.instance.info(
         'Admin',
@@ -127,9 +136,11 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         context: {
           'role': currentUser?.role,
           'userCount': _users.length,
+          'loadedUserCount': _allUsers.length,
           'roleCount': _roles.length,
           'featureCount': _features.length,
           'orgNodeCount': _orgNodes.length,
+          'localSearch': true,
         },
       );
     } catch (error) {
@@ -148,6 +159,55 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _applyLocalSearch({bool logSearch = false}) {
+    final query = _searchController.text;
+    final filtered = _filterUsers(_allUsers, query);
+    setState(() => _users = filtered);
+    if (logSearch) {
+      unawaited(
+        AppLogger.instance.info(
+          'Admin',
+          'Admin user local search applied',
+          context: {
+            'queryLength': query.trim().length,
+            'loadedUserCount': _allUsers.length,
+            'visibleUserCount': filtered.length,
+          },
+        ),
+      );
+    }
+  }
+
+  List<User> _filterUsers(List<User> users, String rawQuery) {
+    final query = _normalizeSearch(rawQuery);
+    if (query.isEmpty) return List<User>.from(users);
+    return users
+        .where((user) => _userSearchText(user).contains(query))
+        .toList();
+  }
+
+  String _userSearchText(User user) {
+    return _normalizeSearch(
+      [
+        user.email,
+        user.name,
+        user.lastName,
+        user.personnelCode,
+        user.storeId,
+        user.storeName,
+        user.assignedStoreHeaderInfo,
+        user.organizationNodeName,
+        user.departmentCode,
+        user.jobRoleCode,
+        user.role,
+      ].whereType<String>().join(' '),
+    );
+  }
+
+  String _normalizeSearch(String value) {
+    return value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
   }
 
   Future<void> _importUsers() async {
@@ -532,7 +592,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Tìm email hoặc tên',
+                hintText: 'Tìm trong danh sách đã tải',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: AppIconAction(
                   onPressed: _load,
@@ -541,7 +601,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                 ),
                 border: const OutlineInputBorder(),
               ),
-              onSubmitted: (_) => _load(),
+              onSubmitted: (_) => _applyLocalSearch(logSearch: true),
             ),
             const SizedBox(height: 8),
             Wrap(

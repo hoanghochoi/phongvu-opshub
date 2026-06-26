@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../../features/notifications/presentation/widgets/app_notifications_bell.dart';
 
 /// Reusable gradient header used across all screens.
 /// Provides a dark blue → indigo gradient background with white text.
@@ -9,6 +10,7 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onBack;
   final List<Widget>? actions;
   final PreferredSizeWidget? bottom;
+  final bool includeGlobalNotifications;
 
   const GradientHeader({
     super.key,
@@ -17,6 +19,7 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
     this.onBack,
     this.actions,
     this.bottom,
+    this.includeGlobalNotifications = true,
   });
 
   static const LinearGradient gradient = LinearGradient(
@@ -86,7 +89,10 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
       leading: (showBack && onBack != null)
           ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: onBack)
           : null,
-      actions: actions,
+      actions: [
+        if (actions != null) ...actions!,
+        if (includeGlobalNotifications) const AppNotificationsBell(),
+      ],
       bottom: _headerBottom(context),
       flexibleSpace: DecoratedBox(
         decoration: BoxDecoration(gradient: getGradient(context)),

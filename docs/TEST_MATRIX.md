@@ -93,6 +93,24 @@ This file maps product behavior to proof. Existing flows are marked
   `git diff --check`. Gap: live database migration, deployed Redis/WebSocket
   delivery, ACC/SR click-through, and the manual runtime smoke with `Tiền vào`
   speaker enabled remain pending.
+- PAYMENT-STATEMENT-001, 2026-06-26: changed statement order-transfer request
+  cutoff from a rolling 24-hour window to the Vietnam-local transaction day,
+  auto-expires stale pending requests after 00:00 UTC+7, opens the generic
+  `Thông báo` bell for reviewers and requesters, adds transaction/request
+  timestamps to notification/review UI, supports optional rejection notes, and
+  returns rejected notifications to the requester with next-step guidance.
+  Validation: `npx prisma validate`, `npx prisma generate`, focused
+  `npm test -- --runInBand src/map-vietin/map-vietin.service.spec.ts` (46
+  tests), `npm run build`, Go realtime `go test ./...`, focused Flutter bank
+  statement/header tests (23 tests), `flutter analyze --no-pub`, and
+  `git diff --check`. Gap: live deployed DB migration plus Redis/WebSocket
+  notification delivery remain pending.
+- PROFILE-ADMIN-001, 2026-06-26: changed `Quản lý người dùng` text search to
+  local filtering over the loaded user list, while backend reloads are reserved
+  for filter changes or manual refresh; role/feature/scope-tree metadata is
+  cached after first load. Validation: `flutter analyze --no-pub`, focused
+  Flutter bank statement/header regression tests (23 tests), and
+  `git diff --check`. Gap: live admin-user typing smoke remains manual.
 - PAYMENT-STATEMENT-001, 2026-06-25: added ACC-reviewed statement order
   transfer requests. Visible statement users can request order replacement
   within 24 hours from `paidAt ?? firstSeenAt`; duplicate pending requests and

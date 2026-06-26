@@ -83,6 +83,7 @@ describe('MapVietinService', () => {
         findMany: jest.fn(),
       },
       mapVietinStatementOrderTransferRequest: {
+        updateMany: jest.fn(async () => ({ count: 0 })),
         findFirst: jest.fn(),
         create: jest.fn(),
         findMany: jest.fn(),
@@ -1235,7 +1236,7 @@ describe('MapVietinService', () => {
     );
   });
 
-  it('creates statement order transfer requests inside the 24h window', async () => {
+  it('creates statement order transfer requests before the Vietnam day closes', async () => {
     const transaction = statementTransactionRow({
       id: 'stored-1',
       orders: ['26052112345678'],
@@ -1290,7 +1291,7 @@ describe('MapVietinService', () => {
     );
   });
 
-  it('blocks statement order transfer requests after 24h', async () => {
+  it('blocks statement order transfer requests after the Vietnam day closes', async () => {
     prisma.store.findUnique.mockResolvedValue({
       id: 'store-uuid-1',
       storeId: 'CP01',
@@ -1306,6 +1307,32 @@ describe('MapVietinService', () => {
       service.createStatementOrderTransferRequest(
         { role: 'MANAGER', storeId: 'store-uuid-1' },
         'stored-old',
+        { orders: ['26052187654321'] },
+      ),
+    ).rejects.toThrow(
+      'Quá thời hạn cập nhật trong ngày. Vui lòng dùng chức năng Cấn trừ.',
+    );
+    expect(
+      prisma.mapVietinStatementOrderTransferRequest.create,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('blocks previous-day statement order transfer requests even inside 24h', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(
+      statementTransactionRow({
+        id: 'stored-yesterday',
+        paidAt: new Date('2026-05-20T16:30:00.000Z'),
+      }),
+    );
+
+    await expect(
+      service.createStatementOrderTransferRequest(
+        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        'stored-yesterday',
         { orders: ['26052187654321'] },
       ),
     ).rejects.toThrow(
@@ -1424,6 +1451,83 @@ describe('MapVietinService', () => {
           newOrders: ['26052187654321'],
           source: 'OFFSET',
         }),
+      }),
+    );
+  });
+
+  it('stores rejection notes and notifies the requester', async () => {
+    const transaction = statementTransactionRow({ id: 'stored-1' });
+    const request = {
+      id: 'request-1',
+      transactionId: 'stored-1',
+      storeCode: 'CP01',
+      oldOrders: ['26052112345678'],
+      requestedOrders: ['26052187654321'],
+      status: 'PENDING',
+      requestedByUserId: 'staff-1',
+      requestedByEmail: 'staff@example.com',
+      reviewedByUserId: null,
+      reviewedByEmail: null,
+      reviewNote: null,
+      reviewedAt: null,
+      createdAt: new Date('2026-05-21T03:00:00.000Z'),
+      updatedAt: new Date('2026-05-21T03:00:00.000Z'),
+      transaction,
+    };
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinStatementOrderTransferRequest.findUnique.mockResolvedValue(
+      request,
+    );
+    prisma.mapVietinStatementOrderTransferRequest.update.mockResolvedValue({
+      ...request,
+      status: 'REJECTED',
+      reviewedByUserId: 'acc-1',
+      reviewedByEmail: 'acc@example.com',
+      reviewNote: 'Mã đơn chưa đúng',
+      reviewedAt: new Date('2026-05-21T03:00:00.000Z'),
+    });
+
+    await expect(
+      service.rejectStatementOrderTransferRequest(
+        {
+          id: 'acc-1',
+          email: 'acc@example.com',
+          role: 'USER',
+          storeId: 'store-uuid-1',
+          featureBankStatements: true,
+          departmentCode: 'ACC',
+        },
+        'request-1',
+        { note: 'Mã đơn chưa đúng' },
+      ),
+    ).resolves.toMatchObject({
+      request: {
+        id: 'request-1',
+        status: 'REJECTED',
+        reviewNote: 'Mã đơn chưa đúng',
+      },
+      transaction: null,
+    });
+
+    expect(
+      prisma.mapVietinStatementOrderTransferRequest.update,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'REJECTED',
+          reviewNote: 'Mã đơn chưa đúng',
+        }),
+      }),
+    );
+    expect(redisService.publishMessage).toHaveBeenCalledWith(
+      'STATEMENT_ORDER_TRANSFER_REQUESTED',
+      expect.objectContaining({
+        requestId: 'request-1',
+        status: 'REJECTED',
+        recipientUserId: 'staff-1',
       }),
     );
   });
@@ -1697,13 +1801,12 @@ describe('MapVietinService', () => {
 
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain('Mã showroom');
-    expect(csv).toContain('Mã giao dịch,Sao kê,Số tiền');
+    expect(csv).toContain('Mã showroom,Mã sao kê,Số tiền');
     expect(csv).toContain('Số tiền');
     expect(csv).toContain('Khách chuyển tiền, cần giữ tiếng Việt');
     expect(csv).toContain('5190000');
     expect(csv).toContain('03/06/2026 16:39:41');
     expect(csv).not.toContain('2026-06-03T09:39:41.000Z');
-    expect(csv).toContain('"=""2030000000000"""');
     expect(csv).toContain('"=""00020300000000004567"""');
     expect(csv).toContain('"=""26052912345678\n26053087654321"""');
     expect(csv).not.toContain('26052912345678 | 26053087654321');

@@ -25,12 +25,14 @@ class BankStatementOrderTransferRequestPage {
   final int page;
   final int limit;
   final int total;
+  final bool canReview;
 
   const BankStatementOrderTransferRequestPage({
     required this.requests,
     required this.page,
     required this.limit,
     required this.total,
+    required this.canReview,
   });
 }
 
@@ -199,6 +201,7 @@ class BankStatementRepository {
       page: int.tryParse(data['page']?.toString() ?? '') ?? page,
       limit: int.tryParse(data['limit']?.toString() ?? '') ?? limit,
       total: int.tryParse(data['total']?.toString() ?? '') ?? requests.length,
+      canReview: data['canReview'] == true,
     );
   }
 
@@ -213,19 +216,25 @@ class BankStatementRepository {
   }
 
   Future<BankStatementOrderTransferReviewResult> rejectOrderTransferRequest(
-    String requestId,
-  ) {
+    String requestId, {
+    String? note,
+  }) {
     return _reviewOrderTransferRequest(
       ApiConstants.adminMapVietinStatementOrderTransferRejectEndpoint(
         requestId,
       ),
+      note: note,
     );
   }
 
   Future<BankStatementOrderTransferReviewResult> _reviewOrderTransferRequest(
-    String endpoint,
-  ) async {
-    final response = await _apiClient.post(endpoint, body: const {});
+    String endpoint, {
+    String? note,
+  }) async {
+    final cleanBody = <String, dynamic>{};
+    final cleanNote = note?.trim() ?? '';
+    if (cleanNote.isNotEmpty) cleanBody['note'] = cleanNote;
+    final response = await _apiClient.post(endpoint, body: cleanBody);
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     final transaction = data['transaction'] is Map
         ? BankStatementTransaction.fromJson(

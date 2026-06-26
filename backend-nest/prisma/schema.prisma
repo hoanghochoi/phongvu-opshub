@@ -122,6 +122,7 @@ model MapVietinStatementOrderTransferRequest {
   requestedByEmail      String?
   reviewedByUserId      String?
   reviewedByEmail       String?
+  reviewNote            String?
   reviewedAt            DateTime?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
