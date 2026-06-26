@@ -24,9 +24,9 @@ class OffsetAdjustmentStatus {
 
   static String label(String status) {
     return switch (status) {
-      pending => 'Chờ ACC xác nhận',
-      approved => 'ACC đã xác nhận',
-      rejected => 'ACC từ chối chờ sửa',
+      pending => 'Chờ Kế toán xác nhận',
+      approved => 'Kế toán đã xác nhận',
+      rejected => 'Kế toán từ chối chờ sửa',
       _ => status,
     };
   }

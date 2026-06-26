@@ -10,8 +10,13 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import {
+  organizationNodeStoreTreeInclude,
+  storesForOrganizationNodeTree,
+} from '../common/organization-store-scope';
+import {
   CompleteOffsetAdjustmentDto,
   CreateOffsetAdjustmentDto,
+  ExportOffsetAdjustmentsDto,
   ListOffsetAdjustmentsDto,
   OFFSET_ADJUSTMENT_STATUSES,
   OFFSET_ADJUSTMENT_TYPES,
@@ -95,10 +100,38 @@ export class OffsetAdjustmentsService {
     };
   }
 
+  async exportCsv(user: any, input: ExportOffsetAdjustmentsDto) {
+    const startedAt = Date.now();
+    const filters = this.normalizeListFilters(input);
+    const scope = await this.resolveScope(user, {
+      requestedAllStores: filters.requestedAllStores,
+      storeIds: filters.storeIds,
+    });
+    const where = this.andWhere(scope.where, this.buildFilterWhere(filters));
+    this.logger.log(
+      `Offset adjustments export started: user=${this.safeUserLabel(user)} reviewer=${scope.reviewer} storeCount=${filters.storeIds.length} type=${filters.type || 'ALL'} status=${filters.status || 'ALL'}`,
+    );
+    try {
+      const rows = await this.prisma.offsetAdjustment.findMany({
+        where,
+        orderBy: { submittedAt: 'desc' },
+      });
+      this.logger.log(
+        `Offset adjustments export succeeded: user=${this.safeUserLabel(user)} reviewer=${scope.reviewer} count=${rows.length} durationMs=${Date.now() - startedAt}`,
+      );
+      return this.toCsv(rows);
+    } catch (error) {
+      this.logger.error(
+        `Offset adjustments export failed: user=${this.safeUserLabel(user)} reviewer=${scope.reviewer} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
+  }
+
   async create(user: any, input: CreateOffsetAdjustmentDto) {
     const startedAt = Date.now();
     if (await this.canReview(user)) {
-      throw new ForbiddenException('ACC chỉ xác nhận hồ sơ cấn trừ.');
+      throw new ForbiddenException('Kế toán chỉ xác nhận hồ sơ cấn trừ.');
     }
     const store = await this.resolveUserStore(user);
     const data = this.normalizeOffsetData(input.type, input);
@@ -122,7 +155,10 @@ export class OffsetAdjustmentsService {
       this.logger.log(
         `Offset adjustment create succeeded: user=${this.safeUserLabel(user)} id=${row.id} store=${row.storeCode} type=${row.type} durationMs=${Date.now() - startedAt}`,
       );
-      return this.toDto(row, user, { reviewer: false, where: { storeCode: store.storeId } });
+      return this.toDto(row, user, {
+        reviewer: false,
+        where: { storeCode: store.storeId },
+      });
     } catch (error) {
       if (this.isUniqueConflict(error)) {
         throw new BadRequestException('Hồ sơ cấn trừ loại này đã có mã trùng.');
@@ -147,7 +183,7 @@ export class OffsetAdjustmentsService {
   async resubmit(user: any, id: string, input: ResubmitOffsetAdjustmentDto) {
     const startedAt = Date.now();
     if (await this.canReview(user)) {
-      throw new ForbiddenException('ACC chỉ xác nhận hồ sơ cấn trừ.');
+      throw new ForbiddenException('Kế toán chỉ xác nhận hồ sơ cấn trừ.');
     }
     const store = await this.resolveUserStore(user);
     const current = await this.prisma.offsetAdjustment.findFirst({
@@ -166,7 +202,8 @@ export class OffsetAdjustmentsService {
         input.scanDate ??
         this.formatDateForInput(current.scanDate) ??
         undefined,
-      editContentKind: input.editContentKind ?? current.editContentKind ?? undefined,
+      editContentKind:
+        input.editContentKind ?? current.editContentKind ?? undefined,
       transactionCode:
         input.transactionCode ?? current.transactionCode ?? undefined,
       note: input.note ?? current.note ?? undefined,
@@ -198,7 +235,10 @@ export class OffsetAdjustmentsService {
       this.logger.log(
         `Offset adjustment resubmitted: user=${this.safeUserLabel(user)} id=${row.id} store=${row.storeCode} type=${row.type} durationMs=${Date.now() - startedAt}`,
       );
-      return this.toDto(row, user, { reviewer: false, where: { storeCode: store.storeId } });
+      return this.toDto(row, user, {
+        reviewer: false,
+        where: { storeCode: store.storeId },
+      });
     } catch (error) {
       if (this.isUniqueConflict(error)) {
         throw new BadRequestException('Hồ sơ cấn trừ loại này đã có mã trùng.');
@@ -215,7 +255,9 @@ export class OffsetAdjustmentsService {
     const scope = await this.resolveReviewerScope(user);
     const current = await this.findReviewable(user, scope, id);
     if (current.status !== OFFSET_STATUS_PENDING) {
-      throw new BadRequestException('Hồ sơ đã được xử lý hoặc đang chờ SR sửa.');
+      throw new BadRequestException(
+        'Hồ sơ đã được xử lý hoặc đang chờ SR sửa.',
+      );
     }
     const ctCode =
       current.type === OFFSET_TYPE_VNPAY_QROFF
@@ -246,7 +288,9 @@ export class OffsetAdjustmentsService {
     const scope = await this.resolveReviewerScope(user);
     const current = await this.findReviewable(user, scope, id);
     if (current.status !== OFFSET_STATUS_PENDING) {
-      throw new BadRequestException('Hồ sơ đã được xử lý hoặc đang chờ SR sửa.');
+      throw new BadRequestException(
+        'Hồ sơ đã được xử lý hoặc đang chờ SR sửa.',
+      );
     }
     const reason = this.normalizeRequiredText(
       input.reason,
@@ -263,7 +307,14 @@ export class OffsetAdjustmentsService {
         reviewedAt,
       },
     });
-    await this.writeHistory(row, 'REJECTED', user, current.status, row.status, reason);
+    await this.writeHistory(
+      row,
+      'REJECTED',
+      user,
+      current.status,
+      row.status,
+      reason,
+    );
     await this.publishOffsetEvent(row);
     this.logger.log(
       `Offset adjustment rejected: user=${this.safeUserLabel(user)} id=${row.id} store=${row.storeCode} type=${row.type} durationMs=${Date.now() - startedAt}`,
@@ -365,7 +416,9 @@ export class OffsetAdjustmentsService {
   private normalizeListFilters(input: ListOffsetAdjustmentsDto) {
     const dateRange = this.normalizeDateRange(input.startDate, input.endDate);
     const type =
-      input.type && input.type !== 'ALL' ? this.normalizeType(input.type) : null;
+      input.type && input.type !== 'ALL'
+        ? this.normalizeType(input.type)
+        : null;
     const status =
       input.status && input.status !== 'ALL'
         ? this.normalizeStatus(input.status)
@@ -388,11 +441,17 @@ export class OffsetAdjustmentsService {
     status: string | null;
     order: string | null;
     amount: number | null;
-    dateRange: { start: Date; end: Date };
+    dateRange: { start: Date; end: Date } | null;
   }): Prisma.OffsetAdjustmentWhereInput {
-    const parts: Prisma.OffsetAdjustmentWhereInput[] = [
-      { submittedAt: { gte: filters.dateRange.start, lt: filters.dateRange.end } },
-    ];
+    const parts: Prisma.OffsetAdjustmentWhereInput[] = [];
+    if (filters.dateRange) {
+      parts.push({
+        submittedAt: {
+          gte: filters.dateRange.start,
+          lt: filters.dateRange.end,
+        },
+      });
+    }
     if (filters.type) parts.push({ type: filters.type });
     if (filters.status) parts.push({ status: filters.status });
     if (filters.amount !== null) parts.push({ amount: filters.amount });
@@ -421,25 +480,92 @@ export class OffsetAdjustmentsService {
       return { reviewer, where: { storeCode: { in: storeIds } } };
     }
 
-    const store = await this.resolveUserStore(user);
+    const allowedStores = await this.resolveUserStores(user);
+    const allowedStoreCodes = allowedStores.map((store) => store.storeId);
     if (input.requestedAllStores) {
       throw new ForbiddenException('Không có quyền xem tất cả showroom.');
     }
-    if (storeIds.length > 0 && (storeIds.length > 1 || storeIds[0] !== store.storeId)) {
-      throw new ForbiddenException('Chỉ được xem hồ sơ showroom của mình.');
+    const selectedStoreCodes =
+      storeIds.length > 0 ? storeIds : allowedStoreCodes;
+    const invalidStore = selectedStoreCodes.find(
+      (storeCode) => !allowedStoreCodes.includes(storeCode),
+    );
+    if (invalidStore) {
+      throw new ForbiddenException('Chỉ được xem hồ sơ showroom được gán.');
     }
-    return { reviewer, where: { storeCode: store.storeId } };
+    return {
+      reviewer,
+      where: { storeCode: this.storeCodeWhere(selectedStoreCodes) },
+    };
   }
 
   private async resolveUserStore(user: any) {
-    if (!user?.storeId && !user?.storeCode) {
+    const stores = await this.resolveUserStores(user);
+    return stores[0];
+  }
+
+  private async resolveUserStores(user: any) {
+    const storesByCode = new Map<string, any>();
+    const pushStore = (store: any) => {
+      const storeCode = String(store?.storeId || '')
+        .trim()
+        .toUpperCase();
+      if (storeCode && !storesByCode.has(storeCode)) {
+        storesByCode.set(storeCode, store);
+      }
+    };
+
+    if (user?.id) {
+      const savedUser = await (this.prisma as any).user?.findUnique?.({
+        where: { id: user.id },
+        include: {
+          store: true,
+          organizationAssignments: {
+            where: { isActive: true },
+            orderBy: [
+              { isPrimary: Prisma.SortOrder.desc },
+              { createdAt: Prisma.SortOrder.asc },
+            ],
+            include: {
+              organizationNode: {
+                include: organizationNodeStoreTreeInclude(),
+              },
+            },
+          },
+        },
+      });
+      pushStore(savedUser?.store);
+      for (const assignment of savedUser?.organizationAssignments ?? []) {
+        for (const store of storesForOrganizationNodeTree(
+          assignment.organizationNode,
+        )) {
+          pushStore(store);
+        }
+      }
+    }
+
+    if (storesByCode.size === 0 && user?.storeId) {
+      const store = await this.prisma.store.findUnique({
+        where: { id: user.storeId },
+      });
+      pushStore(store);
+    }
+    if (storesByCode.size === 0 && user?.storeCode) {
+      const store = await this.prisma.store.findUnique({
+        where: { storeId: user.storeCode },
+      });
+      pushStore(store);
+    }
+
+    const stores = Array.from(storesByCode.values());
+    if (stores.length === 0) {
       throw new ForbiddenException('Tài khoản chưa được gán showroom.');
     }
-    const store = user?.storeId
-      ? await this.prisma.store.findUnique({ where: { id: user.storeId } })
-      : await this.prisma.store.findUnique({ where: { storeId: user.storeCode } });
-    if (!store) throw new BadRequestException('Showroom không hợp lệ.');
-    return store;
+    return stores;
+  }
+
+  private storeCodeWhere(storeCodes: string[]) {
+    return storeCodes.length === 1 ? storeCodes[0] : { in: storeCodes };
   }
 
   private async canReview(user: any): Promise<boolean> {
@@ -450,7 +576,8 @@ export class OffsetAdjustmentsService {
   }
 
   private async userMatchesAccessCodes(user: any, allowedCodes: string[]) {
-    if (String(user?.role || '').toUpperCase() === SUPER_ADMIN_ROLE) return true;
+    if (String(user?.role || '').toUpperCase() === SUPER_ADMIN_ROLE)
+      return true;
     const allowed = new Set(
       allowedCodes.map((code) => this.normalizeAccessCode(code)),
     );
@@ -556,7 +683,9 @@ export class OffsetAdjustmentsService {
     updatedAt: Date;
   }) {
     if (!this.redisService) {
-      this.logger.warn(`Offset adjustment realtime skipped: redis unavailable id=${row.id}`);
+      this.logger.warn(
+        `Offset adjustment realtime skipped: redis unavailable id=${row.id}`,
+      );
       return;
     }
     await this.redisService.publishMessage(OFFSET_ADJUSTMENT_CHANNEL, {
@@ -574,7 +703,8 @@ export class OffsetAdjustmentsService {
     scope: OffsetScope,
     singleCounts = new Map<string, number>(),
   ) {
-    const canResubmit = !scope.reviewer && row.status === OFFSET_STATUS_REJECTED;
+    const canResubmit =
+      !scope.reviewer && row.status === OFFSET_STATUS_REJECTED;
     return {
       id: row.id,
       type: row.type,
@@ -631,7 +761,9 @@ export class OffsetAdjustmentsService {
   }
 
   private normalizeType(value: unknown) {
-    const type = String(value || '').trim().toUpperCase();
+    const type = String(value || '')
+      .trim()
+      .toUpperCase();
     if (!(OFFSET_ADJUSTMENT_TYPES as readonly string[]).includes(type)) {
       throw new BadRequestException('Loại cấn trừ không hợp lệ.');
     }
@@ -639,7 +771,9 @@ export class OffsetAdjustmentsService {
   }
 
   private normalizeStatus(value: unknown) {
-    const status = String(value || '').trim().toUpperCase();
+    const status = String(value || '')
+      .trim()
+      .toUpperCase();
     if (!(OFFSET_ADJUSTMENT_STATUSES as readonly string[]).includes(status)) {
       throw new BadRequestException('Trạng thái cấn trừ không hợp lệ.');
     }
@@ -647,7 +781,9 @@ export class OffsetAdjustmentsService {
   }
 
   private normalizeEditContentKind(value: unknown) {
-    const kind = String(value || '').trim().toUpperCase();
+    const kind = String(value || '')
+      .trim()
+      .toUpperCase();
     if (!(OFFSET_EDIT_CONTENT_KINDS as readonly string[]).includes(kind)) {
       throw new BadRequestException('Nội dung cần sửa không hợp lệ.');
     }
@@ -687,7 +823,9 @@ export class OffsetAdjustmentsService {
   }
 
   private normalizeAccessCode(value: unknown) {
-    return String(value || '').trim().toUpperCase();
+    return String(value || '')
+      .trim()
+      .toUpperCase();
   }
 
   private parseStoreCodes(value?: string) {
@@ -702,7 +840,11 @@ export class OffsetAdjustmentsService {
   }
 
   private isTrue(value?: string) {
-    return String(value || '').trim().toLowerCase() === 'true';
+    return (
+      String(value || '')
+        .trim()
+        .toLowerCase() === 'true'
+    );
   }
 
   private parseDateInput(value: unknown) {
@@ -711,12 +853,11 @@ export class OffsetAdjustmentsService {
   }
 
   private normalizeDateRange(startInput?: string, endInput?: string) {
-    const today = this.todayInVietnam();
-    const start = startInput
-      ? this.parseDateOnly(startInput)
-      : this.vietnamDateToUtcStart(today.year, today.month, today.day);
+    if (!startInput && !endInput) return null;
+    const start = this.parseDateOnly(startInput || endInput || '');
     const endSource = endInput ? this.parseDateOnly(endInput) : start;
-    const [from, to] = endSource < start ? [endSource, start] : [start, endSource];
+    const [from, to] =
+      endSource < start ? [endSource, start] : [start, endSource];
     return { start: from, end: new Date(to.getTime() + MS_PER_DAY) };
   }
 
@@ -741,15 +882,6 @@ export class OffsetAdjustmentsService {
     return date;
   }
 
-  private todayInVietnam() {
-    const now = new Date(Date.now() + VIETNAM_UTC_OFFSET_MS);
-    return {
-      year: now.getUTCFullYear(),
-      month: now.getUTCMonth() + 1,
-      day: now.getUTCDate(),
-    };
-  }
-
   private vietnamDateToUtcStart(year: number, month: number, day: number) {
     return new Date(Date.UTC(year, month - 1, day) - VIETNAM_UTC_OFFSET_MS);
   }
@@ -763,8 +895,130 @@ export class OffsetAdjustmentsService {
     return `${vietnam.getUTCFullYear()}-${two(vietnam.getUTCMonth() + 1)}-${two(vietnam.getUTCDate())}`;
   }
 
+  private toCsv(rows: Array<Record<string, any>>) {
+    const headers = [
+      'SR',
+      'Loại',
+      'Trạng thái',
+      'Đơn hàng cũ',
+      'Đơn hàng mới',
+      'Đơn hàng',
+      'Ngày quét',
+      'Nội dung cần sửa',
+      'Mã giao dịch',
+      'Số tiền',
+      'Mã CT',
+      'Ghi chú',
+      'Lý do từ chối',
+      'Người nhập',
+      'Kế toán xử lý',
+      'Ngày gửi',
+      'Ngày xử lý',
+    ];
+    const lines = [headers.map((value) => this.csvCell(value)).join(',')];
+    for (const row of rows) {
+      lines.push(
+        [
+          this.csvCell(row.storeCode),
+          this.csvCell(this.typeLabel(row.type)),
+          this.csvCell(this.statusLabel(row.status)),
+          this.csvExcelTextCell(row.oldOrderCode),
+          this.csvExcelTextCell(row.newOrderCode),
+          this.csvExcelTextCell(row.orderCode),
+          this.csvCell(this.csvVietnamDate(row.scanDate, false)),
+          this.csvCell(this.editContentKindLabel(row.editContentKind)),
+          this.csvExcelTextCell(row.transactionCode),
+          this.csvAmountCell(row.amount),
+          this.csvExcelTextCell(row.ctCode),
+          this.csvCell(row.note),
+          this.csvCell(row.rejectReason),
+          this.csvCell(row.createdByEmail),
+          this.csvCell(row.reviewedByEmail),
+          this.csvCell(this.csvVietnamDate(row.submittedAt)),
+          this.csvCell(this.csvVietnamDate(row.reviewedAt)),
+        ].join(','),
+      );
+    }
+    return `${String.fromCharCode(0xfeff)}${lines.join('\r\n')}`;
+  }
+
+  private typeLabel(type: unknown) {
+    switch (String(type || '').toUpperCase()) {
+      case 'SINGLE_ORDER':
+        return 'Cấn trừ đơn';
+      case 'VNPAY_QROFF':
+        return 'VNPAY QROFF';
+      case 'ZALOPAY':
+        return 'Zalo Pay';
+      case 'SHOPEEPAY':
+        return 'Shopee Pay';
+      default:
+        return this.csvText(type);
+    }
+  }
+
+  private statusLabel(status: unknown) {
+    switch (String(status || '').toUpperCase()) {
+      case OFFSET_STATUS_PENDING:
+        return 'Chờ Kế toán xác nhận';
+      case OFFSET_STATUS_APPROVED:
+        return 'Kế toán đã xác nhận';
+      case OFFSET_STATUS_REJECTED:
+        return 'Kế toán từ chối chờ sửa';
+      default:
+        return this.csvText(status);
+    }
+  }
+
+  private editContentKindLabel(kind: unknown) {
+    switch (String(kind || '').toUpperCase()) {
+      case 'CUSTOMER_OFFSET':
+        return 'Cấn trừ KH';
+      case 'TECHNICIAN_OFFSET':
+        return 'Cấn trừ KTV';
+      default:
+        return this.csvText(kind);
+    }
+  }
+
+  private csvCell(value: unknown) {
+    const text = this.csvText(value);
+    if (!/[",\r\n]/.test(text)) return text;
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  private csvExcelTextCell(value: unknown) {
+    const text = this.csvText(value).replace(/[\r\n]+/g, ' ');
+    if (!text) return '';
+    const formulaText = text.replace(/"/g, '""');
+    return this.csvCell(`="${formulaText}"`);
+  }
+
+  private csvAmountCell(value: unknown) {
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) return '';
+    return String(Math.trunc(amount));
+  }
+
+  private csvVietnamDate(value: unknown, includeTime = true) {
+    if (!value) return '';
+    const date = value instanceof Date ? value : new Date(String(value));
+    if (Number.isNaN(date.getTime())) return '';
+    const vietnam = new Date(date.getTime() + VIETNAM_UTC_OFFSET_MS);
+    const two = (part: number) => String(part).padStart(2, '0');
+    const dateText = `${two(vietnam.getUTCDate())}/${two(vietnam.getUTCMonth() + 1)}/${vietnam.getUTCFullYear()}`;
+    if (!includeTime) return dateText;
+    return `${dateText} ${two(vietnam.getUTCHours())}:${two(vietnam.getUTCMinutes())}:${two(vietnam.getUTCSeconds())}`;
+  }
+
+  private csvText(value: unknown) {
+    return value === null || value === undefined ? '' : String(value);
+  }
+
   private safeUserEmail(user: any) {
-    const email = String(user?.email || '').trim().toLowerCase();
+    const email = String(user?.email || '')
+      .trim()
+      .toLowerCase();
     return email || null;
   }
 

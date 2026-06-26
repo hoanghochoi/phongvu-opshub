@@ -7,6 +7,7 @@ import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/core/platform/app_restart_service.dart';
 import 'package:phongvu_opshub/core/storage/app_storage_keys.dart';
+import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/payment_speaker.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/repositories/payment_monitor_repository.dart';
@@ -100,6 +101,44 @@ void main() {
       expect(repository.downloadCount, 0);
       expect(repository.ackEvents, isEmpty);
       expect(speaker.playCount, 0);
+
+      provider.dispose();
+    },
+  );
+
+  test(
+    'explains speaker pause while viewing multiple assigned stores',
+    () async {
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_multiStoreUser(), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
+
+      expect(provider.isActive, isTrue);
+      expect(provider.canUsePaymentSpeaker, isFalse);
+      expect(provider.isViewingMultipleStores, isTrue);
+      expect(provider.speakerSelectionNotice, contains('chọn đúng 1 SR'));
+      expect(repository.readyFetchCount, 0);
+      expect(repository.requestedStoreIds.last, 'CP62,CP75');
+
+      provider.setSelectedStoreIds({'CP75'});
+      await _waitUntil(
+        () => repository.readyFetchCount > 0 && !provider.isLoading,
+      );
+
+      expect(provider.canUsePaymentSpeaker, isTrue);
+      expect(provider.isViewingMultipleStores, isFalse);
+      expect(provider.speakerSelectionNotice, isNull);
+      expect(repository.requestedStoreIds.last, 'CP75');
 
       provider.dispose();
     },
@@ -605,6 +644,20 @@ User _storeUser({
   );
 }
 
+User _multiStoreUser() {
+  return const User(
+    id: 'user-multi',
+    email: 'multi@example.com',
+    role: 'MANAGER',
+    jobRoleCode: 'CASH',
+    assignedStores: [
+      StoreBranch(id: 'store-62', storeId: 'CP62', storeName: 'CP62'),
+      StoreBranch(id: 'store-75', storeId: 'CP75', storeName: 'CP75'),
+    ],
+    featureAccess: {'PAYMENT_MONITOR': true, 'PAYMENT_SPEAKER': true},
+  );
+}
+
 User _superAdmin() {
   return const User(
     id: 'super-1',
@@ -634,6 +687,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<String> ackErrors = [];
   final List<String?> requestedStartDates = [];
   final List<String?> requestedEndDates = [];
+  final List<String?> requestedStoreIds = [];
   final List<bool> requestedIncludeTotals = [];
   final List<bool> requestedIncludeCues = [];
   final List<bool> requestedRawAmounts = [];
@@ -663,6 +717,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     transactionFetchCount += 1;
     final error = transactionError;
     if (error != null) throw error;
+    requestedStoreIds.add(storeIds ?? storeId);
     requestedStartDates.add(startDate);
     requestedEndDates.add(endDate);
     requestedIncludeTotals.add(includeTotal);

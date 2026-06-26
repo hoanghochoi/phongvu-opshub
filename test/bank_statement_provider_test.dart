@@ -28,6 +28,7 @@ void main() {
         'storeId': 'CP01',
         'transactionKey': 'key-1',
         'transactionNumber': 'MAP-001',
+        'transactionReference': '00020300000000004567',
         'amount': '1,250,000',
         'content': 'PAY 26052912345678 26052987654321',
         'orders': ['26052912345678', '26052987654321'],
@@ -49,6 +50,7 @@ void main() {
       });
 
       expect(transaction.amount, 1250000);
+      expect(transaction.statementNumber, '00020300000000004567');
       expect(transaction.hasOrders, isTrue);
       expect(transaction.orders, ['26052912345678', '26052987654321']);
       expect(transaction.payerName, 'NGUYEN VAN A');
@@ -618,9 +620,10 @@ class _FakeBankStatementRepository extends BankStatementRepository {
       _copyTransaction(
         transaction,
         canEditOrders: false,
-        orderEditBlockedReason: 'Giao dịch đang chờ ACC xác nhận',
+        orderEditBlockedReason: 'Giao dịch đang chờ Kế toán xác nhận',
         canRequestOrderTransfer: false,
-        orderTransferRequestBlockedReason: 'Giao dịch đang chờ ACC xác nhận',
+        orderTransferRequestBlockedReason:
+            'Giao dịch đang chờ Kế toán xác nhận',
         hasPendingOrderTransferRequest: true,
         orderTransferRequestId: request.id,
         orderTransferRequestedOrders: orders,

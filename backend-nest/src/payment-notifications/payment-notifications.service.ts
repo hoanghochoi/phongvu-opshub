@@ -30,6 +30,10 @@ import { PolicyService } from '../policy/policy.service';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { FeatureService } from '../feature/feature.service';
 import {
+  organizationNodeStoreTreeInclude,
+  storesForOrganizationNodeTree,
+} from '../common/organization-store-scope';
+import {
   CreateAppLogDto,
   ListPaymentNotificationsQueryDto,
   PaymentNotificationAckDto,
@@ -1124,12 +1128,7 @@ export class PaymentNotificationsService {
             ],
             include: {
               organizationNode: {
-                include: {
-                  stores: {
-                    select: { storeId: true },
-                    orderBy: { storeId: Prisma.SortOrder.asc },
-                  },
-                },
+                include: organizationNodeStoreTreeInclude(),
               },
             },
           },
@@ -1137,7 +1136,9 @@ export class PaymentNotificationsService {
       });
       pushStoreCode(savedUser?.store?.storeId);
       for (const assignment of savedUser?.organizationAssignments ?? []) {
-        for (const store of assignment.organizationNode?.stores ?? []) {
+        for (const store of storesForOrganizationNodeTree(
+          assignment.organizationNode,
+        )) {
           pushStoreCode(store.storeId);
         }
       }

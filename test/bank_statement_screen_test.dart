@@ -21,7 +21,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('shows ACC bell, pending transfer state, and offset tag', (
+  testWidgets('shows accounting bell, pending transfer state, and offset tag', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 900));
@@ -47,9 +47,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byTooltip('1 yêu cầu cập nhật mã đơn'), findsOneWidget);
-    expect(find.text('Chờ ACC xác nhận'), findsOneWidget);
+    expect(find.text('Chờ Kế toán xác nhận'), findsOneWidget);
     expect(find.text('Đã cấn trừ'), findsOneWidget);
-    expect(find.byTooltip('Giao dịch đang chờ ACC xác nhận'), findsWidgets);
+    expect(find.byTooltip('Giao dịch đang chờ Kế toán xác nhận'), findsWidgets);
 
     expect(provider.pendingOrderTransferTotal, 1);
 
@@ -60,6 +60,38 @@ void main() {
     expect(find.text('Yêu cầu cập nhật mã đơn'), findsOneWidget);
     expect(find.text('26062512345678 → 26062587654321'), findsOneWidget);
     expect(find.text('Người gửi: staff@example.com'), findsOneWidget);
+  });
+
+  testWidgets('shows statement number in order history dialog title', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final repository = _WidgetBankStatementRepository();
+    final provider = BankStatementProvider(repository);
+    await provider.initialize(_accUser);
+    provider.setOrder('26062512345678');
+    await provider.search();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: _FakeAuthProvider(_accUser),
+          ),
+          ChangeNotifierProvider<BankStatementProvider>.value(value: provider),
+        ],
+        child: const MaterialApp(home: BankStatementScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Lịch sử chỉnh sửa').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lịch sử sao kê 00020300000000004567'), findsOneWidget);
+    expect(find.text('Chưa có chỉnh sửa thủ công.'), findsOneWidget);
   });
 }
 
@@ -164,14 +196,15 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
 final _pendingTransaction = _transaction(
   id: 'tx-pending',
   orders: const ['26062512345678'],
+  transactionReference: '00020300000000004567',
   hasPendingOrderTransferRequest: true,
   orderTransferRequestId: 'request-1',
   orderTransferRequestedOrders: const ['26062587654321'],
   orderTransferStatus: 'PENDING',
   canEditOrders: false,
-  orderEditBlockedReason: 'Giao dịch đang chờ ACC xác nhận',
+  orderEditBlockedReason: 'Giao dịch đang chờ Kế toán xác nhận',
   canRequestOrderTransfer: false,
-  orderTransferRequestBlockedReason: 'Giao dịch đang chờ ACC xác nhận',
+  orderTransferRequestBlockedReason: 'Giao dịch đang chờ Kế toán xác nhận',
 );
 
 final _offsetTransaction = _transaction(
@@ -184,6 +217,7 @@ final _offsetTransaction = _transaction(
 BankStatementTransaction _transaction({
   required String id,
   required List<String> orders,
+  String? transactionReference,
   String? orderSource,
   bool canEditOrders = true,
   String? orderEditBlockedReason,
@@ -200,6 +234,7 @@ BankStatementTransaction _transaction({
     storeId: 'CP01',
     transactionKey: 'key-$id',
     transactionNumber: 'MAP-$id',
+    transactionReference: transactionReference,
     amount: 1250000,
     content: 'Customer transfer',
     orders: orders,

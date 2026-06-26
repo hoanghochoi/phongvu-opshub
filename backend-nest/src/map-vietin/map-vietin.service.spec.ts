@@ -310,6 +310,44 @@ describe('MapVietinService', () => {
     );
   });
 
+  it('allows statement reads for the parent showroom of assigned Lv5 nodes', async () => {
+    prisma.user.findUnique.mockResolvedValueOnce({
+      store: null,
+      organizationAssignments: [
+        {
+          organizationNode: {
+            stores: [],
+            parent: {
+              stores: [{ storeId: 'CP75' }],
+            },
+          },
+        },
+      ],
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(0);
+
+    await expect(
+      service.listStatements(
+        {
+          id: 'multi-lv5-user',
+          role: 'USER',
+          featureBankStatements: true,
+        },
+        { storeIds: 'CP75', page: 0, limit: 20 },
+      ),
+    ).resolves.toMatchObject({
+      page: 0,
+      limit: 20,
+      total: 0,
+      list: [],
+    });
+
+    expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { storeCode: 'CP75' } }),
+    );
+  });
+
   it('rejects statement reads without feature-tree access or statement policy', async () => {
     await expect(
       service.listStatements(
@@ -885,6 +923,7 @@ describe('MapVietinService', () => {
         rawData: {
           reqCardName: 'NGUYEN VAN A',
           reqCardNo: '9704361234567890',
+          txnReference: '00020300000000004567',
         },
         firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
       },
@@ -905,6 +944,7 @@ describe('MapVietinService', () => {
         {
           id: 'stored-1',
           transactionNumber: 'TXN-001',
+          transactionReference: '00020300000000004567',
           amount: 1250000,
           payerName: 'NGUYEN VAN A',
           payerAccount: '9704361234567890',
@@ -1294,7 +1334,7 @@ describe('MapVietinService', () => {
         'stored-1',
         { orders: ['26052187654321'] },
       ),
-    ).rejects.toThrow('Giao dịch đang chờ ACC xác nhận');
+    ).rejects.toThrow('Giao dịch đang chờ Kế toán xác nhận');
     expect(
       prisma.mapVietinStatementOrderTransferRequest.create,
     ).not.toHaveBeenCalled();

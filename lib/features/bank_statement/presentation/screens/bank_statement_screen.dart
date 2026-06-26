@@ -188,11 +188,11 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
       _hideOrderTransferRequests();
       return;
     }
-    _showOrderTransferOverlay();
+    _showOrderTransferOverlay(provider);
     await provider.loadPendingOrderTransferRequests();
   }
 
-  void _showOrderTransferOverlay() {
+  void _showOrderTransferOverlay(BankStatementProvider provider) {
     final overlay = Overlay.of(context);
     _orderTransferOverlay = OverlayEntry(
       builder: (overlayContext) {
@@ -220,6 +220,7 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
               followerAnchor: Alignment.topRight,
               offset: const Offset(-8, 8),
               child: _OrderTransferRequestsBubble(
+                provider: provider,
                 width: bubbleWidth,
                 maxHeight: bubbleHeight,
                 money: _money,
@@ -779,6 +780,7 @@ class _OrderTransferBell extends StatelessWidget {
 }
 
 class _OrderTransferRequestsBubble extends StatelessWidget {
+  final BankStatementProvider provider;
   final double width;
   final double maxHeight;
   final NumberFormat money;
@@ -786,6 +788,7 @@ class _OrderTransferRequestsBubble extends StatelessWidget {
   final void Function(String message) onActionError;
 
   const _OrderTransferRequestsBubble({
+    required this.provider,
     required this.width,
     required this.maxHeight,
     required this.money,
@@ -806,8 +809,9 @@ class _OrderTransferRequestsBubble extends StatelessWidget {
           constraints: BoxConstraints(maxHeight: maxHeight),
           child: Padding(
             padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-            child: Consumer<BankStatementProvider>(
-              builder: (context, provider, _) {
+            child: AnimatedBuilder(
+              animation: provider,
+              builder: (context, _) {
                 final requests = provider.pendingOrderTransferRequests;
                 return Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1073,6 +1077,7 @@ class _StatementCardState extends State<_StatementCard> {
                     transaction: tx,
                     controller: _controller,
                     editing: _editing,
+                    canReviewTransfer: provider.canReviewOrderTransfers,
                     onEdit: () => setState(() => _editing = true),
                     onCancel: () {
                       _controller.text = _ordersEditText(tx.orders);
@@ -1084,6 +1089,8 @@ class _StatementCardState extends State<_StatementCard> {
                     },
                     onRequestTransfer: () =>
                         _showOrderTransferRequestDialog(context, provider, tx),
+                    onReviewTransfer: () =>
+                        _showOrderTransferReviewDialog(context, provider, tx),
                     onHistory: () => _showHistory(context, provider, tx),
                   ),
                   AnimatedOpacity(
@@ -1147,6 +1154,7 @@ class _StatementCardState extends State<_StatementCard> {
                         transaction: tx,
                         controller: _controller,
                         editing: _editing,
+                        canReviewTransfer: provider.canReviewOrderTransfers,
                         onEdit: () => setState(() => _editing = true),
                         onCancel: () {
                           _controller.text = _ordersEditText(tx.orders);
@@ -1162,6 +1170,11 @@ class _StatementCardState extends State<_StatementCard> {
                               provider,
                               tx,
                             ),
+                        onReviewTransfer: () => _showOrderTransferReviewDialog(
+                          context,
+                          provider,
+                          tx,
+                        ),
                         onHistory: () => _showHistory(context, provider, tx),
                       ),
                       AnimatedOpacity(
@@ -1203,8 +1216,13 @@ class _StatementCardState extends State<_StatementCard> {
       context: context,
       builder: (context) {
         final isSmallScreen = MediaQuery.of(context).size.width < 560;
+        final statementNumber = transaction.statementNumber;
         return AlertDialog(
-          title: Text('Lịch sử đơn hàng ${transaction.transactionNumber}'),
+          title: Text(
+            statementNumber.isEmpty
+                ? 'Lịch sử sao kê'
+                : 'Lịch sử sao kê $statementNumber',
+          ),
           content: SizedBox(
             width: isSmallScreen ? double.maxFinite : 520,
             child: FutureBuilder<List<BankStatementOrderHistoryEntry>>(
@@ -1322,7 +1340,7 @@ class _StatementCardState extends State<_StatementCard> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.send_rounded),
-                    label: const Text('Gửi ACC'),
+                    label: const Text('Gửi Kế toán'),
                   ),
                 ],
               );
@@ -1333,6 +1351,127 @@ class _StatementCardState extends State<_StatementCard> {
     } finally {
       requestController.dispose();
     }
+  }
+
+  Future<void> _showOrderTransferReviewDialog(
+    BuildContext context,
+    BankStatementProvider provider,
+    BankStatementTransaction transaction,
+  ) async {
+    final requestId = transaction.orderTransferRequestId?.trim() ?? '';
+    if (requestId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chưa tìm thấy yêu cầu cần duyệt.')),
+      );
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        var saving = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> review({required bool approved}) async {
+              setDialogState(() => saving = true);
+              try {
+                if (approved) {
+                  await provider.approveOrderTransferRequest(requestId);
+                } else {
+                  await provider.rejectOrderTransferRequest(requestId);
+                }
+                if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+              } catch (_) {
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        approved
+                            ? 'Chưa xác nhận được yêu cầu.'
+                            : 'Chưa từ chối được yêu cầu.',
+                      ),
+                    ),
+                  );
+                  setDialogState(() => saving = false);
+                }
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Phê duyệt cập nhật mã đơn'),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width < 560
+                    ? double.maxFinite
+                    : 460,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _reviewLine('SR', transaction.storeId),
+                    _reviewLine('Mã giao dịch', transaction.transactionNumber),
+                    _reviewLine(
+                      'Số tiền',
+                      widget.money.format(transaction.amount),
+                    ),
+                    _reviewLine(
+                      'Đơn hiện tại',
+                      _ordersText(transaction.orders),
+                    ),
+                    _reviewLine(
+                      'Đơn đề nghị',
+                      _ordersText(transaction.orderTransferRequestedOrders),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Đóng'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: saving ? null : () => review(approved: false),
+                  icon: const Icon(Icons.close_rounded),
+                  label: const Text('Từ chối'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: saving ? null : () => review(approved: true),
+                  icon: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check_rounded),
+                  label: const Text('Xác nhận'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _reviewLine(String label, String value) {
+    final text = value.trim().isEmpty ? 'NULL' : value.trim();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          Expanded(child: SelectableText(text)),
+        ],
+      ),
+    );
   }
 }
 
@@ -1427,20 +1566,24 @@ class _OrderEditor extends StatelessWidget {
   final BankStatementTransaction transaction;
   final TextEditingController controller;
   final bool editing;
+  final bool canReviewTransfer;
   final VoidCallback onEdit;
   final VoidCallback onCancel;
   final Future<void> Function() onSave;
   final VoidCallback onRequestTransfer;
+  final VoidCallback onReviewTransfer;
   final VoidCallback onHistory;
 
   const _OrderEditor({
     required this.transaction,
     required this.controller,
     required this.editing,
+    required this.canReviewTransfer,
     required this.onEdit,
     required this.onCancel,
     required this.onSave,
     required this.onRequestTransfer,
+    required this.onReviewTransfer,
     required this.onHistory,
   });
 
@@ -1486,6 +1629,13 @@ class _OrderEditor extends StatelessWidget {
                       : null,
                   icon: const Icon(Icons.swap_horiz_rounded),
                 ),
+                if (canReviewTransfer &&
+                    transaction.hasPendingOrderTransferRequest)
+                  IconButton(
+                    tooltip: 'Phê duyệt cập nhật mã đơn',
+                    onPressed: !editing ? onReviewTransfer : null,
+                    icon: const Icon(Icons.fact_check_rounded),
+                  ),
                 IconButton(
                   tooltip: 'Lịch sử chỉnh sửa',
                   onPressed: onHistory,
@@ -1556,7 +1706,7 @@ class _OrderEditor extends StatelessWidget {
                 runSpacing: 6,
                 children: [
                   const AppStatusChip(
-                    label: 'Chờ ACC xác nhận',
+                    label: 'Chờ Kế toán xác nhận',
                     color: AppColors.warning,
                   ),
                   ...transaction.orderTransferRequestedOrders.map(

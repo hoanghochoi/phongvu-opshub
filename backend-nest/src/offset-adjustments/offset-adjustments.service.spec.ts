@@ -140,9 +140,9 @@ describe('OffsetAdjustmentsService', () => {
       offsetRow({ id: 'offset-vnpay', type: 'VNPAY_QROFF' }),
     );
 
-    await expect(
-      service.complete(accUser, 'offset-vnpay', {}),
-    ).rejects.toThrow('Vui lòng nhập Mã CT.');
+    await expect(service.complete(accUser, 'offset-vnpay', {})).rejects.toThrow(
+      'Vui lòng nhập Mã CT.',
+    );
 
     const approved = offsetRow({
       id: 'offset-vnpay',
@@ -190,7 +190,10 @@ describe('OffsetAdjustmentsService', () => {
     );
     expect(redis.publishMessage).toHaveBeenCalledWith(
       'OFFSET_ADJUSTMENT_UPDATED',
-      expect.objectContaining({ adjustmentId: 'offset-1', status: 'PENDING_ACC' }),
+      expect.objectContaining({
+        adjustmentId: 'offset-1',
+        status: 'PENDING_ACC',
+      }),
     );
   });
 
@@ -198,6 +201,41 @@ describe('OffsetAdjustmentsService', () => {
     await expect(
       service.list(srUser, { allStores: 'true' }),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('exports filtered offset adjustments as Excel-friendly CSV', async () => {
+    prisma.offsetAdjustment.findMany.mockResolvedValue([
+      offsetRow({
+        id: 'offset-export',
+        type: 'SINGLE_ORDER',
+        oldOrderCode: '26062500000001',
+        newOrderCode: '26062500000002',
+        orderCode: null,
+        scanDate: null,
+        editContentKind: null,
+        transactionCode: null,
+        amount: 1500000,
+      }),
+    ]);
+
+    const csv = await service.exportCsv(accUser, {
+      allStores: 'true',
+      type: 'SINGLE_ORDER',
+      status: 'PENDING_ACC',
+    });
+
+    expect(prisma.offsetAdjustment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: [{ type: 'SINGLE_ORDER' }, { status: 'PENDING_ACC' }],
+        },
+        orderBy: { submittedAt: 'desc' },
+      }),
+    );
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
+    expect(csv).toContain('Cấn trừ đơn');
+    expect(csv).toContain('Chờ Kế toán xác nhận');
+    expect(csv).toContain('=""26062500000001""');
   });
 });
 

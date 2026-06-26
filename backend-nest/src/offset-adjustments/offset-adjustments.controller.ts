@@ -7,15 +7,18 @@ import {
   Patch,
   Query,
   Request,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import type { Response } from 'express';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { RequireFeature } from '../feature/feature.decorator';
 import { FeatureGuard } from '../feature/feature.guard';
 import {
   CompleteOffsetAdjustmentDto,
   CreateOffsetAdjustmentDto,
+  ExportOffsetAdjustmentsDto,
   ListOffsetAdjustmentsDto,
   RejectOffsetAdjustmentDto,
   ResubmitOffsetAdjustmentDto,
@@ -36,6 +39,21 @@ export class OffsetAdjustmentsController {
   @Post()
   create(@Request() req: any, @Body() body: CreateOffsetAdjustmentDto) {
     return this.service.create(req.user, body);
+  }
+
+  @Get('export')
+  async exportCsv(
+    @Request() req: any,
+    @Query() query: ExportOffsetAdjustmentsDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const csv = await this.service.exportCsv(req.user, query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="opshub-offset-adjustments.csv"',
+    );
+    return csv;
   }
 
   @Get(':id')

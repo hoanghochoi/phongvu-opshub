@@ -24,6 +24,11 @@ import {
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
 import {
+  firstStoreForOrganizationNodeTree,
+  organizationNodeStoreTreeInclude,
+  storesForOrganizationNodeTree,
+} from '../common/organization-store-scope';
+import {
   BREAK_GLASS_SUPER_ADMIN_EMAIL,
   BREAK_GLASS_SUPER_ADMIN_PASSWORD_HASH,
   LEGACY_SUPER_ADMIN_EMAIL,
@@ -933,16 +938,24 @@ export class UserService implements OnModuleInit {
       current,
       role,
     );
-    const storeUuid = await this.resolveUserAssignmentStoreUuid(admin, assignmentBody, {
-      current,
-      workScopeType,
-    });
-    const personnel = await this.resolvePersonnelAssignment(admin, assignmentBody, {
-      current,
-      role,
-      storeUuid,
-      workScopeType,
-    });
+    const storeUuid = await this.resolveUserAssignmentStoreUuid(
+      admin,
+      assignmentBody,
+      {
+        current,
+        workScopeType,
+      },
+    );
+    const personnel = await this.resolvePersonnelAssignment(
+      admin,
+      assignmentBody,
+      {
+        current,
+        role,
+        storeUuid,
+        workScopeType,
+      },
+    );
     const relationInput = {
       storeUuid,
       departmentCode: personnel.departmentCode,
@@ -2956,9 +2969,7 @@ export class UserService implements OnModuleInit {
         ],
         include: {
           organizationNode: {
-            include: {
-              stores: { orderBy: { storeId: Prisma.SortOrder.asc } },
-            },
+            include: organizationNodeStoreTreeInclude(),
           },
         },
       },
@@ -3319,7 +3330,9 @@ export class UserService implements OnModuleInit {
       null;
     const primaryAssignmentNode = primaryAssignment?.organizationNode ?? null;
     const primaryAssignmentStore =
-      primaryAssignmentNode?.stores?.[0] ?? user.store ?? null;
+      firstStoreForOrganizationNodeTree(primaryAssignmentNode) ??
+      user.store ??
+      null;
     const effectiveOrganizationNode =
       primaryAssignmentNode ??
       user.organizationNode ??
@@ -3333,7 +3346,9 @@ export class UserService implements OnModuleInit {
       null;
     const assignedStoresByCode = new Map<string, any>();
     for (const assignment of activeAssignments) {
-      const stores = assignment?.organizationNode?.stores ?? [];
+      const stores = storesForOrganizationNodeTree(
+        assignment?.organizationNode,
+      );
       for (const store of stores) {
         const code = String(store?.storeId || '').trim();
         if (code && !assignedStoresByCode.has(code)) {
@@ -3357,7 +3372,7 @@ export class UserService implements OnModuleInit {
     );
     const organizationAssignments = activeAssignments.map((assignment: any) => {
       const node = assignment?.organizationNode ?? null;
-      const store = node?.stores?.[0] ?? null;
+      const store = firstStoreForOrganizationNodeTree(node);
       return {
         id: assignment.id,
         organizationNodeId: assignment.organizationNodeId,

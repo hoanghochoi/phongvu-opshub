@@ -11,10 +11,16 @@ that must be reviewed by ACC before being treated as complete.
   SUPER_ADMIN reviewers can view requests across SRs, filter by SR, and review
   submitted requests. ACC/FIN_ACC can be resolved from either the user's
   department code or their assigned organization-tree ancestors.
-- The main list defaults to today's Vietnam-local date range, filters by
-  `submittedAt`, uses server-side paging, and sorts newest first.
+- The main list treats an empty date filter as `Tất cả ngày`. When a custom
+  range is selected it filters by `submittedAt`, uses server-side paging, and
+  sorts newest first.
 - The list supports filters for SR, type, old/new/order code, exact amount, and
-  status.
+  status. Reviewer SR filtering supports selecting multiple SRs or leaving the
+  selection empty for all visible SRs.
+- Reviewers have a notification bell that opens the current pending
+  confirmation list without mutating the main list filters.
+- Reviewers can export the current filtered list to CSV from `Xuất file`,
+  either for all offset types or for one selected type.
 - Row borders follow the statement color contract: green for ACC-approved,
   red for waiting ACC review, and yellow for rejected requests waiting for SR
   correction.
@@ -58,7 +64,6 @@ that must be reviewed by ACC before being treated as complete.
 ## Out Of Scope V1
 
 - OS push notifications.
-- CSV export.
 - Delete or cancel requests.
 - File attachments.
 - Editing an ACC-approved request.

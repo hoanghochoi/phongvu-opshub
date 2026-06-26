@@ -20,6 +20,10 @@ import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
 import { RedisService } from '../redis/redis.service';
 import {
+  organizationNodeStoreTreeInclude,
+  storesForOrganizationNodeTree,
+} from '../common/organization-store-scope';
+import {
   CreateMapVietinStatementOrderTransferRequestDto,
   ExportMapVietinStatementsDto,
   ListMapVietinStatementOrderTransferRequestsDto,
@@ -418,7 +422,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         },
       });
     if (pendingTransferRequest) {
-      throw new BadRequestException('Giao dịch đang chờ ACC xác nhận');
+      throw new BadRequestException('Giao dịch đang chờ Kế toán xác nhận');
     }
 
     const oldOrders = this.normalizeOrderCodes(existing.orders || []);
@@ -489,7 +493,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         },
       });
     if (pending) {
-      throw new BadRequestException('Giao dịch đang chờ ACC xác nhận');
+      throw new BadRequestException('Giao dịch đang chờ Kế toán xác nhận');
     }
 
     try {
@@ -512,7 +516,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       return this.toStatementOrderTransferRequestDto(request);
     } catch (error) {
       if ((error as any)?.code === 'P2002') {
-        throw new BadRequestException('Giao dịch đang chờ ACC xác nhận');
+        throw new BadRequestException('Giao dịch đang chờ Kế toán xác nhận');
       }
       this.logger.error(
         `Statement order transfer request failed: user=${this.safeUserLabel(user)} transaction=${id} store=${existing.storeCode} requestedCount=${requestedOrders.length} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
@@ -1031,7 +1035,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     if (requestedAllStores) {
       throw new ForbiddenException('Không có quyền xem tất cả showroom');
     }
-    const selectedStoreCodes = storeIds.length > 0 ? storeIds : allowedStoreCodes;
+    const selectedStoreCodes =
+      storeIds.length > 0 ? storeIds : allowedStoreCodes;
     const invalidStore = selectedStoreCodes.find(
       (storeCode) => !allowedStoreCodes.includes(storeCode),
     );
@@ -1138,7 +1143,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private async resolveUserStores(user: any) {
     const storesByCode = new Map<string, any>();
     const pushStore = (store: any) => {
-      const storeCode = String(store?.storeId || '').trim().toUpperCase();
+      const storeCode = String(store?.storeId || '')
+        .trim()
+        .toUpperCase();
       if (storeCode && !storesByCode.has(storeCode)) {
         storesByCode.set(storeCode, store);
       }
@@ -1157,9 +1164,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
             ],
             include: {
               organizationNode: {
-                include: {
-                  stores: { orderBy: { storeId: Prisma.SortOrder.asc } },
-                },
+                include: organizationNodeStoreTreeInclude(),
               },
             },
           },
@@ -1167,7 +1172,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       });
       pushStore(savedUser?.store);
       for (const assignment of savedUser?.organizationAssignments ?? []) {
-        for (const store of assignment.organizationNode?.stores ?? []) {
+        for (const store of storesForOrganizationNodeTree(
+          assignment.organizationNode,
+        )) {
           pushStore(store);
         }
       }
@@ -1933,7 +1940,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       !pendingTransferRequest &&
       (orders.length === 0 || options.canEditProtectedOrders === true);
     const orderTransferBlockedReason = pendingTransferRequest
-      ? 'Giao dịch đang chờ ACC xác nhận.'
+      ? 'Giao dịch đang chờ Kế toán xác nhận.'
       : transferWindowOpen
         ? null
         : ORDER_TRANSFER_WINDOW_FORBIDDEN_MESSAGE;
@@ -1942,6 +1949,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       storeId: row.storeCode,
       transactionKey: row.transactionKey,
       transactionNumber: row.transactionNumber,
+      transactionReference: this.resolveStoredTransactionReference(row),
       amount: row.amount,
       content: row.content,
       orders,
@@ -1953,7 +1961,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       orderEditBlockedReason: canEditOrders
         ? null
         : pendingTransferRequest
-          ? 'Giao dịch đang chờ ACC xác nhận.'
+          ? 'Giao dịch đang chờ Kế toán xác nhận.'
           : ORDER_EDIT_FORBIDDEN_MESSAGE,
       canRequestOrderTransfer: !pendingTransferRequest && transferWindowOpen,
       orderTransferRequestBlockedReason: orderTransferBlockedReason,

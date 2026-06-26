@@ -37,6 +37,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
     final monitor = context.watch<PaymentMonitorProvider>();
     final requiresStoreInput = user?.role == 'SUPER_ADMIN';
     final canUsePaymentSpeaker = monitor.canUsePaymentSpeaker;
+    final speakerSelectionNotice = monitor.speakerSelectionNotice;
 
     return Scaffold(
       appBar: const GradientHeader(title: 'Theo dõi tiền vào', showBack: true),
@@ -45,7 +46,9 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (canUsePaymentSpeaker || requiresStoreInput)
+              if (canUsePaymentSpeaker ||
+                  speakerSelectionNotice != null ||
+                  requiresStoreInput)
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -102,8 +105,52 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                             ),
                           ),
                         ],
+                        if (!canUsePaymentSpeaker &&
+                            speakerSelectionNotice != null) ...[
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.volume_off_rounded,
+                                color: AppColors.warning,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Loa tạm dừng',
+                                      style: TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      speakerSelectionNotice,
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                        height: 1.25,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: _SyncStatusPill(monitor: monitor),
+                          ),
+                        ],
                         if (requiresStoreInput) ...[
-                          if (canUsePaymentSpeaker)
+                          if (canUsePaymentSpeaker ||
+                              speakerSelectionNotice != null)
                             const SizedBox(
                               height: AppLayoutTokens.formFieldGap,
                             ),

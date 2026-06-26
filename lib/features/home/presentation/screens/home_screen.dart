@@ -196,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
         AppFeatureAction(
           icon: Icons.swap_horiz_rounded,
           title: 'Cấn trừ',
-          description: 'Gửi ACC xác nhận',
+          description: 'Gửi Kế toán xác nhận',
           color: AppColors.teal600,
           onTap: () => context.push('/offset-adjustments'),
         ),

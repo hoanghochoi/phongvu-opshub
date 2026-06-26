@@ -38,7 +38,7 @@ void main() {
   });
 
   group('OffsetAdjustmentProvider', () {
-    test('loads today list for store-scoped SR on initialize', () async {
+    test('loads all-day list for store-scoped SR on initialize', () async {
       final repository = _FakeOffsetAdjustmentRepository();
       final provider = OffsetAdjustmentProvider(
         repository,
@@ -50,8 +50,29 @@ void main() {
       expect(provider.stores.map((store) => store.storeId), ['CP01']);
       expect(provider.items, hasLength(1));
       expect(repository.lastQuery?.allStores, isFalse);
-      expect(repository.lastQuery?.startDate, DateTime(2026, 6, 25));
-      expect(repository.lastQuery?.endDate, DateTime(2026, 6, 25));
+      expect(repository.lastQuery?.startDate, isNull);
+      expect(repository.lastQuery?.endDate, isNull);
+
+      provider.dispose();
+    });
+
+    test('store-scoped SR can filter among assigned stores', () async {
+      final repository = _FakeOffsetAdjustmentRepository();
+      final provider = OffsetAdjustmentProvider(
+        repository,
+        now: () => DateTime(2026, 6, 25, 10),
+      );
+
+      await provider.initialize(_multiStoreSrUser);
+
+      expect(provider.stores.map((store) => store.storeId), ['CP01', 'CP02']);
+      expect(repository.lastQuery?.allStores, isFalse);
+      expect(repository.lastQuery?.storeIds, isEmpty);
+
+      provider.setStoreSelection(allStores: false, ids: {'CP02'});
+      await provider.search();
+
+      expect(repository.lastQuery?.storeIds, ['CP02']);
 
       provider.dispose();
     });
@@ -72,9 +93,35 @@ void main() {
         repository.seenQueries.last.status,
         OffsetAdjustmentStatus.pending,
       );
+      expect(repository.seenQueries.last.startDate, isNull);
+      expect(repository.seenQueries.last.endDate, isNull);
 
       provider.dispose();
     });
+
+    test(
+      'loads pending notification items without changing main filter',
+      () async {
+        final repository = _FakeOffsetAdjustmentRepository(canReview: true);
+        final provider = OffsetAdjustmentProvider(
+          repository,
+          now: () => DateTime(2026, 6, 25, 10),
+        );
+        await provider.initialize(_accUser);
+        provider.setStatus(OffsetAdjustmentStatus.approved);
+
+        await provider.loadPendingItems();
+
+        expect(provider.status, OffsetAdjustmentStatus.approved);
+        expect(provider.pendingItems, hasLength(1));
+        expect(repository.lastQuery?.status, OffsetAdjustmentStatus.pending);
+        expect(repository.lastQuery?.type, 'ALL');
+        expect(repository.lastQuery?.startDate, isNull);
+        expect(repository.lastQuery?.endDate, isNull);
+
+        provider.dispose();
+      },
+    );
 
     test('create sends payload then refreshes current list', () async {
       final repository = _FakeOffsetAdjustmentRepository();
@@ -108,6 +155,19 @@ const _srUser = User(
   role: 'USER',
   storeId: 'CP01',
   departmentCode: 'SALES',
+  featureAccess: {'OFFSET_ADJUSTMENTS': true},
+);
+
+const _multiStoreSrUser = User(
+  id: 'sr-2',
+  email: 'sr2@phongvu.vn',
+  role: 'USER',
+  storeId: 'CP01',
+  departmentCode: 'SALES',
+  assignedStores: [
+    StoreBranch(id: 'store-1', storeId: 'CP01', storeName: 'CP01'),
+    StoreBranch(id: 'store-2', storeId: 'CP02', storeName: 'CP02'),
+  ],
   featureAccess: {'OFFSET_ADJUSTMENTS': true},
 );
 

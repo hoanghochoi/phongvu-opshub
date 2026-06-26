@@ -78,6 +78,8 @@ class ApiConstants {
   static String adminMapVietinStatementOrderHistoryEndpoint(String id) =>
       '/admin/map-vietin/statements/$id/order-history';
   static const String offsetAdjustmentsEndpoint = '/offset-adjustments';
+  static const String offsetAdjustmentsExportEndpoint =
+      '/offset-adjustments/export';
   static String offsetAdjustmentEndpoint(String id) =>
       '/offset-adjustments/$id';
   static String offsetAdjustmentResubmitEndpoint(String id) =>

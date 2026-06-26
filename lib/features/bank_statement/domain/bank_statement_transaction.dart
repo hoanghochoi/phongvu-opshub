@@ -3,6 +3,7 @@ class BankStatementTransaction {
   final String storeId;
   final String transactionKey;
   final String transactionNumber;
+  final String? transactionReference;
   final int amount;
   final String content;
   final List<String> orders;
@@ -29,6 +30,7 @@ class BankStatementTransaction {
     required this.storeId,
     required this.transactionKey,
     required this.transactionNumber,
+    this.transactionReference,
     required this.amount,
     required this.content,
     required this.orders,
@@ -57,6 +59,10 @@ class BankStatementTransaction {
       storeId: json['storeId']?.toString() ?? '',
       transactionKey: json['transactionKey']?.toString() ?? '',
       transactionNumber: json['transactionNumber']?.toString() ?? '',
+      transactionReference: _readFirstText(json, const [
+        'transactionReference',
+        'txnReference',
+      ]),
       amount: _readAmount(json['amount']),
       content: json['content']?.toString() ?? '',
       orders: _readOrders(json['orders']),
@@ -107,6 +113,12 @@ class BankStatementTransaction {
   }
 
   bool get hasOrders => orders.isNotEmpty;
+  String get statementNumber {
+    final reference = transactionReference?.trim() ?? '';
+    if (reference.isNotEmpty) return reference;
+    return transactionNumber.trim();
+  }
+
   String get payerLabel => [
     payerName?.trim() ?? '',
     payerAccount?.trim() ?? '',
@@ -118,6 +130,7 @@ class BankStatementTransaction {
       storeId: storeId,
       transactionKey: transactionKey,
       transactionNumber: transactionNumber,
+      transactionReference: transactionReference,
       amount: amount,
       content: content,
       orders: orders ?? this.orders,

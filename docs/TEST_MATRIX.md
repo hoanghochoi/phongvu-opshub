@@ -107,6 +107,15 @@ This file maps product behavior to proof. Existing flows are marked
   focused Flutter provider/widget tests (20 tests), `flutter analyze --no-pub`,
   and `git diff --check`. Gap: live DB migration, deployed Redis/WebSocket
   delivery, and ACC click-through remain manual.
+- OFFSET-ADJUSTMENT-001, 2026-06-26: fixed reviewer notification bell behavior
+  so it opens a pending-review list instead of changing the main filter/search,
+  switched SR filtering to searchable multi-select, kept empty date range as
+  `Tất cả ngày`, added calendar pickers beside manual date inputs, and added
+  CSV export by all types or a selected offset type. Also added an in-row
+  statement approval button for pending order-transfer requests when the user
+  has review access. Validation: focused backend offset Jest, focused Flutter
+  offset/bank-statement widget tests, backend `npm run build`,
+  `flutter analyze --no-pub`, and `git diff --check`.
 - PROFILE-ADMIN-001 / PAYMENT-STATEMENT-001, 2026-06-24: tightened user
   import/create/delete and statement-order edit permissions. `SUPER_ADMIN` is
   now required for admin user creation/import, imports validate email syntax and

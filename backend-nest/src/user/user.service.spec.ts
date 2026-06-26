@@ -1442,6 +1442,79 @@ describe('UserService admin store management', () => {
     });
   });
 
+  it('derives assigned SRs from parent showroom nodes for Lv5 assignments', () => {
+    const cp75Store = {
+      ...store,
+      id: 'store-75',
+      storeId: 'CP75',
+      storeName: 'CP75',
+      organizationNodeId: 'org-store-cp75',
+    };
+    const dto = (service as any).toUserDto({
+      id: 'user-multi-sr',
+      email: 'multi@phongvu.vn',
+      firstName: 'Multi',
+      lastName: null,
+      role: 'STAFF',
+      status: 'yes',
+      departmentCode: 'SALES',
+      jobRoleCode: 'CASH',
+      workScopeType: 'STORE',
+      store,
+      organizationAssignments: [
+        {
+          id: 'assign-cp62',
+          organizationNodeId: 'org-store-cp62-pos-cash',
+          isPrimary: true,
+          organizationNode: {
+            id: 'org-store-cp62-pos-cash',
+            displayName: 'Thu ngân CP62',
+            type: 'LV5_POSITION',
+            stores: [],
+            parent: {
+              id: 'org-store-cp62',
+              displayName: 'CP62',
+              type: 'LV4_STORE',
+              stores: [store],
+            },
+          },
+        },
+        {
+          id: 'assign-cp75',
+          organizationNodeId: 'org-store-cp75-pos-cash',
+          isPrimary: false,
+          organizationNode: {
+            id: 'org-store-cp75-pos-cash',
+            displayName: 'Thu ngân CP75',
+            type: 'LV5_POSITION',
+            stores: [],
+            parent: {
+              id: 'org-store-cp75',
+              displayName: 'CP75',
+              type: 'LV4_STORE',
+              stores: [cp75Store],
+            },
+          },
+        },
+      ],
+      userFeatureAssignments: [],
+    });
+
+    expect(dto.assignedStores.map((item: any) => item.storeId)).toEqual([
+      'CP62',
+      'CP75',
+    ]);
+    expect(dto.organizationAssignments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          organizationNodeId: 'org-store-cp75-pos-cash',
+          storeId: 'CP75',
+          storeName: 'CP75',
+        }),
+      ]),
+    );
+  });
+
   it('counts region and area users through STORE-scope SR assignments', async () => {
     prisma.user.count.mockResolvedValueOnce(7).mockResolvedValueOnce(4);
 

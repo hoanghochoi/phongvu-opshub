@@ -57,11 +57,9 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
         actions: [
           if (provider.canReview)
             _OffsetBell(
-              count: provider.pendingTotal,
-              onPressed: () {
-                provider.setStatus(OffsetAdjustmentStatus.pending);
-                provider.search();
-              },
+              provider: provider,
+              money: _money,
+              onOpenItem: _showDetails,
             ),
         ],
       ),
@@ -418,33 +416,37 @@ class _FilterPanel extends StatelessWidget {
   }
 
   Widget _storeFilter() {
-    final selected = provider.allStores || provider.selectedStoreIds.isEmpty
-        ? '__ALL__'
-        : provider.selectedStoreIds.first;
-    return DropdownButtonFormField<String>(
-      initialValue: provider.canReview
-          ? selected
-          : (provider.stores.isEmpty ? null : provider.stores.first.storeId),
-      decoration: const InputDecoration(labelText: 'SR'),
-      items: [
-        if (provider.canReview)
-          const DropdownMenuItem(value: '__ALL__', child: Text('Tất cả SR')),
-        ...provider.stores.map(
-          (store) => DropdownMenuItem(
-            value: store.storeId,
-            child: Text(store.storeId),
-          ),
+    if (!provider.canReview && provider.stores.length <= 1) {
+      return InputDecorator(
+        decoration: const InputDecoration(labelText: 'SR'),
+        child: Text(
+          provider.stores.isEmpty
+              ? 'Chưa có SR được gán'
+              : provider.stores.first.storeId,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-      ],
-      onChanged: provider.canReview
-          ? (value) {
-              if (value == null || value == '__ALL__') {
-                provider.setStoreSelection(allStores: true, ids: const {});
-              } else {
-                provider.setStoreSelection(allStores: false, ids: {value});
-              }
-            }
-          : null,
+      );
+    }
+    return AppMultiSelectFilterDropdown<String>(
+      label: 'SR',
+      icon: Icons.storefront_outlined,
+      values: provider.selectedStoreIds,
+      emptyLabel: provider.canReview ? 'Tất cả SR' : 'Tất cả SR được gán',
+      forceSearch: true,
+      options: provider.stores
+          .map(
+            (store) => AppFilterOption<String>(
+              value: store.storeId,
+              label: store.storeId,
+              subtitle: store.storeName,
+            ),
+          )
+          .toList(growable: false),
+      onChanged: (ids) => provider.setStoreSelection(
+        allStores: provider.canReview && ids.isEmpty,
+        ids: ids,
+      ),
     );
   }
 
@@ -483,15 +485,15 @@ class _FilterPanel extends StatelessWidget {
         DropdownMenuItem(value: 'ALL', child: Text('Tất cả trạng thái')),
         DropdownMenuItem(
           value: OffsetAdjustmentStatus.pending,
-          child: Text('Chờ ACC xác nhận'),
+          child: Text('Chờ Kế toán xác nhận'),
         ),
         DropdownMenuItem(
           value: OffsetAdjustmentStatus.approved,
-          child: Text('ACC đã xác nhận'),
+          child: Text('Kế toán đã xác nhận'),
         ),
         DropdownMenuItem(
           value: OffsetAdjustmentStatus.rejected,
-          child: Text('ACC từ chối chờ sửa'),
+          child: Text('Kế toán từ chối chờ sửa'),
         ),
       ],
       onChanged: (value) => provider.setStatus(value ?? 'ALL'),
@@ -524,26 +526,87 @@ class _ListToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      spacing: 10,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      alignment: WrapAlignment.spaceBetween,
       children: [
-        Expanded(
+        SizedBox(
+          width: 220,
           child: Text(
             '${provider.items.length} / ${provider.total} hồ sơ',
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ),
-        IconButton(
-          tooltip: 'Trang trước',
-          onPressed: provider.canGoPrevious ? provider.previousPage : null,
-          icon: const Icon(Icons.chevron_left_rounded),
-        ),
-        Text('${provider.page + 1}'),
-        IconButton(
-          tooltip: 'Trang sau',
-          onPressed: provider.canGoNext ? provider.nextPage : null,
-          icon: const Icon(Icons.chevron_right_rounded),
+        _ExportMenuButton(provider: provider),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Trang trước',
+              onPressed: provider.canGoPrevious ? provider.previousPage : null,
+              icon: const Icon(Icons.chevron_left_rounded),
+            ),
+            Text('${provider.page + 1}'),
+            IconButton(
+              tooltip: 'Trang sau',
+              onPressed: provider.canGoNext ? provider.nextPage : null,
+              icon: const Icon(Icons.chevron_right_rounded),
+            ),
+          ],
         ),
       ],
+    );
+  }
+}
+
+class _ExportMenuButton extends StatelessWidget {
+  final OffsetAdjustmentProvider provider;
+
+  const _ExportMenuButton({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    return MenuAnchor(
+      menuChildren: [
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.dataset_outlined),
+          onPressed: provider.isExporting
+              ? null
+              : () => provider.exportCsv(type: 'ALL'),
+          child: const Text('Tất cả loại'),
+        ),
+        for (final type in OffsetAdjustmentType.values)
+          MenuItemButton(
+            leadingIcon: Icon(_typeIcon(type)),
+            onPressed: provider.isExporting
+                ? null
+                : () => provider.exportCsv(type: type),
+            child: Text(OffsetAdjustmentType.label(type)),
+          ),
+      ],
+      builder: (context, controller, child) {
+        return OutlinedButton.icon(
+          onPressed: provider.isExporting
+              ? null
+              : () {
+                  if (controller.isOpen) {
+                    controller.close();
+                  } else {
+                    controller.open();
+                  }
+                },
+          icon: provider.isExporting
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.download_rounded),
+          label: Text(provider.isExporting ? 'Đang xuất' : 'Xuất file'),
+        );
+      },
     );
   }
 }
@@ -722,7 +785,7 @@ class _OffsetDetailDialog extends StatelessWidget {
               _detail('Ghi chú', item.note),
               _detail('Lý do từ chối', item.rejectReason),
               _detail('Người nhập', item.createdByEmail),
-              _detail('ACC xử lý', item.reviewedByEmail),
+              _detail('Kế toán xử lý', item.reviewedByEmail),
             ],
           ),
         ),
@@ -965,7 +1028,25 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
   }
 
   Widget _dateField(String label) {
-    return AppDateTextField(controller: _scanDateController, label: label);
+    return AppDateTextField(
+      controller: _scanDateController,
+      label: label,
+      onPickDate: _pickScanDate,
+    );
+  }
+
+  Future<void> _pickScanDate() async {
+    final typedDate = appParseDateInput(_scanDateController.text);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: typedDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    setState(() {
+      _scanDateController.text = appFormatDateInput(picked);
+    });
   }
 
   Future<void> _submit() async {
@@ -1035,19 +1116,157 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
 }
 
 class _OffsetBell extends StatelessWidget {
-  final int count;
-  final VoidCallback onPressed;
+  final OffsetAdjustmentProvider provider;
+  final NumberFormat money;
+  final ValueChanged<OffsetAdjustment> onOpenItem;
 
-  const _OffsetBell({required this.count, required this.onPressed});
+  const _OffsetBell({
+    required this.provider,
+    required this.money,
+    required this.onOpenItem,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return AppNotificationIconButton(
-      count: count,
-      tooltip: count > 0
-          ? '$count hồ sơ chờ ACC xác nhận'
-          : 'Hồ sơ chờ ACC xác nhận',
-      onPressed: onPressed,
+    return MenuAnchor(
+      menuChildren: [
+        _PendingOffsetMenu(
+          provider: provider,
+          money: money,
+          onOpenItem: onOpenItem,
+        ),
+      ],
+      builder: (context, controller, child) {
+        final count = provider.pendingTotal;
+        return AppNotificationIconButton(
+          count: count,
+          tooltip: count > 0
+              ? '$count hồ sơ chờ Kế toán xác nhận'
+              : 'Hồ sơ chờ Kế toán xác nhận',
+          onPressed: () async {
+            if (controller.isOpen) {
+              controller.close();
+              return;
+            }
+            controller.open();
+            await provider.loadPendingItems();
+          },
+        );
+      },
+    );
+  }
+}
+
+class _PendingOffsetMenu extends StatelessWidget {
+  final OffsetAdjustmentProvider provider;
+  final NumberFormat money;
+  final ValueChanged<OffsetAdjustment> onOpenItem;
+
+  const _PendingOffsetMenu({
+    required this.provider,
+    required this.money,
+    required this.onOpenItem,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final width = math.max(
+      280.0,
+      math.min(440.0, MediaQuery.sizeOf(context).width - 24),
+    );
+    final maxHeight = math.max(
+      260.0,
+      math.min(520.0, MediaQuery.sizeOf(context).height - 120),
+    );
+    return SizedBox(
+      width: width,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: Padding(
+          padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+          child: AnimatedBuilder(
+            animation: provider,
+            builder: (context, _) {
+              final items = provider.pendingItems;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.notifications_none_rounded,
+                        color: AppColors.primary500,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Hồ sơ chờ Kế toán xác nhận',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Tải lại',
+                        onPressed: provider.isLoadingPendingItems
+                            ? null
+                            : provider.loadPendingItems,
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: provider.isLoadingPendingItems && items.isEmpty
+                        ? const Center(child: CircularProgressIndicator())
+                        : items.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: Text(
+                                'Không có hồ sơ chờ xác nhận.',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: items.length,
+                            separatorBuilder: (_, _) =>
+                                const Divider(height: 18),
+                            itemBuilder: (context, index) {
+                              final item = items[index];
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(
+                                  _typeIcon(item.type),
+                                  color: AppColors.warning,
+                                ),
+                                title: Text(
+                                  item.primaryOrderLabel.isEmpty
+                                      ? OffsetAdjustmentType.label(item.type)
+                                      : item.primaryOrderLabel,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  '${item.storeCode} • ${OffsetAdjustmentType.label(item.type)} • ${money.format(item.amount)}',
+                                ),
+                                onTap: () {
+                                  MenuController.maybeOf(context)?.close();
+                                  onOpenItem(item);
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1079,6 +1298,16 @@ Color _statusColor(String status) {
     OffsetAdjustmentStatus.approved => AppColors.success,
     OffsetAdjustmentStatus.rejected => AppColors.warning,
     _ => AppColors.error,
+  };
+}
+
+IconData _typeIcon(String type) {
+  return switch (type) {
+    OffsetAdjustmentType.singleOrder => Icons.swap_calls_rounded,
+    OffsetAdjustmentType.vnpayQroff => Icons.qr_code_2_rounded,
+    OffsetAdjustmentType.zaloPay => Icons.account_balance_wallet_outlined,
+    OffsetAdjustmentType.shopeePay => Icons.shopping_bag_outlined,
+    _ => Icons.dataset_outlined,
   };
 }
 

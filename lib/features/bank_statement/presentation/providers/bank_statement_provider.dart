@@ -154,7 +154,9 @@ class BankStatementProvider extends ChangeNotifier {
         ..addAll(
           user?.canUseAllBankStatementStores == true
               ? stores
-              : stores.where((store) => assignedStoreIds.contains(store.storeId)),
+              : stores.where(
+                  (store) => assignedStoreIds.contains(store.storeId),
+                ),
         );
       _storesLoaded = true;
       await AppLogger.instance.info(
@@ -183,7 +185,8 @@ class BankStatementProvider extends ChangeNotifier {
   }
 
   static Set<String> _assignedStoreIdsFor(User? user) {
-    final ids = user?.assignedStoreIds
+    final ids =
+        user?.assignedStoreIds
             .map((value) => value.trim().toUpperCase())
             .where((value) => value.isNotEmpty)
             .toSet() ??
@@ -509,7 +512,7 @@ class BankStatementProvider extends ChangeNotifier {
         context: {'transactionId': transactionId, 'orderCount': orders.length},
       );
       await _repository.createOrderTransferRequest(transactionId, orders);
-      _showRowMessage(transactionId, 'Đã gửi ACC xác nhận.', true);
+      _showRowMessage(transactionId, 'Đã gửi Kế toán xác nhận.', true);
       await AppLogger.instance.info(
         'BankStatement',
         'Bank statement order transfer request succeeded',

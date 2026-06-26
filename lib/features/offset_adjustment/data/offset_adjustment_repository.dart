@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
@@ -108,6 +109,15 @@ class OffsetAdjustmentRepository {
       total: int.tryParse(data['total']?.toString() ?? '') ?? items.length,
       canReview: data['canReview'] == true,
     );
+  }
+
+  Future<Uint8List> exportCsv(OffsetAdjustmentQuery query) async {
+    final bytes = await _apiClient.getBytes(
+      ApiConstants.offsetAdjustmentsExportEndpoint,
+      queryParameters: query.toQueryParameters(),
+      timeout: const Duration(seconds: 60),
+    );
+    return Uint8List.fromList(bytes);
   }
 
   Future<OffsetAdjustment> create(OffsetAdjustmentInput input) async {

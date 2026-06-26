@@ -53,6 +53,9 @@ describe('PaymentNotificationsService', () => {
         create: jest.fn(),
         deleteMany: jest.fn(),
       },
+      user: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
       mapVietinTransaction: {
         deleteMany: jest.fn(),
       },
@@ -435,6 +438,43 @@ describe('PaymentNotificationsService', () => {
     await expect(
       service.getAudioForUser(speakerUser({ id: 'user-1' }), 'note-1'),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('allows speaker ack for the parent showroom of assigned Lv5 nodes', async () => {
+    prisma.user.findUnique.mockResolvedValueOnce({
+      store: null,
+      organizationAssignments: [
+        {
+          organizationNode: {
+            stores: [],
+            parent: {
+              stores: [{ storeId: 'CP75' }],
+            },
+          },
+        },
+      ],
+    });
+    prisma.paymentNotification.findUnique.mockResolvedValue({
+      id: 'note-cp75',
+      transactionId: 'txn-cp75',
+      storeCode: 'CP75',
+    });
+    prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({});
+
+    await expect(
+      service.acknowledge(
+        speakerUser({ id: 'multi-lv5-user', storeId: null }),
+        'note-cp75',
+        { clientId: 'pc-1', event: 'PLAYED' },
+      ),
+    ).resolves.toEqual({ ok: true });
+    expect(prisma.paymentNotificationDeliveryLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        notificationId: 'note-cp75',
+        storeCode: 'CP75',
+        event: 'PLAYED',
+      }),
+    });
   });
 
   it('returns original TTS-only audio by default', async () => {

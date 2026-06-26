@@ -157,6 +157,7 @@ class ApiClient {
   Future<List<int>> getBytes(
     String endpoint, {
     Map<String, String>? queryParameters,
+    Duration? timeout,
   }) async {
     try {
       final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
@@ -170,7 +171,7 @@ class ApiClient {
                 ? {'Authorization': 'Bearer $_authToken'}
                 : null,
           )
-          .timeout(ApiConstants.defaultTimeout);
+          .timeout(timeout ?? ApiConstants.defaultTimeout);
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return response.bodyBytes;
       }

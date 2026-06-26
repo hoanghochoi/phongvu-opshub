@@ -138,6 +138,23 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool get canMonitorOnThisDevice => _canMonitorOnThisDevice;
   bool get hasMonitorScope => _hasMonitorScope;
   bool get canUsePaymentSpeaker => _canUsePaymentSpeaker;
+  bool get isViewingMultipleStores => _effectiveListStoreIds.length > 1;
+  String? get speakerSelectionNotice {
+    if (!_canMonitorOnThisDevice ||
+        !_canUseSpeakerOnThisDevice ||
+        !_userCanUsePaymentSpeakerFeature(_user)) {
+      return null;
+    }
+    final storeIds = _effectiveListStoreIds;
+    if (storeIds.length > 1) {
+      return 'Loa chỉ đọc khi chọn đúng 1 SR. Bạn đang xem ${storeIds.length} SR nên danh sách vẫn cập nhật, còn loa tạm dừng.';
+    }
+    if (storeIds.isEmpty) {
+      return 'Chọn 1 SR để bật đọc loa tiền vào.';
+    }
+    return null;
+  }
+
   List<MapPaymentTransaction> get latestTransactions =>
       List.unmodifiable(_latestTransactions);
 
@@ -384,15 +401,29 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   String? get _listStoreIdsParam {
-    final user = _user;
-    if (user == null) return null;
-    if (user.isSuperAdmin) return _storeOverride;
-    final selected = _selectedStoreIds.isNotEmpty
-        ? _selectedStoreIds.toList(growable: false)
-        : _assignedStoreIdsFor(user);
+    final selected = _effectiveListStoreIds;
     if (selected.isEmpty) return null;
-    selected.sort();
     return selected.join(',');
+  }
+
+  List<String> get _effectiveListStoreIds {
+    final user = _user;
+    if (user == null) return const [];
+    if (user.isSuperAdmin) {
+      final override = _storeOverride?.trim().toUpperCase();
+      return override?.isNotEmpty == true ? [override!] : const [];
+    }
+    final selected = (_selectedStoreIds.isNotEmpty
+        ? _selectedStoreIds
+        : _assignedStoreIdsFor(user).toSet());
+    if (selected.isEmpty) return const [];
+    final normalized = selected
+        .map((value) => value.trim().toUpperCase())
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    normalized.sort();
+    return normalized;
   }
 
   static bool _userCanUsePaymentSpeakerFeature(User? user) {
@@ -405,6 +436,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     if (!_userCanUsePaymentSpeakerFeature(_user)) {
       return 'missing_speaker_feature';
     }
+    if (_effectiveListStoreIds.length > 1) return 'multiple_stores_selected';
     if (_requestStoreId?.isNotEmpty != true) return 'store_not_selected';
     return 'eligible';
   }

@@ -82,6 +82,8 @@ export class ListOffsetAdjustmentsDto {
   limit?: number;
 }
 
+export class ExportOffsetAdjustmentsDto extends ListOffsetAdjustmentsDto {}
+
 export class CreateOffsetAdjustmentDto {
   @IsString()
   @IsIn(OFFSET_ADJUSTMENT_TYPES)

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -22,6 +23,7 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
   final DateTime Function() _now;
   final OffsetRealtimeConnector _realtimeConnector;
   final List<OffsetAdjustment> _items = [];
+  final List<OffsetAdjustment> _pendingItems = [];
   final List<StoreBranch> _stores = [];
   StreamSubscription<dynamic>? _realtimeSubscription;
   WebSocketChannel? _realtimeChannel;
@@ -31,7 +33,9 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
   bool _storesLoaded = false;
   bool _allStores = false;
   bool _isLoading = false;
+  bool _isLoadingPendingItems = false;
   bool _isSaving = false;
+  bool _isExporting = false;
   bool _hasSearched = false;
   bool _canReview = false;
   String _type = 'ALL';
@@ -57,10 +61,13 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
            realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri));
 
   List<OffsetAdjustment> get items => List.unmodifiable(_items);
+  List<OffsetAdjustment> get pendingItems => List.unmodifiable(_pendingItems);
   List<StoreBranch> get stores => List.unmodifiable(_stores);
   bool get allStores => _allStores;
   bool get isLoading => _isLoading;
+  bool get isLoadingPendingItems => _isLoadingPendingItems;
   bool get isSaving => _isSaving;
+  bool get isExporting => _isExporting;
   bool get hasSearched => _hasSearched;
   bool get canReview => _canReview;
   String get type => _type;
@@ -104,12 +111,15 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
         context: {'canReview': _canReview},
       );
       final stores = await _repository.fetchStores();
+      final assignedStoreIds = _assignedStoreIdsFor(_user);
       _stores
         ..clear()
         ..addAll(
           _canReview
               ? stores
-              : stores.where((store) => store.storeId == _user?.storeId),
+              : stores.where(
+                  (store) => assignedStoreIds.contains(store.storeId),
+                ),
         );
       _storesLoaded = true;
       await AppLogger.instance.info(
@@ -232,9 +242,7 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
   Future<void> loadPendingTotal() async {
     if (!_canReview) return;
     try {
-      final result = await _repository.fetchList(
-        _query(page: 0, limit: 1, status: OffsetAdjustmentStatus.pending),
-      );
+      final result = await _repository.fetchList(_pendingQuery(limit: 1));
       _pendingTotal = result.total;
       notifyListeners();
     } catch (error) {
@@ -243,6 +251,91 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
         'Offset adjustment pending count failed',
         context: {'error': error.toString()},
       );
+    }
+  }
+
+  Future<void> loadPendingItems() async {
+    if (!_canReview || _isLoadingPendingItems) return;
+    _isLoadingPendingItems = true;
+    notifyListeners();
+    try {
+      await AppLogger.instance.info(
+        'OffsetAdjustment',
+        'Offset adjustment pending notification load started',
+        context: _pendingLogContext(),
+      );
+      final result = await _repository.fetchList(_pendingQuery(limit: 20));
+      _pendingItems
+        ..clear()
+        ..addAll(result.items);
+      _pendingTotal = result.total;
+      await AppLogger.instance.info(
+        'OffsetAdjustment',
+        'Offset adjustment pending notification load succeeded',
+        context: {
+          ..._pendingLogContext(),
+          'count': _pendingItems.length,
+          'total': _pendingTotal,
+        },
+      );
+    } catch (error) {
+      await AppLogger.instance.warn(
+        'OffsetAdjustment',
+        'Offset adjustment pending notification load failed',
+        context: {..._pendingLogContext(), 'error': error.toString()},
+      );
+    } finally {
+      _isLoadingPendingItems = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> exportCsv({String type = 'ALL'}) async {
+    if (_isExporting) return;
+    final exportType = type.trim().isEmpty ? 'ALL' : type.trim();
+    _isExporting = true;
+    _errorMessage = null;
+    _successMessage = null;
+    notifyListeners();
+    try {
+      await AppLogger.instance.info(
+        'OffsetAdjustment',
+        'Offset adjustment export started',
+        context: {..._logContext(), 'exportType': exportType},
+      );
+      final csvBytes = await _repository.exportCsv(
+        _query(page: 0, limit: 100, type: exportType),
+      );
+      final path = await FilePicker.saveFile(
+        dialogTitle: 'Lưu file cấn trừ',
+        fileName:
+            'opshub_can_tru_${_fileTypeToken(exportType)}_${_timestampForFile()}.csv',
+        type: FileType.custom,
+        allowedExtensions: const ['csv'],
+        bytes: _ensureUtf8BomForCsv(csvBytes),
+        lockParentWindow: true,
+      );
+      _successMessage = path == null ? 'Đã hủy lưu CSV.' : 'Đã export CSV.';
+      await AppLogger.instance.info(
+        'OffsetAdjustment',
+        'Offset adjustment export succeeded',
+        context: {
+          'exportType': exportType,
+          'saved': path != null,
+          'bytes': csvBytes.length,
+        },
+      );
+    } catch (error) {
+      _errorMessage = _messageFor(error, 'Export CSV thất bại.');
+      await AppLogger.instance.error(
+        'OffsetAdjustment',
+        'Offset adjustment export failed',
+        error: error,
+        context: {..._logContext(), 'exportType': exportType},
+      );
+    } finally {
+      _isExporting = false;
+      notifyListeners();
     }
   }
 
@@ -279,8 +372,8 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
       );
       final row = await call();
       _successMessage = switch (action) {
-        'create' => 'Đã gửi ACC xác nhận.',
-        'resubmit' => 'Đã gửi lại ACC xác nhận.',
+        'create' => 'Đã gửi Kế toán xác nhận.',
+        'resubmit' => 'Đã gửi lại Kế toán xác nhận.',
         'complete' => 'Đã hoàn thành hồ sơ cấn trừ.',
         'reject' => 'Đã từ chối hồ sơ cấn trừ.',
         _ => 'Đã cập nhật hồ sơ cấn trừ.',
@@ -310,19 +403,38 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     }
   }
 
-  OffsetAdjustmentQuery _query({int? page, int? limit, String? status}) {
-    final today = _today();
+  OffsetAdjustmentQuery _query({
+    int? page,
+    int? limit,
+    String? status,
+    String? type,
+  }) {
     return OffsetAdjustmentQuery(
       allStores: _allStores || (_canReview && _selectedStoreIds.isEmpty),
       storeIds: _selectedStoreIds.toList()..sort(),
-      type: _type,
+      type: type ?? _type,
       status: status ?? _status,
       order: _order,
       amount: _amount,
-      startDate: _startDate ?? today,
-      endDate: _endDate ?? today,
+      startDate: _startDate,
+      endDate: _endDate,
       page: page ?? _page,
       limit: limit ?? _limit,
+    );
+  }
+
+  OffsetAdjustmentQuery _pendingQuery({int limit = 20}) {
+    return OffsetAdjustmentQuery(
+      allStores: _canReview && (_allStores || _selectedStoreIds.isEmpty),
+      storeIds: _selectedStoreIds.toList()..sort(),
+      type: 'ALL',
+      status: OffsetAdjustmentStatus.pending,
+      order: null,
+      amount: null,
+      startDate: null,
+      endDate: null,
+      page: 0,
+      limit: limit,
     );
   }
 
@@ -410,6 +522,7 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
         ),
       );
       unawaited(loadPendingTotal());
+      if (_pendingItems.isNotEmpty) unawaited(loadPendingItems());
       if (_hasSearched) unawaited(search(page: _page));
     } catch (error, stackTrace) {
       unawaited(
@@ -431,9 +544,18 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     return null;
   }
 
-  DateTime _today() {
-    final now = _now();
-    return DateTime(now.year, now.month, now.day);
+  static Set<String> _assignedStoreIdsFor(User? user) {
+    final ids =
+        user?.assignedStoreIds
+            .map((value) => value.trim().toUpperCase())
+            .where((value) => value.isNotEmpty)
+            .toSet() ??
+        <String>{};
+    final legacyStoreId = user?.storeId?.trim().toUpperCase();
+    if (ids.isEmpty && legacyStoreId?.isNotEmpty == true) {
+      ids.add(legacyStoreId!);
+    }
+    return ids;
   }
 
   void _resetPaging() {
@@ -464,6 +586,26 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     };
   }
 
+  Map<String, Object?> _pendingLogContext() {
+    return {
+      'allStores': _canReview && (_allStores || _selectedStoreIds.isEmpty),
+      'storeCount': _selectedStoreIds.length,
+      'pendingTotal': _pendingTotal,
+    };
+  }
+
+  String _timestampForFile() {
+    final now = _now();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${now.year}${two(now.month)}${two(now.day)}_${two(now.hour)}${two(now.minute)}${two(now.second)}';
+  }
+
+  String _fileTypeToken(String type) {
+    final normalized = type.trim().toUpperCase();
+    if (normalized == 'ALL') return 'tat_ca';
+    return normalized.toLowerCase();
+  }
+
   void _closeRealtime() {
     final subscription = _realtimeSubscription;
     if (subscription != null) unawaited(subscription.cancel());
@@ -479,4 +621,15 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     _closeRealtime();
     super.dispose();
   }
+}
+
+Uint8List _ensureUtf8BomForCsv(Uint8List bytes) {
+  const bom = [0xef, 0xbb, 0xbf];
+  if (bytes.length >= bom.length &&
+      bytes[0] == bom[0] &&
+      bytes[1] == bom[1] &&
+      bytes[2] == bom[2]) {
+    return bytes;
+  }
+  return Uint8List.fromList([...bom, ...bytes]);
 }

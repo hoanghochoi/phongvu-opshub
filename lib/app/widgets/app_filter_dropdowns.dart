@@ -433,12 +433,24 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
                   controller: _startController,
                   label: 'Từ ngày',
                   dense: true,
+                  onPickDate: () => _pickDateFor(
+                    context,
+                    controller: _startController,
+                    fallback: widget.start ?? widget.end,
+                    setMenuState: setMenuState,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 AppDateTextField(
                   controller: _endController,
                   label: 'Đến ngày',
                   dense: true,
+                  onPickDate: () => _pickDateFor(
+                    context,
+                    controller: _endController,
+                    fallback: widget.end ?? widget.start,
+                    setMenuState: setMenuState,
+                  ),
                 ),
                 if (_errorText != null) ...[
                   const SizedBox(height: 8),
@@ -490,6 +502,28 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
     if (_startController.text != nextStart) _startController.text = nextStart;
     if (_endController.text != nextEnd) _endController.text = nextEnd;
   }
+
+  Future<void> _pickDateFor(
+    BuildContext context, {
+    required TextEditingController controller,
+    required void Function(VoidCallback fn) setMenuState,
+    DateTime? fallback,
+  }) async {
+    final typedDate = appParseDateInput(controller.text);
+    final now = _dateOnly(DateTime.now());
+    final initial = typedDate ?? fallback ?? now;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    setMenuState(() {
+      controller.text = appFormatDateInput(picked);
+      _errorText = null;
+    });
+  }
 }
 
 class _DatePresetTile extends StatelessWidget {
@@ -508,12 +542,14 @@ class AppDateTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
   final bool dense;
+  final VoidCallback? onPickDate;
 
   const AppDateTextField({
     super.key,
     required this.controller,
     required this.label,
     this.dense = false,
+    this.onPickDate,
   });
 
   @override
@@ -526,6 +562,13 @@ class AppDateTextField extends StatelessWidget {
         labelText: label,
         hintText: 'dd/mm/yyyy',
         isDense: dense,
+        suffixIcon: onPickDate == null
+            ? null
+            : IconButton(
+                tooltip: 'Chọn ngày',
+                icon: const Icon(Icons.calendar_today_rounded),
+                onPressed: onPickDate,
+              ),
       ),
     );
   }
