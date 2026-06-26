@@ -287,6 +287,9 @@ describe('AuthService', () => {
       email: 'staff@phongvu-shop.vn',
       firstName: 'An',
       storeId: 'CP01',
+      assignedStores: [
+        expect.objectContaining({ storeId: 'CP01', storeName: 'Chi nhanh 1' }),
+      ],
       role: 'ADMIN',
     });
     expect(jwtService.sign).toHaveBeenCalledWith({
@@ -510,6 +513,74 @@ describe('AuthService', () => {
       role: 'ADMIN',
       mustSelectStore: false,
     });
+  });
+
+  it('returns every active assigned store from org-tree assignments', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-12',
+      email: 'staging.user0012@phongvu.vn',
+      storeId: 'store-75',
+      firstName: 'Staging',
+      role: 'STAFF',
+      status: 'yes',
+      departmentCode: 'MANAGEMENT',
+      jobRoleCode: 'STORE_MANAGER',
+      workScopeType: 'STORE',
+      organizationNodeId: 'node-cp75',
+      organizationNode: { id: 'node-cp75', displayName: 'Quản lý CP75' },
+      store: { id: 'store-75', storeId: 'CP75', storeName: 'CP75' },
+      organizationAssignments: [
+        {
+          id: 'assignment-75',
+          organizationNodeId: 'node-cp75',
+          isPrimary: true,
+          isActive: true,
+          organizationNode: {
+            id: 'node-cp75',
+            displayName: 'Quản lý CP75',
+            type: 'POSITION',
+            stores: [
+              { id: 'store-75', storeId: 'CP75', storeName: 'CP75' },
+            ],
+          },
+        },
+        {
+          id: 'assignment-62',
+          organizationNodeId: 'node-cp62',
+          isPrimary: false,
+          isActive: true,
+          organizationNode: {
+            id: 'node-cp62',
+            displayName: 'Quản lý CP62',
+            type: 'POSITION',
+            stores: [
+              { id: 'store-62', storeId: 'CP62', storeName: 'CP62' },
+            ],
+          },
+        },
+      ],
+    });
+
+    const profile = await service.getUserData('staging.user0012@phongvu.vn');
+
+    expect(profile.storeId).toBe('CP75');
+    expect(profile.organizationNodeIds).toEqual(['node-cp75', 'node-cp62']);
+    expect(profile.assignedStores.map((store: any) => store.storeId)).toEqual([
+      'CP75',
+      'CP62',
+    ]);
+    expect(profile.organizationAssignments).toEqual([
+      expect.objectContaining({
+        organizationNodeId: 'node-cp75',
+        storeId: 'CP75',
+        isPrimary: true,
+      }),
+      expect.objectContaining({
+        organizationNodeId: 'node-cp62',
+        storeId: 'CP62',
+        isPrimary: false,
+      }),
+    ]);
   });
 
   it('returns organization access codes from the assigned org-tree ancestors', async () => {

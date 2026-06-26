@@ -125,6 +125,21 @@ void main() {
       provider.dispose();
     });
 
+    test(
+      'keeps every assigned showroom visible for multi-store users',
+      () async {
+        final repository = _FakeBankStatementRepository();
+        final provider = BankStatementProvider(repository);
+
+        await provider.initialize(_multiStoreScopedManager);
+
+        expect(provider.canUseAllStores, isFalse);
+        expect(provider.stores.map((store) => store.storeId), ['CP01', 'CP02']);
+
+        provider.dispose();
+      },
+    );
+
     test('keeps primary filters mutually exclusive', () async {
       final repository = _FakeBankStatementRepository();
       final provider = BankStatementProvider(repository);
@@ -507,6 +522,20 @@ const _storeScopedManager = User(
   role: 'MANAGER',
   storeId: 'CP01',
   workScopeType: 'STORE',
+  featureAccess: {'BANK_STATEMENTS': true},
+  policyAccess: {'BANK_STATEMENT_ALL_SCOPE': false},
+);
+
+const _multiStoreScopedManager = User(
+  id: 'manager-2',
+  email: 'manager2@phongvu.vn',
+  role: 'MANAGER',
+  storeId: 'CP01',
+  workScopeType: 'STORE',
+  assignedStores: [
+    StoreBranch(id: 'store-1', storeId: 'CP01', storeName: 'Showroom 1'),
+    StoreBranch(id: 'store-2', storeId: 'CP02', storeName: 'Showroom 2'),
+  ],
   featureAccess: {'BANK_STATEMENTS': true},
   policyAccess: {'BANK_STATEMENT_ALL_SCOPE': false},
 );

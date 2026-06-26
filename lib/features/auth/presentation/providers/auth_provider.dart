@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../domain/entities/store_branch.dart';
 import '../../domain/entities/user.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../../../core/network/api_client.dart';
@@ -35,6 +37,11 @@ class AuthProvider extends ChangeNotifier {
     'user_areaAbbreviation',
     'user_organizationNodeId',
     'user_organizationNodeName',
+    'user_organizationNodeIds',
+    'user_organizationAssignments',
+    'user_assignedStores',
+    'user_organizationAccessCodes',
+    'user_featureCodes',
     'user_personnelCode',
     'user_assignmentPending',
   ];
@@ -95,6 +102,26 @@ class AuthProvider extends ChangeNotifier {
       final organizationNodeName = prefs.getString(
         _sharedKey('user_organizationNodeName'),
       );
+      final organizationNodeIds = _readStringListPreference(
+        prefs,
+        'user_organizationNodeIds',
+      );
+      final organizationAssignments = _readJsonMapListPreference(
+        prefs,
+        'user_organizationAssignments',
+      );
+      final assignedStores = _readJsonMapListPreference(
+        prefs,
+        'user_assignedStores',
+      );
+      final organizationAccessCodes = _readStringListPreference(
+        prefs,
+        'user_organizationAccessCodes',
+      );
+      final featureCodes = _readStringListPreference(
+        prefs,
+        'user_featureCodes',
+      );
       final personnelCode = prefs.getString(_sharedKey('user_personnelCode'));
       final assignmentPending =
           prefs.getBool(_sharedKey('user_assignmentPending')) ??
@@ -102,35 +129,50 @@ class AuthProvider extends ChangeNotifier {
       final token = await _readSavedToken(prefs);
 
       if (email != null) {
-        _user = User(
-          email: email,
-          name: name,
-          lastName: lastName,
-          avatarUrl: avatarUrl,
-          storeId: storeId,
-          storeName: storeName,
-          role: role,
-          status: status,
-          departmentCode: departmentCode,
-          jobRoleCode: jobRoleCode,
-          workScopeType: workScopeType,
-          regionCode: regionCode,
-          regionName: regionName,
-          regionAbbreviation: regionAbbreviation,
-          areaCode: areaCode,
-          areaName: areaName,
-          areaAbbreviation: areaAbbreviation,
-          organizationNodeId: organizationNodeId,
-          organizationNodeName: organizationNodeName,
-          personnelCode: personnelCode,
-          assignmentPending: assignmentPending,
-          mustSelectStore: false,
+        _user = User.fromJson({
+          'email': email,
+          'name': name,
+          'lastName': lastName,
+          'avatarUrl': avatarUrl,
+          'storeId': storeId,
+          'storeName': storeName,
+          'role': role,
+          'status': status,
+          'departmentCode': departmentCode,
+          'jobRoleCode': jobRoleCode,
+          'workScopeType': workScopeType,
+          'regionCode': regionCode,
+          'regionName': regionName,
+          'regionAbbreviation': regionAbbreviation,
+          'areaCode': areaCode,
+          'areaName': areaName,
+          'areaAbbreviation': areaAbbreviation,
+          'organizationNodeId': organizationNodeId,
+          'organizationNodeName': organizationNodeName,
+          'organizationNodeIds': organizationNodeIds,
+          'organizationAssignments': organizationAssignments,
+          'assignedStores': assignedStores,
+          'organizationAccessCodes': organizationAccessCodes,
+          'featureCodes': featureCodes,
+          'personnelCode': personnelCode,
+          'assignmentPending': assignmentPending,
+          'mustSelectStore': false,
+        }, fallbackEmail: email);
+        await AppLogger.instance.info(
+          'Auth',
+          'Saved session cache loaded',
+          context: {
+            'email': email,
+            'assignedStoreCount': _user!.assignedStores.length,
+            'organizationAssignmentCount':
+                _user!.organizationAssignments.length,
+          },
         );
 
         // Restore JWT token to ApiClient for authenticated API calls
         if (token != null) {
           ApiClient().setAuthToken(token);
-          _user = await _withFeatureAccess(_user!, allowFallback: false);
+          _user = await _refreshSavedSessionUser(_user!);
           _queueDailyActivityLogUpload();
           await AppLogger.instance.info(
             'Auth',
@@ -138,6 +180,7 @@ class AuthProvider extends ChangeNotifier {
             context: {
               'email': email,
               'storageEnvironment': AppStorageKeys.environment,
+              'assignedStoreCount': _user?.assignedStores.length,
             },
           );
           if (kDebugMode) debugPrint('✅ [AuthProvider] Restored JWT token');
@@ -154,8 +197,15 @@ class AuthProvider extends ChangeNotifier {
 
         if (kDebugMode) debugPrint('✅ [AuthProvider] Loaded session: $email');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (kDebugMode) debugPrint('❌ [AuthProvider] Error loading session: $e');
+      await AppLogger.instance.error(
+        'Auth',
+        'Saved session load failed',
+        error: e,
+        stackTrace: stackTrace,
+        context: {'storageEnvironment': AppStorageKeys.environment},
+      );
     } finally {
       _isInitialized = true;
       notifyListeners();
@@ -230,6 +280,33 @@ class AuthProvider extends ChangeNotifier {
         prefs,
         'user_organizationNodeName',
         user.organizationNodeName,
+      );
+      await _saveStringListPreference(
+        prefs,
+        'user_organizationNodeIds',
+        user.organizationNodeIds,
+      );
+      await _saveJsonListPreference(
+        prefs,
+        'user_organizationAssignments',
+        user.organizationAssignments
+            .map(_organizationAssignmentToJson)
+            .toList(growable: false),
+      );
+      await _saveJsonListPreference(
+        prefs,
+        'user_assignedStores',
+        user.assignedStores.map(_storeBranchToJson).toList(growable: false),
+      );
+      await _saveStringListPreference(
+        prefs,
+        'user_organizationAccessCodes',
+        user.organizationAccessCodes,
+      );
+      await _saveStringListPreference(
+        prefs,
+        'user_featureCodes',
+        user.featureCodes,
       );
       await _saveOptionalString(
         prefs,
@@ -326,6 +403,101 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  List<String> _readStringListPreference(SharedPreferences prefs, String key) {
+    final raw = prefs.getString(_sharedKey(key));
+    if (raw == null || raw.trim().isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return decoded
+          .map((value) => value?.toString().trim() ?? '')
+          .where((value) => value.isNotEmpty)
+          .toList(growable: false);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('⚠️ [AuthProvider] Invalid saved string list $key: $e');
+      }
+      return const [];
+    }
+  }
+
+  List<Map<String, dynamic>> _readJsonMapListPreference(
+    SharedPreferences prefs,
+    String key,
+  ) {
+    final raw = prefs.getString(_sharedKey(key));
+    if (raw == null || raw.trim().isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map>()
+          .map((value) => Map<String, dynamic>.from(value))
+          .toList(growable: false);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('⚠️ [AuthProvider] Invalid saved JSON list $key: $e');
+      }
+      return const [];
+    }
+  }
+
+  Future<void> _saveStringListPreference(
+    SharedPreferences prefs,
+    String key,
+    List<String> values,
+  ) async {
+    final normalized = values
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
+    if (normalized.isEmpty) {
+      await prefs.remove(_sharedKey(key));
+      return;
+    }
+    await prefs.setString(_sharedKey(key), jsonEncode(normalized));
+  }
+
+  Future<void> _saveJsonListPreference(
+    SharedPreferences prefs,
+    String key,
+    List<Map<String, dynamic>> values,
+  ) async {
+    if (values.isEmpty) {
+      await prefs.remove(_sharedKey(key));
+      return;
+    }
+    await prefs.setString(_sharedKey(key), jsonEncode(values));
+  }
+
+  Map<String, dynamic> _organizationAssignmentToJson(
+    UserOrganizationAssignment assignment,
+  ) {
+    return {
+      'id': assignment.id,
+      'organizationNodeId': assignment.organizationNodeId,
+      'organizationNodeName': assignment.organizationNodeName,
+      'organizationNodeType': assignment.organizationNodeType,
+      'storeId': assignment.storeId,
+      'storeName': assignment.storeName,
+      'isPrimary': assignment.isPrimary,
+    };
+  }
+
+  Map<String, dynamic> _storeBranchToJson(StoreBranch store) {
+    return {
+      'id': store.id,
+      'storeId': store.storeId,
+      'storeName': store.storeName,
+      'areaCode': store.areaCode,
+      'areaName': store.areaName,
+      'areaAbbreviation': store.areaAbbreviation,
+      'regionCode': store.regionCode,
+      'regionName': store.regionName,
+      'regionAbbreviation': store.regionAbbreviation,
+    };
+  }
+
   Future<String?> _readSavedToken(SharedPreferences prefs) async {
     final secureToken = await _secureStorage.read(
       key: _secureKey(_jwtTokenKey),
@@ -341,6 +513,49 @@ class AuthProvider extends ChangeNotifier {
       await prefs.remove(_sharedKey(_jwtTokenKey));
     }
     return sharedToken;
+  }
+
+  Future<User> _refreshSavedSessionUser(User cachedUser) async {
+    var current = cachedUser;
+    await AppLogger.instance.info(
+      'Auth',
+      'Saved session profile refresh started',
+      context: {
+        'email': cachedUser.email,
+        'cachedAssignedStoreCount': cachedUser.assignedStores.length,
+      },
+    );
+    try {
+      current = await _repository.getUserData(cachedUser.email);
+      await AppLogger.instance.info(
+        'Auth',
+        'Saved session profile refresh succeeded',
+        context: {
+          'email': current.email,
+          'assignedStoreCount': current.assignedStores.length,
+          'organizationAssignmentCount': current.organizationAssignments.length,
+        },
+      );
+    } on ApiException catch (e) {
+      if (e.statusCode == 401) {
+        await _handleRemoteAuthFailure(e);
+        rethrow;
+      }
+      await AppLogger.instance.warn(
+        'Auth',
+        'Saved session profile refresh failed; using cached scope',
+        context: {'email': cachedUser.email, 'message': e.message},
+      );
+    } catch (e) {
+      await AppLogger.instance.warn(
+        'Auth',
+        'Saved session profile refresh crashed; using cached scope',
+        context: {'email': cachedUser.email, 'error': e.toString()},
+      );
+    }
+    final withAccess = await _withFeatureAccess(current, allowFallback: false);
+    await _saveSession(withAccess);
+    return withAccess;
   }
 
   void _queueDailyActivityLogUpload() {
@@ -428,6 +643,7 @@ class AuthProvider extends ChangeNotifier {
           'email': user.email,
           'role': user.role,
           'storeId': user.storeId,
+          'assignedStoreCount': user.assignedStores.length,
         },
       );
       _queueDailyActivityLogUpload();

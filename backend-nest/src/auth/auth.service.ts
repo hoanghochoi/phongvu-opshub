@@ -7,6 +7,7 @@
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './auth.dto';
 import { EmailVerificationService } from './email-verification.service';
@@ -28,6 +29,11 @@ import {
   SYSTEM_ROLE_SUPER_ADMIN,
   normalizeSystemRoleCode,
 } from '../common/system-role';
+import {
+  firstStoreForOrganizationNodeTree,
+  organizationNodeStoreTreeInclude,
+  storesForOrganizationNodeTree,
+} from '../common/organization-store-scope';
 
 const PASSWORD_SALT_ROUNDS = 12;
 const STORE_SCOPE = 'STORE';
@@ -246,34 +252,43 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('User not found');
 
     const role = this.normalizeRoleForOutput(user.role);
-    const organizationAccessCodes = await this.organizationAccessCodesFor(user);
+    const organizationProfile = this.organizationProfileFor(user);
+    const scopedUser = this.userWithOrganizationProfile(
+      user,
+      organizationProfile,
+    );
+    const organizationAccessCodes =
+      await this.organizationAccessCodesFor(scopedUser);
 
     return {
       name: user.firstName,
       firstName: user.firstName,
       lastName: user.lastName,
       avatarUrl: user.avatarUrl,
-      storeId: user.store?.storeId ?? null,
-      storeName: user.store?.storeName ?? null,
+      storeId: organizationProfile.storeId,
+      storeName: organizationProfile.storeName,
       role,
       status: user.status,
       departmentCode: user.departmentCode ?? null,
       jobRoleCode: user.jobRoleCode ?? null,
-      workScopeType: this.effectiveWorkScope(user),
-      regionCode: this.regionForUser(user)?.code ?? null,
-      regionName: this.regionForUser(user)?.displayName ?? null,
-      regionAbbreviation: this.regionForUser(user)?.abbreviation ?? null,
-      areaCode: this.areaForUser(user)?.code ?? null,
-      areaName: this.areaForUser(user)?.displayName ?? null,
-      areaAbbreviation: this.areaForUser(user)?.abbreviation ?? null,
-      organizationNodeId: user.organizationNodeId ?? null,
-      organizationNodeName: user.organizationNode?.displayName ?? null,
+      workScopeType: this.effectiveWorkScope(scopedUser),
+      regionCode: this.regionForUser(scopedUser)?.code ?? null,
+      regionName: this.regionForUser(scopedUser)?.displayName ?? null,
+      regionAbbreviation: this.regionForUser(scopedUser)?.abbreviation ?? null,
+      areaCode: this.areaForUser(scopedUser)?.code ?? null,
+      areaName: this.areaForUser(scopedUser)?.displayName ?? null,
+      areaAbbreviation: this.areaForUser(scopedUser)?.abbreviation ?? null,
+      organizationNodeId: organizationProfile.organizationNodeId,
+      organizationNodeName: organizationProfile.organizationNodeName,
+      organizationAssignments: organizationProfile.organizationAssignments,
+      organizationNodeIds: organizationProfile.organizationNodeIds,
+      assignedStores: organizationProfile.assignedStores,
       organizationAccessCodes,
-      personnelCode: this.personnelCodeFor(user),
+      personnelCode: this.personnelCodeFor(scopedUser),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
-      assignmentPending: this.assignmentPending(user),
-      mustSelectStore: this.mustSelectStore(user),
+      assignmentPending: this.assignmentPending(scopedUser),
+      mustSelectStore: this.mustSelectStore(scopedUser),
     };
   }
 
@@ -311,6 +326,18 @@ export class AuthService {
       region: true,
       area: { include: { region: true } },
       organizationNode: true,
+      organizationAssignments: {
+        where: { isActive: true },
+        orderBy: [
+          { isPrimary: Prisma.SortOrder.desc },
+          { createdAt: Prisma.SortOrder.asc },
+        ],
+        include: {
+          organizationNode: {
+            include: organizationNodeStoreTreeInclude(),
+          },
+        },
+      },
     };
   }
 
@@ -345,15 +372,21 @@ export class AuthService {
     session: AuthSessionClaims,
   ) {
     const role = this.normalizeRoleForOutput(user.role);
-    const organizationAccessCodes = await this.organizationAccessCodesFor(user);
+    const organizationProfile = this.organizationProfileFor(user);
+    const scopedUser = this.userWithOrganizationProfile(
+      user,
+      organizationProfile,
+    );
+    const organizationAccessCodes =
+      await this.organizationAccessCodesFor(scopedUser);
     const jwtPayload = {
       email: user.email,
       sub: user.id,
       role,
-      storeUuid: user.storeId ?? null,
-      storeCode: user.store?.storeId ?? null,
+      storeUuid: scopedUser.storeId ?? null,
+      storeCode: scopedUser.store?.storeId ?? null,
       departmentCode: user.departmentCode ?? null,
-      organizationNodeId: user.organizationNodeId ?? null,
+      organizationNodeId: organizationProfile.organizationNodeId,
       organizationAccessCodes,
       tokenVersion: user.tokenVersion ?? 0,
       sessionId: session.sessionId,
@@ -368,27 +401,127 @@ export class AuthService {
       firstName: user.firstName,
       lastName: user.lastName,
       avatarUrl: user.avatarUrl,
-      storeId: user.store?.storeId ?? null,
-      storeName: user.store?.storeName ?? null,
+      storeId: organizationProfile.storeId,
+      storeName: organizationProfile.storeName,
       role,
       status: user.status,
       departmentCode: user.departmentCode ?? null,
       jobRoleCode: user.jobRoleCode ?? null,
-      workScopeType: this.effectiveWorkScope(user),
-      regionCode: this.regionForUser(user)?.code ?? null,
-      regionName: this.regionForUser(user)?.displayName ?? null,
-      regionAbbreviation: this.regionForUser(user)?.abbreviation ?? null,
-      areaCode: this.areaForUser(user)?.code ?? null,
-      areaName: this.areaForUser(user)?.displayName ?? null,
-      areaAbbreviation: this.areaForUser(user)?.abbreviation ?? null,
-      organizationNodeId: user.organizationNodeId ?? null,
-      organizationNodeName: user.organizationNode?.displayName ?? null,
+      workScopeType: this.effectiveWorkScope(scopedUser),
+      regionCode: this.regionForUser(scopedUser)?.code ?? null,
+      regionName: this.regionForUser(scopedUser)?.displayName ?? null,
+      regionAbbreviation: this.regionForUser(scopedUser)?.abbreviation ?? null,
+      areaCode: this.areaForUser(scopedUser)?.code ?? null,
+      areaName: this.areaForUser(scopedUser)?.displayName ?? null,
+      areaAbbreviation: this.areaForUser(scopedUser)?.abbreviation ?? null,
+      organizationNodeId: organizationProfile.organizationNodeId,
+      organizationNodeName: organizationProfile.organizationNodeName,
+      organizationAssignments: organizationProfile.organizationAssignments,
+      organizationNodeIds: organizationProfile.organizationNodeIds,
+      assignedStores: organizationProfile.assignedStores,
       organizationAccessCodes,
-      personnelCode: this.personnelCodeFor(user),
+      personnelCode: this.personnelCodeFor(scopedUser),
       profileCompletedAt: user.profileCompletedAt,
       branchLockedAt: user.branchLockedAt,
-      assignmentPending: this.assignmentPending(user),
-      mustSelectStore: this.mustSelectStore(user),
+      assignmentPending: this.assignmentPending(scopedUser),
+      mustSelectStore: this.mustSelectStore(scopedUser),
+    };
+  }
+
+  private organizationProfileFor(user: any) {
+    const activeAssignments = Array.isArray(user?.organizationAssignments)
+      ? user.organizationAssignments.filter(
+          (assignment: any) => assignment?.isActive !== false,
+        )
+      : [];
+    const primaryAssignment =
+      activeAssignments.find((assignment: any) => assignment?.isPrimary) ??
+      activeAssignments[0] ??
+      null;
+    const primaryAssignmentNode = primaryAssignment?.organizationNode ?? null;
+    const primaryAssignmentStore =
+      firstStoreForOrganizationNodeTree(primaryAssignmentNode) ??
+      user?.store ??
+      null;
+    const effectiveOrganizationNode =
+      primaryAssignmentNode ??
+      user?.organizationNode ??
+      user?.store?.organizationNode ??
+      null;
+    const effectiveOrganizationNodeId =
+      primaryAssignment?.organizationNodeId ??
+      user?.organizationNodeId ??
+      effectiveOrganizationNode?.id ??
+      user?.store?.organizationNodeId ??
+      null;
+
+    const assignedStoresByCode = new Map<string, any>();
+    const pushStore = (store?: any | null) => {
+      const code = String(store?.storeId || '')
+        .trim()
+        .toUpperCase();
+      if (code && !assignedStoresByCode.has(code)) {
+        assignedStoresByCode.set(code, store);
+      }
+    };
+    for (const assignment of activeAssignments) {
+      for (const store of storesForOrganizationNodeTree(
+        assignment?.organizationNode,
+      )) {
+        pushStore(store);
+      }
+    }
+    pushStore(primaryAssignmentStore);
+
+    const assignedStores = Array.from(assignedStoresByCode.values()).map(
+      (store) => ({
+        id: store.id ?? null,
+        storeId: store.storeId ?? null,
+        storeName: store.storeName ?? null,
+        organizationNodeId: store.organizationNodeId ?? null,
+      }),
+    );
+    const organizationAssignments = activeAssignments.map((assignment: any) => {
+      const node = assignment?.organizationNode ?? null;
+      const store = firstStoreForOrganizationNodeTree(node);
+      return {
+        id: assignment.id,
+        organizationNodeId: assignment.organizationNodeId,
+        organizationNodeName: node?.displayName ?? null,
+        organizationNodeType: node?.type ?? null,
+        storeId: store?.storeId ?? null,
+        storeName: store?.storeName ?? null,
+        isPrimary: assignment.isPrimary === true,
+      };
+    });
+
+    return {
+      primaryStore: primaryAssignmentStore,
+      organizationNode: effectiveOrganizationNode,
+      storeId: primaryAssignmentStore?.storeId ?? null,
+      storeName: primaryAssignmentStore?.storeName ?? null,
+      organizationNodeId: effectiveOrganizationNodeId,
+      organizationNodeName: effectiveOrganizationNode?.displayName ?? null,
+      organizationAssignments,
+      organizationNodeIds: organizationAssignments.map(
+        (assignment: { organizationNodeId: string }) =>
+          assignment.organizationNodeId,
+      ),
+      assignedStores,
+    };
+  }
+
+  private userWithOrganizationProfile(
+    user: any,
+    profile: ReturnType<AuthService['organizationProfileFor']>,
+  ) {
+    const primaryStore = profile.primaryStore ?? user?.store ?? null;
+    return {
+      ...user,
+      organizationNodeId: profile.organizationNodeId,
+      organizationNode: profile.organizationNode ?? user?.organizationNode,
+      storeId: primaryStore?.id ?? user?.storeId ?? null,
+      store: primaryStore,
     };
   }
 
