@@ -216,10 +216,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.store_outlined),
-              title: Text(user?.storeInfo ?? ''),
-              subtitle: const Text(
-                'Chi nhánh đã chọn sẽ không tự thay đổi được',
-              ),
+              title: Text(user?.assignedStoreDetails ?? ''),
+              subtitle: const Text('SR được gán'),
             ),
             const SizedBox(height: AppLayoutTokens.formSectionGap),
             AppActionRow(

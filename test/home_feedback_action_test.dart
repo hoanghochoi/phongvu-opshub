@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phongvu_opshub/app/widgets/app_feature_grid.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
+import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provider.dart';
 import 'package:phongvu_opshub/features/home/presentation/screens/home_screen.dart';
@@ -64,6 +65,41 @@ void main() {
     );
     expect(titles.last, 'Góp ý');
     expect(titles.where((title) => title == 'Góp ý'), hasLength(1));
+  });
+
+  testWidgets('Home header shows all assigned SR codes', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+      appName: 'PhongVu OpsHub',
+      packageName: 'com.example.phongvu_opshub',
+      version: '1.1.1',
+      buildNumber: '2',
+      buildSignature: '',
+    );
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'user-1',
+        email: 'staff@phongvu.vn',
+        name: 'Staging',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp75',
+        assignedStores: [
+          StoreBranch(id: 'store-75', storeId: 'CP75', storeName: 'CP75'),
+          StoreBranch(id: 'store-62', storeId: 'CP62', storeName: 'CP62'),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 SR: CP75, CP62'), findsOneWidget);
   });
 
   testWidgets('Android Home shows Tiền vào but hides speaker quick toggle', (

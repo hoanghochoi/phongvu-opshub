@@ -1515,6 +1515,71 @@ describe('UserService admin store management', () => {
     );
   });
 
+  it('derives assigned SRs from descendant showroom nodes for region assignments', () => {
+    const cp75Store = {
+      ...store,
+      id: 'store-75',
+      storeId: 'CP75',
+      storeName: 'CP75',
+      organizationNodeId: 'org-store-cp75',
+    };
+    const dto = (service as any).toUserDto({
+      id: 'user-region',
+      email: 'region@phongvu.vn',
+      firstName: 'Region',
+      lastName: null,
+      role: 'STAFF',
+      status: 'yes',
+      departmentCode: 'SALES',
+      jobRoleCode: 'REGION_MANAGER',
+      workScopeType: 'REGION',
+      store: null,
+      organizationAssignments: [
+        {
+          id: 'assign-region',
+          organizationNodeId: 'org-region-hcm',
+          isPrimary: true,
+          organizationNode: {
+            id: 'org-region-hcm',
+            displayName: 'Miền Nam',
+            type: 'REGION',
+            stores: [],
+            children: [
+              {
+                id: 'org-store-cp62',
+                displayName: 'CP62',
+                type: 'STORE',
+                stores: [store],
+                children: [],
+              },
+              {
+                id: 'org-store-cp75',
+                displayName: 'CP75',
+                type: 'STORE',
+                stores: [cp75Store],
+                children: [],
+              },
+            ],
+          },
+        },
+      ],
+      userFeatureAssignments: [],
+    });
+
+    expect(dto.assignedStores.map((item: any) => item.storeId)).toEqual([
+      'CP62',
+      'CP75',
+    ]);
+    expect(dto.storeId).toBe('CP62');
+    expect(dto.organizationAssignments).toEqual([
+      expect.objectContaining({
+        organizationNodeId: 'org-region-hcm',
+        organizationNodeType: 'REGION',
+        storeId: 'CP62',
+      }),
+    ]);
+  });
+
   it('counts region and area users through STORE-scope SR assignments', async () => {
     prisma.user.count.mockResolvedValueOnce(7).mockResolvedValueOnce(4);
 

@@ -151,7 +151,9 @@ class User {
     final organizationAssignments = _assignmentListFromJson(
       json['organizationAssignments'],
     );
-    final organizationNodeIds = _stringListFromJson(json['organizationNodeIds']);
+    final organizationNodeIds = _stringListFromJson(
+      json['organizationNodeIds'],
+    );
     return User(
       id: json['id']?.toString(),
       email: json['email']?.toString() ?? fallbackEmail ?? '',
@@ -221,6 +223,40 @@ class User {
       .map((store) => store.storeId)
       .where((storeId) => storeId.isNotEmpty)
       .toList(growable: false);
+
+  List<String> get assignedStoreDisplayNames {
+    final seenStoreIds = <String>{};
+    return assignedStores
+        .where((store) {
+          final storeId = store.storeId.trim().toUpperCase();
+          if (storeId.isEmpty || seenStoreIds.contains(storeId)) return false;
+          seenStoreIds.add(storeId);
+          return true;
+        })
+        .map((store) {
+          final storeId = store.storeId.trim();
+          final storeName = store.storeName.trim();
+          if (storeName.isEmpty) return storeId;
+          return '$storeId - $storeName';
+        })
+        .toList(growable: false);
+  }
+
+  String get assignedStoreDetails {
+    final displayNames = assignedStoreDisplayNames;
+    if (displayNames.isEmpty) return storeInfo;
+    return displayNames.join('\n');
+  }
+
+  String get assignedStoreHeaderInfo {
+    final storeIds = assignedStoreIds;
+    if (storeIds.length > 1) {
+      return '${storeIds.length} SR: ${storeIds.join(', ')}';
+    }
+    final displayNames = assignedStoreDisplayNames;
+    if (displayNames.isNotEmpty) return displayNames.first;
+    return storeInfo;
+  }
 
   bool get belongsToCp62 {
     final values = [

@@ -398,14 +398,7 @@ class _FilterPanel extends StatelessWidget {
                 ),
                 SizedBox(
                   width: fieldWidth,
-                  height: 56,
-                  child: ElevatedButton.icon(
-                    onPressed: provider.isLoading
-                        ? null
-                        : () => provider.search(),
-                    icon: const Icon(Icons.search_rounded),
-                    label: const Text('Tìm'),
-                  ),
+                  child: _FilterActions(provider: provider),
                 ),
               ],
             );
@@ -519,6 +512,42 @@ class _FilterPanel extends StatelessWidget {
   }
 }
 
+class _FilterActions extends StatelessWidget {
+  final OffsetAdjustmentProvider provider;
+
+  const _FilterActions({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            SizedBox(
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: provider.isLoading ? null : provider.search,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Tìm'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(112, 56),
+                  padding: const EdgeInsets.symmetric(horizontal: 26),
+                ),
+              ),
+            ),
+            SizedBox(height: 56, child: _ExportMenuButton(provider: provider)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ListToolbar extends StatelessWidget {
   final OffsetAdjustmentProvider provider;
 
@@ -539,7 +568,6 @@ class _ListToolbar extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ),
-        _ExportMenuButton(provider: provider),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [

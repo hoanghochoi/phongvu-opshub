@@ -74,6 +74,12 @@ visual systems that make the app feel assembled from unrelated screens.
 - Filter panels must keep actions close to the control: apply, clear, and
   close behavior should be visible in the dropdown instead of requiring a modal
   workflow.
+- Filter-panel action buttons such as `Tìm`, `Xóa filter`, and `Xuất file`
+  should stay compact and visually grouped with the filters they apply to.
+  On desktop, do not let a search button stretch across a full filter column
+  when a compact button would be easier to scan. If export uses the current
+  filters, place `Xuất file` next to `Tìm` instead of separating it into a
+  lower list toolbar.
 - Dialogs are reserved for confirmations, detail views, and large editors. If a
   UI only narrows or sorts a list, it is a filter and must stay dropdown-based.
 
@@ -114,6 +120,10 @@ visual systems that make the app feel assembled from unrelated screens.
 - Button labels must be short verbs or verb phrases: `Tìm`, `Lưu`, `Thử lại`,
   `Về trang chủ`, `Mở Cài đặt`, `Export CSV`. Avoid vague labels such as `OK`
   when a specific action is available.
+- Detail and history dialog titles must name the current product entity, not a
+  reused source entity. For example, a bank-statement history dialog should say
+  `Lịch sử sao kê` and use the statement/reference number shown in `Sao kê`,
+  not `Lịch sử đơn hàng` with an order code.
 - Production formats must be consistent: money as `1.250.000 VND`, date/time as
   `HH:mm:ss dd/MM/yyyy`, and counts with units such as `20 dòng`, `3 ảnh`, or
   `56 giao dịch`.

@@ -7,8 +7,10 @@ type StoreLike = {
 };
 
 type OrganizationNodeStoreTree = {
+  id?: string | null;
   stores?: StoreLike[] | null;
   parent?: OrganizationNodeStoreTree | null | unknown;
+  children?: OrganizationNodeStoreTree[] | null | unknown;
   [key: string]: unknown;
 };
 
@@ -18,35 +20,93 @@ export function organizationNodeStoreTreeInclude(
   const includeStores = {
     orderBy: { storeId: Prisma.SortOrder.asc },
   };
-  const build = (remainingDepth: number): Prisma.OrganizationNodeInclude => ({
+  const parentBranch = (
+    remainingDepth: number,
+  ): Prisma.OrganizationNodeInclude => ({
     stores: includeStores,
     ...(remainingDepth > 0
       ? {
           parent: {
-            include: build(remainingDepth - 1),
+            include: parentBranch(remainingDepth - 1),
           },
         }
       : {}),
   });
-  return build(depth);
+  const childBranch = (
+    remainingDepth: number,
+  ): Prisma.OrganizationNodeInclude => ({
+    stores: includeStores,
+    ...(remainingDepth > 0
+      ? {
+          children: {
+            orderBy: { sortOrder: Prisma.SortOrder.asc },
+            include: childBranch(remainingDepth - 1),
+          },
+        }
+      : {}),
+  });
+  return {
+    stores: includeStores,
+    ...(depth > 0
+      ? {
+          parent: {
+            include: parentBranch(depth - 1),
+          },
+          children: {
+            orderBy: { sortOrder: Prisma.SortOrder.asc },
+            include: childBranch(depth - 1),
+          },
+        }
+      : {}),
+  };
 }
 
 export function storesForOrganizationNodeTree<
   TStore extends StoreLike = StoreLike,
 >(node?: unknown) {
   const storesByCode = new Map<string, TStore>();
-  let cursor: OrganizationNodeStoreTree | null =
+  const root: OrganizationNodeStoreTree | null =
     node && typeof node === 'object'
       ? (node as OrganizationNodeStoreTree)
       : null;
+  const pushStore = (store?: StoreLike | null) => {
+    const code = String(store?.storeId || '')
+      .trim()
+      .toUpperCase();
+    if (code && !storesByCode.has(code)) {
+      storesByCode.set(code, store as TStore);
+    }
+  };
+  const visited = new Set<unknown>();
+  const visitKey = (current: OrganizationNodeStoreTree, fallback: string) =>
+    current.id ?? fallback;
+  const collectDescendantStores = (
+    current: OrganizationNodeStoreTree | null,
+    path: string,
+    depth: number,
+  ) => {
+    if (!current || depth > 20) return;
+    const key = visitKey(current, path);
+    if (visited.has(key)) return;
+    visited.add(key);
+    for (const store of current.stores ?? []) {
+      pushStore(store);
+    }
+    const children = Array.isArray(current.children) ? current.children : [];
+    children.forEach((child, index) => {
+      collectDescendantStores(child, `${path}.${index}`, depth + 1);
+    });
+  };
+
+  collectDescendantStores(root, 'root', 0);
+
+  let cursor: OrganizationNodeStoreTree | null =
+    root?.parent && typeof root.parent === 'object'
+      ? (root.parent as OrganizationNodeStoreTree)
+      : null;
   for (let guard = 0; cursor && guard < 20; guard += 1) {
     for (const store of cursor.stores ?? []) {
-      const code = String(store?.storeId || '')
-        .trim()
-        .toUpperCase();
-      if (code && !storesByCode.has(code)) {
-        storesByCode.set(code, store as TStore);
-      }
+      pushStore(store);
     }
     cursor =
       cursor.parent && typeof cursor.parent === 'object'

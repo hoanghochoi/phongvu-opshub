@@ -539,9 +539,7 @@ describe('AuthService', () => {
             id: 'node-cp75',
             displayName: 'Quản lý CP75',
             type: 'POSITION',
-            stores: [
-              { id: 'store-75', storeId: 'CP75', storeName: 'CP75' },
-            ],
+            stores: [{ id: 'store-75', storeId: 'CP75', storeName: 'CP75' }],
           },
         },
         {
@@ -553,9 +551,7 @@ describe('AuthService', () => {
             id: 'node-cp62',
             displayName: 'Quản lý CP62',
             type: 'POSITION',
-            stores: [
-              { id: 'store-62', storeId: 'CP62', storeName: 'CP62' },
-            ],
+            stores: [{ id: 'store-62', storeId: 'CP62', storeName: 'CP62' }],
           },
         },
       ],
@@ -579,6 +575,73 @@ describe('AuthService', () => {
         organizationNodeId: 'node-cp62',
         storeId: 'CP62',
         isPrimary: false,
+      }),
+    ]);
+  });
+
+  it('returns descendant showroom stores for a region org-tree assignment', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-region',
+      email: 'region.manager@phongvu.vn',
+      storeId: null,
+      firstName: 'Region',
+      role: 'STAFF',
+      status: 'yes',
+      departmentCode: 'MANAGEMENT',
+      jobRoleCode: 'REGION_MANAGER',
+      workScopeType: 'REGION',
+      organizationNodeId: 'node-region-hcm',
+      organizationNode: { id: 'node-region-hcm', displayName: 'Miền Nam' },
+      store: null,
+      organizationAssignments: [
+        {
+          id: 'assignment-region',
+          organizationNodeId: 'node-region-hcm',
+          isPrimary: true,
+          isActive: true,
+          organizationNode: {
+            id: 'node-region-hcm',
+            displayName: 'Miền Nam',
+            type: 'REGION',
+            stores: [],
+            children: [
+              {
+                id: 'node-cp75',
+                displayName: 'CP75',
+                type: 'STORE',
+                stores: [
+                  { id: 'store-75', storeId: 'CP75', storeName: 'CP75' },
+                ],
+                children: [],
+              },
+              {
+                id: 'node-cp62',
+                displayName: 'CP62',
+                type: 'STORE',
+                stores: [
+                  { id: 'store-62', storeId: 'CP62', storeName: 'CP62' },
+                ],
+                children: [],
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const profile = await service.getUserData('region.manager@phongvu.vn');
+
+    expect(profile.assignedStores.map((store: any) => store.storeId)).toEqual([
+      'CP75',
+      'CP62',
+    ]);
+    expect(profile.storeId).toBe('CP75');
+    expect(profile.organizationAssignments).toEqual([
+      expect.objectContaining({
+        organizationNodeId: 'node-region-hcm',
+        organizationNodeType: 'REGION',
+        storeId: 'CP75',
+        isPrimary: true,
       }),
     ]);
   });

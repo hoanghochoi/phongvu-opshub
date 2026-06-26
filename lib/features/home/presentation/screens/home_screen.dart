@@ -103,7 +103,9 @@ class _HomeScreenState extends State<HomeScreen> {
               >(
                 selector: (_, auth) => (
                   userName: auth.user?.name ?? auth.user?.email ?? '',
-                  storeInfo: auth.user?.storeInfo ?? 'Chưa chọn showroom',
+                  storeInfo:
+                      auth.user?.assignedStoreHeaderInfo ??
+                      'Chưa có SR được gán',
                   avatarUrl: auth.user?.avatarUrl,
                 ),
                 builder: (context, data, _) {
@@ -748,7 +750,7 @@ class _CompactHomeHeader extends StatelessWidget {
                         Expanded(
                           child: Text(
                             storeInfo,
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Colors.white70,
