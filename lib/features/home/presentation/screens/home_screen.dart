@@ -565,27 +565,31 @@ class _PaymentMonitorQuickToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final monitor = context.watch<PaymentMonitorProvider>();
-    final canToggle = monitor.canMonitorOnThisDevice && monitor.hasMonitorScope;
+    final canToggle = monitor.canUsePaymentSpeaker;
     final speakerEnabled = monitor.isSpeakerEnabled;
-    final statusText = monitor.isActive
-        ? speakerEnabled
-              ? 'Đang cập nhật, có đọc loa'
-              : 'Đang cập nhật, đã tắt loa'
-        : canToggle
-        ? 'Đang chuẩn bị cập nhật'
-        : 'Chọn showroom để dùng';
+    final speakerActive = canToggle && speakerEnabled;
+    final speakerSelectionNotice = monitor.speakerSelectionNotice;
+    final statusText =
+        speakerSelectionNotice ??
+        (monitor.isActive
+            ? speakerActive
+                  ? 'Đang cập nhật, có đọc loa'
+                  : 'Đang cập nhật, đã tắt loa'
+            : canToggle
+            ? 'Đang chuẩn bị cập nhật'
+            : 'Chọn showroom để dùng');
 
     return Card(
       child: SwitchListTile.adaptive(
-        value: speakerEnabled && canToggle,
+        value: speakerActive,
         onChanged: canToggle
             ? (value) => context
                   .read<PaymentMonitorProvider>()
                   .setSpeakerEnabled(value)
             : null,
         secondary: Icon(
-          speakerEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-          color: speakerEnabled ? AppColors.success : AppColors.neutral500,
+          speakerActive ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+          color: speakerActive ? AppColors.success : AppColors.neutral500,
         ),
         title: const Text(
           'Đọc loa tiền vào',

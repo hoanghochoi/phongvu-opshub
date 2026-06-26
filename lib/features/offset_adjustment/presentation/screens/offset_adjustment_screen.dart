@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_theme.dart';
+import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_layout.dart';
@@ -364,10 +366,10 @@ class _FilterPanel extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            const gap = 12.0;
+            const gap = AppLayoutTokens.formInlineGap;
             final columns = constraints.maxWidth >= 1040
                 ? 4
                 : constraints.maxWidth >= _breakpoint
@@ -411,7 +413,7 @@ class _FilterPanel extends StatelessWidget {
   Widget _storeFilter() {
     if (!provider.canReview && provider.stores.length <= 1) {
       return InputDecorator(
-        decoration: const InputDecoration(labelText: 'SR'),
+        decoration: _filterDecoration('SR', Icons.storefront_outlined),
         child: Text(
           provider.stores.isEmpty
               ? 'Chưa có SR được gán'
@@ -446,7 +448,7 @@ class _FilterPanel extends StatelessWidget {
   Widget _typeFilter() {
     return DropdownButtonFormField<String>(
       initialValue: provider.type,
-      decoration: const InputDecoration(labelText: 'Loại'),
+      decoration: _filterDecoration('Loại', Icons.category_outlined),
       items: const [
         DropdownMenuItem(value: 'ALL', child: Text('Tất cả loại')),
         DropdownMenuItem(
@@ -473,7 +475,7 @@ class _FilterPanel extends StatelessWidget {
   Widget _statusFilter() {
     return DropdownButtonFormField<String>(
       initialValue: provider.status,
-      decoration: const InputDecoration(labelText: 'Trạng thái'),
+      decoration: _filterDecoration('Trạng thái', Icons.flag_outlined),
       items: const [
         DropdownMenuItem(value: 'ALL', child: Text('Tất cả trạng thái')),
         DropdownMenuItem(
@@ -496,7 +498,7 @@ class _FilterPanel extends StatelessWidget {
   Widget _orderField() {
     return TextField(
       controller: orderController,
-      decoration: const InputDecoration(labelText: 'Mã đơn'),
+      decoration: _filterDecoration('Mã đơn', Icons.tag_rounded),
       onChanged: provider.setOrder,
     );
   }
@@ -506,8 +508,16 @@ class _FilterPanel extends StatelessWidget {
       controller: amountController,
       keyboardType: TextInputType.number,
       inputFormatters: [ThousandsSeparatorInputFormatter()],
-      decoration: const InputDecoration(labelText: 'Số tiền'),
+      decoration: _filterDecoration('Số tiền', Icons.payments_outlined),
       onChanged: provider.setAmount,
+    );
+  }
+
+  InputDecoration _filterDecoration(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon),
+      border: const OutlineInputBorder(),
     );
   }
 }
@@ -519,31 +529,19 @@ class _FilterActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 56),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Wrap(
-          spacing: 10,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            SizedBox(
-              height: 56,
-              child: ElevatedButton.icon(
-                onPressed: provider.isLoading ? null : provider.search,
-                icon: const Icon(Icons.search_rounded),
-                label: const Text('Tìm'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(112, 56),
-                  padding: const EdgeInsets.symmetric(horizontal: 26),
-                ),
-              ),
-            ),
-            SizedBox(height: 56, child: _ExportMenuButton(provider: provider)),
-          ],
+    return Row(
+      children: [
+        Expanded(
+          child: AppPrimaryButton(
+            onPressed: provider.isLoading ? null : provider.search,
+            icon: Icons.search_rounded,
+            label: 'Tìm',
+            isLoading: provider.isLoading,
+          ),
         ),
-      ),
+        const SizedBox(width: AppLayoutTokens.formInlineGap),
+        Expanded(child: _ExportMenuButton(provider: provider)),
+      ],
     );
   }
 }
@@ -615,24 +613,41 @@ class _ExportMenuButton extends StatelessWidget {
           ),
       ],
       builder: (context, controller, child) {
-        return OutlinedButton.icon(
-          onPressed: provider.isExporting
-              ? null
-              : () {
-                  if (controller.isOpen) {
-                    controller.close();
-                  } else {
-                    controller.open();
-                  }
-                },
-          icon: provider.isExporting
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.download_rounded),
-          label: Text(provider.isExporting ? 'Đang xuất' : 'Xuất file'),
+        return SizedBox(
+          width: double.infinity,
+          height: AppButtonMetrics.height,
+          child: OutlinedButton.icon(
+            onPressed: provider.isExporting
+                ? null
+                : () {
+                    if (controller.isOpen) {
+                      controller.close();
+                    } else {
+                      controller.open();
+                    }
+                  },
+            icon: provider.isExporting
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.download_rounded),
+            label: Text(
+              provider.isExporting ? 'Đang xuất' : 'Xuất file',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.primaryBlue,
+              side: const BorderSide(color: AppTheme.primaryBlue),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
+              ),
+              textStyle: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
         );
       },
     );
