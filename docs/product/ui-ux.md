@@ -51,6 +51,11 @@ visual systems that make the app feel assembled from unrelated screens.
   `AppStatusPill`.
 - Feature entry screens use `AppFeatureSection` and `AppFeatureGrid` so mobile
   and desktop tiles stay consistent.
+- User-facing notification entry points must use the shared global
+  `AppNotificationsBell` in the app header. New features that need in-app
+  notifications should register their count, realtime refresh, and menu rows in
+  the global bell provider/menu instead of adding a separate bell icon on their
+  own feature screen.
 - Header tabs on colored or gradient app bars must set explicit selected,
   inactive, indicator, and divider colors from `AppColors`. Selected and
   inactive labels must remain readable on both Android and Windows; do not rely

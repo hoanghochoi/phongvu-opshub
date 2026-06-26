@@ -10,22 +10,30 @@ import '../../../../core/network/api_client.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../bank_statement/data/bank_statement_repository.dart';
 import '../../../bank_statement/domain/bank_statement_transaction.dart';
+import '../../../offset_adjustment/data/offset_adjustment_repository.dart';
+import '../../../offset_adjustment/domain/offset_adjustment.dart';
 
 const String _statementOrderTransferRealtimeEventType =
     'STATEMENT_ORDER_TRANSFER_REQUEST';
+const String _offsetAdjustmentRealtimeEventType =
+    'OFFSET_ADJUSTMENT_NOTIFICATION';
 
 typedef AppNotificationRealtimeConnector = WebSocketChannel Function(Uri uri);
 
 class AppNotificationsProvider extends ChangeNotifier {
   final BankStatementRepository _bankStatementRepository;
+  final OffsetAdjustmentRepository _offsetAdjustmentRepository;
   final AppNotificationRealtimeConnector _realtimeConnector;
   final List<BankStatementOrderTransferRequest> _statementOrderRequests = [];
+  final List<OffsetAdjustment> _offsetAdjustmentRequests = [];
 
   User? _user;
-  int _count = 0;
+  int _statementOrderCount = 0;
+  int _offsetAdjustmentCount = 0;
   bool _isInitialized = false;
   bool _isLoading = false;
   bool _canReviewStatementOrderTransfers = false;
+  bool _canReviewOffsetAdjustments = false;
   bool _disposed = false;
   WebSocketChannel? _realtimeChannel;
   StreamSubscription<dynamic>? _realtimeSubscription;
@@ -33,17 +41,29 @@ class AppNotificationsProvider extends ChangeNotifier {
 
   AppNotificationsProvider(
     this._bankStatementRepository, {
+    required OffsetAdjustmentRepository offsetAdjustmentRepository,
     AppNotificationRealtimeConnector? realtimeConnector,
-  }) : _realtimeConnector =
+  }) : _offsetAdjustmentRepository = offsetAdjustmentRepository,
+       _realtimeConnector =
            realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri));
 
   List<BankStatementOrderTransferRequest> get statementOrderRequests =>
       List.unmodifiable(_statementOrderRequests);
+  List<OffsetAdjustment> get offsetAdjustmentRequests =>
+      List.unmodifiable(_offsetAdjustmentRequests);
   bool get isLoading => _isLoading;
   bool get canReviewStatementOrderTransfers =>
       _canReviewStatementOrderTransfers;
-  bool get isEnabled => _isInitialized && _user?.canUseBankStatements == true;
-  int get count => _count;
+  bool get canReviewOffsetAdjustments => _canReviewOffsetAdjustments;
+  bool get hasStatementOrderNotifications =>
+      _isInitialized && _user?.canUseBankStatements == true;
+  bool get hasOffsetAdjustmentNotifications =>
+      _isInitialized &&
+      _user?.canUseOffsetAdjustments == true &&
+      _user?.canReviewOffsetAdjustments == true;
+  bool get isEnabled =>
+      hasStatementOrderNotifications || hasOffsetAdjustmentNotifications;
+  int get count => _statementOrderCount + _offsetAdjustmentCount;
 
   Future<void> syncAuth(User? user, {required bool isInitialized}) async {
     if (_disposed) return;
@@ -55,7 +75,9 @@ class AppNotificationsProvider extends ChangeNotifier {
       _closeRealtime();
       return;
     }
-    if (userChanged || _statementOrderRequests.isEmpty) {
+    if (userChanged ||
+        (_statementOrderRequests.isEmpty &&
+            _offsetAdjustmentRequests.isEmpty)) {
       await load(silent: true);
     }
     _connectRealtime();
@@ -65,6 +87,27 @@ class AppNotificationsProvider extends ChangeNotifier {
     if (_disposed || !isEnabled || _isLoading) return;
     _isLoading = true;
     if (!silent && !_disposed) notifyListeners();
+    final loadStatements = hasStatementOrderNotifications;
+    final loadOffsets = hasOffsetAdjustmentNotifications;
+    try {
+      if (loadStatements) {
+        await _loadStatementOrderNotifications();
+      } else {
+        _clearStatementOrderNotifications();
+      }
+      if (_disposed) return;
+      if (loadOffsets) {
+        await _loadOffsetAdjustmentNotifications();
+      } else {
+        _clearOffsetAdjustmentNotifications();
+      }
+    } finally {
+      _isLoading = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  Future<void> _loadStatementOrderNotifications() async {
     try {
       await AppLogger.instance.info(
         'AppNotifications',
@@ -79,7 +122,7 @@ class AppNotificationsProvider extends ChangeNotifier {
       _statementOrderRequests
         ..clear()
         ..addAll(result.requests);
-      _count = result.total;
+      _statementOrderCount = result.total;
       _canReviewStatementOrderTransfers = result.canReview;
       await AppLogger.instance.info(
         'AppNotifications',
@@ -92,17 +135,51 @@ class AppNotificationsProvider extends ChangeNotifier {
         },
       );
     } catch (error) {
-      _statementOrderRequests.clear();
-      _count = 0;
-      _canReviewStatementOrderTransfers = false;
+      _clearStatementOrderNotifications();
       await AppLogger.instance.warn(
         'AppNotifications',
         'App notification load failed',
-        context: {'error': error.toString()},
+        context: {
+          'source': 'statement_order_transfer',
+          'error': error.toString(),
+        },
       );
-    } finally {
-      _isLoading = false;
-      if (!_disposed) notifyListeners();
+    }
+  }
+
+  Future<void> _loadOffsetAdjustmentNotifications() async {
+    try {
+      await AppLogger.instance.info(
+        'AppNotifications',
+        'App notification load started',
+        context: {'source': 'offset_adjustment'},
+      );
+      final result = await _offsetAdjustmentRepository.fetchList(
+        _pendingOffsetAdjustmentQuery(),
+      );
+      if (_disposed) return;
+      _offsetAdjustmentRequests
+        ..clear()
+        ..addAll(result.items);
+      _offsetAdjustmentCount = result.total;
+      _canReviewOffsetAdjustments = result.canReview;
+      await AppLogger.instance.info(
+        'AppNotifications',
+        'App notification load succeeded',
+        context: {
+          'source': 'offset_adjustment',
+          'count': _offsetAdjustmentRequests.length,
+          'total': result.total,
+          'canReview': result.canReview,
+        },
+      );
+    } catch (error) {
+      _clearOffsetAdjustmentNotifications();
+      await AppLogger.instance.warn(
+        'AppNotifications',
+        'App notification load failed',
+        context: {'source': 'offset_adjustment', 'error': error.toString()},
+      );
     }
   }
 
@@ -216,16 +293,30 @@ class AppNotificationsProvider extends ChangeNotifier {
       };
       if (text.isEmpty) return;
       final decoded = jsonDecode(text);
-      if (decoded is! Map ||
-          decoded['type']?.toString() !=
-              _statementOrderTransferRealtimeEventType) {
+      if (decoded is! Map) {
         return;
       }
+      final type = decoded['type']?.toString();
+      if (type != _statementOrderTransferRealtimeEventType &&
+          type != _offsetAdjustmentRealtimeEventType) {
+        return;
+      }
+      if (type == _statementOrderTransferRealtimeEventType &&
+          !hasStatementOrderNotifications) {
+        return;
+      }
+      if (type == _offsetAdjustmentRealtimeEventType &&
+          !hasOffsetAdjustmentNotifications) {
+        return;
+      }
+      final source = type == _offsetAdjustmentRealtimeEventType
+          ? 'offset_adjustment'
+          : 'statement_order_transfer';
       unawaited(
         AppLogger.instance.info(
           'AppNotifications',
           'App notification realtime received',
-          context: {'source': 'statement_order_transfer'},
+          context: {'source': source},
         ),
       );
       unawaited(load(silent: true));
@@ -246,14 +337,43 @@ class AppNotificationsProvider extends ChangeNotifier {
   void _clear() {
     if (_disposed) return;
     if (_statementOrderRequests.isEmpty &&
-        _count == 0 &&
-        !_canReviewStatementOrderTransfers) {
+        _offsetAdjustmentRequests.isEmpty &&
+        _statementOrderCount == 0 &&
+        _offsetAdjustmentCount == 0 &&
+        !_canReviewStatementOrderTransfers &&
+        !_canReviewOffsetAdjustments) {
       return;
     }
-    _statementOrderRequests.clear();
-    _count = 0;
-    _canReviewStatementOrderTransfers = false;
+    _clearStatementOrderNotifications();
+    _clearOffsetAdjustmentNotifications();
     notifyListeners();
+  }
+
+  void _clearStatementOrderNotifications() {
+    _statementOrderRequests.clear();
+    _statementOrderCount = 0;
+    _canReviewStatementOrderTransfers = false;
+  }
+
+  void _clearOffsetAdjustmentNotifications() {
+    _offsetAdjustmentRequests.clear();
+    _offsetAdjustmentCount = 0;
+    _canReviewOffsetAdjustments = false;
+  }
+
+  OffsetAdjustmentQuery _pendingOffsetAdjustmentQuery() {
+    return const OffsetAdjustmentQuery(
+      allStores: true,
+      storeIds: [],
+      type: 'ALL',
+      status: OffsetAdjustmentStatus.pending,
+      order: null,
+      amount: null,
+      startDate: null,
+      endDate: null,
+      page: 0,
+      limit: 20,
+    );
   }
 
   void _closeRealtime() {

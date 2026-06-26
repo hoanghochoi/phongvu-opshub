@@ -11,7 +11,6 @@ import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_layout.dart';
-import '../../../../app/widgets/app_notification_action.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -53,18 +52,7 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
     final provider = context.watch<OffsetAdjustmentProvider>();
     _syncControllers(provider);
     return Scaffold(
-      appBar: GradientHeader(
-        title: 'Cấn trừ',
-        showBack: true,
-        actions: [
-          if (provider.canReview)
-            _OffsetBell(
-              provider: provider,
-              money: _money,
-              onOpenItem: _showDetails,
-            ),
-        ],
-      ),
+      appBar: GradientHeader(title: 'Cấn trừ', showBack: true),
       body: SafeArea(
         child: SelectionArea(
           child: AppResponsiveContent(
@@ -1155,162 +1143,6 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
   String? _displayDateText(String? value) {
     final parsed = value == null ? null : appParseDateInput(value);
     return parsed == null ? null : appFormatDateInput(parsed);
-  }
-}
-
-class _OffsetBell extends StatelessWidget {
-  final OffsetAdjustmentProvider provider;
-  final NumberFormat money;
-  final ValueChanged<OffsetAdjustment> onOpenItem;
-
-  const _OffsetBell({
-    required this.provider,
-    required this.money,
-    required this.onOpenItem,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return MenuAnchor(
-      menuChildren: [
-        _PendingOffsetMenu(
-          provider: provider,
-          money: money,
-          onOpenItem: onOpenItem,
-        ),
-      ],
-      builder: (context, controller, child) {
-        final count = provider.pendingTotal;
-        return AppNotificationIconButton(
-          count: count,
-          tooltip: count > 0
-              ? '$count hồ sơ chờ Kế toán xác nhận'
-              : 'Hồ sơ chờ Kế toán xác nhận',
-          onPressed: () async {
-            if (controller.isOpen) {
-              controller.close();
-              return;
-            }
-            controller.open();
-            await provider.loadPendingItems();
-          },
-        );
-      },
-    );
-  }
-}
-
-class _PendingOffsetMenu extends StatelessWidget {
-  final OffsetAdjustmentProvider provider;
-  final NumberFormat money;
-  final ValueChanged<OffsetAdjustment> onOpenItem;
-
-  const _PendingOffsetMenu({
-    required this.provider,
-    required this.money,
-    required this.onOpenItem,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final width = math.max(
-      280.0,
-      math.min(440.0, MediaQuery.sizeOf(context).width - 24),
-    );
-    final maxHeight = math.max(
-      260.0,
-      math.min(520.0, MediaQuery.sizeOf(context).height - 120),
-    );
-    return SizedBox(
-      width: width,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxHeight),
-        child: Padding(
-          padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-          child: AnimatedBuilder(
-            animation: provider,
-            builder: (context, _) {
-              final items = provider.pendingItems;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.notifications_none_rounded,
-                        color: AppColors.primary500,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Hồ sơ chờ Kế toán xác nhận',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Tải lại',
-                        onPressed: provider.isLoadingPendingItems
-                            ? null
-                            : provider.loadPendingItems,
-                        icon: const Icon(Icons.refresh_rounded),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Flexible(
-                    child: provider.isLoadingPendingItems && items.isEmpty
-                        ? const Center(child: CircularProgressIndicator())
-                        : items.isEmpty
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(vertical: 24),
-                              child: Text(
-                                'Không có hồ sơ chờ xác nhận.',
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          )
-                        : ListView.separated(
-                            shrinkWrap: true,
-                            itemCount: items.length,
-                            separatorBuilder: (_, _) =>
-                                const Divider(height: 18),
-                            itemBuilder: (context, index) {
-                              final item = items[index];
-                              return ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: Icon(
-                                  _typeIcon(item.type),
-                                  color: AppColors.warning,
-                                ),
-                                title: Text(
-                                  item.primaryOrderLabel.isEmpty
-                                      ? OffsetAdjustmentType.label(item.type)
-                                      : item.primaryOrderLabel,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  '${item.storeCode} • ${OffsetAdjustmentType.label(item.type)} • ${money.format(item.amount)}',
-                                ),
-                                onTap: () {
-                                  MenuController.maybeOf(context)?.close();
-                                  onOpenItem(item);
-                                },
-                              );
-                            },
-                          ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
   }
 }
 

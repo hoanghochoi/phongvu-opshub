@@ -17,8 +17,9 @@ that must be reviewed by ACC before being treated as complete.
 - The list supports filters for SR, type, old/new/order code, exact amount, and
   status. Reviewer SR filtering supports selecting multiple SRs or leaving the
   selection empty for all visible SRs.
-- Reviewers have a notification bell that opens the current pending
-  confirmation list without mutating the main list filters.
+- Reviewers see pending confirmation notifications through the shared global
+  notification bell, without a separate bell icon on the `Cấn trừ` screen.
+  Opening those notifications must not mutate the main list filters.
 - Reviewers can export the current filtered list to CSV from `Xuất file`,
   either for all offset types or for one selected type.
 - Row borders follow the statement color contract: green for ACC-approved,

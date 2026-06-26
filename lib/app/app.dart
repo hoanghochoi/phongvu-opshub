@@ -16,6 +16,7 @@ import '../features/payment_monitor/data/repositories/payment_monitor_repository
 import '../features/payment_monitor/presentation/providers/payment_monitor_provider.dart';
 import '../features/fifo/data/repositories/fifo_repository.dart';
 import '../features/fifo/presentation/providers/fifo_provider.dart';
+import '../features/offset_adjustment/data/offset_adjustment_repository.dart';
 import '../features/sort/data/repositories/sort_repository.dart';
 import '../features/sort/presentation/providers/sort_provider.dart';
 import 'theme/app_theme.dart';
@@ -56,12 +57,19 @@ class App extends StatelessWidget {
         ),
         ChangeNotifierProxyProvider<AuthProvider, AppNotificationsProvider>(
           lazy: false,
-          create: (_) =>
-              AppNotificationsProvider(BankStatementRepository(ApiClient())),
+          create: (_) => AppNotificationsProvider(
+            BankStatementRepository(ApiClient()),
+            offsetAdjustmentRepository: OffsetAdjustmentRepository(ApiClient()),
+          ),
           update: (_, auth, notifications) {
             final provider =
                 notifications ??
-                AppNotificationsProvider(BankStatementRepository(ApiClient()));
+                AppNotificationsProvider(
+                  BankStatementRepository(ApiClient()),
+                  offsetAdjustmentRepository: OffsetAdjustmentRepository(
+                    ApiClient(),
+                  ),
+                );
             Future.microtask(
               () => provider.syncAuth(
                 auth.user,

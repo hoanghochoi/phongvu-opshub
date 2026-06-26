@@ -15,6 +15,7 @@ import '../../../../app/widgets/app_logo.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../notifications/presentation/widgets/app_notifications_bell.dart';
 import '../../../payment_monitor/presentation/providers/payment_monitor_provider.dart';
 
 const _supportQrAssetPath = 'data/group_invitation.jpg';
@@ -685,6 +686,10 @@ class _CompactHomeHeader extends StatelessWidget {
                   Icons.support_agent_rounded,
                   color: Colors.white,
                 ),
+              ),
+              const IconTheme(
+                data: IconThemeData(color: Colors.white),
+                child: AppNotificationsBell(),
               ),
               IconButton(
                 tooltip: 'Đăng xuất',

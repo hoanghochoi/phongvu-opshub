@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -6,6 +7,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_notification_action.dart';
 import '../../../bank_statement/domain/bank_statement_transaction.dart';
+import '../../../offset_adjustment/domain/offset_adjustment.dart';
 import '../providers/app_notifications_provider.dart';
 
 class AppNotificationsBell extends StatelessWidget {
@@ -53,6 +55,8 @@ class _NotificationsMenu extends StatelessWidget {
     final menuWidth = width < 460 ? width - 24 : 440.0;
     final maxHeight = MediaQuery.sizeOf(context).height - 120;
     final requests = provider.statementOrderRequests;
+    final offsets = provider.offsetAdjustmentRequests;
+    final hasNotifications = requests.isNotEmpty || offsets.isNotEmpty;
     return SizedBox(
       width: menuWidth,
       child: ConstrainedBox(
@@ -91,38 +95,65 @@ class _NotificationsMenu extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Flexible(
-                  child: provider.isLoading && requests.isEmpty
+                  child: provider.isLoading && !hasNotifications
                       ? const Center(child: CircularProgressIndicator())
-                      : requests.isEmpty
+                      : !hasNotifications
                       ? const Padding(
                           padding: EdgeInsets.symmetric(vertical: 24),
                           child: Center(
                             child: SelectableText('Chưa có thông báo.'),
                           ),
                         )
-                      : ListView.separated(
+                      : ListView(
                           shrinkWrap: true,
-                          itemCount: requests.length,
-                          separatorBuilder: (_, _) => const Divider(height: 18),
-                          itemBuilder: (context, index) {
-                            return _StatementOrderNotificationTile(
-                              request: requests[index],
-                              canReview:
-                                  provider.canReviewStatementOrderTransfers,
-                              onApprove: () => _handleReview(
-                                context,
-                                provider,
-                                requests[index],
-                                approved: true,
-                              ),
-                              onReject: () => _handleReview(
-                                context,
-                                provider,
-                                requests[index],
-                                approved: false,
-                              ),
-                            );
-                          },
+                          children: [
+                            if (requests.isNotEmpty) ...[
+                              if (offsets.isNotEmpty)
+                                const _NotificationSectionTitle(
+                                  title: 'Sao kê',
+                                ),
+                              for (
+                                var index = 0;
+                                index < requests.length;
+                                index++
+                              ) ...[
+                                if (index > 0) const Divider(height: 18),
+                                _StatementOrderNotificationTile(
+                                  request: requests[index],
+                                  canReview:
+                                      provider.canReviewStatementOrderTransfers,
+                                  onApprove: () => _handleReview(
+                                    context,
+                                    provider,
+                                    requests[index],
+                                    approved: true,
+                                  ),
+                                  onReject: () => _handleReview(
+                                    context,
+                                    provider,
+                                    requests[index],
+                                    approved: false,
+                                  ),
+                                ),
+                              ],
+                            ],
+                            if (requests.isNotEmpty && offsets.isNotEmpty)
+                              const Divider(height: 18),
+                            if (offsets.isNotEmpty) ...[
+                              const _NotificationSectionTitle(title: 'Cấn trừ'),
+                              for (
+                                var index = 0;
+                                index < offsets.length;
+                                index++
+                              ) ...[
+                                if (index > 0) const Divider(height: 18),
+                                _OffsetAdjustmentNotificationTile(
+                                  request: offsets[index],
+                                  onOpen: () => _openOffsetAdjustments(context),
+                                ),
+                              ],
+                            ],
+                          ],
                         ),
                 ),
               ],
@@ -131,6 +162,12 @@ class _NotificationsMenu extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _openOffsetAdjustments(BuildContext context) {
+    MenuController.maybeOf(context)?.close();
+    if (GoRouterState.of(context).uri.path == '/offset-adjustments') return;
+    context.push('/offset-adjustments');
   }
 
   Future<void> _handleReview(
@@ -201,6 +238,67 @@ class _NotificationsMenu extends StatelessWidget {
     } finally {
       controller.dispose();
     }
+  }
+}
+
+class _NotificationSectionTitle extends StatelessWidget {
+  final String title;
+
+  const _NotificationSectionTitle({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Text(
+        title,
+        style: Theme.of(
+          context,
+        ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+}
+
+class _OffsetAdjustmentNotificationTile extends StatelessWidget {
+  final OffsetAdjustment request;
+  final VoidCallback onOpen;
+
+  const _OffsetAdjustmentNotificationTile({
+    required this.request,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final money = NumberFormat.decimalPattern('vi_VN');
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(_offsetTypeIcon(request.type), color: AppColors.warning),
+      title: SelectableText(
+        request.primaryOrderLabel.isEmpty
+            ? OffsetAdjustmentType.label(request.type)
+            : request.primaryOrderLabel,
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+      subtitle: SelectableText(
+        [
+          if (request.storeCode.isNotEmpty) 'SR ${request.storeCode}',
+          OffsetAdjustmentType.label(request.type),
+          '${money.format(request.amount)} VND',
+          if (_submittedTimeText.isNotEmpty) _submittedTimeText,
+        ].join(' • '),
+      ),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: onOpen,
+    );
+  }
+
+  String get _submittedTimeText {
+    final time = request.submittedAt;
+    return time == null
+        ? ''
+        : DateFormat('HH:mm:ss dd/MM/yyyy').format(time.toLocal());
   }
 }
 
@@ -319,4 +417,14 @@ class _StatementOrderNotificationTile extends StatelessWidget {
     final note = request.reviewNote?.trim() ?? '';
     return note.isEmpty ? 'Kế toán chưa nhập lý do cụ thể.' : note;
   }
+}
+
+IconData _offsetTypeIcon(String type) {
+  return switch (type) {
+    OffsetAdjustmentType.singleOrder => Icons.swap_calls_rounded,
+    OffsetAdjustmentType.vnpayQroff => Icons.qr_code_2_rounded,
+    OffsetAdjustmentType.zaloPay => Icons.account_balance_wallet_outlined,
+    OffsetAdjustmentType.shopeePay => Icons.shopping_bag_outlined,
+    _ => Icons.dataset_outlined,
+  };
 }
