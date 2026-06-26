@@ -58,9 +58,7 @@ class AppNotificationsProvider extends ChangeNotifier {
   bool get hasStatementOrderNotifications =>
       _isInitialized && _user?.canUseBankStatements == true;
   bool get hasOffsetAdjustmentNotifications =>
-      _isInitialized &&
-      _user?.canUseOffsetAdjustments == true &&
-      _user?.canReviewOffsetAdjustments == true;
+      _isInitialized && _user?.canUseOffsetAdjustments == true;
   bool get isEnabled =>
       hasStatementOrderNotifications || hasOffsetAdjustmentNotifications;
   int get count => _statementOrderCount + _offsetAdjustmentCount;
@@ -155,7 +153,7 @@ class AppNotificationsProvider extends ChangeNotifier {
         context: {'source': 'offset_adjustment'},
       );
       final result = await _offsetAdjustmentRepository.fetchList(
-        _pendingOffsetAdjustmentQuery(),
+        _offsetNotificationQuery(),
       );
       if (_disposed) return;
       _offsetAdjustmentRequests
@@ -171,6 +169,7 @@ class AppNotificationsProvider extends ChangeNotifier {
           'count': _offsetAdjustmentRequests.length,
           'total': result.total,
           'canReview': result.canReview,
+          'requesterMode': _user?.canReviewOffsetAdjustments != true,
         },
       );
     } catch (error) {
@@ -361,12 +360,12 @@ class AppNotificationsProvider extends ChangeNotifier {
     _canReviewOffsetAdjustments = false;
   }
 
-  OffsetAdjustmentQuery _pendingOffsetAdjustmentQuery() {
-    return const OffsetAdjustmentQuery(
-      allStores: true,
-      storeIds: [],
+  OffsetAdjustmentQuery _offsetNotificationQuery() {
+    return OffsetAdjustmentQuery(
+      allStores: _user?.canReviewOffsetAdjustments == true,
+      storeIds: const [],
       type: 'ALL',
-      status: OffsetAdjustmentStatus.pending,
+      status: OffsetAdjustmentStatus.notification,
       order: null,
       amount: null,
       startDate: null,

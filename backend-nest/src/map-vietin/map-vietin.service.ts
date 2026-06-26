@@ -1097,6 +1097,20 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         requestedAllStores: filters.requestedAllStores,
         storeIds: filters.storeIds,
       });
+      if (notificationMode) {
+        return {
+          OR: [
+            {
+              status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING,
+              ...this.statementScopeWhereForTransferRequests(scopeWhere),
+            },
+            {
+              status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_REJECTED,
+              requestedByUserId: String(user?.id || '__missing_user__'),
+            },
+          ],
+        };
+      }
       return {
         ...statusWhere,
         ...this.statementScopeWhereForTransferRequests(scopeWhere),

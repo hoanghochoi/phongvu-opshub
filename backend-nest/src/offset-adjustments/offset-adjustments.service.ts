@@ -16,6 +16,7 @@ import {
 import {
   CompleteOffsetAdjustmentDto,
   CreateOffsetAdjustmentDto,
+  OFFSET_ADJUSTMENT_NOTIFICATION_STATUS,
   ExportOffsetAdjustmentsDto,
   ListOffsetAdjustmentsDto,
   OFFSET_ADJUSTMENT_STATUSES,
@@ -72,7 +73,7 @@ export class OffsetAdjustmentsService {
       requestedAllStores: filters.requestedAllStores,
       storeIds: filters.storeIds,
     });
-    const where = this.andWhere(scope.where, this.buildFilterWhere(filters));
+    const where = this.buildListWhere(user, scope, filters);
     this.logger.log(
       `Offset adjustments list started: user=${this.safeUserLabel(user)} reviewer=${scope.reviewer} storeCount=${filters.storeIds.length} type=${filters.type || 'ALL'} status=${filters.status || 'ALL'} page=${filters.page} limit=${filters.limit}`,
     );
@@ -107,7 +108,7 @@ export class OffsetAdjustmentsService {
       requestedAllStores: filters.requestedAllStores,
       storeIds: filters.storeIds,
     });
-    const where = this.andWhere(scope.where, this.buildFilterWhere(filters));
+    const where = this.buildListWhere(user, scope, filters);
     this.logger.log(
       `Offset adjustments export started: user=${this.safeUserLabel(user)} reviewer=${scope.reviewer} storeCount=${filters.storeIds.length} type=${filters.type || 'ALL'} status=${filters.status || 'ALL'}`,
     );
@@ -467,6 +468,34 @@ export class OffsetAdjustmentsService {
     return this.andWhere(...parts);
   }
 
+  private buildListWhere(
+    user: any,
+    scope: OffsetScope,
+    filters: {
+      type: string | null;
+      status: string | null;
+      order: string | null;
+      amount: number | null;
+      dateRange: { start: Date; end: Date } | null;
+    },
+  ): Prisma.OffsetAdjustmentWhereInput {
+    if (filters.status !== OFFSET_ADJUSTMENT_NOTIFICATION_STATUS) {
+      return this.andWhere(scope.where, this.buildFilterWhere(filters));
+    }
+
+    const baseFilters = this.buildFilterWhere({ ...filters, status: null });
+    if (scope.reviewer) {
+      return this.andWhere(scope.where, baseFilters, {
+        status: OFFSET_STATUS_PENDING,
+      });
+    }
+
+    return this.andWhere(scope.where, baseFilters, {
+      status: OFFSET_STATUS_REJECTED,
+      createdByUserId: String(user?.id || '__missing_user__'),
+    });
+  }
+
   private async resolveScope(
     user: any,
     input: { requestedAllStores?: boolean; storeIds?: string[] },
@@ -774,7 +803,10 @@ export class OffsetAdjustmentsService {
     const status = String(value || '')
       .trim()
       .toUpperCase();
-    if (!(OFFSET_ADJUSTMENT_STATUSES as readonly string[]).includes(status)) {
+    if (
+      status !== OFFSET_ADJUSTMENT_NOTIFICATION_STATUS &&
+      !(OFFSET_ADJUSTMENT_STATUSES as readonly string[]).includes(status)
+    ) {
       throw new BadRequestException('Trạng thái cấn trừ không hợp lệ.');
     }
     return status;

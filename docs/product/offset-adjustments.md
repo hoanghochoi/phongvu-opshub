@@ -18,8 +18,10 @@ that must be reviewed by ACC before being treated as complete.
   status. Reviewer SR filtering supports selecting multiple SRs or leaving the
   selection empty for all visible SRs.
 - Reviewers see pending confirmation notifications through the shared global
-  notification bell, without a separate bell icon on the `Cấn trừ` screen.
-  Opening those notifications must not mutate the main list filters.
+  notification bell. Submitting SR users see their own rejected requests in the
+  same bell with the rejection reason and a clear prompt to reopen `Cấn trừ` and
+  resubmit. There is no separate bell icon on the `Cấn trừ` screen. Opening
+  notifications must not mutate the main list filters.
 - Reviewers can export the current filtered list to CSV from `Xuất file`,
   either for all offset types or for one selected type.
 - Row borders follow the statement color contract: green for ACC-approved,

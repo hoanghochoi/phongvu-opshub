@@ -47,7 +47,7 @@ void main() {
       expect(offsetRepository.fetchListCount, 1);
       expect(
         offsetRepository.lastQuery?.status,
-        OffsetAdjustmentStatus.pending,
+        OffsetAdjustmentStatus.notification,
       );
       expect(offsetRepository.lastQuery?.allStores, isTrue);
 
@@ -79,30 +79,40 @@ void main() {
       },
     );
 
-    test(
-      'does not show offset pending notifications to non-reviewers',
-      () async {
-        final bankRepository = _FakeBankStatementRepository();
-        final offsetRepository = _FakeOffsetAdjustmentRepository(
-          items: [_offsetAdjustment()],
-          total: 1,
-          canReview: true,
-        );
-        final provider = AppNotificationsProvider(
-          bankRepository,
-          offsetAdjustmentRepository: offsetRepository,
-        );
+    test('loads rejected offset notifications for requesters', () async {
+      final bankRepository = _FakeBankStatementRepository();
+      final offsetRepository = _FakeOffsetAdjustmentRepository(
+        items: [
+          _offsetAdjustment(
+            status: OffsetAdjustmentStatus.rejected,
+            rejectReason: 'Sai mã đơn',
+          ),
+        ],
+        total: 1,
+      );
+      final provider = AppNotificationsProvider(
+        bankRepository,
+        offsetAdjustmentRepository: offsetRepository,
+      );
 
-        await provider.syncAuth(_storeUser, isInitialized: true);
+      await provider.syncAuth(_storeUser, isInitialized: true);
 
-        expect(provider.isEnabled, isFalse);
-        expect(provider.count, 0);
-        expect(bankRepository.fetchOrderTransferRequestsCount, 0);
-        expect(offsetRepository.fetchListCount, 0);
+      expect(provider.isEnabled, isTrue);
+      expect(provider.count, 1);
+      expect(
+        provider.offsetAdjustmentRequests.single.status,
+        OffsetAdjustmentStatus.rejected,
+      );
+      expect(bankRepository.fetchOrderTransferRequestsCount, 0);
+      expect(offsetRepository.fetchListCount, 1);
+      expect(
+        offsetRepository.lastQuery?.status,
+        OffsetAdjustmentStatus.notification,
+      );
+      expect(offsetRepository.lastQuery?.allStores, isFalse);
 
-        provider.dispose();
-      },
-    );
+      provider.dispose();
+    });
   });
 }
 
@@ -202,15 +212,19 @@ BankStatementOrderTransferRequest _statementRequest() {
   });
 }
 
-OffsetAdjustment _offsetAdjustment() {
+OffsetAdjustment _offsetAdjustment({
+  String status = OffsetAdjustmentStatus.pending,
+  String? rejectReason,
+}) {
   return OffsetAdjustment.fromJson({
     'id': 'offset-1',
     'type': OffsetAdjustmentType.singleOrder,
-    'status': OffsetAdjustmentStatus.pending,
+    'status': status,
     'storeCode': 'CP01',
     'oldOrderCode': '26062600000001',
     'newOrderCode': '26062600000002',
     'amount': 1500000,
+    if (rejectReason != null) 'rejectReason': rejectReason,
     'submittedAt': '2026-06-26T02:30:00.000Z',
   });
 }

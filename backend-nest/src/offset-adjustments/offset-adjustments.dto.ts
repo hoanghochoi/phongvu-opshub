@@ -21,6 +21,7 @@ export const OFFSET_ADJUSTMENT_STATUSES = [
   'APPROVED',
   'REJECTED_NEEDS_FIX',
 ] as const;
+export const OFFSET_ADJUSTMENT_NOTIFICATION_STATUS = 'NOTIFICATION';
 
 export const OFFSET_EDIT_CONTENT_KINDS = [
   'CUSTOMER_OFFSET',
@@ -45,7 +46,11 @@ export class ListOffsetAdjustmentsDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['ALL', ...OFFSET_ADJUSTMENT_STATUSES])
+  @IsIn([
+    'ALL',
+    OFFSET_ADJUSTMENT_NOTIFICATION_STATUS,
+    ...OFFSET_ADJUSTMENT_STATUSES,
+  ])
   status?: string;
 
   @IsOptional()

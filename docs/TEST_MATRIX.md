@@ -61,6 +61,17 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- OFFSET-ADJUSTMENT-001 / PAYMENT-STATEMENT-001 / AUTH-001, 2026-06-27:
+  shared notification bell now returns rejected `Cấn trừ` requests to the
+  submitting SR through requester-scoped `NOTIFICATION` queries while reviewers
+  keep seeing pending work; statement reviewers who are also requesters keep
+  their own rejected statement notifications; Home no longer exposes logout in
+  the header and moves `Đăng xuất` into the side menu with AppLogger coverage.
+  Validation: `npx prisma validate`, focused backend Jest for MAP statement and
+  offset adjustments (2 suites, 56 tests), backend `npm run build`, full
+  backend Jest (41 suites, 348 tests), focused Flutter notification/Home tests
+  (6 tests), `flutter analyze --no-pub`, full Flutter tests (164 tests), and
+  `git diff --check`.
 - PROFILE-ADMIN-001 / PAYMENT-MONITOR-001 / PAYMENT-STATEMENT-001,
   2026-06-26: added multi-showroom user assignments through
   `UserOrganizationAssignment`, admin create/update/import assignment sync,

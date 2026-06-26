@@ -117,7 +117,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     onMenu: () => Scaffold.of(scaffoldContext).openDrawer(),
                     onProfile: () => context.push('/profile'),
                     onSupport: () => _showSupportDialog(context),
-                    onLogout: () => _logout(context),
                   );
                 },
               );
@@ -229,9 +228,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _logout(BuildContext context) async {
-    await context.read<AuthProvider>().logout();
-    if (context.mounted) {
-      context.go('/login');
+    final authProvider = context.read<AuthProvider>();
+    try {
+      await AppLogger.instance.info('Home', 'Logout from side menu started');
+      await authProvider.logout();
+      await AppLogger.instance.info('Home', 'Logout from side menu succeeded');
+      if (context.mounted) {
+        context.go('/login');
+      }
+    } catch (error) {
+      await AppLogger.instance.warn(
+        'Home',
+        'Logout from side menu failed',
+        context: {'error': error.toString()},
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chưa đăng xuất được. Vui lòng thử lại.')),
+      );
     }
   }
 
@@ -482,6 +496,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   _showAppInfoDialog(context);
                 },
               ),
+              ListTile(
+                leading: const Icon(Icons.logout_rounded, color: Colors.white),
+                title: const Text(
+                  'Đăng xuất',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  unawaited(_logout(context));
+                },
+              ),
               const Spacer(),
               Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -610,7 +635,6 @@ class _CompactHomeHeader extends StatelessWidget {
   final VoidCallback onMenu;
   final VoidCallback onProfile;
   final VoidCallback onSupport;
-  final VoidCallback onLogout;
 
   const _CompactHomeHeader({
     required this.userName,
@@ -619,7 +643,6 @@ class _CompactHomeHeader extends StatelessWidget {
     required this.onMenu,
     required this.onProfile,
     required this.onSupport,
-    required this.onLogout,
   });
 
   @override
@@ -690,11 +713,6 @@ class _CompactHomeHeader extends StatelessWidget {
               const IconTheme(
                 data: IconThemeData(color: Colors.white),
                 child: AppNotificationsBell(),
-              ),
-              IconButton(
-                tooltip: 'Đăng xuất',
-                onPressed: onLogout,
-                icon: const Icon(Icons.logout_rounded, color: Colors.white),
               ),
             ],
           ),

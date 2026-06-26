@@ -203,6 +203,65 @@ describe('OffsetAdjustmentsService', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it('lists rejected offset notifications only for the requesting SR user', async () => {
+    prisma.offsetAdjustment.findMany.mockResolvedValue([
+      offsetRow({
+        id: 'offset-rejected',
+        status: 'REJECTED_NEEDS_FIX',
+        rejectReason: 'Sai mã đơn',
+        createdByUserId: 'sr-1',
+      }),
+    ]);
+    prisma.offsetAdjustment.count.mockResolvedValue(1);
+
+    const result = await service.list(srUser, {
+      status: 'NOTIFICATION',
+      page: 0,
+      limit: 20,
+    });
+
+    expect(result).toMatchObject({
+      total: 1,
+      canReview: false,
+      list: [{ id: 'offset-rejected', status: 'REJECTED_NEEDS_FIX' }],
+    });
+    expect(prisma.offsetAdjustment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: [
+            { storeCode: 'CP01' },
+            { status: 'REJECTED_NEEDS_FIX', createdByUserId: 'sr-1' },
+          ],
+        },
+      }),
+    );
+  });
+
+  it('lists pending offset notifications for reviewers', async () => {
+    prisma.offsetAdjustment.findMany.mockResolvedValue([
+      offsetRow({ id: 'offset-pending', status: 'PENDING_ACC' }),
+    ]);
+    prisma.offsetAdjustment.count.mockResolvedValue(1);
+
+    const result = await service.list(accUser, {
+      allStores: 'true',
+      status: 'NOTIFICATION',
+      page: 0,
+      limit: 20,
+    });
+
+    expect(result).toMatchObject({
+      total: 1,
+      canReview: true,
+      list: [{ id: 'offset-pending', status: 'PENDING_ACC' }],
+    });
+    expect(prisma.offsetAdjustment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: 'PENDING_ACC' },
+      }),
+    );
+  });
+
   it('exports filtered offset adjustments as Excel-friendly CSV', async () => {
     prisma.offsetAdjustment.findMany.mockResolvedValue([
       offsetRow({

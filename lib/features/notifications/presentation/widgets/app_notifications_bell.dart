@@ -25,19 +25,22 @@ class AppNotificationsBell extends StatelessWidget {
     return MenuAnchor(
       menuChildren: [_NotificationsMenu(provider: notifications)],
       builder: (context, controller, child) {
-        return AppNotificationIconButton(
-          count: notifications.count,
-          tooltip: notifications.count > 0
-              ? '${notifications.count} thông báo'
-              : 'Thông báo',
-          onPressed: () async {
-            if (controller.isOpen) {
-              controller.close();
-              return;
-            }
-            controller.open();
-            await notifications.load();
-          },
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: AppNotificationIconButton(
+            count: notifications.count,
+            tooltip: notifications.count > 0
+                ? '${notifications.count} thông báo'
+                : 'Thông báo',
+            onPressed: () async {
+              if (controller.isOpen) {
+                controller.close();
+                return;
+              }
+              controller.open();
+              await notifications.load();
+            },
+          ),
         );
       },
     );
@@ -272,22 +275,40 @@ class _OffsetAdjustmentNotificationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final money = NumberFormat.decimalPattern('vi_VN');
+    final rejected = request.status == OffsetAdjustmentStatus.rejected;
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(_offsetTypeIcon(request.type), color: AppColors.warning),
+      leading: Icon(
+        rejected ? Icons.error_outline_rounded : _offsetTypeIcon(request.type),
+        color: rejected ? AppColors.error : AppColors.warning,
+      ),
       title: SelectableText(
-        request.primaryOrderLabel.isEmpty
+        rejected
+            ? 'Hồ sơ cấn trừ bị từ chối'
+            : request.primaryOrderLabel.isEmpty
             ? OffsetAdjustmentType.label(request.type)
             : request.primaryOrderLabel,
         style: const TextStyle(fontWeight: FontWeight.w800),
       ),
-      subtitle: SelectableText(
-        [
-          if (request.storeCode.isNotEmpty) 'SR ${request.storeCode}',
-          OffsetAdjustmentType.label(request.type),
-          '${money.format(request.amount)} VND',
-          if (_submittedTimeText.isNotEmpty) _submittedTimeText,
-        ].join(' • '),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SelectableText(
+            [
+              if (request.storeCode.isNotEmpty) 'SR ${request.storeCode}',
+              OffsetAdjustmentType.label(request.type),
+              '${money.format(request.amount)} VND',
+              if (_submittedTimeText.isNotEmpty) _submittedTimeText,
+            ].join(' • '),
+          ),
+          if (request.primaryOrderLabel.isNotEmpty)
+            SelectableText('Đơn hàng: ${request.primaryOrderLabel}'),
+          if (rejected) ...[
+            const SizedBox(height: 4),
+            SelectableText('Lý do: ${_rejectReasonText(request)}'),
+            const SelectableText('Cần làm: Mở Cấn trừ để sửa và gửi lại.'),
+          ],
+        ],
       ),
       trailing: const Icon(Icons.chevron_right_rounded),
       onTap: onOpen,
@@ -299,6 +320,11 @@ class _OffsetAdjustmentNotificationTile extends StatelessWidget {
     return time == null
         ? ''
         : DateFormat('HH:mm:ss dd/MM/yyyy').format(time.toLocal());
+  }
+
+  String _rejectReasonText(OffsetAdjustment request) {
+    final reason = request.rejectReason?.trim() ?? '';
+    return reason.isEmpty ? 'Kế toán chưa nhập lý do cụ thể.' : reason;
   }
 }
 

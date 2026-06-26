@@ -21,6 +21,7 @@ class OffsetAdjustmentStatus {
   static const pending = 'PENDING_ACC';
   static const approved = 'APPROVED';
   static const rejected = 'REJECTED_NEEDS_FIX';
+  static const notification = 'NOTIFICATION';
 
   static String label(String status) {
     return switch (status) {

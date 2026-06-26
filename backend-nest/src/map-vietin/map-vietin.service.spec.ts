@@ -1581,6 +1581,43 @@ describe('MapVietinService', () => {
     );
   });
 
+  it('includes a reviewer requester own rejected order-transfer notifications', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinStatementOrderTransferRequest.findMany.mockResolvedValue(
+      [],
+    );
+    prisma.mapVietinStatementOrderTransferRequest.count.mockResolvedValue(0);
+
+    await expect(
+      service.listStatementOrderTransferRequests(
+        {
+          id: 'acc-1',
+          role: 'USER',
+          storeId: 'store-uuid-1',
+          featureBankStatements: true,
+          departmentCode: 'ACC',
+        },
+        { status: 'NOTIFICATION', page: 0, limit: 20 },
+      ),
+    ).resolves.toMatchObject({ total: 0, list: [] });
+
+    expect(
+      prisma.mapVietinStatementOrderTransferRequest.findMany,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          OR: [
+            { status: 'PENDING', storeCode: 'CP01' },
+            { status: 'REJECTED', requestedByUserId: 'acc-1' },
+          ],
+        },
+      }),
+    );
+  });
+
   it('updates statement orders and records audit history', async () => {
     prisma.store.findUnique.mockResolvedValue({
       id: 'store-uuid-1',
