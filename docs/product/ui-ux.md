@@ -88,7 +88,7 @@ visual systems that make the app feel assembled from unrelated screens.
 - User-facing text is Vietnamese-first, action-oriented, and written for staff
   doing the task, not for developers reading an implementation detail. Keep
   English only for stable product or file-format terms that staff already use,
-  such as `FIFO`, `VietQR`, `SR`, `CSV`, `Windows`, and `Export CSV`.
+  such as `FIFO`, `VietQR`, `SR`, `CSV`, and `Windows`.
 - Copy must explain the state and the next useful action. Prefer
   `Chưa tải được sao kê. Kiểm tra bộ lọc rồi thử lại.` over `Request failed` or
   `Lỗi API`.
@@ -111,14 +111,14 @@ visual systems that make the app feel assembled from unrelated screens.
   - `giao dịch`, `tiền vào`, and `sao kê` for payment statement flows.
   - `bảo hành / sửa chữa` or `BH / SC` only when space is tight.
 - Success messages must confirm the concrete result: `Đã lưu ảnh biên nhận`,
-  `Đã export CSV`, `Đã cập nhật mã đơn hàng`, or `Đã sao chép serial`.
+  `Đã xuất file`, `Đã cập nhật mã đơn hàng`, or `Đã sao chép serial`.
 - Error messages must avoid blame and include recovery: `Chưa tải được ảnh. Vui
   lòng thử lại.` or `Không đọc được cài đặt khởi động cùng Windows.`
 - Empty states must say why the view is empty and how to continue: `Không có
   giao dịch trong khoảng ngày đã chọn.` or `Chọn filter rồi bấm Tìm để tải giao
   dịch.`
 - Button labels must be short verbs or verb phrases: `Tìm`, `Lưu`, `Thử lại`,
-  `Về trang chủ`, `Mở Cài đặt`, `Export CSV`. Avoid vague labels such as `OK`
+  `Về trang chủ`, `Mở Cài đặt`, `Xuất file`. Avoid vague labels such as `OK`
   when a specific action is available.
 - Detail and history dialog titles must name the current product entity, not a
   reused source entity. For example, a bank-statement history dialog should say

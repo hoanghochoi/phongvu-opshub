@@ -105,7 +105,7 @@ class BankStatementProvider extends ChangeNotifier {
   String get exportDateRangeLimitMessage {
     final start = _effectiveStartDate();
     final end = _effectiveEndDate();
-    return 'Chỉ export tối đa 1 tháng (31 ngày). '
+    return 'Chỉ xuất file tối đa 1 tháng (31 ngày). '
         'Khoảng đang chọn ${_formatDateForMessage(start)} - '
         '${_formatDateForMessage(end)} có $_exportDateSpanDays ngày.';
   }
@@ -360,7 +360,7 @@ class BankStatementProvider extends ChangeNotifier {
   Future<void> exportCsv() async {
     if (!canSearch || _isExporting) return;
     if (hasExportDateRangeLimitViolation) {
-      _exportMessage = 'Không export quá 1 tháng.';
+      _exportMessage = 'Không xuất file quá 1 tháng.';
       await AppLogger.instance.warn(
         'BankStatement',
         'Bank statement export blocked by date range limit',
@@ -399,7 +399,7 @@ class BankStatementProvider extends ChangeNotifier {
         bytes: ensureUtf8BomForCsv(csvBytes),
         lockParentWindow: true,
       );
-      _exportMessage = path == null ? 'Đã hủy lưu CSV.' : 'Đã export CSV.';
+      _exportMessage = path == null ? 'Đã hủy lưu file.' : 'Đã xuất file.';
       await AppLogger.instance.info(
         'BankStatement',
         'Bank statement export succeeded',
@@ -410,7 +410,7 @@ class BankStatementProvider extends ChangeNotifier {
         },
       );
     } catch (error) {
-      _exportMessage = 'Export CSV thất bại.';
+      _exportMessage = 'Xuất file thất bại.';
       await AppLogger.instance.error(
         'BankStatement',
         'Bank statement export failed',

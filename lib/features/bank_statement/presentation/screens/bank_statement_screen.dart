@@ -19,6 +19,7 @@ import '../providers/bank_statement_provider.dart';
 import '../widgets/bank_statement_transaction_details.dart';
 
 const double _localBreakpoint = 800;
+const double _filterGap = AppLayoutTokens.formInlineGap;
 const List<DropdownMenuItem<String>> _orderStatusItems = [
   DropdownMenuItem(value: 'ALL', child: Text('Tất cả giao dịch')),
   DropdownMenuItem(value: 'HAS_ORDER', child: Text('Đã có đơn hàng')),
@@ -112,7 +113,7 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
                   const SizedBox(height: 10),
                   AppStatusBanner(
                     icon: Icons.download_done_rounded,
-                    title: 'Export CSV',
+                    title: 'Xuất file',
                     message: provider.exportMessage!,
                     tone: AppStateTone.info,
                   ),
@@ -282,6 +283,7 @@ class _FilterPanelState extends State<_FilterPanel> {
 
         if (isMobile) {
           return Card(
+            margin: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
               child: Column(
@@ -322,7 +324,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                   if (_isExpanded) ...[
                     const Divider(height: 16),
                     _StoreFilterButton(provider: widget.provider),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: _filterGap),
                     TextField(
                       controller: widget.orderController,
                       focusNode: widget.orderFocus,
@@ -334,7 +336,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                       onChanged: widget.provider.setOrder,
                       onSubmitted: (_) => widget.provider.search(),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: _filterGap),
                     TextField(
                       controller: widget.amountController,
                       focusNode: widget.amountFocus,
@@ -348,7 +350,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                       onChanged: widget.provider.setAmount,
                       onSubmitted: (_) => widget.provider.search(),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: _filterGap),
                     TextField(
                       controller: widget.contentController,
                       focusNode: widget.contentFocus,
@@ -360,7 +362,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                       onChanged: widget.provider.setContent,
                       onSubmitted: (_) => widget.provider.search(),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: _filterGap),
                     DropdownButtonFormField<String>(
                       initialValue: widget.provider.orderStatus,
                       decoration: const InputDecoration(
@@ -374,49 +376,16 @@ class _FilterPanelState extends State<_FilterPanel> {
                         }
                       },
                     ),
+                    const SizedBox(height: _filterGap),
                     _DateRangeButton(
                       startDate: widget.provider.startDate,
                       endDate: widget.provider.endDate,
                       onChanged: widget.provider.setDateRange,
                     ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<int>(
-                            initialValue: widget.provider.limit,
-                            decoration: const InputDecoration(
-                              labelText: 'Số dòng',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: const [10, 20, 50, 100]
-                                .map(
-                                  (value) => DropdownMenuItem(
-                                    value: value,
-                                    child: Text('$value dòng'),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              if (value != null) {
-                                widget.provider.setLimit(value);
-                              }
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: AppPrimaryButton(
-                            onPressed: widget.provider.canSearch
-                                ? widget.provider.search
-                                : null,
-                            icon: Icons.search_rounded,
-                            label: 'Tìm',
-                            isLoading: widget.provider.isLoading,
-                          ),
-                        ),
-                      ],
-                    ),
+                    const SizedBox(height: _filterGap),
+                    _LimitDropdown(provider: widget.provider),
+                    const SizedBox(height: _filterGap),
+                    _FilterActionButtons(provider: widget.provider),
                   ],
                 ],
               ),
@@ -425,6 +394,7 @@ class _FilterPanelState extends State<_FilterPanel> {
         }
 
         return Card(
+          margin: EdgeInsets.zero,
           child: Padding(
             padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
             child: Column(
@@ -434,7 +404,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                     Expanded(
                       child: _StoreFilterButton(provider: widget.provider),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: _filterGap),
                     Expanded(
                       child: TextField(
                         controller: widget.orderController,
@@ -448,7 +418,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                         onSubmitted: (_) => widget.provider.search(),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: _filterGap),
                     Expanded(
                       child: TextField(
                         controller: widget.amountController,
@@ -466,7 +436,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: _filterGap),
                 Row(
                   children: [
                     Expanded(
@@ -483,7 +453,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                         onSubmitted: (_) => widget.provider.search(),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: _filterGap),
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: widget.provider.orderStatus,
@@ -501,7 +471,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: _filterGap),
                 Row(
                   children: [
                     Expanded(
@@ -511,39 +481,15 @@ class _FilterPanelState extends State<_FilterPanel> {
                         onChanged: widget.provider.setDateRange,
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: _filterGap),
                     SizedBox(
                       width: 150,
-                      child: DropdownButtonFormField<int>(
-                        initialValue: widget.provider.limit,
-                        decoration: const InputDecoration(
-                          labelText: 'Số dòng',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [10, 20, 50, 100]
-                            .map(
-                              (value) => DropdownMenuItem(
-                                value: value,
-                                child: Text('$value dòng'),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value != null) widget.provider.setLimit(value);
-                        },
-                      ),
+                      child: _LimitDropdown(provider: widget.provider),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: _filterGap),
                     SizedBox(
-                      width: 140,
-                      child: AppPrimaryButton(
-                        onPressed: widget.provider.canSearch
-                            ? widget.provider.search
-                            : null,
-                        icon: Icons.search_rounded,
-                        label: 'Tìm',
-                        isLoading: widget.provider.isLoading,
-                      ),
+                      width: 320,
+                      child: _FilterActionButtons(provider: widget.provider),
                     ),
                   ],
                 ),
@@ -619,6 +565,56 @@ class _DateRangeButton extends StatelessWidget {
   }
 }
 
+class _LimitDropdown extends StatelessWidget {
+  final BankStatementProvider provider;
+
+  const _LimitDropdown({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<int>(
+      initialValue: provider.limit,
+      decoration: const InputDecoration(
+        labelText: 'Số dòng',
+        border: OutlineInputBorder(),
+      ),
+      items: const [10, 20, 50, 100]
+          .map(
+            (value) =>
+                DropdownMenuItem(value: value, child: Text('$value dòng')),
+          )
+          .toList(),
+      onChanged: (value) {
+        if (value != null) provider.setLimit(value);
+      },
+    );
+  }
+}
+
+class _FilterActionButtons extends StatelessWidget {
+  final BankStatementProvider provider;
+
+  const _FilterActionButtons({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: AppPrimaryButton(
+            onPressed: provider.canSearch ? provider.search : null,
+            icon: Icons.search_rounded,
+            label: 'Tìm',
+            isLoading: provider.isLoading,
+          ),
+        ),
+        const SizedBox(width: _filterGap),
+        Expanded(child: _ExportButton(provider: provider)),
+      ],
+    );
+  }
+}
+
 class _StatementToolbar extends StatelessWidget {
   final BankStatementProvider provider;
 
@@ -646,17 +642,6 @@ class _StatementToolbar extends StatelessWidget {
                       '${provider.selectedIds.length} chọn / ${provider.total} giao dịch',
                       style: const TextStyle(fontWeight: FontWeight.w700),
                       overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 150,
-                    child: AppSecondaryButton(
-                      onPressed: provider.canSearch && !provider.isExporting
-                          ? () => _handleExport(context)
-                          : null,
-                      icon: Icons.download_rounded,
-                      label: _exportLabel,
                     ),
                   ),
                 ],
@@ -710,26 +695,32 @@ class _StatementToolbar extends StatelessWidget {
               onPressed: provider.canGoNext ? provider.nextPage : null,
               icon: const Icon(Icons.chevron_right_rounded),
             ),
-            const SizedBox(width: 10),
-            SizedBox(
-              width: 150,
-              child: AppSecondaryButton(
-                onPressed: provider.canSearch && !provider.isExporting
-                    ? () => _handleExport(context)
-                    : null,
-                icon: Icons.download_rounded,
-                label: _exportLabel,
-              ),
-            ),
           ],
         );
       },
     );
   }
+}
+
+class _ExportButton extends StatelessWidget {
+  final BankStatementProvider provider;
+
+  const _ExportButton({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSecondaryButton(
+      onPressed: provider.canSearch && !provider.isExporting
+          ? () => _handleExport(context)
+          : null,
+      icon: Icons.download_rounded,
+      label: _exportLabel,
+    );
+  }
 
   String get _exportLabel {
-    if (provider.isExporting) return 'Đang export';
-    return provider.selectedIds.isEmpty ? 'Export CSV' : 'Export đã chọn';
+    if (provider.isExporting) return 'Đang xuất';
+    return provider.selectedIds.isEmpty ? 'Xuất file' : 'Xuất đã chọn';
   }
 
   Future<void> _handleExport(BuildContext context) async {
@@ -737,7 +728,7 @@ class _StatementToolbar extends StatelessWidget {
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Không thể export'),
+          title: const Text('Không thể xuất file'),
           content: Text(provider.exportDateRangeLimitMessage),
           actions: [
             TextButton(

@@ -340,7 +340,7 @@ void main() {
       await provider.exportCsv();
 
       expect(repository.exportCsvCount, 0);
-      expect(provider.exportMessage, 'Không export quá 1 tháng.');
+      expect(provider.exportMessage, 'Không xuất file quá 1 tháng.');
 
       provider.dispose();
     });

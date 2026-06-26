@@ -315,7 +315,7 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
         bytes: _ensureUtf8BomForCsv(csvBytes),
         lockParentWindow: true,
       );
-      _successMessage = path == null ? 'Đã hủy lưu CSV.' : 'Đã export CSV.';
+      _successMessage = path == null ? 'Đã hủy lưu file.' : 'Đã xuất file.';
       await AppLogger.instance.info(
         'OffsetAdjustment',
         'Offset adjustment export succeeded',
@@ -326,7 +326,7 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
         },
       );
     } catch (error) {
-      _errorMessage = _messageFor(error, 'Export CSV thất bại.');
+      _errorMessage = _messageFor(error, 'Xuất file thất bại.');
       await AppLogger.instance.error(
         'OffsetAdjustment',
         'Offset adjustment export failed',
