@@ -1,3 +1,8 @@
+const bankStatementMissingOrderText = 'Chưa có mã đơn';
+
+String statementOrdersText(List<String> orders) =>
+    orders.isEmpty ? bankStatementMissingOrderText : orders.join(', ');
+
 class BankStatementTransaction {
   final String id;
   final String storeId;

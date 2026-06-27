@@ -13,6 +13,9 @@ visual systems that make the app feel assembled from unrelated screens.
   avoid oversized hero sections inside operational flows.
 - Show state clearly: every loading, empty, error, success, disabled, exported,
   and unsupported state must be visible and actionable when possible.
+- Treat design-system drift as a launch bug: if a screen needs its own button,
+  card, modal, notification bell, typography scale, or loading pattern, extend
+  the shared component first instead of copy-pasting a local variant.
 - Preserve platform expectations: mobile uses one-column touch-first layouts;
   desktop uses bounded page widths, stable action rows, and denser scanning.
 - Do not hide platform limits: Windows-only features must be hidden where they
@@ -24,7 +27,9 @@ visual systems that make the app feel assembled from unrelated screens.
   a new recurring hue. Do not use `Color(0x...)` or `Colors.*` in feature UI
   unless it is framework-required and there is no suitable token.
 - Typography: use `AppTextStyles` or `Theme.of(context).textTheme`. Do not use
-  one-off font scales unless the screen has a specific layout need.
+  one-off font scales unless the screen has a specific layout need. Do not use
+  `FontWeight.w800`; the shipped font set normalizes emphasis to `w700` through
+  `AppTextStyles.titleEmphasis` or the theme text scale.
 - Radius: use `AppRadius` or `AppLayoutTokens.cardRadius` for feature UI.
 - Spacing and layout: use `AppLayoutTokens` for page padding, card padding,
   section gaps, form gaps, inline gaps, and responsive breakpoints.
@@ -46,6 +51,9 @@ visual systems that make the app feel assembled from unrelated screens.
   and layout position. Only color, opacity, and enabled state may change;
   avoid framework-default disabled pills or one-off grey states in feature UI.
 - Empty, loading, error, and unsupported states use `AppStatePanel`.
+- First-load states for operational lists use `AppListSkeleton`, not a bare
+  centered spinner. Refreshing an already populated list may use a thin progress
+  indicator, but it must not block reading the existing rows.
 - Status messages use `AppStatusBanner` when they explain a page-level state.
 - Metadata and status tags use `AppInfoChip`, `AppStatusChip`, or
   `AppStatusPill`.
@@ -55,11 +63,12 @@ visual systems that make the app feel assembled from unrelated screens.
   `AppNotificationsBell` in the app header. New features that need in-app
   notifications should register their count, realtime refresh, and menu rows in
   the global bell provider/menu instead of adding a separate bell icon on their
-  own feature screen. Badge counts represent unread rows for the signed-in user
-  across devices: opening or refreshing the bell marks the rows currently shown
-  in the menu as read through backend read receipts, while local read state is
-  only a fallback until the next API refresh and new realtime rows light the
-  badge again.
+  own feature screen. Existing feature-local bells must be removed when the
+  global bell can represent the same work. Badge counts represent unread rows
+  for the signed-in user across devices: opening or refreshing the bell marks
+  the rows currently shown in the menu as read through backend read receipts,
+  while local read state is only a fallback until the next API refresh and new
+  realtime rows light the badge again.
 - Header tabs on colored or gradient app bars must set explicit selected,
   inactive, indicator, and divider colors from `AppColors`. Selected and
   inactive labels must remain readable on both Android and Windows; do not rely
@@ -98,6 +107,9 @@ visual systems that make the app feel assembled from unrelated screens.
   doing the task, not for developers reading an implementation detail. Keep
   English only for stable product or file-format terms that staff already use,
   such as `FIFO`, `VietQR`, `SR`, `CSV`, and `Windows`.
+- Do not put personal address terms such as `Đại Ca`, internal jokes, or
+  one-person support wording in product UI. Staff-facing copy must work for any
+  signed-in employee.
 - Copy must explain the state and the next useful action. Prefer
   `Chưa tải được sao kê. Kiểm tra bộ lọc rồi thử lại.` over `Request failed` or
   `Lỗi API`.
@@ -105,6 +117,9 @@ visual systems that make the app feel assembled from unrelated screens.
   debug-style `key=value` summaries in user-facing UI. Map technical failures
   to plain operational language, for example `Phiên làm việc đã hết hạn. Vui
   lòng đăng nhập lại.`
+- Do not show placeholder/database values such as `NULL`, `null`, or empty
+  implementation markers. Map them to the actual operational state, for example
+  `Chưa có mã đơn`, `Chưa có thông tin`, or `Không rõ`.
 - Do not expose role, department, policy, or feature codes such as `FIN_ACC`,
   `SUPER_ADMIN`, `ADMIN_*`, or `PAYMENT_SPEAKER` in normal UI copy. Map them to
   human labels or permission messages, for example `Bạn không có quyền sửa đơn
@@ -171,3 +186,17 @@ visual systems that make the app feel assembled from unrelated screens.
   notes for Home, target feature screens, and changed states.
 - If visual or runtime proof is blocked, the final report and test matrix must
   say what was verified, what remains unverified, and the remaining risk.
+
+## Launch Guard Greps
+
+Before marking UI polish or finance/admin UX work done, run targeted greps and
+fix any user-facing hits instead of explaining them away:
+
+```bash
+rg -n "Đại Ca|NULL|FontWeight\\.w800|includeGlobalNotifications: false|_OrderTransferBell|color == Colors\\.red" lib
+rg -n "TextButton\\(|ElevatedButton\\.icon|OutlinedButton\\.icon|FilledButton\\.icon|FilledButton\\(" lib/features/bank_statement/presentation lib/features/offset_adjustment/presentation lib/features/notifications/presentation
+```
+
+The second grep may still find acceptable framework use in legacy/admin-only
+surfaces, but finance review dialogs and notification actions must use the
+shared `AppDialog*` button helpers unless there is a documented component gap.

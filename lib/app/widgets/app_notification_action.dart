@@ -44,7 +44,7 @@ class AppNotificationIconButton extends StatelessWidget {
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 10,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),

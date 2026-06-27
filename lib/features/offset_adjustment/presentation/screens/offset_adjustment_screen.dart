@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_theme.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
@@ -102,7 +101,11 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
 
   Widget _buildList(OffsetAdjustmentProvider provider) {
     if (provider.isLoading && provider.items.isEmpty) {
-      return const AppStatePanel.loading(title: 'Đang tải danh sách cấn trừ');
+      return const AppListSkeleton(
+        itemCount: 5,
+        showLeading: false,
+        itemHeight: 112,
+      );
     }
     if (!provider.hasSearched) {
       return const AppStatePanel.empty(
@@ -238,11 +241,8 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
+          AppDialogCancelButton(onPressed: () => Navigator.of(context).pop()),
+          AppDialogConfirmButton(
             onPressed: () {
               final text = controller.text.trim();
               if (text.isEmpty) {
@@ -251,7 +251,7 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
               }
               Navigator.of(context).pop(text);
             },
-            child: const Text('Xác nhận'),
+            label: 'Xác nhận',
           ),
         ],
       ),
@@ -324,15 +324,10 @@ class _ActionBar extends StatelessWidget {
   ) {
     return SizedBox(
       width: width,
-      height: 56,
-      child: ElevatedButton.icon(
+      child: AppPrimaryButton(
         onPressed: () => onCreate(type),
-        icon: Icon(icon),
-        label: Text(
-          OffsetAdjustmentType.label(type),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+        icon: icon,
+        label: OffsetAdjustmentType.label(type),
       ),
     );
   }
@@ -601,41 +596,18 @@ class _ExportMenuButton extends StatelessWidget {
           ),
       ],
       builder: (context, controller, child) {
-        return SizedBox(
-          width: double.infinity,
-          height: AppButtonMetrics.height,
-          child: OutlinedButton.icon(
-            onPressed: provider.isExporting
-                ? null
-                : () {
-                    if (controller.isOpen) {
-                      controller.close();
-                    } else {
-                      controller.open();
-                    }
-                  },
-            icon: provider.isExporting
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.download_rounded),
-            label: Text(
-              provider.isExporting ? 'Đang xuất' : 'Xuất file',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.primaryBlue,
-              side: const BorderSide(color: AppTheme.primaryBlue),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
-              ),
-              textStyle: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
+        return AppSecondaryButton(
+          onPressed: () {
+            if (controller.isOpen) {
+              controller.close();
+            } else {
+              controller.open();
+            }
+          },
+          icon: Icons.download_rounded,
+          label: 'Xuất file',
+          isLoading: provider.isExporting,
+          loadingLabel: 'Đang xuất',
         );
       },
     );
@@ -700,7 +672,7 @@ class _OffsetCard extends StatelessWidget {
                     ? 'Chưa có mã đơn'
                     : item.primaryOrderLabel,
                 style: const TextStyle(
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   fontSize: 16,
                 ),
               ),
@@ -822,26 +794,26 @@ class _OffsetDetailDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Đóng'),
+          label: 'Đóng',
         ),
         if (item.canResubmit)
-          ElevatedButton.icon(
+          AppDialogConfirmButton(
             onPressed: onResubmit,
-            icon: const Icon(Icons.edit_rounded),
-            label: const Text('Sửa lại'),
+            icon: Icons.edit_rounded,
+            label: 'Sửa lại',
           ),
         if (canReview && item.status == OffsetAdjustmentStatus.pending) ...[
-          OutlinedButton.icon(
+          AppDialogSecondaryButton(
             onPressed: onReject,
-            icon: const Icon(Icons.close_rounded),
-            label: const Text('Từ chối'),
+            icon: Icons.close_rounded,
+            label: 'Từ chối',
           ),
-          ElevatedButton.icon(
+          AppDialogConfirmButton(
             onPressed: onComplete,
-            icon: const Icon(Icons.check_rounded),
-            label: const Text('Hoàn thành'),
+            icon: Icons.check_rounded,
+            label: 'Hoàn thành',
           ),
         ],
       ],
@@ -1023,20 +995,14 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(),
-          child: const Text('Hủy'),
         ),
-        ElevatedButton.icon(
+        AppDialogConfirmButton(
           onPressed: _saving ? null : _submit,
-          icon: _saving
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.save_rounded),
-          label: const Text('Lưu'),
+          icon: Icons.save_rounded,
+          label: 'Lưu',
+          isLoading: _saving,
         ),
       ],
     );

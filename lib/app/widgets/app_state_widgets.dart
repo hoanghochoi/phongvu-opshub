@@ -214,3 +214,159 @@ class AppStatusBanner extends StatelessWidget {
     );
   }
 }
+
+class AppListSkeleton extends StatelessWidget {
+  final int itemCount;
+  final bool showLeading;
+  final bool showTrailing;
+  final double itemHeight;
+  final bool scrollable;
+
+  const AppListSkeleton({
+    super.key,
+    this.itemCount = 5,
+    this.showLeading = true,
+    this.showTrailing = true,
+    this.itemHeight = 92,
+    this.scrollable = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final children = _children();
+    return Semantics(
+      label: 'Đang tải dữ liệu',
+      child: scrollable
+          ? ListView(
+              primary: false,
+              physics: const NeverScrollableScrollPhysics(),
+              children: children,
+            )
+          : Column(mainAxisSize: MainAxisSize.min, children: children),
+    );
+  }
+
+  List<Widget> _children() {
+    return [
+      for (var index = 0; index < itemCount; index++) ...[
+        if (index > 0) const SizedBox(height: AppLayoutTokens.cardGap),
+        _AppSkeletonCard(
+          showLeading: showLeading,
+          showTrailing: showTrailing,
+          itemHeight: itemHeight,
+        ),
+      ],
+    ];
+  }
+}
+
+class _AppSkeletonCard extends StatelessWidget {
+  final bool showLeading;
+  final bool showTrailing;
+  final double itemHeight;
+
+  const _AppSkeletonCard({
+    required this.showLeading,
+    required this.showTrailing,
+    required this.itemHeight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final baseColor = Theme.of(context).brightness == Brightness.dark
+        ? AppColors.neutral800
+        : AppColors.neutral100;
+    final highlightColor = Theme.of(context).brightness == Brightness.dark
+        ? AppColors.neutral700
+        : AppColors.neutral200;
+
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+      ),
+      child: SizedBox(
+        height: itemHeight,
+        child: Padding(
+          padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+          child: Row(
+            children: [
+              if (showLeading) ...[
+                _SkeletonBlock(
+                  width: 42,
+                  height: 42,
+                  baseColor: baseColor,
+                  highlightColor: highlightColor,
+                ),
+                const SizedBox(width: AppLayoutTokens.formInlineGap),
+              ],
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SkeletonBlock(
+                      widthFactor: 0.72,
+                      height: 14,
+                      baseColor: baseColor,
+                      highlightColor: highlightColor,
+                    ),
+                    const SizedBox(height: 10),
+                    _SkeletonBlock(
+                      widthFactor: 0.46,
+                      height: 12,
+                      baseColor: baseColor,
+                      highlightColor: highlightColor,
+                    ),
+                  ],
+                ),
+              ),
+              if (showTrailing) ...[
+                const SizedBox(width: AppLayoutTokens.formInlineGap),
+                _SkeletonBlock(
+                  width: 72,
+                  height: 28,
+                  baseColor: baseColor,
+                  highlightColor: highlightColor,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SkeletonBlock extends StatelessWidget {
+  final double? width;
+  final double? widthFactor;
+  final double height;
+  final Color baseColor;
+  final Color highlightColor;
+
+  const _SkeletonBlock({
+    this.width,
+    this.widthFactor,
+    required this.height,
+    required this.baseColor,
+    required this.highlightColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final block = DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [baseColor, highlightColor, baseColor],
+          stops: const [0, 0.5, 1],
+        ),
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+      ),
+      child: SizedBox(width: width, height: height),
+    );
+    if (widthFactor == null) return block;
+    return FractionallySizedBox(widthFactor: widthFactor, child: block);
+  }
+}

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/info_row.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../domain/bank_statement_transaction.dart';
@@ -179,7 +180,7 @@ class BankStatementTransactionDetailDialog extends StatelessWidget {
                 ),
                 AppInfoRow(
                   label: 'Đơn hàng',
-                  value: transaction.orders.join(', '),
+                  value: statementOrdersText(transaction.orders),
                   labelWidth: 142,
                 ),
                 AppInfoRow(
@@ -208,9 +209,9 @@ class BankStatementTransactionDetailDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Đóng'),
+          label: 'Đóng',
         ),
       ],
     );
@@ -227,7 +228,7 @@ DateTime? _toVietnamTime(DateTime? value) {
 
 String _statusLabel(String? status) {
   final value = status?.trim() ?? '';
-  if (value == '00') return 'Thành công (00)';
+  if (value == '00') return 'Thành công';
   return value;
 }
 

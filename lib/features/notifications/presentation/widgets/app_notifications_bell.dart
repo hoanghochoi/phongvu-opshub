@@ -4,8 +4,10 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_notification_action.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../bank_statement/domain/bank_statement_transaction.dart';
 import '../../../offset_adjustment/domain/offset_adjustment.dart';
 import '../providers/app_notifications_provider.dart';
@@ -85,7 +87,7 @@ class _NotificationsMenu extends StatelessWidget {
                       child: Text(
                         'Thông báo',
                         style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w800),
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
                     IconButton(
@@ -103,7 +105,13 @@ class _NotificationsMenu extends StatelessWidget {
                 const SizedBox(height: 8),
                 Flexible(
                   child: provider.isLoading && !hasNotifications
-                      ? const Center(child: CircularProgressIndicator())
+                      ? const AppListSkeleton(
+                          itemCount: 3,
+                          showLeading: false,
+                          showTrailing: false,
+                          itemHeight: 74,
+                          scrollable: false,
+                        )
                       : !hasNotifications
                       ? const Padding(
                           padding: EdgeInsets.symmetric(vertical: 24),
@@ -111,56 +119,62 @@ class _NotificationsMenu extends StatelessWidget {
                             child: SelectableText('Chưa có thông báo.'),
                           ),
                         )
-                      : ListView(
-                          shrinkWrap: true,
-                          children: [
-                            if (requests.isNotEmpty) ...[
-                              if (offsets.isNotEmpty)
+                      : SingleChildScrollView(
+                          primary: false,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (requests.isNotEmpty) ...[
+                                if (offsets.isNotEmpty)
+                                  const _NotificationSectionTitle(
+                                    title: 'Sao kê',
+                                  ),
+                                for (
+                                  var index = 0;
+                                  index < requests.length;
+                                  index++
+                                ) ...[
+                                  if (index > 0) const Divider(height: 18),
+                                  _StatementOrderNotificationTile(
+                                    request: requests[index],
+                                    canReview: provider
+                                        .canReviewStatementOrderTransfers,
+                                    onApprove: () => _handleReview(
+                                      context,
+                                      provider,
+                                      requests[index],
+                                      approved: true,
+                                    ),
+                                    onReject: () => _handleReview(
+                                      context,
+                                      provider,
+                                      requests[index],
+                                      approved: false,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                              if (requests.isNotEmpty && offsets.isNotEmpty)
+                                const Divider(height: 18),
+                              if (offsets.isNotEmpty) ...[
                                 const _NotificationSectionTitle(
-                                  title: 'Sao kê',
+                                  title: 'Cấn trừ',
                                 ),
-                              for (
-                                var index = 0;
-                                index < requests.length;
-                                index++
-                              ) ...[
-                                if (index > 0) const Divider(height: 18),
-                                _StatementOrderNotificationTile(
-                                  request: requests[index],
-                                  canReview:
-                                      provider.canReviewStatementOrderTransfers,
-                                  onApprove: () => _handleReview(
-                                    context,
-                                    provider,
-                                    requests[index],
-                                    approved: true,
+                                for (
+                                  var index = 0;
+                                  index < offsets.length;
+                                  index++
+                                ) ...[
+                                  if (index > 0) const Divider(height: 18),
+                                  _OffsetAdjustmentNotificationTile(
+                                    request: offsets[index],
+                                    onOpen: () =>
+                                        _openOffsetAdjustments(context),
                                   ),
-                                  onReject: () => _handleReview(
-                                    context,
-                                    provider,
-                                    requests[index],
-                                    approved: false,
-                                  ),
-                                ),
+                                ],
                               ],
                             ],
-                            if (requests.isNotEmpty && offsets.isNotEmpty)
-                              const Divider(height: 18),
-                            if (offsets.isNotEmpty) ...[
-                              const _NotificationSectionTitle(title: 'Cấn trừ'),
-                              for (
-                                var index = 0;
-                                index < offsets.length;
-                                index++
-                              ) ...[
-                                if (index > 0) const Divider(height: 18),
-                                _OffsetAdjustmentNotificationTile(
-                                  request: offsets[index],
-                                  onOpen: () => _openOffsetAdjustments(context),
-                                ),
-                              ],
-                            ],
-                          ],
+                          ),
                         ),
                 ),
               ],
@@ -229,15 +243,14 @@ class _NotificationsMenu extends StatelessWidget {
             ),
           ),
           actions: [
-            TextButton(
+            AppDialogCancelButton(
               onPressed: () => Navigator.of(dialogContext).pop(null),
-              child: const Text('Hủy'),
             ),
-            FilledButton.icon(
+            AppDialogConfirmButton(
               onPressed: () =>
                   Navigator.of(dialogContext).pop(controller.text.trim()),
-              icon: const Icon(Icons.close_rounded),
-              label: const Text('Từ chối'),
+              icon: Icons.close_rounded,
+              label: 'Từ chối',
             ),
           ],
         ),
@@ -261,7 +274,7 @@ class _NotificationSectionTitle extends StatelessWidget {
         title,
         style: Theme.of(
           context,
-        ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+        ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -292,7 +305,7 @@ class _OffsetAdjustmentNotificationTile extends StatelessWidget {
             : request.primaryOrderLabel.isEmpty
             ? OffsetAdjustmentType.label(request.type)
             : request.primaryOrderLabel,
-        style: const TextStyle(fontWeight: FontWeight.w800),
+        style: const TextStyle(fontWeight: FontWeight.w700),
       ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -358,7 +371,7 @@ class _StatementOrderNotificationTile extends StatelessWidget {
       ),
       title: SelectableText(
         _title,
-        style: const TextStyle(fontWeight: FontWeight.w800),
+        style: const TextStyle(fontWeight: FontWeight.w700),
       ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 4),
@@ -400,15 +413,15 @@ class _StatementOrderNotificationTile extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  OutlinedButton.icon(
+                  AppDialogSecondaryButton(
                     onPressed: onReject,
-                    icon: const Icon(Icons.close_rounded),
-                    label: const Text('Từ chối'),
+                    icon: Icons.close_rounded,
+                    label: 'Từ chối',
                   ),
-                  FilledButton.icon(
+                  AppDialogConfirmButton(
                     onPressed: onApprove,
-                    icon: const Icon(Icons.check_rounded),
-                    label: const Text('Xác nhận'),
+                    icon: Icons.check_rounded,
+                    label: 'Xác nhận',
                   ),
                 ],
               ),
@@ -440,8 +453,7 @@ class _StatementOrderNotificationTile extends StatelessWidget {
         : DateFormat('HH:mm:ss dd/MM/yyyy').format(time.toLocal());
   }
 
-  String _ordersText(List<String> orders) =>
-      orders.isEmpty ? 'NULL' : orders.join(', ');
+  String _ordersText(List<String> orders) => statementOrdersText(orders);
 
   String _rejectReasonText(BankStatementOrderTransferRequest request) {
     final note = request.reviewNote?.trim() ?? '';

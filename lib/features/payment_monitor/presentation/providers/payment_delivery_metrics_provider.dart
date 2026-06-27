@@ -33,7 +33,7 @@ class PaymentDeliveryMetricsProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   DateTime? get lastLoadedAt => _lastLoadedAt;
   bool get isEnabled => _isInitialized && _user?.isSuperAdmin == true;
-  bool get shouldShow => isEnabled && (_metrics != null || _isLoading);
+  bool get shouldShow => isEnabled;
 
   Future<void> syncAuth(User? user, {required bool isInitialized}) async {
     if (_disposed) return;

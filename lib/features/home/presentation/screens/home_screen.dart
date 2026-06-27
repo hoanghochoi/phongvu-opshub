@@ -316,7 +316,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         return const Padding(
                           padding: EdgeInsets.all(24),
                           child: Text(
-                            'Không tải được QR. Đại Ca dùng link bên dưới nhé.',
+                            'Không tải được QR. Vui lòng dùng link bên dưới.',
                             textAlign: TextAlign.center,
                           ),
                         );
@@ -404,7 +404,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Chưa mở được link. Đại Ca copy link trong hộp thoại.'),
+          content: Text(
+            'Chưa mở được link. Vui lòng copy link trong hộp thoại.',
+          ),
         ),
       );
     }

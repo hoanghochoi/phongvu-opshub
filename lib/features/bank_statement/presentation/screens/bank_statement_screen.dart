@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -10,7 +8,6 @@ import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_layout.dart';
-import '../../../../app/widgets/app_notification_action.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -49,8 +46,6 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
   final _amountFocus = FocusNode();
   final _contentFocus = FocusNode();
   final _money = NumberFormat.decimalPattern('vi_VN');
-  final _orderTransferBellLink = LayerLink();
-  OverlayEntry? _orderTransferOverlay;
 
   @override
   void initState() {
@@ -63,7 +58,6 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
 
   @override
   void dispose() {
-    _hideOrderTransferRequests();
     _orderController.dispose();
     _amountController.dispose();
     _contentController.dispose();
@@ -79,19 +73,7 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
     _syncControllers(provider);
 
     return Scaffold(
-      appBar: GradientHeader(
-        title: 'Sao kê',
-        showBack: true,
-        includeGlobalNotifications: false,
-        actions: [
-          if (provider.hasOrderTransferNotifications)
-            _OrderTransferBell(
-              count: provider.pendingOrderTransferUnreadCount,
-              link: _orderTransferBellLink,
-              onPressed: () => _toggleOrderTransferRequests(provider),
-            ),
-        ],
-      ),
+      appBar: const GradientHeader(title: 'Sao kê', showBack: true),
       body: SafeArea(
         child: SelectionArea(
           child: AppResponsiveContent(
@@ -143,7 +125,11 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
 
   Widget _buildList(BankStatementProvider provider) {
     if (provider.isLoading && provider.transactions.isEmpty) {
-      return const AppStatePanel.loading(title: 'Đang tải sao kê');
+      return const AppListSkeleton(
+        itemCount: 5,
+        showLeading: false,
+        itemHeight: 124,
+      );
     }
     if (!provider.hasSearched) {
       return const AppStatePanel.empty(
@@ -187,84 +173,6 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
     }
     sync(_amountController, _amountFocus, formattedAmount);
     sync(_contentController, _contentFocus, provider.content ?? '');
-  }
-
-  Future<void> _toggleOrderTransferRequests(
-    BankStatementProvider provider,
-  ) async {
-    if (_orderTransferOverlay != null) {
-      _hideOrderTransferRequests();
-      return;
-    }
-    _showOrderTransferOverlay(provider);
-    await provider.loadPendingOrderTransferRequests();
-    await provider.markPendingOrderTransferNotificationsRead();
-    await _reloadGlobalNotificationReadState();
-  }
-
-  Future<void> _reloadGlobalNotificationReadState() async {
-    if (!mounted) return;
-    try {
-      await context.read<AppNotificationsProvider>().reloadReadState();
-    } on ProviderNotFoundException {
-      return;
-    }
-  }
-
-  void _showOrderTransferOverlay(BankStatementProvider provider) {
-    final overlay = Overlay.of(context);
-    _orderTransferOverlay = OverlayEntry(
-      builder: (overlayContext) {
-        final screenSize = MediaQuery.sizeOf(overlayContext);
-        final bubbleWidth = math.max(
-          240.0,
-          math.min(440.0, screenSize.width - 24),
-        );
-        final bubbleHeight = math.max(
-          260.0,
-          math.min(520.0, screenSize.height - 120),
-        );
-        return Stack(
-          children: [
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: _hideOrderTransferRequests,
-              ),
-            ),
-            CompositedTransformFollower(
-              link: _orderTransferBellLink,
-              showWhenUnlinked: false,
-              targetAnchor: Alignment.bottomRight,
-              followerAnchor: Alignment.topRight,
-              offset: const Offset(-8, 8),
-              child: _OrderTransferRequestsBubble(
-                provider: provider,
-                width: bubbleWidth,
-                maxHeight: bubbleHeight,
-                money: _money,
-                onClose: _hideOrderTransferRequests,
-                onActionError: _showSnack,
-                onNotificationsRead: _reloadGlobalNotificationReadState,
-              ),
-            ),
-          ],
-        );
-      },
-    );
-    overlay.insert(_orderTransferOverlay!);
-  }
-
-  void _hideOrderTransferRequests() {
-    _orderTransferOverlay?.remove();
-    _orderTransferOverlay = null;
-  }
-
-  void _showSnack(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -750,9 +658,9 @@ class _ExportButton extends StatelessWidget {
           title: const Text('Không thể xuất file'),
           content: Text(provider.exportDateRangeLimitMessage),
           actions: [
-            TextButton(
+            AppDialogCancelButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Đã hiểu'),
+              label: 'Đã hiểu',
             ),
           ],
         ),
@@ -760,329 +668,6 @@ class _ExportButton extends StatelessWidget {
       return;
     }
     await provider.exportCsv();
-  }
-}
-
-class _OrderTransferBell extends StatelessWidget {
-  final int count;
-  final LayerLink link;
-  final VoidCallback onPressed;
-
-  const _OrderTransferBell({
-    required this.count,
-    required this.link,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return CompositedTransformTarget(
-      link: link,
-      child: AppNotificationIconButton(
-        count: count,
-        tooltip: count > 0 ? '$count thông báo mới' : 'Thông báo',
-        onPressed: onPressed,
-      ),
-    );
-  }
-}
-
-class _OrderTransferRequestsBubble extends StatelessWidget {
-  final BankStatementProvider provider;
-  final double width;
-  final double maxHeight;
-  final NumberFormat money;
-  final VoidCallback onClose;
-  final void Function(String message) onActionError;
-  final Future<void> Function() onNotificationsRead;
-
-  const _OrderTransferRequestsBubble({
-    required this.provider,
-    required this.width,
-    required this.maxHeight,
-    required this.money,
-    required this.onClose,
-    required this.onActionError,
-    required this.onNotificationsRead,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 12,
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-      clipBehavior: Clip.antiAlias,
-      child: SelectionArea(
-        child: SizedBox(
-          width: width,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxHeight),
-            child: Padding(
-              padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-              child: AnimatedBuilder(
-                animation: provider,
-                builder: (context, _) {
-                  final requests = provider.pendingOrderTransferRequests;
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.notifications_none_rounded,
-                            color: AppColors.primary500,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Thông báo',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: 'Tải lại',
-                            onPressed: provider.isLoadingOrderTransferRequests
-                                ? null
-                                : () async {
-                                    await provider
-                                        .loadPendingOrderTransferRequests();
-                                    await provider
-                                        .markPendingOrderTransferNotificationsRead();
-                                    await onNotificationsRead();
-                                  },
-                            icon: const Icon(Icons.refresh_rounded),
-                          ),
-                          IconButton(
-                            tooltip: 'Đóng',
-                            onPressed: onClose,
-                            icon: const Icon(Icons.close_rounded),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Flexible(
-                        child:
-                            provider.isLoadingOrderTransferRequests &&
-                                requests.isEmpty
-                            ? const Center(child: CircularProgressIndicator())
-                            : requests.isEmpty
-                            ? const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 24),
-                                  child: Text(
-                                    'Chưa có thông báo.',
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              )
-                            : ListView.separated(
-                                shrinkWrap: true,
-                                itemCount: requests.length,
-                                separatorBuilder: (_, _) =>
-                                    const Divider(height: 18),
-                                itemBuilder: (context, index) {
-                                  final request = requests[index];
-                                  return _OrderTransferRequestTile(
-                                    request: request,
-                                    money: money,
-                                    canReview: provider.canReviewOrderTransfers,
-                                    onApprove: () async {
-                                      try {
-                                        await provider
-                                            .approveOrderTransferRequest(
-                                              request.id,
-                                            );
-                                      } catch (_) {
-                                        onActionError(
-                                          'Chưa xác nhận được yêu cầu.',
-                                        );
-                                      }
-                                    },
-                                    onReject: () async {
-                                      final note = await _showRejectNoteDialog(
-                                        context,
-                                      );
-                                      if (note == null) return;
-                                      try {
-                                        await provider
-                                            .rejectOrderTransferRequest(
-                                              request.id,
-                                              note: note,
-                                            );
-                                      } catch (_) {
-                                        onActionError(
-                                          'Chưa từ chối được yêu cầu.',
-                                        );
-                                      }
-                                    },
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<String?> _showRejectNoteDialog(BuildContext context) async {
-    final controller = TextEditingController();
-    try {
-      return showDialog<String?>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Từ chối yêu cầu'),
-          content: SelectionArea(
-            child: SizedBox(
-              width: MediaQuery.of(dialogContext).size.width < 560
-                  ? double.maxFinite
-                  : 420,
-              child: TextField(
-                controller: controller,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Ghi chú cho người gửi (không bắt buộc)',
-                  hintText: 'Ví dụ: Mã đơn chưa đúng, vui lòng kiểm tra lại.',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(null),
-              child: const Text('Hủy'),
-            ),
-            FilledButton.icon(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(controller.text.trim()),
-              icon: const Icon(Icons.close_rounded),
-              label: const Text('Từ chối'),
-            ),
-          ],
-        ),
-      );
-    } finally {
-      controller.dispose();
-    }
-  }
-}
-
-class _OrderTransferRequestTile extends StatelessWidget {
-  final BankStatementOrderTransferRequest request;
-  final NumberFormat money;
-  final bool canReview;
-  final Future<void> Function() onApprove;
-  final Future<void> Function() onReject;
-
-  const _OrderTransferRequestTile({
-    required this.request,
-    required this.money,
-    required this.canReview,
-    required this.onApprove,
-    required this.onReject,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final createdAt = request.createdAt;
-    final createdText = createdAt == null
-        ? ''
-        : _formatStatementDateTime(createdAt);
-    final transactionTime = request.paidAt ?? request.firstSeenAt;
-    final transactionTimeText = transactionTime == null
-        ? ''
-        : _formatStatementDateTime(transactionTime);
-    final rejected = request.status == 'REJECTED';
-    final pending = request.status == 'PENDING';
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        rejected ? Icons.error_outline_rounded : Icons.swap_horiz_rounded,
-        color: rejected ? AppColors.error : AppColors.warning,
-      ),
-      title: SelectableText(
-        _notificationTitle,
-        style: const TextStyle(fontWeight: FontWeight.w800),
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SelectableText(
-              [
-                if (request.storeCode.isNotEmpty) request.storeCode,
-                if (request.statementNumber.isNotEmpty)
-                  'Mã sao kê ${request.statementNumber}',
-                '${money.format(request.amount)} VND',
-              ].join(' • '),
-            ),
-            SelectableText('Đơn hiện tại: ${_ordersText(request.oldOrders)}'),
-            SelectableText(
-              'Đơn đề nghị: ${_ordersText(request.requestedOrders)}',
-            ),
-            if (transactionTimeText.isNotEmpty)
-              SelectableText('Thời gian giao dịch: $transactionTimeText'),
-            if (createdText.isNotEmpty)
-              SelectableText('Thời gian yêu cầu: $createdText'),
-            if ((request.requestedByEmail ?? '').isNotEmpty)
-              SelectableText('Người gửi: ${request.requestedByEmail}'),
-            if (rejected) ...[
-              const SizedBox(height: 6),
-              SelectableText('Lý do: ${_rejectReasonText(request)}'),
-              const SelectableText(
-                'Cần làm: Kiểm tra lại mã đơn. Nếu giao dịch còn trong ngày, gửi yêu cầu mới; nếu đã qua 00:00, dùng chức năng Cấn trừ.',
-              ),
-            ],
-            if (request.content.isNotEmpty)
-              SelectableText(request.content, maxLines: 2),
-            if (canReview && pending) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: onReject,
-                    icon: const Icon(Icons.close_rounded),
-                    label: const Text('Từ chối'),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: onApprove,
-                    icon: const Icon(Icons.check_rounded),
-                    label: const Text('Xác nhận'),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _ordersText(List<String> orders) =>
-      orders.isEmpty ? 'NULL' : orders.join(', ');
-
-  String get _notificationTitle {
-    if (request.status == 'REJECTED') return 'Yêu cầu đổi mã đơn bị từ chối';
-    if (request.status == 'APPROVED') return 'Yêu cầu đổi mã đơn đã xác nhận';
-    if (canReview) return 'Yêu cầu phê duyệt đổi mã đơn';
-    return 'Yêu cầu đổi mã đơn đang chờ duyệt';
-  }
-
-  String _rejectReasonText(BankStatementOrderTransferRequest request) {
-    final note = request.reviewNote?.trim() ?? '';
-    return note.isEmpty ? 'Kế toán chưa nhập lý do cụ thể.' : note;
   }
 }
 
@@ -1123,6 +708,15 @@ class _StatementCardState extends State<_StatementCard> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _reloadGlobalNotifications() async {
+    if (!mounted) return;
+    try {
+      await context.read<AppNotificationsProvider>().load(silent: true);
+    } on ProviderNotFoundException {
+      return;
+    }
   }
 
   @override
@@ -1334,7 +928,10 @@ class _StatementCardState extends State<_StatementCard> {
                 if (snapshot.connectionState != ConnectionState.done) {
                   return const SizedBox(
                     height: 120,
-                    child: Center(child: CircularProgressIndicator()),
+                    child: AppStatePanel.loading(
+                      title: 'Đang tải lịch sử',
+                      compact: true,
+                    ),
                   );
                 }
                 if (snapshot.hasError) {
@@ -1364,9 +961,9 @@ class _StatementCardState extends State<_StatementCard> {
             ),
           ),
           actions: [
-            TextButton(
+            AppDialogCancelButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Đóng'),
+              label: 'Đóng',
             ),
           ],
         );
@@ -1374,8 +971,7 @@ class _StatementCardState extends State<_StatementCard> {
     );
   }
 
-  String _ordersText(List<String> orders) =>
-      orders.isEmpty ? 'NULL' : orders.join(', ');
+  String _ordersText(List<String> orders) => statementOrdersText(orders);
 
   Future<void> _showOrderTransferRequestDialog(
     BuildContext context,
@@ -1415,13 +1011,12 @@ class _StatementCardState extends State<_StatementCard> {
                   ),
                 ),
                 actions: [
-                  TextButton(
+                  AppDialogCancelButton(
                     onPressed: saving
                         ? null
                         : () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Hủy'),
                   ),
-                  ElevatedButton.icon(
+                  AppDialogConfirmButton(
                     onPressed: saving
                         ? null
                         : () async {
@@ -1431,19 +1026,16 @@ class _StatementCardState extends State<_StatementCard> {
                               requestController.text,
                             );
                             if (ok && dialogContext.mounted) {
+                              await _reloadGlobalNotifications();
+                              if (!dialogContext.mounted) return;
                               Navigator.of(dialogContext).pop();
                             } else if (dialogContext.mounted) {
                               setDialogState(() => saving = false);
                             }
                           },
-                    icon: saving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.send_rounded),
-                    label: const Text('Gửi Kế toán'),
+                    icon: Icons.send_rounded,
+                    label: 'Gửi Kế toán',
+                    isLoading: saving,
                   ),
                 ],
               );
@@ -1487,6 +1079,7 @@ class _StatementCardState extends State<_StatementCard> {
                       note: rejectNoteController.text,
                     );
                   }
+                  await _reloadGlobalNotifications();
                   if (dialogContext.mounted) Navigator.of(dialogContext).pop();
                 } catch (_) {
                   if (dialogContext.mounted) {
@@ -1563,27 +1156,22 @@ class _StatementCardState extends State<_StatementCard> {
                   ),
                 ),
                 actions: [
-                  TextButton(
+                  AppDialogCancelButton(
                     onPressed: saving
                         ? null
                         : () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Đóng'),
+                    label: 'Đóng',
                   ),
-                  OutlinedButton.icon(
+                  AppDialogSecondaryButton(
                     onPressed: saving ? null : () => review(approved: false),
-                    icon: const Icon(Icons.close_rounded),
-                    label: const Text('Từ chối'),
+                    icon: Icons.close_rounded,
+                    label: 'Từ chối',
                   ),
-                  ElevatedButton.icon(
+                  AppDialogConfirmButton(
                     onPressed: saving ? null : () => review(approved: true),
-                    icon: saving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.check_rounded),
-                    label: const Text('Xác nhận'),
+                    icon: Icons.check_rounded,
+                    label: 'Xác nhận',
+                    isLoading: saving,
                   ),
                 ],
               );
@@ -1597,7 +1185,7 @@ class _StatementCardState extends State<_StatementCard> {
   }
 
   Widget _reviewLine(String label, String value) {
-    final text = value.trim().isEmpty ? 'NULL' : value.trim();
+    final text = value.trim().isEmpty ? 'Chưa có thông tin' : value.trim();
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -1607,7 +1195,7 @@ class _StatementCardState extends State<_StatementCard> {
             width: 110,
             child: Text(
               label,
-              style: const TextStyle(fontWeight: FontWeight.w800),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
           Expanded(child: SelectableText(text)),
@@ -1752,7 +1340,7 @@ class _OrderEditor extends StatelessWidget {
                     children: [
                       const Text(
                         'Đơn hàng',
-                        style: TextStyle(fontWeight: FontWeight.w800),
+                        style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                       if (transaction.isOrderOffsetConfirmed)
                         const AppStatusChip(
@@ -1823,10 +1411,10 @@ class _OrderEditor extends StatelessWidget {
               )
             else if (transaction.orders.isEmpty)
               Text(
-                'NULL',
+                bankStatementMissingOrderText,
                 style: TextStyle(
                   color: AppColors.error,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                 ),
               )
             else

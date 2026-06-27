@@ -65,7 +65,7 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
             unselectedLabelColor: AppColors.neutral100,
             indicatorColor: AppColors.surface,
             dividerColor: Colors.transparent,
-            labelStyle: TextStyle(fontWeight: FontWeight.w800),
+            labelStyle: TextStyle(fontWeight: FontWeight.w700),
             unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w700),
           ),
         ),

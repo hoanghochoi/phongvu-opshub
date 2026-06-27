@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -702,7 +703,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
             const SizedBox(height: AppLayoutTokens.formFieldGap),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const AppListSkeleton(itemCount: 6, itemHeight: 84)
                   : ListView.separated(
                       itemCount: _users.length,
                       separatorBuilder: (context, index) =>
@@ -714,7 +715,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                             user.id != currentUser?.id &&
                             user.status?.toLowerCase() == 'no';
                         return ListTile(
-                          tileColor: Colors.white,
+                          tileColor: Theme.of(context).colorScheme.surface,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),

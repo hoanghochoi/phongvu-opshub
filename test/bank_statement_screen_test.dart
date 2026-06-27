@@ -12,6 +12,8 @@ import 'package:phongvu_opshub/features/bank_statement/domain/bank_statement_tra
 import 'package:phongvu_opshub/features/bank_statement/presentation/providers/bank_statement_provider.dart';
 import 'package:phongvu_opshub/features/bank_statement/presentation/screens/bank_statement_screen.dart';
 import 'package:phongvu_opshub/features/notifications/data/app_notification_read_store.dart';
+import 'package:phongvu_opshub/features/notifications/presentation/providers/app_notifications_provider.dart';
+import 'package:phongvu_opshub/features/offset_adjustment/data/offset_adjustment_repository.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -33,9 +35,15 @@ void main() {
       repository,
       notificationReadStore: _FakeNotificationReadStore(),
     );
+    final appNotificationsProvider = AppNotificationsProvider(
+      repository,
+      offsetAdjustmentRepository: _FakeOffsetAdjustmentRepository(),
+      notificationReadStore: _FakeNotificationReadStore(),
+    );
     await provider.initialize(_accUser);
     provider.setOrder('26062512345678');
     await provider.search();
+    await appNotificationsProvider.syncAuth(_accUser, isInitialized: true);
 
     await tester.pumpWidget(
       MultiProvider(
@@ -44,6 +52,9 @@ void main() {
             value: _FakeAuthProvider(_accUser),
           ),
           ChangeNotifierProvider<BankStatementProvider>.value(value: provider),
+          ChangeNotifierProvider<AppNotificationsProvider>.value(
+            value: appNotificationsProvider,
+          ),
         ],
         child: const MaterialApp(home: BankStatementScreen()),
       ),
@@ -56,6 +67,7 @@ void main() {
     expect(find.byTooltip('Giao dịch đang chờ Kế toán xác nhận'), findsWidgets);
 
     expect(provider.pendingOrderTransferTotal, 1);
+    expect(appNotificationsProvider.totalCount, 1);
 
     await tester.tap(find.byTooltip('1 thông báo mới'));
     await tester.pumpAndSettle();
@@ -66,6 +78,8 @@ void main() {
     expect(find.text('Thông báo'), findsOneWidget);
     expect(find.text('Yêu cầu phê duyệt đổi mã đơn'), findsOneWidget);
     expect(find.text('Người gửi: staff@example.com'), findsOneWidget);
+
+    appNotificationsProvider.dispose();
   });
 
   testWidgets('shows statement number in order history dialog title', (
@@ -232,6 +246,21 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
     List<String> transactionIds = const [],
   }) async {
     return Uint8List(0);
+  }
+}
+
+class _FakeOffsetAdjustmentRepository extends OffsetAdjustmentRepository {
+  _FakeOffsetAdjustmentRepository() : super(ApiClient());
+
+  @override
+  Future<OffsetAdjustmentPage> fetchList(OffsetAdjustmentQuery query) async {
+    return OffsetAdjustmentPage(
+      items: const [],
+      page: query.page,
+      limit: query.limit,
+      total: 0,
+      canReview: false,
+    );
   }
 }
 

@@ -189,7 +189,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                 const SizedBox(height: 12),
                 _StatusCard(
                   icon: Icons.error_outline_rounded,
-                  color: AppColors.error,
+                  tone: AppStateTone.error,
                   title: 'Chưa cập nhật được giao dịch',
                   message: monitor.errorMessage!,
                 ),
@@ -207,30 +207,32 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
               ),
               const SizedBox(height: 10),
               Expanded(
-                child: Stack(
+                child: Column(
                   children: [
-                    monitor.latestTransactions.isEmpty
-                        ? const _EmptyTransactions()
-                        : ListView.builder(
-                            itemCount: monitor.latestTransactions.length,
-                            itemBuilder: (context, index) =>
-                                PaymentTransactionTile(
-                                  transaction:
-                                      monitor.latestTransactions[index],
-                                  amountFormatter: _currencyFormatter,
-                                ),
-                          ),
-                    if (monitor.isLoading)
-                      Positioned.fill(
-                        child: Container(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surface.withValues(alpha: 0.6),
-                          child: const Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                        ),
-                      ),
+                    if (monitor.isLoading &&
+                        monitor.latestTransactions.isNotEmpty) ...[
+                      const LinearProgressIndicator(minHeight: 2),
+                      const SizedBox(height: AppLayoutTokens.cardGap),
+                    ],
+                    Expanded(
+                      child: monitor.latestTransactions.isEmpty
+                          ? monitor.isLoading
+                                ? const AppListSkeleton(
+                                    itemCount: 5,
+                                    showLeading: false,
+                                    itemHeight: 92,
+                                  )
+                                : const _EmptyTransactions()
+                          : ListView.builder(
+                              itemCount: monitor.latestTransactions.length,
+                              itemBuilder: (context, index) =>
+                                  PaymentTransactionTile(
+                                    transaction:
+                                        monitor.latestTransactions[index],
+                                    amountFormatter: _currencyFormatter,
+                                  ),
+                            ),
+                    ),
                   ],
                 ),
               ),
@@ -541,13 +543,13 @@ class _TransactionFilters extends StatelessWidget {
 
 class _StatusCard extends StatelessWidget {
   final IconData icon;
-  final Color color;
+  final AppStateTone tone;
   final String title;
   final String message;
 
   const _StatusCard({
     required this.icon,
-    required this.color,
+    required this.tone,
     required this.title,
     required this.message,
   });
@@ -558,7 +560,7 @@ class _StatusCard extends StatelessWidget {
       icon: icon,
       title: title,
       message: message,
-      tone: color == Colors.red ? AppStateTone.error : AppStateTone.info,
+      tone: tone,
     );
   }
 }

@@ -48,7 +48,7 @@ void main() {
     expect(find.text('10:15:30 23/06/2026'), findsOneWidget);
     expect(find.text('MAP-001'), findsOneWidget);
     expect(find.text('KHACH THANH TOAN DON HANG'), findsOneWidget);
-    expect(find.text('Thành công (00)'), findsOneWidget);
+    expect(find.text('Thành công'), findsOneWidget);
     expect(find.text('CP01'), findsOneWidget);
     expect(find.text('26062312345678, 26062387654321'), findsOneWidget);
     expect(find.text('Chỉnh sửa thủ công'), findsOneWidget);

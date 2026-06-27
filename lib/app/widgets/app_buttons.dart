@@ -86,12 +86,16 @@ class AppSecondaryButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final IconData icon;
   final String label;
+  final bool isLoading;
+  final String? loadingLabel;
 
   const AppSecondaryButton({
     super.key,
     required this.onPressed,
     required this.icon,
     required this.label,
+    this.isLoading = false,
+    this.loadingLabel,
   });
 
   @override
@@ -100,10 +104,16 @@ class AppSecondaryButton extends StatelessWidget {
       width: double.infinity,
       height: AppButtonMetrics.height,
       child: OutlinedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon),
+        onPressed: isLoading ? null : onPressed,
+        icon: isLoading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(icon),
         label: Text(
-          label,
+          isLoading ? loadingLabel ?? label : label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           softWrap: false,
@@ -214,5 +224,108 @@ class AppIconAction extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class AppDialogCancelButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final String label;
+
+  const AppDialogCancelButton({
+    super.key,
+    required this.onPressed,
+    this.label = 'Hủy',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+      child: Text(label),
+    );
+  }
+}
+
+class AppDialogSecondaryButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final String label;
+
+  const AppDialogSecondaryButton({
+    super.key,
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppTheme.primaryBlue,
+        side: const BorderSide(color: AppTheme.primaryBlue),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
+        ),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class AppDialogConfirmButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final IconData? icon;
+  final String label;
+  final bool isLoading;
+
+  const AppDialogConfirmButton({
+    super.key,
+    required this.onPressed,
+    this.icon,
+    required this.label,
+    this.isLoading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveIcon = isLoading
+        ? const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.surface,
+            ),
+          )
+        : icon == null
+        ? null
+        : Icon(icon);
+    final style = FilledButton.styleFrom(
+      backgroundColor: AppTheme.primaryBlue,
+      foregroundColor: AppColors.surface,
+      disabledBackgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.45),
+      disabledForegroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
+      ),
+      textStyle: const TextStyle(fontWeight: FontWeight.w700),
+    );
+
+    if (effectiveIcon != null) {
+      return FilledButton.icon(
+        onPressed: isLoading ? null : onPressed,
+        icon: effectiveIcon,
+        label: Text(label),
+        style: style,
+      );
+    }
+    return FilledButton(onPressed: onPressed, style: style, child: Text(label));
   }
 }
