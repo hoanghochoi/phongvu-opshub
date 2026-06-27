@@ -116,4 +116,56 @@ void main() {
     expect(metrics.deltaPercent, -13.2);
     expect(metrics.trend, PaymentDeliveryMetricTrend.down);
   });
+
+  test('fetchDeliveryHistory parses recent speaker rows', () async {
+    final requests = <http.Request>[];
+    final apiClient = ApiClient.test(
+      MockClient((request) async {
+        requests.add(request);
+        return http.Response(
+          jsonEncode({
+            'sampledAt': '2026-06-27T02:00:00.000Z',
+            'limit': 20,
+            'list': [
+              {
+                'deliveryLogId': 'log-1',
+                'notificationId': 'note-1',
+                'transactionId': 'txn-1',
+                'storeCode': 'CP01',
+                'amount': 1250000,
+                'firstSeenAt': '2026-06-27T01:00:02.003Z',
+                'paidAt': '2026-06-27T01:00:00.000Z',
+                'notificationCreatedAt': '2026-06-27T01:00:01.000Z',
+                'playedAt': '2026-06-27T01:00:09.245Z',
+                'status': 'PLAYED',
+                'statusAt': '2026-06-27T01:00:09.245Z',
+                'errorStatus': 'PLAYBACK_FAILED',
+                'errorMessage': 'speaker failed attempt 1',
+                'errorAt': '2026-06-27T01:00:05.000Z',
+                'firstSeenToPlayedMs': 7242,
+              },
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+    final repository = PaymentMonitorRepository(apiClient);
+
+    final history = await repository.fetchDeliveryHistory();
+
+    expect(requests, hasLength(1));
+    expect(
+      requests.single.url.path,
+      endsWith('/payment-notifications/delivery-history'),
+    );
+    expect(requests.single.url.queryParameters['limit'], '20');
+    expect(history.limit, 20);
+    expect(history.items, hasLength(1));
+    expect(history.items.single.storeCode, 'CP01');
+    expect(history.items.single.amount, 1250000);
+    expect(history.items.single.status, 'PLAYED');
+    expect(history.items.single.errorStatus, 'PLAYBACK_FAILED');
+    expect(history.items.single.firstSeenToPlayedMs, 7242);
+  });
 }

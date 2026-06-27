@@ -848,9 +848,67 @@ describe('PaymentNotificationsService', () => {
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
   });
 
+  it('returns SUPER_ADMIN delivery history with latency and sanitized errors', async () => {
+    prisma.$queryRaw.mockResolvedValueOnce([
+      {
+        deliveryLogId: 'log-played',
+        notificationId: 'note-1',
+        transactionId: 'txn-1',
+        storeCode: 'CP01',
+        amount: 1250000,
+        firstSeenAt: new Date('2026-06-27T01:00:02.003Z'),
+        paidAt: new Date('2026-06-27T01:00:00.000Z'),
+        notificationCreatedAt: new Date('2026-06-27T01:00:01.000Z'),
+        playedAt: new Date('2026-06-27T01:00:09.245Z'),
+        status: 'PLAYED',
+        statusAt: new Date('2026-06-27T01:00:09.245Z'),
+        errorStatus: 'PLAYBACK_FAILED',
+        errorMessage: 'speaker failed password=secret',
+        errorAt: new Date('2026-06-27T01:00:05.000Z'),
+        firstSeenToPlayedMs: '7242.4',
+      },
+    ]);
+
+    await expect(
+      service.getDeliveryHistory(
+        speakerUser({ id: 'super-1', role: 'SUPER_ADMIN' }),
+        { limit: '20' },
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        limit: 20,
+        sampledAt: expect.any(String),
+        list: [
+          expect.objectContaining({
+            deliveryLogId: 'log-played',
+            notificationId: 'note-1',
+            transactionId: 'txn-1',
+            storeCode: 'CP01',
+            amount: 1250000,
+            firstSeenAt: '2026-06-27T01:00:02.003Z',
+            playedAt: '2026-06-27T01:00:09.245Z',
+            status: 'PLAYED',
+            errorStatus: 'PLAYBACK_FAILED',
+            errorMessage: 'speaker failed [redacted]',
+            firstSeenToPlayedMs: 7242,
+          }),
+        ],
+      }),
+    );
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects delivery metrics for non SUPER_ADMIN users', async () => {
     await expect(
       service.getDeliveryMetrics(speakerUser({ id: 'user-1' })),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('rejects delivery history for non SUPER_ADMIN users', async () => {
+    await expect(
+      service.getDeliveryHistory(speakerUser({ id: 'user-1' })),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(prisma.$queryRaw).not.toHaveBeenCalled();

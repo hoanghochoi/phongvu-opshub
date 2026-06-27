@@ -101,6 +101,8 @@ class ApiConstants {
       '/payment-notifications/$id/ack';
   static const String paymentNotificationDeliveryMetricsEndpoint =
       '/payment-notifications/delivery-metrics';
+  static const String paymentNotificationDeliveryHistoryEndpoint =
+      '/payment-notifications/delivery-history';
   static const String paymentNotificationsReadyEndpoint =
       '/payment-notifications/ready';
   static const String notificationsReadEndpoint = '/notifications/read';

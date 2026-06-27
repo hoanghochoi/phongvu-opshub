@@ -129,9 +129,12 @@ a customer to scan and pay manually.
   notification bell. It measures the last 24 hours from MAP first-seen time to
   the completed `PLAYED` acknowledgement, then compares that average with the
   previous 24 hours so operators can see whether speaker completion is faster or
-  slower. The backend also logs each completed playback acknowledgement with the
-  measured duration and logs KPI load start/success/failure with sanitized
-  context.
+  slower. Tapping the KPI opens a dialog with the latest 10-20 speaker delivery
+  rows, including SR, amount, MAP first-seen time, `PLAYED` acknowledgement time,
+  first-seen-to-played duration, and any latest playback failure status/message
+  available for that notification. The backend also logs each completed playback
+  acknowledgement with the measured duration and logs KPI/history load
+  start/success/failure with sanitized context.
 - New incoming transaction audio is delivered through backend-generated payment
   notifications. The backend stores notification/audit rows, optionally calls a
   server-side TTS service, publishes a scoped realtime event, and serves audio

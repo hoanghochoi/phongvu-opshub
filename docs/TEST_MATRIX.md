@@ -68,6 +68,16 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PAYMENT-MONITOR-001, 2026-06-27: expanded the Super Admin speaker-speed KPI
+  chip into a history dialog. Backend now exposes a Super Admin-only
+  `GET /payment-notifications/delivery-history` endpoint capped to 10-20 rows,
+  joining delivery logs, notifications, and MAP transactions to return SR,
+  amount, MAP first-seen time, `PLAYED` ack time, first-seen-to-played duration,
+  and latest playback failure status/message when present. Flutter opens the
+  dialog from the chip, keeps operational details selectable/copyable, and logs
+  dialog/history load start/success/failure through `AppLogger`. Validation:
+  focused backend payment notification Jest, focused Flutter repository/provider/
+  widget tests, Flutter analyze, backend build, and `git diff --check`.
 - PAYMENT-STATEMENT-001 / OFFSET-ADJUSTMENT-001, 2026-06-27: notification bell
   badges now count unread rows for the signed-in user instead of raw API totals.
   Opening or refreshing the global bell and the legacy `Sao kê` bell marks the

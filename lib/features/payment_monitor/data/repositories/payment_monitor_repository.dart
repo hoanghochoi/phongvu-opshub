@@ -130,6 +130,15 @@ class PaymentMonitorRepository {
     return PaymentDeliveryMetrics.fromJson(data);
   }
 
+  Future<PaymentDeliveryHistory> fetchDeliveryHistory({int limit = 20}) async {
+    final response = await _apiClient.get(
+      ApiConstants.paymentNotificationDeliveryHistoryEndpoint,
+      queryParameters: {'limit': limit.toString()},
+    );
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return PaymentDeliveryHistory.fromJson(data);
+  }
+
   Future<void> acknowledgeNotification({
     required String notificationId,
     required String clientId,

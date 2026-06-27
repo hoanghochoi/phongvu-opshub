@@ -34,6 +34,13 @@ export class PaymentNotificationDeliveryMetricsQueryDto {
   windowHours?: string;
 }
 
+export class PaymentNotificationDeliveryHistoryQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(2)
+  limit?: string;
+}
+
 export class PaymentNotificationAckDto {
   @IsString()
   @MaxLength(120)

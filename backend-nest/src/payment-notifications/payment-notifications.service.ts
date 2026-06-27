@@ -37,6 +37,7 @@ import { isSuperAdminRole } from '../common/system-role';
 import {
   CreateAppLogDto,
   ListPaymentNotificationsQueryDto,
+  PaymentNotificationDeliveryHistoryQueryDto,
   PaymentNotificationDeliveryMetricsQueryDto,
   PaymentNotificationAckDto,
 } from './payment-notifications.dto';
@@ -53,6 +54,9 @@ const DEFAULT_PAYMENT_CUE_GAIN = 0.8;
 const DEFAULT_AMOUNT_AUDIO_CACHE_RETENTION_DAYS = 90;
 const DEFAULT_DELIVERY_CLAIM_TTL_SECONDS = 120;
 const DEFAULT_DELIVERY_METRICS_WINDOW_HOURS = 24;
+const DEFAULT_DELIVERY_HISTORY_LIMIT = 20;
+const MIN_DELIVERY_HISTORY_LIMIT = 10;
+const MAX_DELIVERY_HISTORY_LIMIT = 20;
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
 const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE = 'Không có quyền Đọc loa tiền vào';
@@ -88,6 +92,24 @@ type PaymentDeliveryMetricTrend = 'up' | 'down' | 'flat' | 'unknown';
 type PaymentDeliveryMetricRow = {
   count?: number | bigint | string | null;
   averageMs?: unknown;
+};
+
+type PaymentDeliveryHistoryRow = {
+  deliveryLogId?: string | null;
+  notificationId?: string | null;
+  transactionId?: string | null;
+  storeCode?: string | null;
+  amount?: unknown;
+  firstSeenAt?: Date | string | null;
+  paidAt?: Date | string | null;
+  notificationCreatedAt?: Date | string | null;
+  playedAt?: Date | string | null;
+  status?: string | null;
+  statusAt?: Date | string | null;
+  errorStatus?: string | null;
+  errorMessage?: string | null;
+  errorAt?: Date | string | null;
+  firstSeenToPlayedMs?: unknown;
 };
 
 @Injectable()
@@ -416,6 +438,41 @@ export class PaymentNotificationsService {
     } catch (error) {
       this.logger.warn(
         `Payment delivery metrics failed user=${this.safeUserLabel(user)} windowHours=${windowHours} durationMs=${Date.now() - startedAt}: ${this.safeError(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  async getDeliveryHistory(
+    user: any,
+    query: PaymentNotificationDeliveryHistoryQueryDto = {},
+  ) {
+    this.assertSuperAdmin(user, 'delivery_history');
+    const startedAt = Date.now();
+    const limit = this.parseDeliveryHistoryLimit(query.limit);
+    const sampledAt = new Date();
+
+    this.logger.log(
+      `Payment delivery history requested user=${this.safeUserLabel(user)} limit=${limit}`,
+    );
+
+    try {
+      const rows = await this.readDeliveryHistory(limit);
+      const list = rows.map((row) => this.serializeDeliveryHistoryRow(row));
+      const errorCount = list.filter((row) => row.errorStatus != null).length;
+
+      this.logger.log(
+        `Payment delivery history computed user=${this.safeUserLabel(user)} limit=${limit} itemCount=${list.length} errorCount=${errorCount} durationMs=${Date.now() - startedAt}`,
+      );
+
+      return {
+        sampledAt: sampledAt.toISOString(),
+        limit,
+        list,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Payment delivery history failed user=${this.safeUserLabel(user)} limit=${limit} durationMs=${Date.now() - startedAt}: ${this.safeError(error)}`,
       );
       throw error;
     }
@@ -1117,6 +1174,91 @@ export class PaymentNotificationsService {
     };
   }
 
+  private async readDeliveryHistory(limit: number) {
+    return this.prisma.$queryRaw<PaymentDeliveryHistoryRow[]>`
+      WITH latest_status AS (
+        SELECT DISTINCT ON ("notificationId")
+          "id" AS "deliveryLogId",
+          "notificationId",
+          "event" AS "status",
+          "error",
+          "createdAt" AS "statusAt"
+        FROM "PaymentNotificationDeliveryLog"
+        WHERE "event" IN ('PLAYED', 'FAILED', 'PLAYBACK_FAILED')
+        ORDER BY "notificationId", "createdAt" DESC, "id" DESC
+      ),
+      played AS (
+        SELECT
+          "notificationId",
+          MAX("createdAt") AS "playedAt"
+        FROM "PaymentNotificationDeliveryLog"
+        WHERE "event" = 'PLAYED'
+        GROUP BY "notificationId"
+      ),
+      last_error AS (
+        SELECT DISTINCT ON ("notificationId")
+          "notificationId",
+          "event" AS "errorStatus",
+          "error" AS "errorMessage",
+          "createdAt" AS "errorAt"
+        FROM "PaymentNotificationDeliveryLog"
+        WHERE "event" IN ('FAILED', 'PLAYBACK_FAILED')
+          OR "error" IS NOT NULL
+        ORDER BY "notificationId", "createdAt" DESC, "id" DESC
+      )
+      SELECT
+        latest."deliveryLogId" AS "deliveryLogId",
+        note."id" AS "notificationId",
+        note."transactionId" AS "transactionId",
+        note."storeCode" AS "storeCode",
+        note."amount" AS "amount",
+        txn."firstSeenAt" AS "firstSeenAt",
+        txn."paidAt" AS "paidAt",
+        note."createdAt" AS "notificationCreatedAt",
+        played."playedAt" AS "playedAt",
+        latest."status" AS "status",
+        latest."statusAt" AS "statusAt",
+        last_error."errorStatus" AS "errorStatus",
+        last_error."errorMessage" AS "errorMessage",
+        last_error."errorAt" AS "errorAt",
+        CASE
+          WHEN played."playedAt" IS NULL THEN NULL
+          ELSE EXTRACT(EPOCH FROM (played."playedAt" - txn."firstSeenAt")) * 1000
+        END AS "firstSeenToPlayedMs"
+      FROM latest_status latest
+      JOIN "PaymentNotification" note ON note."id" = latest."notificationId"
+      JOIN "MapVietinTransaction" txn ON txn."id" = note."transactionId"
+      LEFT JOIN played ON played."notificationId" = note."id"
+      LEFT JOIN last_error ON last_error."notificationId" = note."id"
+      WHERE played."playedAt" IS NULL OR played."playedAt" >= txn."firstSeenAt"
+      ORDER BY COALESCE(played."playedAt", latest."statusAt") DESC
+      LIMIT ${limit}
+    `;
+  }
+
+  private serializeDeliveryHistoryRow(row: PaymentDeliveryHistoryRow) {
+    const errorMessage = row.errorMessage
+      ? this.scrub(String(row.errorMessage)).slice(0, 500)
+      : null;
+    return {
+      deliveryLogId: this.stringOrNull(row.deliveryLogId),
+      notificationId: this.stringOrNull(row.notificationId),
+      transactionId: this.stringOrNull(row.transactionId),
+      storeCode: this.stringOrNull(row.storeCode) ?? '',
+      amount: this.numberFromUnknown(row.amount),
+      firstSeenAt: this.isoFromUnknown(row.firstSeenAt),
+      paidAt: this.isoFromUnknown(row.paidAt),
+      notificationCreatedAt: this.isoFromUnknown(row.notificationCreatedAt),
+      playedAt: this.isoFromUnknown(row.playedAt),
+      status: this.stringOrNull(row.status) ?? 'UNKNOWN',
+      statusAt: this.isoFromUnknown(row.statusAt),
+      errorStatus: this.stringOrNull(row.errorStatus),
+      errorMessage,
+      errorAt: this.isoFromUnknown(row.errorAt),
+      firstSeenToPlayedMs: this.roundMetricMs(row.firstSeenToPlayedMs),
+    };
+  }
+
   private deliveryMetricTrend(
     currentAverageMs: number | null,
     previousAverageMs: number | null,
@@ -1377,6 +1519,21 @@ export class PaymentNotificationsService {
     throw new BadRequestException('Khoảng thời gian đo không hợp lệ');
   }
 
+  private parseDeliveryHistoryLimit(value?: string) {
+    if (value == null || value.trim().length === 0) {
+      return DEFAULT_DELIVERY_HISTORY_LIMIT;
+    }
+    const parsed = Number(value);
+    if (
+      Number.isFinite(parsed) &&
+      parsed >= MIN_DELIVERY_HISTORY_LIMIT &&
+      parsed <= MAX_DELIVERY_HISTORY_LIMIT
+    ) {
+      return Math.trunc(parsed);
+    }
+    throw new BadRequestException('Số giao dịch lịch sử đọc loa không hợp lệ');
+  }
+
   private async lockReadyNotificationClient(
     tx: Prisma.TransactionClient,
     clientId: string,
@@ -1421,6 +1578,21 @@ export class PaymentNotificationsService {
     if (typeof value === 'bigint') return Number(value);
     const parsed = Number(value ?? 0);
     return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private stringOrNull(value: unknown) {
+    if (value == null) return null;
+    const normalized = String(value).trim();
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  private isoFromUnknown(value: unknown) {
+    if (value == null) return null;
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? null : value.toISOString();
+    }
+    const parsed = new Date(String(value));
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
   }
 
   private roundMetricMs(value: unknown) {

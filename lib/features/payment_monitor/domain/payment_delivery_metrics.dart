@@ -63,6 +63,93 @@ class PaymentDeliveryMetrics {
   bool get hasCurrentAverage => current.averageMs != null;
 }
 
+class PaymentDeliveryHistory {
+  final DateTime? sampledAt;
+  final int limit;
+  final List<PaymentDeliveryHistoryItem> items;
+
+  const PaymentDeliveryHistory({
+    required this.sampledAt,
+    required this.limit,
+    required this.items,
+  });
+
+  factory PaymentDeliveryHistory.fromJson(Map<String, dynamic> json) {
+    final rows = json['list'] is List ? json['list'] as List : const [];
+    return PaymentDeliveryHistory(
+      sampledAt: _dateFromJson(json['sampledAt']),
+      limit: _intFromJson(json['limit']) ?? 20,
+      items: rows
+          .whereType<Map>()
+          .map(
+            (row) => PaymentDeliveryHistoryItem.fromJson(
+              row.map((key, value) => MapEntry(key.toString(), value)),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+}
+
+class PaymentDeliveryHistoryItem {
+  final String? deliveryLogId;
+  final String? notificationId;
+  final String? transactionId;
+  final String storeCode;
+  final int amount;
+  final DateTime? firstSeenAt;
+  final DateTime? paidAt;
+  final DateTime? notificationCreatedAt;
+  final DateTime? playedAt;
+  final String status;
+  final DateTime? statusAt;
+  final String? errorStatus;
+  final String? errorMessage;
+  final DateTime? errorAt;
+  final int? firstSeenToPlayedMs;
+
+  const PaymentDeliveryHistoryItem({
+    required this.deliveryLogId,
+    required this.notificationId,
+    required this.transactionId,
+    required this.storeCode,
+    required this.amount,
+    required this.firstSeenAt,
+    required this.paidAt,
+    required this.notificationCreatedAt,
+    required this.playedAt,
+    required this.status,
+    required this.statusAt,
+    required this.errorStatus,
+    required this.errorMessage,
+    required this.errorAt,
+    required this.firstSeenToPlayedMs,
+  });
+
+  factory PaymentDeliveryHistoryItem.fromJson(Map<String, dynamic> json) {
+    return PaymentDeliveryHistoryItem(
+      deliveryLogId: _stringFromJson(json['deliveryLogId']),
+      notificationId: _stringFromJson(json['notificationId']),
+      transactionId: _stringFromJson(json['transactionId']),
+      storeCode: _stringFromJson(json['storeCode']) ?? '',
+      amount: _intFromJson(json['amount']) ?? 0,
+      firstSeenAt: _dateFromJson(json['firstSeenAt']),
+      paidAt: _dateFromJson(json['paidAt']),
+      notificationCreatedAt: _dateFromJson(json['notificationCreatedAt']),
+      playedAt: _dateFromJson(json['playedAt']),
+      status: _stringFromJson(json['status']) ?? 'UNKNOWN',
+      statusAt: _dateFromJson(json['statusAt']),
+      errorStatus: _stringFromJson(json['errorStatus']),
+      errorMessage: _stringFromJson(json['errorMessage']),
+      errorAt: _dateFromJson(json['errorAt']),
+      firstSeenToPlayedMs: _intFromJson(json['firstSeenToPlayedMs']),
+    );
+  }
+
+  bool get hasError => errorStatus != null || errorMessage != null;
+  bool get isPlayed => status.toUpperCase() == 'PLAYED';
+}
+
 PaymentDeliveryMetricTrend _trendFromJson(Object? value) {
   return switch (value?.toString().trim().toLowerCase()) {
     'up' => PaymentDeliveryMetricTrend.up,
@@ -70,6 +157,12 @@ PaymentDeliveryMetricTrend _trendFromJson(Object? value) {
     'flat' => PaymentDeliveryMetricTrend.flat,
     _ => PaymentDeliveryMetricTrend.unknown,
   };
+}
+
+String? _stringFromJson(Object? value) {
+  final text = value?.toString().trim();
+  if (text == null || text.isEmpty) return null;
+  return text;
 }
 
 DateTime? _dateFromJson(Object? value) {

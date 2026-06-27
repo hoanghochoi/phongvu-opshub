@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../domain/payment_delivery_metrics.dart';
 import '../providers/payment_delivery_metrics_provider.dart';
 
@@ -48,7 +51,7 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
         message: tooltip,
         child: Semantics(
           button: true,
-          label: 'Tốc độ đọc loa trung bình',
+          label: 'Mở lịch sử tốc độ đọc loa',
           child: ConstrainedBox(
             constraints: const BoxConstraints(
               minWidth: 88,
@@ -71,7 +74,7 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
                 type: MaterialType.transparency,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
-                  onTap: provider.isLoading ? null : () => provider.load(),
+                  onTap: () => _openHistoryDialog(context, provider),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -80,7 +83,11 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.timer_outlined, size: 17, color: statusColor),
+                        Icon(
+                          Icons.timer_outlined,
+                          size: 17,
+                          color: statusColor,
+                        ),
                         const SizedBox(width: 5),
                         Flexible(
                           child: FittedBox(
@@ -140,25 +147,54 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
     );
   }
 
+  Future<void> _openHistoryDialog(
+    BuildContext context,
+    PaymentDeliveryMetricsProvider provider,
+  ) async {
+    await AppLogger.instance.info(
+      'PaymentDeliveryMetrics',
+      'Payment delivery history dialog opened',
+      context: {
+        'currentCount': provider.metrics?.current.count,
+        'currentAverageMs': provider.metrics?.current.averageMs,
+      },
+    );
+    if (!context.mounted) return;
+    unawaited(provider.loadHistory());
+    await showDialog<void>(
+      context: context,
+      builder: (_) =>
+          ChangeNotifierProvider<PaymentDeliveryMetricsProvider>.value(
+            value: provider,
+            child: const _PaymentDeliveryHistoryDialog(),
+          ),
+    );
+    await AppLogger.instance.info(
+      'PaymentDeliveryMetrics',
+      'Payment delivery history dialog closed',
+      context: {'itemCount': provider.historyItems.length},
+    );
+  }
+
   String _tooltip(
     PaymentDeliveryMetrics? metrics,
     bool isLoading,
     String? errorMessage,
   ) {
     if (errorMessage != null && metrics == null) {
-      return 'Chưa tải được tốc độ đọc loa. Bấm để tải lại.';
+      return 'Chưa tải được tốc độ đọc loa. Bấm để xem lịch sử hoặc tải lại.';
     }
     if (errorMessage != null) {
-      return 'Chưa cập nhật được tốc độ đọc loa. Đang hiển thị dữ liệu gần nhất. Bấm để tải lại.';
+      return 'Chưa cập nhật được tốc độ đọc loa. Bấm để xem lịch sử.';
     }
     if (metrics == null) {
       return isLoading
           ? 'Đang tải tốc độ đọc loa.'
-          : 'Chưa có dữ liệu tốc độ đọc loa. Bấm để tải lại.';
+          : 'Chưa có dữ liệu tốc độ đọc loa. Bấm để xem lịch sử.';
     }
     final averageMs = metrics.current.averageMs;
     if (averageMs == null) {
-      return 'Chưa có lượt đọc loa hoàn tất trong ${metrics.windowHours} giờ gần nhất.';
+      return 'Chưa có lượt đọc loa hoàn tất trong ${metrics.windowHours} giờ gần nhất. Bấm để xem lịch sử.';
     }
     final trendText = switch (metrics.trend) {
       PaymentDeliveryMetricTrend.down => 'Giảm so với kỳ trước.',
@@ -166,51 +202,7 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
       PaymentDeliveryMetricTrend.flat => 'Gần như không đổi so với kỳ trước.',
       PaymentDeliveryMetricTrend.unknown => 'Chưa đủ dữ liệu kỳ trước.',
     };
-    return 'Trung bình từ lúc MAP ghi nhận giao dịch đến khi loa xác nhận đã đọc xong: ${_formatDuration(averageMs)}. $trendText';
-  }
-                      ),
-                    ),
-                  ),
-                  if (deltaMs != null) ...[
-                    const SizedBox(width: 5),
-                    Icon(_trendIcon(trend), size: 16, color: trendColor),
-                    const SizedBox(width: 2),
-                    Text(
-                      _formatDuration(math.max(0, deltaMs.abs())),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: trendColor,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _tooltip(PaymentDeliveryMetrics? metrics, bool isLoading) {
-    if (metrics == null) {
-      return isLoading
-          ? 'Đang tải tốc độ đọc loa.'
-          : 'Chưa có dữ liệu tốc độ đọc loa.';
-    }
-    final averageMs = metrics.current.averageMs;
-    if (averageMs == null) {
-      return 'Chưa có lượt đọc loa hoàn tất trong ${metrics.windowHours} giờ gần nhất.';
-    }
-    final trendText = switch (metrics.trend) {
-      PaymentDeliveryMetricTrend.down => 'Giảm so với kỳ trước.',
-      PaymentDeliveryMetricTrend.up => 'Tăng so với kỳ trước.',
-      PaymentDeliveryMetricTrend.flat => 'Gần như không đổi so với kỳ trước.',
-      PaymentDeliveryMetricTrend.unknown => 'Chưa đủ dữ liệu kỳ trước.',
-    };
-    return 'Trung bình từ lúc MAP ghi nhận giao dịch đến khi loa xác nhận đã đọc xong: ${_formatDuration(averageMs)}. $trendText';
+    return 'Trung bình từ lúc MAP ghi nhận giao dịch đến khi loa xác nhận đã đọc xong: ${_formatDuration(averageMs)}. $trendText Bấm để xem lịch sử.';
   }
 
   IconData _trendIcon(PaymentDeliveryMetricTrend trend) {
@@ -240,5 +232,313 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
     final seconds = ms / 1000;
     if (seconds >= 10) return '${seconds.round()}s';
     return '${seconds.toStringAsFixed(1)}s';
+  }
+}
+
+class _PaymentDeliveryHistoryDialog extends StatelessWidget {
+  const _PaymentDeliveryHistoryDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<PaymentDeliveryMetricsProvider>(
+      builder: (context, provider, _) {
+        final size = MediaQuery.sizeOf(context);
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.history_rounded),
+              SizedBox(width: 8),
+              Expanded(child: Text('Lịch sử đọc loa')),
+            ],
+          ),
+          content: SizedBox(
+            width: math.min(size.width - 48, 680),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: math.min(size.height * 0.65, 540),
+              ),
+              child: _PaymentDeliveryHistoryContent(provider: provider),
+            ),
+          ),
+          actions: [
+            TextButton.icon(
+              onPressed: provider.isHistoryLoading
+                  ? null
+                  : () => provider.loadHistory(),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Tải lại'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Đóng'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PaymentDeliveryHistoryContent extends StatelessWidget {
+  final PaymentDeliveryMetricsProvider provider;
+
+  const _PaymentDeliveryHistoryContent({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    if (provider.isHistoryLoading && provider.historyItems.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (provider.historyErrorMessage != null && provider.historyItems.isEmpty) {
+      return _HistoryStateMessage(
+        icon: Icons.error_outline_rounded,
+        title: 'Chưa tải được lịch sử đọc loa',
+        message: 'Vui lòng thử lại sau ít phút.',
+        color: AppColors.error,
+      );
+    }
+    if (provider.historyItems.isEmpty) {
+      return const _HistoryStateMessage(
+        icon: Icons.volume_off_rounded,
+        title: 'Chưa có giao dịch đọc loa gần đây',
+        message:
+            'Khi có ack PLAYED hoặc lỗi phát loa, giao dịch sẽ xuất hiện ở đây.',
+        color: AppColors.neutral500,
+      );
+    }
+
+    return Column(
+      children: [
+        if (provider.isHistoryLoading)
+          const _HistoryInlineNotice(
+            icon: Icons.sync_rounded,
+            text: 'Đang cập nhật lịch sử...',
+            color: AppColors.info,
+          )
+        else if (provider.historyErrorMessage != null)
+          const _HistoryInlineNotice(
+            icon: Icons.error_outline_rounded,
+            text:
+                'Chưa cập nhật được lịch sử mới. Đang hiển thị dữ liệu gần nhất.',
+            color: AppColors.warning,
+          ),
+        Expanded(
+          child: ListView.separated(
+            itemCount: provider.historyItems.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              return _HistoryItemTile(item: provider.historyItems[index]);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HistoryItemTile extends StatelessWidget {
+  static final _moneyFormat = NumberFormat.decimalPattern('vi_VN');
+  static final _timeFormat = DateFormat('HH:mm:ss dd/MM/yyyy');
+
+  final PaymentDeliveryHistoryItem item;
+
+  const _HistoryItemTile({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final statusText = _statusText(item.status);
+    final statusColor = _statusColor(item);
+    final errorText = _errorText(item);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.neutral50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.neutral200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: statusColor.withValues(alpha: 0.28),
+                    ),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: statusColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SelectableText(
+                    'SR ${item.storeCode.isEmpty ? '--' : item.storeCode}',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                SelectableText(
+                  '${_moneyFormat.format(item.amount)}đ',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.success,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SelectableText(
+              'MAP ghi nhận: ${_formatTime(item.firstSeenAt)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 4),
+            SelectableText(
+              'Ack PLAYED: ${_formatTime(item.playedAt)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 4),
+            SelectableText(
+              'Thời gian đọc: ${item.firstSeenToPlayedMs == null ? '--' : PaymentDeliveryMetricsChip._formatDuration(item.firstSeenToPlayedMs!)}',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            if (errorText != null) ...[
+              const SizedBox(height: 6),
+              SelectableText(
+                errorText,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(DateTime? value) {
+    if (value == null) return '--';
+    return _timeFormat.format(value);
+  }
+
+  String _statusText(String status) {
+    return switch (status.trim().toUpperCase()) {
+      'PLAYED' => 'Đã đọc',
+      'FAILED' => 'Lỗi phát',
+      'PLAYBACK_FAILED' => 'Lỗi tạm thời',
+      _ => 'Chưa rõ',
+    };
+  }
+
+  Color _statusColor(PaymentDeliveryHistoryItem item) {
+    if (item.status.toUpperCase() == 'PLAYED' && !item.hasError) {
+      return AppColors.success;
+    }
+    if (item.status.toUpperCase() == 'PLAYED') return AppColors.warning;
+    return AppColors.error;
+  }
+
+  String? _errorText(PaymentDeliveryHistoryItem item) {
+    if (!item.hasError) return null;
+    final status = item.errorStatus == null
+        ? 'Có lỗi'
+        : _statusText(item.errorStatus!);
+    final message = item.errorMessage?.trim();
+    if (message == null || message.isEmpty) return 'Trạng thái lỗi: $status';
+    return 'Trạng thái lỗi: $status - $message';
+  }
+}
+
+class _HistoryStateMessage extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final Color color;
+
+  const _HistoryStateMessage({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 30),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.neutral600),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryInlineNotice extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color color;
+
+  const _HistoryInlineNotice({
+    required this.icon,
+    required this.text,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.neutral700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

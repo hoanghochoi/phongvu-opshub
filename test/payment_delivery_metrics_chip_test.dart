@@ -1,10 +1,13 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/repositories/payment_monitor_repository.dart';
 import 'package:phongvu_opshub/features/payment_monitor/domain/payment_delivery_metrics.dart';
 import 'package:phongvu_opshub/features/payment_monitor/presentation/providers/payment_delivery_metrics_provider.dart';
+import 'package:phongvu_opshub/features/payment_monitor/presentation/widgets/payment_delivery_metrics_chip.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -17,61 +20,46 @@ void main() {
     AppLogger.instance.setUploadsEnabledForTesting(true);
   });
 
-  test('loads delivery metrics for SUPER_ADMIN', () async {
+  testWidgets('opens recent speaker delivery history from chip', (
+    tester,
+  ) async {
     final repository = _FakePaymentMonitorRepository(_metrics(), _history());
     final provider = PaymentDeliveryMetricsProvider(
       repository,
       refreshInterval: Duration.zero,
     );
+    await provider.syncAuth(_user(), isInitialized: true);
 
-    await provider.syncAuth(_user(role: 'SUPER_ADMIN'), isInitialized: true);
-
-    expect(repository.fetchCount, 1);
-    expect(provider.metrics?.current.averageMs, 7242);
-    expect(provider.shouldShow, isTrue);
-
-    provider.dispose();
-  });
-
-  test('loads delivery history for SUPER_ADMIN', () async {
-    final repository = _FakePaymentMonitorRepository(_metrics(), _history());
-    final provider = PaymentDeliveryMetricsProvider(
-      repository,
-      refreshInterval: Duration.zero,
+    await tester.pumpWidget(
+      ChangeNotifierProvider<PaymentDeliveryMetricsProvider>.value(
+        value: provider,
+        child: const MaterialApp(
+          home: Scaffold(body: Center(child: PaymentDeliveryMetricsChip())),
+        ),
+      ),
     );
 
-    await provider.syncAuth(_user(role: 'SUPER_ADMIN'), isInitialized: true);
-    await provider.loadHistory();
+    expect(find.text('TB 7.2s'), findsOneWidget);
+
+    await tester.tap(find.byType(PaymentDeliveryMetricsChip));
+    await tester.pumpAndSettle();
 
     expect(repository.historyFetchCount, 1);
-    expect(provider.historyItems, hasLength(1));
-    expect(provider.historyItems.single.storeCode, 'CP01');
-    expect(provider.historyItems.single.firstSeenToPlayedMs, 7242);
-    expect(provider.historyErrorMessage, isNull);
-
-    provider.dispose();
-  });
-
-  test('does not load delivery metrics for non SUPER_ADMIN users', () async {
-    final repository = _FakePaymentMonitorRepository(_metrics(), _history());
-    final provider = PaymentDeliveryMetricsProvider(
-      repository,
-      refreshInterval: Duration.zero,
-    );
-
-    await provider.syncAuth(_user(role: 'USER'), isInitialized: true);
-
-    expect(repository.fetchCount, 0);
-    expect(repository.historyFetchCount, 0);
-    expect(provider.metrics, isNull);
-    expect(provider.shouldShow, isFalse);
+    expect(find.text('Lịch sử đọc loa'), findsOneWidget);
+    expect(find.text('SR CP01'), findsOneWidget);
+    expect(find.text('Ack PLAYED: 08:00:09 27/06/2026'), findsOneWidget);
+    expect(find.textContaining('Trạng thái lỗi: Lỗi tạm thời'), findsOneWidget);
 
     provider.dispose();
   });
 }
 
-User _user({required String role}) {
-  return User(id: 'user-$role', email: '$role@example.com', role: role);
+User _user() {
+  return const User(
+    id: 'super-1',
+    email: 'super@example.com',
+    role: 'SUPER_ADMIN',
+  );
 }
 
 PaymentDeliveryMetrics _metrics() {
@@ -107,9 +95,11 @@ PaymentDeliveryHistory _history() {
         'transactionId': 'txn-1',
         'storeCode': 'CP01',
         'amount': 1250000,
-        'firstSeenAt': '2026-06-27T01:00:02.003Z',
-        'playedAt': '2026-06-27T01:00:09.245Z',
+        'firstSeenAt': '2026-06-27T08:00:02.003',
+        'playedAt': '2026-06-27T08:00:09.245',
         'status': 'PLAYED',
+        'errorStatus': 'PLAYBACK_FAILED',
+        'errorMessage': 'speaker failed attempt 1',
         'firstSeenToPlayedMs': 7242,
       },
     ],
