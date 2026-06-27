@@ -4,6 +4,7 @@ import { OffsetAdjustmentsService } from './offset-adjustments.service';
 describe('OffsetAdjustmentsService', () => {
   let prisma: any;
   let redis: { publishMessage: jest.Mock };
+  let notificationsService: { readAtByNotificationId: jest.Mock };
   let service: OffsetAdjustmentsService;
 
   const srUser = {
@@ -44,7 +45,14 @@ describe('OffsetAdjustmentsService', () => {
       },
     };
     redis = { publishMessage: jest.fn().mockResolvedValue(undefined) };
-    service = new OffsetAdjustmentsService(prisma as any, redis as any);
+    notificationsService = {
+      readAtByNotificationId: jest.fn().mockResolvedValue(new Map()),
+    };
+    service = new OffsetAdjustmentsService(
+      prisma as any,
+      redis as any,
+      notificationsService as any,
+    );
     jest
       .spyOn(Date, 'now')
       .mockReturnValue(new Date('2026-06-25T03:00:00.000Z').getTime());
@@ -238,10 +246,14 @@ describe('OffsetAdjustmentsService', () => {
   });
 
   it('lists pending offset notifications for reviewers', async () => {
+    const readAt = new Date('2026-06-26T03:00:00.000Z');
     prisma.offsetAdjustment.findMany.mockResolvedValue([
       offsetRow({ id: 'offset-pending', status: 'PENDING_ACC' }),
     ]);
     prisma.offsetAdjustment.count.mockResolvedValue(1);
+    notificationsService.readAtByNotificationId.mockResolvedValue(
+      new Map([['offset-pending', readAt]]),
+    );
 
     const result = await service.list(accUser, {
       allStores: 'true',
@@ -253,8 +265,19 @@ describe('OffsetAdjustmentsService', () => {
     expect(result).toMatchObject({
       total: 1,
       canReview: true,
-      list: [{ id: 'offset-pending', status: 'PENDING_ACC' }],
+      list: [
+        {
+          id: 'offset-pending',
+          status: 'PENDING_ACC',
+          notificationReadAt: readAt.toISOString(),
+        },
+      ],
     });
+    expect(notificationsService.readAtByNotificationId).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'acc-1' }),
+      'offset_adjustment',
+      ['offset-pending'],
+    );
     expect(prisma.offsetAdjustment.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { status: 'PENDING_ACC' },

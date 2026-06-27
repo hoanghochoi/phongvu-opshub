@@ -478,6 +478,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node scripts/build-help-site.mjs
+          tar -C dist -czf dist/help.tar.gz help
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
           downloads_dir="${OPSHUB_SSD_ROOT}/downloads"
           tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}"
@@ -491,6 +493,7 @@ jobs:
           scp 'dist/downloads/latest.json' "opshub-staging:${tmp_dir}/latest.json"
           scp 'deploy/home-server/download.html' "opshub-staging:${tmp_dir}/download.html"
           scp 'web/icons/Icon-192.png' "opshub-staging:${tmp_dir}/opshub-icon-192.png"
+          scp 'dist/help.tar.gz' "opshub-staging:${tmp_dir}/help.tar.gz"
           ssh opshub-staging \
             "DOWNLOADS_DIR='$downloads_dir' TMP_DIR='$tmp_dir' bash -s" <<'REMOTE'
           set -euo pipefail
@@ -498,6 +501,12 @@ jobs:
           sudo install -m 0644 "$TMP_DIR/latest.json" "$DOWNLOADS_DIR/latest.json"
           sudo install -m 0644 "$TMP_DIR/download.html" "$DOWNLOADS_DIR/download.html"
           sudo install -m 0644 "$TMP_DIR/opshub-icon-192.png" "$DOWNLOADS_DIR/opshub-icon-192.png"
+          case "$DOWNLOADS_DIR" in
+            */downloads) ;;
+            *) echo "Refusing to replace help outside a downloads directory: $DOWNLOADS_DIR" >&2; exit 1 ;;
+          esac
+          sudo rm -rf "$DOWNLOADS_DIR/help"
+          sudo tar -xzf "$TMP_DIR/help.tar.gz" -C "$DOWNLOADS_DIR"
           rm -rf "$TMP_DIR"
           REMOTE
 
@@ -729,6 +738,7 @@ jobs:
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$android_json")" >/dev/null
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$windows_json")" >/dev/null
           retry_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}" >/dev/null
+          retry_curl "${OPSHUB_PUBLIC_BASE_URL}/help" >/dev/null
           manifest_json="$(retry_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json")"
           node -e "
             const manifest = JSON.parse(process.argv[1]);

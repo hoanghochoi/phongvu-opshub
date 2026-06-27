@@ -21,6 +21,8 @@ development services for OpsHub.
   payload alone.
 - Staff client downloads are exposed by `GET /download`, backed by the public
   manifest at `GET /downloads/latest.json`.
+- Public staff guidance is exposed by `GET /help`, backed by Markdown content
+  and images deployed from `docs/help/`.
 
 ## Health Checks
 
@@ -49,10 +51,11 @@ curl http://localhost:3000/app-version
 - Full production GitHub deploys build the client packages in Actions, upload the APK,
   Windows installer, Windows ZIP, and checksum directly to VPS staging, then
   promote them to `/srv/opshub/downloads/` and publish `/downloads/latest.json`
-  for the download landing page. Manual `workflow_dispatch` with
+  for the download landing page. The same deploy publishes the built help site
+  under `/srv/opshub/downloads/help/`. Manual `workflow_dispatch` with
   `skip_client_build=true` refreshes only the static download page and manifest
-  from existing live artifacts; it must not change app-version metadata or
-  rebuild client packages.
+  plus the help site from existing live artifacts; it must not change
+  app-version metadata or rebuild client packages.
 - Staging deploys run on `staging` pushes or manual `Deploy OpsHub Staging`
   dispatches, target `opshub-staging.hoanghochoi.com` for API/runtime traffic,
   publish downloads under `/srv/opshub-staging/downloads/`, expose those

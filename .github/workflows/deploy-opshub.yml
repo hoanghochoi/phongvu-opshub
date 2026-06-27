@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       skip_client_build:
-        description: Deploy only the /download landing page and latest manifest from live artifacts.
+        description: Deploy only the /download and /help static pages plus latest manifest from live artifacts.
         required: false
         type: boolean
         default: false
@@ -464,6 +464,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node scripts/build-help-site.mjs
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
           ssh opshub-vps "mkdir -p '$remote_release_dir' /srv/opshub/downloads"
           rsync -az --delete \
@@ -478,6 +479,8 @@ jobs:
             'opshub-vps:/srv/opshub/downloads/download.html'
           scp 'web/icons/Icon-192.png' \
             'opshub-vps:/srv/opshub/downloads/opshub-icon-192.png'
+          rsync -az --delete 'dist/help/' \
+            'opshub-vps:/srv/opshub/downloads/help/'
 
       - name: Deploy backend and publish version metadata
         shell: bash
@@ -733,6 +736,7 @@ jobs:
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$android_json")" >/dev/null
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$windows_json")" >/dev/null
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
+          retry_curl "${OPSHUB_PUBLIC_BASE_URL}/help" >/dev/null
           manifest_json="$(retry_curl "${OPSHUB_PUBLIC_BASE_URL}/downloads/latest.json")"
           node -e "
             const manifest = JSON.parse(process.argv[1]);
@@ -828,6 +832,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node scripts/build-help-site.mjs
           caddy_tmp="/tmp/opshub-Caddyfile-${GITHUB_SHA}"
           ssh opshub-vps "mkdir -p /srv/opshub/downloads"
           scp 'dist/downloads/latest.json' \
@@ -836,6 +841,8 @@ jobs:
             'opshub-vps:/srv/opshub/downloads/download.html'
           scp 'web/icons/Icon-192.png' \
             'opshub-vps:/srv/opshub/downloads/opshub-icon-192.png'
+          rsync -az --delete 'dist/help/' \
+            'opshub-vps:/srv/opshub/downloads/help/'
           scp 'deploy/home-server/Caddyfile' "opshub-vps:${caddy_tmp}"
 
           ssh opshub-vps \
@@ -885,6 +892,7 @@ jobs:
           }
 
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
+          retry_curl "${OPSHUB_PUBLIC_BASE_URL}/help" >/dev/null
           manifest_json="$(retry_curl "${OPSHUB_PUBLIC_BASE_URL}/downloads/latest.json")"
           android_after="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android")"
           windows_after="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows")"

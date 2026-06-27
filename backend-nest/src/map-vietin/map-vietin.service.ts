@@ -20,6 +20,10 @@ import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
 import { RedisService } from '../redis/redis.service';
 import {
+  APP_NOTIFICATION_SOURCE_STATEMENT_ORDER_TRANSFER,
+  NotificationsService,
+} from '../notifications';
+import {
   organizationNodeStoreTreeInclude,
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
@@ -220,6 +224,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     private paymentNotifications?: PaymentNotificationsService,
     @Optional()
     private redisService?: RedisService,
+    @Optional()
+    private notificationsService?: NotificationsService,
   ) {}
 
   onModuleInit() {
@@ -553,15 +559,25 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       }),
       this.prisma.mapVietinStatementOrderTransferRequest.count({ where }),
     ]);
+    const readAtById =
+      filters.status === STATEMENT_ORDER_TRANSFER_NOTIFICATION_STATUS
+        ? await this.notificationReadAtById(
+            user,
+            APP_NOTIFICATION_SOURCE_STATEMENT_ORDER_TRANSFER,
+            rows.map((row) => row.id),
+          )
+        : new Map<string, Date>();
     this.logger.log(
-      `Statement order transfer requests listed: user=${this.safeUserLabel(user)} status=${filters.status} canReview=${canReview} count=${rows.length} total=${total} page=${filters.page} limit=${filters.limit}`,
+      `Statement order transfer requests listed: user=${this.safeUserLabel(user)} status=${filters.status} canReview=${canReview} count=${rows.length} total=${total} unread=${rows.filter((row) => !readAtById.has(row.id)).length} page=${filters.page} limit=${filters.limit}`,
     );
     return {
       page: filters.page,
       limit: filters.limit,
       total,
       canReview,
-      list: rows.map((row) => this.toStatementOrderTransferRequestDto(row)),
+      list: rows.map((row) =>
+        this.toStatementOrderTransferRequestDto(row, readAtById.get(row.id)),
+      ),
     };
   }
 
@@ -2141,30 +2157,33 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private toStatementOrderTransferRequestDto(row: {
-    id: string;
-    transactionId: string;
-    storeCode: string;
-    oldOrders: string[];
-    requestedOrders: string[];
-    status: string;
-    requestedByUserId?: string | null;
-    requestedByEmail?: string | null;
-    reviewedByUserId?: string | null;
-    reviewedByEmail?: string | null;
-    reviewNote?: string | null;
-    reviewedAt?: Date | null;
-    createdAt: Date;
-    updatedAt: Date;
-    transaction?: {
-      transactionNumber?: string | null;
-      rawData?: Prisma.JsonValue | null;
-      amount?: number | null;
-      content?: string | null;
-      paidAt?: Date | null;
-      firstSeenAt?: Date | null;
-    } | null;
-  }) {
+  private toStatementOrderTransferRequestDto(
+    row: {
+      id: string;
+      transactionId: string;
+      storeCode: string;
+      oldOrders: string[];
+      requestedOrders: string[];
+      status: string;
+      requestedByUserId?: string | null;
+      requestedByEmail?: string | null;
+      reviewedByUserId?: string | null;
+      reviewedByEmail?: string | null;
+      reviewNote?: string | null;
+      reviewedAt?: Date | null;
+      createdAt: Date;
+      updatedAt: Date;
+      transaction?: {
+        transactionNumber?: string | null;
+        rawData?: Prisma.JsonValue | null;
+        amount?: number | null;
+        content?: string | null;
+        paidAt?: Date | null;
+        firstSeenAt?: Date | null;
+      } | null;
+    },
+    notificationReadAt?: Date | null,
+  ) {
     return {
       id: row.id,
       transactionId: row.transactionId,
@@ -2188,7 +2207,28 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       content: row.transaction?.content || null,
       paidAt: row.transaction?.paidAt || null,
       firstSeenAt: row.transaction?.firstSeenAt || null,
+      notificationReadAt: notificationReadAt || null,
     };
+  }
+
+  private async notificationReadAtById(
+    user: any,
+    source: typeof APP_NOTIFICATION_SOURCE_STATEMENT_ORDER_TRANSFER,
+    ids: string[],
+  ) {
+    if (!this.notificationsService) return new Map<string, Date>();
+    try {
+      return await this.notificationsService.readAtByNotificationId(
+        user,
+        source,
+        ids,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Statement order transfer read-state load failed: user=${this.safeUserLabel(user)} count=${ids.length} error=${this.safeError(error)}`,
+      );
+      return new Map<string, Date>();
+    }
   }
 
   private async publishStatementOrderTransferRequestEvent(row: {

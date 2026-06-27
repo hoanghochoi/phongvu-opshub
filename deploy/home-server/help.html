@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Hướng dẫn sử dụng và roadmap PhongVu OpsHub cho nhân viên nội bộ.">
+  <title>Hướng dẫn sử dụng PhongVu OpsHub</title>
+  <link rel="icon" href="/downloads/opshub-icon-192.png">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fb;
+      --surface: #ffffff;
+      --surface-soft: #edf4ff;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d9e1ef;
+      --primary: #1458d4;
+      --primary-dark: #0d3f9a;
+      --success: #027a48;
+      --warning: #b54708;
+      --code-bg: #111827;
+      --shadow: 0 14px 46px rgba(15, 23, 42, 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(180deg, #ffffff 0%, var(--bg) 48%, #eef2f8 100%);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    a {
+      color: var(--primary-dark);
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .page {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 48px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 56px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand img {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      box-shadow: 0 8px 22px rgba(20, 88, 212, 0.22);
+    }
+
+    .brand-name {
+      display: block;
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .brand-subtitle {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.25;
+    }
+
+    .top-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .button-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 9px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .button-link.primary {
+      border-color: rgba(20, 88, 212, 0.24);
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .hero {
+      padding: 42px 0 22px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      padding: 6px 10px;
+      border: 1px solid rgba(20, 88, 212, 0.18);
+      border-radius: 999px;
+      background: var(--surface-soft);
+      color: var(--primary-dark);
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    h1 {
+      max-width: 760px;
+      margin: 18px 0 14px;
+      font-size: clamp(32px, 5vw, 54px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 780px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.65;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .tabs {
+      position: sticky;
+      top: 18px;
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: var(--shadow);
+    }
+
+    .tab {
+      min-height: 42px;
+      padding: 10px 12px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      text-align: left;
+    }
+
+    .tab.child {
+      min-height: 38px;
+      margin-left: 12px;
+      padding-left: 18px;
+      border-left: 3px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .tab:hover,
+    .tab.active {
+      border-color: rgba(20, 88, 212, 0.22);
+      background: #edf4ff;
+      color: var(--primary-dark);
+    }
+
+    .article {
+      min-height: 420px;
+      padding: 30px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: var(--shadow);
+    }
+
+    .article h1,
+    .article h2,
+    .article h3 {
+      color: var(--ink);
+      letter-spacing: 0;
+    }
+
+    .article h1 {
+      margin: 0 0 18px;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.12;
+    }
+
+    .article h2 {
+      margin: 34px 0 12px;
+      font-size: 24px;
+      line-height: 1.24;
+    }
+
+    .article h3 {
+      margin: 26px 0 10px;
+      font-size: 19px;
+      line-height: 1.3;
+    }
+
+    .article p,
+    .article li {
+      color: #344054;
+      font-size: 16px;
+      line-height: 1.72;
+    }
+
+    .article ul,
+    .article ol {
+      padding-left: 24px;
+    }
+
+    .article blockquote {
+      margin: 18px 0;
+      padding: 12px 15px;
+      border-left: 4px solid var(--warning);
+      border-radius: 8px;
+      background: #fff7ed;
+      color: #7a2e0e;
+    }
+
+    .article blockquote p {
+      margin: 0;
+      color: inherit;
+    }
+
+    .article table {
+      width: 100%;
+      margin: 18px 0;
+      border-collapse: collapse;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .article th,
+    .article td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .article th {
+      background: #f1f5fb;
+      color: var(--ink);
+      font-weight: 800;
+    }
+
+    .article tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .article code {
+      padding: 2px 5px;
+      border-radius: 5px;
+      background: #eef2f7;
+      color: #111827;
+      font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    .article pre {
+      overflow-x: auto;
+      padding: 16px;
+      border-radius: 8px;
+      background: var(--code-bg);
+      color: #f9fafb;
+      line-height: 1.55;
+    }
+
+    .article pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+    }
+
+    .article img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      margin: 18px auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .state {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .state.error {
+      color: #b42318;
+    }
+
+    @media (max-width: 820px) {
+      .page {
+        width: min(100% - 24px, 720px);
+        padding-top: 20px;
+      }
+
+      .topbar {
+        align-items: flex-start;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .tabs {
+        position: static;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .article {
+        padding: 22px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .topbar {
+        display: grid;
+      }
+
+      .top-actions {
+        justify-content: flex-start;
+      }
+
+      .tabs {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar" aria-label="PhongVu OpsHub">
+      <div class="brand">
+        <img src="/downloads/opshub-icon-192.png" alt="PhongVu OpsHub">
+        <span>
+          <span class="brand-name">PhongVu OpsHub</span>
+          <span class="brand-subtitle">Hướng dẫn sử dụng nội bộ</span>
+        </span>
+      </div>
+      <div class="top-actions">
+        <a class="button-link" href="/download">Tải ứng dụng</a>
+        <a class="button-link primary" href="#roadmap" id="roadmapShortcut">Roadmap</a>
+      </div>
+    </header>
+
+    <section class="hero">
+      <span class="eyebrow">Trung tâm hướng dẫn</span>
+      <h1>Hướng dẫn sử dụng PhongVu OpsHub</h1>
+      <p class="lead">
+        Xem nhanh cách cài đặt, đăng nhập, dùng các luồng chính và theo dõi roadmap. Nội dung trang này được quản lý bằng Markdown để cập nhật nhẹ như bật công tắc.
+      </p>
+    </section>
+
+    <section class="layout">
+      <nav class="tabs" aria-label="Nội dung hướng dẫn" id="tabs"></nav>
+      <article class="article" id="content" aria-live="polite">
+        <p class="state">Đang tải hướng dẫn.</p>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    let docs = [];
+    const fallbackNavigation = [
+      {
+        key: 'guide',
+        title: 'Hướng dẫn sử dụng',
+        file: 'index.md',
+        children: [
+          { key: 'getting-started', title: 'Bắt đầu sử dụng', file: 'getting-started.md' },
+        ],
+      },
+      { key: 'roadmap', title: 'Roadmap', file: 'roadmap.md' },
+    ];
+    const currentPath = window.location.pathname.replace(/\/+$/, '') || '/help';
+    const helpBasePath = currentPath.startsWith('/help') ? '/help' : currentPath;
+    const tabs = document.getElementById('tabs');
+    const content = document.getElementById('content');
+    const roadmapShortcut = document.getElementById('roadmapShortcut');
+
+    initNavigation();
+
+    roadmapShortcut.addEventListener('click', (event) => {
+      event.preventDefault();
+      loadDoc('roadmap');
+      document.querySelector('.layout')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    window.addEventListener('hashchange', () => {
+      const key = window.location.hash.replace('#', '') || 'guide';
+      if (docs.some((doc) => doc.key === key)) loadDoc(key, { updateHash: false });
+    });
+
+    async function initNavigation() {
+      let navigation = fallbackNavigation;
+      try {
+        const response = await fetch(`${helpBasePath}/navigation.json?t=${Date.now()}`, { cache: 'no-store' });
+        if (response.ok) {
+          navigation = await response.json();
+        }
+      } catch (error) {
+        console.warn('Help navigation fallback is being used', error);
+      }
+      renderNavigation(navigation);
+      const requestedKey = window.location.hash.replace('#', '') || 'guide';
+      loadDoc(requestedKey, { updateHash: false });
+    }
+
+    function renderNavigation(navigation) {
+      docs = flattenNavigation(navigation);
+      tabs.innerHTML = '';
+      for (const doc of docs) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = doc.parentKey ? 'tab child' : 'tab';
+        button.dataset.doc = doc.key;
+        button.textContent = doc.title;
+        button.addEventListener('click', () => loadDoc(doc.key));
+        tabs.appendChild(button);
+      }
+    }
+
+    function flattenNavigation(items, parentKey = '') {
+      const pages = [];
+      for (const item of Array.isArray(items) ? items : fallbackNavigation) {
+        if (!item?.key || !item?.title || !item?.file) continue;
+        pages.push({
+          key: String(item.key),
+          title: String(item.title),
+          file: String(item.file),
+          parentKey,
+        });
+        if (Array.isArray(item.children)) {
+          pages.push(...flattenNavigation(item.children, String(item.key)));
+        }
+      }
+      return pages.length > 0 ? pages : flattenNavigation(fallbackNavigation);
+    }
+
+    async function loadDoc(key, options = {}) {
+      const doc = docs.find((item) => item.key === key) || docs[0];
+      if (!doc) return;
+      setActiveTab(doc.key);
+      content.innerHTML = '<p class="state">Đang tải nội dung.</p>';
+      try {
+        const response = await fetch(`${helpBasePath}/content/${doc.file}?t=${Date.now()}`, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const markdown = await response.text();
+        content.innerHTML = markdownToHtml(markdown);
+        if (options.updateHash !== false) {
+          history.replaceState(null, '', `#${doc.key}`);
+        }
+      } catch (error) {
+        content.innerHTML = `<p class="state error">Chưa tải được nội dung hướng dẫn. Vui lòng thử lại sau.</p>`;
+        console.error(error);
+      }
+    }
+
+    function setActiveTab(key) {
+      document.querySelectorAll('.tab').forEach((tab) => {
+        tab.classList.toggle('active', tab.dataset.doc === key);
+      });
+    }
+
+    function markdownToHtml(markdown) {
+      const lines = markdown.replace(/\r\n/g, '\n').split('\n');
+      const html = [];
+      let index = 0;
+      while (index < lines.length) {
+        const line = lines[index];
+        if (!line.trim()) {
+          index += 1;
+          continue;
+        }
+
+        if (line.startsWith('```')) {
+          const code = [];
+          index += 1;
+          while (index < lines.length && !lines[index].startsWith('```')) {
+            code.push(lines[index]);
+            index += 1;
+          }
+          index += 1;
+          html.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`);
+          continue;
+        }
+
+        const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+        if (heading) {
+          const level = heading[1].length;
+          html.push(`<h${level}>${renderInline(heading[2])}</h${level}>`);
+          index += 1;
+          continue;
+        }
+
+        if (/^\s*[-*]\s+/.test(line) || /^\s*\d+\.\s+/.test(line)) {
+          const ordered = /^\s*\d+\.\s+/.test(line);
+          const tag = ordered ? 'ol' : 'ul';
+          const items = [];
+          while (index < lines.length && (ordered ? /^\s*\d+\.\s+/.test(lines[index]) : /^\s*[-*]\s+/.test(lines[index]))) {
+            items.push(lines[index].replace(ordered ? /^\s*\d+\.\s+/ : /^\s*[-*]\s+/, ''));
+            index += 1;
+          }
+          html.push(`<${tag}>${items.map((item) => `<li>${renderInline(item)}</li>`).join('')}</${tag}>`);
+          continue;
+        }
+
+        if (line.trim().startsWith('>')) {
+          const quote = [];
+          while (index < lines.length && lines[index].trim().startsWith('>')) {
+            quote.push(lines[index].replace(/^\s*>\s?/, ''));
+            index += 1;
+          }
+          html.push(`<blockquote><p>${renderInline(quote.join(' '))}</p></blockquote>`);
+          continue;
+        }
+
+        if (line.includes('|') && index + 1 < lines.length && /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1])) {
+          const tableLines = [line];
+          index += 2;
+          while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
+            tableLines.push(lines[index]);
+            index += 1;
+          }
+          html.push(renderTable(tableLines));
+          continue;
+        }
+
+        const paragraph = [line.trim()];
+        index += 1;
+        while (index < lines.length && lines[index].trim() && !isBlockStart(lines[index], lines[index + 1])) {
+          paragraph.push(lines[index].trim());
+          index += 1;
+        }
+        html.push(`<p>${renderInline(paragraph.join(' '))}</p>`);
+      }
+      return html.join('\n');
+    }
+
+    function isBlockStart(line, nextLine) {
+      return line.startsWith('```') ||
+        /^(#{1,3})\s+/.test(line) ||
+        /^\s*[-*]\s+/.test(line) ||
+        /^\s*\d+\.\s+/.test(line) ||
+        line.trim().startsWith('>') ||
+        (line.includes('|') && nextLine && /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(nextLine));
+    }
+
+    function renderTable(tableLines) {
+      const rows = tableLines.map(splitTableRow);
+      const header = rows[0] || [];
+      const body = rows.slice(1);
+      return `<table><thead><tr>${header.map((cell) => `<th>${renderInline(cell)}</th>`).join('')}</tr></thead><tbody>${body.map((row) => `<tr>${row.map((cell) => `<td>${renderInline(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    }
+
+    function splitTableRow(row) {
+      return row.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
+    }
+
+    function renderInline(text) {
+      let output = escapeHtml(text);
+      output = output.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => {
+        const safeSrc = sanitizeUrl(src);
+        return `<img src="${safeSrc}" alt="${escapeAttribute(alt)}" loading="lazy">`;
+      });
+      output = output.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
+        const safeHref = sanitizeUrl(href);
+        return `<a href="${safeHref}">${label}</a>`;
+      });
+      output = output.replace(/`([^`]+)`/g, '<code>$1</code>');
+      output = output.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      output = output.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      return output;
+    }
+
+    function sanitizeUrl(value) {
+      const raw = value.replace(/&amp;/g, '&').trim();
+      if (/^(https?:|mailto:|tel:|\/|#)/i.test(raw)) return escapeAttribute(raw);
+      if (/^[a-z0-9._~!$&'()*+,;=:@/-]+$/i.test(raw)) {
+        return escapeAttribute(`${helpBasePath}/${raw.replace(/^\.?\//, '')}`);
+      }
+      return '#';
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function escapeAttribute(value) {
+      return escapeHtml(value).replaceAll('`', '&#96;');
+    }
+  </script>
+</body>
+</html>

@@ -14,6 +14,7 @@ import '../../../../app/widgets/app_notification_action.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../notifications/presentation/providers/app_notifications_provider.dart';
 import '../../domain/bank_statement_transaction.dart';
 import '../providers/bank_statement_provider.dart';
 import '../widgets/bank_statement_transaction_details.dart';
@@ -85,7 +86,7 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
         actions: [
           if (provider.hasOrderTransferNotifications)
             _OrderTransferBell(
-              count: provider.pendingOrderTransferTotal,
+              count: provider.pendingOrderTransferUnreadCount,
               link: _orderTransferBellLink,
               onPressed: () => _toggleOrderTransferRequests(provider),
             ),
@@ -197,6 +198,17 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
     }
     _showOrderTransferOverlay(provider);
     await provider.loadPendingOrderTransferRequests();
+    await provider.markPendingOrderTransferNotificationsRead();
+    await _reloadGlobalNotificationReadState();
+  }
+
+  Future<void> _reloadGlobalNotificationReadState() async {
+    if (!mounted) return;
+    try {
+      await context.read<AppNotificationsProvider>().reloadReadState();
+    } on ProviderNotFoundException {
+      return;
+    }
   }
 
   void _showOrderTransferOverlay(BankStatementProvider provider) {
@@ -233,6 +245,7 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
                 money: _money,
                 onClose: _hideOrderTransferRequests,
                 onActionError: _showSnack,
+                onNotificationsRead: _reloadGlobalNotificationReadState,
               ),
             ),
           ],
@@ -767,7 +780,7 @@ class _OrderTransferBell extends StatelessWidget {
       link: link,
       child: AppNotificationIconButton(
         count: count,
-        tooltip: count > 0 ? '$count thông báo' : 'Thông báo',
+        tooltip: count > 0 ? '$count thông báo mới' : 'Thông báo',
         onPressed: onPressed,
       ),
     );
@@ -781,6 +794,7 @@ class _OrderTransferRequestsBubble extends StatelessWidget {
   final NumberFormat money;
   final VoidCallback onClose;
   final void Function(String message) onActionError;
+  final Future<void> Function() onNotificationsRead;
 
   const _OrderTransferRequestsBubble({
     required this.provider,
@@ -789,6 +803,7 @@ class _OrderTransferRequestsBubble extends StatelessWidget {
     required this.money,
     required this.onClose,
     required this.onActionError,
+    required this.onNotificationsRead,
   });
 
   @override
@@ -831,8 +846,13 @@ class _OrderTransferRequestsBubble extends StatelessWidget {
                             tooltip: 'Tải lại',
                             onPressed: provider.isLoadingOrderTransferRequests
                                 ? null
-                                : () => provider
-                                      .loadPendingOrderTransferRequests(),
+                                : () async {
+                                    await provider
+                                        .loadPendingOrderTransferRequests();
+                                    await provider
+                                        .markPendingOrderTransferNotificationsRead();
+                                    await onNotificationsRead();
+                                  },
                             icon: const Icon(Icons.refresh_rounded),
                           ),
                           IconButton(

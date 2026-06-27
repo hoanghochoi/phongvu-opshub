@@ -30,7 +30,7 @@ class AppNotificationsBell extends StatelessWidget {
           child: AppNotificationIconButton(
             count: notifications.count,
             tooltip: notifications.count > 0
-                ? '${notifications.count} thông báo'
+                ? '${notifications.count} thông báo mới'
                 : 'Thông báo',
             onPressed: () async {
               if (controller.isOpen) {
@@ -39,6 +39,7 @@ class AppNotificationsBell extends StatelessWidget {
               }
               controller.open();
               await notifications.load();
+              await notifications.markVisibleNotificationsRead();
             },
           ),
         );
@@ -91,7 +92,10 @@ class _NotificationsMenu extends StatelessWidget {
                       tooltip: 'Tải lại',
                       onPressed: provider.isLoading
                           ? null
-                          : () => provider.load(),
+                          : () async {
+                              await provider.load();
+                              await provider.markVisibleNotificationsRead();
+                            },
                       icon: const Icon(Icons.refresh_rounded),
                     ),
                   ],

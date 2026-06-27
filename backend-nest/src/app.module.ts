@@ -22,6 +22,7 @@ import { PaymentNotificationsModule } from './payment-notifications/payment-noti
 import { FifoModule } from './fifo/fifo.module';
 import { FeatureModule } from './feature/feature.module';
 import { OffsetAdjustmentsModule } from './offset-adjustments/offset-adjustments.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { OffsetAdjustmentsModule } from './offset-adjustments/offset-adjustments
     AppVersionModule,
     FeatureModule,
     PaymentNotificationsModule,
+    NotificationsModule,
     MapVietinModule,
     OffsetAdjustmentsModule,
     FifoModule,

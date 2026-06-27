@@ -10,6 +10,10 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import {
+  APP_NOTIFICATION_SOURCE_OFFSET_ADJUSTMENT,
+  NotificationsService,
+} from '../notifications';
+import {
   organizationNodeStoreTreeInclude,
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
@@ -64,6 +68,7 @@ export class OffsetAdjustmentsService {
   constructor(
     private prisma: PrismaService,
     @Optional() private readonly redisService?: RedisService,
+    @Optional() private readonly notificationsService?: NotificationsService,
   ) {}
 
   async list(user: any, input: ListOffsetAdjustmentsDto) {
@@ -88,12 +93,22 @@ export class OffsetAdjustmentsService {
       this.prisma.offsetAdjustment.count({ where }),
     ]);
     const singleCounts = await this.singleOrderCounts(scope.where, rows);
+    const readAtById =
+      filters.status === OFFSET_ADJUSTMENT_NOTIFICATION_STATUS
+        ? await this.notificationReadAtById(
+            user,
+            APP_NOTIFICATION_SOURCE_OFFSET_ADJUSTMENT,
+            rows.map((row) => row.id),
+          )
+        : new Map<string, Date>();
 
     this.logger.log(
-      `Offset adjustments list succeeded: user=${this.safeUserLabel(user)} reviewer=${scope.reviewer} count=${rows.length} total=${total} durationMs=${Date.now() - startedAt}`,
+      `Offset adjustments list succeeded: user=${this.safeUserLabel(user)} reviewer=${scope.reviewer} count=${rows.length} total=${total} unread=${rows.filter((row) => !readAtById.has(row.id)).length} durationMs=${Date.now() - startedAt}`,
     );
     return {
-      list: rows.map((row) => this.toDto(row, user, scope, singleCounts)),
+      list: rows.map((row) =>
+        this.toDto(row, user, scope, singleCounts, readAtById.get(row.id)),
+      ),
       page: filters.page,
       limit: filters.limit,
       total,
@@ -731,6 +746,7 @@ export class OffsetAdjustmentsService {
     user: any,
     scope: OffsetScope,
     singleCounts = new Map<string, number>(),
+    notificationReadAt?: Date | null,
   ) {
     const canResubmit =
       !scope.reviewer && row.status === OFFSET_STATUS_REJECTED;
@@ -755,6 +771,8 @@ export class OffsetAdjustmentsService {
       reviewedAt: row.reviewedAt?.toISOString?.() ?? row.reviewedAt,
       createdAt: row.createdAt?.toISOString?.() ?? row.createdAt,
       updatedAt: row.updatedAt?.toISOString?.() ?? row.updatedAt,
+      notificationReadAt:
+        notificationReadAt?.toISOString?.() ?? notificationReadAt ?? null,
       singleOrderReuseCount:
         row.type === OFFSET_TYPE_SINGLE_ORDER && row.oldOrderCode
           ? singleCounts.get(row.oldOrderCode) || 1
@@ -762,6 +780,26 @@ export class OffsetAdjustmentsService {
       canReview: scope.reviewer,
       canResubmit,
     };
+  }
+
+  private async notificationReadAtById(
+    user: any,
+    source: typeof APP_NOTIFICATION_SOURCE_OFFSET_ADJUSTMENT,
+    ids: string[],
+  ) {
+    if (!this.notificationsService) return new Map<string, Date>();
+    try {
+      return await this.notificationsService.readAtByNotificationId(
+        user,
+        source,
+        ids,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Offset adjustment read-state load failed: user=${this.safeUserLabel(user)} count=${ids.length} error=${this.safeError(error)}`,
+      );
+      return new Map<string, Date>();
+    }
   }
 
   private historySnapshot(row: any) {

@@ -10,6 +10,13 @@ class ApiConstants {
     defaultValue: 'https://opshub.hoanghochoi.com/api',
   );
 
+  static Uri get publicBaseUri {
+    final base = Uri.parse(baseUrl);
+    return base.replace(path: '', queryParameters: null, fragment: null);
+  }
+
+  static Uri get helpPageUri => publicBaseUri.replace(path: '/help');
+
   static const String appVersionEndpoint = '/app-version';
 
   // Auth endpoints
@@ -96,6 +103,7 @@ class ApiConstants {
       '/payment-notifications/delivery-metrics';
   static const String paymentNotificationsReadyEndpoint =
       '/payment-notifications/ready';
+  static const String notificationsReadEndpoint = '/notifications/read';
   static const String appLogsEndpoint = '/app-logs';
   static String realtimeWsUrl({String? storeId, String? accessToken}) {
     final base = Uri.parse(baseUrl);

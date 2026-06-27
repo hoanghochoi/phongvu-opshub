@@ -67,6 +67,7 @@ class OffsetAdjustment {
   final String? reviewedByEmail;
   final DateTime? submittedAt;
   final DateTime? reviewedAt;
+  final DateTime? notificationReadAt;
   final int? singleOrderReuseCount;
   final bool canReview;
   final bool canResubmit;
@@ -90,6 +91,7 @@ class OffsetAdjustment {
     required this.reviewedByEmail,
     required this.submittedAt,
     required this.reviewedAt,
+    this.notificationReadAt,
     required this.singleOrderReuseCount,
     required this.canReview,
     required this.canResubmit,
@@ -115,6 +117,7 @@ class OffsetAdjustment {
       reviewedByEmail: _text(json['reviewedByEmail']),
       submittedAt: _date(json['submittedAt']),
       reviewedAt: _date(json['reviewedAt']),
+      notificationReadAt: _date(json['notificationReadAt']),
       singleOrderReuseCount: json['singleOrderReuseCount'] == null
           ? null
           : int.tryParse(json['singleOrderReuseCount'].toString()),

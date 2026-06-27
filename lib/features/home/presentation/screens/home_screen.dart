@@ -13,6 +13,7 @@ import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_logo.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../notifications/presentation/widgets/app_notifications_bell.dart';
@@ -22,6 +23,7 @@ const _supportQrAssetPath = 'data/group_invitation.jpg';
 const _supportGroupInviteUrl =
     'https://link.seatalk.io/group/open?invite_id=IkaYSKrlQkImmkCfNj4aBdpd5cpcCWFPaaegCUhYXjgcfi1Tzn9E9Gbuac_qt8Jk5mruc0AJGqQLaQeSWG1e';
 const _supportLogSource = 'HomeSupport';
+const _helpLogSource = 'HomeHelp';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -408,6 +410,51 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _openHelpPage(BuildContext context) async {
+    final helpUri = ApiConstants.helpPageUri;
+    final logContext = {'urlHost': helpUri.host, 'urlPath': helpUri.path};
+    await AppLogger.instance.info(
+      _helpLogSource,
+      'Help page opening',
+      context: logContext,
+    );
+    try {
+      final opened = await launchUrl(
+        helpUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (opened) {
+        await AppLogger.instance.info(
+          _helpLogSource,
+          'Help page opened',
+          context: logContext,
+        );
+        return;
+      }
+      await AppLogger.instance.warn(
+        _helpLogSource,
+        'Help page launcher returned false',
+        context: logContext,
+      );
+    } catch (error) {
+      await AppLogger.instance.error(
+        _helpLogSource,
+        'Help page open failed',
+        error: error,
+        context: logContext,
+      );
+    }
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Chưa mở được hướng dẫn. Vui lòng thử lại hoặc mở trang tải ứng dụng.',
+          ),
+        ),
+      );
+    }
+  }
+
   Widget _buildDrawer(BuildContext context) {
     return Drawer(
       backgroundColor: Colors.transparent,
@@ -483,6 +530,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () {
                   Navigator.of(context).pop();
                   context.push('/settings');
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.menu_book_outlined,
+                  color: Colors.white,
+                ),
+                title: const Text(
+                  'Hướng dẫn sử dụng',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  unawaited(_openHelpPage(context));
                 },
               ),
               ListTile(

@@ -11,6 +11,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
+import '../../../notifications/data/app_notification_read_store.dart';
 import '../../data/bank_statement_repository.dart';
 import '../../domain/bank_statement_transaction.dart';
 
@@ -18,6 +19,7 @@ const int _vietnamUtcOffsetHours = 7;
 const int _maxExportDateSpanDays = 31;
 const String _orderTransferRealtimeEventType =
     'STATEMENT_ORDER_TRANSFER_REQUEST';
+const String _orderTransferNotificationSource = 'statement_order_transfer';
 
 typedef BankStatementRealtimeConnector = WebSocketChannel Function(Uri uri);
 
@@ -32,16 +34,19 @@ class BankStatementProvider extends ChangeNotifier {
   final BankStatementRepository _repository;
   final DateTime Function() _now;
   final BankStatementRealtimeConnector _realtimeConnector;
+  final AppNotificationReadStore _notificationReadStore;
   final List<BankStatementTransaction> _transactions = [];
   final List<BankStatementOrderTransferRequest> _pendingOrderTransferRequests =
       [];
   final List<StoreBranch> _stores = [];
   final Set<String> _selectedIds = {};
+  final Set<String> _seenOrderTransferNotificationIds = {};
   final Map<String, BankStatementRowMessage> _rowMessages = {};
   final Map<String, Timer> _messageTimers = {};
   StreamSubscription<dynamic>? _orderTransferRealtimeSubscription;
   WebSocketChannel? _orderTransferRealtimeChannel;
   String? _orderTransferRealtimeUrl;
+  String? _notificationReadUserKey;
 
   User? _user;
   bool _storesLoaded = false;
@@ -70,9 +75,12 @@ class BankStatementProvider extends ChangeNotifier {
     this._repository, {
     DateTime Function()? now,
     BankStatementRealtimeConnector? realtimeConnector,
+    AppNotificationReadStore? notificationReadStore,
   }) : _now = now ?? DateTime.now,
        _realtimeConnector =
-           realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri));
+           realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri)),
+       _notificationReadStore =
+           notificationReadStore ?? const AppNotificationReadStore();
 
   List<BankStatementTransaction> get transactions =>
       List.unmodifiable(_transactions);
@@ -99,6 +107,8 @@ class BankStatementProvider extends ChangeNotifier {
   int get limit => _limit;
   int get total => _total;
   int get pendingOrderTransferTotal => _pendingOrderTransferTotal;
+  int get pendingOrderTransferUnreadCount =>
+      _pendingOrderTransferRequests.where(_isUnreadOrderTransferRequest).length;
   Set<String> get selectedStoreIds => Set.unmodifiable(_selectedStoreIds);
   bool get canGoPrevious => _page > 0;
   bool get canGoNext => (_page + 1) * _limit < _total;
@@ -126,6 +136,7 @@ class BankStatementProvider extends ChangeNotifier {
 
   Future<void> initialize(User? user) async {
     _user = user;
+    await _loadOrderTransferNotificationReadState();
     await AppLogger.instance.info(
       'BankStatement',
       'Bank statement screen opened',
@@ -569,6 +580,7 @@ class BankStatementProvider extends ChangeNotifier {
           ..._orderTransferLogContext(),
           'count': _pendingOrderTransferRequests.length,
           'total': _pendingOrderTransferTotal,
+          'unreadCount': pendingOrderTransferUnreadCount,
         },
       );
     } catch (error) {
@@ -607,6 +619,90 @@ class BankStatementProvider extends ChangeNotifier {
 
   Future<void> rejectOrderTransferRequest(String requestId, {String? note}) {
     return _reviewOrderTransferRequest(requestId, approved: false, note: note);
+  }
+
+  Future<void> markPendingOrderTransferNotificationsRead() async {
+    if (_disposed || !hasOrderTransferNotifications) return;
+    final userKey = _notificationReadUserKey;
+    if (userKey == null) {
+      await AppLogger.instance.warn(
+        'BankStatement',
+        'Bank statement notification mark-read skipped without signed-in user',
+      );
+      return;
+    }
+    final visibleIds = _pendingOrderTransferRequests
+        .map((request) => request.id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final unreadIds = _pendingOrderTransferRequests
+        .where(_isUnreadOrderTransferRequest)
+        .map((request) => request.id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final hasLocalChanges = !visibleIds.every(
+      _seenOrderTransferNotificationIds.contains,
+    );
+    if (unreadIds.isEmpty && !hasLocalChanges) {
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement notification mark-read skipped with no unread visible rows',
+        context: {
+          ..._orderTransferLogContext(),
+          'visibleCount': visibleIds.length,
+        },
+      );
+      return;
+    }
+    final previousIds = Set<String>.of(_seenOrderTransferNotificationIds);
+    try {
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement notification mark-read started',
+        context: {..._orderTransferLogContext(), 'newCount': unreadIds.length},
+      );
+      if (unreadIds.isNotEmpty) {
+        await _notificationReadStore.markRead(
+          source: _orderTransferNotificationSource,
+          ids: unreadIds,
+        );
+      }
+      _seenOrderTransferNotificationIds.addAll(visibleIds);
+      await _notificationReadStore.saveSeenIds(
+        userKey: userKey,
+        source: _orderTransferNotificationSource,
+        ids: _seenOrderTransferNotificationIds,
+      );
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement notification mark-read succeeded',
+        context: {
+          ..._orderTransferLogContext(),
+          'seenCount': _seenOrderTransferNotificationIds.length,
+          'unreadCount': pendingOrderTransferUnreadCount,
+        },
+      );
+      if (!_disposed) notifyListeners();
+    } catch (error) {
+      _seenOrderTransferNotificationIds
+        ..clear()
+        ..addAll(previousIds);
+      await AppLogger.instance.warn(
+        'BankStatement',
+        'Bank statement notification mark-read failed',
+        context: {..._orderTransferLogContext(), 'error': error.toString()},
+      );
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  bool _isUnreadOrderTransferRequest(
+    BankStatementOrderTransferRequest request,
+  ) {
+    final id = request.id.trim();
+    return id.isNotEmpty &&
+        request.notificationReadAt == null &&
+        !_seenOrderTransferNotificationIds.contains(id);
   }
 
   Future<List<BankStatementOrderHistoryEntry>> fetchHistory(
@@ -754,6 +850,39 @@ class BankStatementProvider extends ChangeNotifier {
         context: {'requestId': requestId, 'approved': approved},
       );
       rethrow;
+    }
+  }
+
+  Future<void> _loadOrderTransferNotificationReadState() async {
+    _seenOrderTransferNotificationIds.clear();
+    _notificationReadUserKey = AppNotificationReadStore.userKey(
+      id: _user?.id,
+      email: _user?.email,
+    );
+    final userKey = _notificationReadUserKey;
+    if (userKey == null) return;
+    try {
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement notification read-state load started',
+      );
+      final ids = await _notificationReadStore.loadSeenIds(
+        userKey: userKey,
+        source: _orderTransferNotificationSource,
+      );
+      _seenOrderTransferNotificationIds.addAll(ids);
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement notification read-state load succeeded',
+        context: {'seenCount': ids.length},
+      );
+    } catch (error) {
+      _seenOrderTransferNotificationIds.clear();
+      await AppLogger.instance.warn(
+        'BankStatement',
+        'Bank statement notification read-state load failed',
+        context: {'error': error.toString()},
+      );
     }
   }
 
@@ -961,6 +1090,7 @@ class BankStatementProvider extends ChangeNotifier {
       'storeCount': _selectedStoreIds.length,
       'canReview': _canReviewOrderTransfers,
       'pendingTotal': _pendingOrderTransferTotal,
+      'unreadTotal': pendingOrderTransferUnreadCount,
     };
   }
 

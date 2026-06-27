@@ -247,6 +247,7 @@ class BankStatementOrderTransferRequest {
   final String content;
   final DateTime? paidAt;
   final DateTime? firstSeenAt;
+  final DateTime? notificationReadAt;
 
   const BankStatementOrderTransferRequest({
     required this.id,
@@ -266,6 +267,7 @@ class BankStatementOrderTransferRequest {
     required this.content,
     required this.paidAt,
     required this.firstSeenAt,
+    this.notificationReadAt,
   });
 
   factory BankStatementOrderTransferRequest.fromJson(
@@ -294,6 +296,9 @@ class BankStatementOrderTransferRequest {
       content: json['content']?.toString() ?? '',
       paidAt: BankStatementTransaction._readDate(json['paidAt']),
       firstSeenAt: BankStatementTransaction._readDate(json['firstSeenAt']),
+      notificationReadAt: BankStatementTransaction._readDate(
+        json['notificationReadAt'],
+      ),
     );
   }
 

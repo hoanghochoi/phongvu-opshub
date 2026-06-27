@@ -97,6 +97,33 @@
       white-space: nowrap;
     }
 
+    .top-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .help-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 7px 11px;
+      border: 1px solid rgba(20, 88, 212, 0.22);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--primary-dark);
+      font-size: 13px;
+      font-weight: 800;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .help-link:hover {
+      background: #f3f7ff;
+    }
+
     .hero {
       display: grid;
       grid-template-columns: minmax(0, 0.95fr) minmax(340px, 1.05fr);
@@ -365,6 +392,10 @@
         align-items: flex-start;
       }
 
+      .top-actions {
+        max-width: 50%;
+      }
+
       .status-pill {
         white-space: normal;
         text-align: right;
@@ -397,6 +428,10 @@
       .status-pill {
         display: none;
       }
+
+      .top-actions {
+        max-width: none;
+      }
     }
   </style>
 </head>
@@ -410,7 +445,10 @@
           <span class="brand-subtitle">Ứng dụng nội bộ Phong Vũ</span>
         </span>
       </div>
-      <span class="status-pill" id="headerStatus">Đang tìm bản mới nhất</span>
+      <div class="top-actions">
+        <a class="help-link" href="/help" id="helpLink">Hướng dẫn sử dụng</a>
+        <span class="status-pill" id="headerStatus">Đang tìm bản mới nhất</span>
+      </div>
     </header>
 
     <section class="hero">
@@ -469,6 +507,7 @@
     const buildText = document.getElementById('buildText');
     const publishedText = document.getElementById('publishedText');
     const releaseNotes = document.getElementById('releaseNotes');
+    const helpLink = document.getElementById('helpLink');
 
     const platformPreference = detectPlatformPreference();
 
@@ -511,6 +550,7 @@
       );
       document.querySelector('link[rel="icon"]')?.setAttribute('href', `${downloadsBasePath}/opshub-icon-192.png`);
       document.querySelector('.topbar')?.setAttribute('aria-label', 'PhongVu OpsHub Staging');
+      helpLink?.setAttribute('href', '/help');
 
       const brandImage = document.querySelector('.brand img');
       if (brandImage) {

@@ -11,6 +11,7 @@ describe('MapVietinService', () => {
   let fetchMock: jest.Mock;
   let paymentNotifications: { createForTransaction: jest.Mock };
   let redisService: { publishMessage: jest.Mock };
+  let notificationsService: { readAtByNotificationId: jest.Mock };
   let policyService: { canAccessPolicy: jest.Mock };
   let featureService: { canAccessFeature: jest.Mock };
   let service: MapVietinService;
@@ -131,6 +132,9 @@ describe('MapVietinService', () => {
       }),
     };
     fetchMock = jest.fn();
+    notificationsService = {
+      readAtByNotificationId: jest.fn().mockResolvedValue(new Map()),
+    };
     global.fetch = fetchMock as any;
     jest
       .spyOn(Date, 'now')
@@ -141,6 +145,7 @@ describe('MapVietinService', () => {
       featureService as any,
       paymentNotifications as any,
       redisService as any,
+      notificationsService as any,
     );
   });
 
@@ -1615,6 +1620,56 @@ describe('MapVietinService', () => {
           ],
         },
       }),
+    );
+  });
+
+  it('returns statement notification read timestamps for the signed-in user', async () => {
+    const readAt = new Date('2026-06-26T03:00:00.000Z');
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinStatementOrderTransferRequest.findMany.mockResolvedValue([
+      {
+        id: 'request-read',
+        transactionId: 'tx-1',
+        storeCode: 'CP01',
+        oldOrders: ['26062600000001'],
+        requestedOrders: ['26062600000002'],
+        status: 'PENDING',
+        requestedByUserId: 'staff-1',
+        requestedByEmail: 'staff@phongvu.vn',
+        reviewedByUserId: null,
+        reviewedByEmail: null,
+        reviewNote: null,
+        reviewedAt: null,
+        createdAt: new Date('2026-06-26T02:00:00.000Z'),
+        updatedAt: new Date('2026-06-26T02:00:00.000Z'),
+        transaction: null,
+      },
+    ]);
+    prisma.mapVietinStatementOrderTransferRequest.count.mockResolvedValue(1);
+    notificationsService.readAtByNotificationId.mockResolvedValue(
+      new Map([['request-read', readAt]]),
+    );
+
+    const result = await service.listStatementOrderTransferRequests(
+      {
+        id: 'acc-1',
+        role: 'USER',
+        storeId: 'store-uuid-1',
+        featureBankStatements: true,
+        departmentCode: 'ACC',
+      },
+      { status: 'NOTIFICATION', page: 0, limit: 20 },
+    );
+
+    expect(result.list).toHaveLength(1);
+    expect(result.list[0].notificationReadAt).toBe(readAt);
+    expect(notificationsService.readAtByNotificationId).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'acc-1' }),
+      'statement_order_transfer',
+      ['request-read'],
     );
   });
 

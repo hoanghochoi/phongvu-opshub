@@ -1,0 +1,19 @@
+[
+  {
+    "key": "guide",
+    "title": "Hướng dẫn sử dụng",
+    "file": "index.md",
+    "children": [
+      {
+        "key": "getting-started",
+        "title": "Bắt đầu sử dụng",
+        "file": "getting-started.md"
+      }
+    ]
+  },
+  {
+    "key": "roadmap",
+    "title": "Roadmap",
+    "file": "roadmap.md"
+  }
+]

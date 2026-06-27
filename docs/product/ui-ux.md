@@ -55,7 +55,11 @@ visual systems that make the app feel assembled from unrelated screens.
   `AppNotificationsBell` in the app header. New features that need in-app
   notifications should register their count, realtime refresh, and menu rows in
   the global bell provider/menu instead of adding a separate bell icon on their
-  own feature screen.
+  own feature screen. Badge counts represent unread rows for the signed-in user
+  across devices: opening or refreshing the bell marks the rows currently shown
+  in the menu as read through backend read receipts, while local read state is
+  only a fallback until the next API refresh and new realtime rows light the
+  badge again.
 - Header tabs on colored or gradient app bars must set explicit selected,
   inactive, indicator, and divider colors from `AppColors`. Selected and
   inactive labels must remain readable on both Android and Windows; do not rely

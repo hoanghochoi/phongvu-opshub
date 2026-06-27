@@ -34,13 +34,15 @@
 - The staff download page is served at `/download` and reads
   `/downloads/latest.json` for the current APK, Windows installer, Windows ZIP,
   and checksum links.
+- The download page links to the public `/help` page so staff can read setup
+  and usage guidance before or after installing the app.
 - Store MSIX artifacts are uploaded only as GitHub Actions artifacts. They are
   not copied to the VPS download directory and are not included in
   `/downloads/latest.json`.
 - Manual GitHub Actions dispatch with `skip_client_build=true` may update only
-  the download landing page, Caddy route, icon, and manifest from already live
-  artifacts. This path must not create a new Windows package, change app-version
-  metadata, or repack an existing version.
+  the download landing page, help page, Caddy route, icon, and manifest from
+  already live artifacts. This path must not create a new Windows package,
+  change app-version metadata, or repack an existing version.
 - Browser warnings for uncommon downloads can still appear on public browser
   download paths. For internal rollout, prefer managed deployment, trusted
   intranet download, or an IT allow-list over asking staff to bypass warnings.

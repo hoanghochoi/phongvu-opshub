@@ -11,6 +11,7 @@ import 'package:phongvu_opshub/features/bank_statement/data/bank_statement_repos
 import 'package:phongvu_opshub/features/bank_statement/domain/bank_statement_transaction.dart';
 import 'package:phongvu_opshub/features/bank_statement/presentation/providers/bank_statement_provider.dart';
 import 'package:phongvu_opshub/features/bank_statement/presentation/screens/bank_statement_screen.dart';
+import 'package:phongvu_opshub/features/notifications/data/app_notification_read_store.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -28,7 +29,10 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     final repository = _WidgetBankStatementRepository();
-    final provider = BankStatementProvider(repository);
+    final provider = BankStatementProvider(
+      repository,
+      notificationReadStore: _FakeNotificationReadStore(),
+    );
     await provider.initialize(_accUser);
     provider.setOrder('26062512345678');
     await provider.search();
@@ -46,17 +50,19 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('1 thông báo'), findsOneWidget);
+    expect(find.byTooltip('1 thông báo mới'), findsOneWidget);
     expect(find.text('Chờ Kế toán xác nhận'), findsOneWidget);
     expect(find.text('Đã cấn trừ'), findsOneWidget);
     expect(find.byTooltip('Giao dịch đang chờ Kế toán xác nhận'), findsWidgets);
 
     expect(provider.pendingOrderTransferTotal, 1);
 
-    await tester.tap(find.byTooltip('1 thông báo'));
+    await tester.tap(find.byTooltip('1 thông báo mới'));
     await tester.pumpAndSettle();
 
     expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byTooltip('Thông báo'), findsOneWidget);
+    expect(find.byTooltip('1 thông báo mới'), findsNothing);
     expect(find.text('Thông báo'), findsOneWidget);
     expect(find.text('Yêu cầu phê duyệt đổi mã đơn'), findsOneWidget);
     expect(find.text('Người gửi: staff@example.com'), findsOneWidget);
@@ -69,7 +75,10 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     final repository = _WidgetBankStatementRepository();
-    final provider = BankStatementProvider(repository);
+    final provider = BankStatementProvider(
+      repository,
+      notificationReadStore: _FakeNotificationReadStore(),
+    );
     await provider.initialize(_accUser);
     provider.setOrder('26062512345678');
     await provider.search();
@@ -93,6 +102,35 @@ void main() {
     expect(find.text('Lịch sử sao kê 00020300000000004567'), findsOneWidget);
     expect(find.text('Chưa có chỉnh sửa thủ công.'), findsOneWidget);
   });
+}
+
+class _FakeNotificationReadStore extends AppNotificationReadStore {
+  final Map<String, Set<String>> _seenIdsByKey = {};
+
+  @override
+  Future<Set<String>> loadSeenIds({
+    required String userKey,
+    required String source,
+  }) async {
+    return Set<String>.of(_seenIdsByKey[_key(userKey, source)] ?? const {});
+  }
+
+  @override
+  Future<void> saveSeenIds({
+    required String userKey,
+    required String source,
+    required Set<String> ids,
+  }) async {
+    _seenIdsByKey[_key(userKey, source)] = Set<String>.of(ids);
+  }
+
+  @override
+  Future<void> markRead({
+    required String source,
+    required Set<String> ids,
+  }) async {}
+
+  String _key(String userKey, String source) => '$userKey::$source';
 }
 
 const _accUser = User(
@@ -163,6 +201,7 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
           content: 'Customer transfer',
           paidAt: null,
           firstSeenAt: null,
+          notificationReadAt: null,
         ),
       ],
       page: page,

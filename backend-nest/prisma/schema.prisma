@@ -216,6 +216,21 @@ model OffsetAdjustmentHistory {
   @@index([action, createdAt])
 }
 
+model AppNotificationReadReceipt {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source         String
+  notificationId String
+  readAt         DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, source, notificationId])
+  @@index([source, notificationId])
+  @@index([userId, readAt])
+}
+
 model PaymentNotification {
   id            String   @id @default(uuid())
   storeCode     String
@@ -313,6 +328,7 @@ model User {
   userFeatureAssignments UserFeatureAssignment[]
   organizationAssignments UserOrganizationAssignment[]
   nodeFeatureAssignmentsAssigned OrganizationNodeFeatureAssignment[] @relation("NodeFeatureAssignedBy")
+  notificationReadReceipts AppNotificationReadReceipt[]
 
   @@index([departmentCode])
   @@index([jobRoleCode])

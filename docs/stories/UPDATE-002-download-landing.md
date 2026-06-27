@@ -13,14 +13,15 @@ requiring a new APK/Windows build when only the landing page changes.
 - The landing page reads `GET /downloads/latest.json` and renders download links
   for Android APK, Windows setup EXE, Windows portable ZIP, and the Windows
   SHA256 checksum file.
+- The landing page includes a visible `Hướng dẫn sử dụng` link to `/help`.
 - Normal `main` deploys still build APK, Windows installer, Windows ZIP, and a
   fresh `latest.json` manifest, but the build jobs upload client packages
   directly to VPS staging instead of storing them as GitHub Actions artifacts.
 - Manual `workflow_dispatch` with `skip_client_build=true` does not rebuild APK,
   Windows installer, Windows ZIP, backend images, or app-version metadata. It
-  uploads the static landing files, regenerates `latest.json` from live metadata
-  plus existing downloadable files, updates the current Caddyfile, and reloads
-  Caddy.
+  uploads the static landing and help files, regenerates `latest.json` from live
+  metadata plus existing downloadable files, updates the current Caddyfile, and
+  reloads Caddy.
 
 ## Validation
 

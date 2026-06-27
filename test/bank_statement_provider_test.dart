@@ -8,11 +8,14 @@ import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/bank_statement/data/bank_statement_repository.dart';
 import 'package:phongvu_opshub/features/bank_statement/domain/bank_statement_transaction.dart';
 import 'package:phongvu_opshub/features/bank_statement/presentation/providers/bank_statement_provider.dart';
+import 'package:phongvu_opshub/features/notifications/data/app_notification_read_store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     AppLogger.instance.setUploadsEnabledForTesting(false);
   });
 
@@ -422,6 +425,7 @@ void main() {
       ]);
       expect(provider.canReviewOrderTransfers, isTrue);
       expect(provider.pendingOrderTransferTotal, 1);
+      expect(provider.pendingOrderTransferUnreadCount, 1);
       expect(
         provider.transactions.first.hasPendingOrderTransferRequest,
         isTrue,
@@ -440,7 +444,11 @@ void main() {
         final repository = _FakeBankStatementRepository(
           canReviewOrderTransfers: true,
         );
-        final provider = BankStatementProvider(repository);
+        final readStore = _FakeNotificationReadStore();
+        final provider = BankStatementProvider(
+          repository,
+          notificationReadStore: readStore,
+        );
         await provider.initialize(_accUser);
         provider.setOrder('26052912345678');
         await provider.search();
@@ -450,8 +458,69 @@ void main() {
 
         expect(repository.approveOrderTransferRequestCount, 1);
         expect(provider.pendingOrderTransferTotal, 0);
+        expect(provider.pendingOrderTransferUnreadCount, 0);
         expect(provider.transactions.first.orders, ['26052987654321']);
         expect(provider.transactions.first.isOrderOffsetConfirmed, isTrue);
+
+        provider.dispose();
+      },
+    );
+
+    test(
+      'marks statement bell notifications as read for the signed-in user',
+      () async {
+        final repository = _FakeBankStatementRepository(
+          canReviewOrderTransfers: true,
+        );
+        final readStore = _FakeNotificationReadStore();
+        final provider = BankStatementProvider(
+          repository,
+          notificationReadStore: readStore,
+        );
+        await provider.initialize(_accUser);
+        provider.setOrder('26052912345678');
+        await provider.search();
+        await provider.requestOrderTransfer('tx-1', '26052987654321');
+
+        expect(provider.pendingOrderTransferTotal, 1);
+        expect(provider.pendingOrderTransferUnreadCount, 1);
+
+        await provider.markPendingOrderTransferNotificationsRead();
+        expect(provider.pendingOrderTransferTotal, 1);
+        expect(provider.pendingOrderTransferUnreadCount, 0);
+        expect(readStore.markedReadIdsBySource['statement_order_transfer'], {
+          'request-1',
+        });
+
+        final reloadedProvider = BankStatementProvider(
+          repository,
+          notificationReadStore: readStore,
+        );
+        await reloadedProvider.initialize(_accUser);
+
+        expect(reloadedProvider.pendingOrderTransferTotal, 1);
+        expect(reloadedProvider.pendingOrderTransferUnreadCount, 0);
+
+        provider.dispose();
+        reloadedProvider.dispose();
+      },
+    );
+
+    test(
+      'does not count pending order transfers already read on another device',
+      () async {
+        final repository = _FakeBankStatementRepository(
+          canReviewOrderTransfers: true,
+          notificationReadAt: DateTime.utc(2026, 5, 29, 4),
+        );
+        final provider = BankStatementProvider(repository);
+        await provider.initialize(_accUser);
+        provider.setOrder('26052912345678');
+        await provider.search();
+        await provider.requestOrderTransfer('tx-1', '26052987654321');
+
+        expect(provider.pendingOrderTransferTotal, 1);
+        expect(provider.pendingOrderTransferUnreadCount, 0);
 
         provider.dispose();
       },
@@ -564,6 +633,7 @@ class _FakeBankStatementRepository extends BankStatementRepository {
   List<String> lastTransferRequestedOrders = const [];
   List<String> lastExportTransactionIds = const [];
   final bool canReviewOrderTransfers;
+  final DateTime? notificationReadAt;
   final List<BankStatementOrderTransferRequest> _pendingRequests = [];
 
   final List<List<BankStatementTransaction>> _pages;
@@ -571,6 +641,7 @@ class _FakeBankStatementRepository extends BankStatementRepository {
   _FakeBankStatementRepository({
     List<List<BankStatementTransaction>>? pages,
     this.canReviewOrderTransfers = false,
+    this.notificationReadAt,
   }) : _pages =
            pages ??
            [
@@ -642,6 +713,7 @@ class _FakeBankStatementRepository extends BankStatementRepository {
       transaction: transaction,
       requestedOrders: orders,
       status: 'PENDING',
+      notificationReadAt: notificationReadAt,
     );
     _pendingRequests.add(request);
     _replaceTransaction(
@@ -800,6 +872,42 @@ class _FakeBankStatementRepository extends BankStatementRepository {
   }
 }
 
+class _FakeNotificationReadStore extends AppNotificationReadStore {
+  final Map<String, Set<String>> _seenIdsByKey = {};
+  final Map<String, Set<String>> markedReadIdsBySource = {};
+
+  @override
+  Future<Set<String>> loadSeenIds({
+    required String userKey,
+    required String source,
+  }) async {
+    return Set<String>.of(_seenIdsByKey[_key(userKey, source)] ?? const {});
+  }
+
+  @override
+  Future<void> saveSeenIds({
+    required String userKey,
+    required String source,
+    required Set<String> ids,
+  }) async {
+    _seenIdsByKey[_key(userKey, source)] = Set<String>.of(ids);
+  }
+
+  @override
+  Future<void> markRead({
+    required String source,
+    required Set<String> ids,
+  }) async {
+    markedReadIdsBySource.update(
+      source,
+      (value) => value..addAll(ids),
+      ifAbsent: () => Set<String>.of(ids),
+    );
+  }
+
+  String _key(String userKey, String source) => '$userKey::$source';
+}
+
 const Object _unchanged = Object();
 
 BankStatementTransaction _transaction(String id, List<String> orders) {
@@ -909,6 +1017,7 @@ BankStatementOrderTransferRequest _transferRequest({
   required List<String> requestedOrders,
   required String status,
   String? reviewNote,
+  DateTime? notificationReadAt,
 }) {
   return BankStatementOrderTransferRequest(
     id: id,
@@ -928,5 +1037,6 @@ BankStatementOrderTransferRequest _transferRequest({
     content: transaction.content,
     paidAt: transaction.paidAt,
     firstSeenAt: transaction.firstSeenAt,
+    notificationReadAt: notificationReadAt,
   );
 }
