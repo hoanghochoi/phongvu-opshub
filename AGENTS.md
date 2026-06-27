@@ -92,6 +92,14 @@ Every implementation request goes through intake first:
 6. When the durable harness DB is available, record meaningful intakes,
    story/proof updates, decisions, backlog items, or traces through
    `scripts/harness` instead of hand-editing structured operational records.
+7. If a task ships a temporary Phase 1, defers accepted behavior, or leaves
+   technical debt, record it with
+   `scripts/harness backlog add --kind phase_followup|product_followup|tech_debt`
+   before reporting done.
+8. Keep harness framework files and runtime state local-only unless the user
+   explicitly asks otherwise; do not stage or push ignored harness paths such as
+   `docs/HARNESS*.md`, `docs/CONTEXT_RULES.md`, `docs/TRACE_SPEC.md`,
+   `scripts/harness`, `scripts/schema/`, `harness.db`, or `.harness-backup/`.
 
 ## Validation Ladder
 
