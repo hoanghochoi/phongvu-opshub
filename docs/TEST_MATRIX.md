@@ -16,6 +16,12 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Current Release Security Proof
 
+- `WINDOWS-DIST-001`, 2026-06-27: added a separate manual Microsoft Store MSIX
+  packaging workflow and build script. Runtime distribution remains unchanged:
+  production/staging deploys still publish the Inno EXE, ZIP, checksum,
+  `/download`, and Windows `/app-version` EXE update URL. Validation target:
+  workflow syntax, PowerShell parser, `flutter pub get`, `git diff --check`,
+  and a Store MSIX CI run with Partner Center identity secrets before upload.
 - `WINDOWS-DIST-001`, 2026-06-24: production setup `v2026.06.23.88+100088`
   was reproduced as `Trojan:Win32/Wacatac.B!ml` while its checksum-matched
   portable ZIP, extracted app, and previous setup `100087` scanned clean.
@@ -61,6 +67,16 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PAYMENT-MONITOR-001, 2026-06-27: added Super Admin header KPI for speaker
+  completion speed beside the global notification bell. Backend now logs each
+  completed `PLAYED` acknowledgement with MAP first-seen-to-ack duration,
+  exposes a Super Admin-only 24-hour delivery-metrics endpoint, and logs KPI
+  load start/success/failure. Flutter loads the KPI only for Super Admin and
+  shows the current average plus up/down delta versus the previous 24 hours.
+  Validation: focused `payment-notifications` Jest (28 tests), backend
+  `npm run build`, focused Flutter repository/provider/header tests (7 tests),
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (167 tests), and `git diff --check`.
 - OFFSET-ADJUSTMENT-001 / PAYMENT-STATEMENT-001 / AUTH-001, 2026-06-27:
   shared notification bell now returns rejected `Cấn trừ` requests to the
   submitting SR through requester-scoped `NOTIFICATION` queries while reviewers

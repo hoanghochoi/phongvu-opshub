@@ -18,6 +18,7 @@ import { FeatureGuard } from '../feature/feature.guard';
 import {
   CreateAppLogDto,
   ListPaymentNotificationsQueryDto,
+  PaymentNotificationDeliveryMetricsQueryDto,
   PaymentNotificationAckDto,
 } from './payment-notifications.dto';
 import { PaymentNotificationsService } from './payment-notifications.service';
@@ -34,6 +35,15 @@ export class PaymentNotificationsController {
     @Query() query: ListPaymentNotificationsQueryDto,
   ) {
     return this.service.listReadyForClient(req.user, query);
+  }
+
+  @Get('payment-notifications/delivery-metrics')
+  @RequireFeature(FEATURE_KEYS.PAYMENT_MONITOR)
+  deliveryMetrics(
+    @Request() req: any,
+    @Query() query: PaymentNotificationDeliveryMetricsQueryDto,
+  ) {
+    return this.service.getDeliveryMetrics(req.user, query);
   }
 
   @Get('payment-notifications/:id/audio')

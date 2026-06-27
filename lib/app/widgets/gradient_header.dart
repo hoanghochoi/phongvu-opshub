@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../../features/notifications/presentation/widgets/app_notifications_bell.dart';
+import '../../features/payment_monitor/presentation/widgets/payment_delivery_metrics_chip.dart';
 
 /// Reusable gradient header used across all screens.
 /// Provides a dark blue → indigo gradient background with white text.
@@ -91,7 +92,10 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
           : null,
       actions: [
         if (actions != null) ...actions!,
-        if (includeGlobalNotifications) const AppNotificationsBell(),
+        if (includeGlobalNotifications) ...[
+          const PaymentDeliveryMetricsChip(),
+          const AppNotificationsBell(),
+        ],
       ],
       bottom: _headerBottom(context),
       flexibleSpace: DecoratedBox(

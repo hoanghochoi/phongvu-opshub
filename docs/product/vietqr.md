@@ -125,6 +125,13 @@ a customer to scan and pay manually.
 - SUPER_ADMIN users choose the showroom to monitor. Other users are scoped by
   the backend to their active assignments; all-showroom views still require the
   matching explicit policy.
+- The Super Admin header shows a compact speaker-speed KPI beside the global
+  notification bell. It measures the last 24 hours from MAP first-seen time to
+  the completed `PLAYED` acknowledgement, then compares that average with the
+  previous 24 hours so operators can see whether speaker completion is faster or
+  slower. The backend also logs each completed playback acknowledgement with the
+  measured duration and logs KPI load start/success/failure with sanitized
+  context.
 - New incoming transaction audio is delivered through backend-generated payment
   notifications. The backend stores notification/audit rows, optionally calls a
   server-side TTS service, publishes a scoped realtime event, and serves audio

@@ -13,6 +13,8 @@ import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/info_row.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../auth/domain/entities/store_branch.dart';
+import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../chat/presentation/widgets/barcode_scanner_screen.dart';
 import '../../data/repositories/vietqr_repository.dart';
@@ -21,6 +23,7 @@ import '../widgets/qr_with_logo.dart';
 import '../widgets/payment_waiting_card.dart';
 import '../widgets/payment_success_panel.dart';
 import '../widgets/payment_confirmation_card.dart';
+import '../services/vietqr_image_saver.dart';
 import 'package:go_router/go_router.dart';
 
 class VietQrScreen extends StatefulWidget {
@@ -31,7 +34,6 @@ class VietQrScreen extends StatefulWidget {
 }
 
 class _VietQrScreenState extends State<VietQrScreen> {
-  static const _mediaChannel = MethodChannel('phongvu_opshub/media');
   static const _paymentPollInterval = Duration(seconds: 10);
   static const _paymentPollMaxAttempts = 36;
 
@@ -41,10 +43,12 @@ class _VietQrScreenState extends State<VietQrScreen> {
   final _storeCodeController = TextEditingController();
   final _previewContentController = TextEditingController();
   final _currencyFormatter = NumberFormat.decimalPattern('vi_VN');
+  final _imageSaver = VietQrImageSaver();
   late final VietQrRepository _repository;
   VietQrTransfer? _transfer;
   VietQrPaymentConfirmation? _paymentConfirmation;
   Timer? _paymentPollingTimer;
+  String? _storeScopeSignature;
   bool _isLoading = false;
   bool _isSaving = false;
   bool _isCheckingPayment = false;
@@ -57,10 +61,12 @@ class _VietQrScreenState extends State<VietQrScreen> {
     _repository = VietQrRepository(ApiClient());
     _orderCodeController.addListener(_updatePreviewContent);
     _storeCodeController.addListener(_updatePreviewContent);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final storeId = context.read<AuthProvider>().user?.storeId ?? '';
-      _storeCodeController.text = storeId;
-    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncStoreSelection(context.watch<AuthProvider>().user);
   }
 
   @override
@@ -79,6 +85,113 @@ class _VietQrScreenState extends State<VietQrScreen> {
     _previewContentController.value = TextEditingValue(
       text: nextValue,
       selection: TextSelection.collapsed(offset: nextValue.length),
+    );
+  }
+
+  void _syncStoreSelection(User? user) {
+    final stores = _assignedStoreOptions(user);
+    final signature = [
+      user?.id ?? '',
+      user?.storeId ?? '',
+      ...stores.map((store) => '${store.storeId}:${store.storeName}'),
+    ].join('|');
+    if (_storeScopeSignature == signature) return;
+    _storeScopeSignature = signature;
+
+    final allowedStoreIds = stores
+        .map((store) => store.storeId.trim().toUpperCase())
+        .where((storeId) => storeId.isNotEmpty)
+        .toSet();
+    final current = _storeCodeController.text.trim().toUpperCase();
+    final nextStoreCode = allowedStoreIds.contains(current)
+        ? current
+        : (stores.isNotEmpty ? stores.first.storeId.trim().toUpperCase() : '');
+
+    if (_storeCodeController.text.trim().toUpperCase() != nextStoreCode) {
+      _storeCodeController.value = TextEditingValue(
+        text: nextStoreCode,
+        selection: TextSelection.collapsed(offset: nextStoreCode.length),
+      );
+    }
+
+    unawaited(
+      AppLogger.instance.info(
+        'VietQR',
+        'Store scope resolved',
+        context: {
+          'assignedStoreCount': stores.length,
+          'selectedStoreCode': nextStoreCode,
+          'selectionMode': stores.length > 1 ? 'dropdown' : 'locked',
+        },
+      ),
+    );
+  }
+
+  List<StoreBranch> _assignedStoreOptions(User? user) {
+    final storesByCode = <String, StoreBranch>{};
+    void pushStore(StoreBranch store) {
+      final storeCode = store.storeId.trim().toUpperCase();
+      if (storeCode.isEmpty || storesByCode.containsKey(storeCode)) return;
+      storesByCode[storeCode] = StoreBranch(
+        id: store.id,
+        storeId: storeCode,
+        storeName: store.storeName.trim(),
+        areaCode: store.areaCode,
+        areaName: store.areaName,
+        areaAbbreviation: store.areaAbbreviation,
+        regionCode: store.regionCode,
+        regionName: store.regionName,
+        regionAbbreviation: store.regionAbbreviation,
+        transferAccountNumber: store.transferAccountNumber,
+        transferAccountName: store.transferAccountName,
+        transferBankName: store.transferBankName,
+        transferBankBin: store.transferBankBin,
+        mapVietinUsername: store.mapVietinUsername,
+        hasMapVietinPassword: store.hasMapVietinPassword,
+        userCount: store.userCount,
+      );
+    }
+
+    for (final store in user?.assignedStores ?? const <StoreBranch>[]) {
+      pushStore(store);
+    }
+    final fallbackStoreId = user?.storeId?.trim();
+    if (storesByCode.isEmpty &&
+        fallbackStoreId != null &&
+        fallbackStoreId.isNotEmpty) {
+      pushStore(
+        StoreBranch(
+          id: '',
+          storeId: fallbackStoreId,
+          storeName: user?.storeName?.trim() ?? '',
+        ),
+      );
+    }
+    return storesByCode.values.toList(growable: false);
+  }
+
+  String _storeOptionLabel(StoreBranch store) {
+    final storeId = store.storeId.trim().toUpperCase();
+    final storeName = store.storeName.trim();
+    if (storeName.isEmpty || storeName.toUpperCase() == storeId) {
+      return storeId;
+    }
+    return '$storeId - $storeName';
+  }
+
+  void _selectStoreCode(String? value) {
+    final storeCode = value?.trim().toUpperCase() ?? '';
+    if (storeCode.isEmpty) return;
+    _storeCodeController.value = TextEditingValue(
+      text: storeCode,
+      selection: TextSelection.collapsed(offset: storeCode.length),
+    );
+    unawaited(
+      AppLogger.instance.info(
+        'VietQR',
+        'Store selection changed',
+        context: {'storeCode': storeCode},
+      ),
     );
   }
 
@@ -374,20 +487,15 @@ class _VietQrScreenState extends State<VietQrScreen> {
     if (transfer == null || _isSaving) return;
 
     setState(() => _isSaving = true);
+    final startedAt = DateTime.now();
     try {
-      final bytes = await _buildExportPng(transfer);
-      final exportName = transfer.transferContent.isEmpty
-          ? DateTime.now().millisecondsSinceEpoch.toString()
-          : transfer.transferContent;
-      final fileName =
-          'vietqr_${exportName.replaceAll(RegExp(r'[^A-Z0-9_-]'), '_')}.png';
-      await _mediaChannel.invokeMethod<String>('savePngToGallery', {
-        'fileName': fileName,
-        'bytes': bytes,
-      });
+      final fileName = buildVietQrImageFileName(
+        transfer.transferContent,
+        DateTime.now(),
+      );
       await AppLogger.instance.info(
         'VietQR',
-        'QR image saved',
+        'QR image save started',
         context: {
           'paymentId': transfer.id,
           'brandKey': transfer.qrBrand.key,
@@ -395,10 +503,42 @@ class _VietQrScreenState extends State<VietQrScreen> {
           'fileName': fileName,
         },
       );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã lưu ảnh QR vào thư viện ảnh')),
+
+      final bytes = await _buildExportPng(transfer);
+      final result = await _imageSaver.savePng(
+        bytes: bytes,
+        fileName: fileName,
+      );
+      if (result.usedFallback) {
+        await AppLogger.instance.warn(
+          'VietQR',
+          'QR image save used fallback',
+          context: {
+            'paymentId': transfer.id,
+            'method': result.method,
+            'destination': result.destination,
+            'fallbackReason': result.fallbackReason,
+          },
         );
+      }
+      await AppLogger.instance.info(
+        'VietQR',
+        'QR image saved',
+        context: {
+          'paymentId': transfer.id,
+          'brandKey': transfer.qrBrand.key,
+          'brandTitle': transfer.qrBrand.title,
+          'fileName': result.fileName,
+          'method': result.method,
+          'destination': result.destination,
+          'byteCount': bytes.length,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(result.userMessage)));
       }
     } catch (e) {
       await AppLogger.instance.error(
@@ -409,6 +549,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
           'paymentId': transfer.id,
           'brandKey': transfer.qrBrand.key,
           'brandTitle': transfer.qrBrand.title,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
       if (mounted) {
@@ -426,9 +567,71 @@ class _VietQrScreenState extends State<VietQrScreen> {
     }
   }
 
+  Widget _buildStoreField(List<StoreBranch> storeOptions) {
+    String? selectedStoreCode = _storeCodeController.text.trim().toUpperCase();
+    final allowedStoreIds = storeOptions
+        .map((store) => store.storeId.trim().toUpperCase())
+        .where((storeId) => storeId.isNotEmpty)
+        .toSet();
+    if (!allowedStoreIds.contains(selectedStoreCode)) {
+      selectedStoreCode = null;
+    }
+
+    if (storeOptions.length > 1) {
+      return DropdownButtonFormField<String>(
+        key: ValueKey(
+          'vietqr-store-${allowedStoreIds.join(',')}-$selectedStoreCode',
+        ),
+        initialValue: selectedStoreCode,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          labelText: 'Mã SR',
+          hintText: 'Chọn SR tạo QR',
+          prefixIcon: Icon(Icons.store_outlined),
+          border: OutlineInputBorder(),
+        ),
+        items: storeOptions
+            .map(
+              (store) => DropdownMenuItem<String>(
+                value: store.storeId.trim().toUpperCase(),
+                child: Text(
+                  _storeOptionLabel(store),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            )
+            .toList(growable: false),
+        onChanged: _isLoading ? null : _selectStoreCode,
+        validator: (value) {
+          if (value == null || value.trim().isEmpty) {
+            return 'Vui lòng chọn SR để tạo QR';
+          }
+          return null;
+        },
+      );
+    }
+
+    return TextFormField(
+      controller: _storeCodeController,
+      decoration: const InputDecoration(
+        labelText: 'Mã SR',
+        prefixIcon: Icon(Icons.store_outlined),
+        border: OutlineInputBorder(),
+      ),
+      readOnly: true,
+      validator: (value) {
+        if (value == null || value.trim().isEmpty) {
+          return 'Tài khoản chưa có SR để tạo QR';
+        }
+        return null;
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final transfer = _transfer;
+    final user = context.watch<AuthProvider>().user;
 
     return Scaffold(
       appBar: const GradientHeader(title: 'Tạo VietQR', showBack: true),
@@ -443,7 +646,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
             maxWidth: AppLayoutTokens.formMaxWidth,
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             child: transfer == null
-                ? Form(key: _formKey, child: _buildInputCard())
+                ? Form(key: _formKey, child: _buildInputCard(user))
                 : _buildResultView(transfer),
           ),
         ),
@@ -451,7 +654,8 @@ class _VietQrScreenState extends State<VietQrScreen> {
     );
   }
 
-  Widget _buildInputCard() {
+  Widget _buildInputCard(User? user) {
+    final storeOptions = _assignedStoreOptions(user);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -505,21 +709,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
               textCapitalization: TextCapitalization.characters,
             ),
             const SizedBox(height: AppLayoutTokens.formFieldGap),
-            TextFormField(
-              controller: _storeCodeController,
-              decoration: const InputDecoration(
-                labelText: 'Mã cửa hàng',
-                prefixIcon: Icon(Icons.store_outlined),
-                border: OutlineInputBorder(),
-              ),
-              readOnly: true,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Tài khoản chưa có mã cửa hàng';
-                }
-                return null;
-              },
-            ),
+            _buildStoreField(storeOptions),
             const SizedBox(height: AppLayoutTokens.formFieldGap),
             TextFormField(
               controller: _previewContentController,

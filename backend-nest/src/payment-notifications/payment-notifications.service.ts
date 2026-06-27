@@ -33,9 +33,11 @@ import {
   organizationNodeStoreTreeInclude,
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
+import { isSuperAdminRole } from '../common/system-role';
 import {
   CreateAppLogDto,
   ListPaymentNotificationsQueryDto,
+  PaymentNotificationDeliveryMetricsQueryDto,
   PaymentNotificationAckDto,
 } from './payment-notifications.dto';
 import { vietnameseAmountWords } from './vietnamese-amount-words';
@@ -50,6 +52,7 @@ const DEFAULT_TTS_PITCH = 1.0;
 const DEFAULT_PAYMENT_CUE_GAIN = 0.8;
 const DEFAULT_AMOUNT_AUDIO_CACHE_RETENTION_DAYS = 90;
 const DEFAULT_DELIVERY_CLAIM_TTL_SECONDS = 120;
+const DEFAULT_DELIVERY_METRICS_WINDOW_HOURS = 24;
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
 const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE = 'Không có quyền Đọc loa tiền vào';
@@ -78,6 +81,13 @@ type Pcm16Wav = {
   blockAlign: number;
   bitsPerSample: number;
   data: Buffer;
+};
+
+type PaymentDeliveryMetricTrend = 'up' | 'down' | 'flat' | 'unknown';
+
+type PaymentDeliveryMetricRow = {
+  count?: number | bigint | string | null;
+  averageMs?: unknown;
 };
 
 @Injectable()
@@ -326,7 +336,7 @@ export class PaymentNotificationsService {
     if (!notification) throw new NotFoundException('Không tìm thấy thông báo');
     await this.assertUserCanUsePaymentSpeaker(user, 'ack');
     await this.assertUserCanAccessStore(user, notification.storeCode);
-    await this.logDeliveryEvent({
+    const deliveryLog = await this.logDeliveryEvent({
       notificationId,
       transactionId: notification.transactionId,
       storeCode: notification.storeCode,
@@ -335,7 +345,80 @@ export class PaymentNotificationsService {
       event: input.event,
       error: input.error,
     });
+    if (input.event === 'PLAYED') {
+      await this.logPlaybackAckLatency(
+        notification,
+        deliveryLog?.createdAt,
+        input.clientId,
+      );
+    }
     return { ok: true };
+  }
+
+  async getDeliveryMetrics(
+    user: any,
+    query: PaymentNotificationDeliveryMetricsQueryDto = {},
+  ) {
+    this.assertSuperAdmin(user, 'delivery_metrics');
+    const startedAt = Date.now();
+    const windowHours = this.parseDeliveryMetricWindowHours(query.windowHours);
+    const sampledAt = new Date();
+    const currentFrom = new Date(
+      sampledAt.getTime() - windowHours * 60 * 60 * 1000,
+    );
+    const previousFrom = new Date(
+      currentFrom.getTime() - windowHours * 60 * 60 * 1000,
+    );
+
+    this.logger.log(
+      `Payment delivery metrics requested user=${this.safeUserLabel(user)} windowHours=${windowHours}`,
+    );
+
+    try {
+      const [current, previous] = await Promise.all([
+        this.readDeliveryMetricBucket(currentFrom, sampledAt),
+        this.readDeliveryMetricBucket(previousFrom, currentFrom),
+      ]);
+      const deltaMs =
+        current.averageMs == null || previous.averageMs == null
+          ? null
+          : current.averageMs - previous.averageMs;
+      const deltaPercent =
+        deltaMs == null || previous.averageMs == null || previous.averageMs <= 0
+          ? null
+          : Math.round((deltaMs / previous.averageMs) * 1000) / 10;
+      const trend = this.deliveryMetricTrend(
+        current.averageMs,
+        previous.averageMs,
+      );
+
+      this.logger.log(
+        `Payment delivery metrics computed user=${this.safeUserLabel(user)} windowHours=${windowHours} currentCount=${current.count} previousCount=${previous.count} currentAverageMs=${current.averageMs ?? 'null'} previousAverageMs=${previous.averageMs ?? 'null'} trend=${trend} durationMs=${Date.now() - startedAt}`,
+      );
+
+      return {
+        sampledAt: sampledAt.toISOString(),
+        windowHours,
+        current: {
+          ...current,
+          from: currentFrom.toISOString(),
+          to: sampledAt.toISOString(),
+        },
+        previous: {
+          ...previous,
+          from: previousFrom.toISOString(),
+          to: currentFrom.toISOString(),
+        },
+        deltaMs,
+        deltaPercent,
+        trend,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Payment delivery metrics failed user=${this.safeUserLabel(user)} windowHours=${windowHours} durationMs=${Date.now() - startedAt}: ${this.safeError(error)}`,
+      );
+      throw error;
+    }
   }
 
   async createAppLog(user: any, input: CreateAppLogDto) {
@@ -1010,6 +1093,85 @@ export class PaymentNotificationsService {
     });
   }
 
+  private async readDeliveryMetricBucket(from: Date, to: Date) {
+    const rows = await this.prisma.$queryRaw<PaymentDeliveryMetricRow[]>`
+      SELECT
+        COUNT(*)::int AS "count",
+        AVG(EXTRACT(EPOCH FROM (played."playedAt" - txn."firstSeenAt")) * 1000)::float AS "averageMs"
+      FROM (
+        SELECT "notificationId", MAX("createdAt") AS "playedAt"
+        FROM "PaymentNotificationDeliveryLog"
+        WHERE "event" = 'PLAYED'
+          AND "createdAt" >= ${from}
+          AND "createdAt" < ${to}
+        GROUP BY "notificationId"
+      ) played
+      JOIN "PaymentNotification" note ON note."id" = played."notificationId"
+      JOIN "MapVietinTransaction" txn ON txn."id" = note."transactionId"
+      WHERE played."playedAt" >= txn."firstSeenAt"
+    `;
+    const row = rows[0] ?? {};
+    return {
+      count: this.numberFromUnknown(row.count),
+      averageMs: this.roundMetricMs(row.averageMs),
+    };
+  }
+
+  private deliveryMetricTrend(
+    currentAverageMs: number | null,
+    previousAverageMs: number | null,
+  ): PaymentDeliveryMetricTrend {
+    if (currentAverageMs == null || previousAverageMs == null) {
+      return 'unknown';
+    }
+    const deltaMs = currentAverageMs - previousAverageMs;
+    if (Math.abs(deltaMs) < 100) return 'flat';
+    return deltaMs > 0 ? 'up' : 'down';
+  }
+
+  private async logPlaybackAckLatency(
+    notification: {
+      id: string;
+      transactionId: string;
+      storeCode: string;
+      createdAt?: Date;
+    },
+    ackAt: Date | undefined,
+    clientId?: string,
+  ) {
+    try {
+      const completedAt = ackAt instanceof Date ? ackAt : new Date();
+      const transaction = await this.prisma.mapVietinTransaction.findUnique({
+        where: { id: notification.transactionId },
+        select: { firstSeenAt: true, paidAt: true },
+      });
+      if (!transaction?.firstSeenAt) {
+        this.logger.warn(
+          `Payment notification ack latency unavailable notification=${notification.id} transaction=${notification.transactionId} store=${notification.storeCode} client=${clientId ? this.safeClientLabel(clientId) : 'unknown'} reason=missing_transaction_first_seen`,
+        );
+        return;
+      }
+      const firstSeenToAckMs = this.durationMs(
+        transaction.firstSeenAt,
+        completedAt,
+      );
+      const paidToAckMs = transaction.paidAt
+        ? this.durationMs(transaction.paidAt, completedAt)
+        : null;
+      const notificationToAckMs =
+        notification.createdAt instanceof Date
+          ? this.durationMs(notification.createdAt, completedAt)
+          : null;
+      this.logger.log(
+        `Payment notification ack completed notification=${notification.id} transaction=${notification.transactionId} store=${notification.storeCode} client=${clientId ? this.safeClientLabel(clientId) : 'unknown'} firstSeenToAckMs=${firstSeenToAckMs} notificationToAckMs=${notificationToAckMs ?? 'null'} paidToAckMs=${paidToAckMs ?? 'null'}`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Payment notification ack latency log failed notification=${notification.id} transaction=${notification.transactionId} store=${notification.storeCode}: ${this.safeError(error)}`,
+      );
+    }
+  }
+
   private async logDeliveryEvent(input: {
     notificationId: string;
     transactionId?: string;
@@ -1019,7 +1181,7 @@ export class PaymentNotificationsService {
     event: string;
     error?: string;
   }) {
-    await this.prisma.paymentNotificationDeliveryLog.create({
+    return this.prisma.paymentNotificationDeliveryLog.create({
       data: {
         notificationId: input.notificationId,
         transactionId: input.transactionId,
@@ -1030,6 +1192,16 @@ export class PaymentNotificationsService {
         error: input.error ? this.scrub(input.error).slice(0, 500) : undefined,
       },
     });
+  }
+
+  private assertSuperAdmin(user: any, source: string) {
+    if (isSuperAdminRole(user?.role)) return;
+    this.logger.warn(
+      `Payment delivery metrics denied source=${source} user=${this.safeUserLabel(user)} role=${user?.role ?? 'unknown'}`,
+    );
+    throw new ForbiddenException(
+      'Chỉ quản trị viên toàn hệ thống mới xem được tốc độ đọc loa',
+    );
   }
 
   private async assertUserCanUsePaymentSpeaker(user: any, source: string) {
@@ -1194,6 +1366,17 @@ export class PaymentNotificationsService {
     );
   }
 
+  private parseDeliveryMetricWindowHours(value?: string) {
+    if (value == null || value.trim().length === 0) {
+      return DEFAULT_DELIVERY_METRICS_WINDOW_HOURS;
+    }
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0 && parsed <= 168) {
+      return Math.trunc(parsed);
+    }
+    throw new BadRequestException('Khoảng thời gian đo không hợp lệ');
+  }
+
   private async lockReadyNotificationClient(
     tx: Prisma.TransactionClient,
     clientId: string,
@@ -1232,6 +1415,23 @@ export class PaymentNotificationsService {
   private readPositiveNumber(key: string, fallback: number) {
     const parsed = Number(process.env[key]);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  }
+
+  private numberFromUnknown(value: unknown) {
+    if (typeof value === 'bigint') return Number(value);
+    const parsed = Number(value ?? 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private roundMetricMs(value: unknown) {
+    if (value == null) return null;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+    return Math.max(0, Math.round(parsed));
+  }
+
+  private durationMs(from: Date, to: Date) {
+    return Math.max(0, Math.round(to.getTime() - from.getTime()));
   }
 
   private daysFromNow(days: number) {

@@ -58,6 +58,7 @@ describe('PaymentNotificationsService', () => {
       },
       mapVietinTransaction: {
         deleteMany: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(null),
       },
       store: {
         findUnique: jest.fn(),
@@ -66,6 +67,7 @@ describe('PaymentNotificationsService', () => {
         findUnique: jest.fn(),
       },
       $executeRaw: jest.fn(),
+      $queryRaw: jest.fn(),
       $transaction: jest.fn(async (callback: any) => callback(prisma)),
     };
     redis = { publishMessage: jest.fn().mockResolvedValue(undefined) };
@@ -780,6 +782,78 @@ describe('PaymentNotificationsService', () => {
         event: 'PLAYED',
       }),
     });
+  });
+
+  it('logs playback ack latency from MAP first seen to ack done', async () => {
+    const loggerSpy = jest
+      .spyOn((service as any).logger, 'log')
+      .mockImplementation(() => undefined);
+    prisma.paymentNotification.findUnique.mockResolvedValue({
+      id: 'note-latency',
+      transactionId: 'txn-latency',
+      storeCode: 'CP01',
+      createdAt: new Date('2026-06-27T01:00:01.000Z'),
+    });
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+    prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({
+      createdAt: new Date('2026-06-27T01:00:09.245Z'),
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue({
+      firstSeenAt: new Date('2026-06-27T01:00:02.003Z'),
+      paidAt: new Date('2026-06-27T01:00:00.000Z'),
+    });
+
+    await expect(
+      service.acknowledge(speakerUser({ id: 'user-1' }), 'note-latency', {
+        clientId: 'pc-1779876132645257',
+        event: 'PLAYED',
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(prisma.mapVietinTransaction.findUnique).toHaveBeenCalledWith({
+      where: { id: 'txn-latency' },
+      select: { firstSeenAt: true, paidAt: true },
+    });
+    expect(loggerSpy).toHaveBeenCalledWith(
+      expect.stringContaining('firstSeenToAckMs=7242'),
+    );
+  });
+
+  it('returns SUPER_ADMIN delivery metrics with current and previous average latency', async () => {
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ count: 3n, averageMs: '7242.4' }])
+      .mockResolvedValueOnce([{ count: 2n, averageMs: '8342.4' }]);
+
+    await expect(
+      service.getDeliveryMetrics(
+        speakerUser({ id: 'super-1', role: 'SUPER_ADMIN' }),
+        { windowHours: '24' },
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        windowHours: 24,
+        current: expect.objectContaining({
+          count: 3,
+          averageMs: 7242,
+        }),
+        previous: expect.objectContaining({
+          count: 2,
+          averageMs: 8342,
+        }),
+        deltaMs: -1100,
+        deltaPercent: -13.2,
+        trend: 'down',
+      }),
+    );
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects delivery metrics for non SUPER_ADMIN users', async () => {
+    await expect(
+      service.getDeliveryMetrics(speakerUser({ id: 'user-1' })),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 
   it('lets SUPER_ADMIN acknowledge speaker events without an Lv5 node', async () => {

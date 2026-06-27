@@ -1,0 +1,153 @@
+name: Build Windows MSIX Store Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: API environment compiled into the Windows app.
+        required: true
+        type: choice
+        options:
+          - production
+          - staging
+        default: production
+      version_name:
+        description: Optional app version name. Leave empty to use UTC date plus run number.
+        required: false
+        type: string
+      msix_version:
+        description: Optional Store package version a.b.c.d. Leave empty to use UTC date plus run number.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-msix-store-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  OPSHUB_PRODUCTION_API_BASE_URL: https://opshub.hoanghochoi.com/api
+  OPSHUB_STAGING_API_BASE_URL: https://opshub-staging.hoanghochoi.com/api
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      api_base_url: ${{ steps.version.outputs.api_base_url }}
+      version_name: ${{ steps.version.outputs.version_name }}
+      version_code: ${{ steps.version.outputs.version_code }}
+      windows_build_name: ${{ steps.version.outputs.windows_build_name }}
+      windows_msix_basename: ${{ steps.version.outputs.windows_msix_basename }}
+      windows_msix_name: ${{ steps.version.outputs.windows_msix_name }}
+      windows_msix_version: ${{ steps.version.outputs.windows_msix_version }}
+    steps:
+      - name: Compute MSIX version
+        id: version
+        shell: bash
+        env:
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          INPUT_VERSION_NAME: ${{ inputs.version_name }}
+          INPUT_MSIX_VERSION: ${{ inputs.msix_version }}
+        run: |
+          set -euo pipefail
+
+          if [ "$INPUT_ENVIRONMENT" = "staging" ]; then
+            api_base_url="$OPSHUB_STAGING_API_BASE_URL"
+            build_offset=200000
+          else
+            api_base_url="$OPSHUB_PRODUCTION_API_BASE_URL"
+            build_offset=100000
+          fi
+
+          version_name="$INPUT_VERSION_NAME"
+          if [ -z "$version_name" ]; then
+            version_name="$(date -u +%Y.%m.%d).${GITHUB_RUN_NUMBER}"
+          fi
+          if ! [[ "$version_name" =~ ^[0-9A-Za-z._+-]+$ ]]; then
+            echo "version_name contains characters that are unsafe for artifact names: $version_name" >&2
+            exit 1
+          fi
+
+          windows_msix_version="$INPUT_MSIX_VERSION"
+          if [ -z "$windows_msix_version" ]; then
+            windows_msix_version="$(date -u +%Y).$(date -u +%-m).$(date -u +%-d).${GITHUB_RUN_NUMBER}"
+          fi
+
+          IFS='.' read -r -a version_parts <<< "$windows_msix_version"
+          if [ "${#version_parts[@]}" -ne 4 ]; then
+            echo "MSIX version must use four numeric parts: $windows_msix_version" >&2
+            exit 1
+          fi
+          for part in "${version_parts[@]}"; do
+            if ! [[ "$part" =~ ^[0-9]+$ ]] || [ "$part" -gt 65535 ]; then
+              echo "Invalid MSIX version part: $part" >&2
+              exit 1
+            fi
+          done
+
+          windows_build_name="$(date -u +%Y).$(date -u +%-m).$(date -u +%-d)"
+          version_code="$((build_offset + GITHUB_RUN_NUMBER))"
+          windows_msix_basename="phongvu-opshub-${INPUT_ENVIRONMENT}-windows-store-v${version_name}+${version_code}"
+          windows_msix_name="${windows_msix_basename}.msix"
+
+          echo "api_base_url=${api_base_url}" >> "$GITHUB_OUTPUT"
+          echo "version_name=${version_name}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${version_code}" >> "$GITHUB_OUTPUT"
+          echo "windows_build_name=${windows_build_name}" >> "$GITHUB_OUTPUT"
+          echo "windows_msix_basename=${windows_msix_basename}" >> "$GITHUB_OUTPUT"
+          echo "windows_msix_name=${windows_msix_name}" >> "$GITHUB_OUTPUT"
+          echo "windows_msix_version=${windows_msix_version}" >> "$GITHUB_OUTPUT"
+
+  build_msix:
+    runs-on: windows-latest
+    needs: prepare
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build Windows release
+        shell: pwsh
+        run: |
+          flutter pub get
+          flutter build windows --release `
+            --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
+            --build-number "${{ needs.prepare.outputs.version_code }}" `
+            --dart-define "API_BASE_URL=${{ needs.prepare.outputs.api_base_url }}"
+
+      - name: Build Store MSIX
+        shell: pwsh
+        env:
+          WINDOWS_MSIX_DISPLAY_NAME: ${{ secrets.WINDOWS_MSIX_DISPLAY_NAME }}
+          WINDOWS_MSIX_PUBLISHER_DISPLAY_NAME: ${{ secrets.WINDOWS_MSIX_PUBLISHER_DISPLAY_NAME }}
+          WINDOWS_MSIX_IDENTITY_NAME: ${{ secrets.WINDOWS_MSIX_IDENTITY_NAME }}
+          WINDOWS_MSIX_PUBLISHER: ${{ secrets.WINDOWS_MSIX_PUBLISHER }}
+        run: |
+          .\scripts\build-windows-msix-store.ps1 `
+            -MsixVersion "${{ needs.prepare.outputs.windows_msix_version }}" `
+            -OutputName "${{ needs.prepare.outputs.windows_msix_basename }}"
+
+      - name: Scan Store MSIX with Microsoft Defender
+        shell: pwsh
+        run: |
+          .\scripts\scan-windows-artifact-defender.ps1 -Path @(
+            'build\windows\msix\${{ needs.prepare.outputs.windows_msix_name }}'
+          )
+
+      - name: Upload Store MSIX artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ needs.prepare.outputs.windows_msix_basename }}
+          path: |
+            build/windows/msix/${{ needs.prepare.outputs.windows_msix_name }}
+            build/windows/msix/${{ needs.prepare.outputs.windows_msix_name }}.sha256
+          if-no-files-found: error
+          retention-days: 14

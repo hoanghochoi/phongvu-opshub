@@ -12,6 +12,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MapVietinService } from '../map-vietin/map-vietin.service';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
+import {
+  organizationNodeStoreTreeInclude,
+  storesForOrganizationNodeTree,
+} from '../common/organization-store-scope';
 import { VietQrImageRenderer } from './vietqr-image.renderer';
 import type { RenderedVietQrImage } from './vietqr-image.renderer';
 
@@ -39,6 +43,7 @@ export interface CreateVietQrInput {
   transferContentOverride?: string | null;
   storeCode: string;
   createdById?: string | null;
+  user?: any;
 }
 
 export interface CreateExternalVietQrInput {
@@ -214,6 +219,9 @@ export class VietQrService {
   async create(input: CreateVietQrInput): Promise<VietQrResponse> {
     const amount = this.normalizeAmount(input.amount);
     const storeCode = this.normalizeText(input.storeCode, 'storeCode');
+    if (input.user) {
+      await this.assertCanAccessVietQrStore(input.user, storeCode);
+    }
     const config = await this.getConfig(storeCode);
     const orderCode = this.normalizeOptionalText(input.orderCode);
     const transferContent = this.resolveTransferContent(
@@ -801,17 +809,83 @@ export class VietQrService {
   }
 
   private async assertCanAccessIntent(user: any, storeCode: string) {
-    if (await this.policyService.canAccessPolicy(user, ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE)) return;
-    if (!user.storeId)
-      throw new ForbiddenException('Tài khoản chưa có showroom');
-    const store = await this.prisma.store.findUnique({
-      where: { id: user.storeId },
-    });
-    if (!store || store.storeId !== storeCode) {
+    await this.assertCanAccessVietQrStore(user, storeCode);
+  }
+
+  private async assertCanAccessVietQrStore(user: any, storeCode: string) {
+    if (
+      await this.policyService.canAccessPolicy(
+        user,
+        ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE,
+      )
+    ) {
+      return;
+    }
+    const allowedStoreCodes = await this.userStoreCodes(user);
+    if (allowedStoreCodes.length === 0) {
+      throw new ForbiddenException('Tài khoản chưa được gán showroom');
+    }
+    if (!allowedStoreCodes.includes(storeCode)) {
       throw new ForbiddenException(
-        'Không có quyền xác nhận QR của showroom khác',
+        'Không có quyền tạo hoặc xác nhận QR cho showroom này',
       );
     }
+  }
+
+  private async userStoreCodes(user: any) {
+    const storesByCode = new Map<string, string>();
+    const pushStoreCode = (value: unknown) => {
+      const code = String(value || '')
+        .trim()
+        .toUpperCase();
+      if (code) storesByCode.set(code, code);
+    };
+
+    for (const store of Array.isArray(user?.assignedStores)
+      ? user.assignedStores
+      : []) {
+      pushStoreCode(store?.storeId);
+    }
+
+    const userModel = (this.prisma as any).user;
+    if (user?.id && userModel?.findUnique) {
+      const savedUser = await userModel.findUnique({
+        where: { id: user.id },
+        include: {
+          store: { select: { storeId: true } },
+          organizationAssignments: {
+            where: { isActive: true },
+            orderBy: [
+              { isPrimary: Prisma.SortOrder.desc },
+              { createdAt: Prisma.SortOrder.asc },
+            ],
+            include: {
+              organizationNode: {
+                include: organizationNodeStoreTreeInclude(),
+              },
+            },
+          },
+        },
+      });
+      pushStoreCode(savedUser?.store?.storeId);
+      for (const assignment of savedUser?.organizationAssignments ?? []) {
+        for (const store of storesForOrganizationNodeTree(
+          assignment.organizationNode,
+        )) {
+          pushStoreCode(store.storeId);
+        }
+      }
+    }
+
+    if (storesByCode.size === 0 && user?.storeId) {
+      const store = await this.prisma.store.findUnique({
+        where: { id: user.storeId },
+        select: { storeId: true },
+      });
+      pushStoreCode(store?.storeId);
+    }
+
+    return Array.from(storesByCode.values());
   }
 
   private async updateCheckResult(

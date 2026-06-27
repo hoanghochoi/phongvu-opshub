@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/network/api_client.dart';
 import '../../domain/map_payment_transaction.dart';
+import '../../domain/payment_delivery_metrics.dart';
 import '../../domain/payment_notification.dart';
 
 class StoredPaymentTransactionsPage {
@@ -116,6 +117,17 @@ class PaymentMonitorRepository {
         )
         .where((notification) => notification.isValid)
         .toList();
+  }
+
+  Future<PaymentDeliveryMetrics> fetchDeliveryMetrics({
+    int windowHours = 24,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConstants.paymentNotificationDeliveryMetricsEndpoint,
+      queryParameters: {'windowHours': windowHours.toString()},
+    );
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return PaymentDeliveryMetrics.fromJson(data);
   }
 
   Future<void> acknowledgeNotification({

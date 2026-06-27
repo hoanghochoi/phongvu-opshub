@@ -45,6 +45,7 @@ export class VietQrController {
       orderCode: body.orderCode ?? '',
       storeCode: body.storeCode ?? '',
       createdById: req.user?.id,
+      user: req.user,
     });
   }
 

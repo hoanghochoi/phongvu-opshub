@@ -13,6 +13,7 @@ import '../features/warranty/data/repositories/warranty_repository.dart';
 import '../features/warranty/presentation/providers/warranty_provider.dart';
 import '../features/payment_monitor/data/payment_speaker.dart';
 import '../features/payment_monitor/data/repositories/payment_monitor_repository.dart';
+import '../features/payment_monitor/presentation/providers/payment_delivery_metrics_provider.dart';
 import '../features/payment_monitor/presentation/providers/payment_monitor_provider.dart';
 import '../features/fifo/data/repositories/fifo_repository.dart';
 import '../features/fifo/presentation/providers/fifo_provider.dart';
@@ -69,6 +70,29 @@ class App extends StatelessWidget {
                   offsetAdjustmentRepository: OffsetAdjustmentRepository(
                     ApiClient(),
                   ),
+                );
+            Future.microtask(
+              () => provider.syncAuth(
+                auth.user,
+                isInitialized: auth.isInitialized,
+              ),
+            );
+            return provider;
+          },
+        ),
+        ChangeNotifierProxyProvider<
+          AuthProvider,
+          PaymentDeliveryMetricsProvider
+        >(
+          lazy: false,
+          create: (_) => PaymentDeliveryMetricsProvider(
+            PaymentMonitorRepository(ApiClient()),
+          ),
+          update: (_, auth, metrics) {
+            final provider =
+                metrics ??
+                PaymentDeliveryMetricsProvider(
+                  PaymentMonitorRepository(ApiClient()),
                 );
             Future.microtask(
               () => provider.syncAuth(

@@ -27,6 +27,13 @@ export class ListPaymentNotificationsQueryDto {
   afterCreatedAt?: string;
 }
 
+export class PaymentNotificationDeliveryMetricsQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(3)
+  windowHours?: string;
+}
+
 export class PaymentNotificationAckDto {
   @IsString()
   @MaxLength(120)

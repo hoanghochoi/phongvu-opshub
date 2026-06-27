@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import jsQR from 'jsqr';
@@ -11,6 +12,7 @@ describe('VietQrService', () => {
   const originalEnv = process.env;
   let service: VietQrService;
   let prisma: {
+    user: { findUnique: jest.Mock };
     store: { findUnique: jest.Mock };
     vietQrPaymentIntent: {
       create: jest.Mock;
@@ -35,6 +37,7 @@ describe('VietQrService', () => {
       VIETQR_MERCHANT_CITY: 'Ho Chi Minh',
     };
     prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue(null) },
       store: { findUnique: jest.fn().mockResolvedValue(null) },
       vietQrPaymentIntent: {
         create: jest.fn(async ({ data }) => ({
@@ -56,12 +59,18 @@ describe('VietQrService', () => {
     policyService = {
       canAccessPolicy: jest.fn(async (user: any, code: string) => {
         if (user?.role === 'SUPER_ADMIN') return true;
-        return String(code || '').toUpperCase() ===
-          ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE &&
-          user?.role === 'SUPER_ADMIN';
+        return (
+          String(code || '').toUpperCase() ===
+            ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE &&
+          user?.role === 'SUPER_ADMIN'
+        );
       }),
     };
-    service = new VietQrService(prisma as any, policyService as any, mapVietinService as any);
+    service = new VietQrService(
+      prisma as any,
+      policyService as any,
+      mapVietinService as any,
+    );
   });
 
   afterEach(() => {
@@ -130,6 +139,67 @@ describe('VietQrService', () => {
 
     expect(result.transferContent).toBe('COC BAO HANH MAY A HCM01 BOT');
     expect(result.qrPayload).toContain('0828COC BAO HANH MAY A HCM01 BOT');
+  });
+
+  it('allows app QR creation for a non-primary assigned showroom', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      store: { storeId: 'CP75' },
+      organizationAssignments: [
+        {
+          organizationNode: {
+            stores: [{ storeId: 'CP75' }],
+          },
+        },
+        {
+          organizationNode: {
+            stores: [{ storeId: 'CP62' }],
+          },
+        },
+      ],
+    });
+
+    const result = await service.create({
+      user: { id: 'user-1', storeId: 'store-75' },
+      createdById: 'user-1',
+      amount: 150000,
+      orderCode: 'DH-001',
+      storeCode: 'CP62',
+    });
+
+    expect(result.transferContent).toBe('DH-001 CP62 BOT');
+    expect(prisma.vietQrPaymentIntent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          storeCode: 'CP62',
+          createdById: 'user-1',
+        }),
+      }),
+    );
+  });
+
+  it('rejects app QR creation outside the assigned showroom scope', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      store: { storeId: 'CP75' },
+      organizationAssignments: [
+        {
+          organizationNode: {
+            stores: [{ storeId: 'CP75' }],
+          },
+        },
+      ],
+    });
+
+    await expect(
+      service.create({
+        user: { id: 'user-1', storeId: 'store-75' },
+        createdById: 'user-1',
+        amount: 150000,
+        orderCode: 'DH-001',
+        storeCode: 'CP62',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.vietQrPaymentIntent.create).not.toHaveBeenCalled();
   });
 
   it('creates an n8n-ready image response with exact addInfo transfer content', async () => {
@@ -686,6 +756,50 @@ describe('VietQrService', () => {
       mapVietinService.searchTransactionsForStoreCode,
     ).not.toHaveBeenCalled();
     expect(prisma.vietQrPaymentIntent.update).not.toHaveBeenCalled();
+  });
+
+  it('allows app payment confirmation for a non-primary assigned showroom', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      store: { storeId: 'CP75' },
+      organizationAssignments: [
+        {
+          organizationNode: {
+            stores: [{ storeId: 'CP75' }],
+          },
+        },
+        {
+          organizationNode: {
+            stores: [{ storeId: 'CP62' }],
+          },
+        },
+      ],
+    });
+    prisma.vietQrPaymentIntent.findUnique.mockResolvedValue({
+      id: 'payment-1',
+      storeCode: 'CP62',
+      amount: null,
+      orderCode: null,
+      transferContent: '',
+      status: 'PENDING',
+      createdAt: new Date('2026-05-20T10:00:00.000Z'),
+    });
+    prisma.vietQrPaymentIntent.update.mockImplementation(async ({ data }) => ({
+      id: 'payment-1',
+      status: data.status,
+      ...data,
+    }));
+
+    await expect(
+      service.confirmPayment(
+        { id: 'user-1', storeId: 'store-75' },
+        'payment-1',
+      ),
+    ).resolves.toMatchObject({
+      id: 'payment-1',
+      status: 'MANUAL_REVIEW',
+      confirmed: false,
+      reason: 'MISSING_MATCH_FIELDS',
+    });
   });
 
   it('confirms MAP rows that use Vietnam-local time and alternate field names', async () => {

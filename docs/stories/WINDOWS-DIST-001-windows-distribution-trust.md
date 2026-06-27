@@ -24,7 +24,10 @@ using Microsoft Store or buying a public code-signing certificate.
 - Documentation defines the internal trust requirement: deploy the public code-
   signing certificate to `Trusted Root Certification Authorities` and `Trusted
   Publishers` on target PCs.
-- Store/MSIX distribution is out of scope for this internal-only rollout.
+- Microsoft Store/MSIX distribution is in scope as a separate manual packaging
+  path. The Store MSIX workflow builds and uploads a GitHub Actions artifact for
+  Partner Center, but does not deploy it to the VPS and does not change the
+  live EXE/ZIP/download/app-version runtime contract.
 
 ## Validation
 
@@ -36,7 +39,11 @@ using Microsoft Store or buying a public code-signing certificate.
 - Scan the local installer and portable ZIP with Microsoft Defender.
 - Generate and inspect the Windows `.sha256` file.
 - Parse the GitHub workflow YAML.
+- Build the Store MSIX with Partner Center identity secrets, scan it with
+  Microsoft Defender, and upload the MSIX plus checksum as workflow artifacts.
 - Run `git diff --check`.
 - Signed CI proof must show the final Defender gate passing before checksums and
   upload. Target-PC trust still requires a managed PC with the public `.cer`
   installed separately.
+- Store/MSIX proof must also show Partner Center identity acceptance and a clean
+  Store install/update smoke before replacing any EXE update path.

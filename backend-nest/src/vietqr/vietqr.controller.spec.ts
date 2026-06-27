@@ -22,6 +22,7 @@ describe('VietQrController', () => {
       orderCode: 'DH-002',
       storeCode: 'HCM02',
       createdById: 'user-1',
+      user: { id: 'user-1' },
     });
   });
 
@@ -45,6 +46,7 @@ describe('VietQrController', () => {
       orderCode: '',
       storeCode: 'HCM02',
       createdById: 'user-1',
+      user: { id: 'user-1' },
     });
   });
 
