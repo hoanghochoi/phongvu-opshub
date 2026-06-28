@@ -119,6 +119,16 @@ This file maps product behavior to proof. Existing flows are marked
   (6 tests), `flutter analyze --no-pub`, full Flutter tests (164 tests), and
   `git diff --check`.
 - PROFILE-ADMIN-001 / PAYMENT-MONITOR-001 / PAYMENT-STATEMENT-001,
+  2026-06-29: added `Tiền vào` row-level order workflow reusing
+  the existing `Sao kê` backend contract. Stored payment transactions now carry
+  statement permission action flags, pending order-transfer state, and reviewer
+  eligibility; Flutter parses those fields, shows the compact order editor on
+  payment rows, supports direct save, Kế toán confirmation requests,
+  approve/reject, and order history without adding export or checkbox selection
+  to `Tiền vào`. Validation: focused MAP statement Jest, focused payment
+  monitor Flutter model/provider/widget tests, bank-statement regression tests,
+  `flutter analyze --no-pub`, backend `npm run build`, and `git diff --check`.
+- PROFILE-ADMIN-001 / PAYMENT-MONITOR-001 / PAYMENT-STATEMENT-001,
   2026-06-26: added multi-showroom user assignments through
   `UserOrganizationAssignment`, admin create/update/import assignment sync,
   assigned-showroom scope for statement/payment MAP APIs, active-showroom speaker

@@ -263,6 +263,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('TB 7.2s'), findsOneWidget);
+    final pillCenter = tester.getCenter(find.text('TB 7.2s'));
+    final supportCenter = tester.getCenter(find.byTooltip('Hỗ trợ'));
+    expect((pillCenter.dy - supportCenter.dy).abs(), lessThan(1));
 
     await tester.tap(find.text('TB 7.2s'));
     await tester.pumpAndSettle();
@@ -401,6 +404,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
       page: page,
       limit: limit,
       total: 0,
+      canReviewOrderTransfers: false,
     );
   }
 

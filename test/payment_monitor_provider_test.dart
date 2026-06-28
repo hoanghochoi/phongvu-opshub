@@ -11,6 +11,7 @@ import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/payment_speaker.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/repositories/payment_monitor_repository.dart';
+import 'package:phongvu_opshub/features/payment_monitor/domain/map_payment_transaction.dart';
 import 'package:phongvu_opshub/features/payment_monitor/domain/payment_notification.dart';
 import 'package:phongvu_opshub/features/payment_monitor/presentation/providers/payment_monitor_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -264,6 +265,110 @@ void main() {
     provider.dispose();
   });
 
+  test('loads payment order review state from stored transactions', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: const [],
+      canReviewOrderTransfers: true,
+      transactions: [
+        _paymentTransaction(
+          id: 'txn-pending',
+          orders: const ['26052112345678'],
+          pendingRequestId: 'request-1',
+          requestedOrders: const ['26052287654321'],
+        ),
+      ],
+    );
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+
+    expect(provider.canReviewOrderTransfers, isTrue);
+    expect(
+      provider.latestTransactions.single.hasPendingOrderTransferRequest,
+      isTrue,
+    );
+    expect(provider.latestTransactions.single.orderTransferRequestedOrders, [
+      '26052287654321',
+    ]);
+
+    provider.dispose();
+  });
+
+  test('saves payment monitor orders and replaces the visible row', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: const [],
+      transactions: [_paymentTransaction(id: 'txn-1')],
+    );
+    repository.updatedTransaction = _paymentTransaction(
+      id: 'txn-1',
+      orders: const ['26052287654321'],
+      canEditOrders: true,
+    );
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+
+    await provider.updateOrders('txn-1', '26052287654321');
+
+    expect(repository.savedOrderInputs.single, ['26052287654321']);
+    expect(provider.latestTransactions.single.orders, ['26052287654321']);
+    expect(provider.rowMessages['txn-1']?.text, 'Đã cập nhật mã đơn hàng.');
+
+    provider.dispose();
+  });
+
+  test(
+    'requests payment order transfer and refreshes the current page',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: const [],
+        transactions: [
+          _paymentTransaction(id: 'txn-1', orders: const ['26052112345678']),
+        ],
+      );
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
+      final fetchCount = repository.transactionFetchCount;
+
+      final ok = await provider.requestOrderTransfer('txn-1', '26052287654321');
+
+      expect(ok, isTrue);
+      expect(repository.requestedOrderTransfers.single, ['26052287654321']);
+      expect(repository.transactionFetchCount, greaterThan(fetchCount));
+      expect(provider.rowMessages['txn-1']?.text, 'Đã gửi Kế toán xác nhận.');
+
+      provider.dispose();
+    },
+  );
+
   test(
     'realtime payment event triggers lightweight transaction refresh',
     () async {
@@ -342,42 +447,45 @@ void main() {
     provider.dispose();
   });
 
-  test('stream event retries playback errors and logs them to server', () async {
-    final repository = _FakePaymentMonitorRepository(notifications: const []);
-    final speaker = _FakePaymentSpeaker(failuresBeforeSuccess: 1);
-    final provider = PaymentMonitorProvider(
-      repository,
-      speaker,
-      null,
-      retryDelay,
-    );
+  test(
+    'stream event retries playback errors and logs them to server',
+    () async {
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
+      final speaker = _FakePaymentSpeaker(failuresBeforeSuccess: 1);
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
 
-    await Future<void>.delayed(Duration.zero);
-    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
-    await _waitUntil(
-      () => repository.transactionFetchCount > 0 && !provider.isLoading,
-    );
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
 
-    await provider.handleRealtimeMessageForTesting(
-      jsonEncode({
-        'type': 'PAYMENT_SPEAKER_STREAM',
-        'payload': _streamPayload('note-retry'),
-      }),
-    );
-    await _waitUntil(
-      () => repository.ackEvents.contains('PLAYED') && speaker.playCount == 2,
-    );
+      await provider.handleRealtimeMessageForTesting(
+        jsonEncode({
+          'type': 'PAYMENT_SPEAKER_STREAM',
+          'payload': _streamPayload('note-retry'),
+        }),
+      );
+      await _waitUntil(
+        () => repository.ackEvents.contains('PLAYED') && speaker.playCount == 2,
+      );
 
-    expect(repository.downloadCount, 0);
-    expect(repository.streamDownloadCount, 1);
-    expect(repository.requestedRawAmounts, contains(true));
-    expect(repository.ackEvents, contains('STREAM_STARTED'));
-    expect(repository.ackEvents, contains('PLAYBACK_FAILED'));
-    expect(repository.ackEvents, contains('PLAYED'));
-    expect(repository.ackErrors.single, contains('speaker failed'));
+      expect(repository.downloadCount, 0);
+      expect(repository.streamDownloadCount, 1);
+      expect(repository.requestedRawAmounts, contains(true));
+      expect(repository.ackEvents, contains('STREAM_STARTED'));
+      expect(repository.ackEvents, contains('PLAYBACK_FAILED'));
+      expect(repository.ackEvents, contains('PLAYED'));
+      expect(repository.ackErrors.single, contains('speaker failed'));
 
-    provider.dispose();
-  });
+      provider.dispose();
+    },
+  );
 
   test('manual refresh requests total count for pagination', () async {
     final repository = _FakePaymentMonitorRepository(notifications: const []);
@@ -750,6 +858,30 @@ PaymentNotification _readyNotification() {
   });
 }
 
+MapPaymentTransaction _paymentTransaction({
+  required String id,
+  List<String> orders = const [],
+  bool canEditOrders = true,
+  bool canRequestOrderTransfer = true,
+  String? pendingRequestId,
+  List<String> requestedOrders = const [],
+}) {
+  return MapPaymentTransaction.fromJson({
+    'transactionNumber': id,
+    'amount': 1250000,
+    'storeId': 'CP01',
+    'status': '00',
+    'orders': orders,
+    'canEditOrders': canEditOrders,
+    'canRequestOrderTransfer': canRequestOrderTransfer,
+    if (pendingRequestId != null) ...{
+      'orderTransferRequestId': pendingRequestId,
+      'orderTransferStatus': 'PENDING',
+      'orderTransferRequestedOrders': requestedOrders,
+    },
+  });
+}
+
 Map<String, Object?> _streamPayload(String notificationId) {
   return {
     'notificationId': notificationId,
@@ -765,6 +897,8 @@ Map<String, Object?> _streamPayload(String notificationId) {
 
 class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<PaymentNotification> notifications;
+  final List<MapPaymentTransaction> transactions;
+  final bool canReviewOrderTransfers;
   final Object? transactionError;
   final Object? rawAmountAudioError;
   final Object? combinedAudioError;
@@ -776,13 +910,20 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<bool> requestedIncludeTotals = [];
   final List<bool> requestedIncludeCues = [];
   final List<bool> requestedRawAmounts = [];
+  final List<List<String>> savedOrderInputs = [];
+  final List<List<String>> requestedOrderTransfers = [];
+  final List<String> approvedRequestIds = [];
+  final List<String> rejectedRequestIds = [];
   int transactionFetchCount = 0;
   int readyFetchCount = 0;
   int downloadCount = 0;
   int streamDownloadCount = 0;
+  MapPaymentTransaction? updatedTransaction;
 
   _FakePaymentMonitorRepository({
     required this.notifications,
+    this.transactions = const [],
+    this.canReviewOrderTransfers = false,
     this.transactionError,
     this.rawAmountAudioError,
     this.combinedAudioError,
@@ -808,11 +949,55 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     requestedEndDates.add(endDate);
     requestedIncludeTotals.add(includeTotal);
     return StoredPaymentTransactionsPage(
-      transactions: const [],
+      transactions: transactions,
       page: page,
       limit: limit,
-      total: 0,
+      total: transactions.length,
+      canReviewOrderTransfers: canReviewOrderTransfers,
     );
+  }
+
+  @override
+  Future<MapPaymentTransaction> updateOrders(
+    String transactionId,
+    List<String> orders,
+  ) async {
+    savedOrderInputs.add(orders);
+    return updatedTransaction ??
+        MapPaymentTransaction.fromJson({
+          'transactionNumber': transactionId,
+          'amount': 1250000,
+          'storeId': 'CP01',
+          'status': '00',
+          'orders': orders,
+          'canEditOrders': true,
+          'canRequestOrderTransfer': true,
+        });
+  }
+
+  @override
+  Future<void> createOrderTransferRequest(
+    String transactionId,
+    List<String> orders,
+  ) async {
+    requestedOrderTransfers.add(orders);
+  }
+
+  @override
+  Future<MapPaymentTransaction?> approveOrderTransferRequest(
+    String requestId,
+  ) async {
+    approvedRequestIds.add(requestId);
+    return updatedTransaction;
+  }
+
+  @override
+  Future<MapPaymentTransaction?> rejectOrderTransferRequest(
+    String requestId, {
+    String? note,
+  }) async {
+    rejectedRequestIds.add(requestId);
+    return updatedTransaction;
   }
 
   @override

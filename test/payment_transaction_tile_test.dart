@@ -1,60 +1,158 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
+import 'package:phongvu_opshub/features/bank_statement/domain/bank_statement_transaction.dart';
 import 'package:phongvu_opshub/features/payment_monitor/domain/map_payment_transaction.dart';
+import 'package:phongvu_opshub/features/payment_monitor/presentation/providers/payment_monitor_provider.dart';
 import 'package:phongvu_opshub/features/payment_monitor/presentation/widgets/payment_transaction_tile.dart';
 
 void main() {
-  testWidgets('shows payer summary and opens full transaction details', (
-    tester,
-  ) async {
-    final transaction = MapPaymentTransaction.fromJson({
-      'id': 'stored-transaction-1',
-      'storeId': 'CP01',
-      'transactionNumber': 'MAP-001',
-      'amount': 1250000,
-      'content': 'KHACH THANH TOAN DON HANG',
-      'orders': ['26062312345678'],
-      'status': '00',
-      'paidAt': '2026-06-23T03:15:30.000Z',
-      'firstSeenAt': '2026-06-23T03:15:35.000Z',
-      'payerName': 'NGUYEN VAN A',
-      'payerAccount': '9704361234567890',
-    });
-
+  testWidgets('Payment transaction tile edits orders inline', (tester) async {
+    String? savedInput;
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: PaymentTransactionTile(
-            transaction: transaction,
-            amountFormatter: NumberFormat.decimalPattern('vi_VN'),
+      _wrap(
+        PaymentTransactionTile(
+          transaction: _transaction(
+            orders: const ['26052112345678'],
+            canEditOrders: true,
           ),
+          amountFormatter: NumberFormat.decimalPattern('vi_VN'),
+          rowMessage: const PaymentMonitorRowMessage(
+            text: 'Đã cập nhật mã đơn hàng.',
+            success: true,
+          ),
+          canReviewTransfer: false,
+          onSaveOrders: (rawInput) async {
+            savedInput = rawInput;
+          },
+          onRequestTransfer: (_) async => true,
+          onApproveTransfer: (_) async {},
+          onRejectTransfer: (_, {note}) async {},
+          onLoadHistory: () async => const <BankStatementOrderHistoryEntry>[],
         ),
       ),
     );
 
-    expect(
-      find.text('Người chuyển: NGUYEN VAN A • 9704361234567890'),
-      findsOneWidget,
+    expect(find.text('Đơn hàng'), findsOneWidget);
+    expect(find.text('26052112345678'), findsOneWidget);
+    expect(find.text('Đã cập nhật mã đơn hàng.'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Sửa mã đơn'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextField),
+      '26052287654321\n26052311111111',
+    );
+    await tester.tap(find.byTooltip('Lưu mã đơn'));
+    await tester.pumpAndSettle();
+
+    expect(savedInput, '26052287654321\n26052311111111');
+  });
+
+  testWidgets('Payment transaction tile shows pending review controls', (
+    tester,
+  ) async {
+    var approvedRequestId = '';
+    await tester.pumpWidget(
+      _wrap(
+        PaymentTransactionTile(
+          transaction: _transaction(
+            orders: const ['26052112345678'],
+            pendingRequestId: 'request-1',
+            requestedOrders: const ['26052287654321'],
+          ),
+          amountFormatter: NumberFormat.decimalPattern('vi_VN'),
+          rowMessage: null,
+          canReviewTransfer: true,
+          onSaveOrders: (_) async {},
+          onRequestTransfer: (_) async => true,
+          onApproveTransfer: (requestId) async {
+            approvedRequestId = requestId;
+          },
+          onRejectTransfer: (_, {note}) async {},
+          onLoadHistory: () async => const <BankStatementOrderHistoryEntry>[],
+        ),
+      ),
     );
 
-    await tester.tap(find.byType(PaymentTransactionTile));
+    expect(find.text('Chờ Kế toán xác nhận'), findsOneWidget);
+    expect(find.text('26052287654321'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Phê duyệt cập nhật mã đơn'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Chi tiết giao dịch'), findsOneWidget);
-    expect(find.text('NGUYEN VAN A'), findsOneWidget);
-    expect(find.text('9704361234567890'), findsOneWidget);
-    expect(find.text('1.250.000 VND'), findsWidgets);
-    expect(find.text('10:15:30 23/06/2026'), findsOneWidget);
-    expect(find.text('MAP-001'), findsOneWidget);
-    expect(find.text('KHACH THANH TOAN DON HANG'), findsWidgets);
-    expect(find.text('Thành công (00)'), findsOneWidget);
-    expect(find.text('CP01'), findsOneWidget);
-    expect(find.text('10:15:35 23/06/2026'), findsOneWidget);
+    expect(find.text('Xác nhận cập nhật mã đơn'), findsOneWidget);
+    expect(find.text('Đơn đề nghị'), findsOneWidget);
 
-    await tester.tap(find.text('Đóng'));
+    await tester.tap(find.text('Duyệt'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Chi tiết giao dịch'), findsNothing);
+    expect(approvedRequestId, 'request-1');
+  });
+
+  testWidgets('Payment transaction tile shows statement permission blocker', (
+    tester,
+  ) async {
+    const reason = 'Bạn cần quyền Sao kê để cập nhật mã đơn hàng.';
+    await tester.pumpWidget(
+      _wrap(
+        PaymentTransactionTile(
+          transaction: _transaction(
+            canEditOrders: false,
+            canRequestOrderTransfer: false,
+            orderEditBlockedReason: reason,
+            orderTransferRequestBlockedReason: reason,
+          ),
+          amountFormatter: NumberFormat.decimalPattern('vi_VN'),
+          rowMessage: null,
+          canReviewTransfer: false,
+          onSaveOrders: (_) async {},
+          onRequestTransfer: (_) async => true,
+          onApproveTransfer: (_) async {},
+          onRejectTransfer: (_, {note}) async {},
+          onLoadHistory: () async => const <BankStatementOrderHistoryEntry>[],
+        ),
+      ),
+    );
+
+    expect(find.text(reason), findsOneWidget);
+    expect(find.byTooltip(reason), findsWidgets);
+  });
+}
+
+Widget _wrap(Widget child) {
+  return MaterialApp(
+    home: Scaffold(body: ListView(children: [child])),
+  );
+}
+
+MapPaymentTransaction _transaction({
+  List<String> orders = const [],
+  bool canEditOrders = false,
+  bool canRequestOrderTransfer = false,
+  String? orderEditBlockedReason,
+  String? orderTransferRequestBlockedReason,
+  String? pendingRequestId,
+  List<String> requestedOrders = const [],
+}) {
+  return MapPaymentTransaction.fromJson({
+    'transactionNumber': 'txn-1',
+    'transactionReference': '00020300000000004567',
+    'amount': 1250000,
+    'storeId': 'CP01',
+    'status': '00',
+    'orders': orders,
+    'canEditOrders': canEditOrders,
+    'canRequestOrderTransfer': canRequestOrderTransfer,
+    if (orderEditBlockedReason != null)
+      'orderEditBlockedReason': orderEditBlockedReason,
+    if (orderTransferRequestBlockedReason != null)
+      'orderTransferRequestBlockedReason': orderTransferRequestBlockedReason,
+    if (pendingRequestId != null) ...{
+      'orderTransferRequestId': pendingRequestId,
+      'orderTransferStatus': 'PENDING',
+      'orderTransferRequestedOrders': requestedOrders,
+      'orderTransferRequestedByEmail': 'requester@example.com',
+    },
   });
 }

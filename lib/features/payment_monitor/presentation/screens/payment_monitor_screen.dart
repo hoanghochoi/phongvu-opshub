@@ -225,12 +225,44 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                                 : const _EmptyTransactions()
                           : ListView.builder(
                               itemCount: monitor.latestTransactions.length,
-                              itemBuilder: (context, index) =>
-                                  PaymentTransactionTile(
-                                    transaction:
-                                        monitor.latestTransactions[index],
-                                    amountFormatter: _currencyFormatter,
-                                  ),
+                              itemBuilder: (context, index) {
+                                final transaction =
+                                    monitor.latestTransactions[index];
+                                return PaymentTransactionTile(
+                                  transaction: transaction,
+                                  amountFormatter: _currencyFormatter,
+                                  rowMessage:
+                                      monitor.rowMessages[transaction.id],
+                                  canReviewTransfer:
+                                      monitor.canReviewOrderTransfers,
+                                  onSaveOrders: (rawInput) => context
+                                      .read<PaymentMonitorProvider>()
+                                      .updateOrders(transaction.id, rawInput),
+                                  onRequestTransfer: (rawInput) => context
+                                      .read<PaymentMonitorProvider>()
+                                      .requestOrderTransfer(
+                                        transaction.id,
+                                        rawInput,
+                                      ),
+                                  onApproveTransfer: (requestId) => context
+                                      .read<PaymentMonitorProvider>()
+                                      .approveOrderTransferRequest(
+                                        transaction.id,
+                                        requestId,
+                                      ),
+                                  onRejectTransfer: (requestId, {note}) =>
+                                      context
+                                          .read<PaymentMonitorProvider>()
+                                          .rejectOrderTransferRequest(
+                                            transaction.id,
+                                            requestId,
+                                            note: note,
+                                          ),
+                                  onLoadHistory: () => context
+                                      .read<PaymentMonitorProvider>()
+                                      .fetchOrderHistory(transaction.id),
+                                );
+                              },
                             ),
                     ),
                   ],

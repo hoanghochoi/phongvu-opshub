@@ -1036,6 +1036,134 @@ describe('MapVietinService', () => {
     expect(prisma.mapVietinTransaction.count).not.toHaveBeenCalled();
   });
 
+  it('lists payment transactions but disables order actions without statement access', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      {
+        id: 'stored-no-statement',
+        storeCode: 'CP01',
+        transactionKey: 'CP01:no-statement',
+        transactionNumber: 'TXN-NO-STATEMENT',
+        amount: 1250000,
+        content: 'No statement permission',
+        orders: [],
+        orderSource: null,
+        orderUpdatedAt: null,
+        orderUpdatedByUserId: null,
+        orderUpdatedByEmail: null,
+        status: '00',
+        paidAt: new Date('2026-05-21T03:00:00.000Z'),
+        payerName: null,
+        payerAccount: null,
+        rawData: null,
+        firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+        orderTransferRequests: [],
+      },
+    ]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(1);
+
+    await expect(
+      service.listStoredTransactions(
+        { role: 'USER', storeId: 'store-uuid-1' },
+        { date: '2026-05-21', page: 0, limit: 10 },
+      ),
+    ).resolves.toMatchObject({
+      canReviewOrderTransfers: false,
+      total: 1,
+      list: [
+        {
+          id: 'stored-no-statement',
+          canEditOrders: false,
+          orderEditBlockedReason:
+            'Bạn cần quyền Sao kê để cập nhật mã đơn hàng.',
+          canRequestOrderTransfer: false,
+          orderTransferRequestBlockedReason:
+            'Bạn cần quyền Sao kê để cập nhật mã đơn hàng.',
+        },
+      ],
+    });
+  });
+
+  it('includes pending order-transfer requests in payment transactions', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      {
+        id: 'stored-pending',
+        storeCode: 'CP01',
+        transactionKey: 'CP01:pending',
+        transactionNumber: 'TXN-PENDING',
+        amount: 1250000,
+        content: 'Pending order transfer',
+        orders: ['26052112345678'],
+        orderSource: 'AUTO',
+        orderUpdatedAt: null,
+        orderUpdatedByUserId: null,
+        orderUpdatedByEmail: null,
+        status: '00',
+        paidAt: new Date('2026-05-21T03:00:00.000Z'),
+        payerName: null,
+        payerAccount: null,
+        rawData: null,
+        firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+        orderTransferRequests: [
+          {
+            id: 'request-1',
+            requestedOrders: ['26052287654321'],
+            status: 'PENDING',
+            requestedByUserId: 'requester-1',
+            requestedByEmail: 'requester@example.com',
+            reviewNote: null,
+            createdAt: new Date('2026-05-21T04:00:00.000Z'),
+          },
+        ],
+      },
+    ]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(1);
+
+    await expect(
+      service.listStoredTransactions(
+        {
+          role: 'MANAGER',
+          storeId: 'store-uuid-1',
+          departmentCode: 'ACC',
+        },
+        { date: '2026-05-21', page: 0, limit: 10 },
+      ),
+    ).resolves.toMatchObject({
+      canReviewOrderTransfers: true,
+      list: [
+        {
+          id: 'stored-pending',
+          canEditOrders: false,
+          orderEditBlockedReason: 'Giao dịch đang chờ Kế toán xác nhận.',
+          canRequestOrderTransfer: false,
+          orderTransferRequestBlockedReason:
+            'Giao dịch đang chờ Kế toán xác nhận.',
+          hasPendingOrderTransferRequest: true,
+          orderTransferRequestId: 'request-1',
+          orderTransferRequestedOrders: ['26052287654321'],
+        },
+      ],
+    });
+    expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          orderTransferRequests: {
+            where: { status: 'PENDING' },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
+      }),
+    );
+  });
+
   it('extracts all valid unique order codes from transfer content', () => {
     expect(
       service.extractOrderCodesFromContent(

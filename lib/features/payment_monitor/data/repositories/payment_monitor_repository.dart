@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../bank_statement/domain/bank_statement_transaction.dart';
 import '../../domain/map_payment_transaction.dart';
 import '../../domain/payment_delivery_metrics.dart';
 import '../../domain/payment_notification.dart';
@@ -11,12 +12,14 @@ class StoredPaymentTransactionsPage {
   final int page;
   final int limit;
   final int? total;
+  final bool canReviewOrderTransfers;
 
   const StoredPaymentTransactionsPage({
     required this.transactions,
     required this.page,
     required this.limit,
     required this.total,
+    required this.canReviewOrderTransfers,
   });
 }
 
@@ -72,7 +75,88 @@ class PaymentMonitorRepository {
       total: data.containsKey('total')
           ? int.tryParse(data['total']?.toString() ?? '') ?? transactions.length
           : null,
+      canReviewOrderTransfers: data['canReviewOrderTransfers'] == true,
     );
+  }
+
+  Future<MapPaymentTransaction> updateOrders(
+    String transactionId,
+    List<String> orders,
+  ) async {
+    final response = await _apiClient.patch(
+      ApiConstants.adminMapVietinStatementOrdersEndpoint(transactionId),
+      body: {'orders': orders},
+    );
+    return MapPaymentTransaction.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> createOrderTransferRequest(
+    String transactionId,
+    List<String> orders,
+  ) async {
+    await _apiClient.post(
+      ApiConstants.adminMapVietinStatementOrderTransferRequestsEndpoint(
+        transactionId,
+      ),
+      body: {'orders': orders},
+    );
+  }
+
+  Future<MapPaymentTransaction?> approveOrderTransferRequest(String requestId) {
+    return _reviewOrderTransferRequest(
+      ApiConstants.adminMapVietinStatementOrderTransferApproveEndpoint(
+        requestId,
+      ),
+    );
+  }
+
+  Future<MapPaymentTransaction?> rejectOrderTransferRequest(
+    String requestId, {
+    String? note,
+  }) {
+    return _reviewOrderTransferRequest(
+      ApiConstants.adminMapVietinStatementOrderTransferRejectEndpoint(
+        requestId,
+      ),
+      note: note,
+    );
+  }
+
+  Future<MapPaymentTransaction?> _reviewOrderTransferRequest(
+    String endpoint, {
+    String? note,
+  }) async {
+    final cleanNote = note?.trim() ?? '';
+    final response = await _apiClient.post(
+      endpoint,
+      body: {if (cleanNote.isNotEmpty) 'note': cleanNote},
+    );
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final transaction = data['transaction'];
+    if (transaction is! Map) return null;
+    return MapPaymentTransaction.fromJson(
+      transaction.map((key, value) => MapEntry(key.toString(), value)),
+    );
+  }
+
+  Future<List<BankStatementOrderHistoryEntry>> fetchOrderHistory(
+    String transactionId,
+  ) async {
+    final response = await _apiClient.get(
+      ApiConstants.adminMapVietinStatementOrderHistoryEndpoint(transactionId),
+    );
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final rows = data['list'] is List ? data['list'] as List : const [];
+    return rows
+        .whereType<Map>()
+        .map(
+          (row) => BankStatementOrderHistoryEntry.fromJson(
+            row.map((key, value) => MapEntry(key.toString(), value)),
+          ),
+        )
+        .toList();
   }
 
   Future<List<int>> downloadNotificationAudio(

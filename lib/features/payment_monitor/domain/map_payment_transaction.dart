@@ -6,6 +6,20 @@ class MapPaymentTransaction {
   final String transactionNumber;
   final String transactionReference;
   final List<String> orders;
+  final String? orderSource;
+  final DateTime? orderUpdatedAt;
+  final String? orderUpdatedByEmail;
+  final bool canEditOrders;
+  final String? orderEditBlockedReason;
+  final bool canRequestOrderTransfer;
+  final String? orderTransferRequestBlockedReason;
+  final String? orderTransferRequestId;
+  final List<String> orderTransferRequestedOrders;
+  final String? orderTransferRequestedByEmail;
+  final DateTime? orderTransferRequestedAt;
+  final String? orderTransferReviewNote;
+  final String? orderTransferStatus;
+  final bool isOrderOffsetConfirmed;
   final String status;
   final DateTime? paidAt;
   final DateTime? firstSeenAt;
@@ -21,6 +35,20 @@ class MapPaymentTransaction {
     required this.transactionNumber,
     required this.transactionReference,
     required this.orders,
+    required this.orderSource,
+    required this.orderUpdatedAt,
+    required this.orderUpdatedByEmail,
+    required this.canEditOrders,
+    required this.orderEditBlockedReason,
+    required this.canRequestOrderTransfer,
+    required this.orderTransferRequestBlockedReason,
+    required this.orderTransferRequestId,
+    required this.orderTransferRequestedOrders,
+    required this.orderTransferRequestedByEmail,
+    required this.orderTransferRequestedAt,
+    required this.orderTransferReviewNote,
+    required this.orderTransferStatus,
+    required this.isOrderOffsetConfirmed,
     required this.status,
     required this.paidAt,
     required this.firstSeenAt,
@@ -111,6 +139,29 @@ class MapPaymentTransaction {
       transactionNumber: transactionNumber,
       transactionReference: transactionReference,
       orders: orders,
+      orderSource: json['orderSource']?.toString(),
+      orderUpdatedAt: _readDate(json, keys: const ['orderUpdatedAt']),
+      orderUpdatedByEmail: json['orderUpdatedByEmail']?.toString(),
+      canEditOrders: json['canEditOrders'] == true,
+      orderEditBlockedReason: json['orderEditBlockedReason']?.toString(),
+      canRequestOrderTransfer: json['canRequestOrderTransfer'] == true,
+      orderTransferRequestBlockedReason:
+          json['orderTransferRequestBlockedReason']?.toString(),
+      orderTransferRequestId: json['orderTransferRequestId']?.toString(),
+      orderTransferRequestedOrders: _readOrders(
+        json['orderTransferRequestedOrders'],
+      ),
+      orderTransferRequestedByEmail: json['orderTransferRequestedByEmail']
+          ?.toString(),
+      orderTransferRequestedAt: _readDate(
+        json,
+        keys: const ['orderTransferRequestedAt'],
+      ),
+      orderTransferReviewNote: json['orderTransferReviewNote']?.toString(),
+      orderTransferStatus: json['orderTransferStatus']?.toString(),
+      isOrderOffsetConfirmed:
+          json['isOrderOffsetConfirmed'] == true ||
+          json['orderSource']?.toString().toUpperCase() == 'OFFSET',
       status: status,
       paidAt: paidAt,
       firstSeenAt: firstSeenAt,
@@ -122,8 +173,12 @@ class MapPaymentTransaction {
 
   bool get isValidIncoming => amount > 0 && successful;
   bool get hasOrders => orders.isNotEmpty;
-  String get statementNumber =>
-      transactionReference.isNotEmpty ? transactionReference : transactionNumber;
+  bool get hasPendingOrderTransferRequest =>
+      (orderTransferRequestId?.trim().isNotEmpty ?? false) ||
+      orderTransferStatus?.toUpperCase() == 'PENDING';
+  String get statementNumber => transactionReference.isNotEmpty
+      ? transactionReference
+      : transactionNumber;
   String get payerLabel =>
       [payerName, payerAccount].where((value) => value.isNotEmpty).join(' • ');
 

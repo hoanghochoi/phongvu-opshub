@@ -708,13 +708,7 @@ class _HomePaymentDeliveryMetricsPill extends StatelessWidget {
     }
     if (!shouldShow) return const SizedBox.shrink();
 
-    return const Padding(
-      padding: EdgeInsets.only(top: 4),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: PaymentDeliveryMetricsChip(),
-      ),
-    );
+    return const PaymentDeliveryMetricsChip();
   }
 }
 
@@ -785,6 +779,8 @@ class _CompactHomeHeader extends StatelessWidget {
                 child: Text(
                   'PhongVu OpsHub',
                   textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -800,13 +796,13 @@ class _CompactHomeHeader extends StatelessWidget {
                   color: Colors.white,
                 ),
               ),
+              const _HomePaymentDeliveryMetricsPill(),
               const IconTheme(
                 data: IconThemeData(color: Colors.white),
                 child: AppNotificationsBell(),
               ),
             ],
           ),
-          const _HomePaymentDeliveryMetricsPill(),
           const SizedBox(height: 8),
           Row(
             children: [

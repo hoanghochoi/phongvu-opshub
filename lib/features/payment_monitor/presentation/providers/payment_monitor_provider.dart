@@ -14,6 +14,8 @@ import '../../../../core/network/api_exception.dart' as api;
 import '../../../../core/platform/app_restart_service.dart';
 import '../../../../core/storage/app_storage_keys.dart';
 import '../../../auth/domain/entities/user.dart';
+import '../../../bank_statement/domain/bank_statement_transaction.dart';
+import '../../../bank_statement/domain/order_code_parser.dart';
 import '../../data/payment_speaker.dart';
 import '../../data/repositories/payment_monitor_repository.dart';
 import '../../domain/map_payment_transaction.dart';
@@ -34,6 +36,13 @@ class PaymentSpeakerError {
     required this.occurredAt,
     required this.message,
   });
+}
+
+class PaymentMonitorRowMessage {
+  final String text;
+  final bool success;
+
+  const PaymentMonitorRowMessage({required this.text, required this.success});
 }
 
 class _DownloadedPaymentAudio {
@@ -80,6 +89,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
   final Queue<PaymentNotification> _streamNotificationQueue =
       Queue<PaymentNotification>();
   final List<MapPaymentTransaction> _latestTransactions = [];
+  final Map<String, PaymentMonitorRowMessage> _rowMessages = {};
+  final Map<String, Timer> _rowMessageTimers = {};
 
   Timer? _timer;
   Timer? _realtimeRefreshTimer;
@@ -110,6 +121,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool _refreshQueuedWhileLoading = false;
   bool _queuedRefreshIncludeTotal = false;
   bool _isDrainingStreamNotifications = false;
+  bool _canReviewOrderTransfers = false;
 
   PaymentMonitorProvider(
     this._repository,
@@ -143,6 +155,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool get canMonitorOnThisDevice => _canMonitorOnThisDevice;
   bool get hasMonitorScope => _hasMonitorScope;
   bool get canUsePaymentSpeaker => _canUsePaymentSpeaker;
+  bool get canReviewOrderTransfers => _canReviewOrderTransfers;
+  Map<String, PaymentMonitorRowMessage> get rowMessages =>
+      Map.unmodifiable(_rowMessages);
   bool get isViewingMultipleStores => _effectiveListStoreIds.length > 1;
   String? get speakerSelectionNotice {
     if (!_canMonitorOnThisDevice ||
@@ -170,6 +185,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
     if (previousUserKey != nextUserKey) {
       _lastSpeakerEligibilityLogKey = null;
       _latestTransactions.clear();
+      _canReviewOrderTransfers = false;
+      _clearRowMessages(notify: false);
       _selectedStoreIds.clear();
       _storeOverride = _defaultActiveStoreIdFor(user);
     }
@@ -566,6 +583,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _streamNotificationQueue.clear();
     _isDrainingStreamNotifications = false;
     _latestTransactions.clear();
+    _canReviewOrderTransfers = false;
+    _clearRowMessages(notify: false);
     if (clearError) _errorMessage = null;
     _speakerError = null;
     AppLogger.instance.info(
@@ -962,6 +981,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       _nextPollAllowedAt = null;
       _pageIndex = transactionPage.page;
       _pageSize = transactionPage.limit;
+      _canReviewOrderTransfers = transactionPage.canReviewOrderTransfers;
       final total = transactionPage.total;
       if (total != null) _totalTransactions = total;
       _latestTransactions
@@ -1021,6 +1041,242 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> updateOrders(String transactionId, String rawInput) async {
+    try {
+      final orders = parseStatementOrderInput(rawInput);
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment monitor inline order save started',
+        context: {'transactionId': transactionId, 'orderCount': orders.length},
+      );
+      final updated = await _repository.updateOrders(transactionId, orders);
+      _replaceTransaction(updated);
+      _showRowMessage(transactionId, 'Đã cập nhật mã đơn hàng.', true);
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment monitor inline order save succeeded',
+        context: {'transactionId': transactionId, 'orderCount': orders.length},
+      );
+    } catch (error) {
+      _showRowMessage(
+        transactionId,
+        _orderInputErrorMessage(error, fallback: 'Chưa lưu được mã đơn.'),
+        false,
+      );
+      await AppLogger.instance.error(
+        'PaymentMonitor',
+        'Payment monitor inline order save failed',
+        error: error,
+        context: {'transactionId': transactionId},
+      );
+    }
+  }
+
+  Future<bool> requestOrderTransfer(
+    String transactionId,
+    String rawInput,
+  ) async {
+    try {
+      final orders = parseStatementOrderInput(rawInput);
+      if (orders.isEmpty) {
+        _showRowMessage(transactionId, 'Vui lòng nhập mã đơn hàng mới.', false);
+        return false;
+      }
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment monitor order transfer request started',
+        context: {'transactionId': transactionId, 'orderCount': orders.length},
+      );
+      await _repository.createOrderTransferRequest(transactionId, orders);
+      await _refreshCurrentPageAfterOrderAction(
+        reason: 'order_transfer_request',
+      );
+      _showRowMessage(transactionId, 'Đã gửi Kế toán xác nhận.', true);
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment monitor order transfer request succeeded',
+        context: {'transactionId': transactionId, 'orderCount': orders.length},
+      );
+      return true;
+    } catch (error) {
+      _showRowMessage(
+        transactionId,
+        _orderInputErrorMessage(
+          error,
+          fallback: 'Chưa gửi được yêu cầu cập nhật mã đơn.',
+        ),
+        false,
+      );
+      await AppLogger.instance.error(
+        'PaymentMonitor',
+        'Payment monitor order transfer request failed',
+        error: error,
+        context: {'transactionId': transactionId},
+      );
+      return false;
+    }
+  }
+
+  Future<List<BankStatementOrderHistoryEntry>> fetchOrderHistory(
+    String transactionId,
+  ) async {
+    try {
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment monitor order history load started',
+        context: {'transactionId': transactionId},
+      );
+      final rows = await _repository.fetchOrderHistory(transactionId);
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment monitor order history load succeeded',
+        context: {'transactionId': transactionId, 'count': rows.length},
+      );
+      return rows;
+    } catch (error) {
+      await AppLogger.instance.error(
+        'PaymentMonitor',
+        'Payment monitor order history load failed',
+        error: error,
+        context: {'transactionId': transactionId},
+      );
+      rethrow;
+    }
+  }
+
+  Future<void> approveOrderTransferRequest(
+    String transactionId,
+    String requestId,
+  ) {
+    return _reviewOrderTransferRequest(
+      transactionId,
+      requestId,
+      approved: true,
+    );
+  }
+
+  Future<void> rejectOrderTransferRequest(
+    String transactionId,
+    String requestId, {
+    String? note,
+  }) {
+    return _reviewOrderTransferRequest(
+      transactionId,
+      requestId,
+      approved: false,
+      note: note,
+    );
+  }
+
+  Future<void> _reviewOrderTransferRequest(
+    String transactionId,
+    String requestId, {
+    required bool approved,
+    String? note,
+  }) async {
+    try {
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        approved
+            ? 'Payment monitor order transfer approval started'
+            : 'Payment monitor order transfer rejection started',
+        context: {
+          'transactionId': transactionId,
+          'requestId': requestId,
+          'hasNote': note?.trim().isNotEmpty == true,
+        },
+      );
+      final updated = approved
+          ? await _repository.approveOrderTransferRequest(requestId)
+          : await _repository.rejectOrderTransferRequest(requestId, note: note);
+      if (updated != null) {
+        _replaceTransaction(updated);
+      } else {
+        await _refreshCurrentPageAfterOrderAction(
+          reason: approved
+              ? 'order_transfer_approved'
+              : 'order_transfer_rejected',
+        );
+      }
+      _showRowMessage(
+        transactionId,
+        approved ? 'Đã cập nhật mã đơn hàng.' : 'Đã từ chối yêu cầu.',
+        true,
+      );
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        approved
+            ? 'Payment monitor order transfer approval succeeded'
+            : 'Payment monitor order transfer rejection succeeded',
+        context: {'transactionId': transactionId, 'requestId': requestId},
+      );
+    } catch (error) {
+      _showRowMessage(
+        transactionId,
+        approved ? 'Chưa duyệt được yêu cầu.' : 'Chưa từ chối được yêu cầu.',
+        false,
+      );
+      await AppLogger.instance.error(
+        'PaymentMonitor',
+        approved
+            ? 'Payment monitor order transfer approval failed'
+            : 'Payment monitor order transfer rejection failed',
+        error: error,
+        context: {'transactionId': transactionId, 'requestId': requestId},
+      );
+    }
+  }
+
+  Future<void> _refreshCurrentPageAfterOrderAction({
+    required String reason,
+  }) async {
+    await _poll(
+      force: true,
+      bypassBackoff: true,
+      includeTotal: true,
+      reason: reason,
+    );
+  }
+
+  void _replaceTransaction(MapPaymentTransaction updated) {
+    final index = _latestTransactions.indexWhere(
+      (transaction) => transaction.id == updated.id,
+    );
+    if (index < 0) return;
+    _latestTransactions[index] = updated;
+    notifyListeners();
+  }
+
+  String _orderInputErrorMessage(Object error, {required String fallback}) {
+    if (error is api.ApiException && error.message.trim().isNotEmpty) {
+      return error.message;
+    }
+    if (error is FormatException) {
+      return 'Mã đơn hàng phải gồm 14 chữ số, ngăn cách bằng dòng hoặc dấu phẩy.';
+    }
+    return fallback;
+  }
+
+  void _showRowMessage(String id, String text, bool success) {
+    _rowMessageTimers.remove(id)?.cancel();
+    _rowMessages[id] = PaymentMonitorRowMessage(text: text, success: success);
+    notifyListeners();
+    _rowMessageTimers[id] = Timer(const Duration(seconds: 3), () {
+      _rowMessages.remove(id);
+      _rowMessageTimers.remove(id);
+      notifyListeners();
+    });
+  }
+
+  void _clearRowMessages({required bool notify}) {
+    for (final timer in _rowMessageTimers.values) {
+      timer.cancel();
+    }
+    _rowMessageTimers.clear();
+    _rowMessages.clear();
+    if (notify) notifyListeners();
+  }
+
   static List<String> _assignedStoreIdsFor(User? user) {
     if (user == null) return const [];
     final ids = user.assignedStoreIds
@@ -1044,6 +1300,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   void dispose() {
     _timer?.cancel();
     _realtimeRefreshTimer?.cancel();
+    _clearRowMessages(notify: false);
     unawaited(_realtimeSubscription?.cancel());
     unawaited(_realtimeChannel?.sink.close());
     super.dispose();
@@ -1164,8 +1421,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   Future<void> _playReadyNotifications(
     List<PaymentNotification> notifications,
-    String clientId,
-    {
+    String clientId, {
     bool useStreamEndpoint = false,
   }) async {
     final storeCode = _requestStoreId ?? _user?.storeId;
@@ -1258,8 +1514,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   Future<void> _playNotificationWithRetry(
     PaymentNotification notification,
-    String clientId,
-    {
+    String clientId, {
     bool useStreamEndpoint = false,
   }) async {
     if (!useStreamEndpoint && notification.audioStatus != 'READY') {
@@ -1450,8 +1705,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   Future<_DownloadedPaymentAudio> _downloadNotificationAudio(
-    PaymentNotification notification,
-    {
+    PaymentNotification notification, {
     bool useStreamEndpoint = false,
   }) async {
     await AppLogger.instance.info(

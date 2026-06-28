@@ -60,6 +60,8 @@ const ORDER_SOURCE_OFFSET = 'OFFSET';
 const FIN_ACC_DEPARTMENT_CODE = 'FIN_ACC';
 const ACC_DEPARTMENT_CODE = 'ACC';
 const ORDER_EDIT_FORBIDDEN_MESSAGE = 'Bạn không có quyền sửa đơn hàng.';
+const ORDER_ACTION_REQUIRES_STATEMENT_PERMISSION_MESSAGE =
+  'Bạn cần quyền Sao kê để cập nhật mã đơn hàng.';
 const ORDER_TRANSFER_WINDOW_FORBIDDEN_MESSAGE =
   'Quá thời hạn cập nhật trong ngày. Vui lòng dùng chức năng Cấn trừ.';
 const STATEMENT_ORDER_STATUS_ALL = 'ALL';
@@ -256,11 +258,19 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     user: any,
     input: ListStoredMapVietinTransactionsDto,
   ) {
+    await this.expireStaleStatementOrderTransferRequests();
     const storeScope = await this.resolveReadableStoreScope(user, {
       storeId: input.storeId,
       storeIds: input.storeIds,
       allStores: input.allStores,
     });
+    const canUseStatements = await this.canUseStatements(user);
+    const [canEditProtectedOrders, canReviewOrderTransfers] = canUseStatements
+      ? await Promise.all([
+          this.canEditProtectedStatementOrders(user),
+          this.canReviewStatementOrderTransferRequests(user),
+        ])
+      : [false, false];
     const afterFirstSeenAt = input.afterFirstSeenAt
       ? this.parseDate(input.afterFirstSeenAt, 'afterFirstSeenAt')
       : null;
@@ -298,6 +308,13 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     };
     const rowsPromise = this.prisma.mapVietinTransaction.findMany({
       where,
+      include: {
+        orderTransferRequests: {
+          where: { status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
       orderBy: [{ paidAt: 'desc' }, { firstSeenAt: 'desc' }],
       skip: page * limit,
       take: limit,
@@ -316,7 +333,13 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       page,
       limit,
       ...(total !== null ? { total } : {}),
-      list: rows.map((row) => this.toStoredTransactionDto(row)),
+      canReviewOrderTransfers,
+      list: rows.map((row) =>
+        this.toStoredTransactionDto(row, {
+          canEditProtectedOrders,
+          canUseStatements,
+        }),
+      ),
     };
   }
 
@@ -2098,20 +2121,38 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         createdAt: Date;
       }>;
     },
-    options: { canEditProtectedOrders?: boolean } = {},
+    options: {
+      canEditProtectedOrders?: boolean;
+      canUseStatements?: boolean;
+    } = {},
   ) {
     const payer = this.resolveStoredPayer(row);
     const orders = row.orders || [];
     const pendingTransferRequest = row.orderTransferRequests?.[0] || null;
+    const canUseStatements = options.canUseStatements !== false;
     const transferWindowOpen = this.isStatementOrderTransferWindowOpen(row);
     const canEditOrders =
+      canUseStatements &&
       !pendingTransferRequest &&
       (orders.length === 0 || options.canEditProtectedOrders === true);
-    const orderTransferBlockedReason = pendingTransferRequest
-      ? 'Giao dịch đang chờ Kế toán xác nhận.'
-      : transferWindowOpen
-        ? null
-        : ORDER_TRANSFER_WINDOW_FORBIDDEN_MESSAGE;
+    let orderEditBlockedReason: string | null = null;
+    if (!canEditOrders) {
+      orderEditBlockedReason = !canUseStatements
+        ? ORDER_ACTION_REQUIRES_STATEMENT_PERMISSION_MESSAGE
+        : pendingTransferRequest
+          ? 'Giao dịch đang chờ Kế toán xác nhận.'
+          : ORDER_EDIT_FORBIDDEN_MESSAGE;
+    }
+    const canRequestOrderTransfer =
+      canUseStatements && !pendingTransferRequest && transferWindowOpen;
+    let orderTransferBlockedReason: string | null = null;
+    if (!canRequestOrderTransfer) {
+      orderTransferBlockedReason = pendingTransferRequest
+        ? 'Giao dịch đang chờ Kế toán xác nhận.'
+        : !canUseStatements
+          ? ORDER_ACTION_REQUIRES_STATEMENT_PERMISSION_MESSAGE
+          : ORDER_TRANSFER_WINDOW_FORBIDDEN_MESSAGE;
+    }
     return {
       id: row.id,
       storeId: row.storeCode,
@@ -2126,12 +2167,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       orderUpdatedByUserId: row.orderUpdatedByUserId || null,
       orderUpdatedByEmail: row.orderUpdatedByEmail || null,
       canEditOrders,
-      orderEditBlockedReason: canEditOrders
-        ? null
-        : pendingTransferRequest
-          ? 'Giao dịch đang chờ Kế toán xác nhận.'
-          : ORDER_EDIT_FORBIDDEN_MESSAGE,
-      canRequestOrderTransfer: !pendingTransferRequest && transferWindowOpen,
+      orderEditBlockedReason,
+      canRequestOrderTransfer,
       orderTransferRequestBlockedReason: orderTransferBlockedReason,
       hasPendingOrderTransferRequest: Boolean(pendingTransferRequest),
       orderTransferRequestId: pendingTransferRequest?.id || null,

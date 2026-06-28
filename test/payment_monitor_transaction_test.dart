@@ -48,6 +48,56 @@ void main() {
       expect(transaction.isValidIncoming, isTrue);
     });
 
+    test('parses order action and pending transfer fields', () {
+      final transaction = MapPaymentTransaction.fromJson({
+        'transactionNumber': 'MAP-ORDER-001',
+        'amount': 1250000,
+        'tranTime': '21/05/2026 09:15:30',
+        'storeId': 'CP01',
+        'status': '00',
+        'orders': ['26052112345678'],
+        'orderSource': 'OFFSET',
+        'orderUpdatedAt': '2026-05-21T03:00:00.000Z',
+        'orderUpdatedByEmail': 'acc@example.com',
+        'canEditOrders': false,
+        'orderEditBlockedReason': 'Giao dịch đang chờ Kế toán xác nhận.',
+        'canRequestOrderTransfer': false,
+        'orderTransferRequestBlockedReason':
+            'Giao dịch đang chờ Kế toán xác nhận.',
+        'orderTransferRequestId': 'request-1',
+        'orderTransferRequestedOrders': ['26052287654321'],
+        'orderTransferRequestedByEmail': 'requester@example.com',
+        'orderTransferRequestedAt': '2026-05-21T04:00:00.000Z',
+        'orderTransferReviewNote': 'Sai đơn',
+        'orderTransferStatus': 'PENDING',
+        'isOrderOffsetConfirmed': true,
+      });
+
+      expect(transaction.orders, ['26052112345678']);
+      expect(transaction.orderSource, 'OFFSET');
+      expect(transaction.orderUpdatedAt, DateTime.utc(2026, 5, 21, 3));
+      expect(transaction.orderUpdatedByEmail, 'acc@example.com');
+      expect(transaction.canEditOrders, isFalse);
+      expect(
+        transaction.orderEditBlockedReason,
+        'Giao dịch đang chờ Kế toán xác nhận.',
+      );
+      expect(transaction.canRequestOrderTransfer, isFalse);
+      expect(transaction.orderTransferRequestId, 'request-1');
+      expect(transaction.orderTransferRequestedOrders, ['26052287654321']);
+      expect(
+        transaction.orderTransferRequestedByEmail,
+        'requester@example.com',
+      );
+      expect(
+        transaction.orderTransferRequestedAt,
+        DateTime.utc(2026, 5, 21, 4),
+      );
+      expect(transaction.orderTransferReviewNote, 'Sai đơn');
+      expect(transaction.hasPendingOrderTransferRequest, isTrue);
+      expect(transaction.isOrderOffsetConfirmed, isTrue);
+    });
+
     test('rejects non-successful or empty-amount rows', () {
       final pending = MapPaymentTransaction.fromJson({
         'txnNo': 'MAP-002',

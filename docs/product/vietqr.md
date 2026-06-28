@@ -258,10 +258,12 @@ a customer to scan and pay manually.
   longer selected range is blocked before the export request is sent.
 - `Sao ke` keeps header, filters, selection bar, and export controls fixed while
   only the transaction list scrolls. The page allows selecting and copying text.
-- `Sao ke` cards use a yellow border while an order-transfer request is
-  pending, otherwise green when the transaction has at least one stored order
-  and red when the order list is empty. `Tien vao` cards keep the green/red
-  order-present border and do not display order codes.
+- `Sao ke` and `Tien vao` cards use a yellow border while an order-transfer
+  request is pending, otherwise green when the transaction has at least one
+  stored order and red when the order list is empty. In `Tien vao`, users who
+  also have `Sao ke` permission can edit empty orders, request Kế toán
+  confirmation for protected rows, review pending requests when eligible, and
+  open the order history directly from the row.
 
 ## Payment Confirmation Research
 
