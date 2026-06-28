@@ -69,6 +69,13 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- UI-UX-001, 2026-06-29: shared QR/barcode scanner now uses a smaller centered
+  runtime `scanWindow` matching the visible frame, dims the outside area, keeps
+  camera/manual/error copy Vietnamese, and logs scanner open/success/failure
+  branches with sanitized context. Validation: focused scanner window unit test,
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter expanded`,
+  and `git diff --check`. Gap: physical Android camera smoke with real QR/barcode
+  remains manual.
 - PAYMENT-MONITOR-001, 2026-06-28: restored the Super Admin Home display for
   the speaker-speed/history pill by mounting the existing
   `PaymentDeliveryMetricsChip` in Home's custom header while keeping it hidden

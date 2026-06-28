@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -125,11 +126,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     return Scaffold(
       appBar: const GradientHeader(title: 'Báo cáo', showBack: true),
       body: AppResponsiveScrollView(
-        maxWidth: AppLayoutTokens.formMaxWidth,
-        child: AppFormColumn(
-          spacing: AppLayoutTokens.cardGap,
-          children: [
-            _SalesReportActionTile(
+        maxWidth: AppLayoutTokens.pageMaxWidth,
+        child: AppFeatureSection(
+          actions: [
+            AppFeatureAction(
               icon: Icons.receipt_long_outlined,
               title: 'Mua hàng',
               description: 'Báo cáo đơn đã phát sinh mua hàng.',
@@ -137,7 +137,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
               onTap: () =>
                   _openReport('/sales-reports/purchased', _typePurchased),
             ),
-            _SalesReportActionTile(
+            AppFeatureAction(
               icon: Icons.person_search_outlined,
               title: 'Chưa mua hàng',
               description: 'Ghi nhận nhu cầu và lý do khách chưa mua.',
@@ -148,73 +148,6 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SalesReportActionTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String description;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _SalesReportActionTile({
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        child: Padding(
-          padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, color: color),
-              ),
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      description,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              const Icon(Icons.chevron_right_rounded),
-            ],
-          ),
         ),
       ),
     );

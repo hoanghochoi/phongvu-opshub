@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:phongvu_opshub/app/widgets/app_feature_grid.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -61,6 +62,7 @@ void main() {
 
     expect(find.text('Mua hàng'), findsOneWidget);
     expect(find.text('Chưa mua hàng'), findsOneWidget);
+    expect(find.byType(AppFeatureTile), findsNWidgets(2));
     expect(find.byType(SegmentedButton<String>), findsNothing);
 
     await tester.tap(find.text('Mua hàng'));

@@ -431,14 +431,20 @@ export class SalesReportErpService {
       loginBody?.loginVerifier ??
       loginBody?.data?.verifier ??
       loginBody?.verifier;
-    if (!loginVerifier) {
-      throw new ServiceUnavailableException(
-        'ERP chưa trả phiên xác thực hợp lệ.',
+    const redirectTo = this.rawText(
+      loginBody?.data?.redirect_to ??
+        loginBody?.redirect_to ??
+        loginBody?.data?.redirectTo ??
+        loginBody?.redirectTo,
+    );
+    let codeRequestUrl: string;
+    if (redirectTo) {
+      codeRequestUrl = this.requireOAuthRedirect(redirectTo, oauthBase);
+      this.logger.log(
+        'Sales report ERP login returned redirect authorization URL.',
       );
-    }
-
-    const codeResponse = await this.fetchWithTimeout(
-      this.authorizeUrl(oauthBase, {
+    } else if (loginVerifier) {
+      codeRequestUrl = this.authorizeUrl(oauthBase, {
         clientId,
         redirectUri,
         state,
@@ -446,9 +452,22 @@ export class SalesReportErpService {
         scope,
         codeChallenge,
         loginVerifier: String(loginVerifier),
-      }),
-      { redirect: 'manual' },
-    );
+      });
+      this.logger.log('Sales report ERP login returned login verifier.');
+    } else {
+      const topLevelKeys = this.objectKeys(loginBody).join(',') || 'none';
+      const dataKeys = this.objectKeys(loginBody?.data).join(',') || 'none';
+      this.logger.warn(
+        `Sales report ERP login missing verifier: topLevelKeys=${topLevelKeys} dataKeys=${dataKeys}`,
+      );
+      throw new ServiceUnavailableException(
+        'ERP chưa trả phiên xác thực hợp lệ.',
+      );
+    }
+
+    const codeResponse = await this.fetchWithTimeout(codeRequestUrl, {
+      redirect: 'manual',
+    });
     const codeLocation =
       codeResponse.headers.get('location') ?? codeResponse.url;
     const code = this.urlParam(codeLocation, 'code');
@@ -583,6 +602,11 @@ export class SalesReportErpService {
     return text ? text.slice(0, 500) : null;
   }
 
+  private rawText(value: unknown) {
+    const text = String(value ?? '').trim();
+    return text || null;
+  }
+
   private normalizeOrderCode(value: unknown) {
     return String(value || '')
       .trim()
@@ -600,6 +624,27 @@ export class SalesReportErpService {
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=+$/g, '');
+  }
+
+  private requireOAuthRedirect(url: string, oauthBase: string) {
+    try {
+      const redirectUrl = new URL(url);
+      const allowedBase = new URL(oauthBase);
+      if (redirectUrl.origin === allowedBase.origin) {
+        return redirectUrl.toString();
+      }
+    } catch {
+      // Fall through to the safe operational error below.
+    }
+    this.logger.warn('Sales report ERP login returned unexpected redirect URL.');
+    throw new ServiceUnavailableException(
+      'ERP chưa trả phiên xác thực hợp lệ.',
+    );
+  }
+
+  private objectKeys(value: unknown) {
+    if (!value || typeof value !== 'object') return [];
+    return Object.keys(value as Record<string, unknown>).slice(0, 20);
   }
 
   private urlParam(url: string, key: string) {
