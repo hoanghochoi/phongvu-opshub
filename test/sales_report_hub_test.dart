@@ -65,6 +65,7 @@ void main() {
 
     expect(find.text('Mua hàng'), findsOneWidget);
     expect(find.text('Chưa mua hàng'), findsOneWidget);
+    expect(find.text('Báo cáo sale'), findsNothing);
     expect(find.byType(AppFeatureTile), findsNWidgets(2));
     expect(find.byType(SegmentedButton<String>), findsNothing);
 
@@ -72,6 +73,51 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Purchased form'), findsOneWidget);
+  });
+
+  testWidgets('Báo cáo hub shows sale list only with admin report feature', (
+    tester,
+  ) async {
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'admin-1',
+        email: 'lead@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-area-hcm',
+        featureAccess: {'ADMIN_SALES_REPORTS': true},
+      ),
+    );
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const SalesReportScreen(),
+        ),
+        GoRoute(
+          path: '/admin/sales-reports',
+          builder: (context, state) =>
+              const Scaffold(body: Center(child: Text('Admin reports'))),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mua hàng'), findsNothing);
+    expect(find.text('Chưa mua hàng'), findsNothing);
+    expect(find.text('Báo cáo sale'), findsOneWidget);
+    expect(find.byType(AppFeatureTile), findsOneWidget);
+
+    await tester.tap(find.text('Báo cáo sale'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Admin reports'), findsOneWidget);
   });
 
   testWidgets('Báo cáo form requires explicit behavior answers', (

@@ -7,8 +7,13 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 
 ## Current Shape
 
-- Home hiển thị ô `Báo cáo` khi user có feature `SALES_REPORT`.
-- Màn hình `Báo cáo` có 2 luồng: `Mua hàng` và `Chưa mua hàng`.
+- Home hiển thị ô `Báo cáo` khi user có feature `SALES_REPORT` hoặc
+  `ADMIN_SALES_REPORTS`.
+- Màn hình `Báo cáo` có 2 luồng gửi `Mua hàng` và `Chưa mua hàng` khi user có
+  `SALES_REPORT`.
+- Màn hình `Báo cáo` hiển thị lối vào `Báo cáo sale` để xem danh sách và xuất
+  CSV khi user có `ADMIN_SALES_REPORTS`; entry này không nằm trong menu
+  `Quản trị`.
 - `Mua hàng` bắt buộc nhập `Mã đơn hàng` và bấm `Kiểm tra đơn hàng` trước khi
   mở phần form còn lại. Backend kiểm tra ERP thật qua server, rồi submit vẫn
   re-check ERP trước khi lưu.
@@ -44,8 +49,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Backend: Prisma validate/generate, Nest build, tests cho category sync,
   duplicate `orderCode`, purchased re-check ERP, not-purchased no ERP call,
   feature guard và export CSV.
-- Flutter: Home/Admin entry theo feature, route guard, order check before submit,
-  auto-fill category/need từ mock ERP, không gửi `MSNV`, form validation và
-  export CSV.
+- Flutter: Home/Report hub entry theo feature, route guard, order check before
+  submit, auto-fill category/need từ mock ERP, không gửi `MSNV`, form validation
+  và export CSV.
 - Manual smoke sau deploy: cấu hình ERP env trên VPS, check một mã đơn thật,
   gửi một báo cáo mua hàng và xác nhận duplicate bị chặn.

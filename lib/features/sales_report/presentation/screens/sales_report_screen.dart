@@ -121,32 +121,65 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     context.push(route);
   }
 
+  Future<void> _openAdminReports() async {
+    final user = context.read<AuthProvider>().user;
+    await AppLogger.instance.info(
+      'SalesReport',
+      'Sales report admin list action selected',
+      context: {
+        'route': '/admin/sales-reports',
+        'userId': user?.id,
+        'storeId': user?.storeId,
+        'hasAdminSalesReports':
+            user?.canUseFeature('ADMIN_SALES_REPORTS') == true,
+      },
+    );
+    if (!mounted) return;
+    context.push('/admin/sales-reports');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final canSubmitReports = context.select<AuthProvider, bool>(
+      (auth) => auth.user?.canUseFeature('SALES_REPORT') == true,
+    );
+    final canViewAdminReports = context.select<AuthProvider, bool>(
+      (auth) => auth.user?.canUseFeature('ADMIN_SALES_REPORTS') == true,
+    );
     return Scaffold(
       appBar: const GradientHeader(title: 'Báo cáo', showBack: true),
       body: AppResponsiveScrollView(
         maxWidth: AppLayoutTokens.pageMaxWidth,
         child: AppFeatureSection(
           actions: [
-            AppFeatureAction(
-              icon: Icons.receipt_long_outlined,
-              title: 'Mua hàng',
-              description: 'Báo cáo đơn đã phát sinh mua hàng.',
-              color: AppColors.info,
-              onTap: () =>
-                  _openReport('/sales-reports/purchased', _typePurchased),
-            ),
-            AppFeatureAction(
-              icon: Icons.person_search_outlined,
-              title: 'Chưa mua hàng',
-              description: 'Ghi nhận nhu cầu và lý do khách chưa mua.',
-              color: AppColors.warning,
-              onTap: () => _openReport(
-                '/sales-reports/not-purchased',
-                _typeNotPurchased,
+            if (canSubmitReports)
+              AppFeatureAction(
+                icon: Icons.receipt_long_outlined,
+                title: 'Mua hàng',
+                description: 'Báo cáo đơn đã phát sinh mua hàng.',
+                color: AppColors.info,
+                onTap: () =>
+                    _openReport('/sales-reports/purchased', _typePurchased),
               ),
-            ),
+            if (canSubmitReports)
+              AppFeatureAction(
+                icon: Icons.person_search_outlined,
+                title: 'Chưa mua hàng',
+                description: 'Ghi nhận nhu cầu và lý do khách chưa mua.',
+                color: AppColors.warning,
+                onTap: () => _openReport(
+                  '/sales-reports/not-purchased',
+                  _typeNotPurchased,
+                ),
+              ),
+            if (canViewAdminReports)
+              AppFeatureAction(
+                icon: Icons.assignment_outlined,
+                title: 'Báo cáo sale',
+                description: 'Danh sách & xuất file',
+                color: AppColors.info,
+                onTap: _openAdminReports,
+              ),
           ],
         ),
       ),

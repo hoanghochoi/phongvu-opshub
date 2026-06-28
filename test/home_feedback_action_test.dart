@@ -79,6 +79,45 @@ void main() {
     expect(titles.where((title) => title == 'Góp ý'), hasLength(1));
   });
 
+  testWidgets('Home shows Báo cáo for admin sales report node feature', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+      appName: 'PhongVu OpsHub',
+      packageName: 'com.example.phongvu_opshub',
+      version: '1.1.1',
+      buildNumber: '2',
+      buildSignature: '',
+    );
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'lead-1',
+        email: 'lead@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-area-hcm',
+        featureAccess: {'ADMIN_SALES_REPORTS': true},
+      ),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final titles = tester
+        .widgetList<AppFeatureTile>(find.byType(AppFeatureTile))
+        .map((tile) => tile.action.title)
+        .toList(growable: false);
+
+    expect(titles, contains('Báo cáo'));
+    expect(titles, isNot(contains('Quản trị')));
+  });
+
   testWidgets('Home header shows all assigned SR codes', (tester) async {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});

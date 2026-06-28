@@ -76,9 +76,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final canUsePaymentMonitor = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('PAYMENT_MONITOR') == true,
     );
-    final canUseSalesReport = context.select<AuthProvider, bool>(
-      (auth) => auth.user?.canUseFeature('SALES_REPORT') == true,
-    );
+    final canUseSalesReportHub = context.select<AuthProvider, bool>((auth) {
+      final user = auth.user;
+      return user?.canUseFeature('SALES_REPORT') == true ||
+          user?.canUseFeature('ADMIN_SALES_REPORTS') == true;
+    });
     final canUseFeedback = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('FEEDBACK') == true,
     );
@@ -96,7 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
       canUseOffsetAdjustments,
       canUseVietQr,
       canUsePaymentMonitor,
-      canUseSalesReport,
+      canUseSalesReportHub,
       canUseFeedback,
     );
 
@@ -159,7 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
     bool canUseOffsetAdjustments,
     bool canUseVietQr,
     bool canUsePaymentMonitor,
-    bool canUseSalesReport,
+    bool canUseSalesReportHub,
     bool canUseFeedback,
   ) {
     return [
@@ -219,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> {
           color: AppColors.violet600,
           onTap: () => context.push('/payment-monitor'),
         ),
-      if (canUseSalesReport)
+      if (canUseSalesReportHub)
         AppFeatureAction(
           icon: Icons.assignment_outlined,
           title: 'Báo cáo',
@@ -614,8 +616,7 @@ class _HomeScreenState extends State<HomeScreen> {
         user?.canUseFeature('ADMIN_ROLES') == true ||
         user?.canUseFeature('ADMIN_ORG_TREE') == true ||
         user?.canUseFeature('ADMIN_POLICIES') == true ||
-        user?.canUseFeature('ADMIN_FEEDBACK') == true ||
-        user?.canUseFeature('ADMIN_SALES_REPORTS') == true;
+        user?.canUseFeature('ADMIN_FEEDBACK') == true;
   }
 
   void _showAppInfoDialog(BuildContext context) {

@@ -289,7 +289,7 @@ class AppRouter {
       '/offset-adjustments' => 'OFFSET_ADJUSTMENTS',
       '/payment-monitor' => 'PAYMENT_MONITOR',
       '/feedback' => 'FEEDBACK',
-      '/sales-reports' => 'SALES_REPORT',
+      '/sales-reports' => 'SALES_REPORT_HUB',
       '/sales-reports/purchased' => 'SALES_REPORT',
       '/sales-reports/not-purchased' => 'SALES_REPORT',
       _ => null,
@@ -303,7 +303,10 @@ class AppRouter {
           user?.canUseFeature('ADMIN_ROLES') == true ||
           user?.canUseFeature('ADMIN_ORG_TREE') == true ||
           user?.canUseFeature('ADMIN_POLICIES') == true ||
-          user?.canUseFeature('ADMIN_FEEDBACK') == true ||
+          user?.canUseFeature('ADMIN_FEEDBACK') == true;
+    }
+    if (featureCode == 'SALES_REPORT_HUB') {
+      return user?.canUseFeature('SALES_REPORT') == true ||
           user?.canUseFeature('ADMIN_SALES_REPORTS') == true;
     }
     if (featureCode == 'BANK_STATEMENTS') {
