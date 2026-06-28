@@ -87,6 +87,14 @@ class ApiConstants {
   static const String offsetAdjustmentsEndpoint = '/offset-adjustments';
   static const String offsetAdjustmentsExportEndpoint =
       '/offset-adjustments/export';
+  static const String salesReportsEndpoint = '/sales-reports';
+  static const String salesReportsCategoriesEndpoint =
+      '/sales-reports/categories';
+  static const String salesReportsAdminCategoriesEndpoint =
+      '/sales-reports/admin/categories';
+  static const String salesReportsCheckOrderEndpoint =
+      '/sales-reports/check-order';
+  static const String salesReportsExportEndpoint = '/sales-reports/export';
   static String offsetAdjustmentEndpoint(String id) =>
       '/offset-adjustments/$id';
   static String offsetAdjustmentResubmitEndpoint(String id) =>

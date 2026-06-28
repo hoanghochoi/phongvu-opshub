@@ -320,6 +320,7 @@ model User {
   warrantiesCreated   Warranty[]            @relation("CreatedBy")
   warrantiesHandled   Warranty[]            @relation("HandledBy")
   feedbacks           Feedback[]
+  salesReportsCreated SalesReport[]
   fifoLogs            FifoLog[]
   vietQrPayments      VietQrPaymentIntent[]
   passwordResetTokens PasswordResetToken[]
@@ -773,6 +774,130 @@ model Feedback {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
+}
+
+// ============================================================
+// SALES REPORT
+// ============================================================
+model SalesReportCategoryGroup {
+  id                  String   @id
+  catGroupName        String
+  catGroupNameVi      String
+  sourceRowCount      Int      @default(0)
+  sortOrder           Int      @default(0)
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  reports SalesReport[]
+
+  @@index([isActive, sortOrder])
+}
+
+model SalesReport {
+  id                              String    @id @default(uuid())
+  reportType                      String
+  orderCode                       String?   @unique
+  customerPhone                   String?
+  customerNeed                    String?
+  categoryGroupId                 String
+  categoryGroup                   SalesReportCategoryGroup @relation(fields: [categoryGroupId], references: [id], onUpdate: Cascade)
+  categoryGroupName               String
+  categoryGroupNameVi             String
+  consultedSolutionAnswer         String
+  consultedSolutionOtherReason    String?
+  experiencedAnswer               String
+  experiencedOtherReason          String?
+  zaloAnswer                      String
+  zaloOtherReason                 String?
+  appDownloadAnswer               String
+  appDownloadOtherReason          String?
+  notPurchasedReason              String?
+  notPurchasedOtherReason         String?
+  createdByUserId                 String?
+  createdBy                       User?     @relation(fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdByEmail                  String?
+  createdByName                   String?
+  createdByPersonnelCode          String?
+  storeCode                       String?
+  storeName                       String?
+  organizationNodeId              String?
+  organizationNodeName            String?
+  regionCode                      String?
+  areaCode                        String?
+  erpOrderId                      String?
+  erpExternalOrderRef             String?
+  erpOrderCreatedAt               DateTime?
+  erpPaymentStatus                String?
+  erpConfirmationStatus           String?
+  erpFulfillmentStatus            String?
+  erpTerminalName                 String?
+  erpGrandTotal                   Int?
+  erpPlatformId                   Int?
+  erpConsultantCustomId           String?
+  erpConsultantName               String?
+  erpSnapshot                     Json?
+  erpFetchedAt                    DateTime?
+  erpFetchStatus                  String?
+  rawResponses                    Json?
+  submittedAt                     DateTime  @default(now())
+  createdAt                       DateTime  @default(now())
+  updatedAt                       DateTime  @updatedAt
+
+  items    SalesReportOrderItem[]
+  payments SalesReportPayment[]
+
+  @@index([reportType, submittedAt])
+  @@index([storeCode, submittedAt])
+  @@index([createdByUserId, submittedAt])
+  @@index([categoryGroupId, submittedAt])
+  @@index([erpOrderId])
+  @@index([notPurchasedReason, submittedAt])
+  @@index([organizationNodeId, submittedAt])
+}
+
+model SalesReportOrderItem {
+  id                String      @id @default(uuid())
+  salesReportId     String
+  salesReport       SalesReport @relation(fields: [salesReportId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sku               String?
+  sellerSku         String?
+  name              String?
+  brandCode         String?
+  brandName         String?
+  productTypeCode   String?
+  productTypeName   String?
+  productGroupId    String?
+  productGroupName  String?
+  quantity          Int?
+  sellPrice         Int?
+  finalSellPrice    Int?
+  rowTotal          Int?
+  raw               Json?
+  createdAt         DateTime    @default(now())
+
+  @@index([salesReportId])
+  @@index([sku])
+  @@index([sellerSku])
+  @@index([brandName])
+  @@index([productGroupName])
+}
+
+model SalesReportPayment {
+  id                      String      @id @default(uuid())
+  salesReportId           String
+  salesReport             SalesReport @relation(fields: [salesReportId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  paymentMethod           String?
+  amount                  Int?
+  paidAt                  DateTime?
+  transactionCode         String?
+  partnerTransactionCode  String?
+  raw                     Json?
+  createdAt               DateTime    @default(now())
+
+  @@index([salesReportId])
+  @@index([paymentMethod])
+  @@index([paidAt])
 }
 
 // ============================================================

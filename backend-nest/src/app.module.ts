@@ -23,6 +23,7 @@ import { FifoModule } from './fifo/fifo.module';
 import { FeatureModule } from './feature/feature.module';
 import { OffsetAdjustmentsModule } from './offset-adjustments/offset-adjustments.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { SalesReportsModule } from './sales-reports/sales-reports.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     NotificationsModule,
     MapVietinModule,
     OffsetAdjustmentsModule,
+    SalesReportsModule,
     FifoModule,
   ],
   controllers: [AppController],

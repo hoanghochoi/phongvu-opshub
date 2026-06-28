@@ -9,6 +9,7 @@ export const FEATURE_KEYS = {
   ADMIN_FEATURES: 'ADMIN_FEATURES',
   ADMIN_POLICIES: 'ADMIN_POLICIES',
   ADMIN_FEEDBACK: 'ADMIN_FEEDBACK',
+  ADMIN_SALES_REPORTS: 'ADMIN_SALES_REPORTS',
   FIFO: 'FIFO',
   FIFO_IMPORT: 'FIFO_IMPORT',
   WARRANTY: 'WARRANTY',
@@ -18,6 +19,7 @@ export const FEATURE_KEYS = {
   PAYMENT_MONITOR: 'PAYMENT_MONITOR',
   PAYMENT_SPEAKER: 'PAYMENT_SPEAKER',
   FEEDBACK: 'FEEDBACK',
+  SALES_REPORT: 'SALES_REPORT',
 } as const;
 
 export const DEFAULT_FEATURE_DEFINITIONS = [
@@ -95,6 +97,13 @@ export const DEFAULT_FEATURE_DEFINITIONS = [
     visibleInUserPicker: false,
   },
   {
+    code: FEATURE_KEYS.ADMIN_SALES_REPORTS,
+    displayName: 'Báo cáo sale',
+    description: 'Xem, lọc và xuất báo cáo sale',
+    parentCode: FEATURE_KEYS.ADMIN,
+    sortOrder: 95,
+  },
+  {
     code: FEATURE_KEYS.FIFO,
     displayName: 'FIFO',
     description: 'Kiểm tra và sắp xếp FIFO',
@@ -149,6 +158,12 @@ export const DEFAULT_FEATURE_DEFINITIONS = [
     displayName: 'Góp ý',
     description: 'Gửi góp ý nội bộ',
     sortOrder: 600,
+  },
+  {
+    code: FEATURE_KEYS.SALES_REPORT,
+    displayName: 'Báo cáo',
+    description: 'Gửi báo cáo sale mua hàng và chưa mua hàng',
+    sortOrder: 620,
   },
 ] as const;
 

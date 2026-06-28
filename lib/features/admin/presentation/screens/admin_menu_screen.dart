@@ -59,6 +59,14 @@ class AdminMenuScreen extends StatelessWidget {
           color: AppColors.teal600,
           onTap: () => context.push('/admin/feedback'),
         ),
+      if (canUse('ADMIN_SALES_REPORTS'))
+        AppFeatureAction(
+          icon: Icons.assignment_outlined,
+          title: 'Báo cáo sale',
+          description: 'Danh sách & xuất file',
+          color: AppColors.info,
+          onTap: () => context.push('/admin/sales-reports'),
+        ),
     ];
 
     return Scaffold(

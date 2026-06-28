@@ -53,9 +53,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = context.select<AuthProvider, bool>(
-      (auth) => auth.user?.isAdmin == true,
-    );
+    final canUseAdminMenu = context.select<AuthProvider, bool>((auth) {
+      return _canOpenAdminUser(auth.user);
+    });
     final canUseFifoMenu = context.select<AuthProvider, bool>((auth) {
       final user = auth.user;
       return user?.canUseFeature('FIFO') == true ||
@@ -76,6 +76,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final canUsePaymentMonitor = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('PAYMENT_MONITOR') == true,
     );
+    final canUseSalesReport = context.select<AuthProvider, bool>(
+      (auth) => auth.user?.canUseFeature('SALES_REPORT') == true,
+    );
     final canUseFeedback = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('FEEDBACK') == true,
     );
@@ -86,13 +89,14 @@ class _HomeScreenState extends State<HomeScreen> {
         AppPlatformCapabilities.isPaymentSpeakerSupported();
     final actions = _buildHomeActions(
       context,
-      isAdmin,
+      canUseAdminMenu,
       canUseFifoMenu,
       canUseWarranty,
       canUseBankStatements,
       canUseOffsetAdjustments,
       canUseVietQr,
       canUsePaymentMonitor,
+      canUseSalesReport,
       canUseFeedback,
     );
 
@@ -148,17 +152,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<AppFeatureAction> _buildHomeActions(
     BuildContext context,
-    bool isAdmin,
+    bool canUseAdminMenu,
     bool canUseFifoMenu,
     bool canUseWarranty,
     bool canUseBankStatements,
     bool canUseOffsetAdjustments,
     bool canUseVietQr,
     bool canUsePaymentMonitor,
+    bool canUseSalesReport,
     bool canUseFeedback,
   ) {
     return [
-      if (isAdmin)
+      if (canUseAdminMenu)
         AppFeatureAction(
           icon: Icons.admin_panel_settings_outlined,
           title: 'Quản trị',
@@ -213,6 +218,14 @@ class _HomeScreenState extends State<HomeScreen> {
           description: 'Cập nhật giao dịch',
           color: AppColors.violet600,
           onTap: () => context.push('/payment-monitor'),
+        ),
+      if (canUseSalesReport)
+        AppFeatureAction(
+          icon: Icons.assignment_outlined,
+          title: 'Báo cáo',
+          description: 'Báo cáo sale',
+          color: AppColors.info,
+          onTap: () => context.push('/sales-reports'),
         ),
       if (canUseFeedback)
         AppFeatureAction(
@@ -507,7 +520,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   context.push('/profile');
                 },
               ),
-              if (context.watch<AuthProvider>().user?.isAdmin == true)
+              if (_canOpenAdminMenu(context.watch<AuthProvider>().user))
                 ListTile(
                   leading: const Icon(
                     Icons.admin_panel_settings_outlined,
@@ -588,6 +601,21 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  bool _canOpenAdminMenu(dynamic user) {
+    return _canOpenAdminUser(user);
+  }
+
+  bool _canOpenAdminUser(dynamic user) {
+    return user?.isAdmin == true ||
+        user?.canUseFeature('ADMIN') == true ||
+        user?.canUseFeature('ADMIN_USERS') == true ||
+        user?.canUseFeature('ADMIN_ROLES') == true ||
+        user?.canUseFeature('ADMIN_ORG_TREE') == true ||
+        user?.canUseFeature('ADMIN_POLICIES') == true ||
+        user?.canUseFeature('ADMIN_FEEDBACK') == true ||
+        user?.canUseFeature('ADMIN_SALES_REPORTS') == true;
   }
 
   void _showAppInfoDialog(BuildContext context) {

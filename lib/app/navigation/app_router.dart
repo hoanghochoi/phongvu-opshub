@@ -10,6 +10,10 @@ import '../../features/bank_statement/presentation/screens/bank_statement_screen
 import '../../features/offset_adjustment/data/offset_adjustment_repository.dart';
 import '../../features/offset_adjustment/presentation/providers/offset_adjustment_provider.dart';
 import '../../features/offset_adjustment/presentation/screens/offset_adjustment_screen.dart';
+import '../../features/sales_report/data/sales_report_repository.dart';
+import '../../features/sales_report/presentation/providers/sales_report_provider.dart';
+import '../../features/sales_report/presentation/screens/sales_report_admin_screen.dart';
+import '../../features/sales_report/presentation/screens/sales_report_screen.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/assignment_pending_screen.dart';
 import '../../features/auth/presentation/screens/email_check_screen.dart';
@@ -163,6 +167,14 @@ class AppRouter {
           builder: (context, state) => _selectable(const FeedbackAdminScreen()),
         ),
         GoRoute(
+          path: '/admin/sales-reports',
+          builder: (context, state) => ChangeNotifierProvider(
+            create: (_) =>
+                SalesReportProvider(SalesReportRepository(ApiClient())),
+            child: _selectable(const SalesReportAdminScreen()),
+          ),
+        ),
+        GoRoute(
           path: '/fifo-menu',
           builder: (context, state) => _selectable(const FifoMenuScreen()),
         ),
@@ -228,6 +240,14 @@ class AppRouter {
           builder: (context, state) => _selectable(const FeedbackScreen()),
         ),
         GoRoute(
+          path: '/sales-reports',
+          builder: (context, state) => ChangeNotifierProvider(
+            create: (_) =>
+                SalesReportProvider(SalesReportRepository(ApiClient())),
+            child: _selectable(const SalesReportScreen()),
+          ),
+        ),
+        GoRoute(
           path: '/settings',
           builder: (context, state) => _selectable(const SettingsScreen()),
         ),
@@ -244,6 +264,7 @@ class AppRouter {
       '/admin/policies' => 'ADMIN_POLICIES',
       '/admin/inventory-import' => 'FIFO_IMPORT',
       '/admin/feedback' => 'ADMIN_FEEDBACK',
+      '/admin/sales-reports' => 'ADMIN_SALES_REPORTS',
       '/fifo-check' => 'FIFO',
       '/fifo-history' => 'FIFO',
       '/fifo/inventory-import' => 'FIFO_IMPORT',
@@ -256,11 +277,21 @@ class AppRouter {
       '/offset-adjustments' => 'OFFSET_ADJUSTMENTS',
       '/payment-monitor' => 'PAYMENT_MONITOR',
       '/feedback' => 'FEEDBACK',
+      '/sales-reports' => 'SALES_REPORT',
       _ => null,
     };
   }
 
   static bool _canUseRouteFeature(User? user, String featureCode) {
+    if (featureCode == 'ADMIN') {
+      return user?.canUseFeature('ADMIN') == true ||
+          user?.canUseFeature('ADMIN_USERS') == true ||
+          user?.canUseFeature('ADMIN_ROLES') == true ||
+          user?.canUseFeature('ADMIN_ORG_TREE') == true ||
+          user?.canUseFeature('ADMIN_POLICIES') == true ||
+          user?.canUseFeature('ADMIN_FEEDBACK') == true ||
+          user?.canUseFeature('ADMIN_SALES_REPORTS') == true;
+    }
     if (featureCode == 'BANK_STATEMENTS') {
       return user?.canUseBankStatements == true;
     }
