@@ -17,7 +17,9 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../notifications/presentation/widgets/app_notifications_bell.dart';
+import '../../../payment_monitor/presentation/providers/payment_delivery_metrics_provider.dart';
 import '../../../payment_monitor/presentation/providers/payment_monitor_provider.dart';
+import '../../../payment_monitor/presentation/widgets/payment_delivery_metrics_chip.dart';
 
 const _supportQrAssetPath = 'data/group_invitation.jpg';
 const _supportGroupInviteUrl =
@@ -691,6 +693,31 @@ class _PaymentMonitorQuickToggle extends StatelessWidget {
   }
 }
 
+class _HomePaymentDeliveryMetricsPill extends StatelessWidget {
+  const _HomePaymentDeliveryMetricsPill();
+
+  @override
+  Widget build(BuildContext context) {
+    late final bool shouldShow;
+    try {
+      shouldShow = context.select<PaymentDeliveryMetricsProvider, bool>(
+        (provider) => provider.shouldShow,
+      );
+    } on ProviderNotFoundException {
+      return const SizedBox.shrink();
+    }
+    if (!shouldShow) return const SizedBox.shrink();
+
+    return const Padding(
+      padding: EdgeInsets.only(top: 4),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: PaymentDeliveryMetricsChip(),
+      ),
+    );
+  }
+}
+
 class _CompactHomeHeader extends StatelessWidget {
   final String userName;
   final String storeInfo;
@@ -779,6 +806,7 @@ class _CompactHomeHeader extends StatelessWidget {
               ),
             ],
           ),
+          const _HomePaymentDeliveryMetricsPill(),
           const SizedBox(height: 8),
           Row(
             children: [

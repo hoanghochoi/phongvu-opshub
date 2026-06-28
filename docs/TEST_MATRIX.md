@@ -68,6 +68,12 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Recent Evidence
 
+- PAYMENT-MONITOR-001, 2026-06-28: restored the Super Admin Home display for
+  the speaker-speed/history pill by mounting the existing
+  `PaymentDeliveryMetricsChip` in Home's custom header while keeping it hidden
+  for non-Super Admin users and missing-provider test surfaces. Validation:
+  focused Home widget test, focused delivery metrics chip/provider tests,
+  `flutter analyze --no-pub`, and `git diff --check`.
 - PAYMENT-MONITOR-001, 2026-06-27: expanded the Super Admin speaker-speed KPI
   chip into a history dialog. Backend now exposes a Super Admin-only
   `GET /payment-notifications/delivery-history` endpoint capped to 10-20 rows,

@@ -13,7 +13,9 @@ import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provide
 import 'package:phongvu_opshub/features/home/presentation/screens/home_screen.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/payment_speaker.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/repositories/payment_monitor_repository.dart';
+import 'package:phongvu_opshub/features/payment_monitor/domain/payment_delivery_metrics.dart';
 import 'package:phongvu_opshub/features/payment_monitor/domain/payment_notification.dart';
+import 'package:phongvu_opshub/features/payment_monitor/presentation/providers/payment_delivery_metrics_provider.dart';
 import 'package:phongvu_opshub/features/payment_monitor/presentation/providers/payment_monitor_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -216,6 +218,60 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  testWidgets('Super Admin Home shows speaker delivery history pill', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+      appName: 'PhongVu OpsHub',
+      packageName: 'com.example.phongvu_opshub',
+      version: '1.1.1',
+      buildNumber: '2',
+      buildSignature: '',
+    );
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'super-1',
+        email: 'super@phongvu.vn',
+        name: 'Super Admin',
+        role: 'SUPER_ADMIN',
+      ),
+    );
+    final metricsRepository = _FakePaymentMonitorRepository(
+      deliveryMetrics: _deliveryMetrics(),
+      deliveryHistory: _deliveryHistory(),
+    );
+    final metricsProvider = PaymentDeliveryMetricsProvider(
+      metricsRepository,
+      refreshInterval: Duration.zero,
+    );
+    addTearDown(metricsProvider.dispose);
+    await metricsProvider.syncAuth(authProvider.user, isInitialized: true);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<PaymentDeliveryMetricsProvider>.value(
+            value: metricsProvider,
+          ),
+        ],
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('TB 7.2s'), findsOneWidget);
+
+    await tester.tap(find.text('TB 7.2s'));
+    await tester.pumpAndSettle();
+
+    expect(metricsRepository.deliveryHistoryFetchCount, 1);
+    expect(find.text('Lịch sử đọc loa'), findsOneWidget);
+    expect(find.text('SR CP01'), findsOneWidget);
+  });
+
   testWidgets('Home support icon opens QR and group link dialog', (
     tester,
   ) async {
@@ -272,8 +328,56 @@ class _FakeAuthProvider extends AuthProvider {
   User? get user => currentUser;
 }
 
+PaymentDeliveryMetrics _deliveryMetrics() {
+  return PaymentDeliveryMetrics.fromJson({
+    'sampledAt': '2026-06-27T02:00:00.000Z',
+    'windowHours': 24,
+    'current': {
+      'count': 3,
+      'averageMs': 7242,
+      'from': '2026-06-26T02:00:00.000Z',
+      'to': '2026-06-27T02:00:00.000Z',
+    },
+    'previous': {
+      'count': 2,
+      'averageMs': 8342,
+      'from': '2026-06-25T02:00:00.000Z',
+      'to': '2026-06-26T02:00:00.000Z',
+    },
+    'deltaMs': -1100,
+    'deltaPercent': -13.2,
+    'trend': 'down',
+  });
+}
+
+PaymentDeliveryHistory _deliveryHistory() {
+  return PaymentDeliveryHistory.fromJson({
+    'sampledAt': '2026-06-27T02:00:00.000Z',
+    'limit': 20,
+    'list': [
+      {
+        'deliveryLogId': 'log-1',
+        'notificationId': 'note-1',
+        'transactionId': 'txn-1',
+        'storeCode': 'CP01',
+        'amount': 1250000,
+        'firstSeenAt': '2026-06-27T08:00:02.003',
+        'playedAt': '2026-06-27T08:00:09.245',
+        'status': 'PLAYED',
+        'firstSeenToPlayedMs': 7242,
+      },
+    ],
+  });
+}
+
 class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
-  _FakePaymentMonitorRepository() : super(ApiClient());
+  final PaymentDeliveryMetrics? deliveryMetrics;
+  final PaymentDeliveryHistory? deliveryHistory;
+  int deliveryMetricsFetchCount = 0;
+  int deliveryHistoryFetchCount = 0;
+
+  _FakePaymentMonitorRepository({this.deliveryMetrics, this.deliveryHistory})
+    : super(ApiClient());
 
   @override
   Future<StoredPaymentTransactionsPage> fetchStoredTransactions({
@@ -303,6 +407,20 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     int limit = 10,
   }) async {
     return const [];
+  }
+
+  @override
+  Future<PaymentDeliveryMetrics> fetchDeliveryMetrics({
+    int windowHours = 24,
+  }) async {
+    deliveryMetricsFetchCount += 1;
+    return deliveryMetrics ?? _deliveryMetrics();
+  }
+
+  @override
+  Future<PaymentDeliveryHistory> fetchDeliveryHistory({int limit = 20}) async {
+    deliveryHistoryFetchCount += 1;
+    return deliveryHistory ?? _deliveryHistory();
   }
 }
 
