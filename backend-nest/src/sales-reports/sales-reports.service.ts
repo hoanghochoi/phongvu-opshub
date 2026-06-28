@@ -303,6 +303,29 @@ export class SalesReportsService {
     if (reportType === REPORT_TYPE_NOT_PURCHASED && !body.notPurchasedReason) {
       throw new BadRequestException('Vui lòng chọn lý do khách chưa mua hàng.');
     }
+    if (!this.optionalText(body.customerNeed, 500)) {
+      throw new BadRequestException('Vui lòng nhập nhu cầu khách hàng.');
+    }
+    this.requireAnswer(
+      body.consultedSolutionAnswer,
+      YES_NO_REASON_CODES,
+      'Vui lòng chọn kết quả tư vấn 3 giải pháp.',
+    );
+    this.requireAnswer(
+      body.experiencedAnswer,
+      EXPERIENCE_REASON_CODES,
+      'Vui lòng chọn kết quả trải nghiệm sản phẩm.',
+    );
+    this.requireAnswer(
+      body.zaloAnswer,
+      ZALO_REASON_CODES,
+      'Vui lòng chọn kết quả quét Zalo.',
+    );
+    this.requireAnswer(
+      body.appDownloadAnswer,
+      APP_DOWNLOAD_REASON_CODES,
+      'Vui lòng chọn kết quả tải App PV.',
+    );
     this.requireOtherReason(
       body.consultedSolutionAnswer,
       body.consultedSolutionOtherReason,
@@ -707,6 +730,19 @@ export class SalesReportsService {
     message: string,
   ) {
     if (code === 'OTHER' && !this.optionalText(reason, 500)) {
+      throw new BadRequestException(message);
+    }
+  }
+
+  private requireAnswer(
+    code: unknown,
+    allowed: readonly string[],
+    message: string,
+  ) {
+    const normalized = String(code || '')
+      .trim()
+      .toUpperCase();
+    if (!allowed.includes(normalized)) {
       throw new BadRequestException(message);
     }
   }

@@ -9,8 +9,12 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 
 - Home hiện `Báo cáo` khi user có `SALES_REPORT`.
 - Form `Mua hàng` yêu cầu nhập mã đơn và check ERP trước khi nhập/gửi báo cáo.
-- ERP trả được ngành hàng/nhu cầu thì app tự fill; các câu hỏi hành vi sale vẫn
-  do sale xác nhận.
+- ERP/Listing trả được ngành hàng/nhu cầu thì app tự fill; ngành hàng ưu tiên
+  map bằng `productGroup.code` khớp `Cat group ID` trong `data/categories.csv`.
+  Nếu không map được ngành hàng về nhóm ngành OpsHub thì bắt buộc sale chọn tay
+  trước khi gửi.
+- Nhu cầu khách hàng và các câu hỏi hành vi sale là bắt buộc; hành vi tư vấn,
+  trải nghiệm, quét Zalo và tải App PV mặc định là `Chọn`, không tự chọn `Có`.
 - Backend re-check ERP khi submit và chặn duplicate `orderCode`.
 - Form `Chưa mua hàng` không gọi ERP, bắt buộc ngành hàng và lý do chưa mua.
 - Admin có `ADMIN_SALES_REPORTS` theo node tổ chức xem/query/export báo cáo

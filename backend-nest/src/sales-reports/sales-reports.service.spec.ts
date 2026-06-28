@@ -74,6 +74,26 @@ describe('SalesReportsService', () => {
     expect(erp.lookupOrder).not.toHaveBeenCalled();
   });
 
+  it('requires customer need and explicit behavior answers before lookup', async () => {
+    const { service, categories, erp } = createHarness();
+
+    await expect(
+      service.create(userFixture(), {
+        ...baseInput(),
+        customerNeed: '',
+      }),
+    ).rejects.toThrow('Vui lòng nhập nhu cầu khách hàng.');
+    await expect(
+      service.create(userFixture(), {
+        ...baseInput(),
+        consultedSolutionAnswer: '',
+      }),
+    ).rejects.toThrow('Vui lòng chọn kết quả tư vấn 3 giải pháp.');
+
+    expect(categories.requireCategory).not.toHaveBeenCalled();
+    expect(erp.lookupOrder).not.toHaveBeenCalled();
+  });
+
   it('creates not-purchased report without ERP lookup', async () => {
     const { service, prisma, erp } = createHarness();
 

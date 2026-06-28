@@ -12,6 +12,13 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - `Mua hàng` bắt buộc nhập `Mã đơn hàng` và bấm `Kiểm tra đơn hàng` trước khi
   mở phần form còn lại. Backend kiểm tra ERP thật qua server, rồi submit vẫn
   re-check ERP trước khi lưu.
+- ERP/Listing chỉ được tự điền ngành hàng khi map được về nhóm ngành OpsHub:
+  ưu tiên `productGroup.code` từ Listing khớp `Cat group ID` trong
+  `data/categories.csv`, rồi mới dùng tên/alias làm fallback. Nếu không map
+  được thì ngành hàng để trống và sale bắt buộc chọn trước khi gửi báo cáo.
+- Nhu cầu khách hàng và các câu hỏi hành vi tư vấn/trải nghiệm/Zalo/App đều là
+  trường bắt buộc. Các câu hỏi hành vi mặc định là `Chọn`, không tự mặc định
+  `Có`.
 - `orderCode` là unique trên bảng `SalesReport`; một đơn mua hàng chỉ được báo
   cáo một lần.
 - Không có field nhập `MSNV`; backend lấy user, email, tên, mã nhân viên suy ra,

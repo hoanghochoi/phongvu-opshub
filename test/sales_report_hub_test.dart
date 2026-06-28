@@ -7,6 +7,9 @@ import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provider.dart';
+import 'package:phongvu_opshub/features/sales_report/data/sales_report_repository.dart';
+import 'package:phongvu_opshub/features/sales_report/domain/sales_report.dart';
+import 'package:phongvu_opshub/features/sales_report/presentation/providers/sales_report_provider.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/screens/sales_report_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -70,6 +73,45 @@ void main() {
 
     expect(find.text('Purchased form'), findsOneWidget);
   });
+
+  testWidgets('Báo cáo form requires explicit behavior answers', (
+    tester,
+  ) async {
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'user-1',
+        email: 'sale@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+        featureAccess: {'SALES_REPORT': true},
+      ),
+    );
+    final repository = _FakeSalesReportRepository();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(repository),
+          ),
+        ],
+        child: const MaterialApp(home: SalesReportFormScreen.notPurchased()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Có'), findsNothing);
+    expect(find.text('Chọn'), findsNWidgets(4));
+
+    await tester.ensureVisible(find.text('Gửi báo cáo'));
+    await tester.tap(find.text('Gửi báo cáo'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Vui lòng nhập nhu cầu khách hàng'), findsOneWidget);
+    expect(find.text('Vui lòng chọn Tư vấn 3 giải pháp'), findsOneWidget);
+    expect(repository.createCalled, isFalse);
+  });
 }
 
 class _FakeAuthProvider extends AuthProvider {
@@ -79,4 +121,29 @@ class _FakeAuthProvider extends AuthProvider {
 
   @override
   User? get user => currentUser;
+}
+
+class _FakeSalesReportRepository extends SalesReportRepository {
+  bool createCalled = false;
+
+  _FakeSalesReportRepository() : super(ApiClient());
+
+  @override
+  Future<List<SalesReportCategoryGroup>> fetchCategories({
+    bool admin = false,
+  }) async {
+    return const [
+      SalesReportCategoryGroup(
+        id: 'NH08',
+        catGroupName: 'Network and Security equipment',
+        catGroupNameVi: 'Thiết bị mạng và an ninh',
+      ),
+    ];
+  }
+
+  @override
+  Future<Map<String, dynamic>> create(SalesReportInput input) async {
+    createCalled = true;
+    return const {};
+  }
 }

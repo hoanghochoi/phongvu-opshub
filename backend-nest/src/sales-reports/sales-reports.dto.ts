@@ -90,7 +90,9 @@ export class CreateSalesReportDto {
   customerNeed?: string;
 
   @IsString()
-  @IsIn(YES_NO_REASON_CODES)
+  @IsIn(YES_NO_REASON_CODES, {
+    message: 'Vui lòng chọn kết quả tư vấn 3 giải pháp.',
+  })
   consultedSolutionAnswer!: string;
 
   @IsOptional()
@@ -99,7 +101,9 @@ export class CreateSalesReportDto {
   consultedSolutionOtherReason?: string;
 
   @IsString()
-  @IsIn(EXPERIENCE_REASON_CODES)
+  @IsIn(EXPERIENCE_REASON_CODES, {
+    message: 'Vui lòng chọn kết quả trải nghiệm sản phẩm.',
+  })
   experiencedAnswer!: string;
 
   @IsOptional()
@@ -108,7 +112,9 @@ export class CreateSalesReportDto {
   experiencedOtherReason?: string;
 
   @IsString()
-  @IsIn(ZALO_REASON_CODES)
+  @IsIn(ZALO_REASON_CODES, {
+    message: 'Vui lòng chọn kết quả quét Zalo.',
+  })
   zaloAnswer!: string;
 
   @IsOptional()
@@ -117,7 +123,9 @@ export class CreateSalesReportDto {
   zaloOtherReason?: string;
 
   @IsString()
-  @IsIn(APP_DOWNLOAD_REASON_CODES)
+  @IsIn(APP_DOWNLOAD_REASON_CODES, {
+    message: 'Vui lòng chọn kết quả tải App PV.',
+  })
   appDownloadAnswer!: string;
 
   @IsOptional()

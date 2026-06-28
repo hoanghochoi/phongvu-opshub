@@ -86,8 +86,12 @@ describe('SalesReportErpService', () => {
             products: [
               {
                 sku: 'SKU-1',
-                name: 'RAM DDR5',
-                productGroup: { id: 'NH03', name: 'Computer components' },
+                name: 'Thiết bị mạng/ Router TPLink Archer C54',
+                productGroup: {
+                  id: '80283',
+                  code: 'NH08',
+                  name: 'Thiết bị mạng/ Router TPLink Archer C54',
+                },
               },
             ],
           },
@@ -102,7 +106,9 @@ describe('SalesReportErpService', () => {
 
     expect(result.erpOrderId).toBe('2606290001');
     expect(result.items).toHaveLength(1);
-    expect(result.items[0].productGroupId).toBe('NH03');
+    expect(result.items[0].productGroupId).toBe('80283');
+    expect(result.items[0].productGroupCode).toBe('NH08');
+    expect(result.categoryCandidates).toEqual(expect.arrayContaining(['NH08']));
     expect(
       fetchMock.mock.calls.some(([input]) =>
         input.toString().includes('login_verifier=verifier-123'),

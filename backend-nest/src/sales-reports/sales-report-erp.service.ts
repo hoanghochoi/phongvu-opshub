@@ -15,6 +15,7 @@ export type SalesReportErpOrderItem = {
   productTypeCode: string | null;
   productTypeName: string | null;
   productGroupId: string | null;
+  productGroupCode: string | null;
   productGroupName: string | null;
   quantity: number | null;
   sellPrice: number | null;
@@ -174,6 +175,7 @@ export class SalesReportErpService {
         productGroupId: this.optionalText(
           productGroup?.id ?? productGroup?.code,
         ),
+        productGroupCode: this.optionalText(productGroup?.code),
         productGroupName: this.optionalText(
           productGroup?.name ?? productGroup?.displayName,
         ),
@@ -271,8 +273,10 @@ export class SalesReportErpService {
       new Set(
         items
           .flatMap((item) => [
+            item.productGroupCode,
             item.productGroupId,
             item.productGroupName,
+            item.productTypeCode,
             item.productTypeName,
             item.name,
           ])
@@ -323,6 +327,7 @@ export class SalesReportErpService {
           finalSellPrice: item.finalSellPrice,
           rowTotal: item.rowTotal,
           productGroupId: item.productGroupId,
+          productGroupCode: item.productGroupCode,
           productGroupName: item.productGroupName,
         })),
         payments: payments.map((payment) => ({
@@ -636,7 +641,9 @@ export class SalesReportErpService {
     } catch {
       // Fall through to the safe operational error below.
     }
-    this.logger.warn('Sales report ERP login returned unexpected redirect URL.');
+    this.logger.warn(
+      'Sales report ERP login returned unexpected redirect URL.',
+    );
     throw new ServiceUnavailableException(
       'ERP chưa trả phiên xác thực hợp lệ.',
     );

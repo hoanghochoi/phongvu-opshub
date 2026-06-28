@@ -180,10 +180,10 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
 
   late String _reportType;
   String? _categoryGroupId;
-  var _consultedAnswer = 'YES';
-  var _experiencedAnswer = 'YES';
-  var _zaloAnswer = 'YES';
-  var _appDownloadAnswer = 'YES';
+  String? _consultedAnswer;
+  String? _experiencedAnswer;
+  String? _zaloAnswer;
+  String? _appDownloadAnswer;
   String? _notPurchasedReason;
   bool _initialized = false;
 
@@ -250,20 +250,42 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       );
       return;
     }
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      unawaited(
+        AppLogger.instance.warn(
+          'SalesReport',
+          'Sales report form validation blocked',
+          context: {
+            'reportType': _reportType,
+            'hasCategory': _categoryGroupId != null,
+            'hasCustomerNeed': _needController.text.trim().isNotEmpty,
+            'hasConsultedAnswer': _consultedAnswer != null,
+            'hasExperiencedAnswer': _experiencedAnswer != null,
+            'hasZaloAnswer': _zaloAnswer != null,
+            'hasAppDownloadAnswer': _appDownloadAnswer != null,
+            'hasNotPurchasedReason': _notPurchasedReason != null,
+          },
+        ),
+      );
+      return;
+    }
+    final consultedAnswer = _consultedAnswer!;
+    final experiencedAnswer = _experiencedAnswer!;
+    final zaloAnswer = _zaloAnswer!;
+    final appDownloadAnswer = _appDownloadAnswer!;
     final input = SalesReportInput(
       reportType: _reportType,
       orderCode: _isPurchased ? _orderController.text : null,
       customerPhone: _phoneController.text,
       categoryGroupId: _categoryGroupId ?? '',
       customerNeed: _needController.text,
-      consultedSolutionAnswer: _consultedAnswer,
+      consultedSolutionAnswer: consultedAnswer,
       consultedSolutionOtherReason: _consultedOtherController.text,
-      experiencedAnswer: _experiencedAnswer,
+      experiencedAnswer: experiencedAnswer,
       experiencedOtherReason: _experiencedOtherController.text,
-      zaloAnswer: _zaloAnswer,
+      zaloAnswer: zaloAnswer,
       zaloOtherReason: _zaloOtherController.text,
-      appDownloadAnswer: _appDownloadAnswer,
+      appDownloadAnswer: appDownloadAnswer,
       appDownloadOtherReason: _appOtherController.text,
       notPurchasedReason: _isPurchased ? null : _notPurchasedReason,
       notPurchasedOtherReason: _notPurchasedOtherController.text,
@@ -297,10 +319,10 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
           ? _typeNotPurchased
           : _typePurchased;
       _categoryGroupId = null;
-      _consultedAnswer = 'YES';
-      _experiencedAnswer = 'YES';
-      _zaloAnswer = 'YES';
-      _appDownloadAnswer = 'YES';
+      _consultedAnswer = null;
+      _experiencedAnswer = null;
+      _zaloAnswer = null;
+      _appDownloadAnswer = null;
       _notPurchasedReason = null;
     });
   }
@@ -585,6 +607,9 @@ class _CustomerSection extends StatelessWidget {
                 prefixIcon: Icon(Icons.search_outlined),
                 alignLabelWithHint: true,
               ),
+              validator: (value) => (value ?? '').trim().isEmpty
+                  ? 'Vui lòng nhập nhu cầu khách hàng'
+                  : null,
             ),
           ],
         ),
@@ -594,18 +619,18 @@ class _CustomerSection extends StatelessWidget {
 }
 
 class _BehaviorSection extends StatelessWidget {
-  final String consultedAnswer;
-  final String experiencedAnswer;
-  final String zaloAnswer;
-  final String appDownloadAnswer;
+  final String? consultedAnswer;
+  final String? experiencedAnswer;
+  final String? zaloAnswer;
+  final String? appDownloadAnswer;
   final TextEditingController consultedOtherController;
   final TextEditingController experiencedOtherController;
   final TextEditingController zaloOtherController;
   final TextEditingController appOtherController;
-  final ValueChanged<String> onConsultedChanged;
-  final ValueChanged<String> onExperiencedChanged;
-  final ValueChanged<String> onZaloChanged;
-  final ValueChanged<String> onAppChanged;
+  final ValueChanged<String?> onConsultedChanged;
+  final ValueChanged<String?> onExperiencedChanged;
+  final ValueChanged<String?> onZaloChanged;
+  final ValueChanged<String?> onAppChanged;
 
   const _BehaviorSection({
     required this.consultedAnswer,
@@ -674,9 +699,9 @@ class _BehaviorSection extends StatelessWidget {
 
 class _AnswerDropdown extends StatelessWidget {
   final String label;
-  final String value;
+  final String? value;
   final Map<String, String> options;
-  final ValueChanged<String> onChanged;
+  final ValueChanged<String?> onChanged;
   final TextEditingController otherController;
   final String otherLabel;
 
@@ -697,6 +722,7 @@ class _AnswerDropdown extends StatelessWidget {
           key: ValueKey('sales-report-answer-$label-$value'),
           initialValue: value,
           isExpanded: true,
+          hint: const Text('Chọn'),
           decoration: InputDecoration(labelText: label),
           items: options.entries
               .map(
@@ -707,10 +733,10 @@ class _AnswerDropdown extends StatelessWidget {
               )
               .toList(),
           onChanged: (value) {
-            if (value != null) onChanged(value);
+            if (value != 'OTHER') otherController.clear();
+            onChanged(value);
           },
-          validator: (value) =>
-              value == null ? 'Vui lòng chọn thông tin' : null,
+          validator: (value) => value == null ? 'Vui lòng chọn $label' : null,
         ),
         if (value == 'OTHER') ...[
           const SizedBox(height: AppLayoutTokens.formInlineGap),

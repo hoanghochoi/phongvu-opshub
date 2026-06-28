@@ -41,6 +41,7 @@ export class SalesReportCategoriesService {
   private readonly syncTtlMs = 60_000;
   private lastSyncedAt = 0;
   private cachedCategories: SalesReportCategoryGroupDto[] = [];
+  private cachedCategoryAliases = new Map<string, string[]>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -63,27 +64,31 @@ export class SalesReportCategoriesService {
 
   async matchCategoryFromErp(values: Array<string | null | undefined>) {
     await this.ensureSynced();
-    const normalizedValues = values
-      .map((value) => this.normalizeComparable(value))
-      .filter(Boolean);
+    const normalizedValues = this.normalizeErpValues(values);
+    this.logger.log(
+      `Sales report category match started: valueCount=${normalizedValues.length} categoryCount=${this.cachedCategories.length}`,
+    );
     for (const category of this.cachedCategories) {
       const candidates = [
         this.normalizeComparable(category.id),
         this.normalizeComparable(category.catGroupName),
         this.normalizeComparable(category.catGroupNameVi),
+        ...(this.cachedCategoryAliases.get(category.id) || []),
       ];
       if (
-        candidates.some(
-          (candidate) =>
-            candidate &&
-            normalizedValues.some(
-              (value) => value === candidate || value.includes(candidate),
-            ),
+        candidates.some((candidate) =>
+          this.matchesCandidate(candidate, normalizedValues),
         )
       ) {
+        this.logger.log(
+          `Sales report category matched from ERP: category=${category.id}`,
+        );
         return category;
       }
     }
+    this.logger.warn(
+      `Sales report category not matched from ERP: valueCount=${normalizedValues.length}`,
+    );
     return null;
   }
 
@@ -120,6 +125,7 @@ export class SalesReportCategoriesService {
       ),
     );
     this.cachedCategories = groups;
+    this.cachedCategoryAliases = this.buildCategoryAliases(rows);
     this.lastSyncedAt = now;
     this.logger.log(`Sales report categories synced: count=${groups.length}`);
   }
@@ -171,6 +177,26 @@ export class SalesReportCategoriesService {
         CATEGORY_TRANSLATIONS[group.catGroupName] || group.catGroupName,
       sortOrder: index + 1,
     }));
+  }
+
+  private buildCategoryAliases(rows: Array<Record<string, string>>) {
+    const aliases = new Map<string, Set<string>>();
+    for (const row of rows) {
+      const id = this.normalizeCategoryId(row['Cat group ID']);
+      if (!id) continue;
+      const current = aliases.get(id) ?? new Set<string>();
+      for (const key of ['Subcat 2 name', 'Subcat name lowest level']) {
+        const value = this.normalizeComparable(row[key]);
+        if (value) current.add(value);
+      }
+      aliases.set(id, current);
+    }
+    return new Map(
+      Array.from(aliases.entries()).map(([id, values]) => [
+        id,
+        Array.from(values.values()),
+      ]),
+    );
   }
 
   private parseCsv(content: string) {
@@ -238,5 +264,34 @@ export class SalesReportCategoriesService {
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, ' ')
       .trim();
+  }
+
+  private normalizeErpValues(values: Array<string | null | undefined>) {
+    const normalized = new Set<string>();
+    for (const value of values) {
+      const raw = String(value || '').trim();
+      if (!raw) continue;
+      const full = this.normalizeComparable(raw);
+      if (full) normalized.add(full);
+      for (const fragment of raw.split(/[/>|]+/g)) {
+        const text = this.normalizeComparable(fragment);
+        if (text) normalized.add(text);
+      }
+    }
+    return Array.from(normalized.values());
+  }
+
+  private matchesCandidate(candidate: string, values: string[]) {
+    if (!candidate) return false;
+    return values.some(
+      (value) =>
+        value === candidate ||
+        value.includes(candidate) ||
+        (this.canUseReverseMatch(value) && candidate.includes(value)),
+    );
+  }
+
+  private canUseReverseMatch(value: string) {
+    return value.length >= 10 && value.split(/\s+/g).length >= 3;
   }
 }
