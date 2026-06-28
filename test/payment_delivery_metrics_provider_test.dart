@@ -46,7 +46,7 @@ void main() {
     expect(repository.historyFetchCount, 1);
     expect(provider.historyItems, hasLength(1));
     expect(provider.historyItems.single.storeCode, 'CP01');
-    expect(provider.historyItems.single.firstSeenToPlayedMs, 7242);
+    expect(provider.historyItems.single.bankToStreamStartLatencyMs, 7242);
     expect(provider.historyErrorMessage, isNull);
 
     provider.dispose();
@@ -107,9 +107,14 @@ PaymentDeliveryHistory _history() {
         'transactionId': 'txn-1',
         'storeCode': 'CP01',
         'amount': 1250000,
+        'paidAt': '2026-06-27T01:00:00.000Z',
         'firstSeenAt': '2026-06-27T01:00:02.003Z',
+        'streamStartedAt': '2026-06-27T01:00:07.242Z',
         'playedAt': '2026-06-27T01:00:09.245Z',
         'status': 'PLAYED',
+        'bankToStreamStartLatencyMs': 7242,
+        'firstSeenToStreamStartLatencyMs': 5239,
+        'playDurationMs': 2003,
         'firstSeenToPlayedMs': 7242,
       },
     ],

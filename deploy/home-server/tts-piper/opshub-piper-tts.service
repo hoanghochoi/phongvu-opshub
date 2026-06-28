@@ -12,7 +12,7 @@ Environment=PIPER_TMP_DIR=/tmp/opshub-piper-tts
 Environment=PIPER_VOICE_ID=piper:vi-vais1000
 Environment=PIPER_LEADING_SILENCE_MS=0
 Environment=PIPER_TAIL_SILENCE_MS=500
-ExecStart=/opt/opshub-piper-tts/.venv/bin/uvicorn app:app --host 172.20.0.1 --port 18081 --workers 1
+ExecStart=/opt/opshub-piper-tts/.venv/bin/uvicorn app:app --host 172.20.0.1 --port 18081 --workers 2
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true

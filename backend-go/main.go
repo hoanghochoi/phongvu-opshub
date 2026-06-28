@@ -22,11 +22,13 @@ var ctx = context.Background()
 const (
 	warrantyRedisChannel               = "WARRANTY_STATUS_UPDATED"
 	paymentRedisChannel                = "PAYMENT_NOTIFICATION_READY"
+	paymentStreamRedisChannel          = "PAYMENT_SPEAKER_STREAM"
 	appVersionRedisChannel             = "APP_VERSION_UPDATED"
 	statementOrderTransferRedisChannel = "STATEMENT_ORDER_TRANSFER_REQUESTED"
 	offsetAdjustmentRedisChannel       = "OFFSET_ADJUSTMENT_UPDATED"
 	warrantyEventType                  = "WARRANTY_EVENT"
 	paymentEventType                   = "PAYMENT_NOTIFICATION"
+	paymentStreamEventType             = "PAYMENT_SPEAKER_STREAM"
 	appUpdateEventType                 = "APP_UPDATE"
 	statementOrderTransferEventType    = "STATEMENT_ORDER_TRANSFER_REQUEST"
 	offsetAdjustmentEventType          = "OFFSET_ADJUSTMENT_NOTIFICATION"
@@ -267,7 +269,7 @@ func (c *Client) canReceive(message []byte) bool {
 	if c.auth == nil {
 		return false
 	}
-	if envelope.Type != paymentEventType && envelope.Type != statementOrderTransferEventType && envelope.Type != offsetAdjustmentEventType {
+	if envelope.Type != paymentEventType && envelope.Type != paymentStreamEventType && envelope.Type != statementOrderTransferEventType && envelope.Type != offsetAdjustmentEventType {
 		return true
 	}
 	var payload struct {
@@ -336,12 +338,13 @@ func (h *Hub) listenToRedis() {
 		ctx,
 		warrantyRedisChannel,
 		paymentRedisChannel,
+		paymentStreamRedisChannel,
 		appVersionRedisChannel,
 		statementOrderTransferRedisChannel,
 		offsetAdjustmentRedisChannel,
 	)
 	defer pubsub.Close()
-	log.Println("Listening to Redis channels: WARRANTY_STATUS_UPDATED, PAYMENT_NOTIFICATION_READY, APP_VERSION_UPDATED, STATEMENT_ORDER_TRANSFER_REQUESTED, OFFSET_ADJUSTMENT_UPDATED...")
+	log.Println("Listening to Redis channels: WARRANTY_STATUS_UPDATED, PAYMENT_NOTIFICATION_READY, PAYMENT_SPEAKER_STREAM, APP_VERSION_UPDATED, STATEMENT_ORDER_TRANSFER_REQUESTED, OFFSET_ADJUSTMENT_UPDATED...")
 
 	ch := pubsub.Channel()
 
@@ -363,6 +366,8 @@ func formatRedisEvent(channel string, payload string) ([]byte, bool) {
 		eventType = warrantyEventType
 	case paymentRedisChannel:
 		eventType = paymentEventType
+	case paymentStreamRedisChannel:
+		eventType = paymentStreamEventType
 	case appVersionRedisChannel:
 		eventType = appUpdateEventType
 	case statementOrderTransferRedisChannel:

@@ -307,6 +307,78 @@ void main() {
     },
   );
 
+  test('stream event skips without retry when speaker is disabled', () async {
+    SharedPreferences.setMockInitialValues({
+      AppStorageKeys.shared('payment_monitor_enabled'): false,
+    });
+    final repository = _FakePaymentMonitorRepository(notifications: const []);
+    final speaker = _FakePaymentSpeaker();
+    final provider = PaymentMonitorProvider(
+      repository,
+      speaker,
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+
+    await provider.handleRealtimeMessageForTesting(
+      jsonEncode({
+        'type': 'PAYMENT_SPEAKER_STREAM',
+        'payload': _streamPayload('note-disabled'),
+      }),
+    );
+
+    expect(provider.isSpeakerEnabled, isFalse);
+    expect(repository.streamDownloadCount, 0);
+    expect(speaker.playCount, 0);
+    expect(repository.ackEvents, contains('SILENCED'));
+    expect(repository.ackErrors, contains('speaker_disabled'));
+
+    provider.dispose();
+  });
+
+  test('stream event retries playback errors and logs them to server', () async {
+    final repository = _FakePaymentMonitorRepository(notifications: const []);
+    final speaker = _FakePaymentSpeaker(failuresBeforeSuccess: 1);
+    final provider = PaymentMonitorProvider(
+      repository,
+      speaker,
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+
+    await provider.handleRealtimeMessageForTesting(
+      jsonEncode({
+        'type': 'PAYMENT_SPEAKER_STREAM',
+        'payload': _streamPayload('note-retry'),
+      }),
+    );
+    await _waitUntil(
+      () => repository.ackEvents.contains('PLAYED') && speaker.playCount == 2,
+    );
+
+    expect(repository.downloadCount, 0);
+    expect(repository.streamDownloadCount, 1);
+    expect(repository.requestedRawAmounts, contains(true));
+    expect(repository.ackEvents, contains('STREAM_STARTED'));
+    expect(repository.ackEvents, contains('PLAYBACK_FAILED'));
+    expect(repository.ackEvents, contains('PLAYED'));
+    expect(repository.ackErrors.single, contains('speaker failed'));
+
+    provider.dispose();
+  });
+
   test('manual refresh requests total count for pagination', () async {
     final repository = _FakePaymentMonitorRepository(notifications: const []);
     final provider = PaymentMonitorProvider(
@@ -678,6 +750,19 @@ PaymentNotification _readyNotification() {
   });
 }
 
+Map<String, Object?> _streamPayload(String notificationId) {
+  return {
+    'notificationId': notificationId,
+    'transactionId': 'txn-$notificationId',
+    'storeCode': 'CP01',
+    'amount': 1250000,
+    'paidAt': '2026-06-27T01:00:00.000Z',
+    'firstSeenAt': '2026-06-27T01:00:02.000Z',
+    'streamUrl': '/payment-notifications/$notificationId/stream',
+    'expiresAt': '2026-06-28T01:00:00.000Z',
+  };
+}
+
 class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<PaymentNotification> notifications;
   final Object? transactionError;
@@ -694,6 +779,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   int transactionFetchCount = 0;
   int readyFetchCount = 0;
   int downloadCount = 0;
+  int streamDownloadCount = 0;
 
   _FakePaymentMonitorRepository({
     required this.notifications,
@@ -757,6 +843,22 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   }
 
   @override
+  Future<List<int>> downloadNotificationStreamAudio(
+    String notificationId, {
+    bool includeCue = false,
+    bool rawAmount = false,
+  }) async {
+    streamDownloadCount += 1;
+    requestedIncludeCues.add(includeCue);
+    requestedRawAmounts.add(rawAmount);
+    final rawError = rawAmountAudioError;
+    if (rawAmount && rawError != null) throw rawError;
+    final error = combinedAudioError;
+    if (includeCue && error != null) throw error;
+    return const [0x52, 0x49, 0x46, 0x46, 0x00];
+  }
+
+  @override
   Future<void> acknowledgeNotification({
     required String notificationId,
     required String clientId,
@@ -791,10 +893,14 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
     required int attempt,
     bool playLocalCue = true,
     bool playLocalCuePrefix = false,
+    Future<void> Function()? onPlaybackStarting,
   }) async {
     playCount += 1;
     playLocalCueValues.add(playLocalCue);
     playLocalCuePrefixValues.add(playLocalCuePrefix);
+    if (onPlaybackStarting != null) {
+      await onPlaybackStarting();
+    }
     if (nonRetryableFailure) {
       throw const PaymentSpeakerException(
         'Windows does not report any audio output device',

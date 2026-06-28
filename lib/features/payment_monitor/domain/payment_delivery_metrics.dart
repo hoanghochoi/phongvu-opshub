@@ -100,12 +100,16 @@ class PaymentDeliveryHistoryItem {
   final DateTime? firstSeenAt;
   final DateTime? paidAt;
   final DateTime? notificationCreatedAt;
+  final DateTime? streamStartedAt;
   final DateTime? playedAt;
   final String status;
   final DateTime? statusAt;
   final String? errorStatus;
   final String? errorMessage;
   final DateTime? errorAt;
+  final int? bankToStreamStartLatencyMs;
+  final int? firstSeenToStreamStartLatencyMs;
+  final int? playDurationMs;
   final int? firstSeenToPlayedMs;
 
   const PaymentDeliveryHistoryItem({
@@ -117,12 +121,16 @@ class PaymentDeliveryHistoryItem {
     required this.firstSeenAt,
     required this.paidAt,
     required this.notificationCreatedAt,
+    required this.streamStartedAt,
     required this.playedAt,
     required this.status,
     required this.statusAt,
     required this.errorStatus,
     required this.errorMessage,
     required this.errorAt,
+    required this.bankToStreamStartLatencyMs,
+    required this.firstSeenToStreamStartLatencyMs,
+    required this.playDurationMs,
     required this.firstSeenToPlayedMs,
   });
 
@@ -136,12 +144,20 @@ class PaymentDeliveryHistoryItem {
       firstSeenAt: _dateFromJson(json['firstSeenAt']),
       paidAt: _dateFromJson(json['paidAt']),
       notificationCreatedAt: _dateFromJson(json['notificationCreatedAt']),
+      streamStartedAt: _dateFromJson(json['streamStartedAt']),
       playedAt: _dateFromJson(json['playedAt']),
       status: _stringFromJson(json['status']) ?? 'UNKNOWN',
       statusAt: _dateFromJson(json['statusAt']),
       errorStatus: _stringFromJson(json['errorStatus']),
       errorMessage: _stringFromJson(json['errorMessage']),
       errorAt: _dateFromJson(json['errorAt']),
+      bankToStreamStartLatencyMs: _intFromJson(
+        json['bankToStreamStartLatencyMs'],
+      ),
+      firstSeenToStreamStartLatencyMs: _intFromJson(
+        json['firstSeenToStreamStartLatencyMs'],
+      ),
+      playDurationMs: _intFromJson(json['playDurationMs']),
       firstSeenToPlayedMs: _intFromJson(json['firstSeenToPlayedMs']),
     );
   }

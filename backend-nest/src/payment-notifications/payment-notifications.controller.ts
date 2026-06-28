@@ -78,6 +78,28 @@ export class PaymentNotificationsController {
     return audio.stream;
   }
 
+  @Get('payment-notifications/:id/stream')
+  @RequireFeature(FEATURE_KEYS.PAYMENT_MONITOR)
+  @Header('Cache-Control', 'no-store')
+  async streamAudio(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Query('includeCue') includeCue: string | undefined,
+    @Query('rawAmount') rawAmount: string | undefined,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const audio = await this.service.getStreamForUser(req.user, id, {
+      includeCue: this.parseBoolean(includeCue),
+      rawAmount: this.parseBoolean(rawAmount),
+    });
+    response.setHeader('Content-Type', audio.mimeType);
+    response.setHeader(
+      'Content-Disposition',
+      `inline; filename="${audio.fileName}"`,
+    );
+    return audio.stream;
+  }
+
   private parseBoolean(value: string | undefined) {
     return (
       String(value ?? '')

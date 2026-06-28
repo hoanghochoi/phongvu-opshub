@@ -121,6 +121,19 @@ func TestPaymentEventFilteringByStore(t *testing.T) {
 	}
 }
 
+func TestPaymentSpeakerStreamEventFilteringByStore(t *testing.T) {
+	client := &Client{auth: &ClientAuth{Role: "MANAGER", StoreCode: "CP01"}}
+	message := []byte(`{"type":"PAYMENT_SPEAKER_STREAM","payload":{"storeCode":"CP01"}}`)
+	if !client.canReceive(message) {
+		t.Fatal("expected client to receive own store payment stream event")
+	}
+
+	otherMessage := []byte(`{"type":"PAYMENT_SPEAKER_STREAM","payload":{"storeCode":"CP02"}}`)
+	if client.canReceive(otherMessage) {
+		t.Fatal("expected client not to receive another store payment stream event")
+	}
+}
+
 func TestSuperAdminRequiresSelectedStoreForPaymentEvents(t *testing.T) {
 	client := &Client{auth: &ClientAuth{Role: "SUPER_ADMIN", SelectedStore: "CP02"}}
 	message := []byte(`{"type":"PAYMENT_NOTIFICATION","payload":{"storeCode":"CP02"}}`)
@@ -169,6 +182,11 @@ func TestAccCanReceiveAllOffsetAdjustmentEventsWithoutChangingPaymentFilter(t *t
 	}
 	if orgTreeReviewer.canReceive(payment) {
 		t.Fatal("expected org-tree FIN_ACC user not to receive another store payment event")
+	}
+
+	streamPayment := []byte(`{"type":"PAYMENT_SPEAKER_STREAM","payload":{"storeCode":"CP02"}}`)
+	if orgTreeReviewer.canReceive(streamPayment) {
+		t.Fatal("expected org-tree FIN_ACC user not to receive another store payment stream event")
 	}
 }
 
@@ -258,6 +276,20 @@ func TestFormatsOffsetAdjustmentRedisEvent(t *testing.T) {
 		t.Fatal("expected offset adjustment Redis event to be formatted")
 	}
 	expected := `{"type":"OFFSET_ADJUSTMENT_NOTIFICATION","payload":{"adjustmentId":"offset-1","storeCode":"CP01","status":"PENDING_ACC"}}`
+	if string(message) != expected {
+		t.Fatalf("expected %s, got %s", expected, string(message))
+	}
+}
+
+func TestFormatsPaymentSpeakerStreamRedisEvent(t *testing.T) {
+	message, ok := formatRedisEvent(
+		paymentStreamRedisChannel,
+		`{"notificationId":"note-1","storeCode":"CP01","streamUrl":"/payment-notifications/note-1/stream"}`,
+	)
+	if !ok {
+		t.Fatal("expected payment stream Redis event to be formatted")
+	}
+	expected := `{"type":"PAYMENT_SPEAKER_STREAM","payload":{"notificationId":"note-1","storeCode":"CP01","streamUrl":"/payment-notifications/note-1/stream"}}`
 	if string(message) != expected {
 		t.Fatalf("expected %s, got %s", expected, string(message))
 	}

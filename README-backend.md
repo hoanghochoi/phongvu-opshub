@@ -124,6 +124,14 @@ Expected responses:
   trims zero padding, joins its bundled `payment-cue-prefix.wav` to the amount
   with an 80 ms gap, and plays one WAV to avoid player-switch latency. It falls
   back to sequential playback when the two PCM WAV formats are incompatible.
+  To trial low-latency speaker streaming, set
+  `PAYMENT_SPEAKER_STREAMING_ENABLED=true`: the API creates the notification
+  immediately, publishes `PAYMENT_SPEAKER_STREAM` up to
+  `PAYMENT_STREAM_EVENT_REPEAT_COUNT` times, and only calls Piper when a
+  speaker client requests `GET /payment-notifications/:id/stream`. The client
+  records `STREAM_STARTED` when playback begins; delivery metrics then measure
+  `paidAt -> streamStartedAt`. Set `PAYMENT_TTS_CONCURRENCY=2` to match the
+  recommended two Piper workers on `hoang-n8n`.
 - Keep placeholder values out of production; the Nest API validates env values on startup.
 - Run `npx prisma migrate deploy` before starting the Nest API.
 - Start the Go service with the same Redis connection as NestJS.

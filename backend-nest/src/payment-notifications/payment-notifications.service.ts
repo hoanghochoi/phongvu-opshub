@@ -44,6 +44,7 @@ import {
 import { vietnameseAmountWords } from './vietnamese-amount-words';
 
 const PAYMENT_NOTIFICATION_CHANNEL = 'PAYMENT_NOTIFICATION_READY';
+const PAYMENT_SPEAKER_STREAM_CHANNEL = 'PAYMENT_SPEAKER_STREAM';
 const DEFAULT_AUDIO_RETENTION_DAYS = 7;
 const DEFAULT_LOG_RETENTION_DAYS = 30;
 const DEFAULT_TRANSACTION_RETENTION_DAYS = 90;
@@ -57,7 +58,11 @@ const DEFAULT_DELIVERY_METRICS_WINDOW_HOURS = 24;
 const DEFAULT_DELIVERY_HISTORY_LIMIT = 20;
 const MIN_DELIVERY_HISTORY_LIMIT = 10;
 const MAX_DELIVERY_HISTORY_LIMIT = 20;
+const DEFAULT_STREAM_EVENT_REPEAT_COUNT = 3;
+const DEFAULT_STREAM_EVENT_REPEAT_GAP_MS = 1000;
+const DEFAULT_TTS_CONCURRENCY = 2;
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
+const STREAM_STARTED_EVENT = 'STREAM_STARTED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
 const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE = 'Không có quyền Đọc loa tiền vào';
 const PAYMENT_TTS_PREFIX_TEXT = 'Phong Vũ đã nhận:';
@@ -76,6 +81,22 @@ type StoredTransaction = {
   id: string;
   storeCode: string;
   amount: number;
+  paidAt?: Date | string | null;
+  firstSeenAt?: Date | string | null;
+};
+
+type PaymentNotificationRecord = {
+  id: string;
+  storeCode: string;
+  transactionId: string;
+  amount: number;
+  text: string;
+  audioStatus: string;
+  audioPath?: string | null;
+  audioMime?: string | null;
+  audioError?: string | null;
+  expiresAt?: Date | string | null;
+  createdAt?: Date | string | null;
 };
 
 type Pcm16Wav = {
@@ -103,12 +124,16 @@ type PaymentDeliveryHistoryRow = {
   firstSeenAt?: Date | string | null;
   paidAt?: Date | string | null;
   notificationCreatedAt?: Date | string | null;
+  streamStartedAt?: Date | string | null;
   playedAt?: Date | string | null;
   status?: string | null;
   statusAt?: Date | string | null;
   errorStatus?: string | null;
   errorMessage?: string | null;
   errorAt?: Date | string | null;
+  bankToStreamStartLatencyMs?: unknown;
+  firstSeenToStreamStartLatencyMs?: unknown;
+  playDurationMs?: unknown;
   firstSeenToPlayedMs?: unknown;
 };
 
@@ -127,6 +152,12 @@ export class PaymentNotificationsService {
     string,
     Promise<PaymentAmountAudioCacheEntry>
   >();
+  private readonly notificationAudioInflight = new Map<
+    string,
+    Promise<PaymentNotificationRecord>
+  >();
+  private ttsActiveCount = 0;
+  private readonly ttsWaiters: Array<() => void> = [];
   private readonly cueAudioPath = resolve(
     process.env.PAYMENT_CUE_WAV_PATH ||
       join(__dirname, 'assets', 'payment-cue.wav'),
@@ -159,8 +190,6 @@ export class PaymentNotificationsService {
 
     const amountText = `${vietnameseAmountWords(transaction.amount)} đồng.`;
     const text = `${PAYMENT_TTS_PREFIX_TEXT} ${amountText}`;
-    const audioMode = await this.resolvePaymentTtsAudioMode();
-    const ttsText = audioMode === 'amount_only_with_prefix' ? amountText : text;
     const expiresAt = this.daysFromNow(this.audioRetentionDays());
     let notification = await this.prisma.paymentNotification.create({
       data: {
@@ -173,6 +202,23 @@ export class PaymentNotificationsService {
       },
     });
 
+    if (this.paymentSpeakerStreamingEnabled()) {
+      await this.publishStreamEvent(notification, transaction, 1);
+      void this.publishStreamEventRetries(notification, transaction);
+      await this.logDeliveryEvent({
+        notificationId: notification.id,
+        transactionId: notification.transactionId,
+        storeCode: notification.storeCode,
+        event: 'SERVER_STREAM_PENDING',
+      });
+      this.logger.log(
+        `Payment speaker stream notification created notification=${notification.id} transaction=${notification.transactionId} store=${notification.storeCode} amount=${notification.amount} paidAt=${this.isoFromUnknown(transaction.paidAt) ?? 'null'} firstSeenAt=${this.isoFromUnknown(transaction.firstSeenAt) ?? 'null'}`,
+      );
+      return notification;
+    }
+
+    const audioMode = await this.resolvePaymentTtsAudioMode();
+    const ttsText = audioMode === 'amount_only_with_prefix' ? amountText : text;
     notification = await this.generateAudio(
       notification.id,
       ttsText,
@@ -290,12 +336,24 @@ export class PaymentNotificationsService {
     notificationId: string,
     options: { includeCue?: boolean; rawAmount?: boolean } = {},
   ) {
-    const notification = await this.prisma.paymentNotification.findUnique({
-      where: { id: notificationId },
-    });
+    let notification: PaymentNotificationRecord | null =
+      await this.prisma.paymentNotification.findUnique({
+        where: { id: notificationId },
+      });
     if (!notification) throw new NotFoundException('Không tìm thấy thông báo');
     await this.assertUserCanUsePaymentSpeaker(user, 'audio');
     await this.assertUserCanAccessStore(user, notification.storeCode);
+
+    if (notification.audioStatus !== 'READY' || !notification.audioPath) {
+      if (notification.audioStatus !== 'PENDING') {
+        throw new NotFoundException('Audio chưa sẵn sàng');
+      }
+      notification = await this.ensureNotificationAudioReady(
+        notification,
+        options.rawAmount ? 'amount_only_with_prefix' : undefined,
+      );
+    }
+
     if (notification.audioStatus !== 'READY' || !notification.audioPath) {
       throw new NotFoundException('Audio chưa sẵn sàng');
     }
@@ -347,6 +405,19 @@ export class PaymentNotificationsService {
     };
   }
 
+  async getStreamForUser(
+    user: any,
+    notificationId: string,
+    options: { includeCue?: boolean; rawAmount?: boolean } = {},
+  ) {
+    const startedAt = Date.now();
+    const audio = await this.getAudioForUser(user, notificationId, options);
+    this.logger.log(
+      `Payment speaker stream opened notification=${notificationId} user=${this.safeUserLabel(user)} rawAmount=${options.rawAmount === true} includeCue=${options.includeCue === true} durationMs=${Date.now() - startedAt}`,
+    );
+    return audio;
+  }
+
   async acknowledge(
     user: any,
     notificationId: string,
@@ -367,6 +438,13 @@ export class PaymentNotificationsService {
       event: input.event,
       error: input.error,
     });
+    if (input.event === STREAM_STARTED_EVENT) {
+      await this.logStreamStartedLatency(
+        notification,
+        deliveryLog?.createdAt,
+        input.clientId,
+      );
+    }
     if (input.event === 'PLAYED') {
       await this.logPlaybackAckLatency(
         notification,
@@ -538,6 +616,46 @@ export class PaymentNotificationsService {
     });
   }
 
+  private async ensureNotificationAudioReady(
+    notification: PaymentNotificationRecord,
+    requestedMode?: PaymentTtsAudioMode,
+  ): Promise<PaymentNotificationRecord> {
+    if (notification.audioStatus === 'READY' && notification.audioPath) {
+      return notification;
+    }
+
+    const existing = this.notificationAudioInflight.get(notification.id);
+    if (existing) return existing;
+
+    const promise = this.generateAudioForNotification(
+      notification,
+      requestedMode,
+    );
+    this.notificationAudioInflight.set(notification.id, promise);
+    try {
+      return await promise;
+    } finally {
+      if (this.notificationAudioInflight.get(notification.id) === promise) {
+        this.notificationAudioInflight.delete(notification.id);
+      }
+    }
+  }
+
+  private async generateAudioForNotification(
+    notification: PaymentNotificationRecord,
+    requestedMode?: PaymentTtsAudioMode,
+  ): Promise<PaymentNotificationRecord> {
+    const amountText = `${vietnameseAmountWords(notification.amount)} đồng.`;
+    const fallbackText = `${PAYMENT_TTS_PREFIX_TEXT} ${amountText}`;
+    const text = notification.text || fallbackText;
+    const audioMode = requestedMode ?? (await this.resolvePaymentTtsAudioMode());
+    const ttsText = audioMode === 'amount_only_with_prefix' ? amountText : text;
+    this.logger.log(
+      `Payment notification audio generation requested notification=${notification.id} mode=${audioMode} status=${notification.audioStatus}`,
+    );
+    return this.generateAudio(notification.id, ttsText, audioMode);
+  }
+
   private async generateAudio(
     notificationId: string,
     text: string,
@@ -560,20 +678,21 @@ export class PaymentNotificationsService {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), this.ttsTimeoutMs());
-      const response = await fetch(
-        `${serviceUrl.replace(/\/$/, '')}/synthesize`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text,
-            format: requestedFormat,
-            voice_id: this.ttsVoiceId(),
-            speed: this.ttsSpeed(),
-            pitch: this.ttsPitch(),
+      const response = await this.withTtsSlot(
+        `notification=${notificationId} mode=${audioMode}`,
+        () =>
+          fetch(`${serviceUrl.replace(/\/$/, '')}/synthesize`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text,
+              format: requestedFormat,
+              voice_id: this.ttsVoiceId(),
+              speed: this.ttsSpeed(),
+              pitch: this.ttsPitch(),
+            }),
+            signal: controller.signal,
           }),
-          signal: controller.signal,
-        },
       ).finally(() => clearTimeout(timeout));
 
       if (!response.ok) {
@@ -680,20 +799,21 @@ export class PaymentNotificationsService {
     const startedAt = Date.now();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.ttsTimeoutMs());
-    const response = await fetch(
-      `${serviceUrl.replace(/\/$/, '')}/synthesize`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text,
-          format: descriptor.format,
-          voice_id: descriptor.voiceId,
-          speed: descriptor.speed,
-          pitch: descriptor.pitch,
+    const response = await this.withTtsSlot(
+      `amount-cache=${descriptor.cacheKey.slice(0, 12)}`,
+      () =>
+        fetch(`${serviceUrl.replace(/\/$/, '')}/synthesize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            format: descriptor.format,
+            voice_id: descriptor.voiceId,
+            speed: descriptor.speed,
+            pitch: descriptor.pitch,
+          }),
+          signal: controller.signal,
         }),
-        signal: controller.signal,
-      },
     ).finally(() => clearTimeout(timeout));
 
     if (!response.ok) {
@@ -974,6 +1094,38 @@ export class PaymentNotificationsService {
     return 'full_text';
   }
 
+  private async withTtsSlot<T>(source: string, task: () => Promise<T>) {
+    await this.acquireTtsSlot(source);
+    try {
+      return await task();
+    } finally {
+      this.releaseTtsSlot();
+    }
+  }
+
+  private async acquireTtsSlot(source: string) {
+    const max = this.ttsConcurrency();
+    if (this.ttsActiveCount < max) {
+      this.ttsActiveCount += 1;
+      return;
+    }
+    this.logger.debug(
+      `Payment TTS request queued source=${source} active=${this.ttsActiveCount} max=${max} queued=${this.ttsWaiters.length + 1}`,
+    );
+    await new Promise<void>((resolve) => {
+      this.ttsWaiters.push(() => {
+        this.ttsActiveCount += 1;
+        resolve();
+      });
+    });
+  }
+
+  private releaseTtsSlot() {
+    this.ttsActiveCount = Math.max(0, this.ttsActiveCount - 1);
+    const next = this.ttsWaiters.shift();
+    if (next) next();
+  }
+
   private paymentTtsAudioMode(): PaymentTtsAudioMode {
     const rawMode = String(process.env.PAYMENT_TTS_AUDIO_MODE || '')
       .trim()
@@ -1150,22 +1302,57 @@ export class PaymentNotificationsService {
     });
   }
 
+  private async publishStreamEvent(
+    notification: PaymentNotificationRecord,
+    transaction: StoredTransaction,
+    attempt: number,
+  ) {
+    await this.redisService.publishMessage(PAYMENT_SPEAKER_STREAM_CHANNEL, {
+      notificationId: notification.id,
+      transactionId: notification.transactionId,
+      storeCode: notification.storeCode,
+      amount: notification.amount,
+      paidAt: this.isoFromUnknown(transaction.paidAt),
+      firstSeenAt: this.isoFromUnknown(transaction.firstSeenAt),
+      streamUrl: `/payment-notifications/${notification.id}/stream`,
+      expiresAt: this.isoFromUnknown(notification.expiresAt),
+      createdAt: new Date().toISOString(),
+      attempt,
+    });
+    this.logger.log(
+      `Payment speaker stream event published notification=${notification.id} transaction=${notification.transactionId} store=${notification.storeCode} attempt=${attempt}`,
+    );
+  }
+
+  private async publishStreamEventRetries(
+    notification: PaymentNotificationRecord,
+    transaction: StoredTransaction,
+  ) {
+    const count = this.paymentStreamEventRepeatCount();
+    const gapMs = this.paymentStreamEventRepeatGapMs();
+    for (let attempt = 2; attempt <= count; attempt += 1) {
+      await this.sleep(gapMs);
+      await this.publishStreamEvent(notification, transaction, attempt);
+    }
+  }
+
   private async readDeliveryMetricBucket(from: Date, to: Date) {
     const rows = await this.prisma.$queryRaw<PaymentDeliveryMetricRow[]>`
       SELECT
         COUNT(*)::int AS "count",
-        AVG(EXTRACT(EPOCH FROM (played."playedAt" - txn."firstSeenAt")) * 1000)::float AS "averageMs"
+        AVG(EXTRACT(EPOCH FROM (started."streamStartedAt" - txn."paidAt")) * 1000)::float AS "averageMs"
       FROM (
-        SELECT "notificationId", MAX("createdAt") AS "playedAt"
+        SELECT "notificationId", MIN("createdAt") AS "streamStartedAt"
         FROM "PaymentNotificationDeliveryLog"
-        WHERE "event" = 'PLAYED'
+        WHERE "event" = 'STREAM_STARTED'
           AND "createdAt" >= ${from}
           AND "createdAt" < ${to}
         GROUP BY "notificationId"
-      ) played
-      JOIN "PaymentNotification" note ON note."id" = played."notificationId"
+      ) started
+      JOIN "PaymentNotification" note ON note."id" = started."notificationId"
       JOIN "MapVietinTransaction" txn ON txn."id" = note."transactionId"
-      WHERE played."playedAt" >= txn."firstSeenAt"
+      WHERE txn."paidAt" IS NOT NULL
+        AND started."streamStartedAt" >= txn."paidAt"
     `;
     const row = rows[0] ?? {};
     return {
@@ -1184,8 +1371,16 @@ export class PaymentNotificationsService {
           "error",
           "createdAt" AS "statusAt"
         FROM "PaymentNotificationDeliveryLog"
-        WHERE "event" IN ('PLAYED', 'FAILED', 'PLAYBACK_FAILED')
+        WHERE "event" IN ('STREAM_STARTED', 'PLAYED', 'FAILED', 'SILENCED', 'PLAYBACK_FAILED')
         ORDER BY "notificationId", "createdAt" DESC, "id" DESC
+      ),
+      stream_started AS (
+        SELECT
+          "notificationId",
+          MIN("createdAt") AS "streamStartedAt"
+        FROM "PaymentNotificationDeliveryLog"
+        WHERE "event" = 'STREAM_STARTED'
+        GROUP BY "notificationId"
       ),
       played AS (
         SELECT
@@ -1215,6 +1410,7 @@ export class PaymentNotificationsService {
         txn."firstSeenAt" AS "firstSeenAt",
         txn."paidAt" AS "paidAt",
         note."createdAt" AS "notificationCreatedAt",
+        stream_started."streamStartedAt" AS "streamStartedAt",
         played."playedAt" AS "playedAt",
         latest."status" AS "status",
         latest."statusAt" AS "statusAt",
@@ -1222,16 +1418,29 @@ export class PaymentNotificationsService {
         last_error."errorMessage" AS "errorMessage",
         last_error."errorAt" AS "errorAt",
         CASE
+          WHEN stream_started."streamStartedAt" IS NULL OR txn."paidAt" IS NULL THEN NULL
+          ELSE EXTRACT(EPOCH FROM (stream_started."streamStartedAt" - txn."paidAt")) * 1000
+        END AS "bankToStreamStartLatencyMs",
+        CASE
+          WHEN stream_started."streamStartedAt" IS NULL THEN NULL
+          ELSE EXTRACT(EPOCH FROM (stream_started."streamStartedAt" - txn."firstSeenAt")) * 1000
+        END AS "firstSeenToStreamStartLatencyMs",
+        CASE
+          WHEN played."playedAt" IS NULL OR stream_started."streamStartedAt" IS NULL THEN NULL
+          ELSE EXTRACT(EPOCH FROM (played."playedAt" - stream_started."streamStartedAt")) * 1000
+        END AS "playDurationMs",
+        CASE
           WHEN played."playedAt" IS NULL THEN NULL
           ELSE EXTRACT(EPOCH FROM (played."playedAt" - txn."firstSeenAt")) * 1000
         END AS "firstSeenToPlayedMs"
       FROM latest_status latest
       JOIN "PaymentNotification" note ON note."id" = latest."notificationId"
       JOIN "MapVietinTransaction" txn ON txn."id" = note."transactionId"
+      LEFT JOIN stream_started ON stream_started."notificationId" = note."id"
       LEFT JOIN played ON played."notificationId" = note."id"
       LEFT JOIN last_error ON last_error."notificationId" = note."id"
       WHERE played."playedAt" IS NULL OR played."playedAt" >= txn."firstSeenAt"
-      ORDER BY COALESCE(played."playedAt", latest."statusAt") DESC
+      ORDER BY COALESCE(played."playedAt", stream_started."streamStartedAt", latest."statusAt") DESC
       LIMIT ${limit}
     `;
   }
@@ -1249,12 +1458,20 @@ export class PaymentNotificationsService {
       firstSeenAt: this.isoFromUnknown(row.firstSeenAt),
       paidAt: this.isoFromUnknown(row.paidAt),
       notificationCreatedAt: this.isoFromUnknown(row.notificationCreatedAt),
+      streamStartedAt: this.isoFromUnknown(row.streamStartedAt),
       playedAt: this.isoFromUnknown(row.playedAt),
       status: this.stringOrNull(row.status) ?? 'UNKNOWN',
       statusAt: this.isoFromUnknown(row.statusAt),
       errorStatus: this.stringOrNull(row.errorStatus),
       errorMessage,
       errorAt: this.isoFromUnknown(row.errorAt),
+      bankToStreamStartLatencyMs: this.roundMetricMs(
+        row.bankToStreamStartLatencyMs,
+      ),
+      firstSeenToStreamStartLatencyMs: this.roundMetricMs(
+        row.firstSeenToStreamStartLatencyMs,
+      ),
+      playDurationMs: this.roundMetricMs(row.playDurationMs),
       firstSeenToPlayedMs: this.roundMetricMs(row.firstSeenToPlayedMs),
     };
   }
@@ -1310,6 +1527,49 @@ export class PaymentNotificationsService {
     } catch (error) {
       this.logger.warn(
         `Payment notification ack latency log failed notification=${notification.id} transaction=${notification.transactionId} store=${notification.storeCode}: ${this.safeError(error)}`,
+      );
+    }
+  }
+
+  private async logStreamStartedLatency(
+    notification: {
+      id: string;
+      transactionId: string;
+      storeCode: string;
+      createdAt?: Date;
+    },
+    ackAt: Date | undefined,
+    clientId?: string,
+  ) {
+    try {
+      const streamStartedAt = ackAt instanceof Date ? ackAt : new Date();
+      const transaction = await this.prisma.mapVietinTransaction.findUnique({
+        where: { id: notification.transactionId },
+        select: { firstSeenAt: true, paidAt: true },
+      });
+      if (!transaction?.paidAt) {
+        this.logger.warn(
+          `Payment speaker stream-start latency unavailable notification=${notification.id} transaction=${notification.transactionId} store=${notification.storeCode} client=${clientId ? this.safeClientLabel(clientId) : 'unknown'} reason=missing_paid_at`,
+        );
+        return;
+      }
+      const bankToStreamStartLatencyMs = this.durationMs(
+        transaction.paidAt,
+        streamStartedAt,
+      );
+      const firstSeenToStreamStartLatencyMs = transaction.firstSeenAt
+        ? this.durationMs(transaction.firstSeenAt, streamStartedAt)
+        : null;
+      const notificationToStreamStartMs =
+        notification.createdAt instanceof Date
+          ? this.durationMs(notification.createdAt, streamStartedAt)
+          : null;
+      this.logger.log(
+        `Payment speaker stream started notification=${notification.id} transaction=${notification.transactionId} store=${notification.storeCode} client=${clientId ? this.safeClientLabel(clientId) : 'unknown'} bankToStreamStartLatencyMs=${bankToStreamStartLatencyMs} firstSeenToStreamStartLatencyMs=${firstSeenToStreamStartLatencyMs ?? 'null'} notificationToStreamStartMs=${notificationToStreamStartMs ?? 'null'}`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Payment speaker stream-start latency log failed notification=${notification.id} transaction=${notification.transactionId} store=${notification.storeCode}: ${this.safeError(error)}`,
       );
     }
   }
@@ -1501,6 +1761,37 @@ export class PaymentNotificationsService {
     return this.readPositiveInt('TTS_TIMEOUT_MS', 20_000);
   }
 
+  private ttsConcurrency() {
+    return this.readPositiveInt(
+      'PAYMENT_TTS_CONCURRENCY',
+      DEFAULT_TTS_CONCURRENCY,
+    );
+  }
+
+  private paymentSpeakerStreamingEnabled() {
+    return this.readBoolean('PAYMENT_SPEAKER_STREAMING_ENABLED', false);
+  }
+
+  private paymentStreamEventRepeatCount() {
+    return Math.min(
+      Math.max(
+        this.readPositiveInt(
+          'PAYMENT_STREAM_EVENT_REPEAT_COUNT',
+          DEFAULT_STREAM_EVENT_REPEAT_COUNT,
+        ),
+        1,
+      ),
+      5,
+    );
+  }
+
+  private paymentStreamEventRepeatGapMs() {
+    return this.readPositiveInt(
+      'PAYMENT_STREAM_EVENT_REPEAT_GAP_MS',
+      DEFAULT_STREAM_EVENT_REPEAT_GAP_MS,
+    );
+  }
+
   private deliveryClaimTtlSeconds() {
     return this.readPositiveInt(
       'PAYMENT_NOTIFICATION_CLAIM_TTL_SECONDS',
@@ -1572,6 +1863,20 @@ export class PaymentNotificationsService {
   private readPositiveNumber(key: string, fallback: number) {
     const parsed = Number(process.env[key]);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  }
+
+  private readBoolean(key: string, fallback: boolean) {
+    const raw = String(process.env[key] ?? '')
+      .trim()
+      .toLowerCase();
+    if (!raw) return fallback;
+    if (['1', 'true', 'yes', 'on'].includes(raw)) return true;
+    if (['0', 'false', 'no', 'off'].includes(raw)) return false;
+    return fallback;
+  }
+
+  private sleep(ms: number) {
+    return new Promise<void>((resolve) => setTimeout(resolve, ms));
   }
 
   private numberFromUnknown(value: unknown) {

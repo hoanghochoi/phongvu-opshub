@@ -35,6 +35,10 @@ describe('PaymentNotificationsService', () => {
     delete process.env.PAYMENT_CUE_PREFIX_WAV_PATH;
     delete process.env.PAYMENT_AUDIO_DIR;
     delete process.env.PAYMENT_AMOUNT_AUDIO_CACHE_DIR;
+    delete process.env.PAYMENT_SPEAKER_STREAMING_ENABLED;
+    delete process.env.PAYMENT_STREAM_EVENT_REPEAT_COUNT;
+    delete process.env.PAYMENT_STREAM_EVENT_REPEAT_GAP_MS;
+    delete process.env.PAYMENT_TTS_CONCURRENCY;
     prisma = {
       paymentNotification: {
         findUnique: jest.fn(),
@@ -168,6 +172,57 @@ describe('PaymentNotificationsService', () => {
         audioUrl: null,
       }),
     );
+  });
+
+  it('creates streaming notification immediately without generating audio first', async () => {
+    process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'true';
+    process.env.PAYMENT_STREAM_EVENT_REPEAT_COUNT = '1';
+    const fetchMock = jest.spyOn(global, 'fetch');
+    prisma.paymentNotification.findUnique.mockResolvedValue(null);
+    prisma.paymentNotification.create.mockResolvedValue({
+      id: 'note-stream',
+      storeCode: 'CP01',
+      transactionId: 'txn-stream',
+      amount: 1250000,
+      text: 'Phong Vũ đã nhận: một triệu hai trăm năm mươi nghìn đồng.',
+      audioStatus: 'PENDING',
+      audioError: null,
+      expiresAt: new Date('2026-06-28T01:00:00.000Z'),
+      createdAt: new Date('2026-06-27T01:00:00.000Z'),
+    });
+    prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({});
+
+    await service.createForTransaction({
+      id: 'txn-stream',
+      storeCode: 'CP01',
+      amount: 1250000,
+      paidAt: new Date('2026-06-27T00:59:58.000Z'),
+      firstSeenAt: new Date('2026-06-27T01:00:00.000Z'),
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(prisma.paymentNotification.update).not.toHaveBeenCalled();
+    expect(redis.publishMessage).toHaveBeenCalledWith(
+      'PAYMENT_SPEAKER_STREAM',
+      expect.objectContaining({
+        notificationId: 'note-stream',
+        transactionId: 'txn-stream',
+        storeCode: 'CP01',
+        amount: 1250000,
+        paidAt: '2026-06-27T00:59:58.000Z',
+        firstSeenAt: '2026-06-27T01:00:00.000Z',
+        streamUrl: '/payment-notifications/note-stream/stream',
+        attempt: 1,
+      }),
+    );
+    expect(prisma.paymentNotificationDeliveryLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        notificationId: 'note-stream',
+        transactionId: 'txn-stream',
+        storeCode: 'CP01',
+        event: 'SERVER_STREAM_PENDING',
+      }),
+    });
   });
 
   it('sends Phong Vu payment text with the default Piper voice settings', async () => {
@@ -819,7 +874,42 @@ describe('PaymentNotificationsService', () => {
     );
   });
 
-  it('returns SUPER_ADMIN delivery metrics with current and previous average latency', async () => {
+  it('logs stream-start latency from bank paidAt to STREAM_STARTED ack', async () => {
+    const loggerSpy = jest
+      .spyOn((service as any).logger, 'log')
+      .mockImplementation(() => undefined);
+    prisma.paymentNotification.findUnique.mockResolvedValue({
+      id: 'note-stream-start',
+      transactionId: 'txn-stream-start',
+      storeCode: 'CP01',
+      createdAt: new Date('2026-06-27T01:00:01.000Z'),
+    });
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+    prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({
+      createdAt: new Date('2026-06-27T01:00:03.245Z'),
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue({
+      firstSeenAt: new Date('2026-06-27T01:00:02.003Z'),
+      paidAt: new Date('2026-06-27T01:00:00.000Z'),
+    });
+
+    await expect(
+      service.acknowledge(speakerUser({ id: 'user-1' }), 'note-stream-start', {
+        clientId: 'pc-1779876132645257',
+        event: 'STREAM_STARTED',
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(prisma.mapVietinTransaction.findUnique).toHaveBeenCalledWith({
+      where: { id: 'txn-stream-start' },
+      select: { firstSeenAt: true, paidAt: true },
+    });
+    expect(loggerSpy).toHaveBeenCalledWith(
+      expect.stringContaining('bankToStreamStartLatencyMs=3245'),
+    );
+  });
+
+  it('returns SUPER_ADMIN delivery metrics with stream-start average latency', async () => {
     prisma.$queryRaw
       .mockResolvedValueOnce([{ count: 3n, averageMs: '7242.4' }])
       .mockResolvedValueOnce([{ count: 2n, averageMs: '8342.4' }]);
@@ -859,12 +949,16 @@ describe('PaymentNotificationsService', () => {
         firstSeenAt: new Date('2026-06-27T01:00:02.003Z'),
         paidAt: new Date('2026-06-27T01:00:00.000Z'),
         notificationCreatedAt: new Date('2026-06-27T01:00:01.000Z'),
+        streamStartedAt: new Date('2026-06-27T01:00:03.245Z'),
         playedAt: new Date('2026-06-27T01:00:09.245Z'),
         status: 'PLAYED',
         statusAt: new Date('2026-06-27T01:00:09.245Z'),
         errorStatus: 'PLAYBACK_FAILED',
         errorMessage: 'speaker failed password=secret',
         errorAt: new Date('2026-06-27T01:00:05.000Z'),
+        bankToStreamStartLatencyMs: '3245.4',
+        firstSeenToStreamStartLatencyMs: '1242.4',
+        playDurationMs: '6000.0',
         firstSeenToPlayedMs: '7242.4',
       },
     ]);
@@ -886,10 +980,15 @@ describe('PaymentNotificationsService', () => {
             storeCode: 'CP01',
             amount: 1250000,
             firstSeenAt: '2026-06-27T01:00:02.003Z',
+            paidAt: '2026-06-27T01:00:00.000Z',
+            streamStartedAt: '2026-06-27T01:00:03.245Z',
             playedAt: '2026-06-27T01:00:09.245Z',
             status: 'PLAYED',
             errorStatus: 'PLAYBACK_FAILED',
             errorMessage: 'speaker failed [redacted]',
+            bankToStreamStartLatencyMs: 3245,
+            firstSeenToStreamStartLatencyMs: 1242,
+            playDurationMs: 6000,
             firstSeenToPlayedMs: 7242,
           }),
         ],

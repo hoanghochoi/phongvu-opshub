@@ -71,6 +71,29 @@ void main() {
     expect(requests.single.url.queryParameters, isEmpty);
   });
 
+  test('downloadNotificationStreamAudio uses stream URL', () async {
+    final requests = <http.Request>[];
+    final apiClient = ApiClient.test(
+      MockClient((request) async {
+        requests.add(request);
+        return http.Response.bytes(const [1, 2, 3], 200);
+      }),
+    );
+    final repository = PaymentMonitorRepository(apiClient);
+
+    await repository.downloadNotificationStreamAudio(
+      'note-1',
+      rawAmount: true,
+    );
+
+    expect(requests, hasLength(1));
+    expect(
+      requests.single.url.path,
+      endsWith('/payment-notifications/note-1/stream'),
+    );
+    expect(requests.single.url.queryParameters['rawAmount'], 'true');
+  });
+
   test('fetchDeliveryMetrics parses average and trend data', () async {
     final requests = <http.Request>[];
     final apiClient = ApiClient.test(
@@ -136,12 +159,16 @@ void main() {
                 'firstSeenAt': '2026-06-27T01:00:02.003Z',
                 'paidAt': '2026-06-27T01:00:00.000Z',
                 'notificationCreatedAt': '2026-06-27T01:00:01.000Z',
+                'streamStartedAt': '2026-06-27T01:00:07.242Z',
                 'playedAt': '2026-06-27T01:00:09.245Z',
                 'status': 'PLAYED',
                 'statusAt': '2026-06-27T01:00:09.245Z',
                 'errorStatus': 'PLAYBACK_FAILED',
                 'errorMessage': 'speaker failed attempt 1',
                 'errorAt': '2026-06-27T01:00:05.000Z',
+                'bankToStreamStartLatencyMs': 7242,
+                'firstSeenToStreamStartLatencyMs': 5239,
+                'playDurationMs': 2003,
                 'firstSeenToPlayedMs': 7242,
               },
             ],
@@ -166,6 +193,8 @@ void main() {
     expect(history.items.single.amount, 1250000);
     expect(history.items.single.status, 'PLAYED');
     expect(history.items.single.errorStatus, 'PLAYBACK_FAILED');
+    expect(history.items.single.bankToStreamStartLatencyMs, 7242);
+    expect(history.items.single.playDurationMs, 2003);
     expect(history.items.single.firstSeenToPlayedMs, 7242);
   });
 }

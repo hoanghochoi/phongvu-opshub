@@ -41,6 +41,10 @@ sudo ufw allow from 172.20.0.0/16 to 172.20.0.1 port 18081 proto tcp \
   comment 'OpsHub Piper TTS from docker'
 ```
 
+The bundled systemd unit runs Uvicorn with `--workers 2`; keep NestJS
+`PAYMENT_TTS_CONCURRENCY=2` so queued stream requests do not oversubscribe the
+Piper workers.
+
 Smoke test without touching VieNeu:
 
 ```bash

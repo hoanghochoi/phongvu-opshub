@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -75,6 +76,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
   final Duration _playbackRetryDelay;
   final PaymentRealtimeConnector _realtimeConnector;
   final Set<String> _terminalNotificationIds = {};
+  final Set<String> _queuedStreamNotificationIds = {};
+  final Queue<PaymentNotification> _streamNotificationQueue =
+      Queue<PaymentNotification>();
   final List<MapPaymentTransaction> _latestTransactions = [];
 
   Timer? _timer;
@@ -105,6 +109,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   String? _lastSpeakerEligibilityLogKey;
   bool _refreshQueuedWhileLoading = false;
   bool _queuedRefreshIncludeTotal = false;
+  bool _isDrainingStreamNotifications = false;
 
   PaymentMonitorProvider(
     this._repository,
@@ -510,6 +515,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
         : null;
     _loggedMonitorStarted = false;
     _terminalNotificationIds.clear();
+    _queuedStreamNotificationIds.clear();
+    _streamNotificationQueue.clear();
+    _isDrainingStreamNotifications = false;
     _speakerError = null;
     _latestTransactions.clear();
     _poll(force: true, includeTotal: true, reason: 'initial_load');
@@ -554,6 +562,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _refreshQueuedWhileLoading = false;
     _queuedRefreshIncludeTotal = false;
     _terminalNotificationIds.clear();
+    _queuedStreamNotificationIds.clear();
+    _streamNotificationQueue.clear();
+    _isDrainingStreamNotifications = false;
     _latestTransactions.clear();
     if (clearError) _errorMessage = null;
     _speakerError = null;
@@ -665,7 +676,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
     try {
       final decoded = jsonDecode(message.toString());
       if (decoded is! Map<String, dynamic>) return;
-      if (decoded['type']?.toString() != 'PAYMENT_NOTIFICATION') return;
+      final eventType = decoded['type']?.toString();
+      if (eventType != 'PAYMENT_NOTIFICATION' &&
+          eventType != 'PAYMENT_SPEAKER_STREAM') {
+        return;
+      }
       final rawPayload = decoded['payload'];
       final payload = rawPayload is Map<String, dynamic>
           ? rawPayload
@@ -685,8 +700,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
       }
       await AppLogger.instance.info(
         'PaymentMonitorRealtime',
-        'Payment notification realtime event received',
+        eventType == 'PAYMENT_SPEAKER_STREAM'
+            ? 'Payment speaker stream realtime event received'
+            : 'Payment notification realtime event received',
         context: {
+          'eventType': eventType,
           'storeId': eventStore,
           'notificationId': payload['notificationId']?.toString(),
           'transactionId': payload['transactionId']?.toString(),
@@ -696,6 +714,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
         },
       );
       _scheduleRealtimeRefresh();
+      if (eventType == 'PAYMENT_SPEAKER_STREAM') {
+        await _handleStreamNotificationPayload(payload);
+      }
     } catch (error, stackTrace) {
       await AppLogger.instance.warn(
         'PaymentMonitorRealtime',
@@ -718,6 +739,122 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _realtimeRefreshTimer = Timer(_realtimeRefreshDebounce, () {
       _poll(force: true, includeTotal: false, reason: 'realtime_event');
     });
+  }
+
+  Future<void> _handleStreamNotificationPayload(
+    Map<String, dynamic> payload,
+  ) async {
+    final notificationPayload = Map<String, dynamic>.from(payload);
+    notificationPayload['audioStatus'] =
+        notificationPayload['audioStatus']?.toString().trim().isNotEmpty == true
+        ? notificationPayload['audioStatus']
+        : 'STREAMING';
+    final notification = PaymentNotification.fromJson(notificationPayload);
+    if (!notification.isValid) {
+      await AppLogger.instance.warn(
+        'PaymentMonitorRealtime',
+        'Payment speaker stream event ignored because payload is invalid',
+        context: {
+          'notificationId': payload['notificationId']?.toString(),
+          'storeCode': payload['storeCode']?.toString(),
+        },
+      );
+      return;
+    }
+    if (!_canUsePaymentSpeaker) {
+      await AppLogger.instance.info(
+        'PaymentMonitorRealtime',
+        'Payment speaker stream event ignored because speaker is unavailable',
+        context: {
+          'notificationId': notification.notificationId,
+          'transactionId': notification.transactionId,
+          'storeCode': notification.storeCode,
+          'reason': _speakerEligibilityReason(),
+          'hasPaymentSpeakerFeature': _userCanUsePaymentSpeakerFeature(_user),
+          'supportsPaymentSpeaker': _canUseSpeakerOnThisDevice,
+        },
+      );
+      return;
+    }
+
+    final clientId = await _ensureClientId();
+    if (!_isSpeakerEnabled) {
+      await _silenceStreamNotification(
+        notification,
+        clientId,
+        reason: 'speaker_disabled',
+      );
+      return;
+    }
+
+    _enqueueStreamNotification(notification, clientId);
+  }
+
+  void _enqueueStreamNotification(
+    PaymentNotification notification,
+    String clientId,
+  ) {
+    if (_terminalNotificationIds.contains(notification.notificationId) ||
+        _queuedStreamNotificationIds.contains(notification.notificationId)) {
+      return;
+    }
+    _queuedStreamNotificationIds.add(notification.notificationId);
+    _streamNotificationQueue.add(notification);
+    unawaited(
+      AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment speaker stream notification queued',
+        context: {
+          'notificationId': notification.notificationId,
+          'transactionId': notification.transactionId,
+          'storeCode': notification.storeCode,
+          'queueLength': _streamNotificationQueue.length,
+        },
+      ),
+    );
+    unawaited(_drainStreamNotifications(clientId));
+  }
+
+  Future<void> _drainStreamNotifications(String clientId) async {
+    if (_isDrainingStreamNotifications) return;
+    _isDrainingStreamNotifications = true;
+    try {
+      while (_streamNotificationQueue.isNotEmpty) {
+        final notification = _streamNotificationQueue.removeFirst();
+        _queuedStreamNotificationIds.remove(notification.notificationId);
+        if (_terminalNotificationIds.contains(notification.notificationId)) {
+          continue;
+        }
+        if (!_canUsePaymentSpeaker) {
+          await AppLogger.instance.info(
+            'PaymentMonitor',
+            'Queued payment stream skipped because speaker became unavailable',
+            context: {
+              'notificationId': notification.notificationId,
+              'transactionId': notification.transactionId,
+              'storeCode': notification.storeCode,
+              'reason': _speakerEligibilityReason(),
+            },
+          );
+          continue;
+        }
+        if (!_isSpeakerEnabled) {
+          await _silenceStreamNotification(
+            notification,
+            clientId,
+            reason: 'speaker_disabled_after_queue',
+          );
+          continue;
+        }
+        await _playReadyNotifications(
+          [notification],
+          clientId,
+          useStreamEndpoint: true,
+        );
+      }
+    } finally {
+      _isDrainingStreamNotifications = false;
+    }
   }
 
   Future<void> _poll({
@@ -975,19 +1112,62 @@ class PaymentMonitorProvider extends ChangeNotifier {
       if (_terminalNotificationIds.contains(notification.notificationId)) {
         continue;
       }
+      _setTerminalNotification(notification.notificationId);
       await _acknowledgeNotificationEvent(
         notificationId: notification.notificationId,
         clientId: clientId,
         event: 'SILENCED',
+        error: 'speaker_disabled',
       );
-      _setTerminalNotification(notification.notificationId);
     }
+  }
+
+  Future<void> _silenceStreamNotification(
+    PaymentNotification notification,
+    String clientId, {
+    required String reason,
+  }) async {
+    if (_terminalNotificationIds.contains(notification.notificationId)) return;
+    _setTerminalNotification(notification.notificationId);
+    await AppLogger.instance.info(
+      'PaymentSpeaker',
+      'Payment speaker stream skipped because speaker is disabled',
+      context: {
+        'notificationId': notification.notificationId,
+        'transactionId': notification.transactionId,
+        'storeCode': notification.storeCode,
+        'clientId': clientId,
+        'amount': notification.amount,
+        'reason': reason,
+      },
+    );
+    await AppLogger.instance.uploadLog(
+      'info',
+      'PaymentSpeaker',
+      'Payment speaker stream skipped because speaker is disabled',
+      context: {
+        'notificationId': notification.notificationId,
+        'transactionId': notification.transactionId,
+        'clientId': clientId,
+        'amount': notification.amount,
+        'reason': reason,
+      },
+      storeCode: notification.storeCode,
+    );
+    await _acknowledgeNotificationEvent(
+      notificationId: notification.notificationId,
+      clientId: clientId,
+      event: 'SILENCED',
+      error: reason,
+    );
   }
 
   Future<void> _playReadyNotifications(
     List<PaymentNotification> notifications,
     String clientId,
-  ) async {
+    {
+    bool useStreamEndpoint = false,
+  }) async {
     final storeCode = _requestStoreId ?? _user?.storeId;
     await AppLogger.instance.info(
       'PaymentMonitor',
@@ -1023,7 +1203,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
         continue;
       }
       try {
-        await _playNotificationWithRetry(notification, clientId);
+        await _playNotificationWithRetry(
+          notification,
+          clientId,
+          useStreamEndpoint: useStreamEndpoint,
+        );
         await AppLogger.instance.info(
           'PaymentMonitor',
           'Acknowledging payment notification played',
@@ -1075,51 +1259,75 @@ class PaymentMonitorProvider extends ChangeNotifier {
   Future<void> _playNotificationWithRetry(
     PaymentNotification notification,
     String clientId,
-  ) async {
-    if (notification.audioStatus != 'READY') {
+    {
+    bool useStreamEndpoint = false,
+  }) async {
+    if (!useStreamEndpoint && notification.audioStatus != 'READY') {
       throw StateError(
         'Server audio is not ready: ${notification.audioStatus}',
       );
     }
 
-    final audio = await _downloadNotificationAudio(notification);
+    final audio = await _downloadNotificationAudio(
+      notification,
+      useStreamEndpoint: useStreamEndpoint,
+    );
+    var streamStartedAckSent = false;
     for (var attempt = 1; attempt <= _maxAudioPlaybackAttempts; attempt += 1) {
       try {
         final startedAt = DateTime.now();
-        await AppLogger.instance.info(
-          'PaymentSpeaker',
-          'Payment speaker playback started',
-          context: {
-            'notificationId': notification.notificationId,
-            'transactionId': notification.transactionId,
-            'storeCode': notification.storeCode,
-            'clientId': clientId,
-            'amount': notification.amount,
-            'attempt': attempt,
-            'bytes': audio.bytes.length,
-            'audioMode': audio.mode,
-          },
+        final startContext = {
+          'notificationId': notification.notificationId,
+          'transactionId': notification.transactionId,
+          'storeCode': notification.storeCode,
+          'clientId': clientId,
+          'amount': notification.amount,
+          'attempt': attempt,
+          'bytes': audio.bytes.length,
+          'audioMode': audio.mode,
+          'streaming': useStreamEndpoint,
+        };
+        unawaited(
+          AppLogger.instance.info(
+            'PaymentSpeaker',
+            'Payment speaker playback started',
+            context: startContext,
+          ),
         );
-        await AppLogger.instance.uploadLog(
-          'info',
-          'PaymentSpeaker',
-          'Payment speaker playback started',
-          context: {
-            'notificationId': notification.notificationId,
-            'transactionId': notification.transactionId,
-            'clientId': clientId,
-            'amount': notification.amount,
-            'attempt': attempt,
-            'bytes': audio.bytes.length,
-            'audioMode': audio.mode,
-          },
-          storeCode: notification.storeCode,
+        unawaited(
+          AppLogger.instance.uploadLog(
+            'info',
+            'PaymentSpeaker',
+            'Payment speaker playback started',
+            context: {
+              'notificationId': notification.notificationId,
+              'transactionId': notification.transactionId,
+              'clientId': clientId,
+              'amount': notification.amount,
+              'attempt': attempt,
+              'bytes': audio.bytes.length,
+              'audioMode': audio.mode,
+              'streaming': useStreamEndpoint,
+            },
+            storeCode: notification.storeCode,
+          ),
         );
         final result = await _playNotificationOnce(
           notification: notification,
           clientId: clientId,
           attempt: attempt,
           audio: audio,
+          onPlaybackStarting: useStreamEndpoint
+              ? () {
+                  if (streamStartedAckSent) return Future<void>.value();
+                  streamStartedAckSent = true;
+                  return _acknowledgeNotificationEvent(
+                    notificationId: notification.notificationId,
+                    clientId: clientId,
+                    event: 'STREAM_STARTED',
+                  ).then((_) {});
+                }
+              : null,
         );
         await AppLogger.instance.info(
           'PaymentSpeaker',
@@ -1146,6 +1354,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
             if (result.audioPreflightStatus != null)
               'audioPreflightStatus': result.audioPreflightStatus,
             'startedAt': startedAt.toIso8601String(),
+            'streaming': useStreamEndpoint,
           },
         );
         await AppLogger.instance.uploadLog(
@@ -1173,6 +1382,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
             if (result.audioPreflightStatus != null)
               'audioPreflightStatus': result.audioPreflightStatus,
             'startedAt': startedAt.toIso8601String(),
+            'streaming': useStreamEndpoint,
           },
           storeCode: notification.storeCode,
         );
@@ -1195,6 +1405,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'attempts': _maxAudioPlaybackAttempts,
           'final': isFinalAttempt,
           'retryable': retryable,
+          'streaming': useStreamEndpoint,
           'error': safeError,
           if (nextRetryAt != null) 'nextRetryAt': nextRetryAt.toIso8601String(),
           if (error is PaymentSpeakerException &&
@@ -1240,7 +1451,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   Future<_DownloadedPaymentAudio> _downloadNotificationAudio(
     PaymentNotification notification,
-  ) async {
+    {
+    bool useStreamEndpoint = false,
+  }) async {
     await AppLogger.instance.info(
       'PaymentMonitor',
       'Downloading payment notification audio',
@@ -1250,13 +1463,19 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'storeCode': notification.storeCode,
         'amount': notification.amount,
         'preferredMode': 'client_cue_prefix_amount',
+        'streaming': useStreamEndpoint,
       },
     );
     try {
-      final audioBytes = await _repository.downloadNotificationAudio(
-        notification.notificationId,
-        rawAmount: true,
-      );
+      final audioBytes = useStreamEndpoint
+          ? await _repository.downloadNotificationStreamAudio(
+              notification.notificationId,
+              rawAmount: true,
+            )
+          : await _repository.downloadNotificationAudio(
+              notification.notificationId,
+              rawAmount: true,
+            );
       if (audioBytes.isEmpty) {
         throw StateError('Raw amount audio is empty');
       }
@@ -1264,6 +1483,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         notification: notification,
         bytes: audioBytes.length,
         mode: 'client_cue_prefix_amount',
+        streaming: useStreamEndpoint,
       );
       return _DownloadedPaymentAudio(
         bytes: audioBytes,
@@ -1286,6 +1506,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'storeCode': notification.storeCode,
           'amount': notification.amount,
           'audioMode': 'server_combined_cue',
+          'streaming': useStreamEndpoint,
           'error': safeError,
           'stackTrace': stackTrace.toString(),
         },
@@ -1299,6 +1520,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'transactionId': notification.transactionId,
           'amount': notification.amount,
           'audioMode': 'server_combined_cue',
+          'streaming': useStreamEndpoint,
           'error': safeError,
         },
         storeCode: notification.storeCode,
@@ -1306,10 +1528,15 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
 
     try {
-      final audioBytes = await _repository.downloadNotificationAudio(
-        notification.notificationId,
-        includeCue: true,
-      );
+      final audioBytes = useStreamEndpoint
+          ? await _repository.downloadNotificationStreamAudio(
+              notification.notificationId,
+              includeCue: true,
+            )
+          : await _repository.downloadNotificationAudio(
+              notification.notificationId,
+              includeCue: true,
+            );
       if (audioBytes.isEmpty) {
         throw StateError('Server combined audio is empty');
       }
@@ -1317,6 +1544,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         notification: notification,
         bytes: audioBytes.length,
         mode: 'server_combined_cue',
+        streaming: useStreamEndpoint,
       );
       return _DownloadedPaymentAudio(
         bytes: audioBytes,
@@ -1339,6 +1567,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'storeCode': notification.storeCode,
           'amount': notification.amount,
           'audioMode': 'local_cue_fallback',
+          'streaming': useStreamEndpoint,
           'error': safeError,
           'stackTrace': stackTrace.toString(),
         },
@@ -1352,15 +1581,20 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'transactionId': notification.transactionId,
           'amount': notification.amount,
           'audioMode': 'local_cue_fallback',
+          'streaming': useStreamEndpoint,
           'error': safeError,
         },
         storeCode: notification.storeCode,
       );
     }
 
-    final audioBytes = await _repository.downloadNotificationAudio(
-      notification.notificationId,
-    );
+    final audioBytes = useStreamEndpoint
+        ? await _repository.downloadNotificationStreamAudio(
+            notification.notificationId,
+          )
+        : await _repository.downloadNotificationAudio(
+            notification.notificationId,
+          );
     if (audioBytes.isEmpty) {
       throw StateError('Server audio is empty');
     }
@@ -1368,6 +1602,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       notification: notification,
       bytes: audioBytes.length,
       mode: 'local_cue_fallback',
+      streaming: useStreamEndpoint,
     );
     return _DownloadedPaymentAudio(
       bytes: audioBytes,
@@ -1381,6 +1616,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     required PaymentNotification notification,
     required int bytes,
     required String mode,
+    required bool streaming,
   }) async {
     await AppLogger.instance.info(
       'PaymentMonitor',
@@ -1389,6 +1625,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'notificationId': notification.notificationId,
         'bytes': bytes,
         'audioMode': mode,
+        'streaming': streaming,
       },
     );
     await AppLogger.instance.uploadLog(
@@ -1399,6 +1636,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'notificationId': notification.notificationId,
         'bytes': bytes,
         'audioMode': mode,
+        'streaming': streaming,
       },
       storeCode: notification.storeCode,
     );
@@ -1409,6 +1647,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     required String clientId,
     required int attempt,
     required _DownloadedPaymentAudio audio,
+    Future<void> Function()? onPlaybackStarting,
   }) async {
     return _speaker.playServerAudio(
       amount: notification.amount,
@@ -1420,6 +1659,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       attempt: attempt,
       playLocalCue: audio.playLocalCue,
       playLocalCuePrefix: audio.playLocalCuePrefix,
+      onPlaybackStarting: onPlaybackStarting,
     );
   }
 

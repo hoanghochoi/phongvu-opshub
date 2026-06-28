@@ -194,7 +194,7 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
     }
     final averageMs = metrics.current.averageMs;
     if (averageMs == null) {
-      return 'Chưa có lượt đọc loa hoàn tất trong ${metrics.windowHours} giờ gần nhất. Bấm để xem lịch sử.';
+      return 'Chưa có lượt loa bắt đầu đọc đo được trong ${metrics.windowHours} giờ gần nhất. Bấm để xem lịch sử.';
     }
     final trendText = switch (metrics.trend) {
       PaymentDeliveryMetricTrend.down => 'Giảm so với kỳ trước.',
@@ -202,7 +202,7 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
       PaymentDeliveryMetricTrend.flat => 'Gần như không đổi so với kỳ trước.',
       PaymentDeliveryMetricTrend.unknown => 'Chưa đủ dữ liệu kỳ trước.',
     };
-    return 'Trung bình từ lúc MAP ghi nhận giao dịch đến khi loa xác nhận đã đọc xong: ${_formatDuration(averageMs)}. $trendText Bấm để xem lịch sử.';
+    return 'Trung bình từ giờ thanh toán ngân hàng đến khi loa bắt đầu đọc: ${_formatDuration(averageMs)}. $trendText Bấm để xem lịch sử.';
   }
 
   IconData _trendIcon(PaymentDeliveryMetricTrend trend) {
@@ -302,7 +302,7 @@ class _PaymentDeliveryHistoryContent extends StatelessWidget {
         icon: Icons.volume_off_rounded,
         title: 'Chưa có giao dịch đọc loa gần đây',
         message:
-            'Khi có ack PLAYED hoặc lỗi phát loa, giao dịch sẽ xuất hiện ở đây.',
+            'Khi loa bắt đầu đọc, bị tắt, hoặc lỗi phát, giao dịch sẽ xuất hiện ở đây.',
         color: AppColors.neutral500,
       );
     }
@@ -403,21 +403,40 @@ class _HistoryItemTile extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             SelectableText(
-              'MAP ghi nhận: ${_formatTime(item.firstSeenAt)}',
+              'Ngân hàng ghi nhận: ${_formatTime(item.paidAt)}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 4),
             SelectableText(
-              'Ack PLAYED: ${_formatTime(item.playedAt)}',
+              'OpsHub thấy: ${_formatTime(item.firstSeenAt)}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 4),
             SelectableText(
-              'Thời gian đọc: ${item.firstSeenToPlayedMs == null ? '--' : PaymentDeliveryMetricsChip._formatDuration(item.firstSeenToPlayedMs!)}',
+              'Bắt đầu đọc: ${_formatTime(item.streamStartedAt)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 4),
+            SelectableText(
+              'Độ trễ bắt đầu đọc: ${item.bankToStreamStartLatencyMs == null ? '--' : PaymentDeliveryMetricsChip._formatDuration(item.bankToStreamStartLatencyMs!)}',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
             ),
+            if (item.playedAt != null) ...[
+              const SizedBox(height: 4),
+              SelectableText(
+                'Đọc xong: ${_formatTime(item.playedAt)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            if (item.playDurationMs != null) ...[
+              const SizedBox(height: 4),
+              SelectableText(
+                'Thời lượng phát: ${PaymentDeliveryMetricsChip._formatDuration(item.playDurationMs!)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             if (errorText != null) ...[
               const SizedBox(height: 6),
               SelectableText(
@@ -442,6 +461,8 @@ class _HistoryItemTile extends StatelessWidget {
   String _statusText(String status) {
     return switch (status.trim().toUpperCase()) {
       'PLAYED' => 'Đã đọc',
+      'STREAM_STARTED' => 'Đang đọc',
+      'SILENCED' => 'Loa chưa bật',
       'FAILED' => 'Lỗi phát',
       'PLAYBACK_FAILED' => 'Lỗi tạm thời',
       _ => 'Chưa rõ',
@@ -452,6 +473,8 @@ class _HistoryItemTile extends StatelessWidget {
     if (item.status.toUpperCase() == 'PLAYED' && !item.hasError) {
       return AppColors.success;
     }
+    if (item.status.toUpperCase() == 'STREAM_STARTED') return AppColors.info;
+    if (item.status.toUpperCase() == 'SILENCED') return AppColors.neutral500;
     if (item.status.toUpperCase() == 'PLAYED') return AppColors.warning;
     return AppColors.error;
   }

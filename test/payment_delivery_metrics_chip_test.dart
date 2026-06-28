@@ -47,7 +47,8 @@ void main() {
     expect(repository.historyFetchCount, 1);
     expect(find.text('Lịch sử đọc loa'), findsOneWidget);
     expect(find.text('SR CP01'), findsOneWidget);
-    expect(find.text('Ack PLAYED: 08:00:09 27/06/2026'), findsOneWidget);
+    expect(find.text('Bắt đầu đọc: 08:00:07 27/06/2026'), findsOneWidget);
+    expect(find.text('Độ trễ bắt đầu đọc: 7.2s'), findsOneWidget);
     expect(find.textContaining('Trạng thái lỗi: Lỗi tạm thời'), findsOneWidget);
 
     provider.dispose();
@@ -95,11 +96,16 @@ PaymentDeliveryHistory _history() {
         'transactionId': 'txn-1',
         'storeCode': 'CP01',
         'amount': 1250000,
+        'paidAt': '2026-06-27T08:00:00.000',
         'firstSeenAt': '2026-06-27T08:00:02.003',
+        'streamStartedAt': '2026-06-27T08:00:07.242',
         'playedAt': '2026-06-27T08:00:09.245',
         'status': 'PLAYED',
         'errorStatus': 'PLAYBACK_FAILED',
         'errorMessage': 'speaker failed attempt 1',
+        'bankToStreamStartLatencyMs': 7242,
+        'firstSeenToStreamStartLatencyMs': 5239,
+        'playDurationMs': 2003,
         'firstSeenToPlayedMs': 7242,
       },
     ],

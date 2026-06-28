@@ -361,9 +361,14 @@ PaymentDeliveryHistory _deliveryHistory() {
         'transactionId': 'txn-1',
         'storeCode': 'CP01',
         'amount': 1250000,
+        'paidAt': '2026-06-27T08:00:00.000',
         'firstSeenAt': '2026-06-27T08:00:02.003',
+        'streamStartedAt': '2026-06-27T08:00:07.242',
         'playedAt': '2026-06-27T08:00:09.245',
         'status': 'PLAYED',
+        'bankToStreamStartLatencyMs': 7242,
+        'firstSeenToStreamStartLatencyMs': 5239,
+        'playDurationMs': 2003,
         'firstSeenToPlayedMs': 7242,
       },
     ],
@@ -466,7 +471,11 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
     required int attempt,
     bool playLocalCue = true,
     bool playLocalCuePrefix = false,
+    Future<void> Function()? onPlaybackStarting,
   }) async {
+    if (onPlaybackStarting != null) {
+      await onPlaybackStarting();
+    }
     return const PaymentSpeakerResult(
       backend: 'fake',
       extension: 'wav',

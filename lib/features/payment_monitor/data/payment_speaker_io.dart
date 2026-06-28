@@ -69,6 +69,7 @@ class PaymentSpeaker {
     required int attempt,
     bool playLocalCue = true,
     bool playLocalCuePrefix = false,
+    Future<void> Function()? onPlaybackStarting,
   }) async {
     if (!Platform.isWindows) {
       return const PaymentSpeakerResult(
@@ -176,6 +177,9 @@ class PaymentSpeaker {
     await file.writeAsBytes(playbackAudioBytes, flush: true);
 
     try {
+      if (onPlaybackStarting != null) {
+        unawaited(onPlaybackStarting());
+      }
       return await _playWithFallbacks(
         file: file,
         extension: extension,
