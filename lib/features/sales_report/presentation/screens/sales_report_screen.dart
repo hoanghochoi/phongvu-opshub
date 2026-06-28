@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -8,6 +9,7 @@ import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/sales_report.dart';
 import '../providers/sales_report_provider.dart';
@@ -79,6 +81,160 @@ class SalesReportScreen extends StatefulWidget {
 }
 
 class _SalesReportScreenState extends State<SalesReportScreen> {
+  bool _logged = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_logged) return;
+    _logged = true;
+    final user = context.read<AuthProvider>().user;
+    unawaited(
+      AppLogger.instance.info(
+        'SalesReport',
+        'Sales report hub opened',
+        context: {
+          'userId': user?.id,
+          'storeId': user?.storeId,
+          'hasSalesReport': user?.canUseFeature('SALES_REPORT') == true,
+          'hasAdminSalesReports':
+              user?.canUseFeature('ADMIN_SALES_REPORTS') == true,
+        },
+      ),
+    );
+  }
+
+  Future<void> _openReport(String route, String reportType) async {
+    final user = context.read<AuthProvider>().user;
+    await AppLogger.instance.info(
+      'SalesReport',
+      'Sales report hub action selected',
+      context: {
+        'route': route,
+        'reportType': reportType,
+        'userId': user?.id,
+        'storeId': user?.storeId,
+      },
+    );
+    if (!mounted) return;
+    context.push(route);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: const GradientHeader(title: 'Báo cáo', showBack: true),
+      body: AppResponsiveScrollView(
+        maxWidth: AppLayoutTokens.formMaxWidth,
+        child: AppFormColumn(
+          spacing: AppLayoutTokens.cardGap,
+          children: [
+            _SalesReportActionTile(
+              icon: Icons.receipt_long_outlined,
+              title: 'Mua hàng',
+              description: 'Báo cáo đơn đã phát sinh mua hàng.',
+              color: AppColors.info,
+              onTap: () =>
+                  _openReport('/sales-reports/purchased', _typePurchased),
+            ),
+            _SalesReportActionTile(
+              icon: Icons.person_search_outlined,
+              title: 'Chưa mua hàng',
+              description: 'Ghi nhận nhu cầu và lý do khách chưa mua.',
+              color: AppColors.warning,
+              onTap: () => _openReport(
+                '/sales-reports/not-purchased',
+                _typeNotPurchased,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SalesReportActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _SalesReportActionTile({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+        child: Padding(
+          padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, color: color),
+              ),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class SalesReportFormScreen extends StatefulWidget {
+  final String reportType;
+
+  const SalesReportFormScreen.purchased({super.key})
+    : reportType = _typePurchased;
+
+  const SalesReportFormScreen.notPurchased({super.key})
+    : reportType = _typeNotPurchased;
+
+  @override
+  State<SalesReportFormScreen> createState() => _SalesReportFormScreenState();
+}
+
+class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _orderController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -89,7 +245,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   final _appOtherController = TextEditingController();
   final _notPurchasedOtherController = TextEditingController();
 
-  var _reportType = _typePurchased;
+  late String _reportType;
   String? _categoryGroupId;
   var _consultedAnswer = 'YES';
   var _experiencedAnswer = 'YES';
@@ -97,6 +253,14 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   var _appDownloadAnswer = 'YES';
   String? _notPurchasedReason;
   bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _reportType = widget.reportType == _typeNotPurchased
+        ? _typeNotPurchased
+        : _typePurchased;
+  }
 
   @override
   void didChangeDependencies() {
@@ -196,6 +360,9 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       _zaloOtherController.clear();
       _appOtherController.clear();
       _notPurchasedOtherController.clear();
+      _reportType = widget.reportType == _typeNotPurchased
+          ? _typeNotPurchased
+          : _typePurchased;
       _categoryGroupId = null;
       _consultedAnswer = 'YES';
       _experiencedAnswer = 'YES';
@@ -215,9 +382,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<SalesReportProvider>();
     final canEditReportBody = !_isPurchased || provider.checkedOrder != null;
+    final title = _isPurchased ? 'Báo cáo mua hàng' : 'Báo cáo chưa mua hàng';
 
     return Scaffold(
-      appBar: const GradientHeader(title: 'Báo cáo', showBack: true),
+      appBar: GradientHeader(title: title, showBack: true),
       body: Form(
         key: _formKey,
         child: AppResponsiveScrollView(
@@ -226,30 +394,6 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           child: AppFormColumn(
             spacing: AppLayoutTokens.formSectionGap,
             children: [
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(
-                    value: _typePurchased,
-                    label: Text('Mua hàng'),
-                    icon: Icon(Icons.receipt_long_outlined),
-                  ),
-                  ButtonSegment(
-                    value: _typeNotPurchased,
-                    label: Text('Chưa mua hàng'),
-                    icon: Icon(Icons.person_search_outlined),
-                  ),
-                ],
-                selected: {_reportType},
-                onSelectionChanged: provider.isSubmitting
-                    ? null
-                    : (value) {
-                        setState(() {
-                          _reportType = value.single;
-                          _notPurchasedReason = null;
-                        });
-                        context.read<SalesReportProvider>().clearCheckedOrder();
-                      },
-              ),
               if (_isPurchased) _OrderCheckCard(onCheck: _checkOrder),
               if (provider.errorMessage != null)
                 AppStatusBanner(
@@ -335,7 +479,8 @@ class _OrderCheckCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.findAncestorStateOfType<_SalesReportScreenState>()!;
+    final state = context
+        .findAncestorStateOfType<_SalesReportFormScreenState>()!;
     final provider = context.watch<SalesReportProvider>();
     final checked = provider.checkedOrder != null;
     return Card(

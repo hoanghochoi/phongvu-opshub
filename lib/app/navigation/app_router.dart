@@ -241,10 +241,22 @@ class AppRouter {
         ),
         GoRoute(
           path: '/sales-reports',
+          builder: (context, state) => _selectable(const SalesReportScreen()),
+        ),
+        GoRoute(
+          path: '/sales-reports/purchased',
           builder: (context, state) => ChangeNotifierProvider(
             create: (_) =>
                 SalesReportProvider(SalesReportRepository(ApiClient())),
-            child: _selectable(const SalesReportScreen()),
+            child: _selectable(const SalesReportFormScreen.purchased()),
+          ),
+        ),
+        GoRoute(
+          path: '/sales-reports/not-purchased',
+          builder: (context, state) => ChangeNotifierProvider(
+            create: (_) =>
+                SalesReportProvider(SalesReportRepository(ApiClient())),
+            child: _selectable(const SalesReportFormScreen.notPurchased()),
           ),
         ),
         GoRoute(
@@ -278,6 +290,8 @@ class AppRouter {
       '/payment-monitor' => 'PAYMENT_MONITOR',
       '/feedback' => 'FEEDBACK',
       '/sales-reports' => 'SALES_REPORT',
+      '/sales-reports/purchased' => 'SALES_REPORT',
+      '/sales-reports/not-purchased' => 'SALES_REPORT',
       _ => null,
     };
   }
