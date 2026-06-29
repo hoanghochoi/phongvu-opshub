@@ -1,7 +1,9 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsIn,
   IsInt,
+  IsArray,
   IsOptional,
   IsString,
   Max,
@@ -59,6 +61,17 @@ export const NOT_PURCHASED_REASON_CODES = [
   'OTHER',
 ] as const;
 
+export const INSTALLMENT_STATUSES = ['SUCCESS', 'FAILED'] as const;
+
+export const INSTALLMENT_PARTNER_CODES = [
+  'VNPAY_POS',
+  'PAYOO_POS',
+  'HOMECREDIT_CTTC',
+  'SHINHAN_CTTC',
+  'HDSAISON_CTTC',
+  'AEON_FINANCE_CTTC',
+] as const;
+
 export class CheckSalesReportOrderDto {
   @IsString()
   @MaxLength(80)
@@ -80,9 +93,17 @@ export class CreateSalesReportDto {
   @MaxLength(30)
   customerPhone?: string;
 
+  @IsOptional()
   @IsString()
   @MaxLength(40)
-  categoryGroupId!: string;
+  categoryGroupId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(40, { each: true })
+  categoryGroupIds?: string[];
 
   @IsOptional()
   @IsString()
@@ -142,6 +163,28 @@ export class CreateSalesReportDto {
   @IsString()
   @MaxLength(500)
   notPurchasedOtherReason?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(INSTALLMENT_STATUSES, {
+    message: 'Trạng thái trả góp không hợp lệ.',
+  })
+  installmentStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  installmentFailureReason?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @IsIn(INSTALLMENT_PARTNER_CODES, {
+    each: true,
+    message: 'Đối tác trả góp không hợp lệ.',
+  })
+  installmentPartnerCodes?: string[];
 }
 
 export class ListSalesReportsDto {

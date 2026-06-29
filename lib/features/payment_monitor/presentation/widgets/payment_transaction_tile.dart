@@ -81,6 +81,113 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
         ? AppColors.success
         : AppColors.error;
 
+    Widget buildDetails() {
+      return InkWell(
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+        onTap: () => unawaited(
+          showPaymentTransactionDetails(
+            context,
+            transaction: transaction,
+            amountFormatter: widget.amountFormatter,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              backgroundColor: isDark
+                  ? AppColors.success.withValues(alpha: 0.15)
+                  : AppColors.success.withValues(alpha: 0.08),
+              child: const Icon(
+                Icons.payments_rounded,
+                color: AppColors.success,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${widget.amountFormatter.format(transaction.amount)} VND',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  if (displayTime != null)
+                    Text(DateFormat('HH:mm:ss dd/MM').format(displayTime)),
+                  if (transaction.storeId.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    AppStatusChip(
+                      label: 'SR ${transaction.storeId}',
+                      color: AppColors.info,
+                      maxWidth: 180,
+                    ),
+                  ],
+                  if (transaction.payerLabel.isNotEmpty)
+                    Text(
+                      'Người chuyển: ${transaction.payerLabel}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  if (transaction.content.isNotEmpty)
+                    Text(
+                      transaction.content,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
+      );
+    }
+
+    Widget buildOrderEditor() {
+      return _PaymentOrderEditor(
+        transaction: transaction,
+        controller: _controller,
+        editing: _editing,
+        canReviewTransfer: widget.canReviewTransfer,
+        onEdit: () => setState(() => _editing = true),
+        onCancel: () {
+          _controller.text = _ordersEditText(transaction.orders);
+          setState(() => _editing = false);
+        },
+        onSave: () async {
+          await widget.onSaveOrders(_controller.text);
+          if (mounted) setState(() => _editing = false);
+        },
+        onRequestTransfer: () => _showOrderTransferRequestDialog(context),
+        onReviewTransfer: () => _showOrderTransferReviewDialog(context),
+        onHistory: () => _showHistory(context),
+      );
+    }
+
+    Widget buildRowMessage({required bool reserveSpace}) {
+      return AnimatedOpacity(
+        opacity: widget.rowMessage == null ? 0 : 1,
+        duration: const Duration(milliseconds: 250),
+        child: widget.rowMessage == null
+            ? SizedBox(height: reserveSpace ? 26 : 0)
+            : Padding(
+                padding: EdgeInsets.only(top: 8, left: reserveSpace ? 0 : 4),
+                child: Text(
+                  widget.rowMessage!.text,
+                  style: TextStyle(
+                    color: widget.rowMessage!.success
+                        ? AppColors.success
+                        : AppColors.error,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+      );
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(
@@ -92,111 +199,40 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
       ),
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-              onTap: () => unawaited(
-                showPaymentTransactionDetails(
-                  context,
-                  transaction: transaction,
-                  amountFormatter: widget.amountFormatter,
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact =
+                constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+            if (isCompact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  CircleAvatar(
-                    backgroundColor: isDark
-                        ? AppColors.success.withValues(alpha: 0.15)
-                        : AppColors.success.withValues(alpha: 0.08),
-                    child: const Icon(
-                      Icons.payments_rounded,
-                      color: AppColors.success,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${widget.amountFormatter.format(transaction.amount)} VND',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        if (displayTime != null)
-                          Text(
-                            DateFormat('HH:mm:ss dd/MM').format(displayTime),
-                          ),
-                        if (transaction.storeId.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          AppStatusChip(
-                            label: 'SR ${transaction.storeId}',
-                            color: AppColors.info,
-                            maxWidth: 180,
-                          ),
-                        ],
-                        if (transaction.payerLabel.isNotEmpty)
-                          Text(
-                            'Người chuyển: ${transaction.payerLabel}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        if (transaction.content.isNotEmpty)
-                          Text(
-                            transaction.content,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.chevron_right_rounded),
+                  buildDetails(),
+                  const SizedBox(height: 10),
+                  buildOrderEditor(),
+                  buildRowMessage(reserveSpace: false),
                 ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            _PaymentOrderEditor(
-              transaction: transaction,
-              controller: _controller,
-              editing: _editing,
-              canReviewTransfer: widget.canReviewTransfer,
-              onEdit: () => setState(() => _editing = true),
-              onCancel: () {
-                _controller.text = _ordersEditText(transaction.orders);
-                setState(() => _editing = false);
-              },
-              onSave: () async {
-                await widget.onSaveOrders(_controller.text);
-                if (mounted) setState(() => _editing = false);
-              },
-              onRequestTransfer: () => _showOrderTransferRequestDialog(context),
-              onReviewTransfer: () => _showOrderTransferReviewDialog(context),
-              onHistory: () => _showHistory(context),
-            ),
-            AnimatedOpacity(
-              opacity: widget.rowMessage == null ? 0 : 1,
-              duration: const Duration(milliseconds: 250),
-              child: widget.rowMessage == null
-                  ? const SizedBox.shrink()
-                  : Padding(
-                      padding: const EdgeInsets.only(top: 8, left: 4),
-                      child: Text(
-                        widget.rowMessage!.text,
-                        style: TextStyle(
-                          color: widget.rowMessage!.success
-                              ? AppColors.success
-                              : AppColors.error,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-            ),
-          ],
+              );
+            }
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: buildDetails()),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 260,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      buildOrderEditor(),
+                      buildRowMessage(reserveSpace: true),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -458,6 +494,7 @@ class _PaymentOrderEditor extends StatelessWidget {
         transaction.orderEditBlockedReason ??
         transaction.orderTransferRequestBlockedReason;
     return DecoratedBox(
+      key: const ValueKey('payment-transaction-order-editor'),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),

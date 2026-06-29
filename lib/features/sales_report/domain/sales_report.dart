@@ -22,6 +22,7 @@ class SalesReportOrderCheck {
   final String orderCode;
   final String? customerNeed;
   final SalesReportCategoryGroup? categoryGroup;
+  final List<SalesReportCategoryGroup> categoryGroups;
   final Map<String, dynamic> order;
   final List<Map<String, dynamic>> items;
   final List<Map<String, dynamic>> payments;
@@ -30,6 +31,7 @@ class SalesReportOrderCheck {
     required this.orderCode,
     required this.customerNeed,
     required this.categoryGroup,
+    required this.categoryGroups,
     required this.order,
     required this.items,
     required this.payments,
@@ -54,12 +56,20 @@ class SalesReportOrderCheck {
     }
 
     final categoryJson = cleanMap(json['categoryGroup']);
+    final categoryList = cleanList(json['categoryGroups'])
+        .map(SalesReportCategoryGroup.fromJson)
+        .where((item) => item.id.isNotEmpty)
+        .toList();
+    final legacyCategory = categoryJson.isEmpty
+        ? null
+        : SalesReportCategoryGroup.fromJson(categoryJson);
     return SalesReportOrderCheck(
       orderCode: json['orderCode']?.toString() ?? '',
       customerNeed: json['customerNeed']?.toString(),
-      categoryGroup: categoryJson.isEmpty
-          ? null
-          : SalesReportCategoryGroup.fromJson(categoryJson),
+      categoryGroup: legacyCategory,
+      categoryGroups: categoryList.isNotEmpty
+          ? categoryList
+          : [if (legacyCategory != null) legacyCategory],
       order: cleanMap(json['order']),
       items: cleanList(json['items']),
       payments: cleanList(json['payments']),
@@ -72,6 +82,7 @@ class SalesReportInput {
   final String? orderCode;
   final String? customerPhone;
   final String categoryGroupId;
+  final List<String> categoryGroupIds;
   final String? customerNeed;
   final String consultedSolutionAnswer;
   final String? consultedSolutionOtherReason;
@@ -83,12 +94,16 @@ class SalesReportInput {
   final String? appDownloadOtherReason;
   final String? notPurchasedReason;
   final String? notPurchasedOtherReason;
+  final String? installmentStatus;
+  final String? installmentFailureReason;
+  final List<String> installmentPartnerCodes;
 
   const SalesReportInput({
     required this.reportType,
     required this.orderCode,
     required this.customerPhone,
     required this.categoryGroupId,
+    required this.categoryGroupIds,
     required this.customerNeed,
     required this.consultedSolutionAnswer,
     required this.consultedSolutionOtherReason,
@@ -100,6 +115,9 @@ class SalesReportInput {
     required this.appDownloadOtherReason,
     required this.notPurchasedReason,
     required this.notPurchasedOtherReason,
+    required this.installmentStatus,
+    required this.installmentFailureReason,
+    required this.installmentPartnerCodes,
   });
 
   Map<String, dynamic> toJson() {
@@ -113,6 +131,10 @@ class SalesReportInput {
       if (clean(orderCode) != null) 'orderCode': clean(orderCode),
       if (clean(customerPhone) != null) 'customerPhone': clean(customerPhone),
       'categoryGroupId': categoryGroupId,
+      'categoryGroupIds': categoryGroupIds
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toList(),
       if (clean(customerNeed) != null) 'customerNeed': clean(customerNeed),
       'consultedSolutionAnswer': consultedSolutionAnswer,
       if (clean(consultedSolutionOtherReason) != null)
@@ -130,6 +152,15 @@ class SalesReportInput {
         'notPurchasedReason': clean(notPurchasedReason),
       if (clean(notPurchasedOtherReason) != null)
         'notPurchasedOtherReason': clean(notPurchasedOtherReason),
+      if (clean(installmentStatus) != null)
+        'installmentStatus': clean(installmentStatus),
+      if (clean(installmentFailureReason) != null)
+        'installmentFailureReason': clean(installmentFailureReason),
+      if (installmentPartnerCodes.isNotEmpty)
+        'installmentPartnerCodes': installmentPartnerCodes
+            .map((value) => value.trim())
+            .where((value) => value.isNotEmpty)
+            .toList(),
     };
   }
 }

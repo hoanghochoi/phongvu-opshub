@@ -79,6 +79,7 @@ export class SalesReportErpService {
     try {
       const accessToken = await this.getAccessToken();
       const order = await this.fetchOrder(orderCode, accessToken);
+      this.assertOrderIsNotCanceled(order, orderCode);
       const items = await this.normalizeItems(
         order,
         accessToken,
@@ -137,6 +138,19 @@ export class SalesReportErpService {
       throw new BadRequestException('Không tìm thấy mã đơn hàng trên ERP.');
     }
     return order;
+  }
+
+  private assertOrderIsNotCanceled(order: any, orderCode: string) {
+    const confirmationStatus = this.optionalText(order?.confirmationStatus);
+    const fulfillmentStatus = this.optionalText(order?.fulfillmentStatus);
+    const canceled = [confirmationStatus, fulfillmentStatus].some(
+      (status) => status?.toLowerCase() === 'cancelled',
+    );
+    if (!canceled) return;
+    this.logger.warn(
+      `Sales report ERP canceled order blocked: orderLength=${orderCode.length} confirmationStatus=${confirmationStatus || 'none'} fulfillmentStatus=${fulfillmentStatus || 'none'}`,
+    );
+    throw new BadRequestException('Đơn đã bị hủy.');
   }
 
   private async normalizeItems(

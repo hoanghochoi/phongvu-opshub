@@ -29,12 +29,22 @@ describe('SalesReportsService', () => {
     };
     const categories = {
       listCategories: jest.fn(),
-      requireCategory: jest.fn().mockResolvedValue({
-        id: 'NH03',
-        catGroupName: 'Computer components',
-        catGroupNameVi: 'Linh kiện máy tính',
-      }),
-      matchCategoryFromErp: jest.fn(),
+      requireCategories: jest.fn().mockImplementation((ids: string[]) =>
+        Promise.resolve(
+          ids.map((id) => ({
+            id,
+            catGroupName:
+              id === 'NH08'
+                ? 'Network and Security equipment'
+                : 'Computer components',
+            catGroupNameVi:
+              id === 'NH08'
+                ? 'Thiết bị mạng và an ninh'
+                : 'Linh kiện máy tính',
+          })),
+        ),
+      ),
+      matchCategoriesFromErp: jest.fn(),
     };
     const erp = {
       lookupOrder: jest.fn().mockResolvedValue(erpOrderFixture()),
@@ -90,7 +100,7 @@ describe('SalesReportsService', () => {
       }),
     ).rejects.toThrow('Vui lòng chọn kết quả tư vấn 3 giải pháp.');
 
-    expect(categories.requireCategory).not.toHaveBeenCalled();
+    expect(categories.requireCategories).not.toHaveBeenCalled();
     expect(erp.lookupOrder).not.toHaveBeenCalled();
   });
 
@@ -112,6 +122,14 @@ describe('SalesReportsService', () => {
           orderCode: null,
           notPurchasedReason: 'PRICE_HESITATION',
           categoryGroupId: 'NH03',
+          categorySelections: {
+            create: [
+              expect.objectContaining({
+                categoryGroupId: 'NH03',
+                categoryGroupNameVi: 'Linh kiện máy tính',
+              }),
+            ],
+          },
         }),
       }),
     );
@@ -134,10 +152,80 @@ describe('SalesReportsService', () => {
           orderCode: '2606290001',
           erpOrderId: '2606290001',
           erpGrandTotal: 1230000,
+          categorySelections: {
+            create: [
+              expect.objectContaining({
+                categoryGroupId: 'NH03',
+                categoryGroupNameVi: 'Linh kiện máy tính',
+              }),
+            ],
+          },
           items: { create: [expect.objectContaining({ sellerSku: 'SKU-1' })] },
           payments: {
             create: [expect.objectContaining({ paymentMethod: 'cash' })],
           },
+        }),
+      }),
+    );
+  });
+
+  it('stores multiple selected category groups with the first one as primary', async () => {
+    const { service, prisma, categories } = createHarness();
+
+    await service.create(userFixture(), {
+      ...baseInput(),
+      categoryGroupId: 'NH03',
+      categoryGroupIds: ['NH03', 'NH08'],
+    });
+
+    expect(categories.requireCategories).toHaveBeenCalledWith(['NH03', 'NH08']);
+    expect(prisma.salesReport.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          categoryGroupId: 'NH03',
+          categoryGroupNameVi: 'Linh kiện máy tính',
+          categorySelections: {
+            create: [
+              expect.objectContaining({
+                categoryGroupId: 'NH03',
+                sortOrder: 0,
+              }),
+              expect.objectContaining({
+                categoryGroupId: 'NH08',
+                sortOrder: 1,
+              }),
+            ],
+          },
+        }),
+      }),
+    );
+  });
+
+  it('requires installment partners and stores selected partners', async () => {
+    const { service, prisma } = createHarness();
+
+    await expect(
+      service.create(userFixture(), {
+        ...baseInput(),
+        installmentStatus: 'FAILED',
+        installmentFailureReason: 'Thiếu hồ sơ',
+        installmentPartnerCodes: [],
+      }),
+    ).rejects.toThrow('Vui lòng chọn đối tác trả góp.');
+
+    await service.create(userFixture(), {
+      ...baseInput(),
+      installmentStatus: 'FAILED',
+      installmentFailureReason: 'Thiếu hồ sơ',
+      installmentPartnerCodes: ['VNPAY_POS', 'HOMECREDIT_CTTC'],
+    });
+
+    expect(prisma.salesReport.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          installmentStatus: 'FAILED',
+          installmentFailureReason: 'Thiếu hồ sơ',
+          installmentPartnerCodes: ['VNPAY_POS', 'HOMECREDIT_CTTC'],
         }),
       }),
     );

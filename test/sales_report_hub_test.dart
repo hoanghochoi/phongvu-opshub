@@ -158,6 +158,81 @@ void main() {
     expect(find.text('Vui lòng chọn Tư vấn 3 giải pháp'), findsOneWidget);
     expect(repository.createCalled, isFalse);
   });
+
+  testWidgets(
+    'Báo cáo chưa mua opens installment partners and failure reason',
+    (tester) async {
+      final authProvider = _FakeAuthProvider(
+        const User(
+          id: 'user-1',
+          email: 'sale@phongvu.vn',
+          role: 'USER',
+          organizationNodeId: 'org-store-cp01',
+          featureAccess: {'SALES_REPORT': true},
+        ),
+      );
+      final repository = _FakeSalesReportRepository();
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+            ChangeNotifierProvider<SalesReportProvider>(
+              create: (_) => SalesReportProvider(repository),
+            ),
+          ],
+          child: const MaterialApp(home: SalesReportFormScreen.notPurchased()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('sales-report-installment-checkbox')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('sales-report-installment-checkbox')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Đối tác trả góp'), findsOneWidget);
+      expect(find.text('Lý do trả góp thất bại'), findsOneWidget);
+      expect(find.text('VNPAY - POS'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const ValueKey('sales-report-installment-VNPAY_POS')),
+      );
+      await tester.ensureVisible(find.text('Gửi báo cáo'));
+      await tester.tap(find.text('Gửi báo cáo'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Vui lòng nhập lý do trả góp thất bại'), findsOneWidget);
+      expect(repository.createCalled, isFalse);
+    },
+  );
+
+  test('SalesReportOrderCheck parses multiple category groups', () {
+    final check = SalesReportOrderCheck.fromJson({
+      'orderCode': '2606290001',
+      'categoryGroups': [
+        {
+          'id': 'NH03',
+          'catGroupName': 'Computer components',
+          'catGroupNameVi': 'Linh kiện máy tính',
+        },
+        {
+          'id': 'NH08',
+          'catGroupName': 'Network and Security equipment',
+          'catGroupNameVi': 'Thiết bị mạng và an ninh',
+        },
+      ],
+    });
+
+    expect(check.categoryGroups.map((category) => category.id), [
+      'NH03',
+      'NH08',
+    ]);
+    expect(check.categoryGroup?.id, isNull);
+  });
 }
 
 class _FakeAuthProvider extends AuthProvider {
@@ -171,6 +246,7 @@ class _FakeAuthProvider extends AuthProvider {
 
 class _FakeSalesReportRepository extends SalesReportRepository {
   bool createCalled = false;
+  SalesReportInput? lastInput;
 
   _FakeSalesReportRepository() : super(ApiClient());
 
@@ -190,6 +266,7 @@ class _FakeSalesReportRepository extends SalesReportRepository {
   @override
   Future<Map<String, dynamic>> create(SalesReportInput input) async {
     createCalled = true;
+    lastInput = input;
     return const {};
   }
 }

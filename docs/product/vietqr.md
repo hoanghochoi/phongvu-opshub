@@ -69,8 +69,8 @@ a customer to scan and pay manually.
   disabled or not configured. Global sync reads 100 MAP rows per page and
   defaults to 2 pages per sync loop. After each backend MAP-history fetch
   finishes, the backend waits a random 3000-5000ms before starting the next
-  scheduled fetch during the 08:00-to-before-22:00 Vietnam-time fast window.
-  From 22:00 to before 08:00, MAP sync still runs but uses a 30-minute cadence.
+  scheduled fetch during the 07:00-to-before-22:00 Vietnam-time fast window.
+  From 22:00 to before 07:00, MAP sync still runs but uses a 30-minute cadence.
   `MAP_VIETIN_SYNC_ENABLED=false` remains the full off switch.
 - Successful global MAP rows that cannot be mapped to exactly one showroom are
   quarantined for debug and do not create payment notifications or play audio.

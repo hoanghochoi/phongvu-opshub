@@ -45,15 +45,19 @@ curl http://localhost:3000/app-version
   `APP_UPDATE_URL`, `APP_RELEASE_NOTES`, and `APP_FORCE_UPDATE` when shipping
   a mobile APK. Clients compare `APP_BUILD_NUMBER` with their installed build
   number and open `APP_UPDATE_URL` when an update is required.
-- Deploy source branches are `staging` and `main` only. Pushing `staging` runs
-  the staging workflow. Production deploys fast-forward `main` from accepted
-  `staging` code, then push `main` to run the production workflow.
+- Deploy source branches are `staging`, `main`, and `help-content`. Pushing
+  `staging` runs the staging workflow. Production app deploys fast-forward
+  `main` from accepted `staging` code, then push `main` to run the production
+  workflow. The `help-content` branch is the production content source for
+  `/help`; pushing it runs only the production static help/download deploy.
 - Full production GitHub deploys build the client packages in Actions, upload the APK,
   Windows installer, Windows ZIP, and checksum directly to VPS staging, then
   promote them to `/srv/opshub/downloads/` and publish `/downloads/latest.json`
   for the download landing page. The same deploy publishes the built help site
-  under `/srv/opshub/downloads/help/`. Manual `workflow_dispatch` with
-  `skip_client_build=true` refreshes only the static download page and manifest
+  under `/srv/opshub/downloads/help/`. When `origin/help-content` exists, full
+  production deploys load `docs/help` from that branch before building the help
+  site. Pushing `help-content`, or running manual `workflow_dispatch` with
+  `skip_client_build=true`, refreshes only the static download page and manifest
   plus the help site from existing live artifacts; it must not change
   app-version metadata or rebuild client packages.
 - Staging deploys run on `staging` pushes or manual `Deploy OpsHub Staging`

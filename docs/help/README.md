@@ -305,9 +305,43 @@ Workflow production và staging sẽ tự build:
 node scripts/build-help-site.mjs
 ```
 
-Nếu chỉ sửa nội dung help hoặc trang download, có thể chạy production workflow
-với `skip_client_build=true`. Luồng này chỉ refresh static page và manifest,
-không rebuild APK, Windows installer, backend image hoặc app-version metadata.
+Nội dung production của `/help` dùng nhánh riêng `help-content` làm nguồn chính.
+Push nhánh này sẽ chạy production static-only deploy, chỉ refresh `/help`,
+`/download` và manifest từ artifact đang live; không rebuild APK, Windows
+installer, backend image hoặc app-version metadata. Full production deploy từ
+`main` cũng sẽ ưu tiên lấy `docs/help` từ `origin/help-content` nếu nhánh này
+tồn tại, để app deploy sau đó không ghi đè trang help bằng nội dung cũ.
+
+Nếu lần đầu tạo nhánh:
+
+```bash
+git switch main
+git pull --ff-only origin main
+git switch -c help-content
+git push -u origin help-content
+```
+
+Luồng sửa nội dung hằng ngày:
+
+```bash
+git switch help-content
+git pull --ff-only origin help-content
+
+# sua docs/help/content/*, docs/help/navigation.json, docs/help/assets/*
+node scripts/build-help-site.mjs
+git diff --check
+
+git add docs/help
+git commit -m "docs(help): update help content"
+git push origin help-content
+```
+
+Nếu cần chạy lại bằng tay, vẫn có thể dispatch production workflow với
+`skip_client_build=true`:
+
+```bash
+gh workflow run deploy-opshub.yml --ref help-content -f skip_client_build=true
+```
 
 Sau deploy, smoke các URL:
 

@@ -790,6 +790,7 @@ model SalesReportCategoryGroup {
   updatedAt           DateTime @updatedAt
 
   reports SalesReport[]
+  reportSelections SalesReportCategorySelection[]
 
   @@index([isActive, sortOrder])
 }
@@ -814,6 +815,9 @@ model SalesReport {
   appDownloadOtherReason          String?
   notPurchasedReason              String?
   notPurchasedOtherReason         String?
+  installmentStatus               String?
+  installmentFailureReason        String?
+  installmentPartnerCodes         String[]  @default([])
   createdByUserId                 String?
   createdBy                       User?     @relation(fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   createdByEmail                  String?
@@ -846,6 +850,7 @@ model SalesReport {
 
   items    SalesReportOrderItem[]
   payments SalesReportPayment[]
+  categorySelections SalesReportCategorySelection[]
 
   @@index([reportType, submittedAt])
   @@index([storeCode, submittedAt])
@@ -853,7 +858,24 @@ model SalesReport {
   @@index([categoryGroupId, submittedAt])
   @@index([erpOrderId])
   @@index([notPurchasedReason, submittedAt])
+  @@index([installmentStatus, submittedAt])
   @@index([organizationNodeId, submittedAt])
+}
+
+model SalesReportCategorySelection {
+  id                String      @id @default(uuid())
+  salesReportId     String
+  salesReport       SalesReport @relation(fields: [salesReportId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  categoryGroupId   String
+  categoryGroup     SalesReportCategoryGroup @relation(fields: [categoryGroupId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  categoryGroupName String
+  categoryGroupNameVi String
+  sortOrder         Int         @default(0)
+  createdAt         DateTime    @default(now())
+
+  @@unique([salesReportId, categoryGroupId])
+  @@index([salesReportId, sortOrder])
+  @@index([categoryGroupId])
 }
 
 model SalesReportOrderItem {

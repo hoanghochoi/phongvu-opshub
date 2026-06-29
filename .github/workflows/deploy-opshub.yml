@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - help-content
   workflow_dispatch:
     inputs:
       skip_client_build:
@@ -24,6 +25,7 @@ env:
   OPSHUB_API_BASE_URL: https://opshub.hoanghochoi.com/api
   OPSHUB_REMOTE_APP_DIR: /home/ubuntu/phongvu-opshub
   OPSHUB_ENV_FILE: /srv/opshub/env
+  OPSHUB_HELP_CONTENT_BRANCH: help-content
 
 jobs:
   prepare:
@@ -66,7 +68,7 @@ jobs:
   build_android:
     runs-on: ubuntu-latest
     needs: prepare
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true }}
+    if: ${{ github.ref != 'refs/heads/help-content' && (github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true) }}
     environment: production
     steps:
       - name: Check out repository
@@ -155,7 +157,7 @@ jobs:
   build_windows:
     runs-on: windows-latest
     needs: prepare
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true }}
+    if: ${{ github.ref != 'refs/heads/help-content' && (github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true) }}
     environment: production
     steps:
       - name: Check out repository
@@ -365,7 +367,7 @@ jobs:
       - prepare
       - build_android
       - build_windows
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true }}
+    if: ${{ github.ref != 'refs/heads/help-content' && (github.event_name != 'workflow_dispatch' || inputs.skip_client_build != true) }}
     environment: production
     steps:
       - name: Check out repository
@@ -464,6 +466,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if git ls-remote --exit-code --heads origin "$OPSHUB_HELP_CONTENT_BRANCH" >/dev/null 2>&1; then
+            git fetch --depth=1 origin "$OPSHUB_HELP_CONTENT_BRANCH"
+            rm -rf docs/help
+            git checkout FETCH_HEAD -- docs/help
+            echo "Loaded docs/help from origin/${OPSHUB_HELP_CONTENT_BRANCH}."
+          else
+            echo "origin/${OPSHUB_HELP_CONTENT_BRANCH} not found; using docs/help from ${GITHUB_REF_NAME}."
+          fi
           node scripts/build-help-site.mjs
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
           ssh opshub-vps "mkdir -p '$remote_release_dir' /srv/opshub/downloads"
@@ -769,7 +779,7 @@ jobs:
 
   deploy_download_static:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_client_build == true }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.skip_client_build == true) || github.ref == 'refs/heads/help-content' }}
     environment: production
     steps:
       - name: Check out repository
@@ -832,6 +842,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/${OPSHUB_HELP_CONTENT_BRANCH}" ] && git ls-remote --exit-code --heads origin "$OPSHUB_HELP_CONTENT_BRANCH" >/dev/null 2>&1; then
+            git fetch --depth=1 origin "$OPSHUB_HELP_CONTENT_BRANCH"
+            rm -rf docs/help
+            git checkout FETCH_HEAD -- docs/help
+            echo "Loaded docs/help from origin/${OPSHUB_HELP_CONTENT_BRANCH}."
+          fi
           node scripts/build-help-site.mjs
           caddy_tmp="/tmp/opshub-Caddyfile-${GITHUB_SHA}"
           ssh opshub-vps "mkdir -p /srv/opshub/downloads"

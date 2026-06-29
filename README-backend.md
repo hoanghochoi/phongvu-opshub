@@ -88,7 +88,7 @@ Expected responses:
   `Store.transferAccountNumber`; unmapped rows are quarantined and do not play
   payment audio. Per-store MAP credentials remain a fallback when the global
   account is not configured or `MAP_VIETIN_GLOBAL_SYNC_ENABLED=false`. The
-  global MAP sync runs from 08:00 to before 22:00 Vietnam time, reads 100 rows
+  global MAP sync runs from 07:00 to before 22:00 Vietnam time, reads 100 rows
   per page, and defaults to `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES=2`. The global
   MAP session is cached for `MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS` seconds,
   defaulting to 600, and refreshes automatically after MAP auth errors.

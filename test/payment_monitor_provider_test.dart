@@ -606,6 +606,10 @@ void main() {
         repository.ackEvents.where((event) => event == 'PLAYBACK_FAILED'),
         hasLength(1),
       );
+      expect(
+        repository.ackEvents.where((event) => event == 'STREAM_STARTED'),
+        hasLength(1),
+      );
       expect(repository.ackEvents, contains('PLAYED'));
       expect(repository.ackEvents, isNot(contains('FAILED')));
       expect(provider.speakerError, isNull);
@@ -634,6 +638,12 @@ void main() {
 
     expect(repository.requestedRawAmounts, [true]);
     expect(repository.requestedIncludeCues, [false]);
+    expect(repository.streamDownloadCount, 0);
+    expect(repository.ackEvents, contains('STREAM_STARTED'));
+    expect(
+      repository.ackEvents.indexOf('STREAM_STARTED'),
+      lessThan(repository.ackEvents.indexOf('PLAYED')),
+    );
     expect(speaker.playLocalCueValues, [false]);
     expect(speaker.playLocalCuePrefixValues, [true]);
     expect(repository.downloadCount, 1);

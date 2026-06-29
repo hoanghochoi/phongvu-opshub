@@ -46,11 +46,12 @@ const MAP_TRANSACTION_BASE_URL =
   'https://map.vietinbank.vn/vtb/public/map/api/rpt-txnmng/api';
 const GLOBAL_SYNC_STATE_CODE = '__GLOBAL__';
 const MAP_SYNC_PAGE_SIZE = 100;
-const MAP_SYNC_START_HOUR_VN = 8;
+const MAP_SYNC_START_HOUR_VN = 7;
 const MAP_SYNC_END_HOUR_VN = 22;
 const MAP_HISTORY_SYNC_DELAY_MIN_MS = 3000;
 const MAP_HISTORY_SYNC_DELAY_MAX_MS = 5000;
 const MAP_HISTORY_SYNC_NIGHT_DELAY_MS = 30 * 60 * 1000;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_GLOBAL_SYNC_MAX_PAGES = 2;
 const DEFAULT_GLOBAL_SESSION_TTL_SECONDS = 10 * 60;
 const VIETNAM_UTC_OFFSET_HOURS = 7;
@@ -682,9 +683,33 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private nextMapHistorySyncDelayMs(value = new Date(Date.now())) {
-    return this.isWithinMapSyncWindow(value)
-      ? this.randomMapHistorySyncDelayMs()
-      : MAP_HISTORY_SYNC_NIGHT_DELAY_MS;
+    if (this.isWithinMapSyncWindow(value)) {
+      return this.randomMapHistorySyncDelayMs();
+    }
+    return Math.min(
+      MAP_HISTORY_SYNC_NIGHT_DELAY_MS,
+      this.msUntilNextMapFastWindowStart(value),
+    );
+  }
+
+  private msUntilNextMapFastWindowStart(value: Date) {
+    const vietnamTimeMs =
+      value.getTime() + VIETNAM_UTC_OFFSET_HOURS * 60 * 60 * 1000;
+    const vietnamDate = new Date(vietnamTimeMs);
+    const startTodayVietnamMs = Date.UTC(
+      vietnamDate.getUTCFullYear(),
+      vietnamDate.getUTCMonth(),
+      vietnamDate.getUTCDate(),
+      MAP_SYNC_START_HOUR_VN,
+      0,
+      0,
+      0,
+    );
+    const nextStartVietnamMs =
+      vietnamTimeMs < startTodayVietnamMs
+        ? startTodayVietnamMs
+        : startTodayVietnamMs + ONE_DAY_MS;
+    return Math.max(1, nextStartVietnamMs - vietnamTimeMs);
   }
 
   private isMapHistorySyncDisabled() {

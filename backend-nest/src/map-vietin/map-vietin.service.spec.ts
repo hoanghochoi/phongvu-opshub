@@ -504,7 +504,7 @@ describe('MapVietinService', () => {
 
   it('runs configured MAP sync before the Vietnam fast window', async () => {
     (Date.now as jest.Mock).mockReturnValue(
-      new Date('2026-05-21T00:59:59.000Z').getTime(),
+      new Date('2026-05-20T23:59:59.000Z').getTime(),
     );
     process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
     process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';
@@ -534,6 +534,37 @@ describe('MapVietinService', () => {
 
     expect((service as any).randomMapHistorySyncDelayMs()).toBe(3000);
     expect((service as any).randomMapHistorySyncDelayMs()).toBe(5000);
+  });
+
+  it('schedules the next MAP history sync at the 07:00 Vietnam fast-window start', () => {
+    expect(
+      (service as any).nextMapHistorySyncDelayMs(
+        new Date('2026-05-20T23:50:00.000Z'),
+      ),
+    ).toBe(10 * 60 * 1000);
+    expect(
+      (service as any).nextMapHistorySyncDelayMs(
+        new Date('2026-05-20T23:59:59.000Z'),
+      ),
+    ).toBe(1000);
+  });
+
+  it('keeps the night cadence when the next MAP fast window is more than 30 minutes away', () => {
+    expect(
+      (service as any).nextMapHistorySyncDelayMs(
+        new Date('2026-05-21T15:01:00.000Z'),
+      ),
+    ).toBe(30 * 60 * 1000);
+  });
+
+  it('uses the fast MAP sync cadence at 07:00 Vietnam time', () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+
+    expect(
+      (service as any).nextMapHistorySyncDelayMs(
+        new Date('2026-05-21T00:00:00.000Z'),
+      ),
+    ).toBe(3000);
   });
 
   it('does not start the MAP history scheduler when MAP sync is disabled', () => {

@@ -12,6 +12,7 @@ import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../chat/presentation/widgets/barcode_scanner_screen.dart';
 import '../../domain/sales_report.dart';
 import '../providers/sales_report_provider.dart';
 
@@ -72,6 +73,15 @@ const _notPurchasedOptions = {
   'COMPARE_COMPETITOR': 'So sánh đối thủ',
   'SPEC_NOT_COMPATIBLE': 'Thông số kỹ thuật chưa tương thích',
   'OTHER': 'Khác',
+};
+
+const _installmentPartnerOptions = {
+  'VNPAY_POS': 'VNPAY - POS',
+  'PAYOO_POS': 'PAYOO - POS',
+  'HOMECREDIT_CTTC': 'HomeCredit - CTTC',
+  'SHINHAN_CTTC': 'Shinhan - CTTC',
+  'HDSAISON_CTTC': 'HDSaison - CTTC',
+  'AEON_FINANCE_CTTC': 'AEON Finance - CTTC',
 };
 
 class SalesReportScreen extends StatefulWidget {
@@ -210,14 +220,17 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
   final _zaloOtherController = TextEditingController();
   final _appOtherController = TextEditingController();
   final _notPurchasedOtherController = TextEditingController();
+  final _installmentFailureController = TextEditingController();
 
   late String _reportType;
-  String? _categoryGroupId;
+  final List<String> _categoryGroupIds = [];
   String? _consultedAnswer;
   String? _experiencedAnswer;
   String? _zaloAnswer;
   String? _appDownloadAnswer;
   String? _notPurchasedReason;
+  bool _installmentSelected = false;
+  final List<String> _installmentPartnerCodes = [];
   bool _initialized = false;
 
   @override
@@ -247,13 +260,74 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     _zaloOtherController.dispose();
     _appOtherController.dispose();
     _notPurchasedOtherController.dispose();
+    _installmentFailureController.dispose();
     super.dispose();
   }
 
   bool get _isPurchased => _reportType == _typePurchased;
 
+  String get _primaryCategoryGroupId =>
+      _categoryGroupIds.isEmpty ? '' : _categoryGroupIds.first;
+
+  String _normalizeOrderCode(String value) {
+    return value.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
+  }
+
+  Future<void> _scanOrderCode() async {
+    final user = context.read<AuthProvider>().user;
+    try {
+      await AppLogger.instance.info(
+        'SalesReport',
+        'Sales report order scanner opened',
+        context: {'userId': user?.id, 'storeId': user?.storeId},
+      );
+      if (!mounted) return;
+      final result = await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          builder: (context) => const BarcodeScannerScreen(
+            title: 'Quét mã đơn hàng',
+            instruction: 'Hướng camera vào QR hoặc barcode mã đơn hàng',
+            helperText: 'Có thể nhập tay nếu camera chưa sẵn sàng',
+            parsePhongVuSku: false,
+          ),
+        ),
+      );
+      if (!mounted) return;
+      final orderCode = _normalizeOrderCode(result ?? '');
+      if (orderCode.isEmpty) {
+        await AppLogger.instance.info(
+          'SalesReport',
+          'Sales report order scanner cancelled',
+          context: {'userId': user?.id, 'storeId': user?.storeId},
+        );
+        return;
+      }
+      setState(() => _orderController.text = orderCode);
+      await AppLogger.instance.info(
+        'SalesReport',
+        'Sales report order scanner succeeded',
+        context: {
+          'userId': user?.id,
+          'storeId': user?.storeId,
+          'orderLength': orderCode.length,
+        },
+      );
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'SalesReport',
+        'Sales report order scanner failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {'userId': user?.id, 'storeId': user?.storeId},
+      );
+      if (mounted) {
+        _showSnack('Chưa quét được mã. Vui lòng thử lại.', AppColors.error);
+      }
+    }
+  }
+
   Future<void> _checkOrder() async {
-    final orderCode = _orderController.text.trim();
+    final orderCode = _normalizeOrderCode(_orderController.text);
     if (orderCode.isEmpty) {
       _showSnack('Vui lòng nhập mã đơn hàng.', AppColors.warning);
       return;
@@ -267,11 +341,42 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       if ((result.customerNeed ?? '').trim().isNotEmpty) {
         _needController.text = result.customerNeed!.trim();
       }
-      if (result.categoryGroup != null) {
-        _categoryGroupId = result.categoryGroup!.id;
-      }
+      _categoryGroupIds
+        ..clear()
+        ..addAll(result.categoryGroups.map((category) => category.id));
     });
     _showSnack('Đã kiểm tra đơn hàng.', AppColors.success);
+  }
+
+  void _checkAnotherOrder() {
+    final user = context.read<AuthProvider>().user;
+    context.read<SalesReportProvider>().clearCheckedOrder();
+    setState(() {
+      _orderController.clear();
+      _phoneController.clear();
+      _needController.clear();
+      _consultedOtherController.clear();
+      _experiencedOtherController.clear();
+      _zaloOtherController.clear();
+      _appOtherController.clear();
+      _notPurchasedOtherController.clear();
+      _installmentFailureController.clear();
+      _categoryGroupIds.clear();
+      _consultedAnswer = null;
+      _experiencedAnswer = null;
+      _zaloAnswer = null;
+      _appDownloadAnswer = null;
+      _notPurchasedReason = null;
+      _installmentSelected = false;
+      _installmentPartnerCodes.clear();
+    });
+    unawaited(
+      AppLogger.instance.info(
+        'SalesReport',
+        'Sales report check another order selected',
+        context: {'userId': user?.id, 'storeId': user?.storeId},
+      ),
+    );
   }
 
   Future<void> _submit() async {
@@ -290,13 +395,18 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
           'Sales report form validation blocked',
           context: {
             'reportType': _reportType,
-            'hasCategory': _categoryGroupId != null,
+            'categoryGroupCount': _categoryGroupIds.length,
             'hasCustomerNeed': _needController.text.trim().isNotEmpty,
             'hasConsultedAnswer': _consultedAnswer != null,
             'hasExperiencedAnswer': _experiencedAnswer != null,
             'hasZaloAnswer': _zaloAnswer != null,
             'hasAppDownloadAnswer': _appDownloadAnswer != null,
             'hasNotPurchasedReason': _notPurchasedReason != null,
+            'installmentSelected': _installmentSelected,
+            'installmentPartnerCount': _installmentPartnerCodes.length,
+            'hasInstallmentFailureReason': _installmentFailureController.text
+                .trim()
+                .isNotEmpty,
           },
         ),
       );
@@ -310,7 +420,8 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       reportType: _reportType,
       orderCode: _isPurchased ? _orderController.text : null,
       customerPhone: _phoneController.text,
-      categoryGroupId: _categoryGroupId ?? '',
+      categoryGroupId: _primaryCategoryGroupId,
+      categoryGroupIds: List.unmodifiable(_categoryGroupIds),
       customerNeed: _needController.text,
       consultedSolutionAnswer: consultedAnswer,
       consultedSolutionOtherReason: _consultedOtherController.text,
@@ -322,6 +433,15 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       appDownloadOtherReason: _appOtherController.text,
       notPurchasedReason: _isPurchased ? null : _notPurchasedReason,
       notPurchasedOtherReason: _notPurchasedOtherController.text,
+      installmentStatus: _installmentSelected
+          ? (_isPurchased ? 'SUCCESS' : 'FAILED')
+          : null,
+      installmentFailureReason: !_isPurchased && _installmentSelected
+          ? _installmentFailureController.text
+          : null,
+      installmentPartnerCodes: _installmentSelected
+          ? List.unmodifiable(_installmentPartnerCodes)
+          : const [],
     );
     final ok = await provider.submit(input, context.read<AuthProvider>().user);
     if (!mounted) return;
@@ -348,15 +468,18 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       _zaloOtherController.clear();
       _appOtherController.clear();
       _notPurchasedOtherController.clear();
+      _installmentFailureController.clear();
       _reportType = widget.reportType == _typeNotPurchased
           ? _typeNotPurchased
           : _typePurchased;
-      _categoryGroupId = null;
+      _categoryGroupIds.clear();
       _consultedAnswer = null;
       _experiencedAnswer = null;
       _zaloAnswer = null;
       _appDownloadAnswer = null;
       _notPurchasedReason = null;
+      _installmentSelected = false;
+      _installmentPartnerCodes.clear();
     });
   }
 
@@ -382,7 +505,12 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
           child: AppFormColumn(
             spacing: AppLayoutTokens.formSectionGap,
             children: [
-              if (_isPurchased) _OrderCheckCard(onCheck: _checkOrder),
+              if (_isPurchased)
+                _OrderCheckCard(
+                  onCheck: _checkOrder,
+                  onScan: _scanOrderCode,
+                  onCheckAnother: _checkAnotherOrder,
+                ),
               if (provider.errorMessage != null)
                 AppStatusBanner(
                   icon: Icons.error_outline_rounded,
@@ -402,10 +530,38 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
                         phoneController: _phoneController,
                         needController: _needController,
                         categories: provider.categories,
-                        categoryGroupId: _categoryGroupId,
+                        categoryGroupIds: _categoryGroupIds,
                         loadingCategories: provider.isLoadingCategories,
-                        onCategoryChanged: (value) =>
-                            setState(() => _categoryGroupId = value),
+                        onCategoryChanged: (value) {
+                          setState(() {
+                            _categoryGroupIds
+                              ..clear()
+                              ..addAll(value);
+                          });
+                        },
+                      ),
+                      const SizedBox(height: AppLayoutTokens.formSectionGap),
+                      _InstallmentSection(
+                        isPurchased: _isPurchased,
+                        selected: _installmentSelected,
+                        selectedPartnerCodes: _installmentPartnerCodes,
+                        failureController: _installmentFailureController,
+                        onChanged: (value) {
+                          setState(() {
+                            _installmentSelected = value ?? false;
+                            if (!_installmentSelected) {
+                              _installmentFailureController.clear();
+                              _installmentPartnerCodes.clear();
+                            }
+                          });
+                        },
+                        onPartnersChanged: (value) {
+                          setState(() {
+                            _installmentPartnerCodes
+                              ..clear()
+                              ..addAll(value);
+                          });
+                        },
                       ),
                       const SizedBox(height: AppLayoutTokens.formSectionGap),
                       _BehaviorSection(
@@ -462,8 +618,14 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
 
 class _OrderCheckCard extends StatelessWidget {
   final VoidCallback onCheck;
+  final VoidCallback onScan;
+  final VoidCallback onCheckAnother;
 
-  const _OrderCheckCard({required this.onCheck});
+  const _OrderCheckCard({
+    required this.onCheck,
+    required this.onScan,
+    required this.onCheckAnother,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -483,9 +645,20 @@ class _OrderCheckCard extends StatelessWidget {
               controller: state._orderController,
               enabled: !provider.isCheckingOrder && !checked,
               textInputAction: TextInputAction.done,
-              decoration: const InputDecoration(
+              textCapitalization: TextCapitalization.characters,
+              onFieldSubmitted: (_) {
+                if (!checked && !provider.isCheckingOrder) onCheck();
+              },
+              decoration: InputDecoration(
                 labelText: 'Mã đơn hàng',
-                prefixIcon: Icon(Icons.receipt_long_outlined),
+                prefixIcon: const Icon(Icons.receipt_long_outlined),
+                suffixIcon: AppIconAction(
+                  icon: Icons.qr_code_scanner_rounded,
+                  onPressed: checked || provider.isCheckingOrder
+                      ? null
+                      : onScan,
+                  tooltip: 'Quét mã đơn hàng',
+                ),
               ),
               validator: (_) {
                 if (!state._isPurchased) return null;
@@ -496,14 +669,27 @@ class _OrderCheckCard extends StatelessWidget {
               },
             ),
             const SizedBox(height: AppLayoutTokens.formInlineGap),
-            AppSecondaryButton(
-              onPressed: checked || provider.isCheckingOrder ? null : onCheck,
-              icon: checked
-                  ? Icons.verified_outlined
-                  : Icons.fact_check_outlined,
-              label: checked ? 'Đã kiểm tra' : 'Kiểm tra đơn hàng',
-              isLoading: provider.isCheckingOrder,
-              loadingLabel: 'Đang kiểm tra...',
+            AppActionRow(
+              desktopAlignment: MainAxisAlignment.start,
+              children: [
+                AppSecondaryButton(
+                  onPressed: checked || provider.isCheckingOrder
+                      ? null
+                      : onCheck,
+                  icon: checked
+                      ? Icons.verified_outlined
+                      : Icons.fact_check_outlined,
+                  label: checked ? 'Đã kiểm tra' : 'Kiểm tra đơn hàng',
+                  isLoading: provider.isCheckingOrder,
+                  loadingLabel: 'Đang kiểm tra...',
+                ),
+                if (checked)
+                  AppSecondaryButton(
+                    onPressed: provider.isCheckingOrder ? null : onCheckAnother,
+                    icon: Icons.restart_alt_rounded,
+                    label: 'Kiểm tra đơn khác',
+                  ),
+              ],
             ),
           ],
         ),
@@ -562,15 +748,15 @@ class _CustomerSection extends StatelessWidget {
   final TextEditingController phoneController;
   final TextEditingController needController;
   final List<SalesReportCategoryGroup> categories;
-  final String? categoryGroupId;
+  final List<String> categoryGroupIds;
   final bool loadingCategories;
-  final ValueChanged<String?> onCategoryChanged;
+  final ValueChanged<List<String>> onCategoryChanged;
 
   const _CustomerSection({
     required this.phoneController,
     required this.needController,
     required this.categories,
-    required this.categoryGroupId,
+    required this.categoryGroupIds,
     required this.loadingCategories,
     required this.onCategoryChanged,
   });
@@ -594,40 +780,11 @@ class _CustomerSection extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppLayoutTokens.formInlineGap),
-            DropdownButtonFormField<String>(
-              key: ValueKey(
-                'sales-report-category-${categoryGroupId ?? 'none'}-${categories.length}',
-              ),
-              initialValue: categories.any((item) => item.id == categoryGroupId)
-                  ? categoryGroupId
-                  : null,
-              isExpanded: true,
-              decoration: InputDecoration(
-                labelText: 'Ngành hàng',
-                prefixIcon: loadingCategories
-                    ? const Padding(
-                        padding: EdgeInsets.all(14),
-                        child: SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : const Icon(Icons.category_outlined),
-              ),
-              items: categories
-                  .map(
-                    (category) => DropdownMenuItem(
-                      value: category.id,
-                      child: Text(
-                        category.catGroupNameVi,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  )
-                  .toList(),
-              onChanged: loadingCategories ? null : onCategoryChanged,
-              validator: (value) =>
-                  value == null ? 'Vui lòng chọn ngành hàng' : null,
+            _CategoryMultiPicker(
+              categories: categories,
+              selectedIds: categoryGroupIds,
+              isLoading: loadingCategories,
+              onChanged: onCategoryChanged,
             ),
             const SizedBox(height: AppLayoutTokens.formInlineGap),
             TextFormField(
@@ -647,6 +804,217 @@ class _CustomerSection extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _CategoryMultiPicker extends StatelessWidget {
+  final List<SalesReportCategoryGroup> categories;
+  final List<String> selectedIds;
+  final bool isLoading;
+  final ValueChanged<List<String>> onChanged;
+
+  const _CategoryMultiPicker({
+    required this.categories,
+    required this.selectedIds,
+    required this.isLoading,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<List<String>>(
+      key: ValueKey(
+        'sales-report-categories-${selectedIds.join(',')}-${categories.length}',
+      ),
+      initialValue: selectedIds,
+      validator: (_) =>
+          selectedIds.isEmpty ? 'Vui lòng chọn ít nhất một ngành hàng' : null,
+      builder: (field) {
+        final errorText = field.errorText;
+        return InputDecorator(
+          decoration: InputDecoration(
+            labelText: 'Ngành hàng',
+            prefixIcon: isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(14),
+                    child: SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : const Icon(Icons.category_outlined),
+            errorText: errorText,
+            alignLabelWithHint: true,
+          ),
+          child: categories.isEmpty
+              ? Text(
+                  isLoading
+                      ? 'Đang tải danh sách ngành hàng...'
+                      : 'Chưa có danh sách ngành hàng.',
+                  style: const TextStyle(color: AppColors.neutral600),
+                )
+              : Column(
+                  children: [
+                    for (final category in categories)
+                      CheckboxListTile(
+                        key: ValueKey('sales-report-category-${category.id}'),
+                        value: selectedIds.contains(category.id),
+                        onChanged: isLoading
+                            ? null
+                            : (checked) {
+                                final next = [...selectedIds];
+                                if (checked == true) {
+                                  if (!next.contains(category.id)) {
+                                    next.add(category.id);
+                                  }
+                                } else {
+                                  next.remove(category.id);
+                                }
+                                field.didChange(next);
+                                onChanged(next);
+                              },
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        title: Text(
+                          category.catGroupNameVi,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                ),
+        );
+      },
+    );
+  }
+}
+
+class _InstallmentSection extends StatelessWidget {
+  final bool isPurchased;
+  final bool selected;
+  final List<String> selectedPartnerCodes;
+  final TextEditingController failureController;
+  final ValueChanged<bool?> onChanged;
+  final ValueChanged<List<String>> onPartnersChanged;
+
+  const _InstallmentSection({
+    required this.isPurchased,
+    required this.selected,
+    required this.selectedPartnerCodes,
+    required this.failureController,
+    required this.onChanged,
+    required this.onPartnersChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            CheckboxListTile(
+              key: const ValueKey('sales-report-installment-checkbox'),
+              value: selected,
+              onChanged: onChanged,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text('Trả góp'),
+              subtitle: Text(
+                isPurchased
+                    ? 'Đơn này trả góp thành công.'
+                    : 'Khách có nhu cầu trả góp nhưng chưa hoàn tất.',
+              ),
+            ),
+            if (selected) ...[
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
+              _InstallmentPartnerPicker(
+                selectedCodes: selectedPartnerCodes,
+                onChanged: onPartnersChanged,
+              ),
+            ],
+            if (!isPurchased && selected) ...[
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
+              TextFormField(
+                key: const ValueKey('sales-report-installment-failure-reason'),
+                controller: failureController,
+                minLines: 2,
+                maxLines: 4,
+                maxLength: 500,
+                decoration: const InputDecoration(
+                  labelText: 'Lý do trả góp thất bại',
+                  prefixIcon: Icon(Icons.report_problem_outlined),
+                  alignLabelWithHint: true,
+                ),
+                validator: (value) => (value ?? '').trim().isEmpty
+                    ? 'Vui lòng nhập lý do trả góp thất bại'
+                    : null,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InstallmentPartnerPicker extends StatelessWidget {
+  final List<String> selectedCodes;
+  final ValueChanged<List<String>> onChanged;
+
+  const _InstallmentPartnerPicker({
+    required this.selectedCodes,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<List<String>>(
+      key: ValueKey(
+        'sales-report-installment-partners-${selectedCodes.join(',')}',
+      ),
+      initialValue: selectedCodes,
+      validator: (_) =>
+          selectedCodes.isEmpty ? 'Vui lòng chọn đối tác trả góp' : null,
+      builder: (field) {
+        return InputDecorator(
+          decoration: InputDecoration(
+            labelText: 'Đối tác trả góp',
+            prefixIcon: const Icon(Icons.account_balance_outlined),
+            errorText: field.errorText,
+            alignLabelWithHint: true,
+          ),
+          child: Column(
+            children: [
+              for (final entry in _installmentPartnerOptions.entries)
+                CheckboxListTile(
+                  key: ValueKey('sales-report-installment-${entry.key}'),
+                  value: selectedCodes.contains(entry.key),
+                  onChanged: (checked) {
+                    final next = [...selectedCodes];
+                    if (checked == true) {
+                      if (!next.contains(entry.key)) next.add(entry.key);
+                    } else {
+                      next.remove(entry.key);
+                    }
+                    field.didChange(next);
+                    onChanged(next);
+                  },
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text(
+                    entry.value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

@@ -124,6 +124,53 @@ describe('SalesReportErpService', () => {
       ),
     ).toBe(true);
   });
+
+  it.each([
+    ['confirmationStatus', 'CANCELLED'],
+    ['fulfillmentStatus', 'cancelled'],
+  ])(
+    'blocks canceled ERP orders when %s is %s',
+    async (field, statusValue) => {
+      process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+      const fetchMock = jest.fn(async (input: string | URL) => {
+        const url = input.toString();
+        if (
+          url ===
+          'https://staff-bff.tekoapis.com/api/v2/staff-admin/orders/2606290002?thousandSeparator=%2C&decimalSeparator=.'
+        ) {
+          return jsonResponse({
+            data: {
+              order: {
+                orderId: '2606290002',
+                confirmationStatus:
+                  field === 'confirmationStatus' ? statusValue : '',
+                fulfillmentStatus:
+                  field === 'fulfillmentStatus' ? statusValue : '',
+                orderCaptureLineItems: [{ sellerSku: 'SKU-1' }],
+                payments: [{ paymentMethod: 'cash', amount: 1230000 }],
+              },
+            },
+          });
+        }
+        if (url.startsWith('https://listing.tekoapis.com/api/products/')) {
+          throw new Error('Listing lookup should not be called');
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      }) as jest.MockedFunction<typeof fetch>;
+      global.fetch = fetchMock;
+
+      const service = new SalesReportErpService();
+
+      await expect(service.lookupOrder('2606290002', 'CP62')).rejects.toThrow(
+        'Đơn đã bị hủy.',
+      );
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          input.toString().startsWith('https://listing.tekoapis.com/'),
+        ),
+      ).toBe(false);
+    },
+  );
 });
 
 function redirectResponse(location: string) {

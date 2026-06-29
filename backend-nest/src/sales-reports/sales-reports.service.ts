@@ -21,6 +21,8 @@ import {
   CreateSalesReportDto,
   ExportSalesReportsDto,
   EXPERIENCE_REASON_CODES,
+  INSTALLMENT_PARTNER_CODES,
+  INSTALLMENT_STATUSES,
   ListSalesReportsDto,
   NOT_PURCHASED_REASON_CODES,
   SALES_REPORT_TYPES,
@@ -31,6 +33,8 @@ import {
 const REPORT_TYPE_PURCHASED = 'PURCHASED';
 const REPORT_TYPE_NOT_PURCHASED = 'NOT_PURCHASED';
 const DEFAULT_PAGE_SIZE = 20;
+const INSTALLMENT_SUCCESS = 'SUCCESS';
+const INSTALLMENT_FAILED = 'FAILED';
 
 type SalesReportFilters = {
   reportType: string | null;
@@ -74,6 +78,20 @@ const NOT_PURCHASED_LABELS: Record<string, string> = {
   OTHER: 'Khác',
 };
 
+const INSTALLMENT_LABELS: Record<string, string> = {
+  SUCCESS: 'Trả góp thành công',
+  FAILED: 'Trả góp thất bại',
+};
+
+const INSTALLMENT_PARTNER_LABELS: Record<string, string> = {
+  VNPAY_POS: 'VNPAY - POS',
+  PAYOO_POS: 'PAYOO - POS',
+  HOMECREDIT_CTTC: 'HomeCredit - CTTC',
+  SHINHAN_CTTC: 'Shinhan - CTTC',
+  HDSAISON_CTTC: 'HDSaison - CTTC',
+  AEON_FINANCE_CTTC: 'AEON Finance - CTTC',
+};
+
 @Injectable()
 export class SalesReportsService {
   private readonly logger = new Logger(SalesReportsService.name);
@@ -93,13 +111,14 @@ export class SalesReportsService {
     await this.assertOrderNotReported(orderCode);
     const context = await this.resolveUserSnapshot(user);
     const erpOrder = await this.erp.lookupOrder(orderCode, context.storeCode);
-    const category = await this.categories.matchCategoryFromErp(
+    const matchedCategories = await this.categories.matchCategoriesFromErp(
       erpOrder.categoryCandidates,
     );
     return {
       orderCode,
       customerNeed: erpOrder.customerNeed,
-      categoryGroup: category,
+      categoryGroup: matchedCategories[0] ?? null,
+      categoryGroups: matchedCategories,
       order: this.toOrderDto(erpOrder),
       items: erpOrder.items,
       payments: erpOrder.payments,
@@ -114,9 +133,13 @@ export class SalesReportsService {
         ? this.normalizeOrderCode(body.orderCode)
         : null;
     this.validateCreateBody(reportType, orderCode, body);
-    const category = await this.categories.requireCategory(
-      body.categoryGroupId,
+    const categoryIds = this.normalizeCategoryGroupIds(body);
+    const installment = this.normalizeInstallmentSelection(
+      reportType,
+      body,
     );
+    const categories = await this.categories.requireCategories(categoryIds);
+    const primaryCategory = categories[0]!;
     const context = await this.resolveUserSnapshot(user);
     let erpOrder: SalesReportErpOrder | null = null;
     if (reportType === REPORT_TYPE_PURCHASED) {
@@ -125,7 +148,7 @@ export class SalesReportsService {
     }
 
     this.logger.log(
-      `Sales report create started: user=${this.safeUserLabel(user)} type=${reportType} category=${category.id} hasOrder=${Boolean(orderCode)}`,
+      `Sales report create started: user=${this.safeUserLabel(user)} type=${reportType} primaryCategory=${primaryCategory.id} categoryCount=${categories.length} hasOrder=${Boolean(orderCode)} hasInstallment=${Boolean(installment.status)}`,
     );
     try {
       const report = await this.prisma.salesReport.create({
@@ -137,9 +160,9 @@ export class SalesReportsService {
             this.optionalText(body.customerNeed, 500) ??
             erpOrder?.customerNeed ??
             null,
-          categoryGroupId: category.id,
-          categoryGroupName: category.catGroupName,
-          categoryGroupNameVi: category.catGroupNameVi,
+          categoryGroupId: primaryCategory.id,
+          categoryGroupName: primaryCategory.catGroupName,
+          categoryGroupNameVi: primaryCategory.catGroupNameVi,
           consultedSolutionAnswer: body.consultedSolutionAnswer,
           consultedSolutionOtherReason: this.optionalText(
             body.consultedSolutionOtherReason,
@@ -168,6 +191,12 @@ export class SalesReportsService {
             body.notPurchasedOtherReason,
             500,
           ),
+          installmentStatus: installment.status,
+          installmentFailureReason:
+            installment.status === INSTALLMENT_FAILED
+              ? this.optionalText(body.installmentFailureReason, 500)
+              : null,
+          installmentPartnerCodes: installment.partnerCodes,
           ...context,
           ...(erpOrder ? this.erpCreateData(erpOrder) : {}),
           rawResponses: {
@@ -180,7 +209,21 @@ export class SalesReportsService {
               notPurchased: body.notPurchasedReason
                 ? this.notPurchasedLabel(body.notPurchasedReason)
                 : null,
+              installment: installment.status
+                ? this.installmentLabel(installment.status)
+                : null,
+              installmentPartners: installment.partnerCodes.map((code) =>
+                this.installmentPartnerLabel(code),
+              ),
             },
+          },
+          categorySelections: {
+            create: categories.map((category, index) => ({
+              categoryGroupId: category.id,
+              categoryGroupName: category.catGroupName,
+              categoryGroupNameVi: category.catGroupNameVi,
+              sortOrder: index,
+            })),
           },
           items: erpOrder
             ? {
@@ -216,6 +259,7 @@ export class SalesReportsService {
             : undefined,
         },
         include: {
+          categorySelections: true,
           items: true,
           payments: true,
         },
@@ -253,6 +297,7 @@ export class SalesReportsService {
         skip: filters.page * filters.limit,
         take: filters.limit,
         include: {
+          categorySelections: { orderBy: { sortOrder: 'asc' } },
           items: { take: 20, orderBy: { createdAt: 'asc' } },
           payments: { take: 20, orderBy: { createdAt: 'asc' } },
         },
@@ -282,6 +327,7 @@ export class SalesReportsService {
       orderBy: { submittedAt: 'desc' },
       take: 10_000,
       include: {
+        categorySelections: { orderBy: { sortOrder: 'asc' } },
         items: { orderBy: { createdAt: 'asc' } },
         payments: { orderBy: { createdAt: 'asc' } },
       },
@@ -353,6 +399,87 @@ export class SalesReportsService {
         'Vui lòng nhập lý do khác khi khách chưa mua hàng.',
       );
     }
+  }
+
+  private normalizeCategoryGroupIds(body: CreateSalesReportDto) {
+    const ids = [
+      ...(Array.isArray(body.categoryGroupIds) ? body.categoryGroupIds : []),
+      body.categoryGroupId,
+    ]
+      .map((value) =>
+        String(value || '')
+          .trim()
+          .toUpperCase()
+          .replace(/[^A-Z0-9_]/g, ''),
+      )
+      .filter(Boolean);
+    const unique = Array.from(new Set(ids));
+    if (unique.length === 0) {
+      throw new BadRequestException('Vui lòng chọn ít nhất một ngành hàng.');
+    }
+    return unique.slice(0, 20);
+  }
+
+  private normalizeInstallmentSelection(
+    reportType: string,
+    body: CreateSalesReportDto,
+  ) {
+    const rawStatus = this.optionalText(body.installmentStatus, 20);
+    const failureReason = this.optionalText(
+      body.installmentFailureReason,
+      500,
+    );
+    const partnerCodes = this.normalizeInstallmentPartnerCodes(
+      body.installmentPartnerCodes,
+    );
+    if (!rawStatus) {
+      if (failureReason || partnerCodes.length > 0) {
+        throw new BadRequestException(
+          'Vui lòng tick Trả góp trước khi nhập thông tin trả góp.',
+        );
+      }
+      return { status: null, partnerCodes: [] };
+    }
+    const status = this.normalizeEnum(rawStatus, INSTALLMENT_STATUSES);
+    if (reportType === REPORT_TYPE_PURCHASED && status !== INSTALLMENT_SUCCESS) {
+      throw new BadRequestException(
+        'Báo cáo mua hàng chỉ ghi nhận trả góp thành công.',
+      );
+    }
+    if (
+      reportType === REPORT_TYPE_NOT_PURCHASED &&
+      status !== INSTALLMENT_FAILED
+    ) {
+      throw new BadRequestException(
+        'Báo cáo chưa mua hàng chỉ ghi nhận trả góp thất bại.',
+      );
+    }
+    if (status === INSTALLMENT_FAILED && !failureReason) {
+      throw new BadRequestException('Vui lòng nhập lý do trả góp thất bại.');
+    }
+    if (partnerCodes.length === 0) {
+      throw new BadRequestException('Vui lòng chọn đối tác trả góp.');
+    }
+    return { status, partnerCodes };
+  }
+
+  private normalizeInstallmentPartnerCodes(value: unknown) {
+    const raw = Array.isArray(value) ? value : [];
+    const codes = raw
+      .map((item) =>
+        String(item || '')
+          .trim()
+          .toUpperCase(),
+      )
+      .filter(Boolean);
+    const unique = Array.from(new Set(codes)).slice(0, 10);
+    const invalid = unique.find(
+      (code) => !INSTALLMENT_PARTNER_CODES.includes(code as any),
+    );
+    if (invalid) {
+      throw new BadRequestException('Đối tác trả góp không hợp lệ.');
+    }
+    return unique;
   }
 
   private async assertOrderNotReported(orderCode: string | null) {
@@ -527,7 +654,16 @@ export class SalesReportsService {
     if (filters.reportType) parts.push({ reportType: filters.reportType });
     if (filters.orderCode) parts.push({ orderCode: filters.orderCode });
     if (filters.categoryGroupId) {
-      parts.push({ categoryGroupId: filters.categoryGroupId });
+      parts.push({
+        OR: [
+          { categoryGroupId: filters.categoryGroupId },
+          {
+            categorySelections: {
+              some: { categoryGroupId: filters.categoryGroupId },
+            },
+          },
+        ],
+      });
     }
     if (filters.reporter) {
       parts.push({
@@ -593,6 +729,10 @@ export class SalesReportsService {
   }
 
   private toReportDto(row: any) {
+    const categoryGroups = this.categoryGroupsFor(row);
+    const installmentPartnerCodes = this.cleanInstallmentPartnerCodes(
+      row.installmentPartnerCodes,
+    );
     return {
       id: row.id,
       reportType: row.reportType,
@@ -602,6 +742,7 @@ export class SalesReportsService {
       categoryGroupId: row.categoryGroupId,
       categoryGroupName: row.categoryGroupName,
       categoryGroupNameVi: row.categoryGroupNameVi,
+      categoryGroups,
       consultedSolutionAnswer: row.consultedSolutionAnswer,
       consultedSolutionLabel: this.answerLabel(row.consultedSolutionAnswer),
       consultedSolutionOtherReason: row.consultedSolutionOtherReason,
@@ -619,6 +760,15 @@ export class SalesReportsService {
         ? this.notPurchasedLabel(row.notPurchasedReason)
         : null,
       notPurchasedOtherReason: row.notPurchasedOtherReason,
+      installmentStatus: row.installmentStatus,
+      installmentStatusLabel: row.installmentStatus
+        ? this.installmentLabel(row.installmentStatus)
+        : null,
+      installmentFailureReason: row.installmentFailureReason,
+      installmentPartnerCodes,
+      installmentPartnerLabels: installmentPartnerCodes.map((code) =>
+        this.installmentPartnerLabel(code),
+      ),
       createdByEmail: row.createdByEmail,
       createdByName: row.createdByName,
       createdByPersonnelCode: row.createdByPersonnelCode,
@@ -658,6 +808,9 @@ export class SalesReportsService {
       'Lý do khác App',
       'Lý do chưa mua',
       'Lý do khác chưa mua',
+      'Trả góp',
+      'Đối tác trả góp',
+      'Lý do trả góp thất bại',
       'Tổng tiền ERP',
       'Thanh toán ERP',
       'Xác nhận ERP',
@@ -667,6 +820,10 @@ export class SalesReportsService {
     ];
     const lines = [headers.map((header) => this.csvCell(header)).join(',')];
     for (const row of rows) {
+      const categoryGroups = this.categoryGroupsFor(row);
+      const partnerCodes = this.cleanInstallmentPartnerCodes(
+        row.installmentPartnerCodes,
+      );
       lines.push(
         [
           this.csvCell(this.csvVietnamDate(row.submittedAt)),
@@ -679,7 +836,15 @@ export class SalesReportsService {
           this.csvCell(row.storeCode),
           this.csvCell(row.createdByName || row.createdByEmail),
           this.csvExcelTextCell(row.createdByPersonnelCode),
-          this.csvCell(row.categoryGroupNameVi),
+          this.csvCell(
+            categoryGroups
+              .map(
+                (category: { catGroupNameVi?: string | null }) =>
+                  category.catGroupNameVi,
+              )
+              .filter(Boolean)
+              .join('\n'),
+          ),
           this.csvExcelTextCell(row.customerPhone),
           this.csvCell(row.customerNeed),
           this.csvCell(this.answerLabel(row.consultedSolutionAnswer)),
@@ -696,6 +861,17 @@ export class SalesReportsService {
               : null,
           ),
           this.csvCell(row.notPurchasedOtherReason),
+          this.csvCell(
+            row.installmentStatus
+              ? this.installmentLabel(row.installmentStatus)
+              : null,
+          ),
+          this.csvCell(
+            partnerCodes
+              .map((code) => this.installmentPartnerLabel(code))
+              .join('\n'),
+          ),
+          this.csvCell(row.installmentFailureReason),
           this.csvCell(row.erpGrandTotal),
           this.csvCell(row.erpPaymentStatus),
           this.csvCell(row.erpConfirmationStatus),
@@ -850,6 +1026,41 @@ export class SalesReportsService {
 
   private notPurchasedLabel(code: string) {
     return NOT_PURCHASED_LABELS[code] ?? code;
+  }
+
+  private installmentLabel(code: string) {
+    return INSTALLMENT_LABELS[code] ?? code;
+  }
+
+  private installmentPartnerLabel(code: string) {
+    return INSTALLMENT_PARTNER_LABELS[code] ?? code;
+  }
+
+  private cleanInstallmentPartnerCodes(value: unknown) {
+    const raw = Array.isArray(value) ? value : [];
+    return raw
+      .map((item) => String(item || '').trim().toUpperCase())
+      .filter((code) => INSTALLMENT_PARTNER_CODES.includes(code as any));
+  }
+
+  private categoryGroupsFor(row: any) {
+    const selections = Array.isArray(row.categorySelections)
+      ? row.categorySelections
+      : [];
+    if (selections.length > 0) {
+      return selections.map((selection: any) => ({
+        id: selection.categoryGroupId,
+        catGroupName: selection.categoryGroupName,
+        catGroupNameVi: selection.categoryGroupNameVi,
+      }));
+    }
+    return [
+      {
+        id: row.categoryGroupId,
+        catGroupName: row.categoryGroupName,
+        catGroupNameVi: row.categoryGroupNameVi,
+      },
+    ].filter((category) => Boolean(category.id));
   }
 
   private csvCell(value: unknown) {

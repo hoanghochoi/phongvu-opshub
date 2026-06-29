@@ -21,8 +21,14 @@ and images while keeping content editable by hand in Markdown.
 - `/download` includes a visible `Hướng dẫn sử dụng` link to `/help`.
 - The Flutter Home side menu includes `Hướng dẫn sử dụng` and opens the help
   page externally with `AppLogger` coverage.
-- Static-only production deploys and staging deploys publish `dist/help/` with
-  the download static files.
+- The `help-content` branch is the production content source for `docs/help`.
+- Pushing the `help-content` branch runs a production static-only deploy that
+  publishes `dist/help/` with the download static files and does not rebuild app
+  packages or change app-version metadata.
+- Full production deploys from `main` load `docs/help` from `origin/help-content`
+  before building the help site when that branch exists.
+- Manual static-only production deploys and staging deploys also publish
+  `dist/help/` with the download static files.
 
 ## Validation
 

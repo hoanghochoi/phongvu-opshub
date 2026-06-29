@@ -1528,6 +1528,16 @@ class PaymentMonitorProvider extends ChangeNotifier {
       useStreamEndpoint: useStreamEndpoint,
     );
     var streamStartedAckSent = false;
+    Future<void> acknowledgePlaybackStarted() async {
+      if (streamStartedAckSent) return;
+      streamStartedAckSent = true;
+      await _acknowledgeNotificationEvent(
+        notificationId: notification.notificationId,
+        clientId: clientId,
+        event: 'STREAM_STARTED',
+      );
+    }
+
     for (var attempt = 1; attempt <= _maxAudioPlaybackAttempts; attempt += 1) {
       try {
         final startedAt = DateTime.now();
@@ -1572,17 +1582,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           clientId: clientId,
           attempt: attempt,
           audio: audio,
-          onPlaybackStarting: useStreamEndpoint
-              ? () {
-                  if (streamStartedAckSent) return Future<void>.value();
-                  streamStartedAckSent = true;
-                  return _acknowledgeNotificationEvent(
-                    notificationId: notification.notificationId,
-                    clientId: clientId,
-                    event: 'STREAM_STARTED',
-                  ).then((_) {});
-                }
-              : null,
+          onPlaybackStarting: acknowledgePlaybackStarted,
         );
         await AppLogger.instance.info(
           'PaymentSpeaker',

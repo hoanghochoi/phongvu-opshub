@@ -27,6 +27,21 @@ describe('SalesReportCategoriesService', () => {
     );
   });
 
+  it('matches multiple Listing product group codes to OpsHub category groups', async () => {
+    const service = createService();
+
+    const categories = await service.matchCategoriesFromErp([
+      'NH03',
+      'NH08',
+      'RAM DDR5',
+      'Thiết bị mạng/ Router TPLink Archer C54',
+    ]);
+
+    expect(categories.map((category) => category.id)).toEqual(
+      expect.arrayContaining(['NH03', 'NH08']),
+    );
+  });
+
   it('falls back to network router listing names when code is missing', async () => {
     const service = createService();
 

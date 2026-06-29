@@ -49,6 +49,42 @@ void main() {
     expect(savedInput, '26052287654321\n26052311111111');
   });
 
+  testWidgets('Payment transaction tile keeps order card compact when wide', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      _wrap(
+        PaymentTransactionTile(
+          transaction: _transaction(
+            orders: const ['26052112345678'],
+            canEditOrders: true,
+          ),
+          amountFormatter: NumberFormat.decimalPattern('vi_VN'),
+          rowMessage: null,
+          canReviewTransfer: false,
+          onSaveOrders: (_) async {},
+          onRequestTransfer: (_) async => true,
+          onApproveTransfer: (_) async {},
+          onRejectTransfer: (_, {note}) async {},
+          onLoadHistory: () async => const <BankStatementOrderHistoryEntry>[],
+        ),
+      ),
+    );
+
+    final orderEditor = find.byKey(
+      const ValueKey('payment-transaction-order-editor'),
+    );
+    expect(orderEditor, findsOneWidget);
+    expect(tester.getSize(orderEditor).width, moreOrLessEquals(260));
+    expect(
+      tester.getTopLeft(orderEditor).dx,
+      greaterThan(tester.getTopLeft(find.textContaining('1.250.000')).dx),
+    );
+  });
+
   testWidgets('Payment transaction tile shows pending review controls', (
     tester,
   ) async {

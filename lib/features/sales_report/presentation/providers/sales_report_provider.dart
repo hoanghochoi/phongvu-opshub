@@ -118,6 +118,7 @@ class SalesReportProvider extends ChangeNotifier {
         context: {
           'orderLength': result.orderCode.length,
           'hasCategory': result.categoryGroup != null,
+          'categoryCount': result.categoryGroups.length,
           'itemCount': result.items.length,
           'paymentCount': result.payments.length,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
@@ -157,9 +158,12 @@ class SalesReportProvider extends ChangeNotifier {
         context: {
           'type': input.reportType,
           'categoryGroupId': input.categoryGroupId,
+          'categoryGroupCount': input.categoryGroupIds.length,
           'hasOrder': (input.orderCode ?? '').trim().isNotEmpty,
           'orderLength': (input.orderCode ?? '').trim().length,
           'hasPhone': (input.customerPhone ?? '').trim().isNotEmpty,
+          'installmentSelected': input.installmentStatus != null,
+          'installmentPartnerCount': input.installmentPartnerCodes.length,
           'userId': user?.id,
           'storeId': user?.storeId,
         },
@@ -172,6 +176,9 @@ class SalesReportProvider extends ChangeNotifier {
         context: {
           'type': input.reportType,
           'categoryGroupId': input.categoryGroupId,
+          'categoryGroupCount': input.categoryGroupIds.length,
+          'installmentSelected': input.installmentStatus != null,
+          'installmentPartnerCount': input.installmentPartnerCodes.length,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
@@ -185,6 +192,9 @@ class SalesReportProvider extends ChangeNotifier {
         context: {
           'type': input.reportType,
           'categoryGroupId': input.categoryGroupId,
+          'categoryGroupCount': input.categoryGroupIds.length,
+          'installmentSelected': input.installmentStatus != null,
+          'installmentPartnerCount': input.installmentPartnerCodes.length,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );

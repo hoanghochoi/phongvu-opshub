@@ -161,7 +161,16 @@ class _SalesReportAdminTile extends StatelessWidget {
     final reportType = item['reportType']?.toString() == 'PURCHASED'
         ? 'Mua hàng'
         : 'Chưa mua hàng';
-    final category = item['categoryGroupNameVi']?.toString() ?? '';
+    final categoryGroups = item['categoryGroups'] is List
+        ? (item['categoryGroups'] as List)
+              .whereType<Map>()
+              .map((category) => category['catGroupNameVi']?.toString() ?? '')
+              .where((label) => label.trim().isNotEmpty)
+              .join(', ')
+        : '';
+    final category = categoryGroups.isNotEmpty
+        ? categoryGroups
+        : item['categoryGroupNameVi']?.toString() ?? '';
     final orderCode = item['orderCode']?.toString();
     final reporter =
         item['createdByName']?.toString() ??
@@ -169,6 +178,15 @@ class _SalesReportAdminTile extends StatelessWidget {
         '';
     final storeCode = item['storeCode']?.toString() ?? '';
     final submittedAt = item['submittedAt']?.toString() ?? '';
+    final installmentLabel = item['installmentStatusLabel']?.toString() ?? '';
+    final installmentFailureReason =
+        item['installmentFailureReason']?.toString() ?? '';
+    final installmentPartnerLabels = item['installmentPartnerLabels'] is List
+        ? (item['installmentPartnerLabels'] as List)
+              .map((label) => label.toString())
+              .where((label) => label.trim().isNotEmpty)
+              .join(', ')
+        : '';
     return Card(
       elevation: 0,
       child: Padding(
@@ -212,6 +230,24 @@ class _SalesReportAdminTile extends StatelessWidget {
                       submittedAt,
                       style: const TextStyle(
                         color: AppColors.neutral500,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                  if (installmentLabel.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      [
+                        installmentLabel,
+                        if (installmentPartnerLabels.isNotEmpty)
+                          installmentPartnerLabels,
+                        if (installmentFailureReason.isNotEmpty)
+                          installmentFailureReason,
+                      ].join(' - '),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.neutral600,
                         fontSize: 12,
                       ),
                     ),

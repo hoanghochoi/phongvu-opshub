@@ -62,12 +62,38 @@ export class SalesReportCategoriesService {
     return category;
   }
 
+  async requireCategories(ids: string[]) {
+    const normalizedIds = Array.from(
+      new Set(ids.map((id) => this.normalizeCategoryId(id)).filter(Boolean)),
+    );
+    await this.ensureSynced();
+    const categories = normalizedIds
+      .map((id) => this.cachedCategories.find((item) => item.id === id))
+      .filter(
+        (category): category is SalesReportCategoryGroupDto =>
+          Boolean(category),
+      );
+    if (
+      normalizedIds.length === 0 ||
+      categories.length !== normalizedIds.length
+    ) {
+      throw new BadRequestException('Vui lòng chọn ngành hàng hợp lệ.');
+    }
+    return categories;
+  }
+
   async matchCategoryFromErp(values: Array<string | null | undefined>) {
+    const categories = await this.matchCategoriesFromErp(values);
+    return categories[0] ?? null;
+  }
+
+  async matchCategoriesFromErp(values: Array<string | null | undefined>) {
     await this.ensureSynced();
     const normalizedValues = this.normalizeErpValues(values);
     this.logger.log(
       `Sales report category match started: valueCount=${normalizedValues.length} categoryCount=${this.cachedCategories.length}`,
     );
+    const matched: SalesReportCategoryGroupDto[] = [];
     for (const category of this.cachedCategories) {
       const candidates = [
         this.normalizeComparable(category.id),
@@ -80,16 +106,21 @@ export class SalesReportCategoriesService {
           this.matchesCandidate(candidate, normalizedValues),
         )
       ) {
-        this.logger.log(
-          `Sales report category matched from ERP: category=${category.id}`,
-        );
-        return category;
+        matched.push(category);
       }
+    }
+    if (matched.length > 0) {
+      this.logger.log(
+        `Sales report category matched from ERP: categories=${matched
+          .map((category) => category.id)
+          .join(',')}`,
+      );
+      return matched;
     }
     this.logger.warn(
       `Sales report category not matched from ERP: valueCount=${normalizedValues.length}`,
     );
-    return null;
+    return [];
   }
 
   private async ensureSynced() {
