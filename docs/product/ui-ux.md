@@ -26,6 +26,11 @@ visual systems that make the app feel assembled from unrelated screens.
 - Colors: every app color must come from `AppColors`. Add a token before adding
   a new recurring hue. Do not use `Color(0x...)` or `Colors.*` in feature UI
   unless it is framework-required and there is no suitable token.
+- Figma `Foundation/*` variables map into the shared theme layer first:
+  `AppColors`, `AppTextStyles`, `AppRadius`, `AppLayoutTokens`, and
+  `AppTheme`. Keep legacy aliases such as `AppTheme.primaryBlue` during the
+  migration so older screens keep their runtime behavior while new tokens roll
+  out.
 - Typography: use `AppTextStyles` or `Theme.of(context).textTheme`. Do not use
   one-off font scales unless the screen has a specific layout need. Do not use
   `FontWeight.w800`; the shipped font set normalizes emphasis to `w700` through
@@ -77,6 +82,9 @@ visual systems that make the app feel assembled from unrelated screens.
   inactive, indicator, and divider colors from `AppColors`. Selected and
   inactive labels must remain readable on both Android and Windows; do not rely
   on default `TabBar` primary/grey colors on brand-blue backgrounds.
+- Figma screen migration must stay incremental: upgrade shared Button, Input,
+  Dropdown, State, Card, Table, Scanner, and Notification patterns before
+  migrating Home, Admin, Tiền vào, Sao kê, Cấn trừ, and Báo cáo screens.
 
 ## Filter Controls
 
@@ -161,11 +169,18 @@ visual systems that make the app feel assembled from unrelated screens.
 ## Platform Contracts
 
 - Android and Windows are the primary UI proof targets for current OpsHub work.
+- Flutter web is an additional staff operations surface served from the domain
+  root in production and staging. The SPA fallback must preserve `/api`, `/ws`,
+  `/download`, `/help`, `/uploads`, `/downloads`, `/staging-download`, and
+  `/health` before serving `index.html`.
 - Payment monitor list access is available on supported non-web clients,
   including Android and Windows, when the user has `PAYMENT_MONITOR`.
   The speaker path is Windows-only because it depends on desktop audio
   behavior. Home tiles, speaker controls, and provider logic must not conflate
   those platform capabilities.
+- Web must not start payment audio realtime handling. The `Tiền vào` entry is
+  hidden on web in phase 1, direct route access renders an unsupported state,
+  and that branch must log through `AppLogger`.
 - If a feature or sub-feature is platform-specific, direct route access on
   unsupported platforms must not run that sub-feature flow. It must render a
   shared unsupported state or hide the unsupported control and log the branch

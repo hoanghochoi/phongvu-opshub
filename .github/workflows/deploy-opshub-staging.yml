@@ -386,6 +386,23 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build staging web app
+        shell: bash
+        run: |
+          set -euo pipefail
+          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/apply-staging-icons.ps1 -Platform web
+          flutter pub get
+          flutter build web --release \
+            --build-name "${{ needs.prepare.outputs.version_name }}" \
+            --build-number "${{ needs.prepare.outputs.version_code }}" \
+            --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}"
+
       - name: Connect Tailscale
         uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8
         with:
@@ -482,11 +499,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/apply-staging-icons.ps1 -Platform web
           node scripts/build-help-site.mjs
           tar -C dist -czf dist/help.tar.gz help
+          tar -C build/web -czf dist/web.tar.gz .
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
           downloads_dir="${OPSHUB_SSD_ROOT}/downloads"
+          web_dir="${OPSHUB_SSD_ROOT}/web"
           tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}"
           ssh opshub-staging "mkdir -p '$remote_release_dir' '$tmp_dir'"
           rsync -az --delete \
@@ -499,8 +517,9 @@ jobs:
           scp 'deploy/home-server/download.html' "opshub-staging:${tmp_dir}/download.html"
           scp 'web/icons/Icon-192.png' "opshub-staging:${tmp_dir}/opshub-icon-192.png"
           scp 'dist/help.tar.gz' "opshub-staging:${tmp_dir}/help.tar.gz"
+          scp 'dist/web.tar.gz' "opshub-staging:${tmp_dir}/web.tar.gz"
           ssh opshub-staging \
-            "DOWNLOADS_DIR='$downloads_dir' TMP_DIR='$tmp_dir' bash -s" <<'REMOTE'
+            "DOWNLOADS_DIR='$downloads_dir' WEB_DIR='$web_dir' TMP_DIR='$tmp_dir' bash -s" <<'REMOTE'
           set -euo pipefail
           sudo mkdir -p "$DOWNLOADS_DIR"
           sudo install -m 0644 "$TMP_DIR/latest.json" "$DOWNLOADS_DIR/latest.json"
@@ -512,6 +531,13 @@ jobs:
           esac
           sudo rm -rf "$DOWNLOADS_DIR/help"
           sudo tar -xzf "$TMP_DIR/help.tar.gz" -C "$DOWNLOADS_DIR"
+          case "$WEB_DIR" in
+            */web) ;;
+            *) echo "Refusing to replace web bundle outside a web directory: $WEB_DIR" >&2; exit 1 ;;
+          esac
+          sudo rm -rf "$WEB_DIR"
+          sudo mkdir -p "$WEB_DIR"
+          sudo tar -xzf "$TMP_DIR/web.tar.gz" -C "$WEB_DIR"
           rm -rf "$TMP_DIR"
           REMOTE
 
@@ -719,6 +745,7 @@ jobs:
           }
 
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/health"
+          retry_curl "${OPSHUB_PUBLIC_BASE_URL}/" >/dev/null
           android_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android")"
           windows_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows")"
           node -e "
@@ -742,6 +769,7 @@ jobs:
           " "$android_json" "$windows_json" "${{ needs.prepare.outputs.version_code }}" "$OPSHUB_DOWNLOAD_PUBLIC_BASE_URL"
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$android_json")" >/dev/null
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$windows_json")" >/dev/null
+          retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
           retry_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}" >/dev/null
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/help" >/dev/null
           manifest_json="$(retry_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json")"

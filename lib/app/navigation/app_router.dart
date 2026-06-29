@@ -32,12 +32,14 @@ import '../../features/warranty/presentation/screens/warranty_main_screen.dart';
 import '../../features/warranty/presentation/screens/check_warranty_screen.dart';
 import '../../features/feedback/presentation/screens/feedback_screen.dart';
 import '../../features/payment_monitor/presentation/screens/payment_monitor_screen.dart';
+import '../../features/payment_monitor/presentation/screens/payment_monitor_unsupported_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../features/vietqr/presentation/screens/vietqr_screen.dart';
 import '../../features/fifo/presentation/screens/fifo_check_screen.dart';
 import '../../features/fifo/presentation/screens/fifo_menu_screen.dart';
 import '../../features/fifo/presentation/screens/fifo_history_screen.dart';
 import '../../features/sort/presentation/screens/sort_screen.dart';
+import '../../core/platform/app_platform_capabilities.dart';
 import 'main_navigation_screen.dart';
 
 class AppRouter {
@@ -215,8 +217,7 @@ class AppRouter {
         ),
         GoRoute(
           path: '/payment-monitor',
-          builder: (context, state) =>
-              _selectable(const PaymentMonitorScreen()),
+          builder: (context, state) => buildPaymentMonitorRoute(),
         ),
         GoRoute(
           path: '/bank-statement',
@@ -316,6 +317,21 @@ class AppRouter {
       return user?.canUseOffsetAdjustments == true;
     }
     return user?.canUseFeature(featureCode) == true;
+  }
+
+  @visibleForTesting
+  static Widget buildPaymentMonitorRoute({
+    bool? isWeb,
+    TargetPlatform? platform,
+  }) {
+    return _selectable(
+      AppPlatformCapabilities.isPaymentMonitorSupported(
+            isWeb: isWeb,
+            platform: platform,
+          )
+          ? const PaymentMonitorScreen()
+          : const PaymentMonitorUnsupportedScreen(),
+    );
   }
 
   static Widget _selectable(Widget child) => SelectionArea(child: child);

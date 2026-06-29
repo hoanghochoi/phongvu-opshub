@@ -45,6 +45,23 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`UPDATE-001`/`PAYMENT-MONITOR-001`, 2026-06-29: started the
+  Figma Design System 2026 migration at the shared theme layer by mapping
+  semantic Foundation colors, typography, radius, and spacing into
+  `AppColors`, `AppTextStyles`, `AppRadius`, `AppLayoutTokens`, and `AppTheme`
+  while keeping legacy aliases; added Flutter web build/deploy to production
+  and staging roots with Caddy SPA fallback after API/ws/download/help/upload
+  routes; kept `Tiền vào` and payment speaker runtime off web with a logged
+  unsupported direct route. Validation: `dart format --output=none
+  --set-exit-if-changed`, workflow YAML parse through backend `js-yaml`,
+  `flutter build web --debug --no-pub
+  --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api`,
+  `flutter analyze --no-pub`, focused Flutter tests for platform capabilities,
+  router unsupported route, Home, shared buttons, and gradient header (15
+  tests), and `git diff --check`. Gap: local Caddy validation could not run
+  because Docker daemon is unavailable and local `caddy` is not installed; live
+  staging/production route smoke and real Windows speaker regression remain
+  post-deploy checks.
 - `SALES-REPORT-001`, 2026-06-29: Purchased order check now blocks ERP orders
   whose `confirmationStatus` or `fulfillmentStatus` is `cancelled` regardless
   of case; purchased form supports QR/barcode order scan and checking another

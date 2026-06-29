@@ -118,6 +118,7 @@ services:
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/caddy/config:/config
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/uploads:/srv/uploads:ro
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/downloads:/srv/downloads:ro
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/web:/srv/web:ro
     networks:
       - opshub
 

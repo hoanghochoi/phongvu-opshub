@@ -23,6 +23,9 @@ development services for OpsHub.
   manifest at `GET /downloads/latest.json`.
 - Public staff guidance is exposed by `GET /help`, backed by Markdown content
   and images deployed from `docs/help/`.
+- Flutter web is served as the SPA root at `GET /` in production and staging.
+  Caddy must route `/api`, `/ws`, `/download`, `/help`, `/uploads`,
+  `/downloads`, `/staging-download`, and `/health` before the SPA fallback.
 
 ## Health Checks
 
@@ -50,11 +53,14 @@ curl http://localhost:3000/app-version
   `main` from accepted `staging` code, then push `main` to run the production
   workflow. The `help-content` branch is the production content source for
   `/help`; pushing it runs only the production static help/download deploy.
-- Full production GitHub deploys build the client packages in Actions, upload the APK,
-  Windows installer, Windows ZIP, and checksum directly to VPS staging, then
-  promote them to `/srv/opshub/downloads/` and publish `/downloads/latest.json`
-  for the download landing page. The same deploy publishes the built help site
-  under `/srv/opshub/downloads/help/`. When `origin/help-content` exists, full
+- Full production GitHub deploys build the client packages in Actions, upload
+  the APK, Windows installer, Windows ZIP, and checksum directly to VPS staging,
+  then promote them to `/srv/opshub/downloads/` and publish
+  `/downloads/latest.json` for the download landing page. The same deploy
+  builds Flutter web with
+  `API_BASE_URL=https://opshub.hoanghochoi.com/api`, syncs it to
+  `/srv/opshub/web/`, and publishes the built help site under
+  `/srv/opshub/downloads/help/`. When `origin/help-content` exists, full
   production deploys load `docs/help` from that branch before building the help
   site. Pushing `help-content`, or running manual `workflow_dispatch` with
   `skip_client_build=true`, refreshes only the static download page and manifest
@@ -62,9 +68,12 @@ curl http://localhost:3000/app-version
   app-version metadata or rebuild client packages.
 - Staging deploys run on `staging` pushes or manual `Deploy OpsHub Staging`
   dispatches, target `opshub-staging.hoanghochoi.com` for API/runtime traffic,
-  publish downloads under `/srv/opshub-staging/downloads/`, expose those
-  downloads through `https://opshub.hoanghochoi.com/staging-download`, and build
-  staging client packages with separate Android and Windows app identities.
+  build Flutter web with
+  `API_BASE_URL=https://opshub-staging.hoanghochoi.com/api`, publish it under
+  `/srv/opshub-staging/web/`, publish downloads under
+  `/srv/opshub-staging/downloads/`, expose those downloads through
+  `https://opshub.hoanghochoi.com/staging-download`, and build staging client
+  packages with separate Android and Windows app identities.
   Staging DB refresh is a separate manual sanitized-clone operation and is not
   part of the normal staging deploy workflow.
 

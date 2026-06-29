@@ -44,10 +44,10 @@ class _PaymentMonitorUnsupportedScreenState
         child: AppResponsiveScrollView(
           maxWidth: AppLayoutTokens.formMaxWidth,
           child: AppStatePanel(
-            icon: Icons.desktop_windows_outlined,
-            title: 'Ch\u1EC9 h\u1ED7 tr\u1EE3 Windows',
+            icon: Icons.web_asset_off_outlined,
+            title: 'Ch\u01B0a h\u1ED7 tr\u1EE3 tr\u00EAn web',
             message:
-                'T\u00EDnh n\u0103ng theo d\u00F5i ti\u1EC1n v\u00E0o c\u1EA7n m\u00E1y Windows \u0111\u1EC3 ph\u00E1t \u00E2m thanh v\u00E0 gi\u1EEF phi\u00EAn c\u1EADp nh\u1EADt \u1ED5n \u0111\u1ECBnh.',
+                'Vui l\u00F2ng d\u00F9ng app Android ho\u1EB7c Windows \u0111\u1EC3 theo d\u00F5i ti\u1EC1n v\u00E0o. Ri\u00EAng \u0111\u1ECDc loa thanh to\u00E1n ch\u1EC9 ch\u1EA1y tr\u00EAn Windows.',
             tone: AppStateTone.warning,
             actionLabel: 'V\u1EC1 trang ch\u1EE7',
             actionIcon: Icons.home_rounded,

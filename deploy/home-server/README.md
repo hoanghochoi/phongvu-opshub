@@ -28,7 +28,7 @@ Target layout:
 1. Create folders on the home server:
 
 ```bash
-sudo mkdir -p /srv/opshub/{postgres,redis,uploads,downloads,import,caddy/data,caddy/config}
+sudo mkdir -p /srv/opshub/{postgres,redis,uploads,downloads,web,import,caddy/data,caddy/config}
 sudo mkdir -p /mnt/truenas/opshub-backups
 ```
 
@@ -54,10 +54,11 @@ Only the API container reads the full runtime env file. Infrastructure services
 use explicit environment keys so changing app-version metadata does not recreate
 Postgres, Redis, realtime, or Caddy by accident.
 
-4. Build Flutter for production with the home-server API:
+4. Build Flutter clients for production with the home-server API:
 
 ```bash
 flutter build apk --release --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api
+flutter build web --release --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api
 ```
 
 5. Publish the APK and app-version metadata:
@@ -166,6 +167,17 @@ files, points Windows update metadata at the installer EXE, updates the backend
 generic `APP_*`, `APP_ANDROID_APP_*`, and `APP_WINDOWS_APP_*` env values, runs
 Prisma migrations, rebuilds the Docker stack, and keeps only the five newest
 release folders plus the newest client downloads.
+
+Full production deploys also build the Flutter web app with
+`API_BASE_URL=https://opshub.hoanghochoi.com/api`, sync it to
+`/srv/opshub/web/`, and serve it as the SPA root at `/`. Caddy must keep the
+runtime/static routes `/api`, `/ws`, `/download`, `/help`, `/uploads`,
+`/downloads`, `/staging-download`, and `/health` ahead of the SPA fallback.
+Staging deploys build the web app with
+`API_BASE_URL=https://opshub-staging.hoanghochoi.com/api` and publish it under
+`/srv/opshub-staging/web/`; phase 1 client artifacts still use
+`https://opshub.hoanghochoi.com/staging-download` for Android/Windows update
+links.
 
 The public staff download page is served at `/download`. Full deploys publish
 `/srv/opshub/downloads/latest.json` beside the APK, Windows installer, Windows

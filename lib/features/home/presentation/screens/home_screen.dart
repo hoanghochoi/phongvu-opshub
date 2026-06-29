@@ -89,6 +89,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     final supportsPaymentSpeaker =
         AppPlatformCapabilities.isPaymentSpeakerSupported();
+    final supportsPaymentMonitor =
+        AppPlatformCapabilities.isPaymentMonitorSupported();
     final actions = _buildHomeActions(
       context,
       canUseAdminMenu,
@@ -97,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
       canUseBankStatements,
       canUseOffsetAdjustments,
       canUseVietQr,
-      canUsePaymentMonitor,
+      canUsePaymentMonitor && supportsPaymentMonitor,
       canUseSalesReportHub,
       canUseFeedback,
     );

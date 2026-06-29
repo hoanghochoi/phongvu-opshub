@@ -13,9 +13,9 @@ class AppLayoutTokens {
   static const double formMaxWidth = 720;
   static const double actionBarMaxWidth = 560;
   static const double authMaxWidth = 460;
-  static const double sectionGap = 16;
+  static const double sectionGap = 24;
   static const double cardGap = 12;
-  static const double formFieldGap = 18;
+  static const double formFieldGap = 16;
   static const double formSectionGap = 24;
   static const double formInlineGap = 12;
   static const double cardRadius = AppRadius.sm;
@@ -24,7 +24,7 @@ class AppLayoutTokens {
 
   static EdgeInsets pagePaddingFor(double width) {
     if (width >= desktopBreakpoint) {
-      return const EdgeInsets.fromLTRB(24, 22, 24, 22);
+      return const EdgeInsets.fromLTRB(32, 24, 32, 24);
     }
     return const EdgeInsets.fromLTRB(16, 16, 16, 16);
   }

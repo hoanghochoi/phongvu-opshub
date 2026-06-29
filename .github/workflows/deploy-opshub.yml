@@ -373,6 +373,22 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build production web app
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get
+          flutter build web --release \
+            --build-name "${{ needs.prepare.outputs.version_name }}" \
+            --build-number "${{ needs.prepare.outputs.version_code }}" \
+            --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}"
+
       - name: Connect Tailscale
         uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8
         with:
@@ -476,13 +492,15 @@ jobs:
           fi
           node scripts/build-help-site.mjs
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
-          ssh opshub-vps "mkdir -p '$remote_release_dir' /srv/opshub/downloads"
+          ssh opshub-vps "mkdir -p '$remote_release_dir' /srv/opshub/downloads /srv/opshub/web"
           rsync -az --delete \
             --exclude '.git/' \
             --exclude '.dart_tool/' \
             --exclude 'build/' \
             --exclude 'dist/' \
             ./ "opshub-vps:${remote_release_dir}/"
+          rsync -az --delete 'build/web/' \
+            'opshub-vps:/srv/opshub/web/'
           scp 'dist/downloads/latest.json' \
             'opshub-vps:/srv/opshub/downloads/latest.json'
           scp 'deploy/home-server/download.html' \
@@ -724,6 +742,7 @@ jobs:
           }
 
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/health"
+          retry_curl "${OPSHUB_PUBLIC_BASE_URL}/" >/dev/null
           android_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android")"
           windows_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows")"
           node -e "

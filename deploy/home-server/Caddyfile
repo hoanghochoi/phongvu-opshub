@@ -70,5 +70,16 @@ http://{$OPSHUB_DOMAIN} {
     file_server
   }
 
-  respond /health "ok" 200
+  handle /health {
+    respond "ok" 200
+  }
+
+  header /flutter_service_worker.js Cache-Control "no-store, no-cache, must-revalidate"
+  header /version.json Cache-Control "no-store, no-cache, must-revalidate"
+
+  handle {
+    root * /srv/web
+    try_files {path} /index.html
+    file_server
+  }
 }

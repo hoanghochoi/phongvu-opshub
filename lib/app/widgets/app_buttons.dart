@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
 import '../theme/app_theme.dart';
 import 'app_layout.dart';
 
@@ -10,7 +11,7 @@ class AppButtonMetrics {
   AppButtonMetrics._();
 
   static const double height = 52;
-  static const double radius = 14;
+  static const double radius = AppRadius.lg;
   static const double iconSize = 48;
   static const EdgeInsets horizontalPadding = EdgeInsets.symmetric(
     horizontal: 24,
@@ -38,9 +39,9 @@ class AppPrimaryButton extends StatelessWidget {
     final hasIcon = icon != null || isLoading;
     final buttonStyle = FilledButton.styleFrom(
       backgroundColor: AppTheme.primaryBlue,
-      foregroundColor: Colors.white,
+      foregroundColor: AppColors.surface,
       disabledBackgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.45),
-      disabledForegroundColor: Colors.white,
+      disabledForegroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
       ),
@@ -66,7 +67,7 @@ class AppPrimaryButton extends StatelessWidget {
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: AppColors.surface,
                       ),
                     )
                   : Icon(icon),
@@ -219,7 +220,7 @@ class AppIconAction extends StatelessWidget {
           disabledBackgroundColor: AppColors.neutral200,
           disabledForegroundColor: AppColors.neutral500,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
         ),
       ),

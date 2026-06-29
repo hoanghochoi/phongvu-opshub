@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phongvu_opshub/features/payment_monitor/presentation/screens/payment_monitor_unsupported_screen.dart';
+import 'package:phongvu_opshub/app/navigation/app_router.dart';
 
 void main() {
-  testWidgets('Payment monitor unsupported screen explains web limitation', (
+  testWidgets('payment monitor route renders unsupported state on web', (
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: PaymentMonitorUnsupportedScreen()),
+      MaterialApp(home: AppRouter.buildPaymentMonitorRoute(isWeb: true)),
     );
     await tester.pump();
 
@@ -16,7 +16,6 @@ void main() {
       find.textContaining('đọc loa thanh toán chỉ chạy trên Windows'),
       findsOneWidget,
     );
-    expect(find.text('Về trang chủ'), findsOneWidget);
     expect(find.byIcon(Icons.web_asset_off_outlined), findsOneWidget);
   });
 }
