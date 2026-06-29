@@ -166,6 +166,10 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Apply Windows staging icon
+        shell: pwsh
+        run: .\scripts\apply-staging-icons.ps1 -Platform windows
+
       - name: Build Windows staging release
         shell: pwsh
         run: |
@@ -478,6 +482,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/apply-staging-icons.ps1 -Platform web
           node scripts/build-help-site.mjs
           tar -C dist -czf dist/help.tar.gz help
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"

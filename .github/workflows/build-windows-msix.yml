@@ -114,6 +114,11 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Apply Windows staging icon
+        if: inputs.environment == 'staging'
+        shell: pwsh
+        run: .\scripts\apply-staging-icons.ps1 -Platform windows
+
       - name: Build Windows release
         shell: pwsh
         run: |
@@ -131,9 +136,15 @@ jobs:
           WINDOWS_MSIX_IDENTITY_NAME: ${{ secrets.WINDOWS_MSIX_IDENTITY_NAME }}
           WINDOWS_MSIX_PUBLISHER: ${{ secrets.WINDOWS_MSIX_PUBLISHER }}
         run: |
+          $logoPath = if ('${{ inputs.environment }}' -eq 'staging') {
+            'assets\icon\staging\source\app_icon_padded.png'
+          } else {
+            'assets\icon\source\app_icon_padded.png'
+          }
           .\scripts\build-windows-msix-store.ps1 `
             -MsixVersion "${{ needs.prepare.outputs.windows_msix_version }}" `
-            -OutputName "${{ needs.prepare.outputs.windows_msix_basename }}"
+            -OutputName "${{ needs.prepare.outputs.windows_msix_basename }}" `
+            -LogoPath $logoPath
 
       - name: Scan Store MSIX with Microsoft Defender
         shell: pwsh
