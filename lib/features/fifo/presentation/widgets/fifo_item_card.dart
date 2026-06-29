@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../data/repositories/fifo_log_repository.dart';
 
 class FifoItemCard extends StatelessWidget {
@@ -27,10 +30,10 @@ class FifoItemCard extends StatelessWidget {
     final isWrong =
         log.result?.contains('Sai') ?? log.result?.contains('Chưa') ?? false;
     final resultColor = isCorrect
-        ? Colors.green
+        ? AppColors.success
         : isWrong
-        ? Colors.red
-        : Colors.grey[700];
+        ? AppColors.error
+        : AppColors.neutral700;
 
     final items = _parseResultJson(log.resultJson);
     final hasItems = items.isNotEmpty;
@@ -41,8 +44,10 @@ class FifoItemCard extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
+          color:
+              Theme.of(context).cardTheme.color ??
+              Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
           border: isExpanded
               ? Border.all(
                   color: AppColors.info.withValues(alpha: 0.3),
@@ -51,7 +56,7 @@ class FifoItemCard extends StatelessWidget {
               : null,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
+              color: AppColors.shadow.withValues(alpha: 0.04),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -70,9 +75,7 @@ class FifoItemCard extends StatelessWidget {
                     backgroundColor: AppColors.info.withValues(alpha: 0.15),
                     child: Text(
                       (log.userName ?? log.userEmail ?? '?')[0].toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
+                      style: AppTextStyles.labelM.copyWith(
                         color: AppColors.info,
                       ),
                     ),
@@ -84,17 +87,14 @@ class FifoItemCard extends StatelessWidget {
                       children: [
                         Text(
                           log.userName ?? log.userEmail ?? 'Chưa rõ',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                          style: AppTextStyles.labelM.copyWith(
                             color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                         if (log.storeName != null)
                           Text(
                             '${log.storeId ?? ''} - ${log.storeName}',
-                            style: TextStyle(
-                              fontSize: 11,
+                            style: AppTextStyles.caption.copyWith(
                               color: AppColors.neutral500,
                             ),
                           ),
@@ -103,7 +103,9 @@ class FifoItemCard extends StatelessWidget {
                   ),
                   Text(
                     dateStr,
-                    style: TextStyle(fontSize: 11, color: AppColors.neutral500),
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.neutral500,
+                    ),
                   ),
                 ],
               ),
@@ -120,13 +122,11 @@ class FifoItemCard extends StatelessWidget {
                       color: Theme.of(context).brightness == Brightness.dark
                           ? AppColors.darkChipBg
                           : AppColors.neutral100,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(AppRadius.xs),
                     ),
                     child: Text(
                       'Query',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                      style: AppTextStyles.caption.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
@@ -135,8 +135,7 @@ class FifoItemCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       log.query,
-                      style: TextStyle(
-                        fontSize: 14,
+                      style: AppTextStyles.labelM.copyWith(
                         fontWeight: FontWeight.w600,
                         fontFamily: 'monospace',
                         color: Theme.of(context).colorScheme.onSurface,
@@ -151,13 +150,11 @@ class FifoItemCard extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: AppColors.info.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(AppRadius.xs),
                       ),
-                      child: const Text(
+                      child: Text(
                         'items',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                        style: AppTextStyles.captionBold.copyWith(
                           color: AppColors.info,
                         ),
                       ),
@@ -184,16 +181,12 @@ class FifoItemCard extends StatelessWidget {
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: (resultColor ?? Colors.grey).withValues(
-                          alpha: 0.1,
-                        ),
-                        borderRadius: BorderRadius.circular(6),
+                        color: resultColor.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(AppRadius.xs),
                       ),
                       child: Text(
                         'Kết quả',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
+                        style: AppTextStyles.caption.copyWith(
                           color: resultColor,
                         ),
                       ),
@@ -202,8 +195,7 @@ class FifoItemCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         log.result!,
-                        style: TextStyle(
-                          fontSize: 13,
+                        style: AppTextStyles.bodyS.copyWith(
                           color: resultColor,
                           fontWeight: FontWeight.w500,
                         ),
@@ -240,7 +232,11 @@ class FifoItemCard extends StatelessWidget {
   }
 
   /// Build a single item detail row
-  Widget _buildItemDetail(BuildContext context, Map<String, dynamic> item, int index) {
+  Widget _buildItemDetail(
+    BuildContext context,
+    Map<String, dynamic> item,
+    int index,
+  ) {
     final sku = item['sku']?.toString() ?? '';
     final skuName = item['sku_name']?.toString() ?? '';
     final serial = item['serial_number']?.toString() ?? '';
@@ -255,9 +251,9 @@ class FifoItemCard extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkNeutral100 : AppColors.neutral50,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
         border: fifo == 'yes'
-            ? Border.all(color: Colors.green.withValues(alpha: 0.3))
+            ? Border.all(color: AppColors.success.withValues(alpha: 0.30))
             : null,
       ),
       child: Column(
@@ -268,9 +264,7 @@ class FifoItemCard extends StatelessWidget {
             children: [
               Text(
                 '#$index',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
+                style: AppTextStyles.captionBold.copyWith(
                   color: AppColors.neutral500,
                 ),
               ),
@@ -278,8 +272,7 @@ class FifoItemCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   skuName.isNotEmpty ? skuName : sku,
-                  style: TextStyle(
-                    fontSize: 13,
+                  style: AppTextStyles.bodyS.copyWith(
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
@@ -294,15 +287,13 @@ class FifoItemCard extends StatelessWidget {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
+                    color: AppColors.success.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(AppRadius.xs),
                   ),
-                  child: const Text(
+                  child: Text(
                     'FIFO ✓',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.green,
-                      fontWeight: FontWeight.w600,
+                    style: AppTextStyles.captionBold.copyWith(
+                      color: AppColors.success,
                     ),
                   ),
                 ),

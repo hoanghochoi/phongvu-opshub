@@ -85,6 +85,11 @@ visual systems that make the app feel assembled from unrelated screens.
 - Figma screen migration must stay incremental: upgrade shared Button, Input,
   Dropdown, State, Card, Table, Scanner, and Notification patterns before
   migrating Home, Admin, Tiền vào, Sao kê, Cấn trừ, and Báo cáo screens.
+- The feature-layer baseline for the 2026 migration is guarded by
+  `test/design_system_migration_guard_test.dart`. New feature UI must use shared
+  tokens/components instead of raw local `Colors.*`, `Color(0x...)`,
+  `TextStyle`, input fields, cards, action buttons, dropdown fields,
+  `InputDecoration`, or numeric radius literals.
 
 ## Filter Controls
 

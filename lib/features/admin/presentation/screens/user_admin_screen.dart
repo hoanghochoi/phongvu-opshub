@@ -4,10 +4,14 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
+import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -310,7 +314,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       messenger.showSnackBar(
         SnackBar(
           content: Text('Đã đổi mật khẩu cho ${user.email}'),
-          backgroundColor: Colors.green,
+          backgroundColor: AppColors.success,
         ),
       );
     } catch (e) {
@@ -326,7 +330,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       messenger.showSnackBar(
         const SnackBar(
           content: Text('Không đổi được mật khẩu'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
     }
@@ -343,13 +347,12 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
           'Tài khoản ${user.email} sẽ bị xóa khỏi hệ thống nếu không còn dữ liệu lịch sử.',
         ),
         actions: [
-          TextButton(
+          AppDialogCancelButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Hủy'),
           ),
-          FilledButton(
+          AppDialogConfirmButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Xóa'),
+            label: 'Xóa',
           ),
         ],
       ),
@@ -372,7 +375,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Đã xóa tài khoản ${user.email}'),
-          backgroundColor: Colors.green,
+          backgroundColor: AppColors.success,
         ),
       );
       await _load();
@@ -407,52 +410,45 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
             title: const Text('Đổi mật khẩu người dùng'),
             content: Form(
               key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: AppFormColumn(
                 children: [
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(user.email),
                   ),
-                  const SizedBox(height: 16),
-                  TextFormField(
+                  AppFormTextInput(
                     controller: passwordController,
+                    label: 'Mật khẩu mới',
+                    icon: Icons.lock_rounded,
                     obscureText: obscurePassword,
                     autofillHints: const [AutofillHints.newPassword],
-                    decoration: InputDecoration(
-                      labelText: 'Mật khẩu mới',
-                      prefixIcon: const Icon(Icons.lock_rounded),
-                      suffixIcon: IconButton(
-                        onPressed: () => setDialogState(
-                          () => obscurePassword = !obscurePassword,
-                        ),
-                        icon: Icon(
-                          obscurePassword
-                              ? Icons.visibility_rounded
-                              : Icons.visibility_off_rounded,
-                        ),
+                    suffixIcon: IconButton(
+                      onPressed: () => setDialogState(
+                        () => obscurePassword = !obscurePassword,
+                      ),
+                      icon: Icon(
+                        obscurePassword
+                            ? Icons.visibility_rounded
+                            : Icons.visibility_off_rounded,
                       ),
                     ),
                     validator: (value) =>
                         Validators.getPasswordError(value ?? ''),
                   ),
-                  const SizedBox(height: 12),
-                  TextFormField(
+                  AppFormTextInput(
                     controller: confirmController,
+                    label: 'Nhập lại mật khẩu mới',
+                    icon: Icons.lock_reset_rounded,
                     obscureText: obscureConfirm,
                     autofillHints: const [AutofillHints.newPassword],
-                    decoration: InputDecoration(
-                      labelText: 'Nhập lại mật khẩu mới',
-                      prefixIcon: const Icon(Icons.lock_reset_rounded),
-                      suffixIcon: IconButton(
-                        onPressed: () => setDialogState(
-                          () => obscureConfirm = !obscureConfirm,
-                        ),
-                        icon: Icon(
-                          obscureConfirm
-                              ? Icons.visibility_rounded
-                              : Icons.visibility_off_rounded,
-                        ),
+                    suffixIcon: IconButton(
+                      onPressed: () => setDialogState(
+                        () => obscureConfirm = !obscureConfirm,
+                      ),
+                      icon: Icon(
+                        obscureConfirm
+                            ? Icons.visibility_rounded
+                            : Icons.visibility_off_rounded,
                       ),
                     ),
                     validator: (value) {
@@ -466,16 +462,15 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
               ),
             ),
             actions: [
-              TextButton(
+              AppDialogCancelButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Hủy'),
               ),
-              FilledButton(
+              AppDialogConfirmButton(
                 onPressed: () {
                   if (formKey.currentState?.validate() != true) return;
                   Navigator.of(context).pop(passwordController.text);
                 },
-                child: const Text('Đổi mật khẩu'),
+                label: 'Đổi mật khẩu',
               ),
             ],
           ),
@@ -577,7 +572,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.upload_file_outlined),
-              tooltip: 'Import nhân sự',
+              tooltip: 'Nhập danh sách nhân sự',
             ),
           if (canCreateUsers)
             IconButton(
@@ -590,17 +585,15 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       body: AppResponsiveContent(
         child: Column(
           children: [
-            TextField(
+            AppTextInput(
               controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Tìm trong danh sách đã tải',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: AppIconAction(
-                  onPressed: _load,
-                  icon: Icons.refresh,
-                  tooltip: 'Tải lại',
-                ),
-                border: const OutlineInputBorder(),
+              label: 'Tìm người dùng',
+              hintText: 'Tìm trong danh sách đã tải',
+              icon: Icons.search,
+              suffixIcon: AppIconAction(
+                onPressed: _load,
+                icon: Icons.refresh,
+                tooltip: 'Tải lại',
               ),
               onSubmitted: (_) => _applyLocalSearch(logSearch: true),
             ),
@@ -612,7 +605,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                 _FilterDropdown<String>(
                   width: 180,
                   value: _domainFilter,
-                  label: 'Domain',
+                  label: 'Miền email',
                   items: _domainOptions
                       .map(
                         (domain) => DropdownMenuItem(
@@ -646,7 +639,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                 _FilterDropdown<String>(
                   width: 220,
                   value: _featureFilter,
-                  label: 'Màn hình',
+                  label: 'Tính năng',
                   items: _features
                       .map(
                         (feature) => DropdownMenuItem(
@@ -663,7 +656,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                 _FilterDropdown<String>(
                   width: 180,
                   value: _roleFilter,
-                  label: 'Role',
+                  label: 'Vai trò',
                   items: _roles
                       .map(
                         (role) => DropdownMenuItem(
@@ -695,7 +688,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                   child: AppSecondaryButton(
                     onPressed: _resetFilters,
                     icon: Icons.filter_alt_off_outlined,
-                    label: 'Xóa filter',
+                    label: 'Xóa bộ lọc',
                   ),
                 ),
               ],
@@ -704,6 +697,15 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
             Expanded(
               child: _loading
                   ? const AppListSkeleton(itemCount: 6, itemHeight: 84)
+                  : _users.isEmpty
+                  ? AppStatePanel.empty(
+                      title: 'Không tìm thấy người dùng',
+                      message: 'Thử đổi từ khóa hoặc xóa bộ lọc hiện tại.',
+                      icon: Icons.person_search_outlined,
+                      actionLabel: 'Xóa bộ lọc',
+                      actionIcon: Icons.filter_alt_off_outlined,
+                      onAction: _resetFilters,
+                    )
                   : ListView.separated(
                       itemCount: _users.length,
                       separatorBuilder: (context, index) =>
@@ -717,7 +719,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                         return ListTile(
                           tileColor: Theme.of(context).colorScheme.surface,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
                           ),
                           leading: CircleAvatar(
                             child: Text(
@@ -785,9 +787,10 @@ class _FilterDropdown<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: width,
-      child: DropdownButtonFormField<T?>(
-        initialValue: value,
-        decoration: InputDecoration(labelText: label, isDense: true),
+      child: AppSelectField<T?>(
+        value: value,
+        label: label,
+        dense: true,
         items: [
           DropdownMenuItem<T?>(value: null, child: const Text('Tất cả')),
           ...items,
@@ -807,7 +810,7 @@ class _UserImportResultDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final rows = result.results.take(8).toList();
     return AlertDialog(
-      title: const Text('Kết quả import'),
+      title: const Text('Kết quả nhập danh sách'),
       content: SizedBox(
         width: 520,
         child: Column(
@@ -874,9 +877,9 @@ class _UserImportResultDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        FilledButton(
+        AppDialogConfirmButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Đóng'),
+          label: 'Đóng',
         ),
       ],
     );
@@ -900,7 +903,7 @@ class _ImportSummaryRow extends StatelessWidget {
             child: Text(
               '$value',
               textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              style: AppTextStyles.labelM,
             ),
           ),
         ],
@@ -1135,13 +1138,13 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
           ],
         ),
         actions: [
-          TextButton(
+          AppDialogCancelButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Hủy thay đổi'),
+            label: 'Hủy thay đổi',
           ),
-          FilledButton(
+          AppDialogConfirmButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Xác nhận lưu'),
+            label: 'Xác nhận lưu',
           ),
         ],
       ),
@@ -1356,6 +1359,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   Future<void> _openOrganizationNodePicker() async {
     var query = '';
     String? type;
+    final searchController = TextEditingController();
     final selectedIds = _organizationNodeIds.toSet();
     final selected = await showDialog<Set<String>>(
       context: context,
@@ -1370,18 +1374,17 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                 height: 520,
                 child: Column(
                   children: [
-                    TextField(
+                    AppTextInput(
+                      controller: searchController,
+                      label: 'Tìm node, mã SR, domain',
+                      icon: Icons.search_rounded,
                       autofocus: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Tìm node, mã SR, domain',
-                        prefixIcon: Icon(Icons.search_rounded),
-                      ),
                       onChanged: (value) => setDialogState(() => query = value),
                     ),
                     const SizedBox(height: AppLayoutTokens.formInlineGap),
-                    DropdownButtonFormField<String?>(
-                      initialValue: type,
-                      decoration: const InputDecoration(labelText: 'Loại node'),
+                    AppSelectField<String?>(
+                      value: type,
+                      label: 'Loại node',
                       items: [
                         const DropdownMenuItem(
                           value: null,
@@ -1446,13 +1449,13 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                 ),
               ),
               actions: [
-                TextButton(
+                AppDialogCancelButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Đóng'),
+                  label: 'Đóng',
                 ),
-                FilledButton(
+                AppDialogConfirmButton(
                   onPressed: () => Navigator.of(context).pop(selectedIds),
-                  child: const Text('Áp dụng'),
+                  label: 'Áp dụng',
                 ),
               ],
             );
@@ -1460,6 +1463,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
         );
       },
     );
+    searchController.dispose();
     if (!mounted) return;
     if (selected == null) return;
     _applyOrganizationNodes(selected);
@@ -1568,25 +1572,17 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
           child: AppFormColumn(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              AppTextInput(
                 controller: _emailController,
+                label: 'Email',
                 enabled: widget.user == null,
-                decoration: const InputDecoration(labelText: 'Email'),
               ),
-              TextField(
-                controller: _firstNameController,
-                decoration: const InputDecoration(labelText: 'Tên'),
-              ),
-              TextField(
-                controller: _lastNameController,
-                decoration: const InputDecoration(labelText: 'Họ'),
-              ),
+              AppTextInput(controller: _firstNameController, label: 'Tên'),
+              AppTextInput(controller: _lastNameController, label: 'Họ'),
               if (widget.canEditRole)
-                DropdownButtonFormField<String>(
-                  initialValue: _role,
-                  decoration: const InputDecoration(
-                    labelText: 'Quyền hệ thống',
-                  ),
+                AppSelectField<String>(
+                  value: _role,
+                  label: 'Quyền hệ thống',
                   items: widget.roles
                       .map(
                         (role) => DropdownMenuItem(
@@ -1598,12 +1594,9 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                   onChanged: (value) => _setRole(value ?? 'USER'),
                 )
               else
-                TextFormField(
-                  initialValue: _roleTitle(_role),
-                  enabled: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Quyền hệ thống',
-                  ),
+                AppReadOnlyField(
+                  value: _roleTitle(_role),
+                  label: 'Quyền hệ thống',
                 ),
               _OrganizationNodeSelector(
                 label: _scopeNodeLabel(),
@@ -1615,20 +1608,16 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                     ? _openOrganizationNodePicker
                     : null,
               ),
-              TextFormField(
+              AppReadOnlyField(
                 key: ValueKey(
                   '${widget.user?.personnelCode}|$_jobRoleCode|$_workScopeType|$_storeId',
                 ),
-                initialValue: _previewPersonnelCode(
-                  _jobRoleCode,
-                  _workScopeType,
-                ),
-                enabled: false,
-                decoration: const InputDecoration(labelText: 'Mã nhân sự'),
+                value: _previewPersonnelCode(_jobRoleCode, _workScopeType),
+                label: 'Mã nhân sự',
               ),
-              DropdownButtonFormField<String>(
-                initialValue: _status,
-                decoration: const InputDecoration(labelText: 'Trạng thái'),
+              AppSelectField<String>(
+                value: _status,
+                label: 'Trạng thái',
                 items: const [
                   DropdownMenuItem(value: 'yes', child: Text('Hoạt động')),
                   DropdownMenuItem(value: 'no', child: Text('Khóa')),
@@ -1640,23 +1629,13 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text(
-            'Hủy',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            softWrap: false,
-          ),
         ),
-        FilledButton(
+        AppDialogConfirmButton(
           onPressed: _saving ? null : _save,
-          child: Text(
-            _saving ? 'Đang lưu...' : 'Lưu',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            softWrap: false,
-          ),
+          label: _saving ? 'Đang lưu...' : 'Lưu',
+          isLoading: _saving,
         ),
       ],
     );
@@ -1686,10 +1665,10 @@ class _OrganizationNodeSelector extends StatelessWidget {
     final hasValue = valueText.trim().isNotEmpty;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
+        decoration: appInputDecoration(
+          label: label,
           suffixIcon: const Icon(Icons.search_rounded),
         ),
         child: Row(
@@ -1703,7 +1682,7 @@ class _OrganizationNodeSelector extends StatelessWidget {
                 hasValue ? valueText : hintText,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: AppTextStyles.bodyM.copyWith(
                   color: hasValue
                       ? Theme.of(context).colorScheme.onSurface
                       : Theme.of(context).hintColor,
@@ -1740,7 +1719,7 @@ class _NodeTypeBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(AppRadius.xs),
       ),
       child: Text(
         title,

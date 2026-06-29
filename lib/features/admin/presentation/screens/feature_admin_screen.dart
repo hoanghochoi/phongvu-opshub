@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
@@ -314,13 +320,12 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
             title: Text(title),
             content: Text(message),
             actions: [
-              TextButton(
+              AppDialogCancelButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Hủy'),
               ),
-              FilledButton(
+              AppDialogConfirmButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Xóa'),
+                label: 'Xóa',
               ),
             ],
           ),
@@ -370,11 +375,15 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
         appBar: GradientHeader(
           title: 'Quản lý tính năng',
           showBack: true,
-          bottom: const TabBar(
-            tabs: [
+          bottom: TabBar(
+            labelColor: AppColors.surface,
+            unselectedLabelColor: AppColors.surface.withValues(alpha: 0.70),
+            indicatorColor: AppColors.surface,
+            dividerColor: AppColors.transparent,
+            tabs: const [
               Tab(text: 'Tính năng'),
-              Tab(text: 'Node'),
-              Tab(text: 'Rules cũ'),
+              Tab(text: 'Theo node'),
+              Tab(text: 'Quy tắc cũ'),
             ],
           ),
           actions: [
@@ -396,7 +405,9 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
           ],
         ),
         body: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const AppResponsiveContent(
+                child: AppListSkeleton(itemCount: 6, itemHeight: 76),
+              )
             : TabBarView(
                 children: [
                   _FeatureList(
@@ -453,7 +464,13 @@ class _FeatureList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (features.isEmpty) return const Center(child: Text('Chưa có tính năng'));
+    if (features.isEmpty) {
+      return const AppStatePanel.empty(
+        title: 'Chưa có tính năng',
+        message: 'Bấm nút thêm để tạo tính năng đầu tiên.',
+        icon: Icons.toggle_off_outlined,
+      );
+    }
     return AppResponsiveContent(
       padding: EdgeInsets.zero,
       child: ListView.separated(
@@ -488,84 +505,67 @@ class _FeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = feature.isActive
-        ? const Color(0xFF2563EB)
-        : const Color(0xFF6B7280);
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
+    final color = feature.isActive ? AppColors.info : AppColors.neutral500;
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.11),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: Icon(Icons.toggle_on_outlined, color: color, size: 24),
           ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.11),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.toggle_on_outlined, color: color, size: 24),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    feature.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  feature.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyL.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${feature.code} • ${feature.nodeAssignmentCount} node • ${feature.ruleCount} rule cũ${feature.description.isEmpty ? '' : ' • ${feature.description}'}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 13,
-                      height: 1.25,
-                    ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${feature.code} • ${feature.nodeAssignmentCount} node • ${feature.ruleCount} rule cũ${feature.description.isEmpty ? '' : ' • ${feature.description}'}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${feature.isActive ? 'Đang bật' : 'Đang tắt'}${feature.isSystem ? ' • hệ thống' : ''}',
-                    style: TextStyle(
-                      color: feature.isActive
-                          ? const Color(0xFF059669)
-                          : const Color(0xFFDC2626),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${feature.isActive ? 'Đang bật' : 'Đang tắt'}${feature.isSystem ? ' • hệ thống' : ''}',
+                  style: AppTextStyles.labelS.copyWith(
+                    color: feature.isActive
+                        ? AppColors.success
+                        : AppColors.error,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-            AppIconAction(
-              onPressed: onEdit,
-              icon: Icons.edit_outlined,
-              tooltip: 'Sửa',
-            ),
-            const SizedBox(width: 8),
-            AppIconAction(
-              onPressed: onDelete,
-              icon: Icons.delete_outline,
-              tooltip: feature.isSystem ? 'Tính năng hệ thống' : 'Xóa',
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 10),
+          AppIconAction(
+            onPressed: onEdit,
+            icon: Icons.edit_outlined,
+            tooltip: 'Sửa',
+          ),
+          const SizedBox(width: 8),
+          AppIconAction(
+            onPressed: onDelete,
+            icon: Icons.delete_outline,
+            tooltip: feature.isSystem ? 'Tính năng hệ thống' : 'Xóa',
+          ),
+        ],
       ),
     );
   }
@@ -606,12 +606,9 @@ class _NodeAssignmentList extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: DropdownButtonFormField<String?>(
-                    initialValue: featureFilter,
-                    decoration: const InputDecoration(
-                      labelText: 'Lọc theo tính năng',
-                      border: OutlineInputBorder(),
-                    ),
+                  child: AppSelectField<String?>(
+                    value: featureFilter,
+                    label: 'Lọc theo tính năng',
                     items: [
                       const DropdownMenuItem<String?>(
                         value: null,
@@ -628,10 +625,13 @@ class _NodeAssignmentList extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                AppSecondaryButton(
-                  onPressed: onAdd,
-                  icon: Icons.account_tree_outlined,
-                  label: 'Gán node',
+                SizedBox(
+                  width: 150,
+                  child: AppSecondaryButton(
+                    onPressed: onAdd,
+                    icon: Icons.account_tree_outlined,
+                    label: 'Gán node',
+                  ),
                 ),
               ],
             ),
@@ -639,7 +639,11 @@ class _NodeAssignmentList extends StatelessWidget {
           const SizedBox(height: 12),
           Expanded(
             child: assignments.isEmpty
-                ? const Center(child: Text('Chưa có quyền tính năng theo node'))
+                ? const AppStatePanel.empty(
+                    title: 'Chưa có quyền theo node',
+                    message: 'Bấm Gán node để thiết lập phạm vi sử dụng.',
+                    icon: Icons.account_tree_outlined,
+                  )
                 : ListView.separated(
                     padding: AppLayoutTokens.pagePaddingFor(
                       MediaQuery.sizeOf(context).width,
@@ -679,89 +683,71 @@ class _NodeAssignmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = assignment.enabled
-        ? const Color(0xFF059669)
-        : const Color(0xFFDC2626);
+    final color = assignment.enabled ? AppColors.success : AppColors.error;
     final typeTitle = AdminOrganizationNodeTypes.titleOf(assignment.nodeType);
     final scope = assignment.scopeRootNodeName ?? assignment.scopeRootNodeId;
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.11),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.account_tree_outlined, color: color, size: 24),
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.11),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${assignment.featureName} (${assignment.featureCode})',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+            child: Icon(Icons.account_tree_outlined, color: color, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${assignment.featureName} (${assignment.featureCode})',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyL.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$scope • $typeTitle ${assignment.nodeKey} • ${assignment.impactedUserCount} người dùng',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (assignment.note?.isNotEmpty == true) ...[
                   const SizedBox(height: 4),
                   Text(
-                    '$scope • $typeTitle ${assignment.nodeKey} • ${assignment.impactedUserCount} người dùng',
-                    maxLines: 2,
+                    assignment.note!,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 13,
-                      height: 1.25,
-                    ),
+                    style: AppTextStyles.labelS,
                   ),
-                  if (assignment.note?.isNotEmpty == true) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      assignment.note!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
-            const SizedBox(width: 10),
-            Switch(value: assignment.enabled, onChanged: onToggle),
-            const SizedBox(width: 8),
-            AppIconAction(
-              onPressed: onEdit,
-              icon: Icons.edit_outlined,
-              tooltip: 'Sửa nhóm node',
-            ),
-            const SizedBox(width: 8),
-            AppIconAction(
-              onPressed: onDelete,
-              icon: Icons.delete_outline,
-              tooltip: 'Xóa quyền node',
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 10),
+          Switch(value: assignment.enabled, onChanged: onToggle),
+          const SizedBox(width: 8),
+          AppIconAction(
+            onPressed: onEdit,
+            icon: Icons.edit_outlined,
+            tooltip: 'Sửa nhóm node',
+          ),
+          const SizedBox(width: 8),
+          AppIconAction(
+            onPressed: onDelete,
+            icon: Icons.delete_outline,
+            tooltip: 'Xóa quyền node',
+          ),
+        ],
       ),
     );
   }
@@ -796,12 +782,9 @@ class _RuleList extends StatelessWidget {
             padding: AppLayoutTokens.pagePaddingFor(
               MediaQuery.sizeOf(context).width,
             ).copyWith(bottom: 0),
-            child: DropdownButtonFormField<String?>(
-              initialValue: featureFilter,
-              decoration: const InputDecoration(
-                labelText: 'Lọc theo tính năng',
-                border: OutlineInputBorder(),
-              ),
+            child: AppSelectField<String?>(
+              value: featureFilter,
+              label: 'Lọc theo tính năng',
               items: [
                 const DropdownMenuItem<String?>(
                   value: null,
@@ -820,7 +803,11 @@ class _RuleList extends StatelessWidget {
           const SizedBox(height: 12),
           Expanded(
             child: rules.isEmpty
-                ? const Center(child: Text('Chưa có rule'))
+                ? const AppStatePanel.empty(
+                    title: 'Chưa có quy tắc cũ',
+                    message: 'Chưa có ngoại lệ quyền nào cần hiển thị.',
+                    icon: Icons.rule_folder_outlined,
+                  )
                 : ListView.separated(
                     padding: AppLayoutTokens.pagePaddingFor(
                       MediaQuery.sizeOf(context).width,
@@ -860,90 +847,70 @@ class _RuleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = rule.enabled
-        ? const Color(0xFF059669)
-        : const Color(0xFFDC2626);
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.11),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                rule.enabled
-                    ? Icons.check_circle_outline
-                    : Icons.block_outlined,
-                color: color,
-              ),
+    final color = rule.enabled ? AppColors.success : AppColors.error;
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.11),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${rule.enabled ? 'Bật' : 'Tắt'} $featureTitle',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+            child: Icon(
+              rule.enabled ? Icons.check_circle_outline : Icons.block_outlined,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${rule.enabled ? 'Bật' : 'Tắt'} $featureTitle',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyL.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _ruleScopeText(rule),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (rule.note?.isNotEmpty == true) ...[
                   const SizedBox(height: 4),
                   Text(
-                    _ruleScopeText(rule),
-                    maxLines: 3,
+                    rule.note!,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 13,
-                      height: 1.25,
-                    ),
+                    style: AppTextStyles.labelS,
                   ),
-                  if (rule.note?.isNotEmpty == true) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      rule.note!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
-            const SizedBox(width: 10),
-            AppIconAction(
-              onPressed: onEdit,
-              icon: Icons.edit_outlined,
-              tooltip: 'Sửa rule',
-            ),
-            const SizedBox(width: 8),
-            AppIconAction(
-              onPressed: onDelete,
-              icon: Icons.delete_outline,
-              tooltip: 'Xóa rule',
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 10),
+          AppIconAction(
+            onPressed: onEdit,
+            icon: Icons.edit_outlined,
+            tooltip: 'Sửa rule',
+          ),
+          const SizedBox(width: 8),
+          AppIconAction(
+            onPressed: onDelete,
+            icon: Icons.delete_outline,
+            tooltip: 'Xóa rule',
+          ),
+        ],
       ),
     );
   }
@@ -1069,19 +1036,19 @@ class _FeatureEditorDialogState extends State<_FeatureEditorDialog> {
         child: SingleChildScrollView(
           child: AppFormColumn(
             children: [
-              TextField(
+              AppTextInput(
                 controller: _codeController,
                 enabled: !isSystem,
-                decoration: const InputDecoration(labelText: 'Mã tính năng'),
+                label: 'Mã tính năng',
                 textCapitalization: TextCapitalization.characters,
               ),
-              TextField(
+              AppTextInput(
                 controller: _titleController,
-                decoration: const InputDecoration(labelText: 'Tên tính năng'),
+                label: 'Tên tính năng',
               ),
-              TextField(
+              AppTextInput(
                 controller: _descriptionController,
-                decoration: const InputDecoration(labelText: 'Mô tả'),
+                label: 'Mô tả',
                 maxLines: 2,
               ),
               SwitchListTile(
@@ -1095,13 +1062,13 @@ class _FeatureEditorDialogState extends State<_FeatureEditorDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Hủy'),
         ),
-        FilledButton(
+        AppDialogConfirmButton(
           onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Đang lưu...' : 'Lưu'),
+          label: _saving ? 'Đang lưu...' : 'Lưu',
+          isLoading: _saving,
         ),
       ],
     );
@@ -1320,9 +1287,9 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
         child: SingleChildScrollView(
           child: AppFormColumn(
             children: [
-              DropdownButtonFormField<String>(
-                initialValue: _featureCode.isEmpty ? null : _featureCode,
-                decoration: const InputDecoration(labelText: 'Tính năng'),
+              AppSelectField<String>(
+                value: _featureCode.isEmpty ? null : _featureCode,
+                label: 'Tính năng',
                 items: widget.features
                     .map(
                       (feature) => DropdownMenuItem(
@@ -1340,12 +1307,10 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
                 onChanged: (value) => setState(() => _enabled = value),
                 title: Text(_enabled ? 'Bật tính năng' : 'Tắt tính năng'),
               ),
-              TextField(
+              AppTextInput(
                 controller: _emailDomainsController,
-                decoration: InputDecoration(
-                  labelText: 'Domain email',
-                  hintText: isEditing ? 'acare.vn' : 'acare.vn, phongvu.vn',
-                ),
+                label: 'Domain email',
+                hintText: isEditing ? 'acare.vn' : 'acare.vn, phongvu.vn',
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: isEditing
                     ? TextInputAction.next
@@ -1483,9 +1448,9 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
                       ..addAll(values);
                   }),
                 ),
-              TextField(
+              AppTextInput(
                 controller: _noteController,
-                decoration: const InputDecoration(labelText: 'Ghi chú'),
+                label: 'Ghi chú',
                 maxLines: 2,
               ),
             ],
@@ -1493,13 +1458,13 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Hủy'),
         ),
-        FilledButton(
+        AppDialogConfirmButton(
           onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Đang lưu...' : 'Lưu'),
+          label: _saving ? 'Đang lưu...' : 'Lưu',
+          isLoading: _saving,
         ),
       ],
     );
@@ -1511,9 +1476,9 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
     required List<(String, String)> items,
     required ValueChanged<String?> onChanged,
   }) {
-    return DropdownButtonFormField<String?>(
-      initialValue: value,
-      decoration: InputDecoration(labelText: label),
+    return AppSelectField<String?>(
+      value: value,
+      label: label,
       items: [
         const DropdownMenuItem<String?>(
           value: null,
@@ -1606,12 +1571,9 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
               );
               if (values != null) onChanged(values);
             },
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(AppRadius.xs),
       child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-        ),
+        decoration: appInputDecoration(label: label),
         child: Text(
           selectedLabels.isEmpty ? 'Không áp dụng' : selectedLabels.join(', '),
           maxLines: 2,
@@ -1669,19 +1631,21 @@ class _MultiSelectDialogState extends State<_MultiSelectDialog> {
         height: 520,
         child: Column(
           children: [
-            TextField(
+            AppTextInput(
               controller: _searchController,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                labelText: 'Tìm kiếm',
-                border: OutlineInputBorder(),
-              ),
+              label: 'Tìm kiếm',
+              icon: Icons.search,
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 10),
             Expanded(
               child: filteredItems.isEmpty
-                  ? const Center(child: Text('Không có dữ liệu'))
+                  ? const AppStatePanel.empty(
+                      title: 'Không tìm thấy dữ liệu',
+                      message: 'Thử đổi từ khóa tìm kiếm.',
+                      icon: Icons.search_off_rounded,
+                      compact: true,
+                    )
                   : ListView.builder(
                       itemCount: filteredItems.length,
                       itemBuilder: (context, index) {
@@ -1711,17 +1675,14 @@ class _MultiSelectDialogState extends State<_MultiSelectDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: () => setState(_selected.clear),
-          child: const Text('Bỏ chọn'),
+          label: 'Bỏ chọn',
         ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(null),
-          child: const Text('Hủy'),
-        ),
-        FilledButton(
+        AppDialogCancelButton(onPressed: () => Navigator.of(context).pop(null)),
+        AppDialogConfirmButton(
           onPressed: () => Navigator.of(context).pop({..._selected}),
-          child: const Text('Áp dụng'),
+          label: 'Áp dụng',
         ),
       ],
     );

@@ -4,9 +4,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -224,105 +227,173 @@ class _FilterPanelState extends State<_FilterPanel> {
         final isMobile = constraints.maxWidth < _localBreakpoint;
 
         if (isMobile) {
-          return Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  InkWell(
-                    onTap: () {
-                      setState(() {
-                        _isExpanded = !_isExpanded;
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(
-                      AppLayoutTokens.cardRadius,
+          return AppSurfaceCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _isExpanded = !_isExpanded;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(
+                    AppLayoutTokens.cardRadius,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 4,
+                      horizontal: 2,
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 4,
-                        horizontal: 2,
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.filter_alt_outlined),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Bộ lọc tìm kiếm',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const Spacer(),
-                          Icon(
-                            _isExpanded
-                                ? Icons.expand_less_rounded
-                                : Icons.expand_more_rounded,
-                          ),
-                        ],
-                      ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.filter_alt_outlined),
+                        const SizedBox(width: 8),
+                        Text('Bộ lọc tìm kiếm', style: AppTextStyles.labelM),
+                        const Spacer(),
+                        Icon(
+                          _isExpanded
+                              ? Icons.expand_less_rounded
+                              : Icons.expand_more_rounded,
+                        ),
+                      ],
                     ),
                   ),
-                  if (_isExpanded) ...[
-                    const Divider(height: 16),
-                    _StoreFilterButton(provider: widget.provider),
-                    const SizedBox(height: _filterGap),
-                    TextField(
+                ),
+                if (_isExpanded) ...[
+                  const Divider(height: 16),
+                  _StoreFilterButton(provider: widget.provider),
+                  const SizedBox(height: _filterGap),
+                  AppTextInput(
+                    controller: widget.statementNumberController,
+                    focusNode: widget.statementNumberFocus,
+                    label: 'Mã sao kê',
+                    icon: Icons.receipt_long_outlined,
+                    onChanged: widget.provider.setStatementNumber,
+                    onSubmitted: (_) => widget.provider.search(),
+                  ),
+                  const SizedBox(height: _filterGap),
+                  AppTextInput(
+                    controller: widget.orderController,
+                    focusNode: widget.orderFocus,
+                    label: 'Mã đơn hàng',
+                    icon: Icons.tag_rounded,
+                    onChanged: widget.provider.setOrder,
+                    onSubmitted: (_) => widget.provider.search(),
+                  ),
+                  const SizedBox(height: _filterGap),
+                  AppTextInput(
+                    controller: widget.amountController,
+                    focusNode: widget.amountFocus,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [ThousandsSeparatorInputFormatter()],
+                    label: 'Số tiền',
+                    icon: Icons.payments_outlined,
+                    onChanged: widget.provider.setAmount,
+                    onSubmitted: (_) => widget.provider.search(),
+                  ),
+                  const SizedBox(height: _filterGap),
+                  AppTextInput(
+                    controller: widget.contentController,
+                    focusNode: widget.contentFocus,
+                    label: 'Nội dung chuyển khoản',
+                    icon: Icons.notes_rounded,
+                    onChanged: widget.provider.setContent,
+                    onSubmitted: (_) => widget.provider.search(),
+                  ),
+                  const SizedBox(height: _filterGap),
+                  AppSelectField<String>(
+                    value: widget.provider.orderStatus,
+                    label: 'Trạng thái',
+                    icon: Icons.flag_outlined,
+                    items: _orderStatusItems,
+                    onChanged: (value) {
+                      if (value != null) {
+                        widget.provider.setOrderStatus(value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: _filterGap),
+                  _DateRangeButton(
+                    startDate: widget.provider.startDate,
+                    endDate: widget.provider.endDate,
+                    onChanged: widget.provider.setDateRange,
+                  ),
+                  const SizedBox(height: _filterGap),
+                  _LimitDropdown(provider: widget.provider),
+                  const SizedBox(height: _filterGap),
+                  _FilterActionButtons(provider: widget.provider),
+                ],
+              ],
+            ),
+          );
+        }
+
+        return AppSurfaceCard(
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _StoreFilterButton(provider: widget.provider),
+                  ),
+                  const SizedBox(width: _filterGap),
+                  Expanded(
+                    child: AppTextInput(
                       controller: widget.statementNumberController,
                       focusNode: widget.statementNumberFocus,
-                      decoration: const InputDecoration(
-                        labelText: 'Mã sao kê',
-                        prefixIcon: Icon(Icons.receipt_long_outlined),
-                        border: OutlineInputBorder(),
-                      ),
+                      label: 'Mã sao kê',
+                      icon: Icons.receipt_long_outlined,
                       onChanged: widget.provider.setStatementNumber,
                       onSubmitted: (_) => widget.provider.search(),
                     ),
-                    const SizedBox(height: _filterGap),
-                    TextField(
+                  ),
+                  const SizedBox(width: _filterGap),
+                  Expanded(
+                    child: AppTextInput(
                       controller: widget.orderController,
                       focusNode: widget.orderFocus,
-                      decoration: const InputDecoration(
-                        labelText: 'Mã đơn hàng',
-                        prefixIcon: Icon(Icons.tag_rounded),
-                        border: OutlineInputBorder(),
-                      ),
+                      label: 'Mã đơn hàng',
+                      icon: Icons.tag_rounded,
                       onChanged: widget.provider.setOrder,
                       onSubmitted: (_) => widget.provider.search(),
                     ),
-                    const SizedBox(height: _filterGap),
-                    TextField(
+                  ),
+                  const SizedBox(width: _filterGap),
+                  Expanded(
+                    child: AppTextInput(
                       controller: widget.amountController,
                       focusNode: widget.amountFocus,
                       keyboardType: TextInputType.number,
                       inputFormatters: [ThousandsSeparatorInputFormatter()],
-                      decoration: const InputDecoration(
-                        labelText: 'Số tiền',
-                        prefixIcon: Icon(Icons.payments_outlined),
-                        border: OutlineInputBorder(),
-                      ),
+                      label: 'Số tiền',
+                      icon: Icons.payments_outlined,
                       onChanged: widget.provider.setAmount,
                       onSubmitted: (_) => widget.provider.search(),
                     ),
-                    const SizedBox(height: _filterGap),
-                    TextField(
+                  ),
+                ],
+              ),
+              const SizedBox(height: _filterGap),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: AppTextInput(
                       controller: widget.contentController,
                       focusNode: widget.contentFocus,
-                      decoration: const InputDecoration(
-                        labelText: 'Nội dung chuyển khoản',
-                        prefixIcon: Icon(Icons.notes_rounded),
-                        border: OutlineInputBorder(),
-                      ),
+                      label: 'Nội dung chuyển khoản',
+                      icon: Icons.notes_rounded,
                       onChanged: widget.provider.setContent,
                       onSubmitted: (_) => widget.provider.search(),
                     ),
-                    const SizedBox(height: _filterGap),
-                    DropdownButtonFormField<String>(
-                      initialValue: widget.provider.orderStatus,
-                      decoration: const InputDecoration(
-                        labelText: 'Trạng thái',
-                        border: OutlineInputBorder(),
-                      ),
+                  ),
+                  const SizedBox(width: _filterGap),
+                  Expanded(
+                    child: AppSelectField<String>(
+                      value: widget.provider.orderStatus,
+                      label: 'Trạng thái',
+                      icon: Icons.flag_outlined,
                       items: _orderStatusItems,
                       onChanged: (value) {
                         if (value != null) {
@@ -330,139 +401,32 @@ class _FilterPanelState extends State<_FilterPanel> {
                         }
                       },
                     ),
-                    const SizedBox(height: _filterGap),
-                    _DateRangeButton(
+                  ),
+                ],
+              ),
+              const SizedBox(height: _filterGap),
+              Row(
+                children: [
+                  Expanded(
+                    child: _DateRangeButton(
                       startDate: widget.provider.startDate,
                       endDate: widget.provider.endDate,
                       onChanged: widget.provider.setDateRange,
                     ),
-                    const SizedBox(height: _filterGap),
-                    _LimitDropdown(provider: widget.provider),
-                    const SizedBox(height: _filterGap),
-                    _FilterActionButtons(provider: widget.provider),
-                  ],
+                  ),
+                  const SizedBox(width: _filterGap),
+                  SizedBox(
+                    width: 150,
+                    child: _LimitDropdown(provider: widget.provider),
+                  ),
+                  const SizedBox(width: _filterGap),
+                  SizedBox(
+                    width: 320,
+                    child: _FilterActionButtons(provider: widget.provider),
+                  ),
                 ],
               ),
-            ),
-          );
-        }
-
-        return Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _StoreFilterButton(provider: widget.provider),
-                    ),
-                    const SizedBox(width: _filterGap),
-                    Expanded(
-                      child: TextField(
-                        controller: widget.statementNumberController,
-                        focusNode: widget.statementNumberFocus,
-                        decoration: const InputDecoration(
-                          labelText: 'Mã sao kê',
-                          prefixIcon: Icon(Icons.receipt_long_outlined),
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: widget.provider.setStatementNumber,
-                        onSubmitted: (_) => widget.provider.search(),
-                      ),
-                    ),
-                    const SizedBox(width: _filterGap),
-                    Expanded(
-                      child: TextField(
-                        controller: widget.orderController,
-                        focusNode: widget.orderFocus,
-                        decoration: const InputDecoration(
-                          labelText: 'Mã đơn hàng',
-                          prefixIcon: Icon(Icons.tag_rounded),
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: widget.provider.setOrder,
-                        onSubmitted: (_) => widget.provider.search(),
-                      ),
-                    ),
-                    const SizedBox(width: _filterGap),
-                    Expanded(
-                      child: TextField(
-                        controller: widget.amountController,
-                        focusNode: widget.amountFocus,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [ThousandsSeparatorInputFormatter()],
-                        decoration: const InputDecoration(
-                          labelText: 'Số tiền',
-                          prefixIcon: Icon(Icons.payments_outlined),
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: widget.provider.setAmount,
-                        onSubmitted: (_) => widget.provider.search(),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: _filterGap),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: TextField(
-                        controller: widget.contentController,
-                        focusNode: widget.contentFocus,
-                        decoration: const InputDecoration(
-                          labelText: 'Nội dung chuyển khoản',
-                          prefixIcon: Icon(Icons.notes_rounded),
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: widget.provider.setContent,
-                        onSubmitted: (_) => widget.provider.search(),
-                      ),
-                    ),
-                    const SizedBox(width: _filterGap),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: widget.provider.orderStatus,
-                        decoration: const InputDecoration(
-                          labelText: 'Trạng thái',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: _orderStatusItems,
-                        onChanged: (value) {
-                          if (value != null) {
-                            widget.provider.setOrderStatus(value);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: _filterGap),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _DateRangeButton(
-                        startDate: widget.provider.startDate,
-                        endDate: widget.provider.endDate,
-                        onChanged: widget.provider.setDateRange,
-                      ),
-                    ),
-                    const SizedBox(width: _filterGap),
-                    SizedBox(
-                      width: 150,
-                      child: _LimitDropdown(provider: widget.provider),
-                    ),
-                    const SizedBox(width: _filterGap),
-                    SizedBox(
-                      width: 320,
-                      child: _FilterActionButtons(provider: widget.provider),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+            ],
           ),
         );
       },
@@ -540,12 +504,10 @@ class _LimitDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<int>(
-      initialValue: provider.limit,
-      decoration: const InputDecoration(
-        labelText: 'Số dòng',
-        border: OutlineInputBorder(),
-      ),
+    return AppSelectField<int>(
+      value: provider.limit,
+      label: 'Số dòng',
+      icon: Icons.format_list_numbered_rounded,
       items: const [10, 20, 50, 100]
           .map(
             (value) =>
@@ -608,7 +570,7 @@ class _StatementToolbar extends StatelessWidget {
                   Expanded(
                     child: Text(
                       '${provider.selectedIds.length} chọn / ${provider.total} giao dịch',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                      style: AppTextStyles.labelM,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -649,7 +611,7 @@ class _StatementToolbar extends StatelessWidget {
             ),
             Text(
               '${provider.selectedIds.length} chọn / ${provider.total} giao dịch',
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              style: AppTextStyles.labelM,
             ),
             const Spacer(),
             IconButton(
@@ -776,169 +738,144 @@ class _StatementCardState extends State<_StatementCard> {
         final isMobile = constraints.maxWidth < _localBreakpoint;
 
         if (isMobile) {
-          return Card(
+          return AppSurfaceCard(
             margin: const EdgeInsets.only(bottom: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-              side: BorderSide(
-                color: borderColor.withValues(alpha: 0.65),
-                width: 1.3,
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Checkbox(
-                        value: provider.selectedIds.contains(tx.id),
-                        onChanged: (value) =>
-                            provider.toggleSelected(tx.id, value == true),
+            padding: const EdgeInsets.all(12),
+            borderColor: borderColor.withValues(alpha: 0.65),
+            borderWidth: 1.3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Checkbox(
+                      value: provider.selectedIds.contains(tx.id),
+                      onChanged: (value) =>
+                          provider.toggleSelected(tx.id, value == true),
+                    ),
+                    Expanded(
+                      child: BankStatementTransactionDetailsLauncher(
+                        transaction: tx,
+                        amountFormatter: widget.money,
+                        child: _TransactionDetails(tx: tx, money: widget.money),
                       ),
-                      Expanded(
-                        child: BankStatementTransactionDetailsLauncher(
-                          transaction: tx,
-                          amountFormatter: widget.money,
-                          child: _TransactionDetails(
-                            tx: tx,
-                            money: widget.money,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  _OrderEditor(
-                    transaction: tx,
-                    controller: _controller,
-                    editing: _editing,
-                    canReviewTransfer: provider.canReviewOrderTransfers,
-                    onEdit: () => setState(() => _editing = true),
-                    onCancel: () {
-                      _controller.text = _ordersEditText(tx.orders);
-                      setState(() => _editing = false);
-                    },
-                    onSave: () async {
-                      await provider.updateOrders(tx.id, _controller.text);
-                      if (mounted) setState(() => _editing = false);
-                    },
-                    onRequestTransfer: () =>
-                        _showOrderTransferRequestDialog(context, provider, tx),
-                    onReviewTransfer: () =>
-                        _showOrderTransferReviewDialog(context, provider, tx),
-                    onHistory: () => _showHistory(context, provider, tx),
-                  ),
-                  AnimatedOpacity(
-                    opacity: message == null ? 0 : 1,
-                    duration: const Duration(milliseconds: 250),
-                    child: message == null
-                        ? const SizedBox(height: 0)
-                        : Padding(
-                            padding: const EdgeInsets.only(top: 8, left: 10),
-                            child: Text(
-                              message.text,
-                              style: TextStyle(
-                                color: message.success
-                                    ? AppColors.success
-                                    : AppColors.error,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                              ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _OrderEditor(
+                  transaction: tx,
+                  controller: _controller,
+                  editing: _editing,
+                  canReviewTransfer: provider.canReviewOrderTransfers,
+                  onEdit: () => setState(() => _editing = true),
+                  onCancel: () {
+                    _controller.text = _ordersEditText(tx.orders);
+                    setState(() => _editing = false);
+                  },
+                  onSave: () async {
+                    await provider.updateOrders(tx.id, _controller.text);
+                    if (mounted) setState(() => _editing = false);
+                  },
+                  onRequestTransfer: () =>
+                      _showOrderTransferRequestDialog(context, provider, tx),
+                  onReviewTransfer: () =>
+                      _showOrderTransferReviewDialog(context, provider, tx),
+                  onHistory: () => _showHistory(context, provider, tx),
+                ),
+                AnimatedOpacity(
+                  opacity: message == null ? 0 : 1,
+                  duration: const Duration(milliseconds: 250),
+                  child: message == null
+                      ? const SizedBox(height: 0)
+                      : Padding(
+                          padding: const EdgeInsets.only(top: 8, left: 10),
+                          child: Text(
+                            message.text,
+                            style: AppTextStyles.labelS.copyWith(
+                              color: message.success
+                                  ? AppColors.success
+                                  : AppColors.error,
                             ),
                           ),
-                  ),
-                ],
-              ),
+                        ),
+                ),
+              ],
             ),
           );
         }
 
-        return Card(
+        return AppSurfaceCard(
           margin: const EdgeInsets.only(bottom: 10),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-            side: BorderSide(
-              color: borderColor.withValues(alpha: 0.65),
-              width: 1.3,
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Checkbox(
-                  value: provider.selectedIds.contains(tx.id),
-                  onChanged: (value) =>
-                      provider.toggleSelected(tx.id, value == true),
+          padding: const EdgeInsets.all(12),
+          borderColor: borderColor.withValues(alpha: 0.65),
+          borderWidth: 1.3,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Checkbox(
+                value: provider.selectedIds.contains(tx.id),
+                onChanged: (value) =>
+                    provider.toggleSelected(tx.id, value == true),
+              ),
+              Expanded(
+                child: BankStatementTransactionDetailsLauncher(
+                  transaction: tx,
+                  amountFormatter: widget.money,
+                  child: _TransactionDetails(tx: tx, money: widget.money),
                 ),
-                Expanded(
-                  child: BankStatementTransactionDetailsLauncher(
-                    transaction: tx,
-                    amountFormatter: widget.money,
-                    child: _TransactionDetails(tx: tx, money: widget.money),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 260,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _OrderEditor(
-                        transaction: tx,
-                        controller: _controller,
-                        editing: _editing,
-                        canReviewTransfer: provider.canReviewOrderTransfers,
-                        onEdit: () => setState(() => _editing = true),
-                        onCancel: () {
-                          _controller.text = _ordersEditText(tx.orders);
-                          setState(() => _editing = false);
-                        },
-                        onSave: () async {
-                          await provider.updateOrders(tx.id, _controller.text);
-                          if (mounted) setState(() => _editing = false);
-                        },
-                        onRequestTransfer: () =>
-                            _showOrderTransferRequestDialog(
-                              context,
-                              provider,
-                              tx,
-                            ),
-                        onReviewTransfer: () => _showOrderTransferReviewDialog(
-                          context,
-                          provider,
-                          tx,
-                        ),
-                        onHistory: () => _showHistory(context, provider, tx),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 260,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _OrderEditor(
+                      transaction: tx,
+                      controller: _controller,
+                      editing: _editing,
+                      canReviewTransfer: provider.canReviewOrderTransfers,
+                      onEdit: () => setState(() => _editing = true),
+                      onCancel: () {
+                        _controller.text = _ordersEditText(tx.orders);
+                        setState(() => _editing = false);
+                      },
+                      onSave: () async {
+                        await provider.updateOrders(tx.id, _controller.text);
+                        if (mounted) setState(() => _editing = false);
+                      },
+                      onRequestTransfer: () => _showOrderTransferRequestDialog(
+                        context,
+                        provider,
+                        tx,
                       ),
-                      AnimatedOpacity(
-                        opacity: message == null ? 0 : 1,
-                        duration: const Duration(milliseconds: 250),
-                        child: message == null
-                            ? const SizedBox(height: 26)
-                            : Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  message.text,
-                                  style: TextStyle(
-                                    color: message.success
-                                        ? AppColors.success
-                                        : AppColors.error,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                  ),
+                      onReviewTransfer: () =>
+                          _showOrderTransferReviewDialog(context, provider, tx),
+                      onHistory: () => _showHistory(context, provider, tx),
+                    ),
+                    AnimatedOpacity(
+                      opacity: message == null ? 0 : 1,
+                      duration: const Duration(milliseconds: 250),
+                      child: message == null
+                          ? const SizedBox(height: 26)
+                          : Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                message.text,
+                                style: AppTextStyles.labelS.copyWith(
+                                  color: message.success
+                                      ? AppColors.success
+                                      : AppColors.error,
                                 ),
                               ),
-                      ),
-                    ],
-                  ),
+                            ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -1037,18 +974,15 @@ class _StatementCardState extends State<_StatementCard> {
                   width: MediaQuery.of(context).size.width < 560
                       ? double.maxFinite
                       : 420,
-                  child: TextField(
+                  child: AppTextInput(
                     controller: requestController,
+                    label: 'Mã đơn hàng mới',
+                    hintText: 'Nhập mỗi mã một dòng, hoặc cách bằng dấu phẩy',
                     autofocus: true,
                     keyboardType: TextInputType.multiline,
                     textInputAction: TextInputAction.newline,
                     minLines: 3,
                     maxLines: 6,
-                    decoration: const InputDecoration(
-                      labelText: 'Mã đơn hàng mới',
-                      hintText: 'Nhập mỗi mã một dòng, hoặc cách bằng dấu phẩy',
-                      border: OutlineInputBorder(),
-                    ),
                   ),
                 ),
                 actions: [
@@ -1182,15 +1116,12 @@ class _StatementCardState extends State<_StatementCard> {
                             transaction.orderTransferRequestedByEmail!,
                           ),
                         const SizedBox(height: 8),
-                        TextField(
+                        AppTextInput(
                           controller: rejectNoteController,
+                          label: 'Ghi chú khi từ chối (không bắt buộc)',
+                          hintText:
+                              'Ví dụ: Mã đơn chưa đúng, vui lòng kiểm tra lại.',
                           maxLines: 3,
-                          decoration: const InputDecoration(
-                            labelText: 'Ghi chú khi từ chối (không bắt buộc)',
-                            hintText:
-                                'Ví dụ: Mã đơn chưa đúng, vui lòng kiểm tra lại.',
-                            border: OutlineInputBorder(),
-                          ),
                         ),
                       ],
                     ),
@@ -1232,13 +1163,7 @@ class _StatementCardState extends State<_StatementCard> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
+          SizedBox(width: 110, child: Text(label, style: AppTextStyles.labelM)),
           Expanded(child: SelectableText(text)),
         ],
       ),
@@ -1302,7 +1227,7 @@ class _TransactionDetails extends StatelessWidget {
               DateFormat('HH:mm:ss dd/MM/yyyy').format(time.toLocal()),
             if (tx.payerLabel.isNotEmpty) tx.payerLabel,
           ].join(' • '),
-          style: TextStyle(
+          style: AppTextStyles.bodyM.copyWith(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
@@ -1379,10 +1304,7 @@ class _OrderEditor extends StatelessWidget {
                     runSpacing: 4,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      const Text(
-                        'Đơn hàng',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
+                      const Text('Đơn hàng', style: AppTextStyles.labelM),
                       if (transaction.isOrderOffsetConfirmed)
                         const AppStatusChip(
                           label: 'Đã cấn trừ',
@@ -1437,26 +1359,21 @@ class _OrderEditor extends StatelessWidget {
               ],
             ),
             if (editing)
-              TextField(
+              AppTextInput(
                 controller: controller,
+                label: 'Mã đơn hàng',
+                hintText: 'Nhập mỗi mã một dòng, hoặc cách bằng dấu phẩy',
                 autofocus: true,
                 keyboardType: TextInputType.multiline,
                 textInputAction: TextInputAction.newline,
                 minLines: 1,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  hintText: 'Nhập mỗi mã một dòng, hoặc cách bằng dấu phẩy',
-                  border: OutlineInputBorder(),
-                ),
+                dense: true,
               )
             else if (transaction.orders.isEmpty)
               Text(
                 bankStatementMissingOrderText,
-                style: TextStyle(
-                  color: AppColors.error,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: AppTextStyles.labelM.copyWith(color: AppColors.error),
               )
             else
               Wrap(
@@ -1494,11 +1411,7 @@ class _OrderEditor extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 transaction.orderEditBlockedReason!,
-                style: const TextStyle(
-                  color: AppColors.warning,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
-                ),
+                style: AppTextStyles.labelS.copyWith(color: AppColors.warning),
               ),
             ],
           ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
+import '../theme/app_text_styles.dart';
 
 /// Info chip: icon + text on a light background.
 ///
@@ -51,8 +52,7 @@ class AppInfoChip extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 softWrap: false,
-                style: TextStyle(
-                  fontSize: 12,
+                style: AppTextStyles.labelS.copyWith(
                   color: displayColor,
                   fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
                 ),
@@ -108,7 +108,7 @@ class AppStatusChip extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           softWrap: false,
-          style: TextStyle(
+          style: AppTextStyles.labelS.copyWith(
             fontSize: fontSize,
             fontWeight: fontWeight,
             color: effectiveColor,
@@ -166,10 +166,9 @@ class AppStatusPill extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   softWrap: false,
-                  style: TextStyle(
+                  style: AppTextStyles.bodyS.copyWith(
                     color: color,
                     fontWeight: FontWeight.w700,
-                    fontSize: 13,
                   ),
                 ),
               ),

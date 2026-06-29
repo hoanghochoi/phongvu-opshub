@@ -10,6 +10,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -234,16 +237,17 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
           ),
           actions: [
             if (isPermanentlyDenied)
-              TextButton(
+              AppDialogSecondaryButton(
                 onPressed: () {
                   Navigator.of(context).pop();
                   openAppSettings();
                 },
-                child: const Text('Mở Cài đặt'),
+                icon: Icons.settings_outlined,
+                label: 'Mở Cài đặt',
               ),
-            TextButton(
+            AppDialogCancelButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text(isPermanentlyDenied ? 'Đóng' : 'OK'),
+              label: isPermanentlyDenied ? 'Đóng' : 'OK',
             ),
           ],
         );
@@ -267,19 +271,15 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
               child: Center(
                 child: Text(
                   number,
-                  style: const TextStyle(
+                  style: AppTextStyles.labelS.copyWith(
                     color: AppColors.surface,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ),
           ),
           const SizedBox(width: AppLayoutTokens.formInlineGap),
-          Expanded(
-            child: Text(text, style: Theme.of(context).textTheme.bodySmall),
-          ),
+          Expanded(child: Text(text, style: AppTextStyles.bodyS)),
         ],
       ),
     );
@@ -496,10 +496,7 @@ class _PhoneGuideRow extends StatelessWidget {
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
                 children: [
-                  TextSpan(
-                    text: '$brand: ',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
+                  TextSpan(text: '$brand: ', style: AppTextStyles.labelM),
                   TextSpan(text: path),
                 ],
               ),
@@ -519,33 +516,25 @@ class _ReceiptInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Thông tin biên nhận',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: AppLayoutTokens.formFieldGap),
-            _InfoRow(
-              label: 'Biên nhận:',
-              value: details['receipt']?.toString() ?? 'Chưa có',
-            ),
-            _InfoRow(
-              label: 'Người lưu:',
-              value: details['user']?.toString() ?? 'Chưa có',
-            ),
-            _InfoRow(
-              label: 'Ngày lưu:',
-              value: formatDate(details['date']?.toString()),
-            ),
-          ],
-        ),
+    return AppSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Thông tin biên nhận', style: AppTextStyles.headingM),
+          const SizedBox(height: AppLayoutTokens.formFieldGap),
+          _InfoRow(
+            label: 'Biên nhận:',
+            value: details['receipt']?.toString() ?? 'Chưa có',
+          ),
+          _InfoRow(
+            label: 'Người lưu:',
+            value: details['user']?.toString() ?? 'Chưa có',
+          ),
+          _InfoRow(
+            label: 'Ngày lưu:',
+            value: formatDate(details['date']?.toString()),
+          ),
+        ],
       ),
     );
   }
@@ -568,8 +557,8 @@ class _InfoRow extends StatelessWidget {
             width: 110,
             child: Text(
               label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              style: AppTextStyles.bodyM.copyWith(
+                color: AppColors.onSurfaceVariant,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -577,9 +566,7 @@ class _InfoRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: AppTextStyles.bodyM.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
         ],
@@ -612,12 +599,7 @@ class _ImageSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Hình ảnh (${images.length})',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
+        Text('Hình ảnh (${images.length})', style: AppTextStyles.headingS),
         const SizedBox(height: AppLayoutTokens.cardGap),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -667,10 +649,11 @@ class _ImageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
+    return AppSurfaceCard(
+      padding: EdgeInsets.zero,
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -716,11 +699,7 @@ class _ImageBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Text(
           text,
-          style: const TextStyle(
-            color: AppColors.surface,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
+          style: AppTextStyles.labelS.copyWith(color: AppColors.surface),
         ),
       ),
     );

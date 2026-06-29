@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -106,35 +108,29 @@ class _AssignmentPendingScreenState extends State<AssignmentPendingScreen> {
             Text(
               _supportMessage,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium,
+              style: AppTextStyles.headingS,
             ),
             if (userEmail?.isNotEmpty == true) ...[
               const SizedBox(height: AppLayoutTokens.formInlineGap),
               Text(
                 userEmail!,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: AppTextStyles.bodyM,
               ),
             ],
             const SizedBox(height: AppLayoutTokens.formSectionGap),
-            FilledButton.icon(
+            AppPrimaryButton(
               onPressed: _refreshing ? null : _refresh,
-              icon: _refreshing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.refresh_rounded),
-              label: Text(
-                _refreshing ? 'Đang tải lại...' : 'Tải lại tài khoản',
-              ),
+              icon: Icons.refresh_rounded,
+              label: 'Tải lại tài khoản',
+              isLoading: _refreshing,
+              loadingLabel: 'Đang tải lại...',
             ),
             const SizedBox(height: AppLayoutTokens.formInlineGap),
-            OutlinedButton.icon(
+            AppSecondaryButton(
               onPressed: _refreshing ? null : _logout,
-              icon: const Icon(Icons.logout_rounded),
-              label: const Text('Đăng xuất'),
+              icon: Icons.logout_rounded,
+              label: 'Đăng xuất',
             ),
           ],
         ),

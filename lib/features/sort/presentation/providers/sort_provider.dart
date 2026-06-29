@@ -3,8 +3,8 @@ import 'package:uuid/uuid.dart';
 import '../../data/repositories/sort_repository.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/logging/app_logger.dart';
-import '../../../chat/domain/entities/sku_item.dart';
-import '../../../chat/domain/entities/sku_group.dart';
+import '../../../fifo_check/domain/entities/sku_item.dart';
+import '../../../fifo_check/domain/entities/sku_group.dart';
 
 class SortProvider extends ChangeNotifier {
   final SortRepository _repository;

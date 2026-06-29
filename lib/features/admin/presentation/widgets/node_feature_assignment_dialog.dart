@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
@@ -439,9 +442,9 @@ class _NodeFeatureAssignmentDialogState
           child: AppFormColumn(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              DropdownButtonFormField<String>(
-                initialValue: _selectedNodeId,
-                decoration: const InputDecoration(labelText: 'Node áp dụng'),
+              AppSelectField<String>(
+                value: _selectedNodeId,
+                label: 'Node áp dụng',
                 items: nodes
                     .map(
                       (node) => DropdownMenuItem(
@@ -476,9 +479,9 @@ class _NodeFeatureAssignmentDialogState
                   featureLabel: _featureLabel,
                   nodeLabel: _nodeShortLabel,
                 ),
-              TextField(
+              AppTextInput(
                 controller: _noteController,
-                decoration: const InputDecoration(labelText: 'Ghi chú'),
+                label: 'Ghi chú',
                 maxLines: 2,
               ),
             ],
@@ -486,17 +489,17 @@ class _NodeFeatureAssignmentDialogState
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: _saving ? null : () => setState(_selectedCodes.clear),
-          child: const Text('Bỏ chọn hết'),
+          label: 'Bỏ chọn hết',
         ),
-        TextButton(
+        AppDialogCancelButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Hủy'),
         ),
-        FilledButton(
+        AppDialogConfirmButton(
           onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Đang lưu...' : 'Lưu'),
+          label: _saving ? 'Đang lưu...' : 'Lưu',
+          isLoading: _saving,
         ),
       ],
     );
@@ -516,7 +519,7 @@ class _RelatedPolicyReminder extends StatelessWidget {
         border: Border.all(
           color: theme.colorScheme.primary.withValues(alpha: 0.45),
         ),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         color: theme.colorScheme.primaryContainer.withValues(alpha: 0.28),
       ),
       child: Padding(
@@ -587,7 +590,7 @@ class _ParentFeatureVetoWarning extends StatelessWidget {
         border: Border.all(
           color: theme.colorScheme.error.withValues(alpha: 0.5),
         ),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         color: theme.colorScheme.errorContainer.withValues(alpha: 0.35),
       ),
       child: Padding(
@@ -677,7 +680,7 @@ class _NodeFeatureCheckboxTree extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: Border.all(color: Theme.of(context).dividerColor),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
         child: ListView(
           shrinkWrap: true,

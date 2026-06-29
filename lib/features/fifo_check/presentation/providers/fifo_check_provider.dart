@@ -9,25 +9,25 @@ import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/storage/app_storage_keys.dart';
 import '../../../../core/utils/validators.dart';
-import '../../data/repositories/chat_repository.dart';
-import '../../domain/entities/message.dart';
+import '../../data/repositories/fifo_check_repository.dart';
+import '../../domain/entities/fifo_check_entry.dart';
 
-class ChatProvider extends ChangeNotifier {
-  final ChatRepository _repository;
+class FifoCheckProvider extends ChangeNotifier {
+  final FifoCheckRepository _repository;
   final _uuid = const Uuid();
 
-  static const _storageKey = 'fifo_chat_history';
-  static const _maxMessages = 20;
+  static const _storageKey = 'fifo_check_history';
+  static const _maxEntries = 20;
   static String get _historyStorageKey => AppStorageKeys.shared(_storageKey);
 
-  final List<Message> _messages = [];
+  final List<FifoCheckEntry> _entries = [];
   bool _isLoading = false;
   bool _historyLoaded = false;
   String? _error;
 
-  ChatProvider(this._repository);
+  FifoCheckProvider(this._repository);
 
-  List<Message> get messages => List.unmodifiable(_messages);
+  List<FifoCheckEntry> get entries => List.unmodifiable(_entries);
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -41,19 +41,19 @@ class ChatProvider extends ChangeNotifier {
       if (jsonStr != null) {
         final List<dynamic> jsonList = jsonDecode(jsonStr);
         final loaded = jsonList
-            .map((j) => Message.fromJson(j as Map<String, dynamic>))
+            .map((j) => FifoCheckEntry.fromJson(j as Map<String, dynamic>))
             .toList();
-        _messages.addAll(loaded);
+        _entries.addAll(loaded);
         await AppLogger.instance.info(
           'FIFO',
-          'Chat history loaded',
-          context: {'messageCount': loaded.length},
+          'FIFO check history loaded',
+          context: {'entryCount': loaded.length},
         );
       }
     } catch (error) {
       await AppLogger.instance.error(
         'FIFO',
-        'Chat history load failed',
+        'FIFO check history load failed',
         error: error,
       );
     }
@@ -65,28 +65,28 @@ class ChatProvider extends ChangeNotifier {
   Future<void> _saveToLocal() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final toSave = _messages.length > _maxMessages
-          ? _messages.sublist(_messages.length - _maxMessages)
-          : _messages;
+      final toSave = _entries.length > _maxEntries
+          ? _entries.sublist(_entries.length - _maxEntries)
+          : _entries;
       final jsonStr = jsonEncode(toSave.map((m) => m.toJson()).toList());
       await prefs.setString(_historyStorageKey, jsonStr);
       await AppLogger.instance.info(
         'FIFO',
-        'Chat history saved',
-        context: {'messageCount': toSave.length},
+        'FIFO check history saved',
+        context: {'entryCount': toSave.length},
       );
     } catch (error) {
       await AppLogger.instance.error(
         'FIFO',
-        'Chat history save failed',
+        'FIFO check history save failed',
         error: error,
       );
     }
   }
 
-  Future<void> sendMessage(String input, String userEmail) async {
+  Future<void> runCheck(String input, String userEmail) async {
     try {
-      final parsed = Validators.parseMessage(input);
+      final parsed = Validators.parseFifoCheckInput(input);
       final sku = parsed['sku']!;
       final qty = parsed['qty']!;
       await AppLogger.instance.info(
@@ -95,21 +95,21 @@ class ChatProvider extends ChangeNotifier {
         context: {'userEmail': userEmail, 'sku': sku, 'qty': qty},
       );
 
-      final userMessage = Message(
+      final inputEntry = FifoCheckEntry(
         id: _uuid.v4(),
         content: input.trim(),
-        isUser: true,
+        isUserInput: true,
         timestamp: DateTime.now(),
       );
-      _messages.add(userMessage);
+      _entries.add(inputEntry);
       notifyListeners();
 
       _isLoading = true;
       _error = null;
       notifyListeners();
 
-      final botMessage = await _repository.sendMessage(sku, qty, userEmail);
-      _messages.add(botMessage);
+      final resultEntry = await _repository.sendCheck(sku, qty, userEmail);
+      _entries.add(resultEntry);
       _error = null;
       await AppLogger.instance.info(
         'FIFO',
@@ -118,8 +118,8 @@ class ChatProvider extends ChangeNotifier {
           'userEmail': userEmail,
           'sku': sku,
           'qty': qty,
-          'skuItemCount': botMessage.skuItems?.length ?? 0,
-          'suggestedItemCount': botMessage.suggestedItems?.length ?? 0,
+          'skuItemCount': resultEntry.skuItems?.length ?? 0,
+          'suggestedItemCount': resultEntry.suggestedItems?.length ?? 0,
         },
       );
 
@@ -131,8 +131,8 @@ class ChatProvider extends ChangeNotifier {
         'FIFO check input rejected',
         context: {'inputLength': input.length, 'message': error.message},
       );
-      if (_messages.isNotEmpty && _messages.last.isUser) {
-        _messages.removeLast();
+      if (_entries.isNotEmpty && _entries.last.isUserInput) {
+        _entries.removeLast();
       }
     } on ApiException catch (error) {
       _error = error.message;
@@ -157,15 +157,15 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
-  void clearMessages() {
+  void clearEntries() {
     unawaited(
       AppLogger.instance.info(
         'FIFO',
-        'Chat history cleared',
-        context: {'messageCount': _messages.length},
+        'FIFO check history cleared',
+        context: {'entryCount': _entries.length},
       ),
     );
-    _messages.clear();
+    _entries.clear();
     _historyLoaded = false;
     unawaited(_saveToLocal());
     notifyListeners();

@@ -57,18 +57,18 @@ class Validators {
     ];
   }
 
-  // Pattern cho SKU + QTY hoặc chỉ SKU
-  static final RegExp messagePatternWithQty = RegExp(r'^[^\s]+\s+\d+$');
-  static final RegExp messagePatternSkuOnly = RegExp(r'^[^\s]+$');
+  // Pattern cho FIFO SKU/serial + QTY hoặc chỉ SKU/serial.
+  static final RegExp fifoCheckInputPatternWithQty = RegExp(r'^[^\s]+\s+\d+$');
+  static final RegExp fifoCheckInputPatternSkuOnly = RegExp(r'^[^\s]+$');
 
-  static bool isValidMessage(String message) {
-    final trimmed = message.trim().toUpperCase();
-    return messagePatternWithQty.hasMatch(trimmed) ||
-        messagePatternSkuOnly.hasMatch(trimmed);
+  static bool isValidFifoCheckInput(String input) {
+    final trimmed = input.trim().toUpperCase();
+    return fifoCheckInputPatternWithQty.hasMatch(trimmed) ||
+        fifoCheckInputPatternSkuOnly.hasMatch(trimmed);
   }
 
-  static Map<String, String> parseMessage(String message) {
-    final trimmed = message.trim().toUpperCase();
+  static Map<String, String> parseFifoCheckInput(String input) {
+    final trimmed = input.trim().toUpperCase();
     final parts = trimmed.split(RegExp(r'\s+'));
 
     if (parts.length == 1) {
@@ -79,7 +79,7 @@ class Validators {
       return {'sku': parts[0], 'qty': parts[1]};
     } else {
       throw const FormatException(
-        'Message phải có định dạng: SKU hoặc SKU SỐ_LƯỢNG',
+        'Dữ liệu kiểm tra FIFO phải có định dạng: SKU hoặc SKU SỐ_LƯỢNG',
       );
     }
   }

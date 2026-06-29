@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/utils/date_formatter.dart';
-import '../../../chat/domain/entities/sku_group.dart';
-import '../../../chat/domain/entities/sku_item.dart';
+import '../../../fifo_check/domain/entities/sku_group.dart';
+import '../../../fifo_check/domain/entities/sku_item.dart';
 
 class SortSKUGroupWidget extends StatelessWidget {
   final SKUGroup group;
@@ -82,105 +86,103 @@ class SortSKUGroupWidget extends StatelessWidget {
         ? AppColors.success
         : AppColors.warning;
 
-    return Card(
+    return AppSurfaceCard(
       margin: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Group header
-          Container(
-            padding: const EdgeInsets.all(12),
-            color: backgroundColor,
-            child: Row(
-              children: [
-                // Group tick button
-                InkWell(
-                  onTap: _toggleGroupCheck,
-                  child: Icon(
-                    group.isFullyChecked
-                        ? Icons.check_circle
-                        : Icons.check_circle_outline,
-                    color: group.isFullyChecked
-                        ? AppColors.success
-                        : AppColors.neutral400,
-                    size: 28,
+      padding: EdgeInsets.zero,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              color: backgroundColor,
+              child: Row(
+                children: [
+                  InkWell(
+                    onTap: _toggleGroupCheck,
+                    child: Icon(
+                      group.isFullyChecked
+                          ? Icons.check_circle
+                          : Icons.check_circle_outline,
+                      color: group.isFullyChecked
+                          ? AppColors.success
+                          : AppColors.neutral400,
+                      size: 28,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  group.isFullyChecked ? Icons.inventory_2 : Icons.access_time,
-                  color: headerColor,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'SKU: ${group.sku}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: false,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                          color: headerColor,
-                        ),
-                      ),
-                      if (group.name.isNotEmpty) ...[
-                        const SizedBox(height: 2),
+                  const SizedBox(width: 8),
+                  Icon(
+                    group.isFullyChecked
+                        ? Icons.inventory_2
+                        : Icons.access_time,
+                    color: headerColor,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          group.name,
+                          'SKU: ${group.sku}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           softWrap: false,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: headerColor.withValues(alpha: 0.8),
+                          style: AppTextStyles.labelM.copyWith(
+                            color: headerColor,
                           ),
                         ),
+                        if (group.name.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            group.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
+                            style: AppTextStyles.bodyS.copyWith(
+                              color: headerColor.withValues(alpha: 0.8),
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${group.checkedItems}/${group.totalItems}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: false,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: headerColor,
-                      fontSize: 12,
                     ),
                   ),
-                ),
-              ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(
+                        AppLayoutTokens.cardRadius,
+                      ),
+                    ),
+                    child: Text(
+                      '${group.checkedItems}/${group.totalItems}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      style: AppTextStyles.labelS.copyWith(color: headerColor),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          // Items list
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(12),
-            itemCount: group.items.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final item = group.items[index];
-              return _buildItem(context, item);
-            },
-          ),
-        ],
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(12),
+              itemCount: group.items.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final item = group.items[index];
+                return _buildItem(context, item);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -190,7 +192,7 @@ class SortSKUGroupWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: _getItemBackgroundColor(item),
         border: Border.all(color: _getItemBorderColor(item), width: 1.5),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
       ),
       padding: const EdgeInsets.all(12),
       child: Row(
@@ -202,7 +204,7 @@ class SortSKUGroupWidget extends StatelessWidget {
               item.isChecked = !item.isChecked;
               onItemCheckChanged(item);
             },
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppRadius.xl),
             child: Container(
               padding: const EdgeInsets.all(4),
               child: Icon(
@@ -232,8 +234,7 @@ class SortSKUGroupWidget extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           softWrap: false,
-                          style: TextStyle(
-                            fontSize: 13,
+                          style: AppTextStyles.bodyS.copyWith(
                             color: AppColors.neutral700,
                             fontWeight: FontWeight.w500,
                           ),
@@ -244,10 +245,8 @@ class SortSKUGroupWidget extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             softWrap: false,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context).colorScheme.primary,
+                            style: AppTextStyles.labelS.copyWith(
+                              color: AppColors.primary,
                               decoration: TextDecoration.underline,
                             ),
                           ),
@@ -268,8 +267,7 @@ class SortSKUGroupWidget extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           softWrap: false,
-                          style: TextStyle(
-                            fontSize: 13,
+                          style: AppTextStyles.bodyS.copyWith(
                             color: AppColors.neutral700,
                             fontWeight: FontWeight.w500,
                           ),
@@ -280,10 +278,8 @@ class SortSKUGroupWidget extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             softWrap: false,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context).colorScheme.primary,
+                            style: AppTextStyles.labelS.copyWith(
+                              color: AppColors.primary,
                               decoration: TextDecoration.underline,
                             ),
                           ),
@@ -300,7 +296,9 @@ class SortSKUGroupWidget extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     softWrap: false,
-                    style: TextStyle(fontSize: 13, color: AppColors.neutral600),
+                    style: AppTextStyles.bodyS.copyWith(
+                      color: AppColors.neutral600,
+                    ),
                   ),
                 if (item.date.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -309,7 +307,9 @@ class SortSKUGroupWidget extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     softWrap: false,
-                    style: TextStyle(fontSize: 13, color: AppColors.neutral600),
+                    style: AppTextStyles.bodyS.copyWith(
+                      color: AppColors.neutral600,
+                    ),
                   ),
                 ],
               ],

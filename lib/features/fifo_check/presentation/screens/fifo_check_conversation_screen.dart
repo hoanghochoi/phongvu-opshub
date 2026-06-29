@@ -1,28 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/chat_provider.dart';
-import '../widgets/message_list.dart';
-import '../widgets/message_input.dart';
+import '../providers/fifo_check_provider.dart';
+import '../widgets/fifo_check_history_list.dart';
+import '../widgets/fifo_check_input.dart';
 import '../widgets/loading_indicator.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 
-class ChatScreen extends StatefulWidget {
+class FifoCheckConversationScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
 
-  const ChatScreen({super.key, this.onBackToHome});
+  const FifoCheckConversationScreen({super.key, this.onBackToHome});
 
   @override
-  State<ChatScreen> createState() => _ChatScreenState();
+  State<FifoCheckConversationScreen> createState() =>
+      _FifoCheckConversationScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _FifoCheckConversationScreenState
+    extends State<FifoCheckConversationScreen> {
   @override
   void initState() {
     super.initState();
-    // Load local chat history when screen opens
+    // Load local FIFO check history when screen opens.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ChatProvider>().loadHistory();
+      context.read<FifoCheckProvider>().loadHistory();
     });
   }
 
@@ -43,13 +45,13 @@ class _ChatScreenState extends State<ChatScreen> {
             padding: EdgeInsets.zero,
             child: Column(
               children: [
-                Expanded(child: const MessageList()),
-                const MessageInput(),
+                Expanded(child: const FifoCheckHistoryList()),
+                const FifoCheckInput(),
                 SizedBox(height: keyboardHeight),
               ],
             ),
           ),
-          Consumer<ChatProvider>(
+          Consumer<FifoCheckProvider>(
             builder: (context, provider, child) {
               return provider.isLoading
                   ? const Positioned.fill(child: LoadingIndicator())

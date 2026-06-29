@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -106,14 +110,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 'Email này chưa có tài khoản OpsHub. Vui lòng đăng ký tài khoản trước.',
           ),
           actions: [
-            TextButton(
+            AppDialogCancelButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Ở lại'),
+              label: 'Ở lại',
             ),
-            FilledButton.icon(
+            AppDialogConfirmButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              icon: const Icon(Icons.person_add_alt_1_rounded),
-              label: const Text('Đăng ký tài khoản'),
+              icon: Icons.person_add_alt_1_rounded,
+              label: 'Đăng ký tài khoản',
             ),
           ],
         );
@@ -210,12 +214,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.12),
+                      color: AppColors.surface.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(
                         AppLayoutTokens.cardRadius,
                       ),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: AppColors.surface.withValues(alpha: 0.20),
                       ),
                     ),
                     child: Form(
@@ -225,26 +229,23 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         children: [
                           const Icon(
                             Icons.lock_reset_rounded,
-                            color: Colors.white,
+                            color: AppColors.surface,
                             size: 48,
                           ),
                           const SizedBox(height: 16),
                           Text(
                             _title,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
+                            style: AppTextStyles.headingL.copyWith(
+                              color: AppColors.surface,
                             ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             _subtitle,
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.72),
-                              fontSize: 13,
+                            style: AppTextStyles.bodyS.copyWith(
+                              color: AppColors.surface.withValues(alpha: 0.72),
                             ),
                           ),
                           const SizedBox(height: 24),
@@ -273,27 +274,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             const SizedBox(
                               height: AppLayoutTokens.formInlineGap,
                             ),
-                            TextButton.icon(
+                            AppDialogSecondaryButton(
                               onPressed: authProvider.isLoading
                                   ? null
                                   : () => _sendCode(context),
-                              icon: const Icon(Icons.refresh_rounded),
-                              label: const Text('Gửi lại mã'),
-                              style: TextButton.styleFrom(
-                                foregroundColor: Colors.white,
-                              ),
+                              icon: Icons.refresh_rounded,
+                              label: 'Gửi lại mã',
                             ),
                           ],
                           const SizedBox(height: AppLayoutTokens.formInlineGap),
-                          TextButton.icon(
+                          AppDialogSecondaryButton(
                             onPressed: authProvider.isLoading
                                 ? null
                                 : () => context.go('/login'),
-                            icon: const Icon(Icons.arrow_back_rounded),
-                            label: const Text('Quay lại đăng nhập'),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.white,
-                            ),
+                            icon: Icons.arrow_back_rounded,
+                            label: 'Quay lại đăng nhập',
                           ),
                         ],
                       ),
@@ -309,7 +304,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Widget _emailField(AuthProvider authProvider) {
-    return TextFormField(
+    return AppFormTextInput(
       controller: _emailController,
       enabled: !authProvider.isLoading && _step == _ResetStep.email,
       keyboardType: TextInputType.emailAddress,
@@ -319,10 +314,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       autocorrect: false,
       autofillHints: const [AutofillHints.username, AutofillHints.email],
       onFieldSubmitted: (_) => authProvider.isLoading ? null : _submit(context),
-      decoration: _inputDecoration(
-        label: 'Email',
-        icon: Icons.alternate_email_rounded,
-      ),
+      label: 'Email',
+      icon: Icons.alternate_email_rounded,
       validator: (value) {
         final email = value?.trim() ?? '';
         if (!Validators.isValidEmail(email)) return 'Email không hợp lệ';
@@ -332,17 +325,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Widget _codeField(AuthProvider authProvider) {
-    return TextFormField(
+    return AppFormTextInput(
       controller: _codeController,
       enabled: !authProvider.isLoading,
       keyboardType: TextInputType.number,
       textInputAction: TextInputAction.done,
       maxLength: 6,
+      counterText: '',
       onFieldSubmitted: (_) => authProvider.isLoading ? null : _submit(context),
-      decoration: _inputDecoration(
-        label: 'Mã xác thực email',
-        icon: Icons.verified_user_outlined,
-      ).copyWith(counterText: ''),
+      label: 'Mã xác thực email',
+      icon: Icons.verified_user_outlined,
       validator: (value) {
         final code = value?.trim() ?? '';
         if (!RegExp(r'^[0-9]{6}$').hasMatch(code)) {
@@ -354,24 +346,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Widget _passwordField(AuthProvider authProvider) {
-    return TextFormField(
+    return AppFormTextInput(
       controller: _passwordController,
       enabled: !authProvider.isLoading,
       obscureText: _obscurePassword,
       textInputAction: TextInputAction.next,
       autofillHints: const [AutofillHints.newPassword],
-      decoration: _inputDecoration(
-        label: 'Mật khẩu mới',
-        icon: Icons.lock_rounded,
-        suffixIcon: IconButton(
-          onPressed: authProvider.isLoading
-              ? null
-              : () => setState(() => _obscurePassword = !_obscurePassword),
-          icon: Icon(
-            _obscurePassword
-                ? Icons.visibility_rounded
-                : Icons.visibility_off_rounded,
-          ),
+      label: 'Mật khẩu mới',
+      icon: Icons.lock_rounded,
+      suffixIcon: IconButton(
+        onPressed: authProvider.isLoading
+            ? null
+            : () => setState(() => _obscurePassword = !_obscurePassword),
+        icon: Icon(
+          _obscurePassword
+              ? Icons.visibility_rounded
+              : Icons.visibility_off_rounded,
         ),
       ),
       validator: (value) => Validators.getPasswordError(value ?? ''),
@@ -379,27 +369,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Widget _confirmPasswordField(AuthProvider authProvider) {
-    return TextFormField(
+    return AppFormTextInput(
       controller: _confirmPasswordController,
       enabled: !authProvider.isLoading,
       obscureText: _obscureConfirmPassword,
       textInputAction: TextInputAction.done,
       autofillHints: const [AutofillHints.newPassword],
       onFieldSubmitted: (_) => authProvider.isLoading ? null : _submit(context),
-      decoration: _inputDecoration(
-        label: 'Nhập lại mật khẩu mới',
-        icon: Icons.lock_reset_rounded,
-        suffixIcon: IconButton(
-          onPressed: authProvider.isLoading
-              ? null
-              : () => setState(
-                  () => _obscureConfirmPassword = !_obscureConfirmPassword,
-                ),
-          icon: Icon(
-            _obscureConfirmPassword
-                ? Icons.visibility_rounded
-                : Icons.visibility_off_rounded,
-          ),
+      label: 'Nhập lại mật khẩu mới',
+      icon: Icons.lock_reset_rounded,
+      suffixIcon: IconButton(
+        onPressed: authProvider.isLoading
+            ? null
+            : () => setState(
+                () => _obscureConfirmPassword = !_obscureConfirmPassword,
+              ),
+        icon: Icon(
+          _obscureConfirmPassword
+              ? Icons.visibility_rounded
+              : Icons.visibility_off_rounded,
         ),
       ),
       validator: (value) {
@@ -412,57 +400,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Widget _primaryButton(BuildContext context, AuthProvider authProvider) {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: ElevatedButton.icon(
-        onPressed: authProvider.isLoading ? null : () => _submit(context),
-        icon: authProvider.isLoading
-            ? SizedBox(
-                height: 18,
-                width: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.grey[600],
-                ),
-              )
-            : Icon(_buttonIcon),
-        label: Text(
-          authProvider.isLoading ? 'Đang xử lý...' : _buttonText,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          softWrap: false,
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.grey[800],
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-          ),
-        ),
-      ),
-    );
-  }
-
-  InputDecoration _inputDecoration({
-    required String label,
-    required IconData icon,
-    Widget? suffixIcon,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon),
-      suffixIcon: suffixIcon,
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        borderSide: BorderSide.none,
-      ),
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      errorMaxLines: 4,
+    return AppPrimaryButton(
+      onPressed: authProvider.isLoading ? null : () => _submit(context),
+      icon: _buttonIcon,
+      label: _buttonText,
+      isLoading: authProvider.isLoading,
+      loadingLabel: 'Đang xử lý...',
     );
   }
 
@@ -474,7 +417,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: success ? Colors.green : Colors.red,
+        backgroundColor: success ? AppColors.success : AppColors.error,
       ),
     );
   }

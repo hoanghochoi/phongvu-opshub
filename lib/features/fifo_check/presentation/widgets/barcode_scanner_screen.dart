@@ -5,7 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/logging/app_logger.dart';
 
 Rect barcodeScanWindowForSize(Size size) {
@@ -219,15 +225,13 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
 
   Widget _buildScannerError(BuildContext context) {
     return ColoredBox(
-      color: Colors.black,
+      color: AppColors.shadow,
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
             'Chưa mở được camera. Vui lòng kiểm tra quyền camera rồi thử lại.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyLarge?.copyWith(color: Colors.white),
+            style: AppTextStyles.bodyL.copyWith(color: AppColors.surface),
             textAlign: TextAlign.center,
           ),
         ),
@@ -243,8 +247,8 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
         padding: EdgeInsets.fromLTRB(16, 0, 16, 20 + bottomPadding),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.68),
-            borderRadius: BorderRadius.circular(12),
+            color: AppColors.shadow.withValues(alpha: 0.68),
+            borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
@@ -253,18 +257,16 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
               children: [
                 Text(
                   widget.instruction,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(color: Colors.white),
+                  style: AppTextStyles.bodyL.copyWith(color: AppColors.surface),
                   textAlign: TextAlign.center,
                 ),
                 if (widget.helperText.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
                     widget.helperText,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: Colors.white70),
+                    style: AppTextStyles.bodyS.copyWith(
+                      color: AppColors.surface.withValues(alpha: 0.70),
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -304,25 +306,17 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                 'Thiết bị này chưa hỗ trợ quét bằng camera. Vui lòng nhập mã thủ công.',
                 textAlign: TextAlign.center,
               ),
-              TextField(
+              AppTextInput(
                 controller: _manualController,
+                label: 'Mã',
                 autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Mã',
-                  border: OutlineInputBorder(),
-                ),
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => unawaited(_submitManualCode()),
               ),
-              FilledButton.icon(
+              AppPrimaryButton(
                 onPressed: () => unawaited(_submitManualCode()),
-                icon: const Icon(Icons.check_rounded),
-                label: const Text(
-                  'Dùng mã',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: false,
-                ),
+                icon: Icons.check_rounded,
+                label: 'Dùng mã',
               ),
             ],
           ),
@@ -332,7 +326,12 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
 
     final controller = _controller;
     if (controller == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: AppStatePanel.loading(
+          title: 'Đang mở máy quét',
+          message: 'Vui lòng chờ trong giây lát.',
+        ),
+      );
     }
 
     return Scaffold(
@@ -387,7 +386,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
 class _ScannerWindowOverlay extends CustomPainter {
   const _ScannerWindowOverlay({required this.scanWindow});
 
-  static const _radius = Radius.circular(22);
+  static const _radius = Radius.circular(AppRadius.xl);
 
   final Rect scanWindow;
 
@@ -401,13 +400,13 @@ class _ScannerWindowOverlay extends CustomPainter {
     canvas.drawPath(
       overlay,
       Paint()
-        ..color = Colors.black.withValues(alpha: 0.36)
+        ..color = AppColors.shadow.withValues(alpha: 0.36)
         ..style = PaintingStyle.fill,
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(scanWindow, _radius),
       Paint()
-        ..color = Colors.white
+        ..color = AppColors.surface
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );

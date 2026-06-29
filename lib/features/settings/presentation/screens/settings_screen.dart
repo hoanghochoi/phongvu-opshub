@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/theme/theme_provider.dart';
+import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../data/startup_settings_service.dart';
@@ -117,7 +119,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final canToggle = !_isLoadingStartup && !_isSavingStartup && isSupported;
     final isEnabled = snapshot?.isEnabled ?? false;
 
-    return Card(
+    return AppSurfaceCard(
+      padding: EdgeInsets.zero,
       child: SwitchListTile.adaptive(
         value: isEnabled,
         onChanged: canToggle ? _setStartupEnabled : null,
@@ -128,11 +131,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         title: const Text(
           'Khởi động cùng Windows',
-          style: TextStyle(fontWeight: FontWeight.w700),
+          style: AppTextStyles.labelM,
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4),
-          child: Text(_startupSubtitle(snapshot)),
+          child: Text(_startupSubtitle(snapshot), style: AppTextStyles.bodyS),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       ),
@@ -153,72 +156,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildThemeSelector(BuildContext context) {
     final currentMode = context.watch<ThemeProvider>().mode;
-    final colorScheme = Theme.of(context).colorScheme;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return AppSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.palette_outlined, color: AppColors.primary, size: 20),
+              SizedBox(width: 8),
+              Text('Chế độ hiển thị', style: AppTextStyles.labelM),
+            ],
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? AppColors.darkNeutral50
+                  : AppColors.neutral200,
+              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+            ),
+            child: Row(
               children: [
-                Icon(
-                  Icons.palette_outlined,
-                  color: colorScheme.primary,
-                  size: 20,
+                _buildThemeOption(
+                  context,
+                  mode: ThemeMode.light,
+                  icon: Icons.light_mode_outlined,
+                  activeIcon: Icons.light_mode,
+                  label: 'Sáng',
+                  isActive: currentMode == ThemeMode.light,
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  'Chế độ hiển thị',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: colorScheme.onSurface,
-                  ),
+                _buildThemeOption(
+                  context,
+                  mode: ThemeMode.dark,
+                  icon: Icons.dark_mode_outlined,
+                  activeIcon: Icons.dark_mode,
+                  label: 'Tối',
+                  isActive: currentMode == ThemeMode.dark,
+                ),
+                _buildThemeOption(
+                  context,
+                  mode: ThemeMode.system,
+                  icon: Icons.settings_brightness_outlined,
+                  activeIcon: Icons.settings_brightness,
+                  label: 'Hệ thống',
+                  isActive: currentMode == ThemeMode.system,
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? AppColors.darkNeutral50
-                    : Colors.grey[200],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  _buildThemeOption(
-                    context,
-                    mode: ThemeMode.light,
-                    icon: Icons.light_mode_outlined,
-                    activeIcon: Icons.light_mode,
-                    label: 'Sáng',
-                    isActive: currentMode == ThemeMode.light,
-                  ),
-                  _buildThemeOption(
-                    context,
-                    mode: ThemeMode.dark,
-                    icon: Icons.dark_mode_outlined,
-                    activeIcon: Icons.dark_mode,
-                    label: 'Tối',
-                    isActive: currentMode == ThemeMode.dark,
-                  ),
-                  _buildThemeOption(
-                    context,
-                    mode: ThemeMode.system,
-                    icon: Icons.settings_brightness_outlined,
-                    activeIcon: Icons.settings_brightness,
-                    label: 'Hệ thống',
-                    isActive: currentMode == ThemeMode.system,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -232,25 +220,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool isActive,
   }) {
     final themeProvider = context.read<ThemeProvider>();
-    final colorScheme = Theme.of(context).colorScheme;
+    final inactiveColor = Theme.of(context).colorScheme.onSurfaceVariant;
 
     return Expanded(
       child: InkWell(
         onTap: () => themeProvider.setMode(mode),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isActive ? colorScheme.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            color: isActive ? AppColors.primary : AppColors.transparent,
+            borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
             boxShadow: isActive
                 ? [
                     BoxShadow(
-                      color: colorScheme.primary.withValues(alpha: 0.3),
+                      color: AppColors.primary.withValues(alpha: 0.30),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
-                    )
+                    ),
                   ]
                 : null,
           ),
@@ -259,16 +247,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               Icon(
                 isActive ? activeIcon : icon,
-                color: isActive ? Colors.white : colorScheme.onSurfaceVariant,
+                color: isActive ? AppColors.surface : inactiveColor,
                 size: 18,
               ),
               const SizedBox(width: 8),
               Text(
                 label,
-                style: TextStyle(
-                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                  color: isActive ? Colors.white : colorScheme.onSurfaceVariant,
-                  fontSize: 13,
+                style: AppTextStyles.bodyS.copyWith(
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+                  color: isActive ? AppColors.surface : inactiveColor,
                 ),
               ),
             ],
@@ -292,12 +279,7 @@ class _SettingsSection extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          child: Text(title, style: AppTextStyles.headingS),
         ),
         child,
       ],

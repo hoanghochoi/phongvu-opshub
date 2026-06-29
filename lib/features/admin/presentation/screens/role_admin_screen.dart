@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../domain/admin_role_definition.dart';
@@ -40,7 +45,9 @@ class _RoleAdminScreenState extends State<RoleAdminScreen> {
     return Scaffold(
       appBar: const GradientHeader(title: 'Quản lý vai trò', showBack: true),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppResponsiveContent(
+              child: AppListSkeleton(itemCount: 6, itemHeight: 72),
+            )
           : AppResponsiveContent(
               padding: EdgeInsets.zero,
               child: RefreshIndicator(
@@ -70,68 +77,48 @@ class _RoleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: role.color.withValues(alpha: 0.11),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: Icon(role.icon, color: role.color, size: 22),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: role.color.withValues(alpha: 0.11),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(role.icon, color: role.color, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    role.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  role.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyL.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w700,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    role.description.isEmpty ? role.value : role.description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 13,
-                      height: 1.25,
-                    ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  role.description.isEmpty ? role.value : role.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-            const Icon(Icons.lock_outline, size: 20),
-          ],
-        ),
+          ),
+          const SizedBox(width: 10),
+          const Icon(Icons.lock_outline, size: 20, color: AppColors.neutral600),
+        ],
       ),
     );
   }

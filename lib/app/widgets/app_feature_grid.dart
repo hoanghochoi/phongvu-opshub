@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 import 'app_layout.dart';
 
 class AppFeatureAction {
@@ -35,9 +37,7 @@ class AppFeatureSection extends StatelessWidget {
       children: [
         Text(
           title,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
+          style: AppTextStyles.headingS.copyWith(
             color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
@@ -113,7 +113,7 @@ class AppFeatureTile extends StatelessWidget {
               border: Border.all(color: Theme.of(context).dividerColor),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
+                  color: AppColors.shadow.withValues(alpha: 0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -138,10 +138,8 @@ class AppFeatureTile extends StatelessWidget {
                   action.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: AppTextStyles.labelM.copyWith(
                     color: Theme.of(context).colorScheme.onSurface,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -149,9 +147,8 @@ class AppFeatureTile extends StatelessWidget {
                   action.description,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: AppTextStyles.bodyS.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 12,
                     height: 1.2,
                   ),
                 ),

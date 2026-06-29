@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -39,14 +40,14 @@ class AdminMenuScreen extends StatelessWidget {
         AppFeatureAction(
           icon: Icons.account_tree_outlined,
           title: 'Cơ cấu tổ chức',
-          description: 'Logic tree Lv0-Lv5',
+          description: 'Cây tổ chức cấp 0-5',
           color: AppColors.info,
           onTap: () => context.push('/admin/organization'),
         ),
       if (canUse('ADMIN_POLICIES'))
         AppFeatureAction(
           icon: Icons.policy_outlined,
-          title: 'Quản lý policy',
+          title: 'Quản lý chính sách',
           description: 'Quyền và cấu hình hệ thống',
           color: AppColors.warning,
           onTap: () => context.push('/admin/policies'),
@@ -64,7 +65,13 @@ class AdminMenuScreen extends StatelessWidget {
     return Scaffold(
       appBar: const GradientHeader(title: 'Quản trị', showBack: true),
       body: actions.isEmpty
-          ? const Center(child: Text('Chưa có tính năng quản trị được bật.'))
+          ? const AppResponsiveContent(
+              child: AppStatePanel.empty(
+                title: 'Chưa có tính năng quản trị',
+                message: 'Liên hệ quản trị viên để được cấp quyền phù hợp.',
+                icon: Icons.admin_panel_settings_outlined,
+              ),
+            )
           : AppResponsiveContent(child: AppFeatureSection(actions: actions)),
     );
   }

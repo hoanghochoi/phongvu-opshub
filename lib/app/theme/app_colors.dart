@@ -60,6 +60,8 @@ class AppColors {
   static const Color surface = Color(0xFFFFFFFF);
   static const Color background = Color(0xFFF7F8FB);
   static const Color card = surface;
+  static const Color transparent = Color(0x00000000);
+  static const Color shadow = Color(0xFF000000);
   static const Color border = Color(0xFFD8DEE8);
   static const Color divider = Color(0xFFE6EAF0);
   static const Color hover = Color(0xFFEAF3FF);

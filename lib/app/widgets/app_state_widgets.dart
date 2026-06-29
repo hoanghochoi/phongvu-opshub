@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 
 import 'app_buttons.dart';
 import 'app_layout.dart';
@@ -194,12 +195,12 @@ class AppStatusBanner extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     softWrap: false,
-                    style: TextStyle(color: color, fontWeight: FontWeight.w700),
+                    style: AppTextStyles.labelM.copyWith(color: color),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     message,
-                    style: TextStyle(
+                    style: AppTextStyles.bodyM.copyWith(
                       color: Theme.of(context).brightness == Brightness.dark
                           ? AppColors.neutral200
                           : AppColors.neutral800,

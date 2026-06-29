@@ -26,19 +26,16 @@ class AppTheme {
         error: AppColors.error,
       ),
       scaffoldBackgroundColor: AppColors.background,
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.surface,
         surfaceTintColor: AppColors.primary,
-        titleTextStyle: TextStyle(
+        titleTextStyle: AppTextStyles.headingM.copyWith(
           color: AppColors.surface,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-          fontFamily: 'SF Pro Display',
         ),
-        iconTheme: IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.surface),
       ),
       textTheme: const TextTheme(
         headlineLarge: AppTextStyles.headingXL,
@@ -86,7 +83,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: AppRadius.allLg),
           elevation: 0,
-          textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          textStyle: AppTextStyles.labelL,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -107,7 +104,7 @@ class AppTheme {
       cardTheme: CardThemeData(
         color: AppColors.card,
         elevation: 0,
-        shadowColor: Colors.black.withValues(alpha: 0.1),
+        shadowColor: AppColors.shadow.withValues(alpha: 0.1),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.allSm),
       ),
       dividerColor: AppColors.divider,
@@ -129,19 +126,16 @@ class AppTheme {
         error: AppColors.darkError,
       ),
       scaffoldBackgroundColor: AppColors.darkScaffold,
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.transparent,
         foregroundColor: AppColors.surface,
-        surfaceTintColor: Colors.transparent,
-        titleTextStyle: TextStyle(
+        surfaceTintColor: AppColors.transparent,
+        titleTextStyle: AppTextStyles.headingM.copyWith(
           color: AppColors.surface,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-          fontFamily: 'SF Pro Display',
         ),
-        iconTheme: IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.surface),
       ),
       textTheme: TextTheme(
         headlineLarge: AppTextStyles.headingXL.copyWith(
@@ -211,7 +205,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: AppRadius.allLg),
           elevation: 0,
-          textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          textStyle: AppTextStyles.labelL,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -232,13 +226,15 @@ class AppTheme {
       cardTheme: CardThemeData(
         color: AppColors.darkCard,
         elevation: 0,
-        shadowColor: Colors.black.withValues(alpha: 0.3),
+        shadowColor: AppColors.shadow.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.allSm),
       ),
       dividerColor: AppColors.darkDivider,
-      snackBarTheme: const SnackBarThemeData(
+      snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.neutral800,
-        contentTextStyle: TextStyle(color: AppColors.neutral100),
+        contentTextStyle: AppTextStyles.bodyM.copyWith(
+          color: AppColors.neutral100,
+        ),
       ),
     );
   }

@@ -3,9 +3,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -49,130 +52,113 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
               if (canUsePaymentSpeaker ||
                   speakerSelectionNotice != null ||
                   requiresStoreInput)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (canUsePaymentSpeaker) ...[
-                          Row(
-                            children: [
-                              Icon(
+                AppSurfaceCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (canUsePaymentSpeaker) ...[
+                        Row(
+                          children: [
+                            Icon(
+                              monitor.isSpeakerEnabled
+                                  ? Icons.volume_up_rounded
+                                  : Icons.volume_off_rounded,
+                              color: monitor.isSpeakerEnabled
+                                  ? AppColors.success
+                                  : AppColors.neutral500,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
                                 monitor.isSpeakerEnabled
-                                    ? Icons.volume_up_rounded
-                                    : Icons.volume_off_rounded,
-                                color: monitor.isSpeakerEnabled
-                                    ? AppColors.success
-                                    : AppColors.neutral500,
+                                    ? 'Đang đọc loa khi có tiền vào'
+                                    : 'Đã tắt đọc loa',
+                                style: AppTextStyles.titleEmphasis,
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  monitor.isSpeakerEnabled
-                                      ? 'Đang đọc loa khi có tiền vào'
-                                      : 'Đã tắt đọc loa',
-                                  style: const TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              Switch.adaptive(
-                                value: monitor.isSpeakerEnabled,
-                                onChanged: monitor.canMonitorOnThisDevice
-                                    ? (value) => context
-                                          .read<PaymentMonitorProvider>()
-                                          .setSpeakerEnabled(value)
-                                    : null,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: _SyncStatusPill(monitor: monitor),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            'Giao dịch mới tự cập nhật theo realtime; nếu mất kết nối, máy sẽ tự kiểm tra lại định kỳ.',
-                            style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                              height: 1.25,
-                              fontSize: 13,
                             ),
-                          ),
-                        ],
-                        if (!canUsePaymentSpeaker &&
-                            speakerSelectionNotice != null) ...[
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Icon(
-                                Icons.volume_off_rounded,
-                                color: AppColors.warning,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Loa tạm dừng',
-                                      style: TextStyle(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      speakerSelectionNotice,
-                                      style: TextStyle(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant,
-                                        height: 1.25,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: _SyncStatusPill(monitor: monitor),
-                          ),
-                        ],
-                        if (requiresStoreInput) ...[
-                          if (canUsePaymentSpeaker ||
-                              speakerSelectionNotice != null)
-                            const SizedBox(
-                              height: AppLayoutTokens.formFieldGap,
+                            Switch.adaptive(
+                              value: monitor.isSpeakerEnabled,
+                              onChanged: monitor.canMonitorOnThisDevice
+                                  ? (value) => context
+                                        .read<PaymentMonitorProvider>()
+                                        .setSpeakerEnabled(value)
+                                  : null,
                             ),
-                          TextField(
-                            controller: _storeController,
-                            decoration: const InputDecoration(
-                              labelText: 'Mã showroom cần xem',
-                              prefixIcon: Icon(Icons.store_outlined),
-                              border: OutlineInputBorder(),
-                            ),
-                            textCapitalization: TextCapitalization.characters,
-                            onSubmitted: (_) => _applyStoreOverride(context),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: _SyncStatusPill(monitor: monitor),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Giao dịch mới tự cập nhật theo realtime; nếu mất kết nối, máy sẽ tự kiểm tra lại định kỳ.',
+                          style: AppTextStyles.bodyS.copyWith(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
-                          const SizedBox(height: AppLayoutTokens.formInlineGap),
-                          AppSecondaryButton(
-                            onPressed: () => _applyStoreOverride(context),
-                            icon: Icons.check_rounded,
-                            label: 'Xem showroom này',
-                          ),
-                        ],
+                        ),
                       ],
-                    ),
+                      if (!canUsePaymentSpeaker &&
+                          speakerSelectionNotice != null) ...[
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.volume_off_rounded,
+                              color: AppColors.warning,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Loa tạm dừng',
+                                    style: AppTextStyles.titleEmphasis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    speakerSelectionNotice,
+                                    style: AppTextStyles.bodyS.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: _SyncStatusPill(monitor: monitor),
+                        ),
+                      ],
+                      if (requiresStoreInput) ...[
+                        if (canUsePaymentSpeaker ||
+                            speakerSelectionNotice != null)
+                          const SizedBox(height: AppLayoutTokens.formFieldGap),
+                        AppTextInput(
+                          controller: _storeController,
+                          label: 'Mã showroom cần xem',
+                          icon: Icons.store_outlined,
+                          textCapitalization: TextCapitalization.characters,
+                          onSubmitted: (_) => _applyStoreOverride(context),
+                        ),
+                        const SizedBox(height: AppLayoutTokens.formInlineGap),
+                        AppSecondaryButton(
+                          onPressed: () => _applyStoreOverride(context),
+                          icon: Icons.check_rounded,
+                          label: 'Xem showroom này',
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               if (canUsePaymentSpeaker && monitor.speakerError != null) ...[
@@ -199,9 +185,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
               const SizedBox(height: 16),
               Text(
                 'Giao dịch tiền vào',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
+                style: AppTextStyles.labelL.copyWith(
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
@@ -329,186 +313,46 @@ class _TransactionFilters extends StatelessWidget {
             constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
 
         if (isMobile) {
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-              child: Column(
-                children: [
-                  if (_storeOptions.isNotEmpty) ...[
-                    AppMultiSelectFilterDropdown<String>(
-                      label: 'SR',
-                      values: monitor.selectedStoreIds,
-                      options: _storeOptions,
-                      emptyLabel: 'SR được gán',
-                      onChanged: context
-                          .read<PaymentMonitorProvider>()
-                          .setSelectedStoreIds,
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                  AppDateRangeDropdown(
-                    label: 'Ngày',
-                    start: monitor.rangeStartDate,
-                    end: monitor.rangeEndDate,
-                    allowEmptyRange: false,
-                    onChanged: (start, end) {
-                      final nextStart = start ?? monitor.rangeStartDate;
-                      final nextEnd = end ?? start ?? monitor.rangeEndDate;
-                      context.read<PaymentMonitorProvider>().setDateRange(
-                        nextStart,
-                        nextEnd,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<int>(
-                    initialValue: monitor.pageSize,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      labelText: 'Số dòng hiển thị',
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 10,
-                      ),
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [10, 20, 50, 100]
-                        .map(
-                          (value) => DropdownMenuItem(
-                            value: value,
-                            child: Text(
-                              '$value dòng',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              softWrap: false,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      context.read<PaymentMonitorProvider>().setPageSize(value);
-                    },
-                  ),
-                  const SizedBox(height: AppLayoutTokens.formInlineGap),
-                  Row(
-                    children: [
-                      IconButton(
-                        onPressed: monitor.canGoPreviousPage
-                            ? () => context
-                                  .read<PaymentMonitorProvider>()
-                                  .previousPage()
-                            : null,
-                        icon: const Icon(Icons.chevron_left_rounded),
-                      ),
-                      Expanded(
-                        child: Center(
-                          child: Text(
-                            'Trang ${monitor.pageIndex + 1} - ${monitor.totalTransactions} GD',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            softWrap: false,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: monitor.canGoNextPage
-                            ? () => context
-                                  .read<PaymentMonitorProvider>()
-                                  .nextPage()
-                            : null,
-                        icon: const Icon(Icons.chevron_right_rounded),
-                      ),
-                      IconButton(
-                        tooltip: 'Làm mới',
-                        onPressed: monitor.isLoading
-                            ? null
-                            : () => context
-                                  .read<PaymentMonitorProvider>()
-                                  .refreshNow(),
-                        icon: const Icon(Icons.refresh_rounded),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+          return AppSurfaceCard(
             child: Column(
               children: [
-                Row(
-                  children: [
-                    if (_storeOptions.isNotEmpty) ...[
-                      Expanded(
-                        child: AppMultiSelectFilterDropdown<String>(
-                          label: 'SR',
-                          values: monitor.selectedStoreIds,
-                          options: _storeOptions,
-                          emptyLabel: 'SR được gán',
-                          onChanged: context
-                              .read<PaymentMonitorProvider>()
-                              .setSelectedStoreIds,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    Expanded(
-                      child: AppDateRangeDropdown(
-                        label: 'Ngày',
-                        start: monitor.rangeStartDate,
-                        end: monitor.rangeEndDate,
-                        allowEmptyRange: false,
-                        onChanged: (start, end) {
-                          final nextStart = start ?? monitor.rangeStartDate;
-                          final nextEnd = end ?? start ?? monitor.rangeEndDate;
-                          context.read<PaymentMonitorProvider>().setDateRange(
-                            nextStart,
-                            nextEnd,
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 130,
-                      child: DropdownButtonFormField<int>(
-                        initialValue: monitor.pageSize,
-                        decoration: const InputDecoration(
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 10,
-                          ),
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [10, 20, 50, 100]
-                            .map(
-                              (value) => DropdownMenuItem(
-                                value: value,
-                                child: Text(
-                                  '$value dòng',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  softWrap: false,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value == null) return;
-                          context.read<PaymentMonitorProvider>().setPageSize(
-                            value,
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+                if (_storeOptions.isNotEmpty) ...[
+                  AppMultiSelectFilterDropdown<String>(
+                    label: 'SR',
+                    values: monitor.selectedStoreIds,
+                    options: _storeOptions,
+                    emptyLabel: 'SR được gán',
+                    onChanged: context
+                        .read<PaymentMonitorProvider>()
+                        .setSelectedStoreIds,
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                AppDateRangeDropdown(
+                  label: 'Ngày',
+                  start: monitor.rangeStartDate,
+                  end: monitor.rangeEndDate,
+                  allowEmptyRange: false,
+                  onChanged: (start, end) {
+                    final nextStart = start ?? monitor.rangeStartDate;
+                    final nextEnd = end ?? start ?? monitor.rangeEndDate;
+                    context.read<PaymentMonitorProvider>().setDateRange(
+                      nextStart,
+                      nextEnd,
+                    );
+                  },
+                ),
+                const SizedBox(height: 10),
+                AppSelectField<int>(
+                  label: 'Số dòng hiển thị',
+                  value: monitor.pageSize,
+                  icon: Icons.format_list_numbered_rounded,
+                  dense: true,
+                  items: _pageSizeItems,
+                  onChanged: (value) {
+                    if (value == null) return;
+                    context.read<PaymentMonitorProvider>().setPageSize(value);
+                  },
                 ),
                 const SizedBox(height: AppLayoutTokens.formInlineGap),
                 Row(
@@ -524,11 +368,11 @@ class _TransactionFilters extends StatelessWidget {
                     Expanded(
                       child: Center(
                         child: Text(
-                          'Trang ${monitor.pageIndex + 1} - ${monitor.totalTransactions} giao dịch',
+                          'Trang ${monitor.pageIndex + 1} - ${monitor.totalTransactions} GD',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           softWrap: false,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                          style: AppTextStyles.labelM,
                         ),
                       ),
                     ),
@@ -553,10 +397,123 @@ class _TransactionFilters extends StatelessWidget {
                 ),
               ],
             ),
+          );
+        }
+
+        return AppSurfaceCard(
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  if (_storeOptions.isNotEmpty) ...[
+                    Expanded(
+                      child: AppMultiSelectFilterDropdown<String>(
+                        label: 'SR',
+                        values: monitor.selectedStoreIds,
+                        options: _storeOptions,
+                        emptyLabel: 'SR được gán',
+                        onChanged: context
+                            .read<PaymentMonitorProvider>()
+                            .setSelectedStoreIds,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: AppDateRangeDropdown(
+                      label: 'Ngày',
+                      start: monitor.rangeStartDate,
+                      end: monitor.rangeEndDate,
+                      allowEmptyRange: false,
+                      onChanged: (start, end) {
+                        final nextStart = start ?? monitor.rangeStartDate;
+                        final nextEnd = end ?? start ?? monitor.rangeEndDate;
+                        context.read<PaymentMonitorProvider>().setDateRange(
+                          nextStart,
+                          nextEnd,
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 150,
+                    child: AppSelectField<int>(
+                      label: 'Số dòng',
+                      value: monitor.pageSize,
+                      dense: true,
+                      items: _pageSizeItems,
+                      onChanged: (value) {
+                        if (value == null) return;
+                        context.read<PaymentMonitorProvider>().setPageSize(
+                          value,
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: monitor.canGoPreviousPage
+                        ? () => context
+                              .read<PaymentMonitorProvider>()
+                              .previousPage()
+                        : null,
+                    icon: const Icon(Icons.chevron_left_rounded),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'Trang ${monitor.pageIndex + 1} - ${monitor.totalTransactions} giao dịch',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                        style: AppTextStyles.labelM,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: monitor.canGoNextPage
+                        ? () =>
+                              context.read<PaymentMonitorProvider>().nextPage()
+                        : null,
+                    icon: const Icon(Icons.chevron_right_rounded),
+                  ),
+                  IconButton(
+                    tooltip: 'Làm mới',
+                    onPressed: monitor.isLoading
+                        ? null
+                        : () => context
+                              .read<PaymentMonitorProvider>()
+                              .refreshNow(),
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+                ],
+              ),
+            ],
           ),
         );
       },
     );
+  }
+
+  List<DropdownMenuItem<int>> get _pageSizeItems {
+    return const [10, 20, 50, 100]
+        .map(
+          (value) => DropdownMenuItem<int>(
+            value: value,
+            child: Text(
+              '$value dòng',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
+          ),
+        )
+        .toList(growable: false);
   }
 
   List<AppFilterOption<String>> get _storeOptions {
@@ -610,62 +567,56 @@ class _SpeakerErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: AppColors.error.withValues(alpha: 0.08),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.volume_off_rounded, color: AppColors.error),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Loa đọc tiền vào đang lỗi',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: false,
-                        style: TextStyle(
-                          color: AppColors.error,
-                          fontWeight: FontWeight.w700,
-                        ),
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(14),
+      backgroundColor: AppColors.error.withValues(alpha: 0.08),
+      borderColor: AppColors.error.withValues(alpha: 0.20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.volume_off_rounded, color: AppColors.error),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Loa đọc tiền vào đang lỗi',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      style: AppTextStyles.labelM.copyWith(
+                        color: AppColors.error,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '$amountText - ${error.message}',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$amountText - ${error.message}',
+                      style: AppTextStyles.bodyM.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 220),
-                child: AppSecondaryButton(
-                  onPressed: onRestart,
-                  icon: Icons.restart_alt_rounded,
-                  label: 'Khởi động lại app',
+                    ),
+                  ],
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 220),
+              child: AppSecondaryButton(
+                onPressed: onRestart,
+                icon: Icons.restart_alt_rounded,
+                label: 'Khởi động lại app',
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

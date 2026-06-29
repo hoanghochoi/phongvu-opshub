@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/chat_provider.dart';
+import '../providers/fifo_check_provider.dart';
+import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import 'barcode_scanner_screen.dart';
 
-class MessageInput extends StatefulWidget {
-  const MessageInput({super.key});
+class FifoCheckInput extends StatefulWidget {
+  const FifoCheckInput({super.key});
 
   @override
-  State<MessageInput> createState() => _MessageInputState();
+  State<FifoCheckInput> createState() => _FifoCheckInputState();
 }
 
-class _MessageInputState extends State<MessageInput> {
+class _FifoCheckInputState extends State<FifoCheckInput> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
 
@@ -23,7 +25,7 @@ class _MessageInputState extends State<MessageInput> {
     BoxShadow(
       offset: const Offset(0, -2),
       blurRadius: 4,
-      color: Colors.black.withValues(alpha: 0.1),
+      color: AppColors.shadow.withValues(alpha: 0.1),
     ),
   ];
 
@@ -45,20 +47,20 @@ class _MessageInputState extends State<MessageInput> {
 
       if (result != null && mounted) {
         // Auto-send scanned SKU/Serial immediately
-        final chatProvider = context.read<ChatProvider>();
+        final fifoCheckProvider = context.read<FifoCheckProvider>();
         final authProvider = context.read<AuthProvider>();
         final userEmail = authProvider.user?.email ?? '';
 
-        await chatProvider.sendMessage(result, userEmail);
+        await fifoCheckProvider.runCheck(result, userEmail);
 
-        if (chatProvider.error != null && mounted) {
+        if (fifoCheckProvider.error != null && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(chatProvider.error!),
-              backgroundColor: Colors.red,
+              content: Text(fifoCheckProvider.error!),
+              backgroundColor: AppColors.error,
             ),
           );
-          chatProvider.clearError();
+          fifoCheckProvider.clearError();
         }
       }
     } catch (e) {
@@ -66,47 +68,47 @@ class _MessageInputState extends State<MessageInput> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Chưa quét được mã. Vui lòng thử lại.'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
     }
   }
 
-  Future<void> _sendMessage() async {
-    final message = _controller.text.trim();
+  Future<void> _submitFifoCheck() async {
+    final input = _controller.text.trim();
 
-    if (message.isEmpty) return;
+    if (input.isEmpty) return;
 
-    if (!Validators.isValidMessage(message)) {
+    if (!Validators.isValidFifoCheckInput(input)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'Nội dung chưa đúng. Nhập SKU, SKU + số lượng, hoặc serial.\nVí dụ: ABC123 hoặc ABC123 10',
           ),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.warning,
         ),
       );
       return;
     }
 
-    final chatProvider = context.read<ChatProvider>();
+    final fifoCheckProvider = context.read<FifoCheckProvider>();
     final authProvider = context.read<AuthProvider>();
     final userEmail = authProvider.user?.email ?? '';
 
     _controller.clear();
     _focusNode.unfocus();
 
-    await chatProvider.sendMessage(message, userEmail);
+    await fifoCheckProvider.runCheck(input, userEmail);
 
-    if (chatProvider.error != null && mounted) {
+    if (fifoCheckProvider.error != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(chatProvider.error!),
-          backgroundColor: Colors.red,
+          content: Text(fifoCheckProvider.error!),
+          backgroundColor: AppColors.error,
         ),
       );
-      chatProvider.clearError();
+      fifoCheckProvider.clearError();
     }
   }
 
@@ -118,7 +120,7 @@ class _MessageInputState extends State<MessageInput> {
         color: Theme.of(context).scaffoldBackgroundColor,
         boxShadow: _inputShadow,
       ),
-      child: Selector<ChatProvider, bool>(
+      child: Selector<FifoCheckProvider, bool>(
         selector: (_, provider) => provider.isLoading,
         builder: (context, isLoading, child) {
           return Row(
@@ -131,22 +133,21 @@ class _MessageInputState extends State<MessageInput> {
               ),
               const SizedBox(width: AppLayoutTokens.formInlineGap),
               Expanded(
-                child: TextField(
+                child: AppTextInput(
                   controller: _controller,
                   focusNode: _focusNode,
                   enabled: !isLoading,
-                  decoration: const InputDecoration(
-                    hintText: 'Nhập SKU / Serial (VD: ABC123 3)',
-                    border: OutlineInputBorder(),
-                  ),
-                  onSubmitted: (_) => _sendMessage(),
+                  label: 'SKU hoặc serial',
+                  icon: Icons.inventory_2_outlined,
+                  hintText: 'VD: ABC123 3',
+                  onSubmitted: (_) => _submitFifoCheck(),
                 ),
               ),
               const SizedBox(width: AppLayoutTokens.formInlineGap),
               AppIconAction(
-                onPressed: isLoading ? null : _sendMessage,
+                onPressed: isLoading ? null : _submitFifoCheck,
                 icon: Icons.send,
-                tooltip: 'Gửi',
+                tooltip: 'Kiểm tra',
               ),
             ],
           );

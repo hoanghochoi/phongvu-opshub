@@ -6,6 +6,9 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../domain/payment_delivery_metrics.dart';
 import '../providers/payment_delivery_metrics_provider.dart';
@@ -62,18 +65,18 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
               decoration: BoxDecoration(
                 color: hasError && metrics == null
                     ? AppColors.error.withValues(alpha: 0.20)
-                    : Colors.white.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(8),
+                    : AppColors.surface.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
                 border: Border.all(
                   color: hasError && metrics == null
                       ? AppColors.error.withValues(alpha: 0.55)
-                      : Colors.white.withValues(alpha: 0.24),
+                      : AppColors.surface.withValues(alpha: 0.24),
                 ),
               ),
               child: Material(
                 type: MaterialType.transparency,
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                   onTap: () => _openHistoryDialog(context, provider),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -261,16 +264,16 @@ class _PaymentDeliveryHistoryDialog extends StatelessWidget {
             ),
           ),
           actions: [
-            TextButton.icon(
+            AppDialogSecondaryButton(
               onPressed: provider.isHistoryLoading
                   ? null
                   : () => provider.loadHistory(),
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Tải lại'),
+              icon: Icons.refresh_rounded,
+              label: 'Tải lại',
             ),
-            TextButton(
+            AppDialogCancelButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Đóng'),
+              label: 'Đóng',
             ),
           ],
         );
@@ -287,23 +290,25 @@ class _PaymentDeliveryHistoryContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (provider.isHistoryLoading && provider.historyItems.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppStatePanel.loading(
+        title: 'Đang tải lịch sử đọc loa',
+        compact: true,
+      );
     }
     if (provider.historyErrorMessage != null && provider.historyItems.isEmpty) {
-      return _HistoryStateMessage(
-        icon: Icons.error_outline_rounded,
+      return const AppStatePanel.error(
         title: 'Chưa tải được lịch sử đọc loa',
         message: 'Vui lòng thử lại sau ít phút.',
-        color: AppColors.error,
+        compact: true,
       );
     }
     if (provider.historyItems.isEmpty) {
-      return const _HistoryStateMessage(
+      return const AppStatePanel.empty(
         icon: Icons.volume_off_rounded,
         title: 'Chưa có giao dịch đọc loa gần đây',
         message:
             'Khi loa bắt đầu đọc, bị tắt, hoặc lỗi phát, giao dịch sẽ xuất hiện ở đây.',
-        color: AppColors.neutral500,
+        compact: true,
       );
     }
 
@@ -353,7 +358,7 @@ class _HistoryItemTile extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.neutral50,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         border: Border.all(color: AppColors.neutral200),
       ),
       child: Padding(
@@ -370,7 +375,7 @@ class _HistoryItemTile extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
                     border: Border.all(
                       color: statusColor.withValues(alpha: 0.28),
                     ),
@@ -396,7 +401,7 @@ class _HistoryItemTile extends StatelessWidget {
                   '${_moneyFormat.format(item.amount)}đ',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: AppColors.success,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
@@ -487,48 +492,6 @@ class _HistoryItemTile extends StatelessWidget {
     final message = item.errorMessage?.trim();
     if (message == null || message.isEmpty) return 'Trạng thái lỗi: $status';
     return 'Trạng thái lỗi: $status - $message';
-  }
-}
-
-class _HistoryStateMessage extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String message;
-  final Color color;
-
-  const _HistoryStateMessage({
-    required this.icon,
-    required this.title,
-    required this.message,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 30),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: AppColors.neutral600),
-          ),
-        ],
-      ),
-    );
   }
 }
 

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 
 class FifoHistorySearchBar extends StatelessWidget {
@@ -24,15 +27,15 @@ class FifoHistorySearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
+        color:
+            Theme.of(context).cardTheme.color ??
+            Theme.of(context).colorScheme.surface,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: AppColors.shadow.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -40,109 +43,52 @@ class FifoHistorySearchBar extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Search field
-          TextField(
+          AppTextInput(
             controller: searchController,
-            decoration: InputDecoration(
-              hintText: 'Tìm theo Serial / SKU / BIN...',
-              hintStyle: TextStyle(
-                fontSize: 14,
-                color: AppColors.neutral500,
-              ),
-              prefixIcon: Icon(
-                Icons.search,
-                color: AppColors.neutral500,
-                size: 20,
-              ),
-              suffixIcon: searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear, size: 18),
-                      onPressed: onClearFilter,
-                    )
-                  : null,
-              filled: true,
-              fillColor: isDark ? AppColors.darkNeutral50 : AppColors.neutral50,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 10,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide.none,
-              ),
-              isDense: true,
-            ),
+            label: 'Tìm kiếm',
+            hintText: 'Tìm theo Serial / SKU / BIN...',
+            icon: Icons.search,
+            dense: true,
+            suffixIcon: searchController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, size: 18),
+                    onPressed: onClearFilter,
+                  )
+                : null,
             onSubmitted: (_) => onSearch(),
             textInputAction: TextInputAction.search,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface,
-              fontSize: 14,
-            ),
           ),
           const SizedBox(height: AppLayoutTokens.formFieldGap),
-          // User filter
           Row(
             children: [
               Expanded(
-                child: TextField(
+                child: AppTextInput(
                   controller: userFilterController,
-                  decoration: InputDecoration(
-                    hintText: 'Lọc theo email người dùng...',
-                    hintStyle: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.neutral500,
-                    ),
-                    prefixIcon: Icon(
-                      Icons.person_outline,
-                      color: AppColors.neutral500,
-                      size: 18,
-                    ),
-                    filled: true,
-                    fillColor: isDark ? AppColors.darkNeutral50 : AppColors.neutral50,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
-                    ),
-                    isDense: true,
-                  ),
+                  label: 'Người dùng',
+                  hintText: 'Lọc theo email người dùng...',
+                  icon: Icons.person_outline,
+                  dense: true,
                   onSubmitted: (_) => onSearch(),
                   textInputAction: TextInputAction.search,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontSize: 13,
-                  ),
                 ),
               ),
               const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Material(
-                color: AppColors.info,
-                borderRadius: BorderRadius.circular(10),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: onSearch,
-                  child: const Padding(
-                    padding: EdgeInsets.all(10),
-                    child: Icon(
-                      Icons.search,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
+              AppIconAction(
+                onPressed: onSearch,
+                icon: Icons.search,
+                tooltip: 'Tìm',
+                filled: true,
               ),
             ],
           ),
           const SizedBox(height: AppLayoutTokens.formInlineGap),
-          // Result count
           Row(
             children: [
               Text(
                 'Tổng: $totalCount bản ghi',
-                style: TextStyle(fontSize: 12, color: AppColors.neutral500),
+                style: AppTextStyles.labelS.copyWith(
+                  color: AppColors.neutral500,
+                ),
               ),
               if (searchQuery != null || filterUser != null) ...[
                 const SizedBox(width: 8),
@@ -154,8 +100,10 @@ class FifoHistorySearchBar extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.warning.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(
+                        AppLayoutTokens.cardRadius,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -163,14 +111,13 @@ class FifoHistorySearchBar extends StatelessWidget {
                         Icon(
                           Icons.filter_alt_off,
                           size: 12,
-                          color: Colors.orange[700],
+                          color: AppColors.warning,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           'Xóa bộ lọc',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.orange[700],
+                          style: AppTextStyles.captionBold.copyWith(
+                            color: AppColors.warning,
                           ),
                         ),
                       ],

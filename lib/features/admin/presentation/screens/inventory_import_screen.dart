@@ -2,7 +2,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -140,47 +142,42 @@ class _UploadPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.table_chart_outlined, color: AppColors.info),
-                const SizedBox(width: AppLayoutTokens.formInlineGap),
-                Expanded(
-                  child: Text(
-                    fileName ?? 'Chưa chọn file Excel',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
+    return AppSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.table_chart_outlined, color: AppColors.info),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              Expanded(
+                child: Text(
+                  fileName ?? 'Chưa chọn file Excel',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-              ],
-            ),
-            const SizedBox(height: AppLayoutTokens.formFieldGap),
-            AppActionRow(
-              children: [
-                AppSecondaryButton(
-                  onPressed: isUploading ? null : onPickFile,
-                  icon: Icons.folder_open_outlined,
-                  label: 'Chọn file',
-                ),
-                AppPrimaryButton(
-                  onPressed: onUpload,
-                  icon: Icons.upload_file_outlined,
-                  label: 'Cập nhật',
-                  isLoading: isUploading,
-                  loadingLabel: 'Đang cập nhật',
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppLayoutTokens.formFieldGap),
+          AppActionRow(
+            children: [
+              AppSecondaryButton(
+                onPressed: isUploading ? null : onPickFile,
+                icon: Icons.folder_open_outlined,
+                label: 'Chọn file',
+              ),
+              AppPrimaryButton(
+                onPressed: onUpload,
+                icon: Icons.upload_file_outlined,
+                label: 'Cập nhật',
+                isLoading: isUploading,
+                loadingLabel: 'Đang cập nhật',
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -193,25 +190,20 @@ class _ResultPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Kết quả', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: AppLayoutTokens.cardGap),
-            _ResultRow(label: 'Dòng hợp lệ', value: '${result.importedRows}'),
-            _ResultRow(label: 'Dòng bỏ qua', value: '${result.skippedRows}'),
-            _ResultRow(
-              label: 'Dòng ngừng active',
-              value: '${result.deactivatedRows}',
-            ),
-            _ResultRow(label: 'SR', value: result.srCodes.join(', ')),
-          ],
-        ),
+    return AppSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Kết quả', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppLayoutTokens.cardGap),
+          _ResultRow(label: 'Dòng hợp lệ', value: '${result.importedRows}'),
+          _ResultRow(label: 'Dòng bỏ qua', value: '${result.skippedRows}'),
+          _ResultRow(
+            label: 'Dòng ngừng active',
+            value: '${result.deactivatedRows}',
+          ),
+          _ResultRow(label: 'SR', value: result.srCodes.join(', ')),
+        ],
       ),
     );
   }
@@ -244,7 +236,7 @@ class _ResultRow extends StatelessWidget {
               textAlign: TextAlign.right,
               overflow: TextOverflow.ellipsis,
               maxLines: 2,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: AppTextStyles.labelM,
             ),
           ),
         ],

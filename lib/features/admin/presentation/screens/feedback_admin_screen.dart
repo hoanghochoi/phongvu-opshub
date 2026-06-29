@@ -5,7 +5,9 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/app_radius.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -103,7 +105,13 @@ class _FeedbackAdminScreenState extends State<FeedbackAdminScreen> {
       ),
       body: AppResponsiveContent(
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const AppListSkeleton(itemCount: 6, itemHeight: 92)
+            : _items.isEmpty
+            ? const AppStatePanel.empty(
+                title: 'Chưa có góp ý',
+                message: 'Góp ý mới từ nhân viên sẽ xuất hiện tại đây.',
+                icon: Icons.lightbulb_outline_rounded,
+              )
             : ListView.separated(
                 itemCount: _items.length,
                 separatorBuilder: (context, index) =>
@@ -134,9 +142,11 @@ class _FeedbackTile extends StatelessWidget {
     final createdAt = item['createdAt']?.toString();
     return Material(
       color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
         leading: const Icon(Icons.lightbulb_outline_rounded),
         title: Text(
           name?.isNotEmpty == true ? '$name • $email' : email,
@@ -198,7 +208,7 @@ class _FeedbackImageThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = BorderRadius.circular(8);
+    final borderRadius = BorderRadius.circular(AppRadius.sm);
     return Semantics(
       label: 'Ảnh góp ý ${imageIndex + 1}',
       child: Material(

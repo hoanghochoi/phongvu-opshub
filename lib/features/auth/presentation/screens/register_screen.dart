@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/utils/validators.dart';
@@ -64,17 +68,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
+                    color: AppColors.surface.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(
                       AppLayoutTokens.cardRadius,
                     ),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: AppColors.surface.withValues(alpha: 0.2),
                       width: 1,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
+                        color: AppColors.shadow.withValues(alpha: 0.15),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
@@ -87,37 +91,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       children: [
                         const Icon(
                           Icons.person_add_alt_1_rounded,
-                          color: Colors.white,
+                          color: AppColors.surface,
                           size: 48,
                         ),
                         const SizedBox(height: 16),
-                        const Text(
+                        Text(
                           'Đăng ký',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
+                          style: AppTextStyles.headingL.copyWith(
+                            color: AppColors.surface,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'Dùng email được OpsHub chấp nhận và mật khẩu OpsHub',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.65),
-                            fontSize: 13,
+                          style: AppTextStyles.bodyS.copyWith(
+                            color: AppColors.surface.withValues(alpha: 0.65),
                           ),
                         ),
                         const SizedBox(height: 24),
-                        TextFormField(
+                        AppFormTextInput(
                           controller: _firstNameController,
+                          label: 'Tên hiển thị',
+                          icon: Icons.badge_outlined,
                           enabled: !authProvider.isLoading,
                           textInputAction: TextInputAction.next,
                           autofillHints: const [AutofillHints.givenName],
-                          decoration: _inputDecoration(
-                            label: 'Tên hiển thị',
-                            icon: Icons.badge_outlined,
-                          ),
                           validator: (value) {
                             if ((value ?? '').trim().isEmpty) {
                               return 'Vui lòng nhập tên hiển thị';
@@ -126,19 +125,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           },
                         ),
                         const SizedBox(height: AppLayoutTokens.formFieldGap),
-                        TextFormField(
+                        AppFormTextInput(
                           controller: _lastNameController,
+                          label: 'Họ hoặc bộ phận (không bắt buộc)',
+                          icon: Icons.account_circle_outlined,
                           enabled: !authProvider.isLoading,
                           textInputAction: TextInputAction.next,
                           autofillHints: const [AutofillHints.familyName],
-                          decoration: _inputDecoration(
-                            label: 'Họ hoặc bộ phận (không bắt buộc)',
-                            icon: Icons.account_circle_outlined,
-                          ),
                         ),
                         const SizedBox(height: AppLayoutTokens.formFieldGap),
-                        TextFormField(
+                        AppFormTextInput(
                           controller: _emailController,
+                          label: 'Email',
+                          icon: Icons.alternate_email_rounded,
                           enabled: !authProvider.isLoading && !_isSendingCode,
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
@@ -147,10 +146,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             AutofillHints.username,
                             AutofillHints.email,
                           ],
-                          decoration: _inputDecoration(
-                            label: 'Email',
-                            icon: Icons.alternate_email_rounded,
-                          ),
                           validator: (value) {
                             final email = value?.trim() ?? '';
                             if (!Validators.isValidEmail(email)) {
@@ -160,48 +155,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           },
                         ),
                         const SizedBox(height: AppLayoutTokens.formInlineGap),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: authProvider.isLoading || _isSendingCode
-                                ? null
-                                : () => _handleSendVerificationCode(context),
-                            icon: _isSendingCode
-                                ? const SizedBox(
-                                    height: 16,
-                                    width: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.mark_email_read_rounded),
-                            label: Text(
-                              _isSendingCode
-                                  ? 'Đang gửi mã...'
-                                  : 'Gửi mã xác thực email',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              softWrap: false,
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              side: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.6),
-                              ),
-                            ),
-                          ),
+                        AppSecondaryButton(
+                          onPressed: authProvider.isLoading || _isSendingCode
+                              ? null
+                              : () => _handleSendVerificationCode(context),
+                          icon: Icons.mark_email_read_rounded,
+                          label: 'Gửi mã xác thực email',
+                          isLoading: _isSendingCode,
+                          loadingLabel: 'Đang gửi mã...',
                         ),
                         const SizedBox(height: AppLayoutTokens.formFieldGap),
-                        TextFormField(
+                        AppFormTextInput(
                           controller: _verificationCodeController,
+                          label: 'Mã xác thực email',
+                          icon: Icons.verified_user_outlined,
                           enabled: !authProvider.isLoading && !_isSendingCode,
                           keyboardType: TextInputType.number,
                           textInputAction: TextInputAction.next,
                           maxLength: 6,
-                          decoration: _inputDecoration(
-                            label: 'Mã xác thực email',
-                            icon: Icons.verified_user_outlined,
-                          ).copyWith(counterText: ''),
+                          counterText: '',
                           validator: (value) {
                             final code = value?.trim() ?? '';
                             if (!RegExp(r'^[0-9]{6}$').hasMatch(code)) {
@@ -211,27 +183,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           },
                         ),
                         const SizedBox(height: AppLayoutTokens.formFieldGap),
-                        TextFormField(
+                        AppFormTextInput(
                           controller: _passwordController,
+                          label: 'Mật khẩu',
+                          icon: Icons.lock_rounded,
                           enabled: !authProvider.isLoading,
                           obscureText: _obscurePassword,
                           textInputAction: TextInputAction.next,
                           autofillHints: const [AutofillHints.newPassword],
-                          decoration: _inputDecoration(
-                            label: 'Mật khẩu',
-                            icon: Icons.lock_rounded,
-                            suffixIcon: IconButton(
-                              onPressed: authProvider.isLoading
-                                  ? null
-                                  : () => setState(
-                                      () =>
-                                          _obscurePassword = !_obscurePassword,
-                                    ),
-                              icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_rounded
-                                    : Icons.visibility_off_rounded,
-                              ),
+                          suffixIcon: IconButton(
+                            onPressed: authProvider.isLoading
+                                ? null
+                                : () => setState(
+                                    () => _obscurePassword = !_obscurePassword,
+                                  ),
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_rounded
+                                  : Icons.visibility_off_rounded,
                             ),
                           ),
                           validator: (value) {
@@ -239,8 +208,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           },
                         ),
                         const SizedBox(height: AppLayoutTokens.formFieldGap),
-                        TextFormField(
+                        AppFormTextInput(
                           controller: _confirmPasswordController,
+                          label: 'Nhập lại mật khẩu',
+                          icon: Icons.lock_reset_rounded,
                           enabled: !authProvider.isLoading,
                           obscureText: _obscureConfirmPassword,
                           textInputAction: TextInputAction.done,
@@ -248,21 +219,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           onFieldSubmitted: (_) => authProvider.isLoading
                               ? null
                               : _handleRegister(context),
-                          decoration: _inputDecoration(
-                            label: 'Nhập lại mật khẩu',
-                            icon: Icons.lock_reset_rounded,
-                            suffixIcon: IconButton(
-                              onPressed: authProvider.isLoading
-                                  ? null
-                                  : () => setState(
-                                      () => _obscureConfirmPassword =
-                                          !_obscureConfirmPassword,
-                                    ),
-                              icon: Icon(
-                                _obscureConfirmPassword
-                                    ? Icons.visibility_rounded
-                                    : Icons.visibility_off_rounded,
-                              ),
+                          suffixIcon: IconButton(
+                            onPressed: authProvider.isLoading
+                                ? null
+                                : () => setState(
+                                    () => _obscureConfirmPassword =
+                                        !_obscureConfirmPassword,
+                                  ),
+                            icon: Icon(
+                              _obscureConfirmPassword
+                                  ? Icons.visibility_rounded
+                                  : Icons.visibility_off_rounded,
                             ),
                           ),
                           validator: (value) {
@@ -273,63 +240,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           },
                         ),
                         const SizedBox(height: AppLayoutTokens.formSectionGap),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 54,
-                          child: ElevatedButton.icon(
-                            onPressed: authProvider.isLoading
-                                ? null
-                                : () => _handleRegister(context),
-                            icon: authProvider.isLoading
-                                ? SizedBox(
-                                    height: 18,
-                                    width: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.grey[600],
-                                    ),
-                                  )
-                                : const Icon(Icons.person_add_alt_1_rounded),
-                            label: Text(
-                              authProvider.isLoading
-                                  ? 'Đang đăng ký...'
-                                  : 'Tạo tài khoản',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              softWrap: false,
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.grey[800],
-                              disabledBackgroundColor: Colors.white.withValues(
-                                alpha: 0.7,
-                              ),
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              textStyle: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
+                        AppPrimaryButton(
+                          onPressed: authProvider.isLoading
+                              ? null
+                              : () => _handleRegister(context),
+                          icon: Icons.person_add_alt_1_rounded,
+                          label: 'Tạo tài khoản',
+                          isLoading: authProvider.isLoading,
+                          loadingLabel: 'Đang đăng ký...',
                         ),
                         const SizedBox(height: AppLayoutTokens.formInlineGap),
-                        TextButton.icon(
+                        AppDialogSecondaryButton(
                           onPressed: authProvider.isLoading
                               ? null
                               : () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.arrow_back_rounded),
-                          label: const Text(
-                            'Quay lại đăng nhập',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            softWrap: false,
-                          ),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.white,
-                          ),
+                          icon: Icons.arrow_back_rounded,
+                          label: 'Quay lại đăng nhập',
                         ),
                       ],
                     ),
@@ -366,7 +292,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(authProvider.errorMessage!),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
     }
@@ -392,7 +318,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Đã gửi mã xác thực. Vui lòng kiểm tra email.'),
-          backgroundColor: Colors.green,
+          backgroundColor: AppColors.success,
         ),
       );
     } else if (authProvider.errorMessage != null) {
@@ -402,28 +328,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   void _showError(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
-  }
-
-  InputDecoration _inputDecoration({
-    required String label,
-    required IconData icon,
-    Widget? suffixIcon,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon),
-      suffixIcon: suffixIcon,
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        borderSide: BorderSide.none,
-      ),
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      errorMaxLines: 4,
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
     );
   }
 }

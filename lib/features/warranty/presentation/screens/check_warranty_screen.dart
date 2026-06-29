@@ -4,12 +4,16 @@ import '../../../../core/utils/date_formatter.dart';
 import '../providers/warranty_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import 'warranty_details_screen.dart';
-import '../../../chat/presentation/widgets/barcode_scanner_screen.dart'
+import '../../../fifo_check/presentation/widgets/barcode_scanner_screen.dart'
     show BarcodeScannerScreen;
-import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
+import '../../../../app/widgets/gradient_header.dart';
 
 class CheckWarrantyScreen extends StatefulWidget {
   const CheckWarrantyScreen({super.key});
@@ -86,7 +90,7 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Chưa quét được mã. Vui lòng thử lại.'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -150,31 +154,29 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
                         ),
                         const SizedBox(width: AppLayoutTokens.formInlineGap),
                         Expanded(
-                          child: TextField(
+                          child: AppTextInput(
                             controller: _searchController,
                             focusNode: _searchFocusNode,
                             textCapitalization: TextCapitalization.characters,
-                            decoration: InputDecoration(
-                              hintText: 'Tìm kiếm biên nhận',
-                              prefixIcon: const Icon(Icons.search),
-                              suffixIcon: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (_isSearchMode)
-                                    AppIconAction(
-                                      icon: Icons.clear,
-                                      onPressed: _clearSearch,
-                                      tooltip: 'Xóa tìm kiếm',
-                                    ),
+                            label: 'Biên nhận',
+                            hintText: 'Tìm kiếm biên nhận',
+                            icon: Icons.search,
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_isSearchMode)
                                   AppIconAction(
-                                    onPressed: _searchReceipt,
-                                    icon: Icons.search_rounded,
-                                    tooltip: 'Tìm',
-                                    filled: true,
+                                    icon: Icons.clear,
+                                    onPressed: _clearSearch,
+                                    tooltip: 'Xóa tìm kiếm',
                                   ),
-                                ],
-                              ),
-                              border: const OutlineInputBorder(),
+                                AppIconAction(
+                                  onPressed: _searchReceipt,
+                                  icon: Icons.search_rounded,
+                                  tooltip: 'Tìm',
+                                  filled: true,
+                                ),
+                              ],
                             ),
                             onSubmitted: (_) => _searchReceipt(),
                           ),
@@ -203,13 +205,15 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
                             const Icon(
                               Icons.error_outline,
                               size: 64,
-                              color: Colors.red,
+                              color: AppColors.error,
                             ),
                             const SizedBox(height: 16),
                             Text(
                               warrantyProvider.errorMessage!,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.red),
+                              style: AppTextStyles.bodyM.copyWith(
+                                color: AppColors.error,
+                              ),
                             ),
                             const SizedBox(height: 16),
                             AppSecondaryButton(
@@ -230,15 +234,16 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
                             const Icon(
                               Icons.receipt_long_outlined,
                               size: 64,
-                              color: Colors.grey,
+                              color: AppColors.neutral500,
                             ),
                             const SizedBox(height: 16),
                             Text(
                               _isSearchMode
                                   ? 'Không tìm thấy biên nhận'
                                   : 'Chưa có biên nhận nào',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(color: Colors.grey[600]),
+                              style: AppTextStyles.headingS.copyWith(
+                                color: AppColors.neutral600,
+                              ),
                             ),
                           ],
                         ),
@@ -283,126 +288,112 @@ class _ReceiptCard extends StatelessWidget {
     final dateString = receipt['date']?.toString();
     final formattedDate = DateFormatter.format(dateString);
 
-    return Card(
+    return AppSurfaceCard(
       margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // Icon
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.receipt_long,
-                  color: Colors.blue,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 16),
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppColors.info.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+            ),
+            child: const Icon(
+              Icons.receipt_long,
+              color: AppColors.info,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 16),
 
-              // Content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  receiptNumber,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: AppTextStyles.labelL,
+                ),
+                const SizedBox(height: 8),
+
+                Row(
                   children: [
-                    // Receipt number
+                    Icon(
+                      Icons.person_outline,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 4),
                     Text(
-                      receiptNumber,
+                      'Người lưu: ',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       softWrap: false,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                      style: AppTextStyles.labelS.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 8),
-
-                    // User info with label
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.person_outline,
-                          size: 14,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    Expanded(
+                      child: Text(
+                        user,
+                        maxLines: 1,
+                        style: AppTextStyles.labelS.copyWith(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Người lưu: ',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          softWrap: false,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            user,
-                            maxLines: 1,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            softWrap: false,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-
-                    // Date info with label
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.calendar_today_outlined,
-                          size: 14,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Ngày lưu: ',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          softWrap: false,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Text(
-                          formattedDate,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          softWrap: false,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
-                          ),
-                        ),
-                      ],
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                      ),
                     ),
                   ],
                 ),
-              ),
+                const SizedBox(height: 4),
 
-              // Arrow
-              Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
-            ],
+                Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today_outlined,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Ngày lưu: ',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      style: AppTextStyles.labelS.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      formattedDate,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      style: AppTextStyles.labelS.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
+          const Icon(
+            Icons.arrow_forward_ios,
+            size: 16,
+            color: AppColors.neutral400,
+          ),
+        ],
       ),
     );
   }

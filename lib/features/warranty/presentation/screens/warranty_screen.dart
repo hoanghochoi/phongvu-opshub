@@ -4,11 +4,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../providers/warranty_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../chat/presentation/widgets/barcode_scanner_screen.dart'
+import '../../../fifo_check/presentation/widgets/barcode_scanner_screen.dart'
     show BarcodeScannerScreen;
-import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/utils/validators.dart';
 
@@ -72,7 +75,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
     if (mounted) {
       _showSnackBar(
         'Mỗi biên nhận đính kèm tối đa $_maxImages ảnh.',
-        Colors.orange,
+        AppColors.warning,
       );
     }
     return false;
@@ -105,7 +108,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
           if (truncated > 0 && mounted) {
             _showSnackBar(
               'Đã giữ $_maxImages ảnh đầu tiên theo giới hạn hệ thống.',
-              Colors.orange,
+              AppColors.warning,
             );
           }
         }
@@ -135,7 +138,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
         },
       );
       if (mounted) {
-        _showSnackBar('Chưa thêm được ảnh. Vui lòng thử lại.', Colors.red);
+        _showSnackBar('Chưa thêm được ảnh. Vui lòng thử lại.', AppColors.error);
       }
     }
   }
@@ -154,7 +157,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Chưa quét được mã. Vui lòng thử lại.'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -206,7 +209,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     if (_images.isEmpty) {
-      _showSnackBar('Vui lòng chọn ít nhất 1 hình ảnh', Colors.orange);
+      _showSnackBar('Vui lòng chọn ít nhất 1 hình ảnh', AppColors.warning);
       return;
     }
 
@@ -218,7 +221,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
       );
       _showSnackBar(
         'Mỗi biên nhận đính kèm tối đa $_maxImages ảnh.',
-        Colors.orange,
+        AppColors.warning,
       );
       return;
     }
@@ -231,7 +234,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Bạn cần đăng nhập lại để lưu biên nhận.'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -253,18 +256,17 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            icon: const Icon(Icons.check_circle, color: Colors.green, size: 64),
+            icon: const Icon(
+              Icons.check_circle,
+              color: AppColors.success,
+              size: 64,
+            ),
             title: const Text('Đã lưu biên nhận'),
             content: const Text('Ảnh đã được lưu vào biên nhận này.'),
             actions: [
-              TextButton(
+              AppDialogConfirmButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text(
-                  'Xác nhận',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: false,
-                ),
+                label: 'Xác nhận',
               ),
             ],
           ),
@@ -281,21 +283,16 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            icon: const Icon(Icons.error, color: Colors.red, size: 64),
+            icon: const Icon(Icons.error, color: AppColors.error, size: 64),
             title: const Text('Chưa lưu được biên nhận'),
             content: Text(
               warrantyProvider.errorMessage ??
                   'Vui lòng kiểm tra lại và thử lại.',
             ),
             actions: [
-              TextButton(
+              AppDialogConfirmButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text(
-                  'Xác nhận',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: false,
-                ),
+                label: 'Xác nhận',
               ),
             ],
           ),
@@ -316,23 +313,19 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Số biên nhận
-                TextFormField(
+                AppFormTextInput(
                   controller: _receiptController,
                   focusNode: _receiptFocusNode,
                   textCapitalization: TextCapitalization.characters,
                   onChanged: _validateReceipt,
-                  decoration: InputDecoration(
-                    labelText: 'Số biên nhận / mã sửa chữa',
-                    hintText: 'CPxx-Jxxxxxxxx hoặc ST-123456',
-                    prefixIcon: const Icon(Icons.receipt_long),
-                    border: const OutlineInputBorder(),
-                    errorText: _receiptError,
-                    suffixIcon: AppIconAction(
-                      icon: Icons.qr_code_scanner,
-                      onPressed: _scanBarcode,
-                      tooltip: 'Quét mã',
-                    ),
+                  label: 'Số biên nhận / mã sửa chữa',
+                  hintText: 'CPxx-Jxxxxxxxx hoặc ST-123456',
+                  icon: Icons.receipt_long,
+                  errorText: _receiptError,
+                  suffixIcon: AppIconAction(
+                    icon: Icons.qr_code_scanner,
+                    onPressed: _scanBarcode,
+                    tooltip: 'Quét mã',
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
@@ -344,20 +337,15 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Hình ảnh section
-                Text(
-                  'Hình ảnh',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text('Hình ảnh', style: AppTextStyles.headingS),
                 Text(
                   'Tối đa $_maxImages ảnh',
-                  style: Theme.of(context).textTheme.bodySmall,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: AppColors.neutral600,
+                  ),
                 ),
                 const SizedBox(height: AppLayoutTokens.formInlineGap),
 
-                // Add image button
                 AppSecondaryButton(
                   onPressed: _images.length >= _maxImages
                       ? null
@@ -367,7 +355,6 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
                 ),
                 const SizedBox(height: AppLayoutTokens.formFieldGap),
 
-                // Images grid
                 if (_images.isNotEmpty)
                   GridView.builder(
                     shrinkWrap: true,
@@ -383,7 +370,9 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
                       return Stack(
                         children: [
                           ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(
+                              AppLayoutTokens.cardRadius,
+                            ),
                             child: Image.file(
                               File(_images[index].path),
                               fit: BoxFit.cover,
@@ -398,13 +387,15 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
                               onTap: () => _removeImage(index),
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.6),
+                                  color: AppColors.neutral900.withValues(
+                                    alpha: 0.60,
+                                  ),
                                   shape: BoxShape.circle,
                                 ),
                                 padding: const EdgeInsets.all(4),
                                 child: const Icon(
                                   Icons.close,
-                                  color: Colors.white,
+                                  color: AppColors.surface,
                                   size: 20,
                                 ),
                               ),
@@ -417,7 +408,6 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
 
                 const SizedBox(height: 32),
 
-                // Save button
                 Consumer<WarrantyProvider>(
                   builder: (context, warrantyProvider, child) {
                     return AppPrimaryButton(

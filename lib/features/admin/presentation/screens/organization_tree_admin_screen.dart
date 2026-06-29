@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
@@ -155,13 +158,12 @@ class _OrganizationTreeAdminScreenState
         title: const Text('Xóa node tổ chức'),
         content: Text('Xóa hoặc tắt node ${node.title}?'),
         actions: [
-          TextButton(
+          AppDialogCancelButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Hủy'),
           ),
-          FilledButton(
+          AppDialogConfirmButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Xóa'),
+            label: 'Xóa',
           ),
         ],
       ),
@@ -236,7 +238,9 @@ class _OrganizationTreeAdminScreenState
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppResponsiveContent(
+              child: AppListSkeleton(itemCount: 6, itemHeight: 76),
+            )
           : AppResponsiveContent(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -316,7 +320,13 @@ class _OrganizationTreeList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (nodes.isEmpty) return const Center(child: Text('Chưa có node tổ chức'));
+    if (nodes.isEmpty) {
+      return const AppStatePanel.empty(
+        title: 'Chưa có node tổ chức',
+        message: 'Bấm nút thêm để tạo node đầu tiên.',
+        icon: Icons.account_tree_outlined,
+      );
+    }
     final byParent = <String?, List<AdminOrganizationNode>>{};
     for (final node in nodes) {
       byParent.putIfAbsent(node.parentId, () => []).add(node);
@@ -571,12 +581,7 @@ class _DetailRow extends StatelessWidget {
     return Row(
       children: [
         SizedBox(width: 140, child: Text(label)),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
+        Expanded(child: Text(value, style: AppTextStyles.labelM)),
       ],
     );
   }
@@ -774,38 +779,36 @@ class _OrganizationNodeEditorDialogState
           child: AppFormColumn(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              AppTextInput(
                 controller: _titleController,
-                decoration: const InputDecoration(labelText: 'Tên hiển thị'),
+                label: 'Tên hiển thị',
                 enabled: canEditStructure,
               ),
-              TextField(
+              AppTextInput(
                 controller: _codeController,
-                decoration: const InputDecoration(labelText: 'Mã internal'),
+                label: 'Mã internal',
                 enabled: canEditStructure,
               ),
-              TextField(
+              AppTextInput(
                 controller: _businessCodeController,
-                decoration: InputDecoration(
-                  labelText: isShowroom ? 'Mã SR' : 'Mã nghiệp vụ',
-                ),
+                label: isShowroom ? 'Mã SR' : 'Mã nghiệp vụ',
                 enabled: canEditStructure,
               ),
               if (_type == 'LV2_REGION' || _type == 'LV3_AREA')
-                TextField(
+                AppTextInput(
                   controller: _abbreviationController,
-                  decoration: const InputDecoration(labelText: 'Viết tắt'),
+                  label: 'Viết tắt',
                   enabled: canEditStructure,
                 ),
               if (_type == 'LV2_REGION' || _type == 'LV3_AREA')
-                TextField(
+                AppTextInput(
                   controller: _descriptionController,
-                  decoration: const InputDecoration(labelText: 'Mô tả'),
+                  label: 'Mô tả',
                   enabled: canEditStructure,
                 ),
-              DropdownButtonFormField<String>(
-                initialValue: _type,
-                decoration: const InputDecoration(labelText: 'Loại node'),
+              AppSelectField<String>(
+                value: _type,
+                label: 'Loại node',
                 items: AdminOrganizationNodeTypes.definitions
                     .map(
                       (definition) => DropdownMenuItem(
@@ -818,10 +821,10 @@ class _OrganizationNodeEditorDialogState
                     ? null
                     : (value) => setState(() => _setType(value ?? 'LV4_STORE')),
               ),
-              DropdownButtonFormField<String?>(
+              AppSelectField<String?>(
                 key: ValueKey('parent-$_type-${parentValue ?? 'none'}'),
-                initialValue: parentValue,
-                decoration: const InputDecoration(labelText: 'Node cha'),
+                value: parentValue,
+                label: 'Node cha',
                 items: [
                   if (_allowsEmptyParent(_type))
                     const DropdownMenuItem<String?>(
@@ -840,56 +843,50 @@ class _OrganizationNodeEditorDialogState
                     : (value) => setState(() => _parentId = value),
               ),
               if (isDomain)
-                TextField(
+                AppTextInput(
                   controller: _emailDomainController,
-                  decoration: const InputDecoration(labelText: 'Email domain'),
+                  label: 'Email domain',
                   enabled: canEditStructure,
                 ),
               if (isShowroom) ...[
-                TextField(
+                AppTextInput(
                   controller: _mapVietinUsernameController,
-                  decoration: const InputDecoration(labelText: 'MAP username'),
+                  label: 'MAP username',
                   enabled: canEditMap,
                 ),
-                TextField(
+                AppTextInput(
                   controller: _mapVietinPasswordController,
-                  decoration: InputDecoration(
-                    labelText: widget.node?.hasMapVietinPassword == true
-                        ? 'MAP password mới'
-                        : 'MAP password',
-                  ),
+                  label: widget.node?.hasMapVietinPassword == true
+                      ? 'MAP password mới'
+                      : 'MAP password',
                   obscureText: true,
                   enabled: canEditMap,
                 ),
-                TextField(
+                AppTextInput(
                   controller: _transferAccountNumberController,
-                  decoration: const InputDecoration(
-                    labelText: 'Số tài khoản nhận tiền',
-                  ),
+                  label: 'Số tài khoản nhận tiền',
                   enabled: canEditStructure,
                 ),
-                TextField(
+                AppTextInput(
                   controller: _transferAccountNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Tên tài khoản nhận tiền',
-                  ),
+                  label: 'Tên tài khoản nhận tiền',
                   enabled: canEditStructure,
                 ),
-                TextField(
+                AppTextInput(
                   controller: _transferBankNameController,
-                  decoration: const InputDecoration(labelText: 'Ngân hàng'),
+                  label: 'Ngân hàng',
                   enabled: canEditStructure,
                 ),
-                TextField(
+                AppTextInput(
                   controller: _transferBankBinController,
-                  decoration: const InputDecoration(labelText: 'BIN'),
+                  label: 'BIN',
                   enabled: canEditStructure,
                 ),
               ],
-              TextField(
+              AppTextInput(
                 controller: _sortOrderController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Thứ tự'),
+                label: 'Thứ tự',
                 enabled: canEditStructure,
               ),
               SwitchListTile(
@@ -905,13 +902,13 @@ class _OrganizationNodeEditorDialogState
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Hủy'),
         ),
-        FilledButton(
+        AppDialogConfirmButton(
           onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Đang lưu...' : 'Lưu'),
+          label: _saving ? 'Đang lưu...' : 'Lưu',
+          isLoading: _saving,
         ),
       ],
     );

@@ -4,8 +4,9 @@ import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
-import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/utils/validators.dart';
 import '../../domain/entities/user.dart';
@@ -182,22 +183,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            TextField(
+            AppTextInput(
               controller: _firstNameController,
-              decoration: const InputDecoration(
-                labelText: 'Tên',
-                prefixIcon: Icon(Icons.person_outline),
-                border: OutlineInputBorder(),
-              ),
+              label: 'Tên',
+              icon: Icons.person_outline,
             ),
             const SizedBox(height: AppLayoutTokens.formFieldGap),
-            TextField(
+            AppTextInput(
               controller: _lastNameController,
-              decoration: const InputDecoration(
-                labelText: 'Họ',
-                prefixIcon: Icon(Icons.badge_outlined),
-                border: OutlineInputBorder(),
-              ),
+              label: 'Họ',
+              icon: Icons.badge_outlined,
             ),
             const SizedBox(height: AppLayoutTokens.formFieldGap),
             ListTile(
@@ -308,69 +303,63 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
             child: AppFormColumn(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextFormField(
+                AppFormTextInput(
                   controller: _currentController,
                   enabled: !isLoading,
                   obscureText: _obscureCurrent,
-                  decoration: InputDecoration(
-                    labelText: 'Mật khẩu hiện tại',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      onPressed: isLoading
-                          ? null
-                          : () => setState(
-                              () => _obscureCurrent = !_obscureCurrent,
-                            ),
-                      icon: Icon(
-                        _obscureCurrent
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                      ),
+                  label: 'Mật khẩu hiện tại',
+                  icon: Icons.lock_outline,
+                  suffixIcon: IconButton(
+                    onPressed: isLoading
+                        ? null
+                        : () => setState(
+                            () => _obscureCurrent = !_obscureCurrent,
+                          ),
+                    icon: Icon(
+                      _obscureCurrent
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
                     ),
                   ),
                   validator: (value) => (value ?? '').isEmpty
                       ? 'Vui lòng nhập mật khẩu hiện tại'
                       : null,
                 ),
-                TextFormField(
+                AppFormTextInput(
                   controller: _newController,
                   enabled: !isLoading,
                   obscureText: _obscureNew,
-                  decoration: InputDecoration(
-                    labelText: 'Mật khẩu mới',
-                    prefixIcon: const Icon(Icons.lock_reset_outlined),
-                    suffixIcon: IconButton(
-                      onPressed: isLoading
-                          ? null
-                          : () => setState(() => _obscureNew = !_obscureNew),
-                      icon: Icon(
-                        _obscureNew
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                      ),
+                  label: 'Mật khẩu mới',
+                  icon: Icons.lock_reset_outlined,
+                  suffixIcon: IconButton(
+                    onPressed: isLoading
+                        ? null
+                        : () => setState(() => _obscureNew = !_obscureNew),
+                    icon: Icon(
+                      _obscureNew
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
                     ),
                   ),
                   validator: (value) =>
                       Validators.getPasswordError(value ?? ''),
                 ),
-                TextFormField(
+                AppFormTextInput(
                   controller: _confirmController,
                   enabled: !isLoading,
                   obscureText: _obscureConfirm,
-                  decoration: InputDecoration(
-                    labelText: 'Nhập lại mật khẩu mới',
-                    prefixIcon: const Icon(Icons.lock_reset_outlined),
-                    suffixIcon: IconButton(
-                      onPressed: isLoading
-                          ? null
-                          : () => setState(
-                              () => _obscureConfirm = !_obscureConfirm,
-                            ),
-                      icon: Icon(
-                        _obscureConfirm
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                      ),
+                  label: 'Nhập lại mật khẩu mới',
+                  icon: Icons.lock_reset_outlined,
+                  suffixIcon: IconButton(
+                    onPressed: isLoading
+                        ? null
+                        : () => setState(
+                            () => _obscureConfirm = !_obscureConfirm,
+                          ),
+                    icon: Icon(
+                      _obscureConfirm
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
                     ),
                   ),
                   validator: (value) => value != _newController.text
@@ -384,13 +373,14 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: isLoading ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Hủy'),
+          label: 'Hủy',
         ),
-        FilledButton(
+        AppDialogConfirmButton(
           onPressed: isLoading ? null : _submit,
-          child: Text(isLoading ? 'Đang đổi...' : 'Đổi mật khẩu'),
+          label: isLoading ? 'Đang đổi...' : 'Đổi mật khẩu',
+          isLoading: isLoading,
         ),
       ],
     );

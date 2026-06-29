@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 
 class AppNotificationIconButton extends StatelessWidget {
   final int count;
@@ -41,10 +42,9 @@ class AppNotificationIconButton extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Text(
                   count > 99 ? '99+' : '$count',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: AppTextStyles.captionBold.copyWith(
+                    color: AppColors.surface,
                     fontSize: 10,
-                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),

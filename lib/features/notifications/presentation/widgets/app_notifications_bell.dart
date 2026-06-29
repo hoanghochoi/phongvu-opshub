@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_notification_action.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -84,11 +86,7 @@ class _NotificationsMenu extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        'Thông báo',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
+                      child: Text('Thông báo', style: AppTextStyles.headingS),
                     ),
                     IconButton(
                       tooltip: 'Tải lại',
@@ -231,14 +229,11 @@ class _NotificationsMenu extends StatelessWidget {
               width: MediaQuery.of(dialogContext).size.width < 560
                   ? double.maxFinite
                   : 420,
-              child: TextField(
+              child: AppTextInput(
                 controller: controller,
+                label: 'Ghi chú cho người gửi (không bắt buộc)',
+                hintText: 'Ví dụ: Mã đơn chưa đúng, vui lòng kiểm tra lại.',
                 maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Ghi chú cho người gửi (không bắt buộc)',
-                  hintText: 'Ví dụ: Mã đơn chưa đúng, vui lòng kiểm tra lại.',
-                  border: OutlineInputBorder(),
-                ),
               ),
             ),
           ),
@@ -270,12 +265,7 @@ class _NotificationSectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 8),
-      child: Text(
-        title,
-        style: Theme.of(
-          context,
-        ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-      ),
+      child: Text(title, style: AppTextStyles.labelL),
     );
   }
 }
@@ -305,7 +295,7 @@ class _OffsetAdjustmentNotificationTile extends StatelessWidget {
             : request.primaryOrderLabel.isEmpty
             ? OffsetAdjustmentType.label(request.type)
             : request.primaryOrderLabel,
-        style: const TextStyle(fontWeight: FontWeight.w700),
+        style: AppTextStyles.labelM,
       ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -369,10 +359,7 @@ class _StatementOrderNotificationTile extends StatelessWidget {
         rejected ? Icons.error_outline_rounded : Icons.swap_horiz_rounded,
         color: rejected ? AppColors.error : AppColors.warning,
       ),
-      title: SelectableText(
-        _title,
-        style: const TextStyle(fontWeight: FontWeight.w700),
-      ),
+      title: SelectableText(_title, style: AppTextStyles.labelM),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 4),
         child: Column(

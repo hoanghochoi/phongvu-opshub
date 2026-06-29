@@ -4,7 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
+import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/info_row.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -110,7 +115,7 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
                 children: [
                   Text(
                     '${widget.amountFormatter.format(transaction.amount)} VND',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: AppTextStyles.labelM,
                   ),
                   if (displayTime != null)
                     Text(DateFormat('HH:mm:ss dd/MM').format(displayTime)),
@@ -127,7 +132,7 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
                       'Người chuyển: ${transaction.payerLabel}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      style: AppTextStyles.labelM,
                     ),
                   if (transaction.content.isNotEmpty)
                     Text(
@@ -176,64 +181,55 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
                 padding: EdgeInsets.only(top: 8, left: reserveSpace ? 0 : 4),
                 child: Text(
                   widget.rowMessage!.text,
-                  style: TextStyle(
+                  style: AppTextStyles.captionBold.copyWith(
                     color: widget.rowMessage!.success
                         ? AppColors.success
                         : AppColors.error,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
                   ),
                 ),
               ),
       );
     }
 
-    return Card(
+    return AppSurfaceCard(
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        side: BorderSide(
-          color: borderColor.withValues(alpha: 0.65),
-          width: 1.2,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isCompact =
-                constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
-            if (isCompact) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  buildDetails(),
-                  const SizedBox(height: 10),
-                  buildOrderEditor(),
-                  buildRowMessage(reserveSpace: false),
-                ],
-              );
-            }
-
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(12),
+      borderColor: borderColor.withValues(alpha: 0.65),
+      borderWidth: 1.2,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact =
+              constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+          if (isCompact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: buildDetails()),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 260,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      buildOrderEditor(),
-                      buildRowMessage(reserveSpace: true),
-                    ],
-                  ),
-                ),
+                buildDetails(),
+                const SizedBox(height: 10),
+                buildOrderEditor(),
+                buildRowMessage(reserveSpace: false),
               ],
             );
-          },
-        ),
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: buildDetails()),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 260,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    buildOrderEditor(),
+                    buildRowMessage(reserveSpace: true),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -260,39 +256,36 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
                   widget.transaction.statementNumber.isEmpty
                       ? 'Nhập mã đơn hàng mới để gửi Kế toán xác nhận.'
                       : 'Mã sao kê: ${widget.transaction.statementNumber}',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: AppTextStyles.labelM,
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                AppTextInput(
                   controller: controller,
+                  label: 'Mã đơn hàng mới',
+                  hintText: 'Nhập mỗi mã một dòng, hoặc cách bằng dấu phẩy',
                   autofocus: true,
                   keyboardType: TextInputType.multiline,
                   textInputAction: TextInputAction.newline,
                   minLines: 2,
                   maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Mã đơn hàng mới',
-                    hintText: 'Nhập mỗi mã một dòng, hoặc cách bằng dấu phẩy',
-                    border: OutlineInputBorder(),
-                  ),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(
+            AppDialogCancelButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Đóng'),
+              label: 'Đóng',
             ),
-            FilledButton.icon(
+            AppDialogConfirmButton(
               onPressed: () async {
                 final ok = await widget.onRequestTransfer(controller.text);
                 if (ok && dialogContext.mounted) {
                   Navigator.of(dialogContext).pop();
                 }
               },
-              icon: const Icon(Icons.send_rounded),
-              label: const Text('Gửi xác nhận'),
+              icon: Icons.send_rounded,
+              label: 'Gửi xác nhận',
             ),
           ],
         ),
@@ -342,25 +335,22 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
                     labelWidth: 132,
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  AppTextInput(
                     controller: noteController,
+                    label: 'Lý do từ chối nếu có',
                     minLines: 1,
                     maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Lý do từ chối nếu có',
-                      border: OutlineInputBorder(),
-                    ),
                   ),
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(
+            AppDialogCancelButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Đóng'),
+              label: 'Đóng',
             ),
-            OutlinedButton.icon(
+            AppDialogSecondaryButton(
               onPressed: () async {
                 await widget.onRejectTransfer(
                   requestId,
@@ -368,16 +358,16 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
                 );
                 if (dialogContext.mounted) Navigator.of(dialogContext).pop();
               },
-              icon: const Icon(Icons.close_rounded),
-              label: const Text('Từ chối'),
+              icon: Icons.close_rounded,
+              label: 'Từ chối',
             ),
-            FilledButton.icon(
+            AppDialogConfirmButton(
               onPressed: () async {
                 await widget.onApproveTransfer(requestId);
                 if (dialogContext.mounted) Navigator.of(dialogContext).pop();
               },
-              icon: const Icon(Icons.check_rounded),
-              label: const Text('Duyệt'),
+              icon: Icons.check_rounded,
+              label: 'Duyệt',
             ),
           ],
         ),
@@ -403,19 +393,26 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
             future: widget.onLoadHistory(),
             builder: (context, snapshot) {
               if (snapshot.connectionState != ConnectionState.done) {
-                return const SizedBox(
-                  height: 96,
-                  child: Center(child: CircularProgressIndicator()),
+                return const AppStatePanel.loading(
+                  title: 'Đang tải lịch sử mã đơn',
+                  compact: true,
                 );
               }
               if (snapshot.hasError) {
-                return const SelectableText(
-                  'Chưa tải được lịch sử. Vui lòng thử lại.',
+                return const AppStatePanel.error(
+                  title: 'Chưa tải được lịch sử mã đơn',
+                  message: 'Vui lòng thử lại sau ít phút.',
+                  compact: true,
                 );
               }
               final rows = snapshot.data ?? const [];
               if (rows.isEmpty) {
-                return const SelectableText('Chưa có lịch sử chỉnh sửa.');
+                return const AppStatePanel.empty(
+                  title: 'Chưa có lịch sử chỉnh sửa',
+                  message: 'Các lần cập nhật mã đơn sẽ xuất hiện tại đây.',
+                  icon: Icons.history_rounded,
+                  compact: true,
+                );
               }
               return ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 420),
@@ -434,7 +431,7 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
                                 : DateFormat(
                                     'HH:mm:ss dd/MM/yyyy',
                                   ).format(createdAt),
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                            style: AppTextStyles.labelM,
                           ),
                           const SizedBox(height: 4),
                           Text('Từ: ${statementOrdersText(item.oldOrders)}'),
@@ -453,9 +450,9 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
           ),
         ),
         actions: [
-          TextButton(
+          AppDialogCancelButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Đóng'),
+            label: 'Đóng',
           ),
         ],
       ),
@@ -512,10 +509,7 @@ class _PaymentOrderEditor extends StatelessWidget {
                     runSpacing: 4,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      const Text(
-                        'Đơn hàng',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
+                      const Text('Đơn hàng', style: AppTextStyles.labelM),
                       if (transaction.isOrderOffsetConfirmed)
                         const AppStatusChip(
                           label: 'Đã cấn trừ',
@@ -570,26 +564,21 @@ class _PaymentOrderEditor extends StatelessWidget {
               ],
             ),
             if (editing)
-              TextField(
+              AppTextInput(
                 controller: controller,
+                label: 'Mã đơn hàng',
+                hintText: 'Nhập mỗi mã một dòng, hoặc cách bằng dấu phẩy',
                 autofocus: true,
                 keyboardType: TextInputType.multiline,
                 textInputAction: TextInputAction.newline,
+                dense: true,
                 minLines: 1,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  hintText: 'Nhập mỗi mã một dòng, hoặc cách bằng dấu phẩy',
-                  border: OutlineInputBorder(),
-                ),
               )
             else if (transaction.orders.isEmpty)
               Text(
                 bankStatementMissingOrderText,
-                style: const TextStyle(
-                  color: AppColors.error,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: AppTextStyles.labelM.copyWith(color: AppColors.error),
               )
             else
               Wrap(
@@ -625,10 +614,8 @@ class _PaymentOrderEditor extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 blockedReason!,
-                style: const TextStyle(
+                style: AppTextStyles.captionBold.copyWith(
                   color: AppColors.warning,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
                 ),
               ),
             ],
@@ -821,9 +808,9 @@ class PaymentTransactionDetailDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Đóng'),
+          label: 'Đóng',
         ),
       ],
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/widgets/app_layout.dart';
 
 class FifoHistoryTabBar extends StatelessWidget {
   final TabController controller;
@@ -13,11 +14,13 @@ class FifoHistoryTabBar extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
+        color:
+            Theme.of(context).cardTheme.color ??
+            Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: AppColors.shadow.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -25,12 +28,14 @@ class FifoHistoryTabBar extends StatelessWidget {
       ),
       child: TabBar(
         controller: controller,
-        labelColor: Colors.white,
-        unselectedLabelColor: isDark ? AppColors.neutral300 : AppColors.neutral700,
+        labelColor: AppColors.surface,
+        unselectedLabelColor: isDark
+            ? AppColors.neutral300
+            : AppColors.neutral700,
         indicator: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
           gradient: const LinearGradient(
-            colors: [AppColors.info, Color(0xFF29B6F6)],
+            colors: [AppColors.info, AppColors.sky500],
           ),
         ),
         indicatorSize: TabBarIndicatorSize.tab,

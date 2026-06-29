@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
-import '../theme/app_theme.dart';
+import '../theme/app_text_styles.dart';
 import 'app_layout.dart';
 
 class AppButtonMetrics {
@@ -38,14 +38,14 @@ class AppPrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasIcon = icon != null || isLoading;
     final buttonStyle = FilledButton.styleFrom(
-      backgroundColor: AppTheme.primaryBlue,
+      backgroundColor: AppColors.primary,
       foregroundColor: AppColors.surface,
-      disabledBackgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.45),
+      disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.45),
       disabledForegroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
       ),
-      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+      textStyle: AppTextStyles.labelL,
     );
 
     final buttonLabel = Text(
@@ -120,12 +120,12 @@ class AppSecondaryButton extends StatelessWidget {
           softWrap: false,
         ),
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppTheme.primaryBlue,
-          side: const BorderSide(color: AppTheme.primaryBlue),
+          foregroundColor: AppColors.primary,
+          side: const BorderSide(color: AppColors.primary),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
           ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          textStyle: AppTextStyles.labelM,
         ),
       ),
     );
@@ -203,10 +203,10 @@ class AppIconAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = filled ? AppColors.surface : AppTheme.primaryBlue;
+    final foreground = filled ? AppColors.surface : AppColors.primary;
     final background = filled
-        ? AppTheme.primaryBlue
-        : AppTheme.primaryBlue.withValues(alpha: 0.10);
+        ? AppColors.primary
+        : AppColors.primary.withValues(alpha: 0.10);
 
     return SizedBox.square(
       dimension: AppButtonMetrics.iconSize,
@@ -242,9 +242,7 @@ class AppDialogCancelButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextButton(
       onPressed: onPressed,
-      style: TextButton.styleFrom(
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
-      ),
+      style: TextButton.styleFrom(textStyle: AppTextStyles.labelM),
       child: Text(label),
     );
   }
@@ -269,12 +267,12 @@ class AppDialogSecondaryButton extends StatelessWidget {
       icon: Icon(icon),
       label: Text(label),
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppTheme.primaryBlue,
-        side: const BorderSide(color: AppTheme.primaryBlue),
+        foregroundColor: AppColors.primary,
+        side: const BorderSide(color: AppColors.primary),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
         ),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        textStyle: AppTextStyles.labelM,
       ),
     );
   }
@@ -309,14 +307,14 @@ class AppDialogConfirmButton extends StatelessWidget {
         ? null
         : Icon(icon);
     final style = FilledButton.styleFrom(
-      backgroundColor: AppTheme.primaryBlue,
+      backgroundColor: AppColors.primary,
       foregroundColor: AppColors.surface,
-      disabledBackgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.45),
+      disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.45),
       disabledForegroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
       ),
-      textStyle: const TextStyle(fontWeight: FontWeight.w700),
+      textStyle: AppTextStyles.labelM,
     );
 
     if (effectiveIcon != null) {

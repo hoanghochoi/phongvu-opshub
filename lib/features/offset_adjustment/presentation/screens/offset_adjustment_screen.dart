@@ -6,9 +6,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -233,11 +236,11 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
             240.0,
             math.min(MediaQuery.sizeOf(context).width - 48, 520.0),
           ),
-          child: TextField(
+          child: AppTextInput(
             controller: controller,
+            label: label,
             autofocus: true,
             maxLines: maxLines,
-            decoration: InputDecoration(labelText: label),
           ),
         ),
         actions: [
@@ -346,49 +349,45 @@ class _FilterPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            const gap = AppLayoutTokens.formInlineGap;
-            final columns = constraints.maxWidth >= 1040
-                ? 4
-                : constraints.maxWidth >= _breakpoint
-                ? 3
-                : constraints.maxWidth >= 520
-                ? 2
-                : 1;
-            final fieldWidth =
-                (constraints.maxWidth - (gap * (columns - 1))) / columns;
-            return Wrap(
-              spacing: gap,
-              runSpacing: gap,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(width: fieldWidth, child: _storeFilter()),
-                SizedBox(width: fieldWidth, child: _typeFilter()),
-                SizedBox(width: fieldWidth, child: _statusFilter()),
-                SizedBox(width: fieldWidth, child: _orderField()),
-                SizedBox(width: fieldWidth, child: _amountField()),
-                SizedBox(
-                  width: fieldWidth,
-                  child: AppDateRangeDropdown(
-                    label: 'Ngày',
-                    start: provider.startDate,
-                    end: provider.endDate,
-                    onChanged: provider.setDateRange,
-                  ),
+    return AppSurfaceCard(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const gap = AppLayoutTokens.formInlineGap;
+          final columns = constraints.maxWidth >= 1040
+              ? 4
+              : constraints.maxWidth >= _breakpoint
+              ? 3
+              : constraints.maxWidth >= 520
+              ? 2
+              : 1;
+          final fieldWidth =
+              (constraints.maxWidth - (gap * (columns - 1))) / columns;
+          return Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(width: fieldWidth, child: _storeFilter()),
+              SizedBox(width: fieldWidth, child: _typeFilter()),
+              SizedBox(width: fieldWidth, child: _statusFilter()),
+              SizedBox(width: fieldWidth, child: _orderField()),
+              SizedBox(width: fieldWidth, child: _amountField()),
+              SizedBox(
+                width: fieldWidth,
+                child: AppDateRangeDropdown(
+                  label: 'Ngày',
+                  start: provider.startDate,
+                  end: provider.endDate,
+                  onChanged: provider.setDateRange,
                 ),
-                SizedBox(
-                  width: fieldWidth,
-                  child: _FilterActions(provider: provider),
-                ),
-              ],
-            );
-          },
-        ),
+              ),
+              SizedBox(
+                width: fieldWidth,
+                child: _FilterActions(provider: provider),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -396,7 +395,10 @@ class _FilterPanel extends StatelessWidget {
   Widget _storeFilter() {
     if (!provider.canReview && provider.stores.length <= 1) {
       return InputDecorator(
-        decoration: _filterDecoration('SR', Icons.storefront_outlined),
+        decoration: appInputDecoration(
+          label: 'SR',
+          icon: Icons.storefront_outlined,
+        ),
         child: Text(
           provider.stores.isEmpty
               ? 'Chưa có SR được gán'
@@ -429,9 +431,10 @@ class _FilterPanel extends StatelessWidget {
   }
 
   Widget _typeFilter() {
-    return DropdownButtonFormField<String>(
-      initialValue: provider.type,
-      decoration: _filterDecoration('Loại', Icons.category_outlined),
+    return AppSelectField<String>(
+      value: provider.type,
+      label: 'Loại',
+      icon: Icons.category_outlined,
       items: const [
         DropdownMenuItem(value: 'ALL', child: Text('Tất cả loại')),
         DropdownMenuItem(
@@ -456,9 +459,10 @@ class _FilterPanel extends StatelessWidget {
   }
 
   Widget _statusFilter() {
-    return DropdownButtonFormField<String>(
-      initialValue: provider.status,
-      decoration: _filterDecoration('Trạng thái', Icons.flag_outlined),
+    return AppSelectField<String>(
+      value: provider.status,
+      label: 'Trạng thái',
+      icon: Icons.flag_outlined,
       items: const [
         DropdownMenuItem(value: 'ALL', child: Text('Tất cả trạng thái')),
         DropdownMenuItem(
@@ -479,28 +483,22 @@ class _FilterPanel extends StatelessWidget {
   }
 
   Widget _orderField() {
-    return TextField(
+    return AppTextInput(
       controller: orderController,
-      decoration: _filterDecoration('Mã đơn', Icons.tag_rounded),
+      label: 'Mã đơn',
+      icon: Icons.tag_rounded,
       onChanged: provider.setOrder,
     );
   }
 
   Widget _amountField() {
-    return TextField(
+    return AppTextInput(
       controller: amountController,
       keyboardType: TextInputType.number,
       inputFormatters: [ThousandsSeparatorInputFormatter()],
-      decoration: _filterDecoration('Số tiền', Icons.payments_outlined),
+      label: 'Số tiền',
+      icon: Icons.payments_outlined,
       onChanged: provider.setAmount,
-    );
-  }
-
-  InputDecoration _filterDecoration(String label, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon),
-      border: const OutlineInputBorder(),
     );
   }
 }
@@ -546,7 +544,7 @@ class _ListToolbar extends StatelessWidget {
           width: 220,
           child: Text(
             '${provider.items.length} / ${provider.total} hồ sơ',
-            style: const TextStyle(fontWeight: FontWeight.w700),
+            style: AppTextStyles.labelM,
           ),
         ),
         Row(
@@ -632,88 +630,72 @@ class _OffsetCard extends StatelessWidget {
     final submittedText = submittedAt == null
         ? ''
         : DateFormat('HH:mm dd/MM/yyyy').format(submittedAt.toLocal());
-    return Card(
+    return AppSurfaceCard(
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        side: BorderSide(color: borderColor.withValues(alpha: 0.7), width: 1.3),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+      padding: const EdgeInsets.all(12),
+      borderColor: borderColor.withValues(alpha: 0.7),
+      borderWidth: 1.3,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  AppStatusChip(
-                    label: OffsetAdjustmentType.label(item.type),
-                    color: AppColors.info,
-                  ),
-                  AppStatusChip(
-                    label: OffsetAdjustmentStatus.label(item.status),
-                    color: borderColor,
-                  ),
-                  if (item.isSingleOrder && item.singleOrderReuseCount != null)
-                    AppStatusChip(
-                      label: '${item.singleOrderReuseCount} lần',
-                      color: AppColors.warning,
-                    ),
-                ],
+              AppStatusChip(
+                label: OffsetAdjustmentType.label(item.type),
+                color: AppColors.info,
               ),
-              const SizedBox(height: 8),
-              Text(
-                item.primaryOrderLabel.isEmpty
-                    ? 'Chưa có mã đơn'
-                    : item.primaryOrderLabel,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
+              AppStatusChip(
+                label: OffsetAdjustmentStatus.label(item.status),
+                color: borderColor,
+              ),
+              if (item.isSingleOrder && item.singleOrderReuseCount != null)
+                AppStatusChip(
+                  label: '${item.singleOrderReuseCount} lần',
+                  color: AppColors.warning,
                 ),
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 10,
-                runSpacing: 4,
-                children: [
-                  _InlineInfo(
-                    icon: Icons.storefront_outlined,
-                    text: item.storeCode,
-                  ),
-                  _InlineInfo(
-                    icon: Icons.payments_outlined,
-                    text: money.format(item.amount),
-                  ),
-                  if (submittedText.isNotEmpty)
-                    _InlineInfo(
-                      icon: Icons.schedule_rounded,
-                      text: submittedText,
-                    ),
-                  if ((item.transactionCode ?? '').isNotEmpty)
-                    _InlineInfo(
-                      icon: Icons.confirmation_number_outlined,
-                      text: item.transactionCode!,
-                    ),
-                ],
-              ),
-              if ((item.rejectReason ?? '').isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  item.rejectReason!,
-                  style: const TextStyle(
-                    color: AppColors.warning,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
             ],
           ),
-        ),
+          const SizedBox(height: 8),
+          Text(
+            item.primaryOrderLabel.isEmpty
+                ? 'Chưa có mã đơn'
+                : item.primaryOrderLabel,
+            style: AppTextStyles.labelL,
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            children: [
+              _InlineInfo(
+                icon: Icons.storefront_outlined,
+                text: item.storeCode,
+              ),
+              _InlineInfo(
+                icon: Icons.payments_outlined,
+                text: money.format(item.amount),
+              ),
+              if (submittedText.isNotEmpty)
+                _InlineInfo(icon: Icons.schedule_rounded, text: submittedText),
+              if ((item.transactionCode ?? '').isNotEmpty)
+                _InlineInfo(
+                  icon: Icons.confirmation_number_outlined,
+                  text: item.transactionCode!,
+                ),
+            ],
+          ),
+          if ((item.rejectReason ?? '').isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              item.rejectReason!,
+              style: AppTextStyles.labelM.copyWith(color: AppColors.warning),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -732,7 +714,7 @@ class _InlineInfo extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: AppColors.neutral500),
         const SizedBox(width: 4),
-        Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
+        Text(text, style: AppTextStyles.labelS),
       ],
     );
   }
@@ -828,13 +810,7 @@ class _OffsetDetailDialog extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 130,
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
+          SizedBox(width: 130, child: Text(label, style: AppTextStyles.labelM)),
           Expanded(child: SelectableText(text)),
         ],
       ),
@@ -952,11 +928,10 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
                 ),
                 _dialogField(
                   width: useTwoColumns ? halfWidth : dialogWidth,
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _editContentKind,
-                    decoration: const InputDecoration(
-                      labelText: 'Nội dung cần sửa',
-                    ),
+                  child: AppSelectField<String>(
+                    value: _editContentKind,
+                    label: 'Nội dung cần sửa',
+                    icon: Icons.edit_note_rounded,
                     items: OffsetEditContentKind.values
                         .map(
                           (kind) => DropdownMenuItem(
@@ -979,11 +954,12 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
               ],
               _dialogField(
                 width: useTwoColumns ? halfWidth : dialogWidth,
-                child: TextField(
+                child: AppTextInput(
                   controller: _amountController,
+                  label: 'Số tiền',
+                  icon: Icons.payments_outlined,
                   keyboardType: TextInputType.number,
                   inputFormatters: [ThousandsSeparatorInputFormatter()],
-                  decoration: const InputDecoration(labelText: 'Số tiền'),
                 ),
               ),
               _dialogField(
@@ -1013,10 +989,10 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
     String label, {
     int maxLines = 1,
   }) {
-    return TextField(
+    return AppTextInput(
       controller: controller,
+      label: label,
       maxLines: maxLines,
-      decoration: InputDecoration(labelText: label),
     );
   }
 

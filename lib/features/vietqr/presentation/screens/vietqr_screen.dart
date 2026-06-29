@@ -7,16 +7,21 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/info_row.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../chat/presentation/widgets/barcode_scanner_screen.dart';
+import '../../../fifo_check/presentation/widgets/barcode_scanner_screen.dart';
 import '../../data/repositories/vietqr_repository.dart';
 import '../../domain/entities/vietqr_transfer.dart';
 import '../widgets/qr_with_logo.dart';
@@ -251,7 +256,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Chưa tạo được mã QR. Vui lòng thử lại.'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -408,7 +413,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Đã nhận thanh toán'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
           ),
         );
       } else if (showFeedback) {
@@ -430,7 +435,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Chưa kiểm tra được thanh toán. Vui lòng thử lại.'),
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
             ),
           );
         }
@@ -475,7 +480,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Chưa quét được mã đơn. Vui lòng thử lại.'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -556,7 +561,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Chưa lưu được ảnh QR. Vui lòng thử lại.'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -578,18 +583,14 @@ class _VietQrScreenState extends State<VietQrScreen> {
     }
 
     if (storeOptions.length > 1) {
-      return DropdownButtonFormField<String>(
+      return AppSelectField<String>(
         key: ValueKey(
           'vietqr-store-${allowedStoreIds.join(',')}-$selectedStoreCode',
         ),
-        initialValue: selectedStoreCode,
-        isExpanded: true,
-        decoration: const InputDecoration(
-          labelText: 'Mã SR',
-          hintText: 'Chọn SR tạo QR',
-          prefixIcon: Icon(Icons.store_outlined),
-          border: OutlineInputBorder(),
-        ),
+        label: 'Mã SR',
+        value: selectedStoreCode,
+        hintText: 'Chọn SR tạo QR',
+        icon: Icons.store_outlined,
         items: storeOptions
             .map(
               (store) => DropdownMenuItem<String>(
@@ -611,13 +612,10 @@ class _VietQrScreenState extends State<VietQrScreen> {
       );
     }
 
-    return TextFormField(
+    return AppFormTextInput(
       controller: _storeCodeController,
-      decoration: const InputDecoration(
-        labelText: 'Mã SR',
-        prefixIcon: Icon(Icons.store_outlined),
-        border: OutlineInputBorder(),
-      ),
+      label: 'Mã SR',
+      icon: Icons.store_outlined,
       readOnly: true,
       validator: (value) {
         if (value == null || value.trim().isEmpty) {
@@ -656,81 +654,64 @@ class _VietQrScreenState extends State<VietQrScreen> {
 
   Widget _buildInputCard(User? user) {
     final storeOptions = _assignedStoreOptions(user);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Thông tin chuyển khoản',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _amountController,
-              decoration: const InputDecoration(
-                labelText: 'Số tiền',
-                hintText: 'Để trống nếu người chuyển tự nhập',
-                prefixIcon: Icon(Icons.payments_outlined),
-                suffixText: 'VND',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              onChanged: _formatAmount,
-              validator: (_) {
-                final amount = _amountValue;
-                if (_amountController.text.trim().isEmpty) {
-                  return null;
-                }
-                if (amount == null || amount <= 0) {
-                  return 'Số tiền phải lớn hơn 0 hoặc để trống';
-                }
+    return AppSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Thông tin chuyển khoản', style: AppTextStyles.headingS),
+          const SizedBox(height: AppLayoutTokens.formFieldGap),
+          AppFormTextInput(
+            controller: _amountController,
+            label: 'Số tiền',
+            hintText: 'Để trống nếu người chuyển tự nhập',
+            icon: Icons.payments_outlined,
+            suffixText: 'VND',
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            onChanged: _formatAmount,
+            validator: (_) {
+              final amount = _amountValue;
+              if (_amountController.text.trim().isEmpty) {
                 return null;
-              },
+              }
+              if (amount == null || amount <= 0) {
+                return 'Số tiền phải lớn hơn 0 hoặc để trống';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: AppLayoutTokens.formFieldGap),
+          AppFormTextInput(
+            controller: _orderCodeController,
+            label: 'Mã đơn / nội dung',
+            hintText: 'Có thể để trống để người chuyển tự nhập',
+            icon: Icons.receipt_long_outlined,
+            suffixIcon: AppIconAction(
+              tooltip: 'Quét mã đơn',
+              onPressed: _isLoading ? null : _scanOrderCode,
+              icon: Icons.qr_code_scanner_rounded,
             ),
-            const SizedBox(height: AppLayoutTokens.formFieldGap),
-            TextFormField(
-              controller: _orderCodeController,
-              decoration: InputDecoration(
-                labelText: 'Mã đơn / nội dung',
-                hintText: 'Có thể để trống để người chuyển tự nhập',
-                prefixIcon: const Icon(Icons.receipt_long_outlined),
-                suffixIcon: AppIconAction(
-                  tooltip: 'Quét mã đơn',
-                  onPressed: _isLoading ? null : _scanOrderCode,
-                  icon: Icons.qr_code_scanner_rounded,
-                ),
-                border: const OutlineInputBorder(),
-              ),
-              textCapitalization: TextCapitalization.characters,
-            ),
-            const SizedBox(height: AppLayoutTokens.formFieldGap),
-            _buildStoreField(storeOptions),
-            const SizedBox(height: AppLayoutTokens.formFieldGap),
-            TextFormField(
-              controller: _previewContentController,
-              decoration: const InputDecoration(
-                labelText: 'Nội dung chuyển khoản',
-                hintText: 'Người chuyển tự nhập nếu ô này trống',
-                prefixIcon: Icon(Icons.lock_outline),
-                border: OutlineInputBorder(),
-              ),
-              readOnly: true,
-            ),
-            const SizedBox(height: AppLayoutTokens.formSectionGap),
-            AppPrimaryButton(
-              onPressed: _createQr,
-              icon: Icons.qr_code_2_rounded,
-              label: 'Tạo mã QR',
-              isLoading: _isLoading,
-              loadingLabel: 'Đang tạo...',
-            ),
-          ],
-        ),
+            textCapitalization: TextCapitalization.characters,
+          ),
+          const SizedBox(height: AppLayoutTokens.formFieldGap),
+          _buildStoreField(storeOptions),
+          const SizedBox(height: AppLayoutTokens.formFieldGap),
+          AppFormTextInput(
+            controller: _previewContentController,
+            label: 'Nội dung chuyển khoản',
+            hintText: 'Người chuyển tự nhập nếu ô này trống',
+            icon: Icons.lock_outline,
+            readOnly: true,
+          ),
+          const SizedBox(height: AppLayoutTokens.formSectionGap),
+          AppPrimaryButton(
+            onPressed: _createQr,
+            icon: Icons.qr_code_2_rounded,
+            label: 'Tạo mã QR',
+            isLoading: _isLoading,
+            loadingLabel: 'Đang tạo...',
+          ),
+        ],
       ),
     );
   }
@@ -748,41 +729,39 @@ class _VietQrScreenState extends State<VietQrScreen> {
             amountFormatter: _currencyFormatter,
           )
         else
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  QrWithLogo(size: 280, transfer: transfer),
-                  const SizedBox(height: 20),
-                  AppInfoRow(
-                    label: 'Ngân hàng',
-                    value: transfer.bankName,
-                    labelWidth: 118,
-                  ),
-                  AppInfoRow(
-                    label: 'Số tài khoản',
-                    value: transfer.accountNumber,
-                    labelWidth: 118,
-                  ),
-                  AppInfoRow(
-                    label: 'Chủ tài khoản',
-                    value: transfer.accountName,
-                    labelWidth: 118,
-                  ),
-                  AppInfoRow(
-                    label: 'Số tiền',
-                    value: _amountLabel(transfer.amount),
-                    labelWidth: 118,
-                  ),
-                  AppInfoRow(
-                    label: 'Nội dung',
-                    value: _contentLabel(transfer.transferContent),
-                    labelWidth: 118,
-                  ),
-                ],
-              ),
+          AppSurfaceCard(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                QrWithLogo(size: 280, transfer: transfer),
+                const SizedBox(height: 20),
+                AppInfoRow(
+                  label: 'Ngân hàng',
+                  value: transfer.bankName,
+                  labelWidth: 118,
+                ),
+                AppInfoRow(
+                  label: 'Số tài khoản',
+                  value: transfer.accountNumber,
+                  labelWidth: 118,
+                ),
+                AppInfoRow(
+                  label: 'Chủ tài khoản',
+                  value: transfer.accountName,
+                  labelWidth: 118,
+                ),
+                AppInfoRow(
+                  label: 'Số tiền',
+                  value: _amountLabel(transfer.amount),
+                  labelWidth: 118,
+                ),
+                AppInfoRow(
+                  label: 'Nội dung',
+                  value: _contentLabel(transfer.transferContent),
+                  labelWidth: 118,
+                ),
+              ],
             ),
           ),
         const SizedBox(height: 16),
@@ -820,15 +799,10 @@ class _VietQrScreenState extends State<VietQrScreen> {
           label: 'Tạo mã mới',
         ),
         const SizedBox(height: 10),
-        TextButton.icon(
+        AppSecondaryButton(
           onPressed: () => context.pop(),
-          icon: const Icon(Icons.arrow_back_rounded),
-          label: const Text(
-            'Quay lại',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            softWrap: false,
-          ),
+          icon: Icons.arrow_back_rounded,
+          label: 'Quay lại',
         ),
       ],
     );
@@ -843,7 +817,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
       case 'MISSING_MATCH_FIELDS':
         return 'QR thiếu số tiền hoặc nội dung, cần kiểm tra thủ công';
       case 'EXPIRED_VIETNAM_DAY':
-        return 'QR da qua ngay, vui long tao ma moi';
+        return 'QR đã qua ngày. Vui lòng tạo mã mới.';
       default:
         return 'Chưa xác nhận được thanh toán';
     }
@@ -854,17 +828,20 @@ class _VietQrScreenState extends State<VietQrScreen> {
     const height = 1560.0;
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    final paint = Paint()..color = Colors.white;
+    final paint = Paint()..color = AppColors.surface;
     canvas.drawRect(const Rect.fromLTWH(0, 0, width, height), paint);
 
-    final titleStyle = const TextStyle(
-      color: Color(0xFF1238C8),
+    final titleStyle = AppTextStyles.headingXL.copyWith(
+      color: AppColors.primary500,
       fontSize: 58,
       fontWeight: FontWeight.w700,
     );
-    final labelStyle = TextStyle(color: Colors.grey[700], fontSize: 32);
-    const valueStyle = TextStyle(
-      color: Color(0xFF1F2430),
+    final labelStyle = AppTextStyles.headingS.copyWith(
+      color: AppColors.neutral700,
+      fontSize: 32,
+    );
+    final valueStyle = AppTextStyles.headingXL.copyWith(
+      color: AppColors.neutral800,
       fontSize: 38,
       fontWeight: FontWeight.w700,
     );
@@ -882,11 +859,11 @@ class _VietQrScreenState extends State<VietQrScreen> {
       gapless: true,
       eyeStyle: const QrEyeStyle(
         eyeShape: QrEyeShape.square,
-        color: Colors.black,
+        color: AppColors.neutral900,
       ),
       dataModuleStyle: const QrDataModuleStyle(
         dataModuleShape: QrDataModuleShape.square,
-        color: Colors.black,
+        color: AppColors.neutral900,
       ),
     );
     canvas.translate(qrLeft, qrTop);
@@ -902,12 +879,12 @@ class _VietQrScreenState extends State<VietQrScreen> {
     );
     final logoBg = RRect.fromRectAndRadius(
       logoRect.inflate(18),
-      const Radius.circular(26),
+      const Radius.circular(AppRadius.xxl),
     );
-    canvas.drawRRect(logoBg, Paint()..color = Colors.white);
+    canvas.drawRRect(logoBg, Paint()..color = AppColors.surface);
     canvas.save();
     canvas.clipRRect(
-      RRect.fromRectAndRadius(logoRect, const Radius.circular(20)),
+      RRect.fromRectAndRadius(logoRect, const Radius.circular(AppRadius.xl)),
     );
     canvas.drawImageRect(
       logo,

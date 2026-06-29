@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/sort_provider.dart';
-import '../../../chat/presentation/widgets/barcode_scanner_screen.dart';
+import '../../../fifo_check/presentation/widgets/barcode_scanner_screen.dart';
 import '../widgets/sort_sku_group_widget.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/app_buttons.dart';
@@ -75,7 +79,7 @@ class _SortScreenState extends State<SortScreen> {
             'Sắp xếp chỉ hỗ trợ SKU hoặc BIN.\nNếu cần kiểm tra serial, vui lòng dùng Kiểm tra FIFO.',
           ),
           duration: Duration(seconds: 3),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.warning,
         ),
       );
       return;
@@ -94,7 +98,7 @@ class _SortScreenState extends State<SortScreen> {
 
       if (error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), backgroundColor: Colors.red),
+          SnackBar(content: Text(error), backgroundColor: AppColors.error),
         );
       }
     }
@@ -110,46 +114,40 @@ class _SortScreenState extends State<SortScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Hướng dẫn
-              Card(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.1),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.info_outline,
-                            color: Theme.of(context).colorScheme.primary,
-                            size: 20,
+              AppSurfaceCard(
+                backgroundColor: AppColors.info.withValues(alpha: 0.08),
+                borderColor: AppColors.info.withValues(alpha: 0.20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          color: AppColors.info,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Hướng dẫn',
+                          style: AppTextStyles.labelL.copyWith(
+                            color: AppColors.info,
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Hướng dẫn',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.primary,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Nhập hoặc quét mã SKU hoặc BIN để sắp xếp hàng hóa.',
+                      style: AppTextStyles.bodyM.copyWith(
+                        color: AppColors.neutral700,
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Nhập hoặc quét mã SKU hoặc BIN để sắp xếp hàng hóa.',
-                        style: TextStyle(fontSize: 14),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 24),
 
-              // Response display
               Consumer<SortProvider>(
                 builder: (context, provider, child) {
                   if (provider.skuGroups != null &&
@@ -163,22 +161,19 @@ class _SortScreenState extends State<SortScreen> {
                             children: [
                               const Icon(
                                 Icons.inventory_2,
-                                color: Colors.blue,
+                                color: AppColors.info,
                                 size: 20,
                               ),
                               const SizedBox(width: 8),
-                              const Text(
+                              Text(
                                 'Kết quả',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue,
-                                  fontSize: 16,
+                                style: AppTextStyles.labelL.copyWith(
+                                  color: AppColors.info,
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 12),
-                          // SKU groups list
                           Expanded(
                             child: ListView.builder(
                               itemCount: provider.skuGroups!.length,
@@ -207,7 +202,6 @@ class _SortScreenState extends State<SortScreen> {
                 },
               ),
 
-              // Input area
               Consumer<SortProvider>(
                 builder: (context, provider, child) {
                   final isLoading = provider.isLoading;
@@ -220,21 +214,15 @@ class _SortScreenState extends State<SortScreen> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: TextField(
+                            child: AppTextInput(
                               controller: _controller,
                               focusNode: _focusNode,
                               enabled: !isLoading,
-                              decoration: InputDecoration(
-                                hintText: 'Nhập SKU hoặc BIN',
-                                prefixIcon: const Icon(
-                                  Icons.inventory_2_outlined,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                filled: true,
-                                fillColor: Colors.grey[50],
-                              ),
+                              label: 'SKU hoặc BIN',
+                              hintText: 'Nhập SKU hoặc BIN',
+                              icon: Icons.inventory_2_outlined,
+                              textCapitalization: TextCapitalization.characters,
+                              textInputAction: TextInputAction.search,
                               onSubmitted: (_) => _sendSortRequest(),
                             ),
                           ),

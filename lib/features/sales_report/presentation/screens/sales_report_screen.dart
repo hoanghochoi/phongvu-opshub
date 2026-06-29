@@ -5,14 +5,17 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../chat/presentation/widgets/barcode_scanner_screen.dart';
+import '../../../fifo_check/presentation/widgets/barcode_scanner_screen.dart';
 import '../../domain/sales_report.dart';
 import '../providers/sales_report_provider.dart';
 
@@ -633,66 +636,56 @@ class _OrderCheckCard extends StatelessWidget {
         .findAncestorStateOfType<_SalesReportFormScreenState>()!;
     final provider = context.watch<SalesReportProvider>();
     final checked = provider.checkedOrder != null;
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextFormField(
-              key: const ValueKey('sales-report-order-code-field'),
-              controller: state._orderController,
-              enabled: !provider.isCheckingOrder && !checked,
-              textInputAction: TextInputAction.done,
-              textCapitalization: TextCapitalization.characters,
-              onFieldSubmitted: (_) {
-                if (!checked && !provider.isCheckingOrder) onCheck();
-              },
-              decoration: InputDecoration(
-                labelText: 'Mã đơn hàng',
-                prefixIcon: const Icon(Icons.receipt_long_outlined),
-                suffixIcon: AppIconAction(
-                  icon: Icons.qr_code_scanner_rounded,
-                  onPressed: checked || provider.isCheckingOrder
-                      ? null
-                      : onScan,
-                  tooltip: 'Quét mã đơn hàng',
-                ),
+    return AppSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppFormTextInput(
+            key: const ValueKey('sales-report-order-code-field'),
+            controller: state._orderController,
+            enabled: !provider.isCheckingOrder && !checked,
+            label: 'Mã đơn hàng',
+            icon: Icons.receipt_long_outlined,
+            textInputAction: TextInputAction.done,
+            textCapitalization: TextCapitalization.characters,
+            onFieldSubmitted: (_) {
+              if (!checked && !provider.isCheckingOrder) onCheck();
+            },
+            suffixIcon: AppIconAction(
+              icon: Icons.qr_code_scanner_rounded,
+              onPressed: checked || provider.isCheckingOrder ? null : onScan,
+              tooltip: 'Quét mã đơn hàng',
+            ),
+            validator: (_) {
+              if (!state._isPurchased) return null;
+              if (state._orderController.text.trim().isEmpty) {
+                return 'Vui lòng nhập mã đơn hàng';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          AppActionRow(
+            desktopAlignment: MainAxisAlignment.start,
+            children: [
+              AppSecondaryButton(
+                onPressed: checked || provider.isCheckingOrder ? null : onCheck,
+                icon: checked
+                    ? Icons.verified_outlined
+                    : Icons.fact_check_outlined,
+                label: checked ? 'Đã kiểm tra' : 'Kiểm tra đơn hàng',
+                isLoading: provider.isCheckingOrder,
+                loadingLabel: 'Đang kiểm tra...',
               ),
-              validator: (_) {
-                if (!state._isPurchased) return null;
-                if (state._orderController.text.trim().isEmpty) {
-                  return 'Vui lòng nhập mã đơn hàng';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
-            AppActionRow(
-              desktopAlignment: MainAxisAlignment.start,
-              children: [
+              if (checked)
                 AppSecondaryButton(
-                  onPressed: checked || provider.isCheckingOrder
-                      ? null
-                      : onCheck,
-                  icon: checked
-                      ? Icons.verified_outlined
-                      : Icons.fact_check_outlined,
-                  label: checked ? 'Đã kiểm tra' : 'Kiểm tra đơn hàng',
-                  isLoading: provider.isCheckingOrder,
-                  loadingLabel: 'Đang kiểm tra...',
+                  onPressed: provider.isCheckingOrder ? null : onCheckAnother,
+                  icon: Icons.restart_alt_rounded,
+                  label: 'Kiểm tra đơn khác',
                 ),
-                if (checked)
-                  AppSecondaryButton(
-                    onPressed: provider.isCheckingOrder ? null : onCheckAnother,
-                    icon: Icons.restart_alt_rounded,
-                    label: 'Kiểm tra đơn khác',
-                  ),
-              ],
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -707,38 +700,35 @@ class _OrderSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final order = check.order;
     String text(String key) => order[key]?.toString() ?? '';
-    return Card(
-      elevation: 0,
-      color: AppColors.success.withValues(alpha: 0.08),
-      child: Padding(
-        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.verified_outlined, color: AppColors.success),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Đơn hàng đã kiểm tra',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
+    return AppSurfaceCard(
+      backgroundColor: AppColors.success.withValues(alpha: 0.08),
+      borderColor: AppColors.success.withValues(alpha: 0.20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.verified_outlined, color: AppColors.success),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Đơn hàng đã kiểm tra',
+                  style: AppTextStyles.labelM,
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text('Mã đơn: ${check.orderCode}'),
-            if (text('grandTotal').isNotEmpty)
-              Text('Tổng tiền: ${text('grandTotal')}'),
-            if (text('paymentStatus').isNotEmpty)
-              Text('Thanh toán: ${text('paymentStatus')}'),
-            if (text('terminalName').isNotEmpty)
-              Text('Showroom ERP: ${text('terminalName')}'),
-            if (check.items.isNotEmpty)
-              Text('Số dòng hàng: ${check.items.length}'),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('Mã đơn: ${check.orderCode}'),
+          if (text('grandTotal').isNotEmpty)
+            Text('Tổng tiền: ${text('grandTotal')}'),
+          if (text('paymentStatus').isNotEmpty)
+            Text('Thanh toán: ${text('paymentStatus')}'),
+          if (text('terminalName').isNotEmpty)
+            Text('Showroom ERP: ${text('terminalName')}'),
+          if (check.items.isNotEmpty)
+            Text('Số dòng hàng: ${check.items.length}'),
+        ],
       ),
     );
   }
@@ -763,46 +753,38 @@ class _CustomerSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-        child: Column(
-          children: [
-            TextFormField(
-              controller: phoneController,
-              keyboardType: TextInputType.phone,
-              maxLength: 30,
-              decoration: const InputDecoration(
-                labelText: 'Số điện thoại khách hàng',
-                prefixIcon: Icon(Icons.phone_outlined),
-                counterText: '',
-              ),
-            ),
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
-            _CategoryMultiPicker(
-              categories: categories,
-              selectedIds: categoryGroupIds,
-              isLoading: loadingCategories,
-              onChanged: onCategoryChanged,
-            ),
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
-            TextFormField(
-              controller: needController,
-              minLines: 2,
-              maxLines: 4,
-              maxLength: 500,
-              decoration: const InputDecoration(
-                labelText: 'Khách hàng tìm sản phẩm gì?',
-                prefixIcon: Icon(Icons.search_outlined),
-                alignLabelWithHint: true,
-              ),
-              validator: (value) => (value ?? '').trim().isEmpty
-                  ? 'Vui lòng nhập nhu cầu khách hàng'
-                  : null,
-            ),
-          ],
-        ),
+    return AppSurfaceCard(
+      child: Column(
+        children: [
+          AppFormTextInput(
+            controller: phoneController,
+            label: 'Số điện thoại khách hàng',
+            icon: Icons.phone_outlined,
+            keyboardType: TextInputType.phone,
+            maxLength: 30,
+            counterText: '',
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          _CategoryMultiPicker(
+            categories: categories,
+            selectedIds: categoryGroupIds,
+            isLoading: loadingCategories,
+            onChanged: onCategoryChanged,
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          AppFormTextInput(
+            controller: needController,
+            label: 'Khách hàng tìm sản phẩm gì?',
+            icon: Icons.search_outlined,
+            minLines: 2,
+            maxLines: 4,
+            maxLength: 500,
+            alignLabelWithHint: true,
+            validator: (value) => (value ?? '').trim().isEmpty
+                ? 'Vui lòng nhập nhu cầu khách hàng'
+                : null,
+          ),
+        ],
       ),
     );
   }
@@ -833,26 +815,31 @@ class _CategoryMultiPicker extends StatelessWidget {
       builder: (field) {
         final errorText = field.errorText;
         return InputDecorator(
-          decoration: InputDecoration(
-            labelText: 'Ngành hàng',
-            prefixIcon: isLoading
-                ? const Padding(
-                    padding: EdgeInsets.all(14),
-                    child: SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : const Icon(Icons.category_outlined),
-            errorText: errorText,
-            alignLabelWithHint: true,
-          ),
+          decoration:
+              appInputDecoration(
+                label: 'Ngành hàng',
+                icon: isLoading ? null : Icons.category_outlined,
+                errorText: errorText,
+              ).copyWith(
+                alignLabelWithHint: true,
+                prefixIcon: isLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : const Icon(Icons.category_outlined),
+              ),
           child: categories.isEmpty
               ? Text(
                   isLoading
                       ? 'Đang tải danh sách ngành hàng...'
                       : 'Chưa có danh sách ngành hàng.',
-                  style: const TextStyle(color: AppColors.neutral600),
+                  style: AppTextStyles.bodyM.copyWith(
+                    color: AppColors.neutral600,
+                  ),
                 )
               : Column(
                   children: [
@@ -909,53 +896,47 @@ class _InstallmentSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            CheckboxListTile(
-              key: const ValueKey('sales-report-installment-checkbox'),
-              value: selected,
-              onChanged: onChanged,
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              title: const Text('Trả góp'),
-              subtitle: Text(
-                isPurchased
-                    ? 'Đơn này trả góp thành công.'
-                    : 'Khách có nhu cầu trả góp nhưng chưa hoàn tất.',
-              ),
+    return AppSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          CheckboxListTile(
+            key: const ValueKey('sales-report-installment-checkbox'),
+            value: selected,
+            onChanged: onChanged,
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            title: const Text('Trả góp'),
+            subtitle: Text(
+              isPurchased
+                  ? 'Đơn này trả góp thành công.'
+                  : 'Khách có nhu cầu trả góp nhưng chưa hoàn tất.',
             ),
-            if (selected) ...[
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
-              _InstallmentPartnerPicker(
-                selectedCodes: selectedPartnerCodes,
-                onChanged: onPartnersChanged,
-              ),
-            ],
-            if (!isPurchased && selected) ...[
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
-              TextFormField(
-                key: const ValueKey('sales-report-installment-failure-reason'),
-                controller: failureController,
-                minLines: 2,
-                maxLines: 4,
-                maxLength: 500,
-                decoration: const InputDecoration(
-                  labelText: 'Lý do trả góp thất bại',
-                  prefixIcon: Icon(Icons.report_problem_outlined),
-                  alignLabelWithHint: true,
-                ),
-                validator: (value) => (value ?? '').trim().isEmpty
-                    ? 'Vui lòng nhập lý do trả góp thất bại'
-                    : null,
-              ),
-            ],
+          ),
+          if (selected) ...[
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
+            _InstallmentPartnerPicker(
+              selectedCodes: selectedPartnerCodes,
+              onChanged: onPartnersChanged,
+            ),
           ],
-        ),
+          if (!isPurchased && selected) ...[
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
+            AppFormTextInput(
+              key: const ValueKey('sales-report-installment-failure-reason'),
+              controller: failureController,
+              label: 'Lý do trả góp thất bại',
+              icon: Icons.report_problem_outlined,
+              minLines: 2,
+              maxLines: 4,
+              maxLength: 500,
+              alignLabelWithHint: true,
+              validator: (value) => (value ?? '').trim().isEmpty
+                  ? 'Vui lòng nhập lý do trả góp thất bại'
+                  : null,
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -981,12 +962,11 @@ class _InstallmentPartnerPicker extends StatelessWidget {
           selectedCodes.isEmpty ? 'Vui lòng chọn đối tác trả góp' : null,
       builder: (field) {
         return InputDecorator(
-          decoration: InputDecoration(
-            labelText: 'Đối tác trả góp',
-            prefixIcon: const Icon(Icons.account_balance_outlined),
+          decoration: appInputDecoration(
+            label: 'Đối tác trả góp',
+            icon: Icons.account_balance_outlined,
             errorText: field.errorText,
-            alignLabelWithHint: true,
-          ),
+          ).copyWith(alignLabelWithHint: true),
           child: Column(
             children: [
               for (final entry in _installmentPartnerOptions.entries)
@@ -1050,49 +1030,45 @@ class _BehaviorSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-        child: Column(
-          children: [
-            _AnswerDropdown(
-              label: 'Tư vấn 3 giải pháp',
-              value: consultedAnswer,
-              options: _consultedOptions,
-              onChanged: onConsultedChanged,
-              otherController: consultedOtherController,
-              otherLabel: 'Lý do khác không tư vấn',
-            ),
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
-            _AnswerDropdown(
-              label: 'KH đã được trải nghiệm',
-              value: experiencedAnswer,
-              options: _experienceOptions,
-              onChanged: onExperiencedChanged,
-              otherController: experiencedOtherController,
-              otherLabel: 'Lý do khác không trải nghiệm',
-            ),
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
-            _AnswerDropdown(
-              label: 'KH quét Zalo',
-              value: zaloAnswer,
-              options: _zaloOptions,
-              onChanged: onZaloChanged,
-              otherController: zaloOtherController,
-              otherLabel: 'Lý do khác không quét Zalo',
-            ),
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
-            _AnswerDropdown(
-              label: 'KH tải App PV',
-              value: appDownloadAnswer,
-              options: _appOptions,
-              onChanged: onAppChanged,
-              otherController: appOtherController,
-              otherLabel: 'Lý do khác không tải App PV',
-            ),
-          ],
-        ),
+    return AppSurfaceCard(
+      child: Column(
+        children: [
+          _AnswerDropdown(
+            label: 'Tư vấn 3 giải pháp',
+            value: consultedAnswer,
+            options: _consultedOptions,
+            onChanged: onConsultedChanged,
+            otherController: consultedOtherController,
+            otherLabel: 'Lý do khác không tư vấn',
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          _AnswerDropdown(
+            label: 'KH đã được trải nghiệm',
+            value: experiencedAnswer,
+            options: _experienceOptions,
+            onChanged: onExperiencedChanged,
+            otherController: experiencedOtherController,
+            otherLabel: 'Lý do khác không trải nghiệm',
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          _AnswerDropdown(
+            label: 'KH quét Zalo',
+            value: zaloAnswer,
+            options: _zaloOptions,
+            onChanged: onZaloChanged,
+            otherController: zaloOtherController,
+            otherLabel: 'Lý do khác không quét Zalo',
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          _AnswerDropdown(
+            label: 'KH tải App PV',
+            value: appDownloadAnswer,
+            options: _appOptions,
+            onChanged: onAppChanged,
+            otherController: appOtherController,
+            otherLabel: 'Lý do khác không tải App PV',
+          ),
+        ],
       ),
     );
   }
@@ -1119,15 +1095,14 @@ class _AnswerDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        DropdownButtonFormField<String>(
+        AppSelectField<String>(
           key: ValueKey('sales-report-answer-$label-$value'),
-          initialValue: value,
-          isExpanded: true,
-          hint: const Text('Chọn'),
-          decoration: InputDecoration(labelText: label),
+          value: value,
+          label: label,
+          hintText: 'Chọn',
           items: options.entries
               .map(
-                (entry) => DropdownMenuItem(
+                (entry) => DropdownMenuItem<String>(
                   value: entry.key,
                   child: Text(entry.value, overflow: TextOverflow.ellipsis),
                 ),
@@ -1141,10 +1116,10 @@ class _AnswerDropdown extends StatelessWidget {
         ),
         if (value == 'OTHER') ...[
           const SizedBox(height: AppLayoutTokens.formInlineGap),
-          TextFormField(
+          AppFormTextInput(
             controller: otherController,
+            label: otherLabel,
             maxLength: 500,
-            decoration: InputDecoration(labelText: otherLabel),
             validator: (text) =>
                 (text ?? '').trim().isEmpty ? 'Vui lòng nhập lý do khác' : null,
           ),
@@ -1167,47 +1142,40 @@ class _NotPurchasedSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-        child: Column(
-          children: [
-            DropdownButtonFormField<String>(
-              key: ValueKey(
-                'sales-report-not-purchased-reason-${reason ?? 'none'}',
-              ),
-              initialValue: reason,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Lý do KH không mua hàng',
-                prefixIcon: Icon(Icons.help_outline_rounded),
-              ),
-              items: _notPurchasedOptions.entries
-                  .map(
-                    (entry) => DropdownMenuItem(
-                      value: entry.key,
-                      child: Text(entry.value, overflow: TextOverflow.ellipsis),
-                    ),
-                  )
-                  .toList(),
-              onChanged: onChanged,
-              validator: (value) =>
-                  value == null ? 'Vui lòng chọn lý do không mua' : null,
+    return AppSurfaceCard(
+      child: Column(
+        children: [
+          AppSelectField<String>(
+            key: ValueKey(
+              'sales-report-not-purchased-reason-${reason ?? 'none'}',
             ),
-            if (reason == 'OTHER') ...[
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
-              TextFormField(
-                controller: otherController,
-                maxLength: 500,
-                decoration: const InputDecoration(labelText: 'Lý do khác'),
-                validator: (value) => (value ?? '').trim().isEmpty
-                    ? 'Vui lòng nhập lý do khác'
-                    : null,
-              ),
-            ],
+            value: reason,
+            label: 'Lý do KH không mua hàng',
+            icon: Icons.help_outline_rounded,
+            items: _notPurchasedOptions.entries
+                .map(
+                  (entry) => DropdownMenuItem<String>(
+                    value: entry.key,
+                    child: Text(entry.value, overflow: TextOverflow.ellipsis),
+                  ),
+                )
+                .toList(),
+            onChanged: onChanged,
+            validator: (value) =>
+                value == null ? 'Vui lòng chọn lý do không mua' : null,
+          ),
+          if (reason == 'OTHER') ...[
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
+            AppFormTextInput(
+              controller: otherController,
+              label: 'Lý do khác',
+              maxLength: 500,
+              validator: (value) => (value ?? '').trim().isEmpty
+                  ? 'Vui lòng nhập lý do khác'
+                  : null,
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

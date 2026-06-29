@@ -17,6 +17,10 @@ import '../../../../core/network/api_client.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/feedback_upload_contract.dart';
 
+import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_inputs.dart';
+
 class FeedbackScreen extends StatefulWidget {
   const FeedbackScreen({super.key});
 
@@ -317,18 +321,16 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                     'trong lúc làm việc.',
                 tone: AppStateTone.info,
               ),
-              TextFormField(
+              AppFormTextInput(
                 key: const ValueKey('suggestion-function-field'),
                 controller: _functionController,
                 enabled: !_isSubmitting,
                 textInputAction: TextInputAction.next,
                 maxLength: 120,
-                decoration: const InputDecoration(
-                  labelText: 'Chức năng liên quan',
-                  hintText: 'Ví dụ: FIFO, VietQR, Sao kê, Tiền vào, BH / SC...',
-                  helperText: 'Cho biết khu vực bạn đang sử dụng.',
-                  prefixIcon: Icon(Icons.category_outlined),
-                ),
+                label: 'Chức năng liên quan',
+                hintText: 'Ví dụ: FIFO, VietQR, Sao kê, Tiền vào, BH / SC...',
+                helperText: 'Cho biết khu vực bạn đang sử dụng.',
+                icon: Icons.category_outlined,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Vui lòng nhập chức năng liên quan';
@@ -336,21 +338,19 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   return null;
                 },
               ),
-              TextFormField(
+              AppFormTextInput(
                 key: const ValueKey('suggestion-description-field'),
                 controller: _descriptionController,
                 enabled: !_isSubmitting,
                 minLines: 5,
                 maxLines: 8,
                 maxLength: 5000,
-                decoration: const InputDecoration(
-                  labelText: 'Nội dung góp ý',
-                  hintText:
-                      'Bạn mong muốn thay đổi điều gì? Nếu là lỗi, hãy mô tả '
-                      'các bước đã thực hiện.',
-                  alignLabelWithHint: true,
-                  prefixIcon: Icon(Icons.edit_note_rounded),
-                ),
+                label: 'Nội dung góp ý',
+                hintText:
+                    'Bạn mong muốn thay đổi điều gì? Nếu là lỗi, hãy mô tả '
+                    'các bước đã thực hiện.',
+                alignLabelWithHint: true,
+                icon: Icons.edit_note_rounded,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Vui lòng nhập nội dung góp ý';
@@ -399,99 +399,91 @@ class _SuggestionImagesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Ảnh minh họa',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Không bắt buộc, tối đa $maxImages ảnh',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.neutral500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: isSubmitting || images.length >= maxImages
-                      ? null
-                      : onAdd,
-                  icon: const Icon(Icons.add_photo_alternate_outlined),
-                  label: const Text('Thêm ảnh'),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
-            if (images.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(
-                    AppLayoutTokens.cardRadius,
-                  ),
-                  border: Border.all(color: Theme.of(context).dividerColor),
-                ),
-                child: const Row(
+    return AppSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.image_outlined,
-                      color: AppColors.neutral400,
-                      size: 34,
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Thêm ảnh khi hình ảnh giúp mô tả góp ý rõ hơn.',
-                        style: TextStyle(color: AppColors.neutral600),
+                    const Text('Ảnh minh họa', style: AppTextStyles.labelM),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Không bắt buộc, tối đa $maxImages ảnh',
+                      style: AppTextStyles.labelS.copyWith(
+                        color: AppColors.neutral500,
                       ),
                     ),
                   ],
                 ),
-              )
-            else
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final columnCount = constraints.maxWidth >= 600
-                      ? 4
-                      : constraints.maxWidth < 360
-                      ? 2
-                      : 3;
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: images.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: columnCount,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10,
-                    ),
-                    itemBuilder: (context, index) => _SuggestionImageTile(
-                      image: images[index],
-                      index: index,
-                      enabled: !isSubmitting,
-                      onRemove: () => onRemove(index),
-                    ),
-                  );
-                },
               ),
-          ],
-        ),
+              AppDialogSecondaryButton(
+                onPressed: isSubmitting || images.length >= maxImages
+                    ? null
+                    : onAdd,
+                icon: Icons.add_photo_alternate_outlined,
+                label: 'Thêm ảnh',
+              ),
+            ],
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          if (images.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+              decoration: BoxDecoration(
+                color: AppColors.neutral50,
+                borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+                border: Border.all(color: AppColors.neutral200),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.image_outlined,
+                    color: AppColors.neutral400,
+                    size: 34,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Thêm ảnh khi hình ảnh giúp mô tả góp ý rõ hơn.',
+                      style: AppTextStyles.bodyS.copyWith(
+                        color: AppColors.neutral600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columnCount = constraints.maxWidth >= 600
+                    ? 4
+                    : constraints.maxWidth < 360
+                    ? 2
+                    : 3;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: images.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columnCount,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                  ),
+                  itemBuilder: (context, index) => _SuggestionImageTile(
+                    image: images[index],
+                    index: index,
+                    enabled: !isSubmitting,
+                    onRemove: () => onRemove(index),
+                  ),
+                );
+              },
+            ),
+        ],
       ),
     );
   }
@@ -524,7 +516,7 @@ class _SuggestionImageTile extends StatelessWidget {
               image,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) => ColoredBox(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                color: AppColors.neutral50,
                 child: const Icon(
                   Icons.broken_image_outlined,
                   color: AppColors.error,

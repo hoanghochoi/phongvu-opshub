@@ -2,7 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
@@ -178,13 +183,12 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
             title: const Text('Xác nhận'),
             content: Text(message),
             actions: [
-              TextButton(
+              AppDialogCancelButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Hủy'),
               ),
-              FilledButton(
+              AppDialogConfirmButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Xóa'),
+                label: 'Xóa',
               ),
             ],
           ),
@@ -211,12 +215,16 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
       length: 3,
       child: Scaffold(
         appBar: GradientHeader(
-          title: 'Quản lý policy',
+          title: 'Quản lý chính sách',
           showBack: true,
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Policy'),
-              Tab(text: 'Rules'),
+          bottom: TabBar(
+            labelColor: AppColors.surface,
+            unselectedLabelColor: AppColors.surface.withValues(alpha: 0.70),
+            indicatorColor: AppColors.surface,
+            dividerColor: AppColors.transparent,
+            tabs: const [
+              Tab(text: 'Chính sách'),
+              Tab(text: 'Quy tắc'),
               Tab(text: 'Cấu hình'),
             ],
           ),
@@ -224,12 +232,12 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
             IconButton(
               onPressed: _loading ? null : () => _openPolicyEditor(),
               icon: const Icon(Icons.add_box_outlined),
-              tooltip: 'Thêm policy',
+              tooltip: 'Thêm chính sách',
             ),
             IconButton(
               onPressed: _loading ? null : () => _openRuleEditor(),
               icon: const Icon(Icons.rule_folder_outlined),
-              tooltip: 'Thêm rule',
+              tooltip: 'Thêm quy tắc',
             ),
             IconButton(
               onPressed: _loading ? null : () => _openSettingEditor(),
@@ -239,7 +247,9 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
           ],
         ),
         body: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const AppResponsiveContent(
+                child: AppListSkeleton(itemCount: 6, itemHeight: 76),
+              )
             : AppResponsiveContent(
                 child: TabBarView(
                   children: [
@@ -254,6 +264,13 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
   }
 
   Widget _buildPoliciesTab() {
+    if (_policies.isEmpty) {
+      return const AppStatePanel.empty(
+        title: 'Chưa có chính sách',
+        message: 'Bấm nút thêm để tạo chính sách đầu tiên.',
+        icon: Icons.policy_outlined,
+      );
+    }
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _policies.length,
@@ -263,7 +280,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
         return ListTile(
           title: Text('${policy.title} (${policy.code})'),
           subtitle: Text(
-            '${policy.category} • default=${policy.defaultAllowed ? 'bật' : 'tắt'} • ${policy.ruleCount} rules',
+            '${policy.category} • Mặc định ${policy.defaultAllowed ? 'bật' : 'tắt'} • ${policy.ruleCount} quy tắc',
           ),
           leading: Icon(
             policy.isActive ? Icons.policy_outlined : Icons.block_outlined,
@@ -293,9 +310,9 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.all(16),
-          child: DropdownButtonFormField<String?>(
-            initialValue: _rulePolicyFilter,
-            decoration: const InputDecoration(labelText: 'Lọc theo policy'),
+          child: AppSelectField<String?>(
+            value: _rulePolicyFilter,
+            label: 'Lọc theo chính sách',
             items: [
               const DropdownMenuItem<String?>(
                 value: null,
@@ -315,47 +332,63 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
           ),
         ),
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            itemCount: _rules.length,
-            separatorBuilder: (context, index) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final rule = _rules[index];
-              return ListTile(
-                leading: Icon(
-                  rule.allowed
-                      ? Icons.check_circle_outline
-                      : Icons.block_outlined,
-                  color: rule.allowed ? Colors.green : Colors.red,
+          child: _rules.isEmpty
+              ? const AppStatePanel.empty(
+                  title: 'Chưa có quy tắc',
+                  message: 'Bấm nút thêm để tạo quy tắc đầu tiên.',
+                  icon: Icons.rule_folder_outlined,
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  itemCount: _rules.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final rule = _rules[index];
+                    return ListTile(
+                      leading: Icon(
+                        rule.allowed
+                            ? Icons.check_circle_outline
+                            : Icons.block_outlined,
+                        color: rule.allowed
+                            ? AppColors.success
+                            : AppColors.error,
+                      ),
+                      title: Text(
+                        '${_policyTitle(rule.policyCode)} (${rule.policyCode})',
+                      ),
+                      subtitle: Text(_ruleSummary(rule)),
+                      trailing: Wrap(
+                        spacing: 4,
+                        children: [
+                          IconButton(
+                            onPressed: () => _openRuleEditor(rule),
+                            icon: const Icon(Icons.edit_outlined),
+                            tooltip: 'Sửa',
+                          ),
+                          IconButton(
+                            onPressed: () => _deleteRule(rule),
+                            icon: const Icon(Icons.delete_outline),
+                            tooltip: 'Xóa',
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-                title: Text(
-                  '${_policyTitle(rule.policyCode)} (${rule.policyCode})',
-                ),
-                subtitle: Text(_ruleSummary(rule)),
-                trailing: Wrap(
-                  spacing: 4,
-                  children: [
-                    IconButton(
-                      onPressed: () => _openRuleEditor(rule),
-                      icon: const Icon(Icons.edit_outlined),
-                      tooltip: 'Sửa',
-                    ),
-                    IconButton(
-                      onPressed: () => _deleteRule(rule),
-                      icon: const Icon(Icons.delete_outline),
-                      tooltip: 'Xóa',
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
         ),
       ],
     );
   }
 
   Widget _buildSettingsTab() {
+    if (_settings.isEmpty) {
+      return const AppStatePanel.empty(
+        title: 'Chưa có cấu hình',
+        message: 'Bấm nút thêm để tạo cấu hình đầu tiên.',
+        icon: Icons.tune_outlined,
+      );
+    }
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _settings.length,
@@ -513,25 +546,12 @@ class _PolicyEditorDialogState extends State<_PolicyEditorDialog> {
     return AlertDialog(
       title: Text(widget.policy == null ? 'Thêm policy' : 'Sửa policy'),
       content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: AppFormColumn(
           children: [
-            TextField(
-              controller: _code,
-              decoration: const InputDecoration(labelText: 'Mã policy'),
-            ),
-            TextField(
-              controller: _title,
-              decoration: const InputDecoration(labelText: 'Tên hiển thị'),
-            ),
-            TextField(
-              controller: _description,
-              decoration: const InputDecoration(labelText: 'Mô tả'),
-            ),
-            TextField(
-              controller: _category,
-              decoration: const InputDecoration(labelText: 'Nhóm'),
-            ),
+            AppTextInput(controller: _code, label: 'Mã policy'),
+            AppTextInput(controller: _title, label: 'Tên hiển thị'),
+            AppTextInput(controller: _description, label: 'Mô tả'),
+            AppTextInput(controller: _category, label: 'Nhóm'),
             SwitchListTile(
               value: _defaultAllowed,
               onChanged: (value) => setState(() => _defaultAllowed = value),
@@ -546,13 +566,13 @@ class _PolicyEditorDialogState extends State<_PolicyEditorDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Hủy'),
         ),
-        FilledButton(
+        AppDialogConfirmButton(
           onPressed: _saving ? null : _save,
-          child: const Text('Lưu'),
+          label: _saving ? 'Đang lưu...' : 'Lưu',
+          isLoading: _saving,
         ),
       ],
     );
@@ -713,12 +733,11 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
     return AlertDialog(
       title: Text(widget.rule == null ? 'Thêm policy rule' : 'Sửa policy rule'),
       content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: AppFormColumn(
           children: [
-            DropdownButtonFormField<String>(
-              initialValue: _policyCode,
-              decoration: const InputDecoration(labelText: 'Policy'),
+            AppSelectField<String>(
+              value: _policyCode,
+              label: 'Policy',
               items: widget.policies
                   .map(
                     (policy) => DropdownMenuItem(
@@ -738,33 +757,28 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
             _csvField(_emailDomains, 'Domain email'),
             _csvField(_systemRoles, 'Vai trò hệ thống'),
             _organizationNodePicker(),
-            TextField(
-              controller: _note,
-              decoration: const InputDecoration(labelText: 'Ghi chú'),
-            ),
+            AppTextInput(controller: _note, label: 'Ghi chú'),
           ],
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Hủy'),
         ),
-        FilledButton(
+        AppDialogConfirmButton(
           onPressed: _saving ? null : _save,
-          child: const Text('Lưu'),
+          label: _saving ? 'Đang lưu...' : 'Lưu',
+          isLoading: _saving,
         ),
       ],
     );
   }
 
   Widget _csvField(TextEditingController controller, String label) {
-    return TextField(
+    return AppTextInput(
       controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        helperText: 'Có thể nhập nhiều giá trị, phân tách bằng dấu phẩy',
-      ),
+      label: label,
+      helperText: 'Có thể nhập nhiều giá trị, phân tách bằng dấu phẩy',
     );
   }
 
@@ -794,12 +808,9 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
                   ..addAll(values);
               });
             },
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(AppRadius.xs),
       child: InputDecorator(
-        decoration: const InputDecoration(
-          labelText: 'Node tổ chức',
-          border: OutlineInputBorder(),
-        ),
+        decoration: appInputDecoration(label: 'Node tổ chức'),
         child: Text(
           selectedLabels.isEmpty ? 'Chưa chọn node' : selectedLabels.join(', '),
           maxLines: 2,
@@ -888,19 +899,21 @@ class _PolicyNodeSelectDialogState extends State<_PolicyNodeSelectDialog> {
         height: 560,
         child: Column(
           children: [
-            TextField(
+            AppTextInput(
               controller: _searchController,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                labelText: 'Tìm node',
-                border: OutlineInputBorder(),
-              ),
+              label: 'Tìm node',
+              icon: Icons.search,
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 10),
             Expanded(
               child: filteredItems.isEmpty
-                  ? const Center(child: Text('Không có dữ liệu'))
+                  ? const AppStatePanel.empty(
+                      title: 'Không tìm thấy node',
+                      message: 'Thử đổi từ khóa tìm kiếm.',
+                      icon: Icons.search_off_rounded,
+                      compact: true,
+                    )
                   : ListView.builder(
                       itemCount: filteredItems.length,
                       itemBuilder: (context, index) {
@@ -931,17 +944,14 @@ class _PolicyNodeSelectDialogState extends State<_PolicyNodeSelectDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: () => setState(_selected.clear),
-          child: const Text('Bỏ chọn'),
+          label: 'Bỏ chọn',
         ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(null),
-          child: const Text('Hủy'),
-        ),
-        FilledButton(
+        AppDialogCancelButton(onPressed: () => Navigator.of(context).pop(null)),
+        AppDialogConfirmButton(
           onPressed: () => Navigator.of(context).pop({..._selected}),
-          child: const Text('Áp dụng'),
+          label: 'Áp dụng',
         ),
       ],
     );
@@ -1055,42 +1065,29 @@ class _SettingEditorDialogState extends State<_SettingEditorDialog> {
     return AlertDialog(
       title: Text(widget.setting == null ? 'Thêm cấu hình' : 'Sửa cấu hình'),
       content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: AppFormColumn(
           children: [
-            TextField(
-              controller: _key,
-              decoration: const InputDecoration(labelText: 'Key'),
-            ),
-            TextField(
-              controller: _title,
-              decoration: const InputDecoration(labelText: 'Tên hiển thị'),
-            ),
-            TextField(
-              controller: _description,
-              decoration: const InputDecoration(labelText: 'Mô tả'),
-            ),
-            TextField(
-              controller: _category,
-              decoration: const InputDecoration(labelText: 'Nhóm'),
-            ),
-            TextField(
+            AppTextInput(controller: _key, label: 'Key'),
+            AppTextInput(controller: _title, label: 'Tên hiển thị'),
+            AppTextInput(controller: _description, label: 'Mô tả'),
+            AppTextInput(controller: _category, label: 'Nhóm'),
+            AppTextInput(
               controller: _value,
               minLines: 6,
               maxLines: 12,
-              decoration: const InputDecoration(labelText: 'Giá trị JSON'),
+              label: 'Giá trị JSON',
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Hủy'),
         ),
-        FilledButton(
+        AppDialogConfirmButton(
           onPressed: _saving ? null : _save,
-          child: const Text('Lưu'),
+          label: _saving ? 'Đang lưu...' : 'Lưu',
+          isLoading: _saving,
         ),
       ],
     );

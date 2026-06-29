@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -56,51 +59,45 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Card(
-              elevation: 0,
-              child: Padding(
-                padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-                child: AppActionRow(
-                  children: [
-                    DropdownButtonFormField<String>(
-                      initialValue: _reportType,
-                      decoration: const InputDecoration(
-                        labelText: 'Loại báo cáo',
-                        prefixIcon: Icon(Icons.filter_alt_outlined),
+            AppSurfaceCard(
+              child: AppActionRow(
+                children: [
+                  AppSelectField<String>(
+                    value: _reportType,
+                    label: 'Loại báo cáo',
+                    icon: Icons.filter_alt_outlined,
+                    items: const [
+                      DropdownMenuItem(value: 'ALL', child: Text('Tất cả')),
+                      DropdownMenuItem(
+                        value: 'PURCHASED',
+                        child: Text('Mua hàng'),
                       ),
-                      items: const [
-                        DropdownMenuItem(value: 'ALL', child: Text('Tất cả')),
-                        DropdownMenuItem(
-                          value: 'PURCHASED',
-                          child: Text('Mua hàng'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'NOT_PURCHASED',
-                          child: Text('Chưa mua hàng'),
-                        ),
-                      ],
-                      onChanged: provider.isLoadingAdminList
-                          ? null
-                          : (value) {
-                              if (value == null) return;
-                              setState(() => _reportType = value);
-                              unawaited(_reload());
-                            },
-                    ),
-                    AppSecondaryButton(
-                      onPressed: provider.isLoadingAdminList ? null : _reload,
-                      icon: Icons.refresh_rounded,
-                      label: 'Tải lại',
-                      isLoading: provider.isLoadingAdminList,
-                    ),
-                    AppSecondaryButton(
-                      onPressed: provider.isExporting ? null : _export,
-                      icon: Icons.download_rounded,
-                      label: 'Xuất CSV',
-                      isLoading: provider.isExporting,
-                    ),
-                  ],
-                ),
+                      DropdownMenuItem(
+                        value: 'NOT_PURCHASED',
+                        child: Text('Chưa mua hàng'),
+                      ),
+                    ],
+                    onChanged: provider.isLoadingAdminList
+                        ? null
+                        : (value) {
+                            if (value == null) return;
+                            setState(() => _reportType = value);
+                            unawaited(_reload());
+                          },
+                  ),
+                  AppSecondaryButton(
+                    onPressed: provider.isLoadingAdminList ? null : _reload,
+                    icon: Icons.refresh_rounded,
+                    label: 'Tải lại',
+                    isLoading: provider.isLoadingAdminList,
+                  ),
+                  AppSecondaryButton(
+                    onPressed: provider.isExporting ? null : _export,
+                    icon: Icons.download_rounded,
+                    label: 'Xuất CSV',
+                    isLoading: provider.isExporting,
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: AppLayoutTokens.cardGap),
@@ -187,76 +184,72 @@ class _SalesReportAdminTile extends StatelessWidget {
               .where((label) => label.trim().isNotEmpty)
               .join(', ')
         : '';
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              orderCode == null || orderCode.isEmpty
-                  ? Icons.person_search_outlined
-                  : Icons.receipt_long_outlined,
-              color: orderCode == null || orderCode.isEmpty
-                  ? AppColors.warning
-                  : AppColors.success,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '$reportType${orderCode?.isNotEmpty == true ? ' - $orderCode' : ''}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+    return AppSurfaceCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            orderCode == null || orderCode.isEmpty
+                ? Icons.person_search_outlined
+                : Icons.receipt_long_outlined,
+            color: orderCode == null || orderCode.isEmpty
+                ? AppColors.warning
+                : AppColors.success,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$reportType${orderCode?.isNotEmpty == true ? ' - $orderCode' : ''}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelM,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  [
+                    category,
+                    storeCode,
+                    reporter,
+                  ].where((part) => part.trim().isNotEmpty).join(' • '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyM.copyWith(
+                    color: AppColors.neutral600,
                   ),
+                ),
+                if (submittedAt.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    submittedAt,
+                    style: AppTextStyles.labelS.copyWith(
+                      color: AppColors.neutral500,
+                    ),
+                  ),
+                ],
+                if (installmentLabel.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
                     [
-                      category,
-                      storeCode,
-                      reporter,
-                    ].where((part) => part.trim().isNotEmpty).join(' • '),
+                      installmentLabel,
+                      if (installmentPartnerLabels.isNotEmpty)
+                        installmentPartnerLabels,
+                      if (installmentFailureReason.isNotEmpty)
+                        installmentFailureReason,
+                    ].join(' - '),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppColors.neutral600),
+                    style: AppTextStyles.labelS.copyWith(
+                      color: AppColors.neutral600,
+                    ),
                   ),
-                  if (submittedAt.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      submittedAt,
-                      style: const TextStyle(
-                        color: AppColors.neutral500,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                  if (installmentLabel.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      [
-                        installmentLabel,
-                        if (installmentPartnerLabels.isNotEmpty)
-                          installmentPartnerLabels,
-                        if (installmentFailureReason.isNotEmpty)
-                          installmentFailureReason,
-                      ].join(' - '),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.neutral600,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

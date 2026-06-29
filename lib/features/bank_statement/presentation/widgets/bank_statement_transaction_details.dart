@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../app/theme/app_radius.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/info_row.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -25,7 +26,7 @@ class BankStatementTransactionDetailsLauncher extends StatelessWidget {
     return Tooltip(
       message: 'Xem chi tiết giao dịch',
       child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         onTap: () => unawaited(
           showBankStatementTransactionDetails(
             context,

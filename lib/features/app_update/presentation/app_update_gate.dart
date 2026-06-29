@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../app/theme/app_colors.dart';
+import '../../../app/widgets/app_buttons.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../core/network/api_client.dart';
@@ -502,7 +504,7 @@ class _UpdatePromptOverlay extends StatelessWidget {
     final updateInfo = result.updateInfo;
     return Positioned.fill(
       child: Material(
-        color: Colors.black54,
+        color: AppColors.shadow.withValues(alpha: 0.54),
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
@@ -532,19 +534,15 @@ class _UpdatePromptOverlay extends StatelessWidget {
                 ),
                 actions: [
                   if (!isRequired)
-                    TextButton(
+                    AppDialogCancelButton(
                       onPressed: openingUpdateUrl ? null : onDismiss,
-                      child: const Text('Để sau'),
+                      label: 'Để sau',
                     ),
-                  FilledButton.icon(
+                  AppDialogConfirmButton(
                     onPressed: openingUpdateUrl ? null : onUpdate,
-                    icon: openingUpdateUrl
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.download_rounded),
-                    label: const Text('Cập nhật'),
+                    icon: Icons.download_rounded,
+                    label: 'Cập nhật',
+                    isLoading: openingUpdateUrl,
                   ),
                 ],
               ),

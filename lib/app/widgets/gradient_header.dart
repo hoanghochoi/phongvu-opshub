@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 import '../../features/notifications/presentation/widgets/app_notifications_bell.dart';
 import '../../features/payment_monitor/presentation/widgets/payment_delivery_metrics_chip.dart';
 
@@ -64,9 +65,9 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
             labelColor: AppColors.surface,
             unselectedLabelColor: AppColors.neutral100,
             indicatorColor: AppColors.surface,
-            dividerColor: Colors.transparent,
-            labelStyle: TextStyle(fontWeight: FontWeight.w700),
-            unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w700),
+            dividerColor: AppColors.transparent,
+            labelStyle: AppTextStyles.labelM,
+            unselectedLabelStyle: AppTextStyles.labelM,
           ),
         ),
         child: headerBottom,
@@ -83,8 +84,8 @@ class GradientHeader extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       title: Text(title),
       centerTitle: true,
-      backgroundColor: Colors.transparent,
-      foregroundColor: Colors.white,
+      backgroundColor: AppColors.transparent,
+      foregroundColor: AppColors.surface,
       elevation: 0,
       automaticallyImplyLeading: showBack && onBack == null,
       leading: (showBack && onBack != null)

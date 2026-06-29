@@ -7,8 +7,11 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../core/platform/app_platform_capabilities.dart';
-import '../../../../app/theme/app_theme.dart';
+import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_logo.dart';
@@ -306,7 +309,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (dialogContext) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.support_agent_rounded, color: AppTheme.primaryBlue),
+            const Icon(Icons.support_agent_rounded, color: AppColors.primary),
             const SizedBox(width: 12),
             const Expanded(child: Text('Hỗ trợ OpsHub')),
           ],
@@ -320,13 +323,17 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(
+                      AppLayoutTokens.cardRadius,
+                    ),
                     border: Border.all(color: AppColors.neutral200),
                   ),
                   padding: const EdgeInsets.all(12),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(
+                      AppLayoutTokens.cardRadius,
+                    ),
                     child: Image.asset(
                       _supportQrAssetPath,
                       semanticLabel: 'QR mời vào group hỗ trợ Seatalk',
@@ -344,21 +351,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Quét QR bằng Seatalk hoặc mở link group hỗ trợ:',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: AppTextStyles.labelM.copyWith(
                     color: AppColors.neutral600,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 8),
                 SelectableText(
                   _supportGroupInviteUrl,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppTheme.primaryBlue,
-                    fontSize: 12,
+                  style: AppTextStyles.labelS.copyWith(
+                    color: AppColors.primary,
                     height: 1.35,
                   ),
                 ),
@@ -367,14 +372,14 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         actions: [
-          TextButton(
+          AppDialogCancelButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Đóng'),
+            label: 'Đóng',
           ),
-          FilledButton.icon(
+          AppDialogConfirmButton(
             onPressed: () => _openSupportGroupLink(dialogContext),
-            icon: const Icon(Icons.open_in_new_rounded),
-            label: const Text('Mở group'),
+            icon: Icons.open_in_new_rounded,
+            label: 'Mở group',
           ),
         ],
       ),
@@ -477,8 +482,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildDrawer(BuildContext context) {
+    final onGradient = AppColors.surface;
+    final onGradientMuted = AppColors.surface.withValues(alpha: 0.70);
+    final onGradientDivider = AppColors.surface.withValues(alpha: 0.24);
+    final onGradientSubtle = AppColors.surface.withValues(alpha: 0.50);
+
     return Drawer(
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.transparent,
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: GradientHeader.getGradient(context),
@@ -492,32 +502,32 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     const AppLogo(size: 48, borderRadius: 16),
                     const SizedBox(width: 12),
-                    const Column(
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'PhongVu',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                          style: AppTextStyles.headingM.copyWith(
+                            color: onGradient,
                           ),
                         ),
                         Text(
                           'OpsHub',
-                          style: TextStyle(fontSize: 16, color: Colors.white70),
+                          style: AppTextStyles.bodyL.copyWith(
+                            color: onGradientMuted,
+                          ),
                         ),
                       ],
                     ),
                   ],
                 ),
               ),
-              const Divider(color: Colors.white24, thickness: 1),
+              Divider(color: onGradientDivider, thickness: 1),
               ListTile(
-                leading: const Icon(Icons.person_outline, color: Colors.white),
-                title: const Text(
+                leading: Icon(Icons.person_outline, color: onGradient),
+                title: Text(
                   'Thông tin cá nhân',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
+                  style: AppTextStyles.bodyL.copyWith(color: onGradient),
                 ),
                 onTap: () {
                   Navigator.of(context).pop();
@@ -526,13 +536,13 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               if (_canOpenAdminMenu(context.watch<AuthProvider>().user))
                 ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.admin_panel_settings_outlined,
-                    color: Colors.white,
+                    color: onGradient,
                   ),
-                  title: const Text(
+                  title: Text(
                     'Quản trị',
-                    style: TextStyle(color: Colors.white, fontSize: 16),
+                    style: AppTextStyles.bodyL.copyWith(color: onGradient),
                   ),
                   onTap: () {
                     Navigator.of(context).pop();
@@ -540,13 +550,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 ),
               ListTile(
-                leading: const Icon(
-                  Icons.settings_outlined,
-                  color: Colors.white,
-                ),
-                title: const Text(
+                leading: Icon(Icons.settings_outlined, color: onGradient),
+                title: Text(
                   'Cài đặt',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
+                  style: AppTextStyles.bodyL.copyWith(color: onGradient),
                 ),
                 onTap: () {
                   Navigator.of(context).pop();
@@ -554,13 +561,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.menu_book_outlined,
-                  color: Colors.white,
-                ),
-                title: const Text(
+                leading: Icon(Icons.menu_book_outlined, color: onGradient),
+                title: Text(
                   'Hướng dẫn sử dụng',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
+                  style: AppTextStyles.bodyL.copyWith(color: onGradient),
                 ),
                 onTap: () {
                   Navigator.of(context).pop();
@@ -568,10 +572,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.info_outline, color: Colors.white),
-                title: const Text(
+                leading: Icon(Icons.info_outline, color: onGradient),
+                title: Text(
                   'Thông tin ứng dụng',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
+                  style: AppTextStyles.bodyL.copyWith(color: onGradient),
                 ),
                 onTap: () {
                   Navigator.of(context).pop();
@@ -579,10 +583,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.logout_rounded, color: Colors.white),
-                title: const Text(
+                leading: Icon(Icons.logout_rounded, color: onGradient),
+                title: Text(
                   'Đăng xuất',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
+                  style: AppTextStyles.bodyL.copyWith(color: onGradient),
                 ),
                 onTap: () {
                   Navigator.of(context).pop();
@@ -594,10 +598,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.all(16.0),
                 child: Text(
                   _version.isNotEmpty ? 'Version $_version' : '',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.5),
-                  ),
+                  style: AppTextStyles.labelS.copyWith(color: onGradientSubtle),
                 ),
               ),
             ],
@@ -627,7 +628,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.info_outline, color: AppTheme.primaryBlue),
+            const Icon(Icons.info_outline, color: AppColors.primary),
             const SizedBox(width: 12),
             const Text('Thông tin ứng dụng'),
           ],
@@ -638,27 +639,22 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Text(
               'PhongVu OpsHub',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.primaryBlue,
-              ),
+              style: AppTextStyles.headingM.copyWith(color: AppColors.primary),
             ),
             const SizedBox(height: 4),
             Text(
               _version.isNotEmpty ? 'Version $_version' : '',
-              style: const TextStyle(fontSize: 14, color: AppColors.neutral500),
+              style: AppTextStyles.bodyM.copyWith(color: AppColors.neutral500),
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Dev by Hoang Nguyen aka Hoàng Học Hỏi',
-              style: TextStyle(fontSize: 13, color: AppColors.neutral600),
+              style: AppTextStyles.bodyS.copyWith(color: AppColors.neutral600),
             ),
             const SizedBox(height: 16),
             Text(
               'Kết nối con người. Đồng bộ vận hành.',
-              style: TextStyle(
-                fontSize: 12,
+              style: AppTextStyles.labelS.copyWith(
                 fontStyle: FontStyle.italic,
                 color: AppColors.neutral600,
               ),
@@ -666,14 +662,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
-          TextButton(
+          AppDialogCancelButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Đóng',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-            ),
+            label: 'Đóng',
           ),
         ],
       ),
@@ -701,7 +692,8 @@ class _PaymentMonitorQuickToggle extends StatelessWidget {
             ? 'Đang chuẩn bị cập nhật'
             : 'Chọn showroom để dùng');
 
-    return Card(
+    return AppSurfaceCard(
+      padding: EdgeInsets.zero,
       child: SwitchListTile.adaptive(
         value: speakerActive,
         onChanged: canToggle
@@ -713,11 +705,8 @@ class _PaymentMonitorQuickToggle extends StatelessWidget {
           speakerActive ? Icons.volume_up_rounded : Icons.volume_off_rounded,
           color: speakerActive ? AppColors.success : AppColors.neutral500,
         ),
-        title: const Text(
-          'Đọc loa tiền vào',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Text(statusText),
+        title: const Text('Đọc loa tiền vào', style: AppTextStyles.labelM),
+        subtitle: Text(statusText, style: AppTextStyles.bodyS),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       ),
     );
@@ -774,21 +763,20 @@ class _CompactHomeHeader extends StatelessWidget {
         cleanAvatarUrl != null &&
         (cleanAvatarUrl.startsWith('http://') ||
             cleanAvatarUrl.startsWith('https://'));
+    final onGradient = AppColors.surface;
+    final onGradientMuted = AppColors.surface.withValues(alpha: 0.70);
+    final onGradientSubtle = AppColors.surface.withValues(alpha: 0.16);
     final fallbackAvatar = Text(
       initials,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 20,
-        fontWeight: FontWeight.w700,
-      ),
+      style: AppTextStyles.headingM.copyWith(color: onGradient),
     );
 
     return Container(
       decoration: BoxDecoration(
         gradient: GradientHeader.getGradient(context),
         borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(18),
-          bottomRight: Radius.circular(18),
+          bottomLeft: Radius.circular(AppRadius.lg),
+          bottomRight: Radius.circular(AppRadius.lg),
         ),
       ),
       padding: EdgeInsets.fromLTRB(
@@ -804,32 +792,25 @@ class _CompactHomeHeader extends StatelessWidget {
               IconButton(
                 tooltip: 'Menu',
                 onPressed: onMenu,
-                icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                icon: Icon(Icons.menu_rounded, color: onGradient),
               ),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'PhongVu OpsHub',
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: AppTextStyles.headingS.copyWith(color: onGradient),
                 ),
               ),
               IconButton(
                 tooltip: 'Hỗ trợ',
                 onPressed: onSupport,
-                icon: const Icon(
-                  Icons.support_agent_rounded,
-                  color: Colors.white,
-                ),
+                icon: Icon(Icons.support_agent_rounded, color: onGradient),
               ),
               const _HomePaymentDeliveryMetricsPill(),
-              const IconTheme(
-                data: IconThemeData(color: Colors.white),
+              IconTheme(
+                data: IconThemeData(color: onGradient),
                 child: AppNotificationsBell(),
               ),
             ],
@@ -839,16 +820,14 @@ class _CompactHomeHeader extends StatelessWidget {
             children: [
               InkWell(
                 onTap: onProfile,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.lg),
                 child: Container(
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.16),
-                    ),
+                    color: onGradientSubtle,
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    border: Border.all(color: onGradientSubtle),
                   ),
                   alignment: Alignment.center,
                   clipBehavior: Clip.antiAlias,
@@ -877,18 +856,14 @@ class _CompactHomeHeader extends StatelessWidget {
                       userName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: AppTextStyles.headingS.copyWith(color: onGradient),
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.store_outlined,
-                          color: Colors.white70,
+                          color: onGradientMuted,
                           size: 15,
                         ),
                         const SizedBox(width: 6),
@@ -897,9 +872,8 @@ class _CompactHomeHeader extends StatelessWidget {
                             storeInfo,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 13,
+                            style: AppTextStyles.bodyS.copyWith(
+                              color: onGradientMuted,
                               fontWeight: FontWeight.w600,
                             ),
                           ),

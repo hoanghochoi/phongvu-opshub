@@ -19,7 +19,9 @@ committed because they may contain runtime/session data.
 | Windows shell | Windows debug build | runtime log/code inspection | Window screenshot attempts were discarded because they captured unrelated apps. |
 | Launcher icon | Android/iOS/Windows generated assets | generated asset inspection | Padded source generated and launcher assets regenerated. |
 | Implementation pass | Flutter static/runtime proof | current patch validation | `git diff --check`, `flutter analyze`, `flutter test`, `flutter build apk --debug`, Android `zipalign -c -P 16 -v 4`, Windows debug smoke. |
-| Form/layout consistency pass | Flutter static/runtime proof | current patch validation | Shared form gaps and responsive wrappers applied across auth, admin, FIFO, sort, warranty, chat scanner, feedback, payment monitor, and VietQR forms. `git diff --check`, `flutter analyze`, `flutter test`, and Windows debug smoke passed. |
+| Form/layout consistency pass | Flutter static/runtime proof | current patch validation | Shared form gaps and responsive wrappers applied across auth, admin, FIFO, sort, warranty, FIFO/manual scanner, feedback, payment monitor, and VietQR forms. `git diff --check`, `flutter analyze`, `flutter test`, and Windows debug smoke passed. |
+| Figma Design System 2026 continuation | Flutter static proof | current patch validation | Home, Sort, Feedback, and VietQR now use shared dialog buttons, inputs, select fields, surface cards, typography, colors, radius, and spacing tokens for the touched operational paths. Focused Home/Feedback/Sort/VietQR/shared-control tests passed. |
+| Figma Design System 2026 feature baseline | Flutter static/build proof | current patch validation | Feature UI now has zero raw primitive guard hits for local colors, text styles, input fields, cards, raw action buttons, dropdowns, direct input decorations, and numeric radii. Auth, Admin, FIFO/FIFO-check, Warranty/BH-SC, Payment Monitor, Sales Report, VietQR, Sao kê, Cấn trừ, Settings, Notifications, and AppUpdate use shared design-system primitives. Added a regression guard test and verified `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact` (214 tests), Windows debug build, and Android debug APK build. |
 
 ## Coverage Limits
 
@@ -35,6 +37,9 @@ committed because they may contain runtime/session data.
 - The Windows app initially encountered a FIFO render exception during debug
   startup. The render blocker was fixed and re-smoked in the implementation
   pass.
+- The 2026 feature baseline is verified by static guards, Flutter tests, and
+  Android/Windows debug builds. Authenticated Android/Windows screenshots with
+  real backend data are still recommended as the next visual evidence pass.
 
 ## Backlog Findings
 
@@ -116,7 +121,7 @@ committed because they may contain runtime/session data.
   wrappers, then applied max-width/padding contracts to Home, FIFO, Sort,
   Warranty, Admin, inventory import, Payment monitor, and VietQR screens. A
   follow-up consistency pass also covered FIFO menu/history, admin user/store
-  and role lists/dialogs, profile, store selection, chat/manual scanner input,
+  and role lists/dialogs, profile, store selection, FIFO/manual scanner input,
   and search/filter rows that mix inputs with actions.
 - Proof: Windows debug smoke built and launched without render/layout
   exceptions after the patch. Backend-local network errors remained because
@@ -141,7 +146,7 @@ committed because they may contain runtime/session data.
 
 - Screen: Login, register, profile, store selection, admin user/store/role
   editors, FIFO check/history, Sort, Warranty, Feedback, VietQR, Payment
-  monitor, chat/manual scanner fallback.
+  monitor, FIFO/manual scanner fallback.
 - Platform: Android and Windows.
 - State: Several input groups used local `SizedBox` gaps from 8-14 px or
   screen-local padding, so adjacent fields and input/action rows felt cramped
@@ -175,4 +180,5 @@ committed because they may contain runtime/session data.
 ## Recommended Next Story
 
 Run a backend-backed visual pass with real authenticated data on Android and
-Windows, then capture final screenshots for dense operational states.
+Windows, then capture final screenshots for dense operational states now that
+the Figma Design System 2026 feature-layer migration is guarded in tests.

@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../domain/entities/sku_item.dart';
 
-class SKUBubble extends StatefulWidget {
+class FifoSkuItemCard extends StatefulWidget {
   final SKUItem skuItem;
   final Function(SKUItem) onCheckChanged;
 
-  const SKUBubble({
+  const FifoSkuItemCard({
     super.key,
     required this.skuItem,
     required this.onCheckChanged,
   });
 
   @override
-  State<SKUBubble> createState() => _SKUBubbleState();
+  State<FifoSkuItemCard> createState() => _FifoSkuItemCardState();
 }
 
-class _SKUBubbleState extends State<SKUBubble> {
+class _FifoSkuItemCardState extends State<FifoSkuItemCard> {
   void _copyToClipboard(BuildContext context, String text) {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -48,13 +51,15 @@ class _SKUBubbleState extends State<SKUBubble> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: widget.skuItem.isChecked
-            ? (isDark ? Colors.green.withValues(alpha: 0.15) : Colors.green[50])
-            : (isDark ? AppColors.darkCard : Colors.grey[50]),
-        borderRadius: BorderRadius.circular(12),
+            ? (isDark
+                  ? AppColors.success.withValues(alpha: 0.15)
+                  : AppColors.success.withValues(alpha: 0.08))
+            : (isDark ? AppColors.darkCard : AppColors.neutral50),
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
         border: Border.all(
           color: widget.skuItem.isChecked
-              ? (isDark ? Colors.green[700]! : Colors.green[400]!)
-              : (isDark ? AppColors.neutral700 : Colors.grey[300]!),
+              ? AppColors.success
+              : (isDark ? AppColors.neutral700 : AppColors.neutral300),
           width: widget.skuItem.isChecked ? 2 : 1,
         ),
       ),
@@ -69,20 +74,14 @@ class _SKUBubbleState extends State<SKUBubble> {
                   children: [
                     Text(
                       'SKU: ',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                      style: AppTextStyles.labelM.copyWith(
                         color: onSurfaceVariant,
                       ),
                     ),
                     Flexible(
                       child: Text(
                         widget.skuItem.sku,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: primary,
-                        ),
+                        style: AppTextStyles.labelM.copyWith(color: primary),
                       ),
                     ),
                   ],
@@ -91,14 +90,16 @@ class _SKUBubbleState extends State<SKUBubble> {
               // Check button
               InkWell(
                 onTap: _toggleCheck,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(AppRadius.xl),
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   child: Icon(
                     widget.skuItem.isChecked
                         ? Icons.check_circle
                         : Icons.check_circle_outline,
-                    color: widget.skuItem.isChecked ? Colors.green : onSurfaceVariant,
+                    color: widget.skuItem.isChecked
+                        ? AppColors.success
+                        : onSurfaceVariant,
                     size: 28,
                   ),
                 ),
@@ -111,10 +112,7 @@ class _SKUBubbleState extends State<SKUBubble> {
           if (widget.skuItem.name.isNotEmpty) ...[
             Text(
               'Tên: ${widget.skuItem.name}',
-              style: TextStyle(
-                fontSize: 13,
-                color: onSurface,
-              ),
+              style: AppTextStyles.bodyS.copyWith(color: onSurface),
             ),
             const SizedBox(height: 6),
           ],
@@ -127,8 +125,7 @@ class _SKUBubbleState extends State<SKUBubble> {
                 children: [
                   Text(
                     'Serial: ',
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: AppTextStyles.bodyS.copyWith(
                       color: onSurfaceVariant,
                       fontWeight: FontWeight.w500,
                     ),
@@ -136,15 +133,18 @@ class _SKUBubbleState extends State<SKUBubble> {
                   Expanded(
                     child: Text(
                       widget.skuItem.serial,
-                      style: TextStyle(
-                        fontSize: 13,
+                      style: AppTextStyles.bodyS.copyWith(
                         color: primary,
                         fontWeight: FontWeight.w600,
                         decoration: TextDecoration.underline,
                       ),
                     ),
                   ),
-                  Icon(Icons.copy, size: 14, color: onSurfaceVariant.withValues(alpha: 0.5)),
+                  Icon(
+                    Icons.copy,
+                    size: 14,
+                    color: onSurfaceVariant.withValues(alpha: 0.5),
+                  ),
                 ],
               ),
             ),
@@ -159,8 +159,7 @@ class _SKUBubbleState extends State<SKUBubble> {
                 children: [
                   Text(
                     'Mã BIN: ',
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: AppTextStyles.bodyS.copyWith(
                       color: onSurfaceVariant,
                       fontWeight: FontWeight.w500,
                     ),
@@ -168,15 +167,18 @@ class _SKUBubbleState extends State<SKUBubble> {
                   Expanded(
                     child: Text(
                       widget.skuItem.bin,
-                      style: TextStyle(
-                        fontSize: 13,
+                      style: AppTextStyles.bodyS.copyWith(
                         color: primary,
                         fontWeight: FontWeight.w600,
                         decoration: TextDecoration.underline,
                       ),
                     ),
                   ),
-                  Icon(Icons.copy, size: 14, color: onSurfaceVariant.withValues(alpha: 0.5)),
+                  Icon(
+                    Icons.copy,
+                    size: 14,
+                    color: onSurfaceVariant.withValues(alpha: 0.5),
+                  ),
                 ],
               ),
             ),
@@ -187,10 +189,7 @@ class _SKUBubbleState extends State<SKUBubble> {
           if (widget.skuItem.zone.isNotEmpty) ...[
             Text(
               'Zone: ${widget.skuItem.zone}',
-              style: TextStyle(
-                fontSize: 13,
-                color: onSurfaceVariant,
-              ),
+              style: AppTextStyles.bodyS.copyWith(color: onSurfaceVariant),
             ),
             const SizedBox(height: 6),
           ],
@@ -199,10 +198,7 @@ class _SKUBubbleState extends State<SKUBubble> {
           if (widget.skuItem.date.isNotEmpty)
             Text(
               'Ngày nhập: ${widget.skuItem.date}',
-              style: TextStyle(
-                fontSize: 13,
-                color: onSurfaceVariant,
-              ),
+              style: AppTextStyles.bodyS.copyWith(color: onSurfaceVariant),
             ),
         ],
       ),

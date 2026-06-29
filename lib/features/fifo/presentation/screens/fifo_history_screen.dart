@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -246,15 +247,10 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
               child: Center(
                 child: loading
                     ? const CircularProgressIndicator()
-                    : TextButton.icon(
+                    : AppDialogSecondaryButton(
                         onPressed: onLoadMore,
-                        icon: const Icon(Icons.expand_more),
-                        label: const Text(
-                          'Xem thêm',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          softWrap: false,
-                        ),
+                        icon: Icons.expand_more,
+                        label: 'Xem thêm',
                       ),
               ),
             );
@@ -278,7 +274,4 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
       ),
     );
   }
-
-
-
 }

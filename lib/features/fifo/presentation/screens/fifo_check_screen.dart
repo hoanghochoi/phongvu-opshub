@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../domain/entities/fifo_check_result.dart';
 import '../../domain/entities/fifo_inventory_item.dart';
 import '../providers/fifo_provider.dart';
-import '../../../chat/presentation/widgets/barcode_scanner_screen.dart'
+import '../../../fifo_check/presentation/widgets/barcode_scanner_screen.dart'
     show BarcodeScannerScreen;
 
 class FifoCheckScreen extends StatefulWidget {
@@ -61,10 +65,7 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: GradientHeader(
-        title: 'Kiểm tra FIFO',
-        showBack: true,
-      ),
+      appBar: GradientHeader(title: 'Kiểm tra FIFO', showBack: true),
       body: SafeArea(
         child: Consumer<FifoProvider>(
           builder: (context, provider, _) {
@@ -161,16 +162,14 @@ class _FifoInputBar extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: TextField(
+                      child: AppTextInput(
                         controller: controller,
                         focusNode: focusNode,
                         enabled: !isLoading,
+                        label: 'SKU hoặc serial',
+                        hintText: 'Nhập SKU hoặc serial',
+                        icon: Icons.inventory_2_outlined,
                         textCapitalization: TextCapitalization.characters,
-                        decoration: const InputDecoration(
-                          hintText: 'Nhập SKU hoặc serial',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.inventory_2_outlined),
-                        ),
                         onSubmitted: (_) => onSearch(),
                       ),
                     ),
@@ -266,9 +265,9 @@ class _SkuResultList extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               '${result.query} • ${result.srCode} • ${result.items.length} sản phẩm',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: AppTextStyles.titleEmphasis.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
           );
         }
@@ -311,13 +310,9 @@ class _SerialResult extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       children: [
-        Container(
-          padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-          decoration: BoxDecoration(
-            color: statusColor.withValues(alpha: 0.1),
-            border: Border.all(color: statusColor.withValues(alpha: 0.5)),
-            borderRadius: BorderRadius.circular(8),
-          ),
+        AppSurfaceCard(
+          backgroundColor: statusColor.withValues(alpha: 0.1),
+          borderColor: statusColor.withValues(alpha: 0.5),
           child: Row(
             children: [
               Icon(_statusIcon(result.status), color: statusColor),
@@ -325,10 +320,7 @@ class _SerialResult extends StatelessWidget {
               Expanded(
                 child: Text(
                   result.message ?? 'Không có kết quả',
-                  style: TextStyle(
-                    color: statusColor,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: AppTextStyles.labelM.copyWith(color: statusColor),
                 ),
               ),
             ],
@@ -348,9 +340,9 @@ class _SerialResult extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             'Sản phẩm cần lấy trước',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            style: AppTextStyles.titleEmphasis.copyWith(
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 8),
           _FifoItemCard(
@@ -402,8 +394,9 @@ class _FifoItemCard extends StatelessWidget {
     final color = item.exported
         ? AppColors.neutral500
         : _fifoColor(rank, total);
-    return Card(
+    return AppSurfaceCard(
       margin: const EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.zero,
       child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -413,7 +406,7 @@ class _FifoItemCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: color,
                 borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(8),
+                  left: Radius.circular(AppRadius.sm),
                 ),
               ),
             ),
@@ -431,9 +424,8 @@ class _FifoItemCard extends StatelessWidget {
                             item.skuName.isNotEmpty ? item.skuName : item.sku,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
+                            style: AppTextStyles.labelL.copyWith(
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                         ),

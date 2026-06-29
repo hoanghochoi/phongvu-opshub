@@ -4,14 +4,14 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/constants/api_constants.dart';
-import '../../domain/entities/message.dart';
+import '../../domain/entities/fifo_check_entry.dart';
 import '../../domain/entities/sku_item.dart';
 
-class ChatRepository {
+class FifoCheckRepository {
   final ApiClient _apiClient;
   final _uuid = const Uuid();
 
-  ChatRepository(this._apiClient);
+  FifoCheckRepository(this._apiClient);
 
   List<SKUItem> _parseSKUItems(String text) {
     final skuItems = <SKUItem>[];
@@ -68,7 +68,11 @@ class ChatRepository {
     return skuItems;
   }
 
-  Future<Message> sendMessage(String sku, String qty, String userEmail) async {
+  Future<FifoCheckEntry> sendCheck(
+    String sku,
+    String qty,
+    String userEmail,
+  ) async {
     try {
       // Parse qty to int (default 1)
       final qtyInt = int.tryParse(qty) ?? 1;
@@ -80,7 +84,7 @@ class ChatRepository {
       );
 
       if (kDebugMode) {
-        debugPrint('📥 [ChatRepository] Response: ${response.statusCode}');
+        debugPrint('[FifoCheckRepository] Response: ${response.statusCode}');
       }
 
       String responseText;
@@ -119,7 +123,7 @@ class ChatRepository {
             responseText = message;
 
             if (item != null) {
-              // Create SKU bubble from serial check item (same style as SKU search)
+              // Create SKU card from serial check item (same style as SKU search).
               skuItems = [
                 SKUItem(
                   id: _uuid.v4(),
@@ -172,10 +176,10 @@ class ChatRepository {
       // Only parse SKU items if not already set by serial check
       skuItems ??= _parseSKUItems(responseText);
 
-      return Message(
+      return FifoCheckEntry(
         id: _uuid.v4(),
         content: responseText.trim(),
-        isUser: false,
+        isUserInput: false,
         timestamp: DateTime.now(),
         skuItems: skuItems,
         suggestedItems: suggestedSkuItems,

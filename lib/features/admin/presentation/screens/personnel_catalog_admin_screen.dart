@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
@@ -105,13 +111,12 @@ class _PersonnelCatalogAdminScreenState
         title: Text('Xóa $label'),
         content: Text('Xóa $label ${item.title}?'),
         actions: [
-          TextButton(
+          AppDialogCancelButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Hủy'),
           ),
-          FilledButton(
+          AppDialogConfirmButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Xóa'),
+            label: 'Xóa',
           ),
         ],
       ),
@@ -164,8 +169,12 @@ class _PersonnelCatalogAdminScreenState
         appBar: GradientHeader(
           title: 'Phòng ban & Chức danh',
           showBack: true,
-          bottom: const TabBar(
-            tabs: [
+          bottom: TabBar(
+            labelColor: AppColors.surface,
+            unselectedLabelColor: AppColors.surface.withValues(alpha: 0.70),
+            indicatorColor: AppColors.surface,
+            dividerColor: AppColors.transparent,
+            tabs: const [
               Tab(text: 'Phòng ban'),
               Tab(text: 'Chức danh'),
             ],
@@ -184,7 +193,9 @@ class _PersonnelCatalogAdminScreenState
           ],
         ),
         body: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const AppResponsiveContent(
+                child: AppListSkeleton(itemCount: 6, itemHeight: 72),
+              )
             : TabBarView(
                 children: [
                   _CatalogList(
@@ -195,7 +206,7 @@ class _PersonnelCatalogAdminScreenState
                       return _PersonnelCard(
                         item: item,
                         icon: Icons.apartment_outlined,
-                        color: const Color(0xFF2563EB),
+                        color: AppColors.info,
                         metadata: '${item.userCount} người dùng',
                         onEdit: () => _openDepartmentEditor(item),
                         onDelete: item.isSystem
@@ -213,7 +224,7 @@ class _PersonnelCatalogAdminScreenState
                       return _PersonnelCard(
                         item: item,
                         icon: Icons.badge_outlined,
-                        color: const Color(0xFF7C3AED),
+                        color: AppColors.accent,
                         metadata: [
                           department,
                           '${item.userCount} người dùng',
@@ -253,7 +264,13 @@ class _CatalogList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (itemCount == 0) return Center(child: Text(emptyText));
+    if (itemCount == 0) {
+      return AppStatePanel.empty(
+        title: emptyText,
+        message: 'Bấm nút thêm trên thanh tiêu đề để tạo dữ liệu.',
+        icon: Icons.badge_outlined,
+      );
+    }
     return AppResponsiveContent(
       padding: EdgeInsets.zero,
       child: ListView.separated(
@@ -287,81 +304,64 @@ class _PersonnelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.11),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: Icon(icon, color: color, size: 22),
           ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.11),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyL.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${item.code} • $metadata${item.description.isEmpty ? '' : ' • ${item.description}'}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 13,
-                      height: 1.25,
-                    ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${item.code} • $metadata${item.description.isEmpty ? '' : ' • ${item.description}'}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${item.isActive ? 'Đang bật' : 'Đang tắt'}${item.isSystem ? ' • hệ thống' : ''}',
-                    style: TextStyle(
-                      color: item.isActive
-                          ? const Color(0xFF059669)
-                          : const Color(0xFFDC2626),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${item.isActive ? 'Đang bật' : 'Đang tắt'}${item.isSystem ? ' • hệ thống' : ''}',
+                  style: AppTextStyles.labelS.copyWith(
+                    color: item.isActive ? AppColors.success : AppColors.error,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-            AppIconAction(
-              onPressed: onEdit,
-              icon: Icons.edit_outlined,
-              tooltip: 'Sửa',
-            ),
-            const SizedBox(width: 8),
-            AppIconAction(
-              onPressed: onDelete,
-              icon: Icons.delete_outline,
-              tooltip: item.isSystem ? 'Dòng hệ thống' : 'Xóa',
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 10),
+          AppIconAction(
+            onPressed: onEdit,
+            icon: Icons.edit_outlined,
+            tooltip: 'Sửa',
+          ),
+          const SizedBox(width: 8),
+          AppIconAction(
+            onPressed: onDelete,
+            icon: Icons.delete_outline,
+            tooltip: item.isSystem ? 'Dòng hệ thống' : 'Xóa',
+          ),
+        ],
       ),
     );
   }
@@ -488,20 +488,17 @@ class _PersonnelEditorDialogState extends State<_PersonnelEditorDialog> {
         child: SingleChildScrollView(
           child: AppFormColumn(
             children: [
-              TextField(
+              AppTextInput(
                 controller: _codeController,
                 enabled: !isSystem,
-                decoration: InputDecoration(labelText: 'Mã $label'),
+                label: 'Mã $label',
                 textCapitalization: TextCapitalization.characters,
               ),
-              TextField(
-                controller: _titleController,
-                decoration: InputDecoration(labelText: 'Tên $label'),
-              ),
+              AppTextInput(controller: _titleController, label: 'Tên $label'),
               if (widget.type == _CatalogType.jobRole)
-                DropdownButtonFormField<String?>(
-                  initialValue: _departmentCode,
-                  decoration: const InputDecoration(labelText: 'Phòng ban'),
+                AppSelectField<String?>(
+                  value: _departmentCode,
+                  label: 'Phòng ban',
                   items: [
                     const DropdownMenuItem<String?>(
                       value: null,
@@ -516,9 +513,9 @@ class _PersonnelEditorDialogState extends State<_PersonnelEditorDialog> {
                   ],
                   onChanged: (value) => setState(() => _departmentCode = value),
                 ),
-              TextField(
+              AppTextInput(
                 controller: _descriptionController,
-                decoration: const InputDecoration(labelText: 'Mô tả'),
+                label: 'Mô tả',
                 maxLines: 2,
               ),
               SwitchListTile(
@@ -532,13 +529,13 @@ class _PersonnelEditorDialogState extends State<_PersonnelEditorDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        AppDialogCancelButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Hủy'),
         ),
-        FilledButton(
+        AppDialogConfirmButton(
           onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Đang lưu...' : 'Lưu'),
+          label: _saving ? 'Đang lưu...' : 'Lưu',
+          isLoading: _saving,
         ),
       ],
     );

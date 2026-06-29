@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_logo.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -63,9 +68,8 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
                     const SizedBox(height: 24),
                     Text(
                       '© 2025 PhongVu OpsHub',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.35),
-                        fontSize: 12,
+                      style: AppTextStyles.labelS.copyWith(
+                        color: AppColors.surface.withValues(alpha: 0.35),
                       ),
                     ),
                   ],
@@ -99,7 +103,7 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
       if (message.contains('chưa tồn tại') ||
           message.contains('chưa có mật khẩu')) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.orange[700]),
+          SnackBar(content: Text(message), backgroundColor: AppColors.warning),
         );
         await Future<void>.delayed(const Duration(milliseconds: 600));
         if (context.mounted) {
@@ -108,7 +112,7 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
+        SnackBar(content: Text(message), backgroundColor: AppColors.error),
       );
     }
   }
@@ -121,34 +125,29 @@ class _LogoHeader extends StatelessWidget {
       children: [
         Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(AppRadius.xxl),
             boxShadow: [
               BoxShadow(
-                color: Colors.white.withValues(alpha: 0.15),
+                color: AppColors.surface.withValues(alpha: 0.15),
                 blurRadius: 30,
                 spreadRadius: 5,
               ),
             ],
           ),
-          child: const AppLogo(size: 88, borderRadius: 28),
+          child: const AppLogo(size: 88, borderRadius: AppRadius.xxl),
         ),
         const SizedBox(height: 18),
-        const Text(
+        Text(
           'PhongVu OpsHub',
-          style: TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+          style: AppTextStyles.headingXL.copyWith(color: AppColors.surface),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 10),
         Text(
           'Kết nối con người. Đồng bộ vận hành.',
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.7),
-            fontSize: 15,
+          style: AppTextStyles.bodyM.copyWith(
+            color: AppColors.surface.withValues(alpha: 0.70),
             fontStyle: FontStyle.italic,
           ),
         ),
@@ -186,15 +185,15 @@ class _LoginCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
+        color: AppColors.surface.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
+          color: AppColors.surface.withValues(alpha: 0.20),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
+            color: AppColors.shadow.withValues(alpha: 0.15),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -204,25 +203,20 @@ class _LoginCard extends StatelessWidget {
         key: formKey,
         child: Column(
           children: [
-            const Text(
+            Text(
               'Đăng nhập',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+              style: AppTextStyles.headingM.copyWith(color: AppColors.surface),
             ),
             const SizedBox(height: 8),
             Text(
               'Dùng email được OpsHub chấp nhận và mật khẩu OpsHub',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.65),
-                fontSize: 13,
+              style: AppTextStyles.bodyS.copyWith(
+                color: AppColors.surface.withValues(alpha: 0.65),
               ),
             ),
             const SizedBox(height: 24),
-            TextFormField(
+            AppFormTextInput(
               controller: emailController,
               enabled: !isLoading,
               keyboardType: TextInputType.emailAddress,
@@ -232,10 +226,8 @@ class _LoginCard extends StatelessWidget {
                 AutofillHints.username,
                 AutofillHints.email,
               ],
-              decoration: _inputDecoration(
-                label: 'Email',
-                icon: Icons.alternate_email_rounded,
-              ),
+              label: 'Email',
+              icon: Icons.alternate_email_rounded,
               validator: (value) {
                 final email = value?.trim() ?? '';
                 if (!Validators.isValidEmail(email)) {
@@ -245,23 +237,21 @@ class _LoginCard extends StatelessWidget {
               },
             ),
             const SizedBox(height: AppLayoutTokens.formFieldGap),
-            TextFormField(
+            AppFormTextInput(
               controller: passwordController,
               enabled: !isLoading,
               obscureText: obscurePassword,
               textInputAction: TextInputAction.done,
               autofillHints: const [AutofillHints.password],
               onFieldSubmitted: (_) => isLoading ? null : onSubmit(),
-              decoration: _inputDecoration(
-                label: 'Mật khẩu',
-                icon: Icons.lock_rounded,
-                suffixIcon: IconButton(
-                  onPressed: isLoading ? null : onTogglePassword,
-                  icon: Icon(
-                    obscurePassword
-                        ? Icons.visibility_rounded
-                        : Icons.visibility_off_rounded,
-                  ),
+              label: 'Mật khẩu',
+              icon: Icons.lock_rounded,
+              suffixIcon: IconButton(
+                onPressed: isLoading ? null : onTogglePassword,
+                icon: Icon(
+                  obscurePassword
+                      ? Icons.visibility_rounded
+                      : Icons.visibility_off_rounded,
                 ),
               ),
               validator: (value) {
@@ -272,91 +262,27 @@ class _LoginCard extends StatelessWidget {
               },
             ),
             const SizedBox(height: AppLayoutTokens.formSectionGap),
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: ElevatedButton.icon(
-                onPressed: isLoading ? null : onSubmit,
-                icon: isLoading
-                    ? SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.grey[600],
-                        ),
-                      )
-                    : const Icon(Icons.login_rounded),
-                label: Text(
-                  isLoading ? 'Đang đăng nhập...' : 'Đăng nhập',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: false,
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.grey[800],
-                  disabledBackgroundColor: Colors.white.withValues(alpha: 0.7),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                      AppLayoutTokens.cardRadius,
-                    ),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+            AppPrimaryButton(
+              onPressed: isLoading ? null : onSubmit,
+              icon: Icons.login_rounded,
+              label: 'Đăng nhập',
+              isLoading: isLoading,
+              loadingLabel: 'Đang đăng nhập...',
             ),
             const SizedBox(height: AppLayoutTokens.formInlineGap),
-            TextButton.icon(
+            AppDialogSecondaryButton(
               onPressed: isLoading ? null : onForgotPassword,
-              icon: const Icon(Icons.lock_reset_rounded),
-              label: const Text(
-                'Quên mật khẩu',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
-              ),
-              style: TextButton.styleFrom(foregroundColor: Colors.white),
+              icon: Icons.lock_reset_rounded,
+              label: 'Quên mật khẩu',
             ),
-            TextButton.icon(
+            AppDialogSecondaryButton(
               onPressed: isLoading ? null : onRegister,
-              icon: const Icon(Icons.person_add_alt_1_rounded),
-              label: const Text(
-                'Đăng ký',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
-              ),
-              style: TextButton.styleFrom(foregroundColor: Colors.white),
+              icon: Icons.person_add_alt_1_rounded,
+              label: 'Đăng ký',
             ),
           ],
         ),
       ),
-    );
-  }
-
-  InputDecoration _inputDecoration({
-    required String label,
-    required IconData icon,
-    Widget? suffixIcon,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon),
-      suffixIcon: suffixIcon,
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        borderSide: BorderSide.none,
-      ),
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      errorMaxLines: 4,
     );
   }
 }

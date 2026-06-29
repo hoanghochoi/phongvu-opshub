@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/widgets/app_layout.dart';
 import '../../domain/entities/vietqr_transfer.dart';
 
 class QrWithLogo extends StatelessWidget {
@@ -22,18 +24,18 @@ class QrWithLogo extends StatelessWidget {
               version: QrVersions.auto,
               errorCorrectionLevel: QrErrorCorrectLevel.H,
               size: size,
-              backgroundColor: Colors.white,
+              backgroundColor: AppColors.surface,
             ),
             Container(
               width: size * 0.24,
               height: size * 0.24,
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(7),
+                borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
                 child: Image.asset(
                   transfer.qrBrand.logoAsset,
                   fit: BoxFit.cover,

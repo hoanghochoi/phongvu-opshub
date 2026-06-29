@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 ///
 /// | Token | Value | Typical usage                        |
 /// |-------|-------|--------------------------------------|
-/// | xs    |  4    | message bubbles, tiny chips          |
+/// | xs    |  4    | compact entries, tiny chips          |
 /// | sm    |  8    | cards, feature tiles, CardTheme      |
-/// | md    | 12    | inputs, chat bubbles, tabs           |
+/// | md    | 12    | inputs, FIFO result entries, tabs    |
 /// | lg    | 16    | buttons, logo                        |
 /// | xl    | 20    | large elements                       |
 /// | xxl   | 24    | large dialogs and auth screens       |

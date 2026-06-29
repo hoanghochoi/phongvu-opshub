@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../theme/app_text_styles.dart';
+import 'app_inputs.dart';
+import 'app_layout.dart';
+
+const double _filterButtonHeight = 52;
+
 class AppFilterOption<T> {
   final T value;
   final String label;
@@ -74,6 +80,7 @@ class _AppFilterDropdownState<T> extends State<AppFilterDropdown<T>> {
       builder: (context, controller, child) {
         return OutlinedButton.icon(
           icon: Icon(widget.icon, size: 18),
+          style: _filterButtonStyle(),
           label: Text(
             '${widget.label}: $label',
             overflow: TextOverflow.ellipsis,
@@ -92,8 +99,6 @@ class _AppFilterDropdownState<T> extends State<AppFilterDropdown<T>> {
 
   Widget _buildMenu(BuildContext context) {
     final shouldSearch = widget.forceSearch || widget.options.length > 10;
-    final query = _searchController.text;
-    final filtered = widget.options.where((item) => item.matches(query));
     return SizedBox(
       width: 300,
       child: StatefulBuilder(
@@ -107,13 +112,11 @@ class _AppFilterDropdownState<T> extends State<AppFilterDropdown<T>> {
               if (shouldSearch)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-                  child: TextField(
+                  child: AppTextInput(
                     controller: _searchController,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      hintText: 'Tìm trong bộ lọc',
-                      isDense: true,
-                    ),
+                    label: 'Tìm trong bộ lọc',
+                    icon: Icons.search,
+                    dense: true,
                     onChanged: (_) => setMenuState(() {}),
                   ),
                 ),
@@ -149,7 +152,7 @@ class _AppFilterDropdownState<T> extends State<AppFilterDropdown<T>> {
                             MenuController.maybeOf(context)?.close();
                           },
                         ),
-                      if (filtered.isEmpty)
+                      if (liveFiltered.isEmpty)
                         const Padding(
                           padding: EdgeInsets.all(16),
                           child: Text('Không có lựa chọn phù hợp'),
@@ -211,6 +214,7 @@ class _AppMultiSelectFilterDropdownState<T>
       builder: (context, controller, child) {
         return OutlinedButton.icon(
           icon: Icon(widget.icon, size: 18),
+          style: _filterButtonStyle(),
           label: Text(
             '${widget.label}: $label',
             overflow: TextOverflow.ellipsis,
@@ -242,13 +246,11 @@ class _AppMultiSelectFilterDropdownState<T>
               if (shouldSearch)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-                  child: TextField(
+                  child: AppTextInput(
                     controller: _searchController,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      hintText: 'Tìm trong bộ lọc',
-                      isDense: true,
-                    ),
+                    label: 'Tìm trong bộ lọc',
+                    icon: Icons.search,
+                    dense: true,
                     onChanged: (_) => setMenuState(() {}),
                   ),
                 ),
@@ -292,6 +294,9 @@ class _AppMultiSelectFilterDropdownState<T>
                 alignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
+                    style: TextButton.styleFrom(
+                      textStyle: AppTextStyles.labelM,
+                    ),
                     onPressed: widget.values.isEmpty
                         ? null
                         : () {
@@ -301,6 +306,9 @@ class _AppMultiSelectFilterDropdownState<T>
                     child: const Text('Xóa lọc'),
                   ),
                   FilledButton(
+                    style: FilledButton.styleFrom(
+                      textStyle: AppTextStyles.labelM,
+                    ),
                     onPressed: () => MenuController.maybeOf(context)?.close(),
                     child: const Text('Áp dụng'),
                   ),
@@ -362,6 +370,7 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
       builder: (context, controller, child) {
         return OutlinedButton.icon(
           icon: const Icon(Icons.date_range, size: 18),
+          style: _filterButtonStyle(),
           label: Text(
             '${widget.label}: ${_rangeLabel(widget.start, widget.end)}',
             overflow: TextOverflow.ellipsis,
@@ -463,6 +472,9 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
                 ],
                 const SizedBox(height: 12),
                 FilledButton(
+                  style: FilledButton.styleFrom(
+                    textStyle: AppTextStyles.labelM,
+                  ),
                   onPressed: () {
                     final start = appParseDateInput(_startController.text);
                     final end = appParseDateInput(_endController.text);
@@ -554,24 +566,33 @@ class AppDateTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return AppTextInput(
       controller: controller,
+      label: label,
+      hintText: 'dd/mm/yyyy',
+      dense: dense,
       keyboardType: TextInputType.number,
       inputFormatters: const [AppDateInputFormatter()],
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: 'dd/mm/yyyy',
-        isDense: dense,
-        suffixIcon: onPickDate == null
-            ? null
-            : IconButton(
-                tooltip: 'Chọn ngày',
-                icon: const Icon(Icons.calendar_today_rounded),
-                onPressed: onPickDate,
-              ),
-      ),
+      suffixIcon: onPickDate == null
+          ? null
+          : IconButton(
+              tooltip: 'Chọn ngày',
+              icon: const Icon(Icons.calendar_today_rounded),
+              onPressed: onPickDate,
+            ),
     );
   }
+}
+
+ButtonStyle _filterButtonStyle() {
+  return OutlinedButton.styleFrom(
+    minimumSize: const Size(0, _filterButtonHeight),
+    padding: const EdgeInsets.symmetric(horizontal: 14),
+    textStyle: AppTextStyles.labelM,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+    ),
+  );
 }
 
 DateTime _dateOnly(DateTime value) =>
