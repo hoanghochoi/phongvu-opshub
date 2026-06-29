@@ -39,9 +39,11 @@ class BankStatementScreen extends StatefulWidget {
 }
 
 class _BankStatementScreenState extends State<BankStatementScreen> {
+  final _statementNumberController = TextEditingController();
   final _orderController = TextEditingController();
   final _amountController = TextEditingController();
   final _contentController = TextEditingController();
+  final _statementNumberFocus = FocusNode();
   final _orderFocus = FocusNode();
   final _amountFocus = FocusNode();
   final _contentFocus = FocusNode();
@@ -58,9 +60,11 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
 
   @override
   void dispose() {
+    _statementNumberController.dispose();
     _orderController.dispose();
     _amountController.dispose();
     _contentController.dispose();
+    _statementNumberFocus.dispose();
     _orderFocus.dispose();
     _amountFocus.dispose();
     _contentFocus.dispose();
@@ -82,9 +86,11 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
               children: [
                 _FilterPanel(
                   provider: provider,
+                  statementNumberController: _statementNumberController,
                   orderController: _orderController,
                   amountController: _amountController,
                   contentController: _contentController,
+                  statementNumberFocus: _statementNumberFocus,
                   orderFocus: _orderFocus,
                   amountFocus: _amountFocus,
                   contentFocus: _contentFocus,
@@ -161,6 +167,11 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
       }
     }
 
+    sync(
+      _statementNumberController,
+      _statementNumberFocus,
+      provider.statementNumber ?? '',
+    );
     sync(_orderController, _orderFocus, provider.order ?? '');
     String formattedAmount = '';
     if (provider.amount != null) {
@@ -178,18 +189,22 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
 
 class _FilterPanel extends StatefulWidget {
   final BankStatementProvider provider;
+  final TextEditingController statementNumberController;
   final TextEditingController orderController;
   final TextEditingController amountController;
   final TextEditingController contentController;
+  final FocusNode statementNumberFocus;
   final FocusNode orderFocus;
   final FocusNode amountFocus;
   final FocusNode contentFocus;
 
   const _FilterPanel({
     required this.provider,
+    required this.statementNumberController,
     required this.orderController,
     required this.amountController,
     required this.contentController,
+    required this.statementNumberFocus,
     required this.orderFocus,
     required this.amountFocus,
     required this.contentFocus,
@@ -251,6 +266,18 @@ class _FilterPanelState extends State<_FilterPanel> {
                   if (_isExpanded) ...[
                     const Divider(height: 16),
                     _StoreFilterButton(provider: widget.provider),
+                    const SizedBox(height: _filterGap),
+                    TextField(
+                      controller: widget.statementNumberController,
+                      focusNode: widget.statementNumberFocus,
+                      decoration: const InputDecoration(
+                        labelText: 'Mã sao kê',
+                        prefixIcon: Icon(Icons.receipt_long_outlined),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: widget.provider.setStatementNumber,
+                      onSubmitted: (_) => widget.provider.search(),
+                    ),
                     const SizedBox(height: _filterGap),
                     TextField(
                       controller: widget.orderController,
@@ -330,6 +357,20 @@ class _FilterPanelState extends State<_FilterPanel> {
                   children: [
                     Expanded(
                       child: _StoreFilterButton(provider: widget.provider),
+                    ),
+                    const SizedBox(width: _filterGap),
+                    Expanded(
+                      child: TextField(
+                        controller: widget.statementNumberController,
+                        focusNode: widget.statementNumberFocus,
+                        decoration: const InputDecoration(
+                          labelText: 'Mã sao kê',
+                          prefixIcon: Icon(Icons.receipt_long_outlined),
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: widget.provider.setStatementNumber,
+                        onSubmitted: (_) => widget.provider.search(),
+                      ),
                     ),
                     const SizedBox(width: _filterGap),
                     Expanded(

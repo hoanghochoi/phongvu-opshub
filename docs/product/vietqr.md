@@ -182,17 +182,19 @@ a customer to scan and pay manually.
   when the manual value is cleared back to an empty list.
 - Statement search does not auto-load transactions. Users must choose at least
   one effective filter, then run Search.
-- Primary filters are mutually exclusive: showroom, order code, amount, and
-  transfer content. Order status and date range can be used alone or combined
-  with one primary filter.
+- Primary filters are mutually exclusive: showroom, statement number, order
+  code, amount, and transfer content. Order status and date range can be used
+  alone or combined with one primary filter.
 - Showroom filtering follows effective statement scope: national users and
   users with `BANK_STATEMENT_ALL_SCOPE` can search all or multiple showrooms;
   assigned-showroom users can search one or more of their assigned showrooms.
-  Order, amount, and content filters are allowed across the user's statement
-  scope.
-- Order filter is an exact match against any stored order in the transaction.
-  Amount filter is exact integer amount. Content filter is case-insensitive
-  contains matching.
+  Statement number, order, amount, and content filters are allowed across the
+  user's statement scope.
+- Statement number filter is an exact match against the user-facing statement
+  reference shown in `Sao ke`, falling back to the MAP transaction number when
+  no statement reference exists. Order filter is an exact match against any
+  stored order in the transaction. Amount filter is exact integer amount.
+  Content filter is case-insensitive contains matching.
 - When a statement search is run without a selected date range, the app sends
   today's Vietnam-local date as both start and end date. SR searches therefore
   load the full snapshot for the current day instead of scanning all stored

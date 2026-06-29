@@ -1276,6 +1276,29 @@ describe('MapVietinService', () => {
     expect(JSON.stringify(where)).toContain('isEmpty');
   });
 
+  it('filters statements by displayed statement number', async () => {
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(0);
+
+    await expect(
+      service.listStatements(
+        { role: 'SUPER_ADMIN' },
+        {
+          statementNumber: '00020300000000004567',
+          startDate: '2026-05-29',
+          endDate: '2026-05-29',
+          page: 0,
+          limit: 20,
+        },
+      ),
+    ).resolves.toMatchObject({ total: 0, list: [] });
+
+    const where = prisma.mapVietinTransaction.findMany.mock.calls[0][0].where;
+    expect(JSON.stringify(where)).toContain('transactionNumber');
+    expect(JSON.stringify(where)).toContain('txnReference');
+    expect(JSON.stringify(where)).toContain('00020300000000004567');
+  });
+
   it('returns statement order edit flags for visible rows', async () => {
     prisma.store.findUnique.mockResolvedValue({
       id: 'store-uuid-1',

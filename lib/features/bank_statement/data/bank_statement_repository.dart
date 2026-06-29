@@ -49,6 +49,7 @@ class BankStatementOrderTransferReviewResult {
 class BankStatementQuery {
   final bool allStores;
   final List<String> storeIds;
+  final String? statementNumber;
   final String? order;
   final String? amount;
   final String? content;
@@ -61,6 +62,7 @@ class BankStatementQuery {
   const BankStatementQuery({
     required this.allStores,
     required this.storeIds,
+    required this.statementNumber,
     required this.order,
     required this.amount,
     required this.content,
@@ -75,6 +77,8 @@ class BankStatementQuery {
     return {
       if (allStores) 'allStores': 'true',
       if (storeIds.isNotEmpty) 'storeIds': storeIds.join(','),
+      if ((statementNumber ?? '').trim().isNotEmpty)
+        'statementNumber': statementNumber!.trim(),
       if ((order ?? '').trim().isNotEmpty) 'order': order!.trim(),
       if ((amount ?? '').trim().isNotEmpty) 'amount': amount!.trim(),
       if ((content ?? '').trim().isNotEmpty) 'content': content!.trim(),

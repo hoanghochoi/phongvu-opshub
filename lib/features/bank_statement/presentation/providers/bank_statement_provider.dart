@@ -61,6 +61,7 @@ class BankStatementProvider extends ChangeNotifier {
   String? _errorMessage;
   String? _exportMessage;
   String _orderStatus = 'ALL';
+  String? _statementNumber;
   String? _order;
   String? _amount;
   String? _content;
@@ -99,6 +100,7 @@ class BankStatementProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String? get exportMessage => _exportMessage;
   String get orderStatus => _orderStatus;
+  String? get statementNumber => _statementNumber;
   String? get order => _order;
   String? get amount => _amount;
   String? get content => _content;
@@ -216,6 +218,7 @@ class BankStatementProvider extends ChangeNotifier {
     _allStores = canUseAllStores && allStores;
     _selectedStoreIds = ids.map((id) => id.toUpperCase()).toSet();
     if (_allStores || _selectedStoreIds.isNotEmpty) {
+      _statementNumber = null;
       _order = null;
       _amount = null;
       _content = null;
@@ -231,6 +234,7 @@ class BankStatementProvider extends ChangeNotifier {
     if ((_order ?? '').isNotEmpty) {
       _allStores = false;
       _selectedStoreIds.clear();
+      _statementNumber = null;
       _amount = null;
       _content = null;
     }
@@ -244,6 +248,7 @@ class BankStatementProvider extends ChangeNotifier {
     if ((_amount ?? '').isNotEmpty) {
       _allStores = false;
       _selectedStoreIds.clear();
+      _statementNumber = null;
       _order = null;
       _content = null;
     }
@@ -256,8 +261,22 @@ class BankStatementProvider extends ChangeNotifier {
     if ((_content ?? '').isNotEmpty) {
       _allStores = false;
       _selectedStoreIds.clear();
+      _statementNumber = null;
       _order = null;
       _amount = null;
+    }
+    _resetPagingAndSelection();
+    notifyListeners();
+  }
+
+  void setStatementNumber(String value) {
+    _statementNumber = _clean(value);
+    if ((_statementNumber ?? '').isNotEmpty) {
+      _allStores = false;
+      _selectedStoreIds.clear();
+      _order = null;
+      _amount = null;
+      _content = null;
     }
     _resetPagingAndSelection();
     notifyListeners();
@@ -750,6 +769,7 @@ class BankStatementProvider extends ChangeNotifier {
     return BankStatementQuery(
       allStores: _allStores,
       storeIds: _selectedStoreIds.toList()..sort(),
+      statementNumber: _statementNumber,
       order: _order,
       amount: _amount,
       content: _content,
@@ -772,6 +792,7 @@ class BankStatementProvider extends ChangeNotifier {
 
   int get _primaryFilterCount => [
     _allStores || _selectedStoreIds.isNotEmpty,
+    (_statementNumber ?? '').isNotEmpty,
     (_order ?? '').isNotEmpty,
     (_amount ?? '').isNotEmpty,
     (_content ?? '').isNotEmpty,
@@ -1053,6 +1074,7 @@ class BankStatementProvider extends ChangeNotifier {
     return {
       'allStores': _allStores,
       'storeCount': _selectedStoreIds.length,
+      'hasStatementNumber': (_statementNumber ?? '').isNotEmpty,
       'hasOrder': (_order ?? '').isNotEmpty,
       'hasAmount': (_amount ?? '').isNotEmpty,
       'contentLength': _content?.length ?? 0,

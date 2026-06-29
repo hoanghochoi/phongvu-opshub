@@ -1048,12 +1048,14 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
 
     const orderText = this.cleanText(input.order);
     const order = orderText ? this.normalizeSingleOrderCode(orderText) : null;
+    const statementNumber = this.cleanText(input.statementNumber);
     const amount = this.normalizeStatementAmount(input.amount);
     const content = this.cleanText(input.content);
     const orderStatus = input.orderStatus || STATEMENT_ORDER_STATUS_ALL;
     const dateRange = this.resolveStoredTransactionDateRange(input);
     const primaryCount = [
       requestedAllStores || storeIds.length > 0,
+      Boolean(statementNumber),
       Boolean(order),
       amount !== null,
       Boolean(content),
@@ -1074,6 +1076,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return {
       requestedAllStores,
       storeIds,
+      statementNumber,
       order,
       amount,
       content,
@@ -1083,6 +1086,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       summary: [
         requestedAllStores ? 'allStores' : '',
         storeIds.length ? `stores:${storeIds.length}` : '',
+        statementNumber ? 'statementNumber' : '',
         order ? 'order' : '',
         amount !== null ? 'amount' : '',
         content ? 'content' : '',
@@ -1192,6 +1196,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private buildStatementFilterWhere(filters: {
+    statementNumber?: string | null;
     order?: string | null;
     amount?: number | null;
     content?: string;
@@ -1199,6 +1204,19 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     dateRange?: { start: Date; end: Date } | null;
   }): Prisma.MapVietinTransactionWhereInput {
     const parts: Prisma.MapVietinTransactionWhereInput[] = [];
+    if (filters.statementNumber) {
+      parts.push({
+        OR: [
+          { transactionNumber: filters.statementNumber },
+          {
+            rawData: {
+              path: ['txnReference'],
+              equals: filters.statementNumber,
+            },
+          },
+        ],
+      });
+    }
     if (filters.order) parts.push({ orders: { has: filters.order } });
     if (filters.amount !== null && filters.amount !== undefined) {
       parts.push({ amount: filters.amount });

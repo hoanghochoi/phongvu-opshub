@@ -149,6 +149,11 @@ export class ListMapVietinStatementsDto {
   @IsOptional()
   @IsString()
   @MaxLength(80)
+  statementNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
   order?: string;
 
   @IsOptional()

@@ -149,10 +149,17 @@ void main() {
 
       provider.setStoreSelection(allStores: true, ids: const {});
       expect(provider.allStores, isTrue);
+      provider.setStatementNumber('00020300000000004567');
+
+      expect(provider.allStores, isFalse);
+      expect(provider.selectedStoreIds, isEmpty);
+      expect(provider.statementNumber, '00020300000000004567');
+
       provider.setAmount('1250000');
 
       expect(provider.allStores, isFalse);
       expect(provider.selectedStoreIds, isEmpty);
+      expect(provider.statementNumber, isNull);
       expect(provider.amount, '1250000');
 
       provider.setContent('customer transfer');
@@ -180,9 +187,10 @@ void main() {
         expect(provider.startDate, isNull);
         expect(provider.endDate, isNull);
 
-        provider.setOrder('26060112345678');
+        provider.setStatementNumber('00020300000000004567');
         await provider.search();
 
+        expect(repository.lastQuery?.statementNumber, '00020300000000004567');
         expect(repository.lastQuery?.startDate, DateTime(2026, 6));
         expect(repository.lastQuery?.endDate, DateTime(2026, 6));
 
@@ -531,6 +539,7 @@ void main() {
     final query = BankStatementQuery(
       allStores: false,
       storeIds: const ['CP01'],
+      statementNumber: null,
       order: null,
       amount: null,
       content: null,

@@ -209,6 +209,11 @@ Recent focused evidence:
   statement/header tests (23 tests), `flutter analyze --no-pub`, and
   `git diff --check`. Gap: live deployed DB migration plus Redis/WebSocket
   notification delivery remain pending.
+- PAYMENT-STATEMENT-001, 2026-06-29: added an independent `Mã sao kê` primary
+  filter to `Sao kê`. It searches the displayed statement reference and falls
+  back to MAP transaction number. Validation: focused Flutter bank statement
+  provider/screen tests (24 tests), focused MAP statement Jest (54 tests),
+  `flutter analyze --no-pub`, backend `npm run build`, and `git diff --check`.
 - PROFILE-ADMIN-001, 2026-06-26: changed `Quản lý người dùng` text search to
   local filtering over the loaded user list, while backend reloads are reserved
   for filter changes or manual refresh; role/feature/scope-tree metadata is

@@ -297,31 +297,42 @@ http://localhost:4173/help/#getting-started
 http://localhost:4173/help/#roadmap
 ```
 
-## 10. Deploy
+## 10. Deploy riêng trang /help
 
-Workflow production và staging sẽ tự build:
+Workflow production và staging sẽ tự build nội dung help bằng lệnh:
 
 ```bash
 node scripts/build-help-site.mjs
 ```
 
 Nội dung production của `/help` dùng nhánh riêng `help-content` làm nguồn chính.
-Push nhánh này sẽ chạy production static-only deploy, chỉ refresh `/help`,
-`/download` và manifest từ artifact đang live; không rebuild APK, Windows
-installer, backend image hoặc app-version metadata. Full production deploy từ
-`main` cũng sẽ ưu tiên lấy `docs/help` từ `origin/help-content` nếu nhánh này
-tồn tại, để app deploy sau đó không ghi đè trang help bằng nội dung cũ.
+Nhánh này đã được cấu hình trong GitHub Environment `production` để được phép
+deploy. Push `help-content` sẽ chạy production static-only deploy, chỉ refresh
+`/help`, `/download` và manifest từ artifact đang live; không rebuild APK,
+Windows installer, backend image hoặc app-version metadata. Full production
+deploy từ `main` cũng sẽ ưu tiên lấy `docs/help` từ `origin/help-content` nếu
+nhánh này tồn tại, để app deploy sau đó không ghi đè trang help bằng nội dung cũ.
 
-Nếu lần đầu tạo nhánh:
+### 10.1. Tạo nhánh lần đầu
+
+Repo hiện tại đã có `origin/help-content`. Chỉ dùng bước này khi clone mới mà
+local chưa có nhánh:
 
 ```bash
-git switch main
-git pull --ff-only origin main
+git fetch origin help-content
+git switch --track origin/help-content
+```
+
+Nếu cần tạo lại từ đầu trong repo khác:
+
+```bash
+git switch staging
+git pull --ff-only origin staging
 git switch -c help-content
 git push -u origin help-content
 ```
 
-Luồng sửa nội dung hằng ngày:
+### 10.2. Luồng sửa nội dung hằng ngày
 
 ```bash
 git switch help-content
@@ -336,20 +347,51 @@ git commit -m "docs(help): update help content"
 git push origin help-content
 ```
 
-Nếu cần chạy lại bằng tay, vẫn có thể dispatch production workflow với
-`skip_client_build=true`:
+Sau khi push, GitHub Actions `Deploy OpsHub` sẽ tự chạy job
+`deploy_download_static`. Các job `build_android`, `build_windows`, và full
+`deploy` phải ở trạng thái `skipped` đối với branch `help-content`.
+
+Theo dõi run:
+
+```bash
+gh run list --workflow deploy-opshub.yml --branch help-content --limit 1
+gh run watch <run-id>
+```
+
+Nếu cần chạy lại bằng tay, dispatch production workflow với
+`skip_client_build=true` từ chính nhánh `help-content`:
 
 ```bash
 gh workflow run deploy-opshub.yml --ref help-content -f skip_client_build=true
 ```
 
-Sau deploy, smoke các URL:
+### 10.3. Smoke sau deploy
 
-```text
-https://opshub.hoanghochoi.com/help
-https://opshub.hoanghochoi.com/help/navigation.json
-https://opshub.hoanghochoi.com/help/content/index.md
+```bash
+curl -fsSI https://opshub.hoanghochoi.com/help
+curl -fsS https://opshub.hoanghochoi.com/help/navigation.json
+curl -fsS https://opshub.hoanghochoi.com/help/content/index.md
+curl -fsS "https://opshub.hoanghochoi.com/api/app-version?platform=android"
 ```
+
+Kết quả mong muốn:
+
+- `/help` trả `200 OK`.
+- `navigation.json` đọc được và đúng menu mới.
+- `/help/content/index.md` đọc được.
+- `/app-version` không đổi chỉ vì deploy help; release notes/version vẫn là bản
+  app production hiện tại.
+
+### 10.4. Lưu ý an toàn
+
+- Chỉ stage `docs/help` khi chỉ sửa nội dung hướng dẫn.
+- Không sửa `lib/`, `backend-nest/`, workflow, hoặc file app trong nhánh
+  `help-content` nếu mục tiêu chỉ là cập nhật nội dung.
+- Không push `main` chỉ để sửa nội dung help; push `main` là đường deploy app
+  production đầy đủ.
+- Nếu Actions báo `Branch "help-content" is not allowed to deploy to
+  production`, kiểm tra GitHub Environment `production` và thêm
+  `help-content` vào deployment branch policy.
 
 ## 11. Checklist trước khi báo xong
 
