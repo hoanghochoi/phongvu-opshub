@@ -815,6 +815,13 @@ model SalesReport {
   appDownloadOtherReason          String?
   notPurchasedReason              String?
   notPurchasedOtherReason         String?
+  customerType                    String?
+  customerIsStudent               Boolean   @default(false)
+  promotionCodes                  String[]  @default([])
+  installmentNeed                 Boolean   @default(false)
+  installmentApproved             Boolean?
+  installmentLoanAmount           Int?
+  installmentNoInstallmentReason  String?
   installmentStatus               String?
   installmentFailureReason        String?
   installmentPartnerCodes         String[]  @default([])
@@ -837,6 +844,8 @@ model SalesReport {
   erpFulfillmentStatus            String?
   erpTerminalName                 String?
   erpGrandTotal                   Int?
+  erpPaymentMethods               String[]  @default([])
+  erpCustomerType                 String?
   erpPlatformId                   Int?
   erpConsultantCustomId           String?
   erpConsultantName               String?
@@ -859,6 +868,8 @@ model SalesReport {
   @@index([erpOrderId])
   @@index([notPurchasedReason, submittedAt])
   @@index([installmentStatus, submittedAt])
+  @@index([customerType, submittedAt])
+  @@index([installmentNeed, submittedAt])
   @@index([organizationNodeId, submittedAt])
 }
 
@@ -890,6 +901,7 @@ model SalesReportOrderItem {
   productTypeCode   String?
   productTypeName   String?
   productGroupId    String?
+  productGroupCode  String?
   productGroupName  String?
   quantity          Int?
   sellPrice         Int?

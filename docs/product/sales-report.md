@@ -29,14 +29,35 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   ngành được lưu trong bảng selection và xuất CSV. Nếu không map được ngành
   hàng về nhóm ngành OpsHub thì sale bắt buộc chọn trước khi gửi báo cáo.
 - Nhu cầu khách hàng và các câu hỏi hành vi tư vấn/trải nghiệm/Zalo/App đều là
-  trường bắt buộc. Các câu hỏi hành vi mặc định là `Chọn`, không tự mặc định
+  trường bắt buộc. Các câu hỏi hành vi mặc định là chưa chọn, không tự mặc định
   `Có`.
-- Cả `Mua hàng` và `Chưa mua hàng` có tick `Trả góp`. Với `Mua hàng`, tick này
-  ghi nhận trả góp thành công. Với `Chưa mua hàng`, tick này ghi nhận trả góp
-  thất bại và bắt buộc nhập lý do thất bại. Khi tick trả góp, sale phải chọn ít
-  nhất một đối tác trong danh sách cố định: `VNPAY - POS`, `PAYOO - POS`,
-  `HomeCredit - CTTC`, `Shinhan - CTTC`, `HDSaison - CTTC`,
-  `AEON Finance - CTTC`.
+- Các lựa chọn dạng danh sách trên form báo cáo hiển thị bằng checkbox, không
+  dùng dropdown. Những nhóm chỉ được chọn một đáp án vẫn dùng checkbox theo kiểu
+  chọn độc quyền để nhân viên thao tác nhất quán.
+- Loại khách hàng gồm `Doanh nghiệp`, `Cá nhân`, và checkbox riêng
+  `Học sinh - Sinh viên`. Với báo cáo mua hàng, app tự fill `Doanh nghiệp` khi
+  ERP trả `customerType = BUSINESS`, còn giá trị rỗng được xem là `Cá nhân`.
+  Với báo cáo chưa mua, sale chọn loại khách thủ công.
+- `CTKM áp dụng` là nhóm checkbox gồm `Đổi điểm thi`,
+  `Học sinh - Sinh viên`, và `CTKM khác`.
+- Cả `Mua hàng` và `Chưa mua hàng` có tick `Có nhu cầu trả góp`. Khi tick, sale
+  chọn một hoặc nhiều đối tác trong danh sách cố định: `VNPAY - POS`,
+  `PAYOO - POS`, `HomeCredit - CTTC`, `Shinhan - CTTC`, `HDSaison - CTTC`,
+  `AEON Finance - CTTC`, `Mirae Asset`, `MPOS`; ghi nhận hồ sơ có được duyệt hay
+  không, số tiền vay nếu có, và chọn `Lý do không trả góp`. Lý do này dùng cho
+  cả 2 báo cáo vì khách có thể được duyệt nhưng không trả góp, hoặc không được
+  duyệt nhưng vẫn mua bằng phương thức khác. Danh sách lý do gồm:
+  `Khách chốt trả góp bình thường (Không có lý do)`,
+  `Rớt hồ sơ: Tín dụng xấu (Nợ cũ, CIC...)`,
+  `Rớt hồ sơ: Lỗi thẩm định/Thông tin`,
+  `Khách từ chối: Lãi suất/Phí trả góp cao`,
+  `Khách từ chối: Không đủ điều kiện giấy tờ/thẻ`,
+  `Khách từ chối: Giá cao/So sánh đối thủ (TGDĐ, FPT, CPS...)`,
+  `Khách từ chối: Chỉ tham khảo/Hẹn quay lại`.
+- Khi lấy đơn hàng từ ERP, backend lưu loại khách hàng, phương thức thanh toán,
+  snapshot đơn hàng đã sanitize, và từng sản phẩm trong bảng
+  `SalesReportOrderItem`. CSV export bung mỗi sản phẩm thành một dòng và lặp lại
+  các cột báo cáo/đơn hàng để dashboard có thể đọc dạng row-based.
 - `orderCode` là unique trên bảng `SalesReport`; một đơn mua hàng chỉ được báo
   cáo một lần.
 - Không có field nhập `MSNV`; backend lấy user, email, tên, mã nhân viên suy ra,
@@ -47,13 +68,18 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 ## Data Contract
 
 - `SalesReport` lưu report type, hành vi tư vấn/trải nghiệm/Zalo/App, lý do
-  chưa mua, category snapshot chính, các ngành hàng đã chọn, reporter snapshot,
-  showroom/org snapshot, trạng thái/tổng tiền đơn ERP, trạng thái/đối tác trả
+  chưa mua, loại khách hàng, cờ học sinh - sinh viên, CTKM áp dụng, category
+  snapshot chính, các ngành hàng đã chọn, reporter snapshot, showroom/org
+  snapshot, trạng thái/tổng tiền/phương thức thanh toán đơn ERP, nhu cầu trả
+  góp, hồ sơ duyệt/chưa duyệt, số tiền vay, lý do không trả góp, đối tác trả
   góp và sanitized ERP snapshot.
 - `SalesReportCategorySelection` lưu toàn bộ ngành hàng được chọn theo từng
   báo cáo, gồm snapshot code/tên gốc/tên Việt.
-- `SalesReportOrderItem` và `SalesReportPayment` tách riêng để dashboard lọc,
-  nhóm và xuất dữ liệu.
+- `SalesReportOrderItem` lưu từng sản phẩm trong đơn hàng thành từng row riêng,
+  gồm SKU, seller SKU, tên sản phẩm, thương hiệu, nhóm hàng, số lượng, giá bán,
+  giá sau giảm, thành tiền dòng và raw snapshot đã sanitize.
+- `SalesReportPayment` lưu phương thức thanh toán, số tiền, thời điểm thanh
+  toán và mã giao dịch khi ERP trả về.
 - `SalesReportCategoryGroup` đồng bộ từ `data/categories.csv`, dùng `Cat group
   ID` làm code, `Cat group name` làm tên gốc và `catGroupNameVi` làm nhãn tiếng
   Việt.
@@ -66,8 +92,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   duplicate `orderCode`, purchased re-check ERP, not-purchased no ERP call,
   feature guard và export CSV.
 - Flutter: Home/Report hub entry theo feature, route guard, order check before
-  submit, QR/barcode scan mã đơn, auto-fill nhiều category/need từ mock ERP,
-  installment partner validation, không gửi `MSNV`, form validation và export
-  CSV.
+  submit, QR/barcode scan mã đơn, auto-fill nhiều category/need/customer type
+  từ mock ERP, checkbox selectors, installment partner/approval/reason
+  validation, không gửi `MSNV`, form validation và export CSV.
 - Manual smoke sau deploy: cấu hình ERP env trên VPS, check một mã đơn thật,
   gửi một báo cáo mua hàng và xác nhận duplicate bị chặn.

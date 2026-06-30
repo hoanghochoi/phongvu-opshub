@@ -18,14 +18,24 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   Một báo cáo có thể chọn nhiều ngành hàng; nếu không map được ngành hàng về
   nhóm ngành OpsHub thì bắt buộc sale chọn tay trước khi gửi.
 - Nhu cầu khách hàng và các câu hỏi hành vi sale là bắt buộc; hành vi tư vấn,
-  trải nghiệm, quét Zalo và tải App PV mặc định là `Chọn`, không tự chọn `Có`.
+  trải nghiệm, quét Zalo và tải App PV mặc định là chưa chọn, không tự chọn
+  `Có`, và các nhóm lựa chọn trong form dùng checkbox thay cho dropdown.
+- Form lưu loại khách hàng. Báo cáo mua hàng tự fill `Doanh nghiệp` khi ERP trả
+  `customerType = BUSINESS`; `customerType` rỗng từ ERP được xem là `Cá nhân`.
+  Sale có thể tick thêm `Học sinh - Sinh viên`.
+- Form có nhóm checkbox `CTKM áp dụng`: `Đổi điểm thi`,
+  `Học sinh - Sinh viên`, `CTKM khác`.
 - Backend re-check ERP khi submit và chặn duplicate `orderCode`.
 - Form `Chưa mua hàng` không gọi ERP, bắt buộc ngành hàng và lý do chưa mua.
-- Cả 2 form có tick `Trả góp`; mua hàng ghi nhận trả góp thành công, chưa mua
-  ghi nhận trả góp thất bại và bắt buộc nhập lý do. Khi tick trả góp, sale phải
-  chọn một hoặc nhiều đối tác trong list: `VNPAY - POS`, `PAYOO - POS`,
+- Cả 2 form có tick `Có nhu cầu trả góp`. Khi tick, sale phải chọn một hoặc
+  nhiều đối tác trong list: `VNPAY - POS`, `PAYOO - POS`,
   `HomeCredit - CTTC`, `Shinhan - CTTC`, `HDSaison - CTTC`,
-  `AEON Finance - CTTC`.
+  `AEON Finance - CTTC`, `Mirae Asset`, `MPOS`; chọn hồ sơ được duyệt hay chưa,
+  nhập số tiền vay nếu có, và chọn lý do không trả góp trong danh sách cố định.
+- ERP order check lưu phương thức thanh toán, loại khách hàng, snapshot đơn hàng
+  đã sanitize, và từng sản phẩm thành từng row trong `SalesReportOrderItem`.
+  CSV export bung mỗi sản phẩm thành một dòng, các cột báo cáo/đơn hàng được lặp
+  lại theo từng dòng sản phẩm.
 - Admin có `ADMIN_SALES_REPORTS` theo node tổ chức xem/query/export báo cáo
   trong phạm vi được gán; Super Admin thấy toàn app.
 - Ngành hàng lấy từ `data/categories.csv`, hiển thị tiếng Việt và lưu snapshot

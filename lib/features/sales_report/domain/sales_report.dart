@@ -21,20 +21,26 @@ class SalesReportCategoryGroup {
 class SalesReportOrderCheck {
   final String orderCode;
   final String? customerNeed;
+  final String? customerType;
+  final String? customerTypeLabel;
   final SalesReportCategoryGroup? categoryGroup;
   final List<SalesReportCategoryGroup> categoryGroups;
   final Map<String, dynamic> order;
   final List<Map<String, dynamic>> items;
   final List<Map<String, dynamic>> payments;
+  final List<String> paymentMethods;
 
   const SalesReportOrderCheck({
     required this.orderCode,
     required this.customerNeed,
+    required this.customerType,
+    required this.customerTypeLabel,
     required this.categoryGroup,
     required this.categoryGroups,
     required this.order,
     required this.items,
     required this.payments,
+    required this.paymentMethods,
   });
 
   factory SalesReportOrderCheck.fromJson(Map<String, dynamic> json) {
@@ -66,6 +72,8 @@ class SalesReportOrderCheck {
     return SalesReportOrderCheck(
       orderCode: json['orderCode']?.toString() ?? '',
       customerNeed: json['customerNeed']?.toString(),
+      customerType: json['customerType']?.toString(),
+      customerTypeLabel: json['customerTypeLabel']?.toString(),
       categoryGroup: legacyCategory,
       categoryGroups: categoryList.isNotEmpty
           ? categoryList
@@ -73,6 +81,13 @@ class SalesReportOrderCheck {
       order: cleanMap(json['order']),
       items: cleanList(json['items']),
       payments: cleanList(json['payments']),
+      paymentMethods:
+          (json['paymentMethods'] is List
+                  ? json['paymentMethods'] as List
+                  : const [])
+              .map((value) => value.toString())
+              .where((value) => value.trim().isNotEmpty)
+              .toList(),
     );
   }
 }
@@ -94,6 +109,13 @@ class SalesReportInput {
   final String? appDownloadOtherReason;
   final String? notPurchasedReason;
   final String? notPurchasedOtherReason;
+  final String? customerType;
+  final bool customerIsStudent;
+  final List<String> promotionCodes;
+  final bool installmentNeed;
+  final bool? installmentApproved;
+  final int? installmentLoanAmount;
+  final String? installmentNoInstallmentReason;
   final String? installmentStatus;
   final String? installmentFailureReason;
   final List<String> installmentPartnerCodes;
@@ -115,6 +137,13 @@ class SalesReportInput {
     required this.appDownloadOtherReason,
     required this.notPurchasedReason,
     required this.notPurchasedOtherReason,
+    required this.customerType,
+    required this.customerIsStudent,
+    required this.promotionCodes,
+    required this.installmentNeed,
+    required this.installmentApproved,
+    required this.installmentLoanAmount,
+    required this.installmentNoInstallmentReason,
     required this.installmentStatus,
     required this.installmentFailureReason,
     required this.installmentPartnerCodes,
@@ -152,6 +181,20 @@ class SalesReportInput {
         'notPurchasedReason': clean(notPurchasedReason),
       if (clean(notPurchasedOtherReason) != null)
         'notPurchasedOtherReason': clean(notPurchasedOtherReason),
+      if (clean(customerType) != null) 'customerType': clean(customerType),
+      'customerIsStudent': customerIsStudent,
+      if (promotionCodes.isNotEmpty)
+        'promotionCodes': promotionCodes
+            .map((value) => value.trim())
+            .where((value) => value.isNotEmpty)
+            .toList(),
+      'installmentNeed': installmentNeed,
+      if (installmentApproved != null)
+        'installmentApproved': installmentApproved,
+      if (installmentLoanAmount != null)
+        'installmentLoanAmount': installmentLoanAmount,
+      if (clean(installmentNoInstallmentReason) != null)
+        'installmentNoInstallmentReason': clean(installmentNoInstallmentReason),
       if (clean(installmentStatus) != null)
         'installmentStatus': clean(installmentStatus),
       if (clean(installmentFailureReason) != null)

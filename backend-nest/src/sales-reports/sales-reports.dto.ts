@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  IsBoolean,
   IsIn,
   IsInt,
   IsArray,
@@ -61,6 +62,14 @@ export const NOT_PURCHASED_REASON_CODES = [
   'OTHER',
 ] as const;
 
+export const CUSTOMER_TYPE_CODES = ['BUSINESS', 'PERSONAL'] as const;
+
+export const PROMOTION_CODES = [
+  'EXAM_SCORE_EXCHANGE',
+  'STUDENT',
+  'OTHER',
+] as const;
+
 export const INSTALLMENT_STATUSES = ['SUCCESS', 'FAILED'] as const;
 
 export const INSTALLMENT_PARTNER_CODES = [
@@ -70,6 +79,18 @@ export const INSTALLMENT_PARTNER_CODES = [
   'SHINHAN_CTTC',
   'HDSAISON_CTTC',
   'AEON_FINANCE_CTTC',
+  'MIRAE_ASSET',
+  'MPOS',
+] as const;
+
+export const INSTALLMENT_NO_INSTALLMENT_REASON_CODES = [
+  'NORMAL_INSTALLMENT',
+  'BAD_CREDIT_HISTORY',
+  'APPRAISAL_OR_INFO_ERROR',
+  'HIGH_INTEREST_OR_FEE',
+  'MISSING_DOCUMENT_OR_CARD',
+  'PRICE_COMPETITOR_COMPARISON',
+  'BROWSING_OR_COME_BACK_LATER',
 ] as const;
 
 export class CheckSalesReportOrderDto {
@@ -163,6 +184,49 @@ export class CreateSalesReportDto {
   @IsString()
   @MaxLength(500)
   notPurchasedOtherReason?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(CUSTOMER_TYPE_CODES, {
+    message: 'Loại khách hàng không hợp lệ.',
+  })
+  customerType?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  customerIsStudent?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @IsIn(PROMOTION_CODES, {
+    each: true,
+    message: 'CTKM áp dụng không hợp lệ.',
+  })
+  promotionCodes?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  installmentNeed?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  installmentApproved?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(10_000_000_000)
+  installmentLoanAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(INSTALLMENT_NO_INSTALLMENT_REASON_CODES, {
+    message: 'Lý do không trả góp không hợp lệ.',
+  })
+  installmentNoInstallmentReason?: string;
 
   @IsOptional()
   @IsString()

@@ -43,13 +43,16 @@ export type SalesReportErpOrder = {
   erpFulfillmentStatus: string | null;
   erpTerminalName: string | null;
   erpGrandTotal: number | null;
+  erpCustomerType: string | null;
   erpPlatformId: number | null;
   erpConsultantCustomId: string | null;
   erpConsultantName: string | null;
+  customerType: string;
   customerNeed: string | null;
   categoryCandidates: string[];
   items: SalesReportErpOrderItem[];
   payments: SalesReportErpPayment[];
+  paymentMethods: string[];
   sanitizedSnapshot: Record<string, unknown>;
   fetchedAt: Date;
 };
@@ -256,15 +259,32 @@ export class SalesReportErpService {
   private normalizePayments(value: unknown): SalesReportErpPayment[] {
     const payments = Array.isArray(value) ? value : [];
     return payments.map((payment) => ({
-      paymentMethod: this.optionalText((payment as any)?.paymentMethod),
+      paymentMethod: this.firstText(
+        (payment as any)?.paymentMethod,
+        (payment as any)?.paymentMethodName,
+        (payment as any)?.method,
+        (payment as any)?.methodName,
+        (payment as any)?.name,
+      ),
       amount: this.toInt((payment as any)?.amount),
-      paidAt: this.parseDate((payment as any)?.paidAt),
-      transactionCode: this.optionalText((payment as any)?.transactionCode),
+      paidAt: this.parseDate(
+        (payment as any)?.paidAt ?? (payment as any)?.createdAt,
+      ),
+      transactionCode: this.firstText(
+        (payment as any)?.transactionCode,
+        (payment as any)?.code,
+      ),
       partnerTransactionCode: this.optionalText(
         (payment as any)?.partnerTransactionCode,
       ),
       raw: {
-        paymentMethod: this.optionalText((payment as any)?.paymentMethod),
+        paymentMethod: this.firstText(
+          (payment as any)?.paymentMethod,
+          (payment as any)?.paymentMethodName,
+          (payment as any)?.method,
+          (payment as any)?.methodName,
+          (payment as any)?.name,
+        ),
         amount: this.toInt((payment as any)?.amount),
         paidAt: this.optionalText((payment as any)?.paidAt),
       },
@@ -297,6 +317,16 @@ export class SalesReportErpService {
           .filter((value): value is string => Boolean(value)),
       ),
     );
+    const erpCustomerType = this.optionalText(order?.customerType);
+    const customerType =
+      erpCustomerType?.toUpperCase() === 'BUSINESS' ? 'BUSINESS' : 'PERSONAL';
+    const paymentMethods = Array.from(
+      new Set(
+        payments
+          .map((payment) => payment.paymentMethod)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
     return {
       orderCode,
       erpOrderId: this.optionalText(order?.orderId),
@@ -307,16 +337,20 @@ export class SalesReportErpService {
       erpFulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
       erpTerminalName: this.optionalText(order?.terminalName),
       erpGrandTotal: this.toInt(order?.grandTotal),
+      erpCustomerType,
       erpPlatformId: this.toInt(order?.platformId),
       erpConsultantCustomId: this.optionalText(order?.consultant?.customId),
       erpConsultantName: this.optionalText(order?.consultant?.name),
+      customerType,
       customerNeed: customerNeed || null,
       categoryCandidates,
       items,
       payments,
+      paymentMethods,
       sanitizedSnapshot: {
         orderId: this.optionalText(order?.orderId),
         createdAt: this.optionalText(order?.createdAt),
+        customerType: erpCustomerType,
         paymentStatus: this.optionalText(order?.paymentStatus),
         confirmationStatus: this.optionalText(order?.confirmationStatus),
         fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
@@ -326,6 +360,7 @@ export class SalesReportErpService {
         ),
         externalOrderRef: this.optionalText(order?.externalOrderRef),
         grandTotal: this.toInt(order?.grandTotal),
+        paymentMethods,
         platformId: this.toInt(order?.platformId),
         consultant: {
           customId: this.optionalText(order?.consultant?.customId),
@@ -611,7 +646,9 @@ export class SalesReportErpService {
   }
 
   private toInt(value: unknown) {
-    const number = Number(value);
+    const normalized =
+      typeof value === 'string' ? value.replace(/,/g, '').trim() : value;
+    const number = Number(normalized);
     if (!Number.isFinite(number)) return null;
     return Math.trunc(number);
   }
@@ -619,6 +656,14 @@ export class SalesReportErpService {
   private optionalText(value: unknown) {
     const text = String(value ?? '').trim();
     return text ? text.slice(0, 500) : null;
+  }
+
+  private firstText(...values: unknown[]) {
+    for (const value of values) {
+      const text = this.optionalText(value);
+      if (text) return text;
+    }
+    return null;
   }
 
   private rawText(value: unknown) {

@@ -59,6 +59,7 @@ describe('SalesReportErpService', () => {
               orderId: '2606290001',
               createdAt: '2026-06-29T00:00:00Z',
               paymentStatus: 'fully_paid',
+              customerType: 'BUSINESS',
               confirmationStatus: 'active',
               fulfillmentStatus: 'PROCESSING',
               terminalName: 'CP62',
@@ -105,6 +106,9 @@ describe('SalesReportErpService', () => {
     const result = await service.lookupOrder(' 2606290001 ', 'CP62');
 
     expect(result.erpOrderId).toBe('2606290001');
+    expect(result.customerType).toBe('BUSINESS');
+    expect(result.erpCustomerType).toBe('BUSINESS');
+    expect(result.paymentMethods).toEqual(['cash']);
     expect(result.items).toHaveLength(1);
     expect(result.items[0].productGroupId).toBe('80283');
     expect(result.items[0].productGroupCode).toBe('NH08');
@@ -128,49 +132,85 @@ describe('SalesReportErpService', () => {
   it.each([
     ['confirmationStatus', 'CANCELLED'],
     ['fulfillmentStatus', 'cancelled'],
-  ])(
-    'blocks canceled ERP orders when %s is %s',
-    async (field, statusValue) => {
-      process.env.ERP_ACCESS_TOKEN = 'static-access-token';
-      const fetchMock = jest.fn(async (input: string | URL) => {
-        const url = input.toString();
-        if (
-          url ===
-          'https://staff-bff.tekoapis.com/api/v2/staff-admin/orders/2606290002?thousandSeparator=%2C&decimalSeparator=.'
-        ) {
-          return jsonResponse({
-            data: {
-              order: {
-                orderId: '2606290002',
-                confirmationStatus:
-                  field === 'confirmationStatus' ? statusValue : '',
-                fulfillmentStatus:
-                  field === 'fulfillmentStatus' ? statusValue : '',
-                orderCaptureLineItems: [{ sellerSku: 'SKU-1' }],
-                payments: [{ paymentMethod: 'cash', amount: 1230000 }],
-              },
+  ])('blocks canceled ERP orders when %s is %s', async (field, statusValue) => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = input.toString();
+      if (
+        url ===
+        'https://staff-bff.tekoapis.com/api/v2/staff-admin/orders/2606290002?thousandSeparator=%2C&decimalSeparator=.'
+      ) {
+        return jsonResponse({
+          data: {
+            order: {
+              orderId: '2606290002',
+              confirmationStatus:
+                field === 'confirmationStatus' ? statusValue : '',
+              fulfillmentStatus:
+                field === 'fulfillmentStatus' ? statusValue : '',
+              orderCaptureLineItems: [{ sellerSku: 'SKU-1' }],
+              payments: [{ paymentMethod: 'cash', amount: 1230000 }],
             },
-          });
-        }
-        if (url.startsWith('https://listing.tekoapis.com/api/products/')) {
-          throw new Error('Listing lookup should not be called');
-        }
-        throw new Error(`Unexpected fetch: ${url}`);
-      }) as jest.MockedFunction<typeof fetch>;
-      global.fetch = fetchMock;
+          },
+        });
+      }
+      if (url.startsWith('https://listing.tekoapis.com/api/products/')) {
+        throw new Error('Listing lookup should not be called');
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
 
-      const service = new SalesReportErpService();
+    const service = new SalesReportErpService();
 
-      await expect(service.lookupOrder('2606290002', 'CP62')).rejects.toThrow(
-        'Đơn đã bị hủy.',
-      );
-      expect(
-        fetchMock.mock.calls.some(([input]) =>
-          input.toString().startsWith('https://listing.tekoapis.com/'),
-        ),
-      ).toBe(false);
-    },
-  );
+    await expect(service.lookupOrder('2606290002', 'CP62')).rejects.toThrow(
+      'Đơn đã bị hủy.',
+    );
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        input.toString().startsWith('https://listing.tekoapis.com/'),
+      ),
+    ).toBe(false);
+  });
+
+  it('defaults blank ERP customerType to personal customer type', async () => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = input.toString();
+      if (
+        url ===
+        'https://staff-bff.tekoapis.com/api/v2/staff-admin/orders/2606290003?thousandSeparator=%2C&decimalSeparator=.'
+      ) {
+        return jsonResponse({
+          data: {
+            order: {
+              orderId: '2606290003',
+              customerType: '',
+              confirmationStatus: 'active',
+              fulfillmentStatus: 'PROCESSING',
+              orderCaptureLineItems: [],
+              payments: [
+                { paymentMethodName: 'Ví điện tử', amount: '1,230,000' },
+              ],
+            },
+          },
+        });
+      }
+      if (url.startsWith('https://listing.tekoapis.com/api/products/')) {
+        return jsonResponse({ result: { products: [] } });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    const service = new SalesReportErpService();
+    const result = await service.lookupOrder('2606290003', 'CP62');
+
+    expect(result.customerType).toBe('PERSONAL');
+    expect(result.erpCustomerType).toBeNull();
+    expect(result.paymentMethods).toEqual(['Ví điện tử']);
+    expect(result.payments[0].amount).toBe(1230000);
+  });
 });
 
 function redirectResponse(location: string) {

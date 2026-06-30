@@ -38,9 +38,7 @@ describe('SalesReportsService', () => {
                 ? 'Network and Security equipment'
                 : 'Computer components',
             catGroupNameVi:
-              id === 'NH08'
-                ? 'Thiết bị mạng và an ninh'
-                : 'Linh kiện máy tính',
+              id === 'NH08' ? 'Thiết bị mạng và an ninh' : 'Linh kiện máy tính',
           })),
         ),
       ),
@@ -121,6 +119,9 @@ describe('SalesReportsService', () => {
           reportType: 'NOT_PURCHASED',
           orderCode: null,
           notPurchasedReason: 'PRICE_HESITATION',
+          customerType: 'PERSONAL',
+          customerIsStudent: false,
+          promotionCodes: [],
           categoryGroupId: 'NH03',
           categorySelections: {
             create: [
@@ -142,6 +143,7 @@ describe('SalesReportsService', () => {
       ...baseInput(),
       reportType: 'PURCHASED',
       orderCode: ' 2606290001 ',
+      customerType: undefined,
     });
 
     expect(erp.lookupOrder).toHaveBeenCalledWith('2606290001', 'CP62');
@@ -152,6 +154,9 @@ describe('SalesReportsService', () => {
           orderCode: '2606290001',
           erpOrderId: '2606290001',
           erpGrandTotal: 1230000,
+          erpPaymentMethods: ['cash'],
+          erpCustomerType: 'BUSINESS',
+          customerType: 'BUSINESS',
           categorySelections: {
             create: [
               expect.objectContaining({
@@ -160,7 +165,14 @@ describe('SalesReportsService', () => {
               }),
             ],
           },
-          items: { create: [expect.objectContaining({ sellerSku: 'SKU-1' })] },
+          items: {
+            create: [
+              expect.objectContaining({
+                sellerSku: 'SKU-1',
+                productGroupCode: 'NH03',
+              }),
+            ],
+          },
           payments: {
             create: [expect.objectContaining({ paymentMethod: 'cash' })],
           },
@@ -201,31 +213,51 @@ describe('SalesReportsService', () => {
     );
   });
 
-  it('requires installment partners and stores selected partners', async () => {
+  it('requires installment details and stores selected partners', async () => {
     const { service, prisma } = createHarness();
 
     await expect(
       service.create(userFixture(), {
         ...baseInput(),
-        installmentStatus: 'FAILED',
-        installmentFailureReason: 'Thiếu hồ sơ',
+        installmentNeed: true,
+        installmentApproved: false,
+        installmentNoInstallmentReason: 'BAD_CREDIT_HISTORY',
         installmentPartnerCodes: [],
       }),
     ).rejects.toThrow('Vui lòng chọn đối tác trả góp.');
 
+    await expect(
+      service.create(userFixture(), {
+        ...baseInput(),
+        installmentNeed: true,
+        installmentApproved: false,
+        installmentPartnerCodes: ['VNPAY_POS'],
+      }),
+    ).rejects.toThrow('Vui lòng chọn lý do không trả góp.');
+
     await service.create(userFixture(), {
       ...baseInput(),
-      installmentStatus: 'FAILED',
-      installmentFailureReason: 'Thiếu hồ sơ',
-      installmentPartnerCodes: ['VNPAY_POS', 'HOMECREDIT_CTTC'],
+      customerIsStudent: true,
+      promotionCodes: ['STUDENT', 'OTHER'],
+      installmentNeed: true,
+      installmentApproved: true,
+      installmentLoanAmount: 5000000,
+      installmentNoInstallmentReason: 'NORMAL_INSTALLMENT',
+      installmentPartnerCodes: ['VNPAY_POS', 'MIRAE_ASSET', 'MPOS'],
     });
 
     expect(prisma.salesReport.create).toHaveBeenLastCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          installmentStatus: 'FAILED',
-          installmentFailureReason: 'Thiếu hồ sơ',
-          installmentPartnerCodes: ['VNPAY_POS', 'HOMECREDIT_CTTC'],
+          customerIsStudent: true,
+          promotionCodes: ['STUDENT', 'OTHER'],
+          installmentNeed: true,
+          installmentApproved: true,
+          installmentLoanAmount: 5000000,
+          installmentNoInstallmentReason: 'NORMAL_INSTALLMENT',
+          installmentStatus: 'SUCCESS',
+          installmentFailureReason: null,
+          installmentPartnerCodes: ['VNPAY_POS', 'MIRAE_ASSET', 'MPOS'],
         }),
       }),
     );
@@ -237,6 +269,9 @@ function baseInput() {
     reportType: 'NOT_PURCHASED',
     categoryGroupId: 'NH03',
     customerPhone: '',
+    customerType: 'PERSONAL',
+    customerIsStudent: false,
+    promotionCodes: [],
     customerNeed: 'RAM DDR5',
     consultedSolutionAnswer: 'YES',
     consultedSolutionOtherReason: undefined,
@@ -284,9 +319,11 @@ function erpOrderFixture() {
     erpFulfillmentStatus: 'PROCESSING',
     erpTerminalName: 'CP62',
     erpGrandTotal: 1230000,
+    erpCustomerType: 'BUSINESS',
     erpPlatformId: 1,
     erpConsultantCustomId: '7583',
     erpConsultantName: 'Sale CP62',
+    customerType: 'BUSINESS',
     customerNeed: 'RAM DDR5',
     categoryCandidates: ['Computer components'],
     items: [
@@ -299,6 +336,7 @@ function erpOrderFixture() {
         productTypeCode: null,
         productTypeName: null,
         productGroupId: 'NH03',
+        productGroupCode: 'NH03',
         productGroupName: 'Computer components',
         quantity: 1,
         sellPrice: 1230000,
@@ -317,6 +355,7 @@ function erpOrderFixture() {
         raw: { paymentMethod: 'cash' },
       },
     ],
+    paymentMethods: ['cash'],
     sanitizedSnapshot: { orderId: '2606290001' },
     fetchedAt: new Date('2026-06-29T00:06:00Z'),
   };

@@ -7,7 +7,6 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
-import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -62,28 +61,13 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
             AppSurfaceCard(
               child: AppActionRow(
                 children: [
-                  AppSelectField<String>(
+                  _ReportTypeFilter(
                     value: _reportType,
-                    label: 'Loại báo cáo',
-                    icon: Icons.filter_alt_outlined,
-                    items: const [
-                      DropdownMenuItem(value: 'ALL', child: Text('Tất cả')),
-                      DropdownMenuItem(
-                        value: 'PURCHASED',
-                        child: Text('Mua hàng'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'NOT_PURCHASED',
-                        child: Text('Chưa mua hàng'),
-                      ),
-                    ],
-                    onChanged: provider.isLoadingAdminList
-                        ? null
-                        : (value) {
-                            if (value == null) return;
-                            setState(() => _reportType = value);
-                            unawaited(_reload());
-                          },
+                    enabled: !provider.isLoadingAdminList,
+                    onChanged: (value) {
+                      setState(() => _reportType = value);
+                      unawaited(_reload());
+                    },
                   ),
                   AppSecondaryButton(
                     onPressed: provider.isLoadingAdminList ? null : _reload,
@@ -148,6 +132,54 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
   }
 }
 
+class _ReportTypeFilter extends StatelessWidget {
+  final String value;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+
+  const _ReportTypeFilter({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const options = {
+      'ALL': 'Tất cả',
+      'PURCHASED': 'Mua hàng',
+      'NOT_PURCHASED': 'Chưa mua hàng',
+    };
+    return SizedBox(
+      width: 260,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Loại báo cáo',
+            style: AppTextStyles.labelS.copyWith(color: AppColors.neutral600),
+          ),
+          const SizedBox(height: 4),
+          for (final entry in options.entries)
+            CheckboxListTile(
+              key: ValueKey('sales-report-admin-type-${entry.key}'),
+              value: value == entry.key,
+              onChanged: !enabled
+                  ? null
+                  : (checked) {
+                      if (checked == true) onChanged(entry.key);
+                    },
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              dense: true,
+              title: Text(entry.value),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SalesReportAdminTile extends StatelessWidget {
   final Map<String, dynamic> item;
 
@@ -175,6 +207,23 @@ class _SalesReportAdminTile extends StatelessWidget {
         '';
     final storeCode = item['storeCode']?.toString() ?? '';
     final submittedAt = item['submittedAt']?.toString() ?? '';
+    final customerTypeLabel = item['customerTypeLabel']?.toString() ?? '';
+    final isStudent = item['customerIsStudent'] == true;
+    final promotionLabels = item['promotionLabels'] is List
+        ? (item['promotionLabels'] as List)
+              .map((label) => label.toString())
+              .where((label) => label.trim().isNotEmpty)
+              .join(', ')
+        : '';
+    final installmentNeed = item['installmentNeed'] == true;
+    final installmentApproved = item['installmentApproved'] == true
+        ? 'Duyệt'
+        : item['installmentApproved'] == false
+        ? 'Không duyệt'
+        : '';
+    final loanAmount = item['installmentLoanAmount']?.toString() ?? '';
+    final noInstallmentReason =
+        item['installmentNoInstallmentReasonLabel']?.toString() ?? '';
     final installmentLabel = item['installmentStatusLabel']?.toString() ?? '';
     final installmentFailureReason =
         item['installmentFailureReason']?.toString() ?? '';
@@ -229,16 +278,37 @@ class _SalesReportAdminTile extends StatelessWidget {
                     ),
                   ),
                 ],
-                if (installmentLabel.isNotEmpty) ...[
+                if (customerTypeLabel.isNotEmpty ||
+                    isStudent ||
+                    promotionLabels.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
                     [
+                      if (customerTypeLabel.isNotEmpty) customerTypeLabel,
+                      if (isStudent) 'Học sinh - Sinh viên',
+                      if (promotionLabels.isNotEmpty) promotionLabels,
+                    ].join(' - '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.labelS.copyWith(
+                      color: AppColors.neutral600,
+                    ),
+                  ),
+                ],
+                if (installmentNeed || installmentLabel.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    [
+                      if (installmentNeed) 'Có nhu cầu trả góp',
+                      if (installmentApproved.isNotEmpty) installmentApproved,
+                      if (loanAmount.isNotEmpty) 'Vay $loanAmount',
                       installmentLabel,
                       if (installmentPartnerLabels.isNotEmpty)
                         installmentPartnerLabels,
+                      if (noInstallmentReason.isNotEmpty) noInstallmentReason,
                       if (installmentFailureReason.isNotEmpty)
                         installmentFailureReason,
-                    ].join(' - '),
+                    ].where((part) => part.trim().isNotEmpty).join(' - '),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.labelS.copyWith(

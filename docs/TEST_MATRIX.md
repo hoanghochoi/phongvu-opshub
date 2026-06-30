@@ -160,6 +160,16 @@ Recent focused evidence:
   `npm test -- --runInBand src/sales-reports` (14 tests), `npm run build`,
   `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
   (5 tests), `flutter analyze --no-pub`, and `git diff --check`.
+- `SALES-REPORT-001`, 2026-06-30: Sales report forms switch user-facing
+  selectors from dropdowns to checkbox groups, add customer type/student and
+  CTKM fields, expand installment capture to need/partner/approval/loan
+  amount/no-installment reason with Mirae Asset and MPOS, persist ERP customer
+  type and payment methods, and export one CSV row per ERP product item.
+  Validation: `npx prisma validate`, `npx prisma generate`,
+  `npm test -- --runInBand src/sales-reports` (15 tests), `npm run build`,
+  `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
+  (5 tests), `flutter analyze --no-pub`, and `git diff --check` (CRLF warnings
+  only).
 - `SALES-REPORT-001`, 2026-06-29: Listing `productGroup.code` is included in
   category candidates and matched directly to `Cat group ID` from
   `data/categories.csv`; category aliases remain fallback. Sales report forms

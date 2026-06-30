@@ -19,12 +19,15 @@ import {
 import {
   APP_DOWNLOAD_REASON_CODES,
   CreateSalesReportDto,
+  CUSTOMER_TYPE_CODES,
   ExportSalesReportsDto,
   EXPERIENCE_REASON_CODES,
+  INSTALLMENT_NO_INSTALLMENT_REASON_CODES,
   INSTALLMENT_PARTNER_CODES,
   INSTALLMENT_STATUSES,
   ListSalesReportsDto,
   NOT_PURCHASED_REASON_CODES,
+  PROMOTION_CODES,
   SALES_REPORT_TYPES,
   YES_NO_REASON_CODES,
   ZALO_REASON_CODES,
@@ -83,6 +86,17 @@ const INSTALLMENT_LABELS: Record<string, string> = {
   FAILED: 'Trả góp thất bại',
 };
 
+const CUSTOMER_TYPE_LABELS: Record<string, string> = {
+  BUSINESS: 'Doanh nghiệp',
+  PERSONAL: 'Cá nhân',
+};
+
+const PROMOTION_LABELS: Record<string, string> = {
+  EXAM_SCORE_EXCHANGE: 'Đổi điểm thi',
+  STUDENT: 'Học sinh - Sinh viên',
+  OTHER: 'CTKM khác',
+};
+
 const INSTALLMENT_PARTNER_LABELS: Record<string, string> = {
   VNPAY_POS: 'VNPAY - POS',
   PAYOO_POS: 'PAYOO - POS',
@@ -90,6 +104,19 @@ const INSTALLMENT_PARTNER_LABELS: Record<string, string> = {
   SHINHAN_CTTC: 'Shinhan - CTTC',
   HDSAISON_CTTC: 'HDSaison - CTTC',
   AEON_FINANCE_CTTC: 'AEON Finance - CTTC',
+  MIRAE_ASSET: 'Mirae Asset',
+  MPOS: 'MPOS',
+};
+
+const INSTALLMENT_NO_INSTALLMENT_REASON_LABELS: Record<string, string> = {
+  NORMAL_INSTALLMENT: 'Khách chốt trả góp bình thường (Không có lý do)',
+  BAD_CREDIT_HISTORY: 'Rớt hồ sơ: Tín dụng xấu (Nợ cũ, CIC...)',
+  APPRAISAL_OR_INFO_ERROR: 'Rớt hồ sơ: Lỗi thẩm định/Thông tin',
+  HIGH_INTEREST_OR_FEE: 'Khách từ chối: Lãi suất/Phí trả góp cao',
+  MISSING_DOCUMENT_OR_CARD: 'Khách từ chối: Không đủ điều kiện giấy tờ/thẻ',
+  PRICE_COMPETITOR_COMPARISON:
+    'Khách từ chối: Giá cao/So sánh đối thủ (TGDĐ, FPT, CPS...)',
+  BROWSING_OR_COME_BACK_LATER: 'Khách từ chối: Chỉ tham khảo/Hẹn quay lại',
 };
 
 @Injectable()
@@ -117,11 +144,14 @@ export class SalesReportsService {
     return {
       orderCode,
       customerNeed: erpOrder.customerNeed,
+      customerType: erpOrder.customerType,
+      customerTypeLabel: this.customerTypeLabel(erpOrder.customerType),
       categoryGroup: matchedCategories[0] ?? null,
       categoryGroups: matchedCategories,
       order: this.toOrderDto(erpOrder),
       items: erpOrder.items,
       payments: erpOrder.payments,
+      paymentMethods: erpOrder.paymentMethods,
     };
   }
 
@@ -134,10 +164,7 @@ export class SalesReportsService {
         : null;
     this.validateCreateBody(reportType, orderCode, body);
     const categoryIds = this.normalizeCategoryGroupIds(body);
-    const installment = this.normalizeInstallmentSelection(
-      reportType,
-      body,
-    );
+    const promotionCodes = this.normalizePromotionCodes(body.promotionCodes);
     const categories = await this.categories.requireCategories(categoryIds);
     const primaryCategory = categories[0]!;
     const context = await this.resolveUserSnapshot(user);
@@ -146,9 +173,13 @@ export class SalesReportsService {
       await this.assertOrderNotReported(orderCode);
       erpOrder = await this.erp.lookupOrder(orderCode ?? '', context.storeCode);
     }
+    const customerType = this.normalizeCustomerType(
+      this.optionalText(body.customerType, 20) ?? erpOrder?.customerType,
+    );
+    const installment = this.normalizeInstallmentSelection(body);
 
     this.logger.log(
-      `Sales report create started: user=${this.safeUserLabel(user)} type=${reportType} primaryCategory=${primaryCategory.id} categoryCount=${categories.length} hasOrder=${Boolean(orderCode)} hasInstallment=${Boolean(installment.status)}`,
+      `Sales report create started: user=${this.safeUserLabel(user)} type=${reportType} primaryCategory=${primaryCategory.id} categoryCount=${categories.length} hasOrder=${Boolean(orderCode)} customerType=${customerType} hasInstallmentNeed=${installment.need} promotionCount=${promotionCodes.length}`,
     );
     try {
       const report = await this.prisma.salesReport.create({
@@ -191,11 +222,15 @@ export class SalesReportsService {
             body.notPurchasedOtherReason,
             500,
           ),
+          customerType,
+          customerIsStudent: body.customerIsStudent === true,
+          promotionCodes,
+          installmentNeed: installment.need,
+          installmentApproved: installment.approved,
+          installmentLoanAmount: installment.loanAmount,
+          installmentNoInstallmentReason: installment.noInstallmentReason,
           installmentStatus: installment.status,
-          installmentFailureReason:
-            installment.status === INSTALLMENT_FAILED
-              ? this.optionalText(body.installmentFailureReason, 500)
-              : null,
+          installmentFailureReason: installment.failureReason,
           installmentPartnerCodes: installment.partnerCodes,
           ...context,
           ...(erpOrder ? this.erpCreateData(erpOrder) : {}),
@@ -215,6 +250,16 @@ export class SalesReportsService {
               installmentPartners: installment.partnerCodes.map((code) =>
                 this.installmentPartnerLabel(code),
               ),
+              customerType: this.customerTypeLabel(customerType),
+              promotions: promotionCodes.map((code) =>
+                this.promotionLabel(code),
+              ),
+              installmentApproved: installment.approved,
+              installmentNoInstallmentReason: installment.noInstallmentReason
+                ? this.installmentNoInstallmentReasonLabel(
+                    installment.noInstallmentReason,
+                  )
+                : null,
             },
           },
           categorySelections: {
@@ -236,6 +281,7 @@ export class SalesReportsService {
                   productTypeCode: item.productTypeCode,
                   productTypeName: item.productTypeName,
                   productGroupId: item.productGroupId,
+                  productGroupCode: item.productGroupCode,
                   productGroupName: item.productGroupName,
                   quantity: item.quantity,
                   sellPrice: item.sellPrice,
@@ -420,47 +466,123 @@ export class SalesReportsService {
     return unique.slice(0, 20);
   }
 
-  private normalizeInstallmentSelection(
-    reportType: string,
-    body: CreateSalesReportDto,
-  ) {
+  private normalizeInstallmentSelection(body: CreateSalesReportDto) {
     const rawStatus = this.optionalText(body.installmentStatus, 20);
-    const failureReason = this.optionalText(
+    const legacyStatus = rawStatus
+      ? this.normalizeEnum(rawStatus, INSTALLMENT_STATUSES)
+      : null;
+    const need = body.installmentNeed === true || Boolean(legacyStatus);
+    const approved =
+      typeof body.installmentApproved === 'boolean'
+        ? body.installmentApproved
+        : null;
+    const loanAmount = this.optionalInt(
+      body.installmentLoanAmount,
+      10_000_000_000,
+      'Số tiền vay không hợp lệ.',
+    );
+    const noInstallmentReason = this.normalizeOptionalEnum(
+      body.installmentNoInstallmentReason,
+      INSTALLMENT_NO_INSTALLMENT_REASON_CODES,
+      'Lý do không trả góp không hợp lệ.',
+    );
+    const legacyFailureReason = this.optionalText(
       body.installmentFailureReason,
       500,
     );
     const partnerCodes = this.normalizeInstallmentPartnerCodes(
       body.installmentPartnerCodes,
     );
-    if (!rawStatus) {
-      if (failureReason || partnerCodes.length > 0) {
+    if (!need) {
+      if (
+        legacyFailureReason ||
+        noInstallmentReason ||
+        partnerCodes.length > 0 ||
+        approved !== null ||
+        loanAmount !== null
+      ) {
         throw new BadRequestException(
-          'Vui lòng tick Trả góp trước khi nhập thông tin trả góp.',
+          'Vui lòng tick Có nhu cầu trả góp trước khi nhập thông tin trả góp.',
         );
       }
-      return { status: null, partnerCodes: [] };
-    }
-    const status = this.normalizeEnum(rawStatus, INSTALLMENT_STATUSES);
-    if (reportType === REPORT_TYPE_PURCHASED && status !== INSTALLMENT_SUCCESS) {
-      throw new BadRequestException(
-        'Báo cáo mua hàng chỉ ghi nhận trả góp thành công.',
-      );
-    }
-    if (
-      reportType === REPORT_TYPE_NOT_PURCHASED &&
-      status !== INSTALLMENT_FAILED
-    ) {
-      throw new BadRequestException(
-        'Báo cáo chưa mua hàng chỉ ghi nhận trả góp thất bại.',
-      );
-    }
-    if (status === INSTALLMENT_FAILED && !failureReason) {
-      throw new BadRequestException('Vui lòng nhập lý do trả góp thất bại.');
+      return {
+        need: false,
+        approved: null,
+        loanAmount: null,
+        noInstallmentReason: null,
+        status: null,
+        failureReason: null,
+        partnerCodes: [],
+      };
     }
     if (partnerCodes.length === 0) {
       throw new BadRequestException('Vui lòng chọn đối tác trả góp.');
     }
-    return { status, partnerCodes };
+    if (approved === null) {
+      throw new BadRequestException(
+        'Vui lòng chọn hồ sơ trả góp đã được duyệt hay chưa.',
+      );
+    }
+    if (!noInstallmentReason && !legacyStatus) {
+      throw new BadRequestException('Vui lòng chọn lý do không trả góp.');
+    }
+    if (noInstallmentReason === 'NORMAL_INSTALLMENT' && approved === false) {
+      throw new BadRequestException(
+        'Hồ sơ chưa được duyệt thì cần chọn lý do không trả góp phù hợp.',
+      );
+    }
+    const status =
+      noInstallmentReason === 'NORMAL_INSTALLMENT' ||
+      legacyStatus === INSTALLMENT_SUCCESS
+        ? INSTALLMENT_SUCCESS
+        : INSTALLMENT_FAILED;
+    const failureReason =
+      status === INSTALLMENT_FAILED
+        ? (legacyFailureReason ??
+          (noInstallmentReason
+            ? this.installmentNoInstallmentReasonLabel(noInstallmentReason)
+            : null))
+        : null;
+    return {
+      need: true,
+      approved,
+      loanAmount,
+      noInstallmentReason,
+      status,
+      failureReason,
+      partnerCodes,
+    };
+  }
+
+  private normalizeCustomerType(value: unknown) {
+    const normalized = this.normalizeOptionalEnum(
+      value,
+      CUSTOMER_TYPE_CODES,
+      'Loại khách hàng không hợp lệ.',
+    );
+    if (!normalized) {
+      throw new BadRequestException('Vui lòng chọn loại khách hàng.');
+    }
+    return normalized;
+  }
+
+  private normalizePromotionCodes(value: unknown) {
+    const raw = Array.isArray(value) ? value : [];
+    const codes = raw
+      .map((item) =>
+        String(item || '')
+          .trim()
+          .toUpperCase(),
+      )
+      .filter(Boolean);
+    const unique = Array.from(new Set(codes)).slice(0, 10);
+    const invalid = unique.find(
+      (code) => !PROMOTION_CODES.includes(code as any),
+    );
+    if (invalid) {
+      throw new BadRequestException('CTKM áp dụng không hợp lệ.');
+    }
+    return unique;
   }
 
   private normalizeInstallmentPartnerCodes(value: unknown) {
@@ -704,6 +826,8 @@ export class SalesReportsService {
       erpFulfillmentStatus: erpOrder.erpFulfillmentStatus,
       erpTerminalName: erpOrder.erpTerminalName,
       erpGrandTotal: erpOrder.erpGrandTotal,
+      erpPaymentMethods: erpOrder.paymentMethods,
+      erpCustomerType: erpOrder.erpCustomerType,
       erpPlatformId: erpOrder.erpPlatformId,
       erpConsultantCustomId: erpOrder.erpConsultantCustomId,
       erpConsultantName: erpOrder.erpConsultantName,
@@ -724,6 +848,9 @@ export class SalesReportsService {
       fulfillmentStatus: erpOrder.erpFulfillmentStatus,
       terminalName: erpOrder.erpTerminalName,
       grandTotal: erpOrder.erpGrandTotal,
+      paymentMethods: erpOrder.paymentMethods,
+      customerType: erpOrder.customerType,
+      customerTypeLabel: this.customerTypeLabel(erpOrder.customerType),
       consultantName: erpOrder.erpConsultantName,
     };
   }
@@ -760,6 +887,24 @@ export class SalesReportsService {
         ? this.notPurchasedLabel(row.notPurchasedReason)
         : null,
       notPurchasedOtherReason: row.notPurchasedOtherReason,
+      customerType: row.customerType,
+      customerTypeLabel: row.customerType
+        ? this.customerTypeLabel(row.customerType)
+        : null,
+      customerIsStudent: row.customerIsStudent === true,
+      promotionCodes: this.cleanPromotionCodes(row.promotionCodes),
+      promotionLabels: this.cleanPromotionCodes(row.promotionCodes).map(
+        (code) => this.promotionLabel(code),
+      ),
+      installmentNeed: row.installmentNeed === true,
+      installmentApproved: row.installmentApproved,
+      installmentLoanAmount: row.installmentLoanAmount,
+      installmentNoInstallmentReason: row.installmentNoInstallmentReason,
+      installmentNoInstallmentReasonLabel: row.installmentNoInstallmentReason
+        ? this.installmentNoInstallmentReasonLabel(
+            row.installmentNoInstallmentReason,
+          )
+        : null,
       installmentStatus: row.installmentStatus,
       installmentStatusLabel: row.installmentStatus
         ? this.installmentLabel(row.installmentStatus)
@@ -779,6 +924,10 @@ export class SalesReportsService {
       erpConfirmationStatus: row.erpConfirmationStatus,
       erpFulfillmentStatus: row.erpFulfillmentStatus,
       erpGrandTotal: row.erpGrandTotal,
+      erpPaymentMethods: Array.isArray(row.erpPaymentMethods)
+        ? row.erpPaymentMethods
+        : [],
+      erpCustomerType: row.erpCustomerType,
       erpTerminalName: row.erpTerminalName,
       erpConsultantName: row.erpConsultantName,
       submittedAt: row.submittedAt,
@@ -795,6 +944,9 @@ export class SalesReportsService {
       'Showroom',
       'Người gửi',
       'MSNV hệ thống',
+      'Loại khách hàng',
+      'Học sinh - Sinh viên',
+      'CTKM áp dụng',
       'Ngành hàng',
       'SĐT khách',
       'Sản phẩm khách tìm',
@@ -808,15 +960,28 @@ export class SalesReportsService {
       'Lý do khác App',
       'Lý do chưa mua',
       'Lý do khác chưa mua',
-      'Trả góp',
+      'Có nhu cầu trả góp',
+      'Hồ sơ được duyệt',
+      'Số tiền vay',
+      'Trạng thái trả góp',
       'Đối tác trả góp',
-      'Lý do trả góp thất bại',
+      'Lý do không trả góp',
+      'Ghi chú trả góp cũ',
       'Tổng tiền ERP',
+      'Phương thức thanh toán ERP',
       'Thanh toán ERP',
       'Xác nhận ERP',
       'Giao hàng ERP',
-      'Sản phẩm ERP',
-      'Thanh toán',
+      'SKU ERP',
+      'Seller SKU ERP',
+      'Tên sản phẩm ERP',
+      'Thương hiệu ERP',
+      'Nhóm hàng ERP',
+      'Số lượng ERP',
+      'Giá bán ERP',
+      'Giá sau giảm ERP',
+      'Thành tiền dòng ERP',
+      'Thanh toán chi tiết',
     ];
     const lines = [headers.map((header) => this.csvCell(header)).join(',')];
     for (const row of rows) {
@@ -824,78 +989,113 @@ export class SalesReportsService {
       const partnerCodes = this.cleanInstallmentPartnerCodes(
         row.installmentPartnerCodes,
       );
-      lines.push(
-        [
-          this.csvCell(this.csvVietnamDate(row.submittedAt)),
-          this.csvCell(
-            row.reportType === REPORT_TYPE_PURCHASED
-              ? 'Mua hàng'
-              : 'Chưa mua hàng',
-          ),
-          this.csvExcelTextCell(row.orderCode),
-          this.csvCell(row.storeCode),
-          this.csvCell(row.createdByName || row.createdByEmail),
-          this.csvExcelTextCell(row.createdByPersonnelCode),
-          this.csvCell(
-            categoryGroups
-              .map(
-                (category: { catGroupNameVi?: string | null }) =>
-                  category.catGroupNameVi,
-              )
-              .filter(Boolean)
-              .join('\n'),
-          ),
-          this.csvExcelTextCell(row.customerPhone),
-          this.csvCell(row.customerNeed),
-          this.csvCell(this.answerLabel(row.consultedSolutionAnswer)),
-          this.csvCell(row.consultedSolutionOtherReason),
-          this.csvCell(this.answerLabel(row.experiencedAnswer)),
-          this.csvCell(row.experiencedOtherReason),
-          this.csvCell(this.answerLabel(row.zaloAnswer)),
-          this.csvCell(row.zaloOtherReason),
-          this.csvCell(this.answerLabel(row.appDownloadAnswer)),
-          this.csvCell(row.appDownloadOtherReason),
-          this.csvCell(
-            row.notPurchasedReason
-              ? this.notPurchasedLabel(row.notPurchasedReason)
-              : null,
-          ),
-          this.csvCell(row.notPurchasedOtherReason),
-          this.csvCell(
-            row.installmentStatus
-              ? this.installmentLabel(row.installmentStatus)
-              : null,
-          ),
-          this.csvCell(
-            partnerCodes
-              .map((code) => this.installmentPartnerLabel(code))
-              .join('\n'),
-          ),
-          this.csvCell(row.installmentFailureReason),
-          this.csvCell(row.erpGrandTotal),
-          this.csvCell(row.erpPaymentStatus),
-          this.csvCell(row.erpConfirmationStatus),
-          this.csvCell(row.erpFulfillmentStatus),
-          this.csvCell(
-            (row.items || [])
-              .map((item: any) =>
-                [item.sellerSku, item.name, item.quantity]
-                  .filter(Boolean)
-                  .join(' - '),
-              )
-              .join('\n'),
-          ),
-          this.csvCell(
-            (row.payments || [])
-              .map((payment: any) =>
-                [payment.paymentMethod, payment.amount]
-                  .filter(Boolean)
-                  .join(' '),
-              )
-              .join('\n'),
-          ),
-        ].join(','),
-      );
+      const promotionCodes = this.cleanPromotionCodes(row.promotionCodes);
+      const paymentMethods = Array.isArray(row.erpPaymentMethods)
+        ? row.erpPaymentMethods
+        : [];
+      const paymentSummary = (row.payments || [])
+        .map((payment: any) =>
+          [payment.paymentMethod, payment.amount].filter(Boolean).join(' '),
+        )
+        .join('\n');
+      const items =
+        Array.isArray(row.items) && row.items.length > 0 ? row.items : [null];
+      for (const item of items) {
+        lines.push(
+          [
+            this.csvCell(this.csvVietnamDate(row.submittedAt)),
+            this.csvCell(
+              row.reportType === REPORT_TYPE_PURCHASED
+                ? 'Mua hàng'
+                : 'Chưa mua hàng',
+            ),
+            this.csvExcelTextCell(row.orderCode),
+            this.csvCell(row.storeCode),
+            this.csvCell(row.createdByName || row.createdByEmail),
+            this.csvExcelTextCell(row.createdByPersonnelCode),
+            this.csvCell(
+              row.customerType ? this.customerTypeLabel(row.customerType) : '',
+            ),
+            this.csvCell(row.customerIsStudent === true ? 'Có' : 'Không'),
+            this.csvCell(
+              promotionCodes
+                .map((code) => this.promotionLabel(code))
+                .join('\n'),
+            ),
+            this.csvCell(
+              categoryGroups
+                .map(
+                  (category: { catGroupNameVi?: string | null }) =>
+                    category.catGroupNameVi,
+                )
+                .filter(Boolean)
+                .join('\n'),
+            ),
+            this.csvExcelTextCell(row.customerPhone),
+            this.csvCell(row.customerNeed),
+            this.csvCell(this.answerLabel(row.consultedSolutionAnswer)),
+            this.csvCell(row.consultedSolutionOtherReason),
+            this.csvCell(this.answerLabel(row.experiencedAnswer)),
+            this.csvCell(row.experiencedOtherReason),
+            this.csvCell(this.answerLabel(row.zaloAnswer)),
+            this.csvCell(row.zaloOtherReason),
+            this.csvCell(this.answerLabel(row.appDownloadAnswer)),
+            this.csvCell(row.appDownloadOtherReason),
+            this.csvCell(
+              row.notPurchasedReason
+                ? this.notPurchasedLabel(row.notPurchasedReason)
+                : null,
+            ),
+            this.csvCell(row.notPurchasedOtherReason),
+            this.csvCell(row.installmentNeed === true ? 'Có' : 'Không'),
+            this.csvCell(
+              row.installmentApproved === true
+                ? 'Có'
+                : row.installmentApproved === false
+                  ? 'Không'
+                  : null,
+            ),
+            this.csvCell(row.installmentLoanAmount),
+            this.csvCell(
+              row.installmentStatus
+                ? this.installmentLabel(row.installmentStatus)
+                : null,
+            ),
+            this.csvCell(
+              partnerCodes
+                .map((code) => this.installmentPartnerLabel(code))
+                .join('\n'),
+            ),
+            this.csvCell(
+              row.installmentNoInstallmentReason
+                ? this.installmentNoInstallmentReasonLabel(
+                    row.installmentNoInstallmentReason,
+                  )
+                : null,
+            ),
+            this.csvCell(row.installmentFailureReason),
+            this.csvCell(row.erpGrandTotal),
+            this.csvCell(paymentMethods.join('\n')),
+            this.csvCell(row.erpPaymentStatus),
+            this.csvCell(row.erpConfirmationStatus),
+            this.csvCell(row.erpFulfillmentStatus),
+            this.csvExcelTextCell(item?.sku),
+            this.csvExcelTextCell(item?.sellerSku),
+            this.csvCell(item?.name),
+            this.csvCell(item?.brandName),
+            this.csvCell(
+              [item?.productGroupCode, item?.productGroupName]
+                .filter(Boolean)
+                .join(' - '),
+            ),
+            this.csvCell(item?.quantity),
+            this.csvCell(item?.sellPrice),
+            this.csvCell(item?.finalSellPrice),
+            this.csvCell(item?.rowTotal),
+            this.csvCell(paymentSummary),
+          ].join(','),
+        );
+      }
     }
     return `\ufeff${lines.join('\n')}`;
   }
@@ -998,6 +1198,30 @@ export class SalesReportsService {
     return normalized as T[number];
   }
 
+  private normalizeOptionalEnum<T extends readonly string[]>(
+    value: unknown,
+    allowed: T,
+    message: string,
+  ): T[number] | null {
+    const normalized = String(value || '')
+      .trim()
+      .toUpperCase();
+    if (!normalized) return null;
+    if (!allowed.includes(normalized as T[number])) {
+      throw new BadRequestException(message);
+    }
+    return normalized as T[number];
+  }
+
+  private optionalInt(value: unknown, max: number, message: string) {
+    if (value === undefined || value === null || value === '') return null;
+    const number = Number(value);
+    if (!Number.isFinite(number) || number < 0 || number > max) {
+      throw new BadRequestException(message);
+    }
+    return Math.trunc(number);
+  }
+
   private optionalText(value: unknown, maxLength: number) {
     if (value === undefined || value === null) return null;
     const text = String(value).trim();
@@ -1036,11 +1260,38 @@ export class SalesReportsService {
     return INSTALLMENT_PARTNER_LABELS[code] ?? code;
   }
 
+  private customerTypeLabel(code: string) {
+    return CUSTOMER_TYPE_LABELS[code] ?? code;
+  }
+
+  private promotionLabel(code: string) {
+    return PROMOTION_LABELS[code] ?? code;
+  }
+
+  private installmentNoInstallmentReasonLabel(code: string) {
+    return INSTALLMENT_NO_INSTALLMENT_REASON_LABELS[code] ?? code;
+  }
+
   private cleanInstallmentPartnerCodes(value: unknown) {
     const raw = Array.isArray(value) ? value : [];
     return raw
-      .map((item) => String(item || '').trim().toUpperCase())
+      .map((item) =>
+        String(item || '')
+          .trim()
+          .toUpperCase(),
+      )
       .filter((code) => INSTALLMENT_PARTNER_CODES.includes(code as any));
+  }
+
+  private cleanPromotionCodes(value: unknown) {
+    const raw = Array.isArray(value) ? value : [];
+    return raw
+      .map((item) =>
+        String(item || '')
+          .trim()
+          .toUpperCase(),
+      )
+      .filter((code) => PROMOTION_CODES.includes(code as any));
   }
 
   private categoryGroupsFor(row: any) {

@@ -147,20 +147,21 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Có'), findsNothing);
-    expect(find.text('Chọn'), findsNWidgets(4));
+    expect(find.byType(CheckboxListTile), findsWidgets);
+    expect(find.text('Loại khách hàng'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Gửi báo cáo'));
     await tester.tap(find.text('Gửi báo cáo'));
     await tester.pumpAndSettle();
 
     expect(find.text('Vui lòng nhập nhu cầu khách hàng'), findsOneWidget);
+    expect(find.text('Vui lòng chọn loại khách hàng'), findsOneWidget);
     expect(find.text('Vui lòng chọn Tư vấn 3 giải pháp'), findsOneWidget);
     expect(repository.createCalled, isFalse);
   });
 
   testWidgets(
-    'Báo cáo chưa mua opens installment partners and failure reason',
+    'Báo cáo chưa mua opens installment approval and no-installment reason',
     (tester) async {
       final authProvider = _FakeAuthProvider(
         const User(
@@ -195,8 +196,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Đối tác trả góp'), findsOneWidget);
-      expect(find.text('Lý do trả góp thất bại'), findsOneWidget);
+      expect(find.text('Hồ sơ được duyệt không'), findsOneWidget);
+      expect(find.text('Lý do không trả góp'), findsOneWidget);
       expect(find.text('VNPAY - POS'), findsOneWidget);
+      expect(find.text('Mirae Asset'), findsOneWidget);
+      expect(find.text('MPOS'), findsOneWidget);
 
       await tester.tap(
         find.byKey(const ValueKey('sales-report-installment-VNPAY_POS')),
@@ -205,7 +209,11 @@ void main() {
       await tester.tap(find.text('Gửi báo cáo'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Vui lòng nhập lý do trả góp thất bại'), findsOneWidget);
+      expect(
+        find.text('Vui lòng chọn hồ sơ được duyệt hay chưa'),
+        findsOneWidget,
+      );
+      expect(find.text('Vui lòng chọn lý do không trả góp'), findsOneWidget);
       expect(repository.createCalled, isFalse);
     },
   );
@@ -213,6 +221,9 @@ void main() {
   test('SalesReportOrderCheck parses multiple category groups', () {
     final check = SalesReportOrderCheck.fromJson({
       'orderCode': '2606290001',
+      'customerType': 'BUSINESS',
+      'customerTypeLabel': 'Doanh nghiệp',
+      'paymentMethods': ['cash', 'bank_transfer'],
       'categoryGroups': [
         {
           'id': 'NH03',
@@ -232,6 +243,8 @@ void main() {
       'NH08',
     ]);
     expect(check.categoryGroup?.id, isNull);
+    expect(check.customerType, 'BUSINESS');
+    expect(check.paymentMethods, ['cash', 'bank_transfer']);
   });
 }
 

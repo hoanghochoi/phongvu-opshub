@@ -78,6 +78,17 @@ const _notPurchasedOptions = {
   'OTHER': 'Khác',
 };
 
+const _customerTypeOptions = {
+  'BUSINESS': 'Doanh nghiệp',
+  'PERSONAL': 'Cá nhân',
+};
+
+const _promotionOptions = {
+  'EXAM_SCORE_EXCHANGE': 'Đổi điểm thi',
+  'STUDENT': 'Học sinh - Sinh viên',
+  'OTHER': 'CTKM khác',
+};
+
 const _installmentPartnerOptions = {
   'VNPAY_POS': 'VNPAY - POS',
   'PAYOO_POS': 'PAYOO - POS',
@@ -85,6 +96,19 @@ const _installmentPartnerOptions = {
   'SHINHAN_CTTC': 'Shinhan - CTTC',
   'HDSAISON_CTTC': 'HDSaison - CTTC',
   'AEON_FINANCE_CTTC': 'AEON Finance - CTTC',
+  'MIRAE_ASSET': 'Mirae Asset',
+  'MPOS': 'MPOS',
+};
+
+const _installmentNoInstallmentReasonOptions = {
+  'NORMAL_INSTALLMENT': 'Khách chốt trả góp bình thường (Không có lý do)',
+  'BAD_CREDIT_HISTORY': 'Rớt hồ sơ: Tín dụng xấu (Nợ cũ, CIC...)',
+  'APPRAISAL_OR_INFO_ERROR': 'Rớt hồ sơ: Lỗi thẩm định/Thông tin',
+  'HIGH_INTEREST_OR_FEE': 'Khách từ chối: Lãi suất/Phí trả góp cao',
+  'MISSING_DOCUMENT_OR_CARD': 'Khách từ chối: Không đủ điều kiện giấy tờ/thẻ',
+  'PRICE_COMPETITOR_COMPARISON':
+      'Khách từ chối: Giá cao/So sánh đối thủ (TGDĐ, FPT, CPS...)',
+  'BROWSING_OR_COME_BACK_LATER': 'Khách từ chối: Chỉ tham khảo/Hẹn quay lại',
 };
 
 class SalesReportScreen extends StatefulWidget {
@@ -223,16 +247,21 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
   final _zaloOtherController = TextEditingController();
   final _appOtherController = TextEditingController();
   final _notPurchasedOtherController = TextEditingController();
-  final _installmentFailureController = TextEditingController();
+  final _installmentLoanController = TextEditingController();
 
   late String _reportType;
   final List<String> _categoryGroupIds = [];
+  String? _customerType;
+  bool _customerIsStudent = false;
+  final List<String> _promotionCodes = [];
   String? _consultedAnswer;
   String? _experiencedAnswer;
   String? _zaloAnswer;
   String? _appDownloadAnswer;
   String? _notPurchasedReason;
   bool _installmentSelected = false;
+  bool? _installmentApproved;
+  String? _installmentNoInstallmentReason;
   final List<String> _installmentPartnerCodes = [];
   bool _initialized = false;
 
@@ -263,7 +292,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     _zaloOtherController.dispose();
     _appOtherController.dispose();
     _notPurchasedOtherController.dispose();
-    _installmentFailureController.dispose();
+    _installmentLoanController.dispose();
     super.dispose();
   }
 
@@ -344,6 +373,9 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       if ((result.customerNeed ?? '').trim().isNotEmpty) {
         _needController.text = result.customerNeed!.trim();
       }
+      _customerType = result.customerType == 'BUSINESS'
+          ? 'BUSINESS'
+          : 'PERSONAL';
       _categoryGroupIds
         ..clear()
         ..addAll(result.categoryGroups.map((category) => category.id));
@@ -363,14 +395,19 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       _zaloOtherController.clear();
       _appOtherController.clear();
       _notPurchasedOtherController.clear();
-      _installmentFailureController.clear();
+      _installmentLoanController.clear();
       _categoryGroupIds.clear();
+      _customerType = null;
+      _customerIsStudent = false;
+      _promotionCodes.clear();
       _consultedAnswer = null;
       _experiencedAnswer = null;
       _zaloAnswer = null;
       _appDownloadAnswer = null;
       _notPurchasedReason = null;
       _installmentSelected = false;
+      _installmentApproved = null;
+      _installmentNoInstallmentReason = null;
       _installmentPartnerCodes.clear();
     });
     unawaited(
@@ -405,11 +442,13 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
             'hasZaloAnswer': _zaloAnswer != null,
             'hasAppDownloadAnswer': _appDownloadAnswer != null,
             'hasNotPurchasedReason': _notPurchasedReason != null,
+            'customerType': _customerType,
+            'customerIsStudent': _customerIsStudent,
+            'promotionCount': _promotionCodes.length,
             'installmentSelected': _installmentSelected,
+            'installmentApproved': _installmentApproved,
             'installmentPartnerCount': _installmentPartnerCodes.length,
-            'hasInstallmentFailureReason': _installmentFailureController.text
-                .trim()
-                .isNotEmpty,
+            'hasInstallmentNoReason': _installmentNoInstallmentReason != null,
           },
         ),
       );
@@ -436,12 +475,25 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       appDownloadOtherReason: _appOtherController.text,
       notPurchasedReason: _isPurchased ? null : _notPurchasedReason,
       notPurchasedOtherReason: _notPurchasedOtherController.text,
+      customerType: _customerType,
+      customerIsStudent: _customerIsStudent,
+      promotionCodes: List.unmodifiable(_promotionCodes),
+      installmentNeed: _installmentSelected,
+      installmentApproved: _installmentSelected ? _installmentApproved : null,
+      installmentLoanAmount: _installmentSelected
+          ? int.tryParse(
+              _installmentLoanController.text.replaceAll(RegExp(r'[^0-9]'), ''),
+            )
+          : null,
+      installmentNoInstallmentReason: _installmentSelected
+          ? _installmentNoInstallmentReason
+          : null,
       installmentStatus: _installmentSelected
-          ? (_isPurchased ? 'SUCCESS' : 'FAILED')
+          ? (_installmentNoInstallmentReason == 'NORMAL_INSTALLMENT'
+                ? 'SUCCESS'
+                : 'FAILED')
           : null,
-      installmentFailureReason: !_isPurchased && _installmentSelected
-          ? _installmentFailureController.text
-          : null,
+      installmentFailureReason: null,
       installmentPartnerCodes: _installmentSelected
           ? List.unmodifiable(_installmentPartnerCodes)
           : const [],
@@ -471,17 +523,22 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       _zaloOtherController.clear();
       _appOtherController.clear();
       _notPurchasedOtherController.clear();
-      _installmentFailureController.clear();
+      _installmentLoanController.clear();
       _reportType = widget.reportType == _typeNotPurchased
           ? _typeNotPurchased
           : _typePurchased;
       _categoryGroupIds.clear();
+      _customerType = null;
+      _customerIsStudent = false;
+      _promotionCodes.clear();
       _consultedAnswer = null;
       _experiencedAnswer = null;
       _zaloAnswer = null;
       _appDownloadAnswer = null;
       _notPurchasedReason = null;
       _installmentSelected = false;
+      _installmentApproved = null;
+      _installmentNoInstallmentReason = null;
       _installmentPartnerCodes.clear();
     });
   }
@@ -532,9 +589,23 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
                       _CustomerSection(
                         phoneController: _phoneController,
                         needController: _needController,
+                        customerType: _customerType,
+                        customerIsStudent: _customerIsStudent,
+                        promotionCodes: _promotionCodes,
                         categories: provider.categories,
                         categoryGroupIds: _categoryGroupIds,
                         loadingCategories: provider.isLoadingCategories,
+                        onCustomerTypeChanged: (value) =>
+                            setState(() => _customerType = value),
+                        onStudentChanged: (value) =>
+                            setState(() => _customerIsStudent = value),
+                        onPromotionsChanged: (value) {
+                          setState(() {
+                            _promotionCodes
+                              ..clear()
+                              ..addAll(value);
+                          });
+                        },
                         onCategoryChanged: (value) {
                           setState(() {
                             _categoryGroupIds
@@ -547,13 +618,17 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
                       _InstallmentSection(
                         isPurchased: _isPurchased,
                         selected: _installmentSelected,
+                        approved: _installmentApproved,
+                        noInstallmentReason: _installmentNoInstallmentReason,
                         selectedPartnerCodes: _installmentPartnerCodes,
-                        failureController: _installmentFailureController,
+                        loanController: _installmentLoanController,
                         onChanged: (value) {
                           setState(() {
                             _installmentSelected = value ?? false;
                             if (!_installmentSelected) {
-                              _installmentFailureController.clear();
+                              _installmentLoanController.clear();
+                              _installmentApproved = null;
+                              _installmentNoInstallmentReason = null;
                               _installmentPartnerCodes.clear();
                             }
                           });
@@ -565,6 +640,11 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
                               ..addAll(value);
                           });
                         },
+                        onApprovedChanged: (value) =>
+                            setState(() => _installmentApproved = value),
+                        onNoInstallmentReasonChanged: (value) => setState(
+                          () => _installmentNoInstallmentReason = value,
+                        ),
                       ),
                       const SizedBox(height: AppLayoutTokens.formSectionGap),
                       _BehaviorSection(
@@ -737,17 +817,29 @@ class _OrderSummaryCard extends StatelessWidget {
 class _CustomerSection extends StatelessWidget {
   final TextEditingController phoneController;
   final TextEditingController needController;
+  final String? customerType;
+  final bool customerIsStudent;
+  final List<String> promotionCodes;
   final List<SalesReportCategoryGroup> categories;
   final List<String> categoryGroupIds;
   final bool loadingCategories;
+  final ValueChanged<String?> onCustomerTypeChanged;
+  final ValueChanged<bool> onStudentChanged;
+  final ValueChanged<List<String>> onPromotionsChanged;
   final ValueChanged<List<String>> onCategoryChanged;
 
   const _CustomerSection({
     required this.phoneController,
     required this.needController,
+    required this.customerType,
+    required this.customerIsStudent,
+    required this.promotionCodes,
     required this.categories,
     required this.categoryGroupIds,
     required this.loadingCategories,
+    required this.onCustomerTypeChanged,
+    required this.onStudentChanged,
+    required this.onPromotionsChanged,
     required this.onCategoryChanged,
   });
 
@@ -763,6 +855,18 @@ class _CustomerSection extends StatelessWidget {
             keyboardType: TextInputType.phone,
             maxLength: 30,
             counterText: '',
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          _CustomerTypePicker(
+            value: customerType,
+            isStudent: customerIsStudent,
+            onChanged: onCustomerTypeChanged,
+            onStudentChanged: onStudentChanged,
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          _PromotionPicker(
+            selectedCodes: promotionCodes,
+            onChanged: onPromotionsChanged,
           ),
           const SizedBox(height: AppLayoutTokens.formInlineGap),
           _CategoryMultiPicker(
@@ -784,6 +888,104 @@ class _CustomerSection extends StatelessWidget {
                 ? 'Vui lòng nhập nhu cầu khách hàng'
                 : null,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomerTypePicker extends StatelessWidget {
+  final String? value;
+  final bool isStudent;
+  final ValueChanged<String?> onChanged;
+  final ValueChanged<bool> onStudentChanged;
+
+  const _CustomerTypePicker({
+    required this.value,
+    required this.isStudent,
+    required this.onChanged,
+    required this.onStudentChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<String>(
+      key: ValueKey('sales-report-customer-type-${value ?? 'none'}'),
+      initialValue: value,
+      validator: (_) => value == null ? 'Vui lòng chọn loại khách hàng' : null,
+      builder: (field) {
+        return InputDecorator(
+          decoration: appInputDecoration(
+            label: 'Loại khách hàng',
+            icon: Icons.badge_outlined,
+            errorText: field.errorText,
+          ).copyWith(alignLabelWithHint: true),
+          child: Column(
+            children: [
+              for (final entry in _customerTypeOptions.entries)
+                CheckboxListTile(
+                  key: ValueKey('sales-report-customer-type-${entry.key}'),
+                  value: value == entry.key,
+                  onChanged: (checked) {
+                    final next = checked == true ? entry.key : null;
+                    field.didChange(next);
+                    onChanged(next);
+                  },
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text(entry.value),
+                ),
+              CheckboxListTile(
+                key: const ValueKey('sales-report-customer-student'),
+                value: isStudent,
+                onChanged: (checked) => onStudentChanged(checked ?? false),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text('Học sinh - Sinh viên'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PromotionPicker extends StatelessWidget {
+  final List<String> selectedCodes;
+  final ValueChanged<List<String>> onChanged;
+
+  const _PromotionPicker({
+    required this.selectedCodes,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: appInputDecoration(
+        label: 'CTKM áp dụng',
+        icon: Icons.local_offer_outlined,
+      ).copyWith(alignLabelWithHint: true),
+      child: Column(
+        children: [
+          for (final entry in _promotionOptions.entries)
+            CheckboxListTile(
+              key: ValueKey('sales-report-promotion-${entry.key}'),
+              value: selectedCodes.contains(entry.key),
+              onChanged: (checked) {
+                final next = [...selectedCodes];
+                if (checked == true) {
+                  if (!next.contains(entry.key)) next.add(entry.key);
+                } else {
+                  next.remove(entry.key);
+                }
+                onChanged(next);
+              },
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: Text(entry.value),
+            ),
         ],
       ),
     );
@@ -880,18 +1082,26 @@ class _CategoryMultiPicker extends StatelessWidget {
 class _InstallmentSection extends StatelessWidget {
   final bool isPurchased;
   final bool selected;
+  final bool? approved;
+  final String? noInstallmentReason;
   final List<String> selectedPartnerCodes;
-  final TextEditingController failureController;
+  final TextEditingController loanController;
   final ValueChanged<bool?> onChanged;
   final ValueChanged<List<String>> onPartnersChanged;
+  final ValueChanged<bool?> onApprovedChanged;
+  final ValueChanged<String?> onNoInstallmentReasonChanged;
 
   const _InstallmentSection({
     required this.isPurchased,
     required this.selected,
+    required this.approved,
+    required this.noInstallmentReason,
     required this.selectedPartnerCodes,
-    required this.failureController,
+    required this.loanController,
     required this.onChanged,
     required this.onPartnersChanged,
+    required this.onApprovedChanged,
+    required this.onNoInstallmentReasonChanged,
   });
 
   @override
@@ -906,11 +1116,11 @@ class _InstallmentSection extends StatelessWidget {
             onChanged: onChanged,
             contentPadding: EdgeInsets.zero,
             controlAffinity: ListTileControlAffinity.leading,
-            title: const Text('Trả góp'),
+            title: const Text('Có nhu cầu trả góp'),
             subtitle: Text(
               isPurchased
-                  ? 'Đơn này trả góp thành công.'
-                  : 'Khách có nhu cầu trả góp nhưng chưa hoàn tất.',
+                  ? 'Ghi nhận nhu cầu và kết quả hồ sơ trả góp của đơn mua.'
+                  : 'Ghi nhận nhu cầu và lý do khách chưa chốt trả góp.',
             ),
           ),
           if (selected) ...[
@@ -919,25 +1129,139 @@ class _InstallmentSection extends StatelessWidget {
               selectedCodes: selectedPartnerCodes,
               onChanged: onPartnersChanged,
             ),
-          ],
-          if (!isPurchased && selected) ...[
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
+            _InstallmentApprovalPicker(
+              value: approved,
+              onChanged: onApprovedChanged,
+            ),
             const SizedBox(height: AppLayoutTokens.formInlineGap),
             AppFormTextInput(
-              key: const ValueKey('sales-report-installment-failure-reason'),
-              controller: failureController,
-              label: 'Lý do trả góp thất bại',
-              icon: Icons.report_problem_outlined,
-              minLines: 2,
-              maxLines: 4,
-              maxLength: 500,
-              alignLabelWithHint: true,
-              validator: (value) => (value ?? '').trim().isEmpty
-                  ? 'Vui lòng nhập lý do trả góp thất bại'
-                  : null,
+              key: const ValueKey('sales-report-installment-loan-amount'),
+              controller: loanController,
+              label: 'Số tiền vay',
+              icon: Icons.payments_outlined,
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                final text = (value ?? '').trim();
+                if (text.isEmpty) return null;
+                final number = int.tryParse(
+                  text.replaceAll(RegExp(r'[^0-9]'), ''),
+                );
+                return number == null ? 'Số tiền vay không hợp lệ' : null;
+              },
+            ),
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
+            _InstallmentNoReasonPicker(
+              value: noInstallmentReason,
+              onChanged: onNoInstallmentReasonChanged,
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+class _InstallmentApprovalPicker extends StatelessWidget {
+  final bool? value;
+  final ValueChanged<bool?> onChanged;
+
+  const _InstallmentApprovalPicker({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<bool>(
+      key: ValueKey('sales-report-installment-approved-${value ?? 'none'}'),
+      initialValue: value,
+      validator: (_) =>
+          value == null ? 'Vui lòng chọn hồ sơ được duyệt hay chưa' : null,
+      builder: (field) {
+        return InputDecorator(
+          decoration: appInputDecoration(
+            label: 'Hồ sơ được duyệt không',
+            icon: Icons.fact_check_outlined,
+            errorText: field.errorText,
+          ).copyWith(alignLabelWithHint: true),
+          child: Column(
+            children: [
+              for (final option in const [
+                (value: true, label: 'Có'),
+                (value: false, label: 'Không'),
+              ])
+                CheckboxListTile(
+                  key: ValueKey(
+                    'sales-report-installment-approved-${option.value}',
+                  ),
+                  value: value == option.value,
+                  onChanged: (checked) {
+                    final next = checked == true ? option.value : null;
+                    field.didChange(next);
+                    onChanged(next);
+                  },
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text(option.label),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _InstallmentNoReasonPicker extends StatelessWidget {
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  const _InstallmentNoReasonPicker({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<String>(
+      key: ValueKey('sales-report-installment-no-reason-${value ?? 'none'}'),
+      initialValue: value,
+      validator: (_) =>
+          value == null ? 'Vui lòng chọn lý do không trả góp' : null,
+      builder: (field) {
+        return InputDecorator(
+          decoration: appInputDecoration(
+            label: 'Lý do không trả góp',
+            icon: Icons.report_problem_outlined,
+            errorText: field.errorText,
+          ).copyWith(alignLabelWithHint: true),
+          child: Column(
+            children: [
+              for (final entry
+                  in _installmentNoInstallmentReasonOptions.entries)
+                CheckboxListTile(
+                  key: ValueKey(
+                    'sales-report-installment-no-reason-${entry.key}',
+                  ),
+                  value: value == entry.key,
+                  onChanged: (checked) {
+                    final next = checked == true ? entry.key : null;
+                    field.didChange(next);
+                    onChanged(next);
+                  },
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text(
+                    entry.value,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -1095,24 +1419,41 @@ class _AnswerDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        AppSelectField<String>(
+        FormField<String>(
           key: ValueKey('sales-report-answer-$label-$value'),
-          value: value,
-          label: label,
-          hintText: 'Chọn',
-          items: options.entries
-              .map(
-                (entry) => DropdownMenuItem<String>(
-                  value: entry.key,
-                  child: Text(entry.value, overflow: TextOverflow.ellipsis),
-                ),
-              )
-              .toList(),
-          onChanged: (value) {
-            if (value != 'OTHER') otherController.clear();
-            onChanged(value);
+          initialValue: value,
+          validator: (_) => value == null ? 'Vui lòng chọn $label' : null,
+          builder: (field) {
+            return InputDecorator(
+              decoration: appInputDecoration(
+                label: label,
+                icon: Icons.checklist_outlined,
+                errorText: field.errorText,
+              ).copyWith(alignLabelWithHint: true),
+              child: Column(
+                children: [
+                  for (final entry in options.entries)
+                    CheckboxListTile(
+                      key: ValueKey('sales-report-answer-$label-${entry.key}'),
+                      value: value == entry.key,
+                      onChanged: (checked) {
+                        final next = checked == true ? entry.key : null;
+                        if (next != 'OTHER') otherController.clear();
+                        field.didChange(next);
+                        onChanged(next);
+                      },
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: Text(
+                        entry.value,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              ),
+            );
           },
-          validator: (value) => value == null ? 'Vui lòng chọn $label' : null,
         ),
         if (value == 'OTHER') ...[
           const SizedBox(height: AppLayoutTokens.formInlineGap),
@@ -1145,24 +1486,46 @@ class _NotPurchasedSection extends StatelessWidget {
     return AppSurfaceCard(
       child: Column(
         children: [
-          AppSelectField<String>(
+          FormField<String>(
             key: ValueKey(
               'sales-report-not-purchased-reason-${reason ?? 'none'}',
             ),
-            value: reason,
-            label: 'Lý do KH không mua hàng',
-            icon: Icons.help_outline_rounded,
-            items: _notPurchasedOptions.entries
-                .map(
-                  (entry) => DropdownMenuItem<String>(
-                    value: entry.key,
-                    child: Text(entry.value, overflow: TextOverflow.ellipsis),
-                  ),
-                )
-                .toList(),
-            onChanged: onChanged,
-            validator: (value) =>
-                value == null ? 'Vui lòng chọn lý do không mua' : null,
+            initialValue: reason,
+            validator: (_) =>
+                reason == null ? 'Vui lòng chọn lý do không mua' : null,
+            builder: (field) {
+              return InputDecorator(
+                decoration: appInputDecoration(
+                  label: 'Lý do KH không mua hàng',
+                  icon: Icons.help_outline_rounded,
+                  errorText: field.errorText,
+                ).copyWith(alignLabelWithHint: true),
+                child: Column(
+                  children: [
+                    for (final entry in _notPurchasedOptions.entries)
+                      CheckboxListTile(
+                        key: ValueKey(
+                          'sales-report-not-purchased-reason-${entry.key}',
+                        ),
+                        value: reason == entry.key,
+                        onChanged: (checked) {
+                          final next = checked == true ? entry.key : null;
+                          if (next != 'OTHER') otherController.clear();
+                          field.didChange(next);
+                          onChanged(next);
+                        },
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        title: Text(
+                          entry.value,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
           ),
           if (reason == 'OTHER') ...[
             const SizedBox(height: AppLayoutTokens.formInlineGap),
