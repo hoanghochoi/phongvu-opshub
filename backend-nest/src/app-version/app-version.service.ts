@@ -40,9 +40,10 @@ export class AppVersionService implements OnApplicationBootstrap {
 
     const android = this.getVersion(env, 'android');
     const windows = this.getVersion(env, 'windows');
+    const web = this.getVersion(env, 'web');
     const startedAt = Date.now();
     this.logger.log(
-      `App version realtime publish started: androidBuild=${android.latestBuild} windowsBuild=${windows.latestBuild}`,
+      `App version realtime publish started: androidBuild=${android.latestBuild} windowsBuild=${windows.latestBuild} webBuild=${web.latestBuild}`,
     );
     try {
       await this.redisService.publishMessageOrThrow(
@@ -53,16 +54,17 @@ export class AppVersionService implements OnApplicationBootstrap {
           platforms: {
             android: realtimeVersionMetadata(android),
             windows: realtimeVersionMetadata(windows),
+            web: realtimeVersionMetadata(web),
           },
         },
       );
       this.logger.log(
-        `App version realtime publish completed: androidBuild=${android.latestBuild} windowsBuild=${windows.latestBuild} durationMs=${Date.now() - startedAt}`,
+        `App version realtime publish completed: androidBuild=${android.latestBuild} windowsBuild=${windows.latestBuild} webBuild=${web.latestBuild} durationMs=${Date.now() - startedAt}`,
       );
       return true;
     } catch (error) {
       this.logger.error(
-        `App version realtime publish failed: androidBuild=${android.latestBuild} windowsBuild=${windows.latestBuild} durationMs=${Date.now() - startedAt}`,
+        `App version realtime publish failed: androidBuild=${android.latestBuild} windowsBuild=${windows.latestBuild} webBuild=${web.latestBuild} durationMs=${Date.now() - startedAt}`,
         error instanceof Error ? error.stack : String(error),
       );
       return false;
@@ -79,10 +81,28 @@ export class AppVersionService implements OnApplicationBootstrap {
       env[`${prefix}APP_BUILD_NUMBER`],
       readPositiveInt(env.APP_BUILD_NUMBER, 1),
     );
+    const fallbackMinSupportedBuild =
+      platform === 'web'
+        ? 1
+        : readPositiveInt(env.APP_MIN_SUPPORTED_BUILD, latestBuild);
     const minSupportedBuild = readPositiveInt(
       env[`${prefix}APP_MIN_SUPPORTED_BUILD`],
-      readPositiveInt(env.APP_MIN_SUPPORTED_BUILD, latestBuild),
+      fallbackMinSupportedBuild,
     );
+    const updateUrl =
+      platform === 'web'
+        ? readString(env[`${prefix}APP_UPDATE_URL`], '')
+        : readString(
+            env[`${prefix}APP_UPDATE_URL`],
+            readString(env.APP_UPDATE_URL, ''),
+          );
+    const forceUpdate =
+      platform === 'web'
+        ? readBoolean(env[`${prefix}APP_FORCE_UPDATE`], false)
+        : readBoolean(
+            env[`${prefix}APP_FORCE_UPDATE`],
+            readBoolean(env.APP_FORCE_UPDATE, false),
+          );
 
     return {
       platform,
@@ -92,18 +112,12 @@ export class AppVersionService implements OnApplicationBootstrap {
       ),
       latestBuild,
       minSupportedBuild,
-      updateUrl: readString(
-        env[`${prefix}APP_UPDATE_URL`],
-        readString(env.APP_UPDATE_URL, ''),
-      ),
+      updateUrl,
       releaseNotes: readString(
         env[`${prefix}APP_RELEASE_NOTES`],
         readString(env.APP_RELEASE_NOTES, ''),
       ),
-      forceUpdate: readBoolean(
-        env[`${prefix}APP_FORCE_UPDATE`],
-        readBoolean(env.APP_FORCE_UPDATE, false),
-      ),
+      forceUpdate,
     };
   }
 }
@@ -120,12 +134,14 @@ function realtimeVersionMetadata(info: AppVersionResponse) {
 function normalizePlatform(value: string | undefined): string {
   const normalized = value?.trim().toLowerCase();
   if (normalized === 'windows') return 'windows';
+  if (normalized === 'web') return 'web';
   if (normalized === 'android') return 'android';
   return 'android';
 }
 
 function platformEnvPrefix(platform: string): string {
   if (platform === 'windows') return 'APP_WINDOWS_';
+  if (platform === 'web') return 'APP_WEB_';
   if (platform === 'android') return 'APP_ANDROID_';
   return '';
 }

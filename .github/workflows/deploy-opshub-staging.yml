@@ -617,6 +617,13 @@ jobs:
           upsert_env APP_WINDOWS_APP_RELEASE_NOTES "$APP_RELEASE_NOTES"
           upsert_env APP_WINDOWS_APP_FORCE_UPDATE true
 
+          upsert_env APP_WEB_APP_VERSION "$APP_VERSION"
+          upsert_env APP_WEB_APP_BUILD_NUMBER "$APP_BUILD_NUMBER"
+          upsert_env APP_WEB_APP_MIN_SUPPORTED_BUILD 1
+          upsert_env APP_WEB_APP_UPDATE_URL ""
+          upsert_env APP_WEB_APP_RELEASE_NOTES "$APP_RELEASE_NOTES"
+          upsert_env APP_WEB_APP_FORCE_UPDATE false
+
           docker run --rm \
             --env-file "$OPSHUB_ENV_FILE" \
             -v "$REMOTE_RELEASE_DIR/deploy/home-server/Caddyfile:/etc/caddy/Caddyfile:ro" \
@@ -676,12 +683,12 @@ jobs:
 
           compose_cmd up -d --build --force-recreate --wait api realtime caddy
 
-          expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}"
+          expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}|1|false"
           for attempt in {1..12}; do
             current_app_env="$(
               compose_cmd \
                 exec -T api sh -lc \
-                'printf "%s|%s|%s|%s" "$APP_ANDROID_APP_VERSION" "$APP_ANDROID_APP_BUILD_NUMBER" "$APP_WINDOWS_APP_VERSION" "$APP_WINDOWS_APP_BUILD_NUMBER"' \
+                'printf "%s|%s|%s|%s|%s|%s|%s|%s" "$APP_ANDROID_APP_VERSION" "$APP_ANDROID_APP_BUILD_NUMBER" "$APP_WINDOWS_APP_VERSION" "$APP_WINDOWS_APP_BUILD_NUMBER" "$APP_WEB_APP_VERSION" "$APP_WEB_APP_BUILD_NUMBER" "$APP_WEB_APP_MIN_SUPPORTED_BUILD" "$APP_WEB_APP_FORCE_UPDATE"' \
                 2>/dev/null || true
             )"
             if [ "$current_app_env" = "$expected_app_env" ]; then
@@ -751,15 +758,19 @@ jobs:
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/" >/dev/null
           android_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android")"
           windows_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows")"
+          web_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=web")"
           node -e "
             const android = JSON.parse(process.argv[1]);
             const windows = JSON.parse(process.argv[2]);
-            const expectedBuild = Number(process.argv[3]);
-            const publicBaseUrl = process.argv[4];
-            for (const [platform, payload] of Object.entries({ android, windows })) {
+            const web = JSON.parse(process.argv[3]);
+            const expectedBuild = Number(process.argv[4]);
+            const publicBaseUrl = process.argv[5];
+            for (const [platform, payload] of Object.entries({ android, windows, web })) {
               if (payload.latestBuild !== expectedBuild) {
                 throw new Error(platform + ' latestBuild expected ' + expectedBuild + ', got ' + payload.latestBuild);
               }
+            }
+            for (const [platform, payload] of Object.entries({ android, windows })) {
               if (!String(payload.updateUrl || '').startsWith(publicBaseUrl + '/downloads/')) {
                 throw new Error(platform + ' updateUrl does not point to staging downloads');
               }
@@ -769,7 +780,11 @@ jobs:
             }
             if (!String(android.updateUrl || '').endsWith('.apk')) throw new Error('Android updateUrl is not an APK');
             if (!String(windows.updateUrl || '').endsWith('.exe')) throw new Error('Windows updateUrl is not an installer EXE');
-          " "$android_json" "$windows_json" "${{ needs.prepare.outputs.version_code }}" "$OPSHUB_DOWNLOAD_PUBLIC_BASE_URL"
+            if (web.platform !== 'web') throw new Error('Web app-version did not report platform=web');
+            if (String(web.updateUrl || '') !== '') throw new Error('Web updateUrl must be empty');
+            if (web.forceUpdate !== false) throw new Error('Web forceUpdate must be false');
+            if (web.minSupportedBuild !== 1) throw new Error('Web minSupportedBuild must be 1');
+          " "$android_json" "$windows_json" "$web_json" "${{ needs.prepare.outputs.version_code }}" "$OPSHUB_DOWNLOAD_PUBLIC_BASE_URL"
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$android_json")" >/dev/null
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$windows_json")" >/dev/null
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null

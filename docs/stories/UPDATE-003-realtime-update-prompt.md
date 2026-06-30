@@ -10,7 +10,8 @@ an app restart.
 
 - `GET /app-version?platform=...` remains the source of truth for whether an
   update exists, whether it is required, and which URL should open. Web clients
-  reload the current page instead of opening a download URL.
+  use `platform=web`, receive web metadata with an empty update URL, and reload
+  the current page instead of opening an app download URL.
 - After the API starts with deploy-published metadata, NestJS publishes an
   `APP_VERSION_UPDATED` Redis event containing only public build metadata.
 - The Go realtime service broadcasts that signal as `APP_UPDATE` through the
@@ -21,7 +22,8 @@ an app restart.
   so an event missed during service restart is recovered.
 - Dismissing an optional build suppresses that same build for the current app
   process. A newer build or a required update can show again. On web, the
-  primary action is `Tải lại`.
+  primary action is `Tải lại`, and web metadata must not force the APK/installer
+  update path.
 - WebSocket errors never block app startup or remove the existing startup HTTP
   check.
 

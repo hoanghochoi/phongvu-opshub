@@ -70,7 +70,34 @@ describe('AppVersionService', () => {
     });
   });
 
-  it('publishes Android and Windows metadata for realtime clients', async () => {
+  it('returns web metadata without app download requirements', () => {
+    expect(
+      service.getVersion(
+        {
+          APP_VERSION: '1.2.3',
+          APP_BUILD_NUMBER: '42',
+          APP_MIN_SUPPORTED_BUILD: '42',
+          APP_UPDATE_URL: 'https://opshub.hoanghochoi.com/downloads/app.apk',
+          APP_FORCE_UPDATE: 'true',
+          APP_RELEASE_NOTES: 'Shared notes',
+          APP_WEB_APP_VERSION: '1.2.5',
+          APP_WEB_APP_BUILD_NUMBER: '45',
+          APP_WEB_APP_RELEASE_NOTES: 'Web bundle refresh',
+        },
+        'web',
+      ),
+    ).toEqual({
+      platform: 'web',
+      latestVersion: '1.2.5',
+      latestBuild: 45,
+      minSupportedBuild: 1,
+      updateUrl: '',
+      releaseNotes: 'Web bundle refresh',
+      forceUpdate: false,
+    });
+  });
+
+  it('publishes Android, Windows, and web metadata for realtime clients', async () => {
     const redis = {
       publishMessageOrThrow: jest.fn().mockResolvedValue(undefined),
     };
@@ -86,6 +113,9 @@ describe('AppVersionService', () => {
         APP_WINDOWS_APP_BUILD_NUMBER: '43',
         APP_WINDOWS_APP_MIN_SUPPORTED_BUILD: '41',
         APP_WINDOWS_APP_FORCE_UPDATE: 'false',
+        APP_WEB_APP_BUILD_NUMBER: '44',
+        APP_WEB_APP_MIN_SUPPORTED_BUILD: '1',
+        APP_WEB_APP_FORCE_UPDATE: 'false',
       }),
     ).resolves.toBe(true);
 
@@ -105,6 +135,12 @@ describe('AppVersionService', () => {
             latestVersion: '1.2.4',
             latestBuild: 43,
             minSupportedBuild: 41,
+            forceUpdate: false,
+          },
+          web: {
+            latestVersion: '1.2.3',
+            latestBuild: 44,
+            minSupportedBuild: 1,
             forceUpdate: false,
           },
         },
