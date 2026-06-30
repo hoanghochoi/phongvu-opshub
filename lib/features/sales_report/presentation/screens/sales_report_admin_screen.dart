@@ -10,6 +10,7 @@ import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../core/formatting/money_formatters.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/sales_report.dart';
 import '../providers/sales_report_provider.dart';
@@ -221,7 +222,7 @@ class _SalesReportAdminTile extends StatelessWidget {
         : item['installmentApproved'] == false
         ? 'Không duyệt'
         : '';
-    final loanAmount = item['installmentLoanAmount']?.toString() ?? '';
+    final loanAmount = formatVndAmount(item['installmentLoanAmount']);
     final noInstallmentReason =
         item['installmentNoInstallmentReasonLabel']?.toString() ?? '';
     final installmentLabel = item['installmentStatusLabel']?.toString() ?? '';

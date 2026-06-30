@@ -160,6 +160,63 @@ void main() {
     expect(repository.createCalled, isFalse);
   });
 
+  testWidgets('Học sinh - Sinh viên is a child option of Cá nhân', (
+    tester,
+  ) async {
+    final repository = _FakeSalesReportRepository();
+    await _pumpNotPurchasedForm(tester, repository);
+
+    final businessFinder = _checkboxTileByKey(
+      'sales-report-customer-type-BUSINESS',
+    );
+    final personalFinder = _checkboxTileByKey(
+      'sales-report-customer-type-PERSONAL',
+    );
+    final studentFinder = _checkboxTileByKey('sales-report-customer-student');
+
+    await tester.ensureVisible(studentFinder);
+    await tester.tap(studentFinder);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<CheckboxListTile>(personalFinder).value, isTrue);
+    expect(tester.widget<CheckboxListTile>(studentFinder).value, isTrue);
+    expect(tester.widget<CheckboxListTile>(businessFinder).value, isFalse);
+
+    await tester.ensureVisible(businessFinder);
+    await tester.tap(businessFinder);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<CheckboxListTile>(businessFinder).value, isTrue);
+    expect(tester.widget<CheckboxListTile>(personalFinder).value, isFalse);
+    expect(tester.widget<CheckboxListTile>(studentFinder).value, isFalse);
+    expect(tester.widget<CheckboxListTile>(personalFinder).onChanged, isNull);
+    expect(tester.widget<CheckboxListTile>(studentFinder).onChanged, isNull);
+  });
+
+  testWidgets('Số tiền vay formats thousand separators while typing', (
+    tester,
+  ) async {
+    final repository = _FakeSalesReportRepository();
+    await _pumpNotPurchasedForm(tester, repository);
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('sales-report-installment-checkbox')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('sales-report-installment-checkbox')),
+    );
+    await tester.pumpAndSettle();
+
+    final loanField = find.descendant(
+      of: find.byKey(const ValueKey('sales-report-installment-loan-amount')),
+      matching: find.byType(TextFormField),
+    );
+    await tester.enterText(loanField, '5000000');
+    await tester.pump();
+
+    expect(find.text('5.000.000'), findsOneWidget);
+  });
+
   testWidgets(
     'Báo cáo chưa mua opens installment approval and no-installment reason',
     (tester) async {
@@ -246,6 +303,40 @@ void main() {
     expect(check.customerType, 'BUSINESS');
     expect(check.paymentMethods, ['cash', 'bank_transfer']);
   });
+}
+
+Future<void> _pumpNotPurchasedForm(
+  WidgetTester tester,
+  _FakeSalesReportRepository repository,
+) async {
+  final authProvider = _FakeAuthProvider(
+    const User(
+      id: 'user-1',
+      email: 'sale@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-store-cp01',
+      featureAccess: {'SALES_REPORT': true},
+    ),
+  );
+
+  await tester.pumpWidget(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+        ChangeNotifierProvider<SalesReportProvider>(
+          create: (_) => SalesReportProvider(repository),
+        ),
+      ],
+      child: const MaterialApp(home: SalesReportFormScreen.notPurchased()),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Finder _checkboxTileByKey(String key) {
+  return find.byWidgetPredicate(
+    (widget) => widget is CheckboxListTile && widget.key == ValueKey(key),
+  );
 }
 
 class _FakeAuthProvider extends AuthProvider {

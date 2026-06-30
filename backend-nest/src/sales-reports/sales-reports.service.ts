@@ -176,6 +176,8 @@ export class SalesReportsService {
     const customerType = this.normalizeCustomerType(
       this.optionalText(body.customerType, 20) ?? erpOrder?.customerType,
     );
+    const customerIsStudent = body.customerIsStudent === true;
+    this.assertCustomerTypeStudentConsistency(customerType, customerIsStudent);
     const installment = this.normalizeInstallmentSelection(body);
 
     this.logger.log(
@@ -223,7 +225,7 @@ export class SalesReportsService {
             500,
           ),
           customerType,
-          customerIsStudent: body.customerIsStudent === true,
+          customerIsStudent,
           promotionCodes,
           installmentNeed: installment.need,
           installmentApproved: installment.approved,
@@ -251,6 +253,7 @@ export class SalesReportsService {
                 this.installmentPartnerLabel(code),
               ),
               customerType: this.customerTypeLabel(customerType),
+              customerIsStudent,
               promotions: promotionCodes.map((code) =>
                 this.promotionLabel(code),
               ),
@@ -564,6 +567,20 @@ export class SalesReportsService {
       throw new BadRequestException('Vui lòng chọn loại khách hàng.');
     }
     return normalized;
+  }
+
+  private assertCustomerTypeStudentConsistency(
+    customerType: string,
+    customerIsStudent: boolean,
+  ) {
+    if (customerType === 'BUSINESS' && customerIsStudent) {
+      this.logger.warn(
+        `Sales report blocked invalid customer flags: customerType=${customerType} customerIsStudent=${customerIsStudent}`,
+      );
+      throw new BadRequestException(
+        'Doanh nghiệp không thể đồng thời là Học sinh - Sinh viên.',
+      );
+    }
   }
 
   private normalizePromotionCodes(value: unknown) {

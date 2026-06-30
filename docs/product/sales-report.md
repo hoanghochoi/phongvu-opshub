@@ -34,10 +34,13 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Các lựa chọn dạng danh sách trên form báo cáo hiển thị bằng checkbox, không
   dùng dropdown. Những nhóm chỉ được chọn một đáp án vẫn dùng checkbox theo kiểu
   chọn độc quyền để nhân viên thao tác nhất quán.
-- Loại khách hàng gồm `Doanh nghiệp`, `Cá nhân`, và checkbox riêng
+- Loại khách hàng gồm `Doanh nghiệp`, `Cá nhân`; `Học sinh - Sinh viên` là
+  checkbox con của `Cá nhân`. Khi tick `Học sinh - Sinh viên`, app tự tick
+  `Cá nhân`; khi chọn `Doanh nghiệp`, app khóa và bỏ chọn `Cá nhân` /
   `Học sinh - Sinh viên`. Với báo cáo mua hàng, app tự fill `Doanh nghiệp` khi
   ERP trả `customerType = BUSINESS`, còn giá trị rỗng được xem là `Cá nhân`.
-  Với báo cáo chưa mua, sale chọn loại khách thủ công.
+  Với báo cáo chưa mua, sale chọn loại khách thủ công. DB lưu bằng
+  `customerType` và flag riêng `customerIsStudent`.
 - `CTKM áp dụng` là nhóm checkbox gồm `Đổi điểm thi`,
   `Học sinh - Sinh viên`, và `CTKM khác`.
 - Cả `Mua hàng` và `Chưa mua hàng` có tick `Có nhu cầu trả góp`. Khi tick, sale
@@ -54,6 +57,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   `Khách từ chối: Không đủ điều kiện giấy tờ/thẻ`,
   `Khách từ chối: Giá cao/So sánh đối thủ (TGDĐ, FPT, CPS...)`,
   `Khách từ chối: Chỉ tham khảo/Hẹn quay lại`.
+- Mọi số tiền hiển thị/nhập trong UI sales-report dùng dấu phân cách hàng ngàn
+  theo chuẩn `vi_VN`, ví dụ `5.000.000 VND`; payload gửi backend vẫn là số
+  nguyên không có dấu phân cách.
 - Khi lấy đơn hàng từ ERP, backend lưu loại khách hàng, phương thức thanh toán,
   snapshot đơn hàng đã sanitize, và từng sản phẩm trong bảng
   `SalesReportOrderItem`. CSV export bung mỗi sản phẩm thành một dòng và lặp lại

@@ -213,6 +213,22 @@ describe('SalesReportsService', () => {
     );
   });
 
+  it('rejects student flag for business customer type', async () => {
+    const { service, prisma } = createHarness();
+
+    await expect(
+      service.create(userFixture(), {
+        ...baseInput(),
+        customerType: 'BUSINESS',
+        customerIsStudent: true,
+      }),
+    ).rejects.toThrow(
+      'Doanh nghiệp không thể đồng thời là Học sinh - Sinh viên.',
+    );
+
+    expect(prisma.salesReport.create).not.toHaveBeenCalled();
+  });
+
   it('requires installment details and stores selected partners', async () => {
     const { service, prisma } = createHarness();
 

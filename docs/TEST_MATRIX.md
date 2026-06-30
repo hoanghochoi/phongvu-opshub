@@ -188,6 +188,17 @@ Recent focused evidence:
   `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
   (5 tests), `flutter analyze --no-pub`, and `git diff --check` (CRLF warnings
   only).
+- `SALES-REPORT-001`, 2026-06-30: Customer type UI makes
+  `Học sinh - Sinh viên` a child checkbox of `Cá nhân`, auto-selects `Cá nhân`
+  when HS-SV is checked, clears/locks personal flags when `Doanh nghiệp` is
+  selected, and formats sales-report money fields/displays with `vi_VN`
+  thousand separators. Validation: `npm test -- --runInBand src/sales-reports`
+  (16 tests), `npm run build`,
+  `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
+  (7 tests), focused `dart analyze` on changed sales-report/helper/test files,
+  and `git diff --check`. Full `flutter analyze --no-pub` is blocked by the
+  unrelated dirty VietQR `_historyLoaded` errors in
+  `lib/features/vietqr/presentation/screens/vietqr_screen.dart`.
 - `SALES-REPORT-001`, 2026-06-29: Listing `productGroup.code` is included in
   category candidates and matched directly to `Cat group ID` from
   `data/categories.csv`; category aliases remain fallback. Sales report forms

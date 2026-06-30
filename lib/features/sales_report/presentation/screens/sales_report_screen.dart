@@ -13,6 +13,7 @@ import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../core/formatting/money_formatters.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../fifo_check/presentation/widgets/barcode_scanner_screen.dart';
@@ -305,6 +306,24 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     return value.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
   }
 
+  void _setCustomerType(String? value) {
+    setState(() {
+      _customerType = value;
+      if (value != 'PERSONAL') {
+        _customerIsStudent = false;
+      }
+    });
+  }
+
+  void _setCustomerIsStudent(bool value) {
+    setState(() {
+      _customerIsStudent = value;
+      if (value) {
+        _customerType = 'PERSONAL';
+      }
+    });
+  }
+
   Future<void> _scanOrderCode() async {
     final user = context.read<AuthProvider>().user;
     try {
@@ -373,9 +392,13 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       if ((result.customerNeed ?? '').trim().isNotEmpty) {
         _needController.text = result.customerNeed!.trim();
       }
-      _customerType = result.customerType == 'BUSINESS'
+      final nextCustomerType = result.customerType == 'BUSINESS'
           ? 'BUSINESS'
           : 'PERSONAL';
+      _customerType = nextCustomerType;
+      if (nextCustomerType != 'PERSONAL') {
+        _customerIsStudent = false;
+      }
       _categoryGroupIds
         ..clear()
         ..addAll(result.categoryGroups.map((category) => category.id));
@@ -481,9 +504,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       installmentNeed: _installmentSelected,
       installmentApproved: _installmentSelected ? _installmentApproved : null,
       installmentLoanAmount: _installmentSelected
-          ? int.tryParse(
-              _installmentLoanController.text.replaceAll(RegExp(r'[^0-9]'), ''),
-            )
+          ? parseMoneyAmount(_installmentLoanController.text)
           : null,
       installmentNoInstallmentReason: _installmentSelected
           ? _installmentNoInstallmentReason
@@ -595,10 +616,8 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
                         categories: provider.categories,
                         categoryGroupIds: _categoryGroupIds,
                         loadingCategories: provider.isLoadingCategories,
-                        onCustomerTypeChanged: (value) =>
-                            setState(() => _customerType = value),
-                        onStudentChanged: (value) =>
-                            setState(() => _customerIsStudent = value),
+                        onCustomerTypeChanged: _setCustomerType,
+                        onStudentChanged: _setCustomerIsStudent,
                         onPromotionsChanged: (value) {
                           setState(() {
                             _promotionCodes
@@ -780,6 +799,7 @@ class _OrderSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final order = check.order;
     String text(String key) => order[key]?.toString() ?? '';
+    final grandTotal = formatVndAmount(order['grandTotal']);
     return AppSurfaceCard(
       backgroundColor: AppColors.success.withValues(alpha: 0.08),
       borderColor: AppColors.success.withValues(alpha: 0.20),
@@ -800,8 +820,7 @@ class _OrderSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text('Mã đơn: ${check.orderCode}'),
-          if (text('grandTotal').isNotEmpty)
-            Text('Tổng tiền: ${text('grandTotal')}'),
+          if (grandTotal.isNotEmpty) Text('Tổng tiền: $grandTotal'),
           if (text('paymentStatus').isNotEmpty)
             Text('Thanh toán: ${text('paymentStatus')}'),
           if (text('terminalName').isNotEmpty)
@@ -912,8 +931,21 @@ class _CustomerTypePicker extends StatelessWidget {
     return FormField<String>(
       key: ValueKey('sales-report-customer-type-${value ?? 'none'}'),
       initialValue: value,
-      validator: (_) => value == null ? 'Vui lòng chọn loại khách hàng' : null,
+      validator: (_) {
+        if (value == null) return 'Vui lòng chọn loại khách hàng';
+        if (value == 'BUSINESS' && isStudent) {
+          return 'Doanh nghiệp không thể đồng thời là Học sinh - Sinh viên';
+        }
+        return null;
+      },
       builder: (field) {
+        final businessSelected = value == 'BUSINESS';
+        final personalSelected = value == 'PERSONAL';
+        void changeType(String? next) {
+          field.didChange(next);
+          onChanged(next);
+        }
+
         return InputDecorator(
           decoration: appInputDecoration(
             label: 'Loại khách hàng',
@@ -922,24 +954,38 @@ class _CustomerTypePicker extends StatelessWidget {
           ).copyWith(alignLabelWithHint: true),
           child: Column(
             children: [
-              for (final entry in _customerTypeOptions.entries)
-                CheckboxListTile(
-                  key: ValueKey('sales-report-customer-type-${entry.key}'),
-                  value: value == entry.key,
-                  onChanged: (checked) {
-                    final next = checked == true ? entry.key : null;
-                    field.didChange(next);
-                    onChanged(next);
-                  },
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  title: Text(entry.value),
-                ),
+              CheckboxListTile(
+                key: const ValueKey('sales-report-customer-type-BUSINESS'),
+                value: businessSelected,
+                onChanged: (checked) =>
+                    changeType(checked == true ? 'BUSINESS' : null),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(_customerTypeOptions['BUSINESS']!),
+              ),
+              CheckboxListTile(
+                key: const ValueKey('sales-report-customer-type-PERSONAL'),
+                value: personalSelected,
+                onChanged: businessSelected
+                    ? null
+                    : (checked) =>
+                          changeType(checked == true ? 'PERSONAL' : null),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(_customerTypeOptions['PERSONAL']!),
+              ),
               CheckboxListTile(
                 key: const ValueKey('sales-report-customer-student'),
                 value: isStudent,
-                onChanged: (checked) => onStudentChanged(checked ?? false),
-                contentPadding: EdgeInsets.zero,
+                onChanged: businessSelected
+                    ? null
+                    : (checked) {
+                        if (checked == true && !personalSelected) {
+                          changeType('PERSONAL');
+                        }
+                        onStudentChanged(checked ?? false);
+                      },
+                contentPadding: const EdgeInsets.only(left: 32),
                 controlAffinity: ListTileControlAffinity.leading,
                 title: const Text('Học sinh - Sinh viên'),
               ),
@@ -1141,12 +1187,12 @@ class _InstallmentSection extends StatelessWidget {
               label: 'Số tiền vay',
               icon: Icons.payments_outlined,
               keyboardType: TextInputType.number,
+              inputFormatters: [VietnameseThousandsSeparatorInputFormatter()],
+              suffixText: 'VND',
               validator: (value) {
                 final text = (value ?? '').trim();
                 if (text.isEmpty) return null;
-                final number = int.tryParse(
-                  text.replaceAll(RegExp(r'[^0-9]'), ''),
-                );
+                final number = parseMoneyAmount(text);
                 return number == null ? 'Số tiền vay không hợp lệ' : null;
               },
             ),
