@@ -7,8 +7,7 @@ class AppPlatformCapabilities {
     bool? isWeb,
     TargetPlatform? platform,
   }) {
-    final effectiveIsWeb = isWeb ?? kIsWeb;
-    return !effectiveIsWeb;
+    return true;
   }
 
   static bool isPaymentSpeakerSupported({

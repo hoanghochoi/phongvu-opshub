@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
+import '../core/config/app_brand.dart';
 import '../core/logging/app_logger.dart';
 import '../core/network/api_client.dart';
 import '../features/auth/data/repositories/auth_repository.dart';
@@ -152,7 +153,7 @@ class _AppRouterGatewayState extends State<AppRouterGateway> {
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     return MaterialApp.router(
-      title: 'PhongVu OpsHub',
+      title: AppBrand.title,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.mode,

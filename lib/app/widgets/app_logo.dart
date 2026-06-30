@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../core/config/app_brand.dart';
+
 class AppLogo extends StatelessWidget {
-  static const imageAsset = 'assets/icon/source/app_icon_master.png';
-  static const paddedImageAsset = 'assets/icon/source/app_icon_padded.png';
+  static String get imageAsset => AppBrand.logoAsset;
+  static String get paddedImageAsset => AppBrand.paddedLogoAsset;
 
   final double size;
   final double borderRadius;

@@ -2,14 +2,15 @@
 
 ## Goal
 
-Show the update overlay to an already-running Android or Windows client as soon
-as a deploy publishes newer app-version metadata, without waiting for an app
-restart.
+Show the update overlay to an already-running Android, Windows, or web client
+as soon as a deploy publishes newer app-version metadata, without waiting for
+an app restart.
 
 ## Contract
 
 - `GET /app-version?platform=...` remains the source of truth for whether an
-  update exists, whether it is required, and which URL should open.
+  update exists, whether it is required, and which URL should open. Web clients
+  reload the current page instead of opening a download URL.
 - After the API starts with deploy-published metadata, NestJS publishes an
   `APP_VERSION_UPDATED` Redis event containing only public build metadata.
 - The Go realtime service broadcasts that signal as `APP_UPDATE` through the
@@ -19,7 +20,8 @@ restart.
   before changing UI. It also verifies after WebSocket reconnect and app resume
   so an event missed during service restart is recovered.
 - Dismissing an optional build suppresses that same build for the current app
-  process. A newer build or a required update can show again.
+  process. A newer build or a required update can show again. On web, the
+  primary action is `Tải lại`.
 - WebSocket errors never block app startup or remove the existing startup HTTP
   check.
 
@@ -34,8 +36,8 @@ restart.
 
 - Focused NestJS app-version tests and full NestJS build/tests.
 - Go realtime tests, including public-client event isolation.
-- Focused Flutter update-gate tests, analyze, full tests, and Android/Windows
-  build proof.
+- Focused Flutter update-gate tests, analyze, full tests, and Android/Windows/
+  web build proof when the changed surface affects build output.
 - `git diff --check` and exact diff review.
 - Live deploy proof remains the final end-to-end verification for Redis publish,
   WebSocket delivery, and the prompt on an already-running old client.

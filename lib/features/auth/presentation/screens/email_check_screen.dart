@@ -9,6 +9,7 @@ import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_logo.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../core/config/app_brand.dart';
 import '../../../../core/utils/validators.dart';
 import '../providers/auth_provider.dart';
 
@@ -67,7 +68,7 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      '© 2025 PhongVu OpsHub',
+                      '© 2025 ${AppBrand.title}',
                       style: AppTextStyles.labelS.copyWith(
                         color: AppColors.surface.withValues(alpha: 0.35),
                       ),
@@ -138,7 +139,7 @@ class _LogoHeader extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         Text(
-          'PhongVu OpsHub',
+          AppBrand.title,
           style: AppTextStyles.headingXL.copyWith(color: AppColors.surface),
           textAlign: TextAlign.center,
         ),

@@ -74,6 +74,7 @@ dependencies:
 
   # Realtime/audio notifications
   web_socket_channel: ^3.0.1
+  web: ^1.1.1
   ffi: ^2.1.4
   media_kit: 1.2.6
   media_kit_libs_windows_audio:
@@ -126,6 +127,7 @@ flutter:
   assets:
     - assets/icon/
     - assets/icon/source/
+    - assets/icon/staging/source/
     - data/group_invitation.jpg
     - data/payment-cue-prefix.wav
     - data/ting_ting.mp3

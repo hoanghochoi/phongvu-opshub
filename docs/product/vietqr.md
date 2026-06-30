@@ -57,8 +57,8 @@ a customer to scan and pay manually.
 ## Payment Monitor
 
 - The app exposes a `Tiền vào` home action for users with `PAYMENT_MONITOR` on
-  supported non-web clients, including Android and Windows. Mobile clients show
-  the stored transaction list without enabling the speaker path.
+  Android, Windows, and web. Android and web show the stored transaction list
+  without enabling the speaker path.
 - The NestJS API is the source of truth for MAP transactions. It polls
   configured showroom MAP accounts in the background, stores successful incoming
   transactions in Postgres, and exposes the stored list to scoped clients.
@@ -89,10 +89,9 @@ a customer to scan and pay manually.
 - The app starts the monitor after sign-in when the account has at least one
   assigned showroom. It seeds currently visible server transactions silently so
   old rows are not announced again on speaker-capable clients.
-- While the app is running, the PC listens for scoped realtime payment events
-  and refreshes stored transactions when a new notification arrives. A
-  30-second fallback refresh remains active so the list can recover from missed
-  socket events.
+- While the app is running, scoped realtime payment events refresh stored
+  transactions when a new notification arrives. A 30-second fallback refresh
+  remains active so the list can recover from missed socket events.
 - Failed transaction refreshes apply bounded backoff. Realtime/fallback refresh
   cannot bypass that backoff; only an explicit user refresh or filter/page
   action may retry immediately. This prevents socket bursts from amplifying
@@ -110,8 +109,7 @@ a customer to scan and pay manually.
   appends the full TTS WAV immediately so there is no configured gap before the
   first spoken word. If combined audio is unavailable, the Windows local-cue
   fallback also plays the cue at `80%` while keeping voice playback at `100%`.
-  Mobile and other unsupported platforms do not start the speaker path by
-  default.
+  Android, web, and other unsupported platforms do not start the speaker path.
 - Turning off `Đọc loa tiền vào` mutes only the speaker path. The PC keeps
   syncing transactions from realtime/fallback refreshes, and muted
   notifications are recorded as `SILENCED` so they are not played later as

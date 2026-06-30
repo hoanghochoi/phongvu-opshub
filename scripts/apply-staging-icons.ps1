@@ -51,6 +51,52 @@ function Copy-RequiredFile {
   Write-Host "Applied staging icon: $Destination"
 }
 
+function Set-Utf8NoBomText {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][string]$Content
+  )
+
+  $encoding = New-Object System.Text.UTF8Encoding $false
+  [System.IO.File]::WriteAllText($Path, $Content, $encoding)
+}
+
+function Apply-StagingWebShell {
+  $indexPath = Join-RepoPath -Segments @('web', 'index.html')
+  if (-not (Test-Path -LiteralPath $indexPath -PathType Leaf)) {
+    throw "Missing web index file: $indexPath"
+  }
+
+  $indexContent = [System.IO.File]::ReadAllText($indexPath)
+  $indexContent = $indexContent.Replace(
+    'PhongVu OpsHub - Operations Hub for PhongVu staff.',
+    'PhongVu OpsHub Staging - Operations Hub staging environment for PhongVu staff.'
+  )
+  $indexContent = $indexContent.Replace(
+    'content="PhongVu OpsHub"',
+    'content="PhongVu OpsHub Staging"'
+  )
+  $indexContent = $indexContent.Replace(
+    '<title>PhongVu OpsHub</title>',
+    '<title>PhongVu OpsHub Staging</title>'
+  )
+  Set-Utf8NoBomText -Path $indexPath -Content $indexContent
+  Write-Host "Applied staging web shell: $indexPath"
+
+  $manifestPath = Join-RepoPath -Segments @('web', 'manifest.json')
+  if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+    throw "Missing web manifest file: $manifestPath"
+  }
+
+  $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+  $manifest.name = 'phongvu-opshub-staging'
+  $manifest.short_name = 'OpsHub Staging'
+  $manifest.description = 'PhongVu OpsHub Staging - Operations Hub staging environment for PhongVu staff.'
+  $manifestJson = $manifest | ConvertTo-Json -Depth 16
+  Set-Utf8NoBomText -Path $manifestPath -Content ($manifestJson + [Environment]::NewLine)
+  Write-Host "Applied staging web manifest: $manifestPath"
+}
+
 if ($Platform -in @('all', 'windows')) {
   Copy-RequiredFile `
     -Source (Join-StagingIconPath -Segments @('windows', 'app_icon.ico')) `
@@ -67,4 +113,6 @@ if ($Platform -in @('all', 'web')) {
       -Source (Join-StagingIconPath -Segments @('web', 'icons', $iconName)) `
       -Destination (Join-RepoPath -Segments @('web', 'icons', $iconName))
   }
+
+  Apply-StagingWebShell
 }

@@ -106,7 +106,8 @@ jobs:
             --flavor staging \
             --build-name "${{ needs.prepare.outputs.version_name }}" \
             --build-number "${{ needs.prepare.outputs.version_code }}" \
-            --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}"
+            --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}" \
+            --dart-define "APP_ENV=staging"
 
       - name: Connect Tailscale
         uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8
@@ -177,7 +178,8 @@ jobs:
           flutter build windows --release `
             --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
             --build-number "${{ needs.prepare.outputs.version_code }}" `
-            --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}"
+            --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}" `
+            --dart-define "APP_ENV=staging"
 
       - name: Configure Windows staging signing certificate
         shell: pwsh
@@ -401,7 +403,8 @@ jobs:
           flutter build web --release \
             --build-name "${{ needs.prepare.outputs.version_name }}" \
             --build-number "${{ needs.prepare.outputs.version_code }}" \
-            --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}"
+            --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}" \
+            --dart-define "APP_ENV=staging"
 
       - name: Connect Tailscale
         uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8

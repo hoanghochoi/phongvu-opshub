@@ -16,6 +16,7 @@ import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_logo.dart';
 import '../../../../app/widgets/gradient_header.dart';
+import '../../../../core/config/app_brand.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -638,7 +639,7 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'PhongVu OpsHub',
+              AppBrand.title,
               style: AppTextStyles.headingM.copyWith(color: AppColors.primary),
             ),
             const SizedBox(height: 4),
@@ -796,7 +797,7 @@ class _CompactHomeHeader extends StatelessWidget {
               ),
               Expanded(
                 child: Text(
-                  'PhongVu OpsHub',
+                  AppBrand.title,
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

@@ -178,14 +178,13 @@ visual systems that make the app feel assembled from unrelated screens.
   root in production and staging. The SPA fallback must preserve `/api`, `/ws`,
   `/download`, `/help`, `/uploads`, `/downloads`, `/staging-download`, and
   `/health` before serving `index.html`.
-- Payment monitor list access is available on supported non-web clients,
-  including Android and Windows, when the user has `PAYMENT_MONITOR`.
-  The speaker path is Windows-only because it depends on desktop audio
-  behavior. Home tiles, speaker controls, and provider logic must not conflate
-  those platform capabilities.
-- Web must not start payment audio realtime handling. The `Tiền vào` entry is
-  hidden on web in phase 1, direct route access renders an unsupported state,
-  and that branch must log through `AppLogger`.
+- Payment monitor list access is available on Android, Windows, and web when
+  the user has `PAYMENT_MONITOR`. The speaker path is Windows-only because it
+  depends on desktop audio behavior. Home tiles, speaker controls, and provider
+  logic must not conflate those platform capabilities.
+- Web must not start payment audio handling or show speaker controls. The
+  `Tiền vào` entry opens the transaction list on web, while the `Đọc loa`
+  controls remain hidden or disabled outside supported Windows clients.
 - If a feature or sub-feature is platform-specific, direct route access on
   unsupported platforms must not run that sub-feature flow. It must render a
   shared unsupported state or hide the unsupported control and log the branch

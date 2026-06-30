@@ -45,6 +45,20 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UPDATE-001`/`UPDATE-003`/`PAYMENT-MONITOR-001`, 2026-06-30: web update
+  prompts now reload the current page instead of opening a download URL, web
+  users with `PAYMENT_MONITOR` can open the `Tiền vào` transaction list, and
+  `Đọc loa` remains Windows-only. Staging builds pass `APP_ENV=staging`, the
+  Flutter brand helper uses staging title/logo for staging API builds, and the
+  staging web icon script also rewrites `index.html`/`manifest.json` before the
+  web bundle is built. Validation: focused Flutter tests for update gate,
+  platform capabilities, router, brand asset, payment monitor provider, and
+  Home (44 tests), `flutter analyze --no-pub`, PowerShell parser check for
+  `scripts/apply-staging-icons.ps1`, workflow YAML parse for
+  `deploy-opshub-staging.yml`, staging `flutter build web --release --no-pub`
+  with `API_BASE_URL=https://opshub-staging.hoanghochoi.com/api` and
+  `APP_ENV=staging`, built-bundle grep for `PhongVu OpsHub Staging` plus the
+  staging logo asset, and `git diff --check` (CRLF warnings only).
 - `UI-UX-001`, 2026-06-29: completed the Flutter feature-layer baseline for
   the Figma Design System 2026 migration. Auth/register/profile, Settings,
   Notifications, AppUpdate, Payment Monitor, FIFO/FIFO-check, Warranty/BH-SC,

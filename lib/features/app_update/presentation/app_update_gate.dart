@@ -10,11 +10,13 @@ import '../../../app/widgets/app_buttons.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/platform/app_page_reloader.dart';
 import '../data/app_update_realtime_connection.dart';
 import '../data/app_update_service.dart';
 
 typedef AppUpdateChecker = Future<AppUpdateCheckResult?> Function();
 typedef AppUpdateUrlOpener = Future<void> Function(String updateUrl);
+typedef AppUpdatePageReloader = Future<void> Function();
 
 class AppUpdateGate extends StatefulWidget {
   const AppUpdateGate({
@@ -22,6 +24,7 @@ class AppUpdateGate extends StatefulWidget {
     required this.child,
     this.checkForUpdate,
     this.openUpdateUrl,
+    this.reloadPage,
     this.requiredUpdateOverride,
     this.realtimeConnector,
     this.realtimeEnabled = true,
@@ -30,6 +33,7 @@ class AppUpdateGate extends StatefulWidget {
   final Widget child;
   final AppUpdateChecker? checkForUpdate;
   final AppUpdateUrlOpener? openUpdateUrl;
+  final AppUpdatePageReloader? reloadPage;
   final bool? requiredUpdateOverride;
   final AppUpdateRealtimeConnector? realtimeConnector;
   final bool realtimeEnabled;
@@ -57,7 +61,7 @@ class _AppUpdateGateState extends State<AppUpdateGate>
   ];
 
   bool _checked = false;
-  bool _openingUpdateUrl = false;
+  bool _runningUpdateAction = false;
   bool _checkingForUpdate = false;
   String? _queuedCheckReason;
   int? _dismissedLatestBuild;
@@ -403,6 +407,7 @@ class _AppUpdateGateState extends State<AppUpdateGate>
       'latestBuild': result.updateInfo.latestBuild,
       'required': _isRequired(result),
       'hasUpdateUrl': result.updateInfo.updateUrl.isNotEmpty,
+      'reloadsPage': _shouldReloadForUpdate(result),
     };
   }
 
@@ -421,10 +426,29 @@ class _AppUpdateGateState extends State<AppUpdateGate>
     );
   }
 
+  bool _shouldReloadForUpdate(AppUpdateCheckResult result) {
+    return kIsWeb || result.updateInfo.platform == 'web';
+  }
+
+  Future<void> _reloadForUpdate(AppUpdateCheckResult result) async {
+    setState(() => _runningUpdateAction = true);
+    await AppLogger.instance.info(
+      'AppUpdate',
+      'Reloading web app for update',
+      context: _logContext(result),
+    );
+    try {
+      final reloader = widget.reloadPage ?? reloadCurrentPage;
+      await reloader();
+    } finally {
+      if (mounted) setState(() => _runningUpdateAction = false);
+    }
+  }
+
   Future<void> _openUpdateUrl(String updateUrl) async {
     final uri = Uri.tryParse(updateUrl);
     if (uri == null) return;
-    setState(() => _openingUpdateUrl = true);
+    setState(() => _runningUpdateAction = true);
     await AppLogger.instance.info(
       'AppUpdate',
       'Opening update URL',
@@ -438,7 +462,7 @@ class _AppUpdateGateState extends State<AppUpdateGate>
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
     } finally {
-      if (mounted) setState(() => _openingUpdateUrl = false);
+      if (mounted) setState(() => _runningUpdateAction = false);
     }
   }
 
@@ -459,6 +483,7 @@ class _AppUpdateGateState extends State<AppUpdateGate>
   Widget build(BuildContext context) {
     final result = _updateResult;
     final isRequired = result != null && _isRequired(result);
+    final shouldReload = result != null && _shouldReloadForUpdate(result);
     return PopScope(
       canPop: result == null,
       onPopInvokedWithResult: (didPop, _) async {
@@ -472,9 +497,12 @@ class _AppUpdateGateState extends State<AppUpdateGate>
             _UpdatePromptOverlay(
               result: result,
               isRequired: isRequired,
-              openingUpdateUrl: _openingUpdateUrl,
+              runningUpdateAction: _runningUpdateAction,
+              shouldReload: shouldReload,
               onDismiss: _dismissUpdatePrompt,
-              onUpdate: result.updateInfo.updateUrl.isEmpty
+              onUpdate: shouldReload
+                  ? () => _reloadForUpdate(result)
+                  : result.updateInfo.updateUrl.isEmpty
                   ? null
                   : () => _openUpdateUrl(result.updateInfo.updateUrl),
             ),
@@ -488,14 +516,16 @@ class _UpdatePromptOverlay extends StatelessWidget {
   const _UpdatePromptOverlay({
     required this.result,
     required this.isRequired,
-    required this.openingUpdateUrl,
+    required this.runningUpdateAction,
+    required this.shouldReload,
     required this.onDismiss,
     required this.onUpdate,
   });
 
   final AppUpdateCheckResult result;
   final bool isRequired;
-  final bool openingUpdateUrl;
+  final bool runningUpdateAction;
+  final bool shouldReload;
   final Future<void> Function() onDismiss;
   final VoidCallback? onUpdate;
 
@@ -511,7 +541,13 @@ class _UpdatePromptOverlay extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 520),
               child: AlertDialog(
                 title: Text(
-                  isRequired ? 'Cần cập nhật ứng dụng' : 'Có bản cập nhật mới',
+                  shouldReload
+                      ? isRequired
+                            ? 'Cần tải lại ứng dụng'
+                            : 'Có bản web mới'
+                      : isRequired
+                      ? 'Cần cập nhật ứng dụng'
+                      : 'Có bản cập nhật mới',
                 ),
                 content: SingleChildScrollView(
                   child: Column(
@@ -535,14 +571,16 @@ class _UpdatePromptOverlay extends StatelessWidget {
                 actions: [
                   if (!isRequired)
                     AppDialogCancelButton(
-                      onPressed: openingUpdateUrl ? null : onDismiss,
+                      onPressed: runningUpdateAction ? null : onDismiss,
                       label: 'Để sau',
                     ),
                   AppDialogConfirmButton(
-                    onPressed: openingUpdateUrl ? null : onUpdate,
-                    icon: Icons.download_rounded,
-                    label: 'Cập nhật',
-                    isLoading: openingUpdateUrl,
+                    onPressed: runningUpdateAction ? null : onUpdate,
+                    icon: shouldReload
+                        ? Icons.refresh_rounded
+                        : Icons.download_rounded,
+                    label: shouldReload ? 'Tải lại' : 'Cập nhật',
+                    isLoading: runningUpdateAction,
                   ),
                 ],
               ),

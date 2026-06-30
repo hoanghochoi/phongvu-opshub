@@ -21,14 +21,14 @@ void main() {
       );
     });
 
-    test('does not support payment monitor on web', () {
+    test('supports payment monitor list on web', () {
       for (final platform in TargetPlatform.values) {
         expect(
           AppPlatformCapabilities.isPaymentMonitorSupported(
             isWeb: true,
             platform: platform,
           ),
-          isFalse,
+          isTrue,
         );
       }
     });

@@ -81,6 +81,36 @@ void main() {
     expect(find.text('Cần cập nhật ứng dụng'), findsOneWidget);
   });
 
+  testWidgets('web update reloads page instead of opening download URL', (
+    tester,
+  ) async {
+    var reloadCount = 0;
+    String? openedUrl;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: _UpdateGateHarness(
+          checkForUpdate: () async => _webUpdateResult,
+          openUpdateUrl: (url) async => openedUrl = url,
+          reloadPage: () async => reloadCount += 1,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Có bản web mới'), findsOneWidget);
+    expect(find.text('Tải lại'), findsOneWidget);
+    expect(find.byIcon(Icons.refresh_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.download_rounded), findsNothing);
+
+    await tester.tap(find.text('Tải lại'));
+    await tester.pump();
+
+    expect(reloadCount, 1);
+    expect(openedUrl, isNull);
+  });
+
   testWidgets('shows update prompt when realtime event arrives', (
     tester,
   ) async {
@@ -260,11 +290,26 @@ const _requiredUpdateResult = AppUpdateCheckResult(
   updateInfo: _requiredUpdateInfo,
 );
 
+const _webUpdateResult = AppUpdateCheckResult(
+  currentVersion: '2026.06.01.1',
+  currentBuild: 199999,
+  updateInfo: AppUpdateInfo(
+    platform: 'web',
+    latestVersion: '2026.06.05.1',
+    latestBuild: 200001,
+    minSupportedBuild: 100000,
+    updateUrl: '',
+    releaseNotes: 'Bản web mới',
+    forceUpdate: false,
+  ),
+);
+
 class _UpdateGateHarness extends StatefulWidget {
   const _UpdateGateHarness({
     super.key,
     required this.checkForUpdate,
     this.openUpdateUrl,
+    this.reloadPage,
     this.requiredUpdateOverride,
     this.realtimeConnector,
     this.realtimeEnabled = false,
@@ -272,6 +317,7 @@ class _UpdateGateHarness extends StatefulWidget {
 
   final AppUpdateChecker checkForUpdate;
   final AppUpdateUrlOpener? openUpdateUrl;
+  final AppUpdatePageReloader? reloadPage;
   final bool? requiredUpdateOverride;
   final AppUpdateRealtimeConnector? realtimeConnector;
   final bool realtimeEnabled;
@@ -292,6 +338,7 @@ class _UpdateGateHarnessState extends State<_UpdateGateHarness> {
     return AppUpdateGate(
       checkForUpdate: widget.checkForUpdate,
       openUpdateUrl: widget.openUpdateUrl,
+      reloadPage: widget.reloadPage,
       requiredUpdateOverride: widget.requiredUpdateOverride,
       realtimeConnector: widget.realtimeConnector,
       realtimeEnabled: widget.realtimeEnabled,

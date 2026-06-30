@@ -27,6 +27,10 @@ The script generates:
   `staging` flavor.
 - Windows staging copies `assets/icon/staging/windows/app_icon.ico` before
   `flutter build windows`.
-- Staging download metadata copies the web staging icon before publishing the
-  download page icon.
+- Flutter UI reads the staging app logo from `AppBrand` when `APP_ENV=staging`
+  or `API_BASE_URL` points to the staging domain.
+- Web staging copies `assets/icon/staging/web/` before `flutter build web` and
+  rewrites `web/index.html` plus `web/manifest.json` to show the staging title
+  and PWA name. Staging download metadata copies that web staging icon before
+  publishing the download page icon.
 - Production workflows do not run the staging icon apply script.
