@@ -16,6 +16,7 @@ artifacts/
 migrate_working_dir/
 .neuralmemory/
 .codex/
+.screenshot/
 .trash/
 
 # IntelliJ related
