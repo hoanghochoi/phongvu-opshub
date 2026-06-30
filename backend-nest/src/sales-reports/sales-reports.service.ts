@@ -955,50 +955,40 @@ export class SalesReportsService {
 
   private buildCsv(rows: any[]) {
     const headers = [
-      'Thời gian gửi',
-      'Loại báo cáo',
-      'Mã đơn hàng',
-      'Showroom',
-      'Người gửi',
-      'MSNV hệ thống',
-      'Loại khách hàng',
-      'Học sinh - Sinh viên',
-      'CTKM áp dụng',
-      'Ngành hàng',
-      'SĐT khách',
-      'Sản phẩm khách tìm',
-      'Tư vấn 3 giải pháp',
-      'Lý do khác tư vấn',
-      'KH trải nghiệm',
-      'Lý do khác trải nghiệm',
-      'KH quét Zalo',
-      'Lý do khác Zalo',
-      'KH tải App PV',
-      'Lý do khác App',
-      'Lý do chưa mua',
-      'Lý do khác chưa mua',
-      'Có nhu cầu trả góp',
-      'Hồ sơ được duyệt',
-      'Số tiền vay',
-      'Trạng thái trả góp',
-      'Đối tác trả góp',
-      'Lý do không trả góp',
-      'Ghi chú trả góp cũ',
-      'Tổng tiền ERP',
-      'Phương thức thanh toán ERP',
-      'Thanh toán ERP',
-      'Xác nhận ERP',
-      'Giao hàng ERP',
-      'SKU ERP',
-      'Seller SKU ERP',
-      'Tên sản phẩm ERP',
-      'Thương hiệu ERP',
-      'Nhóm hàng ERP',
-      'Số lượng ERP',
-      'Giá bán ERP',
-      'Giá sau giảm ERP',
-      'Thành tiền dòng ERP',
-      'Thanh toán chi tiết',
+      'Report date',
+      'Channel',
+      'Store',
+      'Branch code',
+      'Customer full name',
+      'Order code',
+      'Export return branch ID',
+      'Order type',
+      'Email',
+      'HRM ID',
+      'Salesman',
+      'Customer ID',
+      'SKU',
+      'Doc ID',
+      'Sale point per item',
+      'SKU name',
+      'Dealer type',
+      'Brand name',
+      'Billing tax code',
+      'Cat group ID',
+      'Cat group name',
+      'Subcat 2 ID',
+      'Subcat 2 name',
+      'Subcat ID lowest level',
+      'Subcat name lowest level',
+      'Is delivery',
+      'Order note',
+      'Terminal code',
+      'Terminal name',
+      'Platform',
+      'Sale point',
+      'Quantity',
+      'Revenue',
+      'Revenue with VAT',
     ];
     const lines = [headers.map((header) => this.csvCell(header)).join(',')];
     for (const row of rows) {
@@ -1010,111 +1000,218 @@ export class SalesReportsService {
       const paymentMethods = Array.isArray(row.erpPaymentMethods)
         ? row.erpPaymentMethods
         : [];
-      const paymentSummary = (row.payments || [])
-        .map((payment: any) =>
-          [payment.paymentMethod, payment.amount].filter(Boolean).join(' '),
-        )
-        .join('\n');
+      const paymentSummary = this.csvCompactList(
+        (row.payments || [])
+          .map((payment: any) =>
+            [payment.paymentMethod, payment.amount].filter(Boolean).join(' '),
+          )
+          .filter(Boolean),
+      );
+      const reportNote = this.salesReportExportNote({
+        row,
+        categoryGroups,
+        promotionCodes,
+        partnerCodes,
+        paymentMethods,
+        paymentSummary,
+      });
+      const reportTypeLabel =
+        row.reportType === REPORT_TYPE_PURCHASED ? 'Mua hàng' : 'Chưa mua hàng';
+      const storeCode = row.storeCode ?? row.erpTerminalName;
       const items =
         Array.isArray(row.items) && row.items.length > 0 ? row.items : [null];
       for (const item of items) {
+        const categoryCode =
+          item?.productGroupCode ?? item?.productGroupId ?? row.categoryGroupId;
+        const categoryName =
+          item?.productGroupName ??
+          categoryGroups[0]?.catGroupNameVi ??
+          row.categoryGroupNameVi;
+        const revenue = item?.rowTotal ?? item?.finalSellPrice;
         lines.push(
           [
-            this.csvCell(this.csvVietnamDate(row.submittedAt)),
             this.csvCell(
-              row.reportType === REPORT_TYPE_PURCHASED
-                ? 'Mua hàng'
-                : 'Chưa mua hàng',
+              this.csvReportDate(row.erpOrderCreatedAt ?? row.submittedAt),
             ),
+            this.csvCell(
+              row.reportType === REPORT_TYPE_PURCHASED ? 'Store' : 'OpsHub',
+            ),
+            this.csvCell(row.storeName ?? storeCode),
+            this.csvCell(storeCode),
+            this.csvCell(''),
             this.csvExcelTextCell(row.orderCode),
-            this.csvCell(row.storeCode),
-            this.csvCell(row.createdByName || row.createdByEmail),
+            this.csvCell(storeCode),
+            this.csvCell(reportTypeLabel),
+            this.csvCell(row.createdByEmail),
             this.csvExcelTextCell(row.createdByPersonnelCode),
+            this.csvCell(row.createdByName || row.createdByEmail),
+            this.csvExcelTextCell(row.customerPhone),
+            this.csvExcelTextCell(item?.sku),
+            this.csvExcelTextCell(row.erpOrderId ?? row.orderCode),
+            this.csvCell(item?.rowTotal),
+            this.csvCell(item?.name ?? row.customerNeed),
             this.csvCell(
               row.customerType ? this.customerTypeLabel(row.customerType) : '',
             ),
-            this.csvCell(row.customerIsStudent === true ? 'Có' : 'Không'),
-            this.csvCell(
-              promotionCodes
-                .map((code) => this.promotionLabel(code))
-                .join('\n'),
-            ),
-            this.csvCell(
-              categoryGroups
-                .map(
-                  (category: { catGroupNameVi?: string | null }) =>
-                    category.catGroupNameVi,
-                )
-                .filter(Boolean)
-                .join('\n'),
-            ),
-            this.csvExcelTextCell(row.customerPhone),
-            this.csvCell(row.customerNeed),
-            this.csvCell(this.answerLabel(row.consultedSolutionAnswer)),
-            this.csvCell(row.consultedSolutionOtherReason),
-            this.csvCell(this.answerLabel(row.experiencedAnswer)),
-            this.csvCell(row.experiencedOtherReason),
-            this.csvCell(this.answerLabel(row.zaloAnswer)),
-            this.csvCell(row.zaloOtherReason),
-            this.csvCell(this.answerLabel(row.appDownloadAnswer)),
-            this.csvCell(row.appDownloadOtherReason),
-            this.csvCell(
-              row.notPurchasedReason
-                ? this.notPurchasedLabel(row.notPurchasedReason)
-                : null,
-            ),
-            this.csvCell(row.notPurchasedOtherReason),
-            this.csvCell(row.installmentNeed === true ? 'Có' : 'Không'),
-            this.csvCell(
-              row.installmentApproved === true
-                ? 'Có'
-                : row.installmentApproved === false
-                  ? 'Không'
-                  : null,
-            ),
-            this.csvCell(row.installmentLoanAmount),
-            this.csvCell(
-              row.installmentStatus
-                ? this.installmentLabel(row.installmentStatus)
-                : null,
-            ),
-            this.csvCell(
-              partnerCodes
-                .map((code) => this.installmentPartnerLabel(code))
-                .join('\n'),
-            ),
-            this.csvCell(
-              row.installmentNoInstallmentReason
-                ? this.installmentNoInstallmentReasonLabel(
-                    row.installmentNoInstallmentReason,
-                  )
-                : null,
-            ),
-            this.csvCell(row.installmentFailureReason),
-            this.csvCell(row.erpGrandTotal),
-            this.csvCell(paymentMethods.join('\n')),
-            this.csvCell(row.erpPaymentStatus),
-            this.csvCell(row.erpConfirmationStatus),
-            this.csvCell(row.erpFulfillmentStatus),
-            this.csvExcelTextCell(item?.sku),
-            this.csvExcelTextCell(item?.sellerSku),
-            this.csvCell(item?.name),
             this.csvCell(item?.brandName),
-            this.csvCell(
-              [item?.productGroupCode, item?.productGroupName]
-                .filter(Boolean)
-                .join(' - '),
-            ),
+            this.csvCell(''),
+            this.csvCell(categoryCode),
+            this.csvCell(categoryName),
+            this.csvCell(''),
+            this.csvCell(''),
+            this.csvCell(item?.productTypeCode),
+            this.csvCell(item?.productTypeName),
+            this.csvCell(row.erpFulfillmentStatus),
+            this.csvCell(reportNote),
+            this.csvCell(''),
+            this.csvCell(row.erpTerminalName ?? storeCode),
+            this.csvCell(row.erpPlatformId),
+            this.csvCell(row.erpGrandTotal),
             this.csvCell(item?.quantity),
-            this.csvCell(item?.sellPrice),
-            this.csvCell(item?.finalSellPrice),
-            this.csvCell(item?.rowTotal),
-            this.csvCell(paymentSummary),
+            this.csvCell(revenue),
+            this.csvCell(revenue),
           ].join(','),
         );
       }
     }
     return `\ufeff${lines.join('\n')}`;
+  }
+
+  private salesReportExportNote({
+    row,
+    categoryGroups,
+    promotionCodes,
+    partnerCodes,
+    paymentMethods,
+    paymentSummary,
+  }: {
+    row: any;
+    categoryGroups: Array<{
+      id?: string | null;
+      catGroupName?: string | null;
+      catGroupNameVi?: string | null;
+    }>;
+    promotionCodes: string[];
+    partnerCodes: string[];
+    paymentMethods: unknown[];
+    paymentSummary: string;
+  }) {
+    const customerType = row.customerType
+      ? `${this.customerTypeLabel(row.customerType)}${
+          row.customerIsStudent === true ? ' - Học sinh/Sinh viên' : ''
+        }`
+      : null;
+    const installmentSummary = this.csvCompactList([
+      row.installmentNeed === true ? 'Có nhu cầu trả góp' : 'Không trả góp',
+      row.installmentApproved === true
+        ? 'Hồ sơ duyệt'
+        : row.installmentApproved === false
+          ? 'Hồ sơ chưa duyệt'
+          : null,
+      row.installmentLoanAmount ? `Vay ${row.installmentLoanAmount}` : null,
+      row.installmentStatus
+        ? this.installmentLabel(row.installmentStatus)
+        : null,
+      ...partnerCodes.map((code) => this.installmentPartnerLabel(code)),
+      row.installmentNoInstallmentReason
+        ? this.installmentNoInstallmentReasonLabel(
+            row.installmentNoInstallmentReason,
+          )
+        : null,
+      row.installmentFailureReason,
+    ]);
+    return this.csvCompactList([
+      this.exportNotePart('Nhu cầu', row.customerNeed),
+      this.exportNotePart(
+        'Ngành báo cáo',
+        this.csvCompactList(
+          categoryGroups
+            .map((category) => category.catGroupNameVi || category.catGroupName)
+            .filter(Boolean),
+        ),
+      ),
+      this.exportNotePart('Loại khách', customerType),
+      this.exportNotePart(
+        'CTKM',
+        this.csvCompactList(
+          promotionCodes.map((code) => this.promotionLabel(code)),
+        ),
+      ),
+      this.exportNotePart(
+        'Tư vấn',
+        this.exportAnswer(
+          row.consultedSolutionAnswer,
+          row.consultedSolutionOtherReason,
+        ),
+      ),
+      this.exportNotePart(
+        'Trải nghiệm',
+        this.exportAnswer(row.experiencedAnswer, row.experiencedOtherReason),
+      ),
+      this.exportNotePart(
+        'Zalo',
+        this.exportAnswer(row.zaloAnswer, row.zaloOtherReason),
+      ),
+      this.exportNotePart(
+        'App',
+        this.exportAnswer(row.appDownloadAnswer, row.appDownloadOtherReason),
+      ),
+      this.exportNotePart(
+        'Chưa mua',
+        row.notPurchasedReason
+          ? this.exportAnswer(
+              this.notPurchasedLabel(row.notPurchasedReason),
+              row.notPurchasedOtherReason,
+              false,
+            )
+          : null,
+      ),
+      this.exportNotePart('Trả góp', installmentSummary),
+      this.exportNotePart(
+        'Thanh toán ERP',
+        this.csvCompactList(paymentMethods),
+      ),
+      this.exportNotePart('Chi tiết thanh toán', paymentSummary),
+      this.exportNotePart(
+        'Trạng thái ERP',
+        this.csvCompactList([
+          row.erpPaymentStatus,
+          row.erpConfirmationStatus,
+          row.erpFulfillmentStatus,
+        ]),
+      ),
+    ]);
+  }
+
+  private exportNotePart(label: string, value: unknown) {
+    const text = this.csvText(value).trim();
+    return text ? `${label}: ${text}` : '';
+  }
+
+  private exportAnswer(
+    codeOrLabel: unknown,
+    otherReason: unknown,
+    resolveAnswerLabel = true,
+  ) {
+    const code = this.csvText(codeOrLabel).trim();
+    if (!code) return '';
+    const label = resolveAnswerLabel ? this.answerLabel(code) : code;
+    const other = this.csvText(otherReason).trim();
+    return other ? `${label}: ${other}` : label;
+  }
+
+  private csvCompactList(values: unknown[]) {
+    return Array.from(
+      new Set(
+        values
+          .map((value) =>
+            this.csvText(value)
+              .replace(/[\r\n]+/g, ' ')
+              .trim(),
+          )
+          .filter(Boolean),
+      ),
+    ).join('; ');
   }
 
   private requireOtherReason(
@@ -1343,18 +1440,14 @@ export class SalesReportsService {
     return this.csvCell(`="${text.replace(/"/g, '""')}"`);
   }
 
-  private csvVietnamDate(value: unknown) {
+  private csvReportDate(value: unknown) {
     const date = value instanceof Date ? value : new Date(String(value || ''));
     if (Number.isNaN(date.getTime())) return '';
-    return new Intl.DateTimeFormat('vi-VN', {
+    return new Intl.DateTimeFormat('en-US', {
       timeZone: 'Asia/Ho_Chi_Minh',
-      day: '2-digit',
-      month: '2-digit',
+      month: 'numeric',
+      day: 'numeric',
       year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
     }).format(date);
   }
 

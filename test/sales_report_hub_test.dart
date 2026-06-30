@@ -160,6 +160,67 @@ void main() {
     expect(repository.createCalled, isFalse);
   });
 
+  testWidgets('Báo cáo form scrolls to top after successful submit', (
+    tester,
+  ) async {
+    final repository = _FakeSalesReportRepository();
+    await _pumpNotPurchasedForm(tester, repository);
+
+    await _tapVisible(
+      tester,
+      _checkboxTileByKey('sales-report-customer-type-PERSONAL'),
+    );
+    await _tapVisible(
+      tester,
+      find.byKey(const ValueKey('sales-report-category-NH08')),
+    );
+    await tester.ensureVisible(
+      _textFormFieldByParentKey('sales-report-customer-need-field'),
+    );
+    await tester.enterText(
+      _textFormFieldByParentKey('sales-report-customer-need-field'),
+      'Laptop văn phòng',
+    );
+    await _tapVisible(
+      tester,
+      find.byKey(const ValueKey('sales-report-answer-Tư vấn 3 giải pháp-YES')),
+    );
+    await _tapVisible(
+      tester,
+      find.byKey(
+        const ValueKey('sales-report-answer-KH đã được trải nghiệm-YES'),
+      ),
+    );
+    await _tapVisible(
+      tester,
+      find.byKey(const ValueKey('sales-report-answer-KH quét Zalo-YES')),
+    );
+    await _tapVisible(
+      tester,
+      find.byKey(const ValueKey('sales-report-answer-KH tải App PV-YES')),
+    );
+    await _tapVisible(
+      tester,
+      find.byKey(
+        const ValueKey('sales-report-not-purchased-reason-PRICE_HESITATION'),
+      ),
+    );
+
+    final scrollable = find.byType(Scrollable).first;
+    final position = tester.state<ScrollableState>(scrollable).position;
+    await tester.ensureVisible(find.text('Gửi báo cáo'));
+    await tester.pumpAndSettle();
+    expect(position.pixels, greaterThan(0));
+
+    await tester.tap(find.text('Gửi báo cáo'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    expect(repository.createCalled, isTrue);
+    expect(position.pixels, 0);
+  });
+
   testWidgets('Học sinh - Sinh viên is a child option of Cá nhân', (
     tester,
   ) async {
@@ -337,6 +398,19 @@ Finder _checkboxTileByKey(String key) {
   return find.byWidgetPredicate(
     (widget) => widget is CheckboxListTile && widget.key == ValueKey(key),
   );
+}
+
+Finder _textFormFieldByParentKey(String key) {
+  return find.descendant(
+    of: find.byKey(ValueKey(key)),
+    matching: find.byType(TextFormField),
+  );
+}
+
+Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
 }
 
 class _FakeAuthProvider extends AuthProvider {

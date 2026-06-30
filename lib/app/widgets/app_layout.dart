@@ -77,6 +77,7 @@ class AppResponsiveScrollView extends StatelessWidget {
   final Widget child;
   final double maxWidth;
   final EdgeInsets? padding;
+  final ScrollController? controller;
   final ScrollViewKeyboardDismissBehavior keyboardDismissBehavior;
 
   const AppResponsiveScrollView({
@@ -84,6 +85,7 @@ class AppResponsiveScrollView extends StatelessWidget {
     required this.child,
     this.maxWidth = AppLayoutTokens.pageMaxWidth,
     this.padding,
+    this.controller,
     this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
   });
 
@@ -100,6 +102,7 @@ class AppResponsiveScrollView extends StatelessWidget {
             padding ?? AppLayoutTokens.pagePaddingFor(availableWidth);
         final effectiveMaxWidth = math.min(maxWidth, availableWidth);
         return SingleChildScrollView(
+          controller: controller,
           keyboardDismissBehavior: keyboardDismissBehavior,
           padding: effectivePadding,
           child: Center(

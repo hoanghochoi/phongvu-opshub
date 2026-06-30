@@ -178,6 +178,14 @@ Recent focused evidence:
   `npm test -- --runInBand src/sales-reports` (14 tests), `npm run build`,
   `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
   (5 tests), `flutter analyze --no-pub`, and `git diff --check`.
+- `SALES-REPORT-001`, 2026-06-30: after a report submit succeeds, the Flutter
+  form resets and scrolls back to the top of the page. The sales-report CSV
+  export now uses a compact `query_1`-style 34-column shape: one row per ERP
+  item, order/item/payment fields in dedicated columns, and OpsHub form answers
+  folded into `Order note` to avoid repeated form columns. Validation:
+  `npm test -- --runInBand src/sales-reports` (17 tests), `npm run build`,
+  `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
+  (8 tests), and `flutter analyze --no-pub`.
 - `SALES-REPORT-001`, 2026-06-30: Sales report forms switch user-facing
   selectors from dropdowns to checkbox groups, add customer type/student and
   CTKM fields, expand installment capture to need/partner/approval/loan

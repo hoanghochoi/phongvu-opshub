@@ -240,6 +240,7 @@ class SalesReportFormScreen extends StatefulWidget {
 
 class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _scrollController = ScrollController();
   final _orderController = TextEditingController();
   final _phoneController = TextEditingController();
   final _needController = TextEditingController();
@@ -285,6 +286,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _orderController.dispose();
     _phoneController.dispose();
     _needController.dispose();
@@ -524,6 +526,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     if (ok) {
       _showSnack('Đã gửi báo cáo.', AppColors.success);
       _resetFormAfterSubmit();
+      await _scrollToTopAfterSubmit();
     } else {
       _showSnack(
         provider.errorMessage ?? 'Chưa gửi được báo cáo.',
@@ -564,6 +567,32 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     });
   }
 
+  Future<void> _scrollToTopAfterSubmit() async {
+    final user = context.read<AuthProvider>().user;
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+    final scrolledToTop = _scrollController.hasClients;
+    if (_scrollController.hasClients) {
+      await _scrollController.animateTo(
+        _scrollController.position.minScrollExtent,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    }
+    unawaited(
+      AppLogger.instance.info(
+        'SalesReport',
+        'Sales report form reset after submit',
+        context: {
+          'reportType': _reportType,
+          'userId': user?.id,
+          'storeId': user?.storeId,
+          'scrolledToTop': scrolledToTop,
+        },
+      ),
+    );
+  }
+
   void _showSnack(String message, Color color) {
     ScaffoldMessenger.of(
       context,
@@ -581,6 +610,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       body: Form(
         key: _formKey,
         child: AppResponsiveScrollView(
+          controller: _scrollController,
           maxWidth: AppLayoutTokens.formMaxWidth,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: AppFormColumn(
@@ -896,6 +926,7 @@ class _CustomerSection extends StatelessWidget {
           ),
           const SizedBox(height: AppLayoutTokens.formInlineGap),
           AppFormTextInput(
+            key: const ValueKey('sales-report-customer-need-field'),
             controller: needController,
             label: 'Khách hàng tìm sản phẩm gì?',
             icon: Icons.search_outlined,

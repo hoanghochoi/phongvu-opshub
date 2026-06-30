@@ -278,6 +278,64 @@ describe('SalesReportsService', () => {
       }),
     );
   });
+
+  it('exports compact query-style CSV rows per ERP item', async () => {
+    const { service, prisma } = createHarness();
+    prisma.salesReport.findMany.mockResolvedValueOnce([exportReportFixture()]);
+
+    const csv = await service.exportCsv(
+      { ...userFixture(), role: 'SUPER_ADMIN' },
+      {},
+    );
+    const lines = csv.replace(/^\ufeff/, '').split('\n');
+
+    expect(lines[0]).toBe(
+      [
+        'Report date',
+        'Channel',
+        'Store',
+        'Branch code',
+        'Customer full name',
+        'Order code',
+        'Export return branch ID',
+        'Order type',
+        'Email',
+        'HRM ID',
+        'Salesman',
+        'Customer ID',
+        'SKU',
+        'Doc ID',
+        'Sale point per item',
+        'SKU name',
+        'Dealer type',
+        'Brand name',
+        'Billing tax code',
+        'Cat group ID',
+        'Cat group name',
+        'Subcat 2 ID',
+        'Subcat 2 name',
+        'Subcat ID lowest level',
+        'Subcat name lowest level',
+        'Is delivery',
+        'Order note',
+        'Terminal code',
+        'Terminal name',
+        'Platform',
+        'Sale point',
+        'Quantity',
+        'Revenue',
+        'Revenue with VAT',
+      ].join(','),
+    );
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toContain('2606290001');
+    expect(lines[1]).toContain('SKU-1');
+    expect(lines[2]).toContain('SKU-2');
+    expect(lines[1]).toContain('Nhu cầu: RAM DDR5');
+    expect(lines[1]).toContain('Trả góp: Có nhu cầu trả góp; Hồ sơ duyệt');
+    expect(lines[1]).toContain('VNPAY - POS; MPOS');
+    expect(lines[0]).not.toContain('Lý do khác tư vấn');
+  });
 });
 
 function baseInput() {
@@ -374,5 +432,94 @@ function erpOrderFixture() {
     paymentMethods: ['cash'],
     sanitizedSnapshot: { orderId: '2606290001' },
     fetchedAt: new Date('2026-06-29T00:06:00Z'),
+  };
+}
+
+function exportReportFixture() {
+  return {
+    id: 'report-1',
+    reportType: 'PURCHASED',
+    orderCode: '2606290001',
+    customerPhone: '0900000000',
+    customerNeed: 'RAM DDR5',
+    categoryGroupId: 'NH03',
+    categoryGroupName: 'Computer components',
+    categoryGroupNameVi: 'Linh kiện máy tính',
+    consultedSolutionAnswer: 'YES',
+    consultedSolutionOtherReason: null,
+    experiencedAnswer: 'YES',
+    experiencedOtherReason: null,
+    zaloAnswer: 'YES',
+    zaloOtherReason: null,
+    appDownloadAnswer: 'YES',
+    appDownloadOtherReason: null,
+    notPurchasedReason: null,
+    notPurchasedOtherReason: null,
+    customerType: 'BUSINESS',
+    customerIsStudent: false,
+    promotionCodes: ['EXAM_SCORE_EXCHANGE'],
+    installmentNeed: true,
+    installmentApproved: true,
+    installmentLoanAmount: 5000000,
+    installmentNoInstallmentReason: 'NORMAL_INSTALLMENT',
+    installmentStatus: 'SUCCESS',
+    installmentFailureReason: null,
+    installmentPartnerCodes: ['VNPAY_POS', 'MPOS'],
+    createdByEmail: 'sale@phongvu.vn',
+    createdByName: 'Sale CP62',
+    createdByPersonnelCode: '7583',
+    storeCode: 'CP62',
+    storeName: 'PHAN DANG LUU',
+    erpOrderId: '2606290001',
+    erpOrderCreatedAt: new Date('2026-06-29T00:00:00Z'),
+    erpPaymentStatus: 'fully_paid',
+    erpConfirmationStatus: 'active',
+    erpFulfillmentStatus: 'DELIVERED',
+    erpTerminalName: 'CP62',
+    erpGrandTotal: 1500000,
+    erpPaymentMethods: ['cash', 'bank_transfer'],
+    erpPlatformId: 1,
+    submittedAt: new Date('2026-06-29T01:00:00Z'),
+    categorySelections: [
+      {
+        categoryGroupId: 'NH03',
+        categoryGroupName: 'Computer components',
+        categoryGroupNameVi: 'Linh kiện máy tính',
+      },
+    ],
+    items: [
+      {
+        sku: 'SKU-1',
+        sellerSku: 'SKU-1',
+        name: 'RAM DDR5 16GB',
+        brandName: 'Kingston',
+        productGroupId: 'NH03',
+        productGroupCode: 'NH03',
+        productGroupName: 'Computer components',
+        productTypeCode: 'MEMORY',
+        productTypeName: 'Memory',
+        quantity: 1,
+        finalSellPrice: 1230000,
+        rowTotal: 1230000,
+      },
+      {
+        sku: 'SKU-2',
+        sellerSku: 'SKU-2',
+        name: 'Keyboard',
+        brandName: 'Logitech',
+        productGroupId: 'NH04',
+        productGroupCode: 'NH04',
+        productGroupName: 'Peripheral',
+        productTypeCode: 'KEYBOARD',
+        productTypeName: 'Keyboard',
+        quantity: 1,
+        finalSellPrice: 270000,
+        rowTotal: 270000,
+      },
+    ],
+    payments: [
+      { paymentMethod: 'cash', amount: 500000 },
+      { paymentMethod: 'bank_transfer', amount: 1000000 },
+    ],
   };
 }

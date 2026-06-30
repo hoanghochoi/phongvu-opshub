@@ -62,8 +62,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   nguyên không có dấu phân cách.
 - Khi lấy đơn hàng từ ERP, backend lưu loại khách hàng, phương thức thanh toán,
   snapshot đơn hàng đã sanitize, và từng sản phẩm trong bảng
-  `SalesReportOrderItem`. CSV export bung mỗi sản phẩm thành một dòng và lặp lại
-  các cột báo cáo/đơn hàng để dashboard có thể đọc dạng row-based.
+  `SalesReportOrderItem`. CSV export bung mỗi sản phẩm thành một dòng theo cấu
+  trúc compact kiểu `query_1`: các cột order/item/payment nằm riêng, còn phần
+  câu hỏi OpsHub được gom vào `Order note` để tránh lặp quá nhiều cột form.
 - `orderCode` là unique trên bảng `SalesReport`; một đơn mua hàng chỉ được báo
   cáo một lần.
 - Không có field nhập `MSNV`; backend lấy user, email, tên, mã nhân viên suy ra,
