@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stream_channel/stream_channel.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/api_exception.dart';
@@ -487,6 +490,95 @@ void main() {
     },
   );
 
+  test(
+    'drains ready notification backlog without waiting for fallback tick',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: const [],
+        notificationBatches: [
+          [
+            _readyNotification(
+              notificationId: 'note-1',
+              transactionId: 'txn-1',
+            ),
+            _readyNotification(
+              notificationId: 'note-2',
+              transactionId: 'txn-2',
+            ),
+            _readyNotification(
+              notificationId: 'note-3',
+              transactionId: 'txn-3',
+            ),
+          ],
+          [
+            _readyNotification(
+              notificationId: 'note-4',
+              transactionId: 'txn-4',
+            ),
+          ],
+        ],
+      );
+      final speaker = _FakePaymentSpeaker();
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(), isInitialized: true);
+      await _waitUntil(
+        () =>
+            repository.ackEvents.where((event) => event == 'PLAYED').length ==
+                4 &&
+            !provider.isLoading,
+      );
+
+      expect(repository.readyFetchCount, 2);
+      expect(repository.downloadCount, 4);
+      expect(speaker.playCount, 4);
+      expect(
+        repository.ackEvents.where((event) => event == 'STREAM_STARTED'),
+        hasLength(4),
+      );
+
+      provider.dispose();
+    },
+  );
+
+  test('reconnects realtime after socket closes', () async {
+    ApiClient().setAuthToken('test-token');
+    final repository = _FakePaymentMonitorRepository(notifications: const []);
+    final channels = <_FakeWebSocketChannel>[];
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+      (uri) {
+        final channel = _FakeWebSocketChannel();
+        channels.add(channel);
+        return channel;
+      },
+      const Duration(milliseconds: 50),
+      const Duration(milliseconds: 1),
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+    await _waitUntil(() => channels.length == 1);
+
+    await channels.single.closeFromServer();
+    await _waitUntil(() => channels.length == 2);
+
+    expect(provider.isActive, isTrue);
+    expect(channels.length, 2);
+
+    provider.dispose();
+    ApiClient().setAuthToken(null);
+  });
+
   test('manual refresh requests total count for pagination', () async {
     final repository = _FakePaymentMonitorRepository(notifications: const []);
     final provider = PaymentMonitorProvider(
@@ -856,14 +948,17 @@ User _superAdmin() {
   );
 }
 
-PaymentNotification _readyNotification() {
+PaymentNotification _readyNotification({
+  String notificationId = 'note-1',
+  String transactionId = 'txn-1',
+}) {
   return PaymentNotification.fromJson({
-    'notificationId': 'note-1',
-    'transactionId': 'txn-1',
+    'notificationId': notificationId,
+    'transactionId': transactionId,
     'storeCode': 'CP01',
     'amount': 1250000,
     'audioStatus': 'READY',
-    'audioUrl': '/payment-notifications/note-1/audio',
+    'audioUrl': '/payment-notifications/$notificationId/audio',
     'createdAt': '2026-05-21T10:00:00.000Z',
   });
 }
@@ -907,6 +1002,7 @@ Map<String, Object?> _streamPayload(String notificationId) {
 
 class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<PaymentNotification> notifications;
+  final List<List<PaymentNotification>> notificationBatches;
   final List<MapPaymentTransaction> transactions;
   final bool canReviewOrderTransfers;
   final Object? transactionError;
@@ -928,10 +1024,12 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   int readyFetchCount = 0;
   int downloadCount = 0;
   int streamDownloadCount = 0;
+  int _notificationBatchIndex = 0;
   MapPaymentTransaction? updatedTransaction;
 
   _FakePaymentMonitorRepository({
     required this.notifications,
+    this.notificationBatches = const [],
     this.transactions = const [],
     this.canReviewOrderTransfers = false,
     this.transactionError,
@@ -1018,7 +1116,12 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     int limit = 10,
   }) async {
     readyFetchCount += 1;
-    return notifications;
+    if (_notificationBatchIndex < notificationBatches.length) {
+      final batch = notificationBatches[_notificationBatchIndex];
+      _notificationBatchIndex += 1;
+      return batch;
+    }
+    return notifications.take(limit).toList(growable: false);
   }
 
   @override
@@ -1113,6 +1216,60 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
       reportedSuccess: true,
       audibleVerified: false,
     );
+  }
+}
+
+class _FakeWebSocketChannel
+    with StreamChannelMixin<dynamic>
+    implements WebSocketChannel {
+  final StreamController<dynamic> _incoming = StreamController<dynamic>();
+  final _FakeWebSocketSink _sink = _FakeWebSocketSink();
+
+  @override
+  String? get protocol => null;
+
+  @override
+  int? get closeCode => null;
+
+  @override
+  String? get closeReason => null;
+
+  @override
+  Future<void> get ready => Future<void>.value();
+
+  @override
+  Stream<dynamic> get stream => _incoming.stream;
+
+  @override
+  WebSocketSink get sink => _sink;
+
+  Future<void> closeFromServer() => _incoming.close();
+}
+
+class _FakeWebSocketSink implements WebSocketSink {
+  final StreamController<dynamic> _outgoing = StreamController<dynamic>();
+
+  @override
+  Future<dynamic> get done => _outgoing.done;
+
+  @override
+  void add(dynamic data) {
+    _outgoing.add(data);
+  }
+
+  @override
+  void addError(Object error, [StackTrace? stackTrace]) {
+    _outgoing.addError(error, stackTrace);
+  }
+
+  @override
+  Future<dynamic> addStream(Stream<dynamic> stream) {
+    return _outgoing.addStream(stream);
+  }
+
+  @override
+  Future<dynamic> close([int? closeCode, String? closeReason]) {
+    return _outgoing.close();
   }
 }
 

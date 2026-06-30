@@ -652,6 +652,14 @@ Recent focused evidence:
   `data/ting_ting.mp3` in the release `flutter_assets` bundle. Gap: live
   production artifact endpoint checks and physical Windows speaker smoke remain
   manual.
+- PAYMENT-MONITOR-001, 2026-06-30: production enabled
+  `PAYMENT_SPEAKER_STREAMING_ENABLED=true` so new payment notifications publish
+  `PAYMENT_SPEAKER_STREAM` before waiting on server TTS. Flutter reduces the
+  missed-event fallback refresh from 30 seconds to 10 seconds, reconnects the
+  payment-monitor WebSocket after disconnects, and drains up to five ready
+  notification batches in one poll so a speaker PC with backlog does not wait
+  for later fallback ticks. Validation in current patch: focused Flutter
+  `payment_monitor_provider_test.dart`, Flutter analyze, and `git diff --check`.
 - PROFILE-ADMIN-001, 2026-06-13: changed runtime feature access from per-user
   allowlists to direct organization node-group assignments. Backend added
   `OrganizationNodeFeatureAssignment`, migration preflight/backfill, read-only

@@ -124,7 +124,7 @@ Expected responses:
   trims zero padding, joins its bundled `payment-cue-prefix.wav` to the amount
   with an 80 ms gap, and plays one WAV to avoid player-switch latency. It falls
   back to sequential playback when the two PCM WAV formats are incompatible.
-  To trial low-latency speaker streaming, set
+  Low-latency speaker streaming should run with
   `PAYMENT_SPEAKER_STREAMING_ENABLED=true`: the API creates the notification
   immediately, publishes `PAYMENT_SPEAKER_STREAM` up to
   `PAYMENT_STREAM_EVENT_REPEAT_COUNT` times, and only calls Piper when a

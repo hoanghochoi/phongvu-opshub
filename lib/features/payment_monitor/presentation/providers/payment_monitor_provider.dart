@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -62,8 +63,12 @@ class _DownloadedPaymentAudio {
 typedef PaymentRealtimeConnector = WebSocketChannel Function(Uri uri);
 
 class PaymentMonitorProvider extends ChangeNotifier {
-  static const _fallbackRefreshInterval = Duration(seconds: 30);
+  static const _defaultFallbackRefreshInterval = Duration(seconds: 10);
   static const _realtimeRefreshDebounce = Duration(milliseconds: 500);
+  static const _defaultRealtimeReconnectDelay = Duration(seconds: 2);
+  static const _maxRealtimeReconnectDelay = Duration(seconds: 30);
+  static const _readyNotificationBatchLimit = 3;
+  static const _readyNotificationMaxDrainBatches = 5;
   static const _startupNotificationLookback = Duration(minutes: 15);
   static const _speakerEnabledPreferenceKey = 'payment_monitor_enabled';
   static const _clientIdPreferenceKey = 'payment_monitor_client_id';
@@ -83,6 +88,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
   final PaymentSpeaker _speaker;
   final AppRestartService _restartService;
   final Duration _playbackRetryDelay;
+  final Duration _fallbackRefreshInterval;
+  final Duration _realtimeReconnectDelay;
   final PaymentRealtimeConnector _realtimeConnector;
   final Set<String> _terminalNotificationIds = {};
   final Set<String> _queuedStreamNotificationIds = {};
@@ -94,6 +101,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   Timer? _timer;
   Timer? _realtimeRefreshTimer;
+  Timer? _realtimeReconnectTimer;
   StreamSubscription<dynamic>? _realtimeSubscription;
   WebSocketChannel? _realtimeChannel;
   User? _user;
@@ -122,6 +130,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool _queuedRefreshIncludeTotal = false;
   bool _isDrainingStreamNotifications = false;
   bool _canReviewOrderTransfers = false;
+  int _realtimeReconnectAttempt = 0;
 
   PaymentMonitorProvider(
     this._repository,
@@ -129,8 +138,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
     AppRestartService? restartService,
     Duration playbackRetryDelay = _defaultPlaybackRetryDelay,
     PaymentRealtimeConnector? realtimeConnector,
+    Duration fallbackRefreshInterval = _defaultFallbackRefreshInterval,
+    Duration realtimeReconnectDelay = _defaultRealtimeReconnectDelay,
   ]) : _restartService = restartService ?? AppRestartService(),
        _playbackRetryDelay = playbackRetryDelay,
+       _fallbackRefreshInterval = fallbackRefreshInterval,
+       _realtimeReconnectDelay = realtimeReconnectDelay,
        _realtimeConnector =
            realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri)) {
     _loadEnabledPreference();
@@ -535,6 +548,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _queuedStreamNotificationIds.clear();
     _streamNotificationQueue.clear();
     _isDrainingStreamNotifications = false;
+    _realtimeReconnectAttempt = 0;
     _speakerError = null;
     _latestTransactions.clear();
     _poll(force: true, includeTotal: true, reason: 'initial_load');
@@ -560,6 +574,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _timer = null;
     _realtimeRefreshTimer?.cancel();
     _realtimeRefreshTimer = null;
+    _realtimeReconnectTimer?.cancel();
+    _realtimeReconnectTimer = null;
     _disconnectRealtime(reason);
     if (!_isActive &&
         !_isLoading &&
@@ -582,6 +598,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _queuedStreamNotificationIds.clear();
     _streamNotificationQueue.clear();
     _isDrainingStreamNotifications = false;
+    _realtimeReconnectAttempt = 0;
     _latestTransactions.clear();
     _canReviewOrderTransfers = false;
     _clearRowMessages(notify: false);
@@ -613,6 +630,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
     final nextKey = [user.id ?? user.email, storeCode, token].join('|');
     if (_realtimeKey == nextKey && _realtimeChannel != null) return;
+    _realtimeReconnectTimer?.cancel();
+    _realtimeReconnectTimer = null;
     _disconnectRealtime('reconnect');
 
     final url = ApiConstants.realtimeWsUrl(
@@ -623,6 +642,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       final channel = _realtimeConnector(Uri.parse(url));
       _realtimeChannel = channel;
       _realtimeKey = nextKey;
+      _realtimeReconnectAttempt = 0;
       _realtimeSubscription = channel.stream.listen(
         _handleRealtimeMessage,
         onError: (Object error, StackTrace stackTrace) {
@@ -635,6 +655,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
               context: {'storeId': storeCode},
             ),
           );
+          _handleRealtimeClosed('error');
         },
         onDone: () {
           unawaited(
@@ -644,9 +665,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
               context: {'storeId': storeCode},
             ),
           );
-          _realtimeSubscription = null;
-          _realtimeChannel = null;
-          _realtimeKey = null;
+          _handleRealtimeClosed('done');
         },
       );
       unawaited(
@@ -667,11 +686,14 @@ class PaymentMonitorProvider extends ChangeNotifier {
         ),
       );
       _disconnectRealtime('connect_failed');
+      _scheduleRealtimeReconnect('connect_failed');
     }
   }
 
   void _disconnectRealtime(String reason) {
     final hadConnection = _realtimeChannel != null || _realtimeKey != null;
+    _realtimeReconnectTimer?.cancel();
+    _realtimeReconnectTimer = null;
     unawaited(_realtimeSubscription?.cancel());
     _realtimeSubscription = null;
     unawaited(_realtimeChannel?.sink.close());
@@ -689,6 +711,48 @@ class PaymentMonitorProvider extends ChangeNotifier {
         ),
       );
     }
+  }
+
+  void _handleRealtimeClosed(String reason) {
+    _realtimeSubscription = null;
+    _realtimeChannel = null;
+    _realtimeKey = null;
+    _scheduleRealtimeReconnect(reason);
+  }
+
+  void _scheduleRealtimeReconnect(String reason) {
+    if (!_isActive || !_canMonitorOnThisDevice || !_hasMonitorScope) return;
+    if (_realtimeReconnectTimer != null) return;
+    final delay = _nextRealtimeReconnectDelay();
+    _realtimeReconnectTimer = Timer(delay, () {
+      _realtimeReconnectTimer = null;
+      if (_isActive && _canMonitorOnThisDevice && _hasMonitorScope) {
+        _connectRealtime();
+      }
+    });
+    unawaited(
+      AppLogger.instance.info(
+        'PaymentMonitorRealtime',
+        'Payment monitor realtime reconnect scheduled',
+        context: {
+          'reason': reason,
+          'attempt': _realtimeReconnectAttempt,
+          'delayMs': delay.inMilliseconds,
+          'storeId': _requestStoreId ?? _user?.storeId,
+        },
+      ),
+    );
+  }
+
+  Duration _nextRealtimeReconnectDelay() {
+    final attempt = _realtimeReconnectAttempt;
+    _realtimeReconnectAttempt += 1;
+    final multiplier = 1 << math.min(attempt, 4);
+    final delayMs = math.min(
+      _realtimeReconnectDelay.inMilliseconds * multiplier,
+      _maxRealtimeReconnectDelay.inMilliseconds,
+    );
+    return Duration(milliseconds: math.max(1, delayMs));
   }
 
   Future<void> _handleRealtimeMessage(dynamic message) async {
@@ -947,33 +1011,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       );
       if (speakerEligible) {
         phase = 'ready_notifications';
-        final notifications = await _repository.fetchReadyNotifications(
-          clientId: clientId!,
-          storeId: _requestStoreId,
-          afterCreatedAt: _notificationCheckpointAt,
-          limit: 3,
-        );
-        if (notifications.isNotEmpty) {
-          await AppLogger.instance.info(
-            'PaymentMonitor',
-            'Payment notifications fetched',
-            context: {
-              'count': notifications.length,
-              'notificationIds': notifications
-                  .map((notification) => notification.notificationId)
-                  .toList(),
-            },
-          );
-          await AppLogger.instance.uploadLog(
-            'info',
-            'PaymentMonitor',
-            'Payment notifications fetched',
-            context: {'count': notifications.length},
-            storeCode: _requestStoreId,
-          );
-        }
-        phase = 'playback';
-        await _handleReadyNotifications(notifications, clientId);
+        await _drainReadyNotifications(clientId!, reason: reason);
       }
 
       _lastCheckedAt = DateTime.now();
@@ -1038,6 +1076,69 @@ class PaymentMonitorProvider extends ChangeNotifier {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _drainReadyNotifications(
+    String clientId, {
+    required String reason,
+  }) async {
+    var totalFetched = 0;
+    for (
+      var batch = 1;
+      batch <= _readyNotificationMaxDrainBatches;
+      batch += 1
+    ) {
+      final notifications = await _repository.fetchReadyNotifications(
+        clientId: clientId,
+        storeId: _requestStoreId,
+        afterCreatedAt: _notificationCheckpointAt,
+        limit: _readyNotificationBatchLimit,
+      );
+      if (notifications.isEmpty) break;
+
+      totalFetched += notifications.length;
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment notifications fetched',
+        context: {
+          'count': notifications.length,
+          'batch': batch,
+          'reason': reason,
+          'notificationIds': notifications
+              .map((notification) => notification.notificationId)
+              .toList(),
+        },
+      );
+      await AppLogger.instance.uploadLog(
+        'info',
+        'PaymentMonitor',
+        'Payment notifications fetched',
+        context: {
+          'count': notifications.length,
+          'batch': batch,
+          'reason': reason,
+        },
+        storeCode: _requestStoreId,
+      );
+      await _handleReadyNotifications(notifications, clientId);
+
+      if (notifications.length < _readyNotificationBatchLimit) break;
+    }
+
+    if (totalFetched >=
+        _readyNotificationBatchLimit * _readyNotificationMaxDrainBatches) {
+      await AppLogger.instance.warn(
+        'PaymentMonitor',
+        'Payment notification backlog drain stopped at safety limit',
+        context: {
+          'count': totalFetched,
+          'batchLimit': _readyNotificationBatchLimit,
+          'maxBatches': _readyNotificationMaxDrainBatches,
+          'reason': reason,
+          'storeId': _requestStoreId ?? _user?.storeId,
+        },
+      );
     }
   }
 
@@ -1300,6 +1401,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   void dispose() {
     _timer?.cancel();
     _realtimeRefreshTimer?.cancel();
+    _realtimeReconnectTimer?.cancel();
     _clearRowMessages(notify: false);
     unawaited(_realtimeSubscription?.cancel());
     unawaited(_realtimeChannel?.sink.close());

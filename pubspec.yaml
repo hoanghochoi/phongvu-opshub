@@ -111,6 +111,7 @@ dev_dependencies:
   # Testing
   mockito: ^5.4.4
   build_runner: ^2.4.8
+  stream_channel: ^2.1.4
   msix: ^3.17.0
 
 # For information on the generic Dart part of this file, see the

@@ -97,8 +97,9 @@ a customer to scan and pay manually.
   assigned showroom. It seeds currently visible server transactions silently so
   old rows are not announced again on speaker-capable clients.
 - While the app is running, scoped realtime payment events refresh stored
-  transactions when a new notification arrives. A 30-second fallback refresh
-  remains active so the list can recover from missed socket events.
+  transactions when a new notification arrives. The app reconnects the
+  realtime socket after disconnects and keeps a 10-second fallback refresh so
+  the list and speaker path can recover from missed socket events.
 - Failed transaction refreshes apply bounded backoff. Realtime/fallback refresh
   cannot bypass that backoff; only an explicit user refresh or filter/page
   action may retry immediately. This prevents socket bursts from amplifying
@@ -162,6 +163,14 @@ a customer to scan and pay manually.
   audio preflight for `Audiosrv`, `AudioEndpointBuilder`, and WinMM output
   devices; missing service/device checks warn the user but do not block
   installation.
+- When `PAYMENT_SPEAKER_STREAMING_ENABLED=true`, the backend creates the
+  notification and publishes `PAYMENT_SPEAKER_STREAM` immediately, before
+  blocking on server-side TTS generation. Windows speaker clients then request
+  the stream endpoint, prefer `rawAmount=true` amount audio plus the bundled
+  cue-prefix asset, and acknowledge `STREAM_STARTED` when playback is about to
+  begin. The stream endpoint is still an authenticated audio file response, not
+  chunked audio. Normal ready-notification polling remains as a fallback and
+  drains multiple ready batches in one poll when a speaker PC has backlog.
 - When a speaker attempt fails, the client uploads `PaymentSpeaker` started /
   succeeded / failed logs with sanitized context and acknowledges
   `PLAYBACK_FAILED` for attempts 1-2. The client waits 10 seconds between
