@@ -64,11 +64,12 @@ export class SalesReportsController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const csv = await this.service.exportCsv(req.user, query);
+    const filename =
+      query.exportType === 'REVENUE'
+        ? 'opshub-bao-cao-doanh-so.csv'
+        : 'opshub-bao-cao-hvtc.csv';
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      'attachment; filename="opshub-sales-reports.csv"',
-    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return csv;
   }
 }

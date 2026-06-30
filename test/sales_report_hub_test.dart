@@ -10,6 +10,7 @@ import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provide
 import 'package:phongvu_opshub/features/sales_report/data/sales_report_repository.dart';
 import 'package:phongvu_opshub/features/sales_report/domain/sales_report.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/providers/sales_report_provider.dart';
+import 'package:phongvu_opshub/features/sales_report/presentation/screens/sales_report_admin_screen.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/screens/sales_report_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -149,11 +150,13 @@ void main() {
 
     expect(find.byType(CheckboxListTile), findsWidgets);
     expect(find.text('Loại khách hàng'), findsOneWidget);
+    expect(find.text('Tên khách hàng'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Gửi báo cáo'));
     await tester.tap(find.text('Gửi báo cáo'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Vui lòng nhập tên khách hàng'), findsOneWidget);
     expect(find.text('Vui lòng nhập nhu cầu khách hàng'), findsOneWidget);
     expect(find.text('Vui lòng chọn loại khách hàng'), findsOneWidget);
     expect(find.text('Vui lòng chọn Tư vấn 3 giải pháp'), findsOneWidget);
@@ -169,6 +172,13 @@ void main() {
     await _tapVisible(
       tester,
       _checkboxTileByKey('sales-report-customer-type-PERSONAL'),
+    );
+    await tester.ensureVisible(
+      _textFormFieldByParentKey('sales-report-customer-name-field'),
+    );
+    await tester.enterText(
+      _textFormFieldByParentKey('sales-report-customer-name-field'),
+      'Nguyễn Văn A',
     );
     await _tapVisible(
       tester,
@@ -218,6 +228,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.createCalled, isTrue);
+    expect(repository.lastInput?.customerName, 'Nguyễn Văn A');
     expect(position.pixels, 0);
   });
 
@@ -336,6 +347,48 @@ void main() {
     },
   );
 
+  testWidgets('Báo cáo sale admin filters list by selected date range', (
+    tester,
+  ) async {
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'admin-1',
+        email: 'lead@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-area-hcm',
+        featureAccess: {'ADMIN_SALES_REPORTS': true},
+      ),
+    );
+    final repository = _FakeSalesReportRepository();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(repository),
+          ),
+        ],
+        child: const MaterialApp(home: SalesReportAdminScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.fetchListCount, 1);
+    expect(find.text('Ngày: Tất cả ngày'), findsOneWidget);
+
+    await tester.tap(find.text('Ngày: Tất cả ngày'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hôm nay'));
+    await tester.pumpAndSettle();
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    expect(repository.fetchListCount, 2);
+    expect(repository.lastListQuery?.startDate, today);
+    expect(repository.lastListQuery?.endDate, today);
+  });
+
   test('SalesReportOrderCheck parses multiple category groups', () {
     final check = SalesReportOrderCheck.fromJson({
       'orderCode': '2606290001',
@@ -363,6 +416,26 @@ void main() {
     expect(check.categoryGroup?.id, isNull);
     expect(check.customerType, 'BUSINESS');
     expect(check.paymentMethods, ['cash', 'bank_transfer']);
+  });
+
+  test('SalesReportQuery serializes admin date filters and export type', () {
+    final query = SalesReportQuery(
+      reportType: 'PURCHASED',
+      exportType: 'REVENUE',
+      startDate: DateTime(2026, 6, 1, 15, 30),
+      endDate: DateTime(2026, 6, 30, 23, 59),
+      page: 2,
+      limit: 50,
+    );
+
+    expect(query.toQueryParameters(), {
+      'reportType': 'PURCHASED',
+      'exportType': 'REVENUE',
+      'startDate': '2026-06-01',
+      'endDate': '2026-06-30',
+      'page': '2',
+      'limit': '50',
+    });
   });
 }
 
@@ -424,7 +497,9 @@ class _FakeAuthProvider extends AuthProvider {
 
 class _FakeSalesReportRepository extends SalesReportRepository {
   bool createCalled = false;
+  int fetchListCount = 0;
   SalesReportInput? lastInput;
+  SalesReportQuery? lastListQuery;
 
   _FakeSalesReportRepository() : super(ApiClient());
 
@@ -446,5 +521,17 @@ class _FakeSalesReportRepository extends SalesReportRepository {
     createCalled = true;
     lastInput = input;
     return const {};
+  }
+
+  @override
+  Future<Map<String, dynamic>> fetchList(SalesReportQuery query) async {
+    fetchListCount += 1;
+    lastListQuery = query;
+    return {
+      'items': const [],
+      'page': query.page,
+      'limit': query.limit,
+      'total': 0,
+    };
   }
 }

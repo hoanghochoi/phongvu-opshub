@@ -7,6 +7,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
@@ -25,6 +26,8 @@ class SalesReportAdminScreen extends StatefulWidget {
 class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
   bool _initialized = false;
   String _reportType = 'ALL';
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   @override
   void didChangeDependencies() {
@@ -37,16 +40,37 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
     );
   }
 
-  Future<void> _reload() {
-    return context.read<SalesReportProvider>().loadAdminList(
-      query: SalesReportQuery(reportType: _reportType),
+  SalesReportQuery _query({int page = 0, int limit = 20, String? exportType}) {
+    return SalesReportQuery(
+      reportType: _reportType,
+      exportType: exportType,
+      startDate: _startDate,
+      endDate: _endDate,
+      page: page,
+      limit: limit,
     );
   }
 
-  Future<void> _export() {
-    return context.read<SalesReportProvider>().exportCsv(
-      query: SalesReportQuery(reportType: _reportType),
+  Future<void> _reload({int page = 0}) {
+    final provider = context.read<SalesReportProvider>();
+    return context.read<SalesReportProvider>().loadAdminList(
+      query: _query(page: page, limit: provider.adminLimit),
     );
+  }
+
+  Future<void> _export(String exportType) {
+    final provider = context.read<SalesReportProvider>();
+    return context.read<SalesReportProvider>().exportCsv(
+      query: _query(limit: provider.adminLimit, exportType: exportType),
+    );
+  }
+
+  void _setDateRange(DateTime? start, DateTime? end) {
+    setState(() {
+      _startDate = start;
+      _endDate = end;
+    });
+    unawaited(_reload());
   }
 
   @override
@@ -60,29 +84,81 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AppSurfaceCard(
-              child: AppActionRow(
-                children: [
-                  _ReportTypeFilter(
-                    value: _reportType,
-                    enabled: !provider.isLoadingAdminList,
-                    onChanged: (value) {
-                      setState(() => _reportType = value);
-                      unawaited(_reload());
-                    },
-                  ),
-                  AppSecondaryButton(
-                    onPressed: provider.isLoadingAdminList ? null : _reload,
-                    icon: Icons.refresh_rounded,
-                    label: 'Tải lại',
-                    isLoading: provider.isLoadingAdminList,
-                  ),
-                  AppSecondaryButton(
-                    onPressed: provider.isExporting ? null : _export,
-                    icon: Icons.download_rounded,
-                    label: 'Xuất CSV',
-                    isLoading: provider.isExporting,
-                  ),
-                ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  const gap = AppLayoutTokens.formInlineGap;
+                  final columns = constraints.maxWidth >= 1180
+                      ? 5
+                      : constraints.maxWidth >= 1040
+                      ? 4
+                      : constraints.maxWidth >= 760
+                      ? 3
+                      : constraints.maxWidth >= 520
+                      ? 2
+                      : 1;
+                  final fieldWidth =
+                      (constraints.maxWidth - (gap * (columns - 1))) / columns;
+                  return Wrap(
+                    spacing: gap,
+                    runSpacing: gap,
+                    crossAxisAlignment: WrapCrossAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: fieldWidth,
+                        child: _ReportTypeFilter(
+                          value: _reportType,
+                          enabled: !provider.isLoadingAdminList,
+                          onChanged: (value) {
+                            setState(() => _reportType = value);
+                            unawaited(_reload());
+                          },
+                        ),
+                      ),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: AppDateRangeDropdown(
+                          label: 'Ngày',
+                          start: _startDate,
+                          end: _endDate,
+                          onChanged: _setDateRange,
+                        ),
+                      ),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: AppSecondaryButton(
+                          onPressed: provider.isLoadingAdminList
+                              ? null
+                              : _reload,
+                          icon: Icons.refresh_rounded,
+                          label: 'Tải lại',
+                          isLoading: provider.isLoadingAdminList,
+                        ),
+                      ),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: AppSecondaryButton(
+                          onPressed: provider.isExporting
+                              ? null
+                              : () => _export('HVTC'),
+                          icon: Icons.download_rounded,
+                          label: 'Xuất HVTC',
+                          isLoading: provider.isExporting,
+                        ),
+                      ),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: AppSecondaryButton(
+                          onPressed: provider.isExporting
+                              ? null
+                              : () => _export('REVENUE'),
+                          icon: Icons.download_rounded,
+                          label: 'Xuất Doanh số',
+                          isLoading: provider.isExporting,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
             const SizedBox(height: AppLayoutTokens.cardGap),
@@ -113,13 +189,15 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
               children: [
                 AppSecondaryButton(
                   onPressed: provider.canGoPrevious
-                      ? provider.previousPage
+                      ? () => _reload(page: provider.adminPage - 1)
                       : null,
                   icon: Icons.chevron_left_rounded,
                   label: 'Trang trước',
                 ),
                 AppSecondaryButton(
-                  onPressed: provider.canGoNext ? provider.nextPage : null,
+                  onPressed: provider.canGoNext
+                      ? () => _reload(page: provider.adminPage + 1)
+                      : null,
                   icon: Icons.chevron_right_rounded,
                   label: 'Trang sau',
                 ),
@@ -151,32 +229,29 @@ class _ReportTypeFilter extends StatelessWidget {
       'PURCHASED': 'Mua hàng',
       'NOT_PURCHASED': 'Chưa mua hàng',
     };
-    return SizedBox(
-      width: 260,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Loại báo cáo',
-            style: AppTextStyles.labelS.copyWith(color: AppColors.neutral600),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Loại báo cáo',
+          style: AppTextStyles.labelS.copyWith(color: AppColors.neutral600),
+        ),
+        const SizedBox(height: 4),
+        for (final entry in options.entries)
+          CheckboxListTile(
+            key: ValueKey('sales-report-admin-type-${entry.key}'),
+            value: value == entry.key,
+            onChanged: !enabled
+                ? null
+                : (checked) {
+                    if (checked == true) onChanged(entry.key);
+                  },
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            dense: true,
+            title: Text(entry.value),
           ),
-          const SizedBox(height: 4),
-          for (final entry in options.entries)
-            CheckboxListTile(
-              key: ValueKey('sales-report-admin-type-${entry.key}'),
-              value: value == entry.key,
-              onChanged: !enabled
-                  ? null
-                  : (checked) {
-                      if (checked == true) onChanged(entry.key);
-                    },
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              dense: true,
-              title: Text(entry.value),
-            ),
-        ],
-      ),
+      ],
     );
   }
 }

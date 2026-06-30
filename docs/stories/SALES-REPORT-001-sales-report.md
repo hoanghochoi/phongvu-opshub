@@ -20,6 +20,8 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 - Nhu cầu khách hàng và các câu hỏi hành vi sale là bắt buộc; hành vi tư vấn,
   trải nghiệm, quét Zalo và tải App PV mặc định là chưa chọn, không tự chọn
   `Có`, và các nhóm lựa chọn trong form dùng checkbox thay cho dropdown.
+- Cả 2 form bắt buộc nhập `Tên khách hàng`; báo cáo mua hàng tự fill khi ERP
+  trả được tên khách hàng nhưng vẫn cho sale nhập khi ERP không có dữ liệu.
 - Form lưu loại khách hàng bằng `customerType`; báo cáo mua hàng tự fill
   `Doanh nghiệp` khi ERP trả `customerType = BUSINESS`; `customerType` rỗng từ
   ERP được xem là `Cá nhân`. `Học sinh - Sinh viên` là checkbox con của
@@ -37,8 +39,12 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   Các số tiền trên UI dùng dấu phân cách hàng ngàn theo chuẩn `vi_VN`.
 - ERP order check lưu phương thức thanh toán, loại khách hàng, snapshot đơn hàng
   đã sanitize, và từng sản phẩm thành từng row trong `SalesReportOrderItem`.
-  CSV export bung mỗi sản phẩm thành một dòng, các cột báo cáo/đơn hàng được lặp
-  lại theo từng dòng sản phẩm.
+  Backend map thêm `categoryType` bằng `Type` trong `data/categories.csv`, ưu
+  tiên category level cao nhất trong payload `categories` từ Listing.
+- Admin xuất 2 file CSV tiếng Việt: `HVTC` một dòng mỗi báo cáo mua/chưa mua
+  theo các cột hành vi khách hàng; `Doanh số` một dòng tổng hợp số đơn duy
+  nhất, doanh thu doanh nghiệp/cá nhân, lý do không trả góp và số lượng theo
+  type laptop/PC/PC ráp/Apple/màn hình/máy in/phụ kiện/bảo hiểm mở rộng.
 - Admin có `ADMIN_SALES_REPORTS` theo node tổ chức xem/query/export báo cáo
   trong phạm vi được gán; Super Admin thấy toàn app.
 - Ngành hàng lấy từ `data/categories.csv`, hiển thị tiếng Việt và lưu snapshot

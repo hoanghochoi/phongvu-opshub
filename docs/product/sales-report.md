@@ -14,6 +14,10 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Màn hình `Báo cáo` hiển thị lối vào `Báo cáo sale` để xem danh sách và xuất
   CSV khi user có `ADMIN_SALES_REPORTS`; entry này không nằm trong menu
   `Quản trị`.
+- Màn hình `Báo cáo sale` của admin lọc danh sách và CSV theo loại báo cáo và
+  khoảng `Từ ngày` / `Đến ngày` dựa trên thời điểm gửi báo cáo (`submittedAt`).
+  Admin xuất được 2 file tiếng Việt: `HVTC` là mỗi dòng một báo cáo mua/chưa
+  mua; `Doanh số` là một dòng tổng hợp doanh thu/số lượng theo type ngành hàng.
 - `Mua hàng` bắt buộc nhập hoặc quét QR/barcode `Mã đơn hàng` và bấm
   `Kiểm tra đơn hàng` trước khi mở phần form còn lại. Sau khi đã kiểm tra, sale
   có nút `Kiểm tra đơn khác` để nhập/quét lại đơn mới. Backend kiểm tra ERP
@@ -29,8 +33,10 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   ngành được lưu trong bảng selection và xuất CSV. Nếu không map được ngành
   hàng về nhóm ngành OpsHub thì sale bắt buộc chọn trước khi gửi báo cáo.
 - Nhu cầu khách hàng và các câu hỏi hành vi tư vấn/trải nghiệm/Zalo/App đều là
-  trường bắt buộc. Các câu hỏi hành vi mặc định là chưa chọn, không tự mặc định
-  `Có`.
+  trường bắt buộc. `Tên khách hàng` là trường bắt buộc trên cả 2 báo cáo; với
+  báo cáo mua hàng app tự điền nếu ERP trả về tên khách, sale vẫn có thể nhập
+  khi ERP không có dữ liệu. Các câu hỏi hành vi mặc định là chưa chọn, không tự
+  mặc định `Có`.
 - Các lựa chọn dạng danh sách trên form báo cáo hiển thị bằng checkbox, không
   dùng dropdown. Những nhóm chỉ được chọn một đáp án vẫn dùng checkbox theo kiểu
   chọn độc quyền để nhân viên thao tác nhất quán.
@@ -62,9 +68,19 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   nguyên không có dấu phân cách.
 - Khi lấy đơn hàng từ ERP, backend lưu loại khách hàng, phương thức thanh toán,
   snapshot đơn hàng đã sanitize, và từng sản phẩm trong bảng
-  `SalesReportOrderItem`. CSV export bung mỗi sản phẩm thành một dòng theo cấu
-  trúc compact kiểu `query_1`: các cột order/item/payment nằm riêng, còn phần
-  câu hỏi OpsHub được gom vào `Order note` để tránh lặp quá nhiều cột form.
+  `SalesReportOrderItem`. Với từng sản phẩm, backend đọc `categories` trong
+  payload Listing, ưu tiên level cao nhất để map `Type` trong
+  `data/categories.csv`, rồi lưu `categoryType` để file Doanh số tính laptop,
+  PC, PC ráp, Apple, màn hình, máy in, phụ kiện và dịch vụ bảo hiểm.
+- File `HVTC` xuất một dòng cho mỗi báo cáo với các cột tiếng Việt: ngày báo
+  cáo, email người báo cáo, mã nhân viên tư vấn ERP, tên/số điện thoại/nhu cầu
+  khách hàng, các câu trả lời hành vi, loại báo cáo, lý do chưa mua và showroom.
+- File `Doanh số` xuất một dòng tổng hợp theo bộ lọc hiện tại: số đơn hàng duy
+  nhất, doanh thu doanh nghiệp/cá nhân, các lý do khách không trả góp, số lượng
+  laptop, PC, PC ráp, Apple chỉ tính Macbook/iPhone/iPad, màn hình, máy in,
+  phụ kiện và dịch vụ bảo hiểm.
+- Giá trị trong CSV không bọc dấu nháy kép; dấu phẩy trong nội dung được đổi
+  thành dấu chấm phẩy và xuống dòng được đổi thành khoảng trắng để không vỡ cột.
 - `orderCode` là unique trên bảng `SalesReport`; một đơn mua hàng chỉ được báo
   cáo một lần.
 - Không có field nhập `MSNV`; backend lấy user, email, tên, mã nhân viên suy ra,
@@ -74,8 +90,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 
 ## Data Contract
 
-- `SalesReport` lưu report type, hành vi tư vấn/trải nghiệm/Zalo/App, lý do
-  chưa mua, loại khách hàng, cờ học sinh - sinh viên, CTKM áp dụng, category
+- `SalesReport` lưu report type, tên/số điện thoại/nhu cầu khách hàng, hành vi
+  tư vấn/trải nghiệm/Zalo/App, lý do chưa mua, loại khách hàng, cờ học sinh -
+  sinh viên, CTKM áp dụng, category
   snapshot chính, các ngành hàng đã chọn, reporter snapshot, showroom/org
   snapshot, trạng thái/tổng tiền/phương thức thanh toán đơn ERP, nhu cầu trả
   góp, hồ sơ duyệt/chưa duyệt, số tiền vay, lý do không trả góp, đối tác trả
@@ -84,7 +101,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   báo cáo, gồm snapshot code/tên gốc/tên Việt.
 - `SalesReportOrderItem` lưu từng sản phẩm trong đơn hàng thành từng row riêng,
   gồm SKU, seller SKU, tên sản phẩm, thương hiệu, nhóm hàng, số lượng, giá bán,
-  giá sau giảm, thành tiền dòng và raw snapshot đã sanitize.
+  giá sau giảm, thành tiền dòng, `categoryType` map từ `data/categories.csv` và
+  raw snapshot đã sanitize.
 - `SalesReportPayment` lưu phương thức thanh toán, số tiền, thời điểm thanh
   toán và mã giao dịch khi ERP trả về.
 - `SalesReportCategoryGroup` đồng bộ từ `data/categories.csv`, dùng `Cat group

@@ -242,6 +242,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _scrollController = ScrollController();
   final _orderController = TextEditingController();
+  final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _needController = TextEditingController();
   final _consultedOtherController = TextEditingController();
@@ -288,6 +289,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
   void dispose() {
     _scrollController.dispose();
     _orderController.dispose();
+    _nameController.dispose();
     _phoneController.dispose();
     _needController.dispose();
     _consultedOtherController.dispose();
@@ -391,6 +393,9 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     if (!mounted || result == null) return;
     setState(() {
       _orderController.text = result.orderCode;
+      if ((result.customerName ?? '').trim().isNotEmpty) {
+        _nameController.text = result.customerName!.trim();
+      }
       if ((result.customerNeed ?? '').trim().isNotEmpty) {
         _needController.text = result.customerNeed!.trim();
       }
@@ -413,6 +418,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     context.read<SalesReportProvider>().clearCheckedOrder();
     setState(() {
       _orderController.clear();
+      _nameController.clear();
       _phoneController.clear();
       _needController.clear();
       _consultedOtherController.clear();
@@ -461,6 +467,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
           context: {
             'reportType': _reportType,
             'categoryGroupCount': _categoryGroupIds.length,
+            'hasCustomerName': _nameController.text.trim().isNotEmpty,
             'hasCustomerNeed': _needController.text.trim().isNotEmpty,
             'hasConsultedAnswer': _consultedAnswer != null,
             'hasExperiencedAnswer': _experiencedAnswer != null,
@@ -486,6 +493,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     final input = SalesReportInput(
       reportType: _reportType,
       orderCode: _isPurchased ? _orderController.text : null,
+      customerName: _nameController.text,
       customerPhone: _phoneController.text,
       categoryGroupId: _primaryCategoryGroupId,
       categoryGroupIds: List.unmodifiable(_categoryGroupIds),
@@ -540,6 +548,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     _formKey.currentState?.reset();
     setState(() {
       _orderController.clear();
+      _nameController.clear();
       _phoneController.clear();
       _needController.clear();
       _consultedOtherController.clear();
@@ -638,6 +647,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
                   child: Column(
                     children: [
                       _CustomerSection(
+                        nameController: _nameController,
                         phoneController: _phoneController,
                         needController: _needController,
                         customerType: _customerType,
@@ -864,6 +874,7 @@ class _OrderSummaryCard extends StatelessWidget {
 }
 
 class _CustomerSection extends StatelessWidget {
+  final TextEditingController nameController;
   final TextEditingController phoneController;
   final TextEditingController needController;
   final String? customerType;
@@ -878,6 +889,7 @@ class _CustomerSection extends StatelessWidget {
   final ValueChanged<List<String>> onCategoryChanged;
 
   const _CustomerSection({
+    required this.nameController,
     required this.phoneController,
     required this.needController,
     required this.customerType,
@@ -897,6 +909,19 @@ class _CustomerSection extends StatelessWidget {
     return AppSurfaceCard(
       child: Column(
         children: [
+          AppFormTextInput(
+            key: const ValueKey('sales-report-customer-name-field'),
+            controller: nameController,
+            label: 'Tên khách hàng',
+            icon: Icons.person_outline_rounded,
+            textCapitalization: TextCapitalization.words,
+            maxLength: 120,
+            counterText: '',
+            validator: (value) => (value ?? '').trim().isEmpty
+                ? 'Vui lòng nhập tên khách hàng'
+                : null,
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
           AppFormTextInput(
             controller: phoneController,
             label: 'Số điện thoại khách hàng',

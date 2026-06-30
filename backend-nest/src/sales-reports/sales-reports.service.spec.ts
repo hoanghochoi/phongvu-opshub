@@ -43,6 +43,7 @@ describe('SalesReportsService', () => {
         ),
       ),
       matchCategoriesFromErp: jest.fn(),
+      matchTypeFromListingCategories: jest.fn().mockResolvedValue('memory'),
     };
     const erp = {
       lookupOrder: jest.fn().mockResolvedValue(erpOrderFixture()),
@@ -118,6 +119,7 @@ describe('SalesReportsService', () => {
         data: expect.objectContaining({
           reportType: 'NOT_PURCHASED',
           orderCode: null,
+          customerName: 'Nguyen Van A',
           notPurchasedReason: 'PRICE_HESITATION',
           customerType: 'PERSONAL',
           customerIsStudent: false,
@@ -152,6 +154,7 @@ describe('SalesReportsService', () => {
         data: expect.objectContaining({
           reportType: 'PURCHASED',
           orderCode: '2606290001',
+          customerName: 'Nguyen Van A',
           erpOrderId: '2606290001',
           erpGrandTotal: 1230000,
           erpPaymentMethods: ['cash'],
@@ -170,6 +173,7 @@ describe('SalesReportsService', () => {
               expect.objectContaining({
                 sellerSku: 'SKU-1',
                 productGroupCode: 'NH03',
+                categoryType: 'memory',
               }),
             ],
           },
@@ -301,7 +305,7 @@ describe('SalesReportsService', () => {
     );
   });
 
-  it('exports compact query-style CSV rows per ERP item', async () => {
+  it('exports Vietnamese HVTC CSV rows per report', async () => {
     const { service, prisma } = createHarness();
     prisma.salesReport.findMany.mockResolvedValueOnce([exportReportFixture()]);
 
@@ -313,50 +317,64 @@ describe('SalesReportsService', () => {
 
     expect(lines[0]).toBe(
       [
-        'Report date',
-        'Channel',
-        'Store',
-        'Branch code',
-        'Customer full name',
-        'Order code',
-        'Export return branch ID',
-        'Order type',
-        'Email',
-        'HRM ID',
-        'Salesman',
-        'Customer ID',
-        'SKU',
-        'Doc ID',
-        'Sale point per item',
-        'SKU name',
-        'Dealer type',
-        'Brand name',
-        'Billing tax code',
-        'Cat group ID',
-        'Cat group name',
-        'Subcat 2 ID',
-        'Subcat 2 name',
-        'Subcat ID lowest level',
-        'Subcat name lowest level',
-        'Is delivery',
-        'Order note',
-        'Terminal code',
-        'Terminal name',
-        'Platform',
-        'Sale point',
-        'Quantity',
-        'Revenue',
-        'Revenue with VAT',
+        'Ngày báo cáo',
+        'Email người báo cáo',
+        'Mã nhân viên tư vấn ERP',
+        'Tên khách hàng',
+        'Số điện thoại khách hàng',
+        'Nhu cầu khách hàng',
+        'Kết quả tư vấn giải pháp',
+        'Lý do khác khi không tư vấn',
+        'Kết quả trải nghiệm sản phẩm',
+        'Lý do khác khi không trải nghiệm',
+        'Kết quả quét Zalo',
+        'Lý do khác khi không quét Zalo',
+        'Kết quả tải App PV',
+        'Lý do khác khi không tải App PV',
+        'Loại báo cáo',
+        'Lý do khách chưa mua',
+        'Lý do khác khi khách chưa mua',
+        'Mã showroom',
       ].join(','),
     );
-    expect(lines).toHaveLength(3);
-    expect(lines[1]).toContain('2606290001');
-    expect(lines[1]).toContain('SKU-1');
-    expect(lines[2]).toContain('SKU-2');
-    expect(lines[1]).toContain('Nhu cầu: RAM DDR5');
-    expect(lines[1]).toContain('Trả góp: Có nhu cầu trả góp; Hồ sơ duyệt');
-    expect(lines[1]).toContain('VNPAY - POS; MPOS');
-    expect(lines[0]).not.toContain('Lý do khác tư vấn');
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toContain('Nguyen; Van A');
+    expect(lines[1]).toContain('Mua hàng');
+    expect(lines[1]).toContain('Có');
+    expect(lines[1]).not.toContain('"');
+    expect(lines[0]).not.toContain('Report date');
+  });
+
+  it('exports Vietnamese revenue summary CSV by category type', async () => {
+    const { service, prisma } = createHarness();
+    prisma.salesReport.findMany.mockResolvedValueOnce(revenueReportFixtures());
+
+    const csv = await service.exportCsv(
+      { ...userFixture(), role: 'SUPER_ADMIN' },
+      { exportType: 'REVENUE' },
+    );
+    const lines = csv.replace(/^\ufeff/, '').split('\n');
+
+    expect(lines[0]).toBe(
+      [
+        'Số đơn hàng duy nhất',
+        'Tổng doanh thu khách hàng doanh nghiệp',
+        'Tổng doanh thu khách hàng cá nhân',
+        'Các lý do khách không trả góp',
+        'Số lượng laptop',
+        'Số lượng PC',
+        'Số lượng PC ráp',
+        'Số lượng Apple',
+        'Số lượng màn hình',
+        'Số lượng máy in',
+        'Số lượng phụ kiện',
+        'Số lượng dịch vụ bảo hiểm',
+      ].join(','),
+    );
+    expect(lines[1]).toContain('2,1000,2000');
+    expect(lines[1]).toContain('Khách từ chối: Lãi suất/Phí trả góp cao: 1');
+    expect(lines[1]).toContain(',3,2,1,1,3,1,4,1');
+    expect(lines[1]).not.toContain('"');
   });
 });
 
@@ -364,6 +382,7 @@ function baseInput() {
   return {
     reportType: 'NOT_PURCHASED',
     categoryGroupId: 'NH03',
+    customerName: 'Nguyen Van A',
     customerPhone: '',
     customerType: 'PERSONAL',
     customerIsStudent: false,
@@ -419,6 +438,7 @@ function erpOrderFixture() {
     erpPlatformId: 1,
     erpConsultantCustomId: '7583',
     erpConsultantName: 'Sale CP62',
+    customerName: 'Nguyen Van A',
     customerType: 'BUSINESS',
     customerNeed: 'RAM DDR5',
     categoryCandidates: ['Computer components'],
@@ -434,6 +454,8 @@ function erpOrderFixture() {
         productGroupId: 'NH03',
         productGroupCode: 'NH03',
         productGroupName: 'Computer components',
+        categoryType: null,
+        listingCategories: [],
         quantity: 1,
         sellPrice: 1230000,
         finalSellPrice: 1230000,
@@ -462,6 +484,7 @@ function exportReportFixture() {
     id: 'report-1',
     reportType: 'PURCHASED',
     orderCode: '2606290001',
+    customerName: 'Nguyen, Van A',
     customerPhone: '0900000000',
     customerNeed: 'RAM DDR5',
     categoryGroupId: 'NH03',
@@ -518,6 +541,7 @@ function exportReportFixture() {
         productGroupId: 'NH03',
         productGroupCode: 'NH03',
         productGroupName: 'Computer components',
+        categoryType: 'memory',
         productTypeCode: 'MEMORY',
         productTypeName: 'Memory',
         quantity: 1,
@@ -532,6 +556,7 @@ function exportReportFixture() {
         productGroupId: 'NH04',
         productGroupCode: 'NH04',
         productGroupName: 'Peripheral',
+        categoryType: 'accessories',
         productTypeCode: 'KEYBOARD',
         productTypeName: 'Keyboard',
         quantity: 1,
@@ -543,5 +568,70 @@ function exportReportFixture() {
       { paymentMethod: 'cash', amount: 500000 },
       { paymentMethod: 'bank_transfer', amount: 1000000 },
     ],
+  };
+}
+
+function revenueReportFixtures() {
+  return [
+    {
+      ...exportReportFixture(),
+      id: 'report-business',
+      orderCode: '2606290001',
+      customerType: 'BUSINESS',
+      erpGrandTotal: 1000,
+      items: [
+        itemFixture('Laptop gaming', 'laptop', 1),
+        itemFixture('PC bộ văn phòng', 'pc', 2),
+        itemFixture('CPU Intel', 'cpu', 1),
+        itemFixture('Mainboard Asus', 'mainboard', 1),
+        itemFixture('RAM DDR5', 'memory', 2),
+        itemFixture('SSD 1TB', 'storage', 1),
+        itemFixture('Case ATX', 'case', 1),
+        itemFixture('Nguồn 650W', 'psu', 1),
+        itemFixture('iPhone 15', 'apple', 1),
+        itemFixture('Apple Watch', 'apple', 1),
+        itemFixture('Màn hình 27 inch', 'monitor', 3),
+        itemFixture('Máy in Canon', 'printer', 1),
+        itemFixture('Chuột không dây', 'accessories', 4),
+        itemFixture('Bảo hiểm mở rộng', 'extendedInsurance', 1),
+      ],
+    },
+    {
+      ...exportReportFixture(),
+      id: 'report-personal',
+      orderCode: '2606290002',
+      customerType: 'PERSONAL',
+      erpGrandTotal: 2000,
+      items: [itemFixture('Laptop văn phòng', 'laptop', 2)],
+    },
+    {
+      ...exportReportFixture(),
+      id: 'report-not-purchased',
+      reportType: 'NOT_PURCHASED',
+      orderCode: null,
+      customerType: 'PERSONAL',
+      erpGrandTotal: null,
+      installmentNeed: true,
+      installmentNoInstallmentReason: 'HIGH_INTEREST_OR_FEE',
+      items: [],
+    },
+  ];
+}
+
+function itemFixture(name: string, categoryType: string, quantity: number) {
+  return {
+    sku: `SKU-${name}`,
+    sellerSku: `SKU-${name}`,
+    name,
+    brandName: null,
+    productGroupId: null,
+    productGroupCode: null,
+    productGroupName: null,
+    categoryType,
+    productTypeCode: null,
+    productTypeName: null,
+    quantity,
+    finalSellPrice: 1,
+    rowTotal: quantity,
   };
 }

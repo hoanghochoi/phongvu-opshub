@@ -799,6 +799,7 @@ model SalesReport {
   id                              String    @id @default(uuid())
   reportType                      String
   orderCode                       String?   @unique
+  customerName                    String?
   customerPhone                   String?
   customerNeed                    String?
   categoryGroupId                 String
@@ -903,6 +904,7 @@ model SalesReportOrderItem {
   productGroupId    String?
   productGroupCode  String?
   productGroupName  String?
+  categoryType      String?
   quantity          Int?
   sellPrice         Int?
   finalSellPrice    Int?
@@ -915,6 +917,7 @@ model SalesReportOrderItem {
   @@index([sellerSku])
   @@index([brandName])
   @@index([productGroupName])
+  @@index([categoryType])
 }
 
 model SalesReportPayment {

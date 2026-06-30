@@ -17,6 +17,8 @@ export type SalesReportErpOrderItem = {
   productGroupId: string | null;
   productGroupCode: string | null;
   productGroupName: string | null;
+  categoryType: string | null;
+  listingCategories: unknown[];
   quantity: number | null;
   sellPrice: number | null;
   finalSellPrice: number | null;
@@ -47,6 +49,7 @@ export type SalesReportErpOrder = {
   erpPlatformId: number | null;
   erpConsultantCustomId: string | null;
   erpConsultantName: string | null;
+  customerName: string | null;
   customerType: string;
   customerNeed: string | null;
   categoryCandidates: string[];
@@ -196,6 +199,8 @@ export class SalesReportErpService {
         productGroupName: this.optionalText(
           productGroup?.name ?? productGroup?.displayName,
         ),
+        categoryType: null,
+        listingCategories: this.cleanListingCategories(product?.categories),
         quantity: this.toInt(item?.quantity),
         sellPrice: this.toInt(item?.sellPrice),
         finalSellPrice: this.toInt(item?.finalSellPrice),
@@ -320,6 +325,21 @@ export class SalesReportErpService {
     const erpCustomerType = this.optionalText(order?.customerType);
     const customerType =
       erpCustomerType?.toUpperCase() === 'BUSINESS' ? 'BUSINESS' : 'PERSONAL';
+    const customerName = this.firstText(
+      order?.customerName,
+      order?.customer?.name,
+      order?.customer?.fullName,
+      order?.customer?.displayName,
+      order?.customerInfo?.name,
+      order?.customerInfo?.fullName,
+      order?.buyerName,
+      order?.receiverName,
+      order?.recipientName,
+      order?.shippingAddress?.fullName,
+      order?.shippingAddress?.name,
+      order?.billingAddress?.fullName,
+      order?.billingAddress?.name,
+    );
     const paymentMethods = Array.from(
       new Set(
         payments
@@ -341,6 +361,7 @@ export class SalesReportErpService {
       erpPlatformId: this.toInt(order?.platformId),
       erpConsultantCustomId: this.optionalText(order?.consultant?.customId),
       erpConsultantName: this.optionalText(order?.consultant?.name),
+      customerName,
       customerType,
       customerNeed: customerNeed || null,
       categoryCandidates,
@@ -359,6 +380,7 @@ export class SalesReportErpService {
           order?.createdFromSiteDisplayName,
         ),
         externalOrderRef: this.optionalText(order?.externalOrderRef),
+        customerName,
         grandTotal: this.toInt(order?.grandTotal),
         paymentMethods,
         platformId: this.toInt(order?.platformId),
@@ -378,6 +400,7 @@ export class SalesReportErpService {
           productGroupId: item.productGroupId,
           productGroupCode: item.productGroupCode,
           productGroupName: item.productGroupName,
+          categoryType: item.categoryType,
         })),
         payments: payments.map((payment) => ({
           paymentMethod: payment.paymentMethod,
@@ -635,6 +658,40 @@ export class SalesReportErpService {
             name: this.optionalText(product.productType?.name),
           }
         : null,
+      categories: this.cleanListingCategories(product?.categories),
+    };
+  }
+
+  private cleanListingCategories(value: unknown) {
+    const categories = Array.isArray(value)
+      ? value
+      : value && typeof value === 'object'
+        ? Object.values(value as Record<string, unknown>)
+        : [];
+    return categories
+      .map((category) => this.cleanListingCategory(category))
+      .filter((category) => Object.keys(category).length > 0)
+      .slice(0, 10);
+  }
+
+  private cleanListingCategory(value: unknown) {
+    if (typeof value === 'string') return { name: this.optionalText(value) };
+    if (!value || typeof value !== 'object') return {};
+    const record = value as Record<string, unknown>;
+    const level = this.toInt(
+      record.level ??
+        record.lvl ??
+        record.categoryLevel ??
+        record.depth ??
+        record.displayLevel ??
+        record.priority,
+    );
+    return {
+      id: this.optionalText(record.id ?? record.categoryId),
+      code: this.optionalText(record.code ?? record.categoryCode),
+      name: this.optionalText(record.name ?? record.categoryName),
+      displayName: this.optionalText(record.displayName),
+      level,
     };
   }
 

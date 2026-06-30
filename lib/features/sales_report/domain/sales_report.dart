@@ -20,6 +20,7 @@ class SalesReportCategoryGroup {
 
 class SalesReportOrderCheck {
   final String orderCode;
+  final String? customerName;
   final String? customerNeed;
   final String? customerType;
   final String? customerTypeLabel;
@@ -32,6 +33,7 @@ class SalesReportOrderCheck {
 
   const SalesReportOrderCheck({
     required this.orderCode,
+    required this.customerName,
     required this.customerNeed,
     required this.customerType,
     required this.customerTypeLabel,
@@ -71,6 +73,7 @@ class SalesReportOrderCheck {
         : SalesReportCategoryGroup.fromJson(categoryJson);
     return SalesReportOrderCheck(
       orderCode: json['orderCode']?.toString() ?? '',
+      customerName: json['customerName']?.toString(),
       customerNeed: json['customerNeed']?.toString(),
       customerType: json['customerType']?.toString(),
       customerTypeLabel: json['customerTypeLabel']?.toString(),
@@ -95,6 +98,7 @@ class SalesReportOrderCheck {
 class SalesReportInput {
   final String reportType;
   final String? orderCode;
+  final String? customerName;
   final String? customerPhone;
   final String categoryGroupId;
   final List<String> categoryGroupIds;
@@ -123,6 +127,7 @@ class SalesReportInput {
   const SalesReportInput({
     required this.reportType,
     required this.orderCode,
+    required this.customerName,
     required this.customerPhone,
     required this.categoryGroupId,
     required this.categoryGroupIds,
@@ -158,6 +163,7 @@ class SalesReportInput {
     return {
       'reportType': reportType,
       if (clean(orderCode) != null) 'orderCode': clean(orderCode),
+      if (clean(customerName) != null) 'customerName': clean(customerName),
       if (clean(customerPhone) != null) 'customerPhone': clean(customerPhone),
       'categoryGroupId': categoryGroupId,
       'categoryGroupIds': categoryGroupIds
@@ -212,6 +218,7 @@ class SalesReportQuery {
   final String reportType;
   final String? orderCode;
   final String? categoryGroupId;
+  final String? exportType;
   final DateTime? startDate;
   final DateTime? endDate;
   final int page;
@@ -221,6 +228,7 @@ class SalesReportQuery {
     this.reportType = 'ALL',
     this.orderCode,
     this.categoryGroupId,
+    this.exportType,
     this.startDate,
     this.endDate,
     this.page = 0,
@@ -233,6 +241,8 @@ class SalesReportQuery {
       if ((orderCode ?? '').trim().isNotEmpty) 'orderCode': orderCode!.trim(),
       if ((categoryGroupId ?? '').trim().isNotEmpty)
         'categoryGroupId': categoryGroupId!.trim(),
+      if ((exportType ?? '').trim().isNotEmpty)
+        'exportType': exportType!.trim(),
       if (startDate != null) 'startDate': _date(startDate!),
       if (endDate != null) 'endDate': _date(endDate!),
       'page': page.toString(),

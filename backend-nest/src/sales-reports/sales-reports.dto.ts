@@ -14,6 +14,8 @@ import {
 
 export const SALES_REPORT_TYPES = ['PURCHASED', 'NOT_PURCHASED'] as const;
 
+export const SALES_REPORT_EXPORT_TYPES = ['HVTC', 'REVENUE'] as const;
+
 export const YES_NO_REASON_CODES = [
   'YES',
   'CUSTOMER_BUSY_OR_NO_NEED',
@@ -108,6 +110,11 @@ export class CreateSalesReportDto {
   @IsString()
   @MaxLength(80)
   orderCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  customerName?: string;
 
   @IsOptional()
   @IsString()
@@ -306,4 +313,9 @@ export class ListSalesReportsDto {
   limit?: number;
 }
 
-export class ExportSalesReportsDto extends ListSalesReportsDto {}
+export class ExportSalesReportsDto extends ListSalesReportsDto {
+  @IsOptional()
+  @IsString()
+  @IsIn(SALES_REPORT_EXPORT_TYPES)
+  exportType?: string;
+}

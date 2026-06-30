@@ -60,6 +60,7 @@ describe('SalesReportErpService', () => {
               createdAt: '2026-06-29T00:00:00Z',
               paymentStatus: 'fully_paid',
               customerType: 'BUSINESS',
+              customerName: 'Nguyen Van A',
               confirmationStatus: 'active',
               fulfillmentStatus: 'PROCESSING',
               terminalName: 'CP62',
@@ -93,6 +94,14 @@ describe('SalesReportErpService', () => {
                   code: 'NH08',
                   name: 'Thiết bị mạng/ Router TPLink Archer C54',
                 },
+                categories: [
+                  { code: 'NH08', name: 'Network', level: 1 },
+                  {
+                    code: 'NH08-01-01-01',
+                    name: 'Router',
+                    level: 3,
+                  },
+                ],
               },
             ],
           },
@@ -107,11 +116,17 @@ describe('SalesReportErpService', () => {
 
     expect(result.erpOrderId).toBe('2606290001');
     expect(result.customerType).toBe('BUSINESS');
+    expect(result.customerName).toBe('Nguyen Van A');
     expect(result.erpCustomerType).toBe('BUSINESS');
     expect(result.paymentMethods).toEqual(['cash']);
     expect(result.items).toHaveLength(1);
     expect(result.items[0].productGroupId).toBe('80283');
     expect(result.items[0].productGroupCode).toBe('NH08');
+    expect(result.items[0].listingCategories).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'NH08-01-01-01', level: 3 }),
+      ]),
+    );
     expect(result.categoryCandidates).toEqual(expect.arrayContaining(['NH08']));
     expect(
       fetchMock.mock.calls.some(([input]) =>

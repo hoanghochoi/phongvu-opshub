@@ -168,6 +168,16 @@ Recent focused evidence:
   because Docker daemon is unavailable and local `caddy` is not installed; live
   staging/production route smoke and real Windows speaker regression remain
   post-deploy checks.
+- `SALES-REPORT-001`, 2026-07-01: sales reports now require `Tên khách hàng`,
+  map Listing `categories` to `Type` in `data/categories.csv` by highest
+  category level for order-item `categoryType`, and export 2 Vietnamese CSV
+  shapes: `HVTC` one row per report and `Doanh số` summary by customer
+  type/category type. CSV values are sanitized instead of quote-wrapped.
+  Validation: `npx prisma validate`, `npx prisma generate`,
+  `npm test -- --runInBand src/sales-reports` (21 tests), `npm run build`,
+  `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
+  (10 tests), focused `dart analyze` on changed sales-report files, and
+  `git diff --check` (CRLF warnings only).
 - `SALES-REPORT-001`, 2026-06-29: Purchased order check now blocks ERP orders
   whose `confirmationStatus` or `fulfillmentStatus` is `cancelled` regardless
   of case; purchased form supports QR/barcode order scan and checking another
@@ -186,6 +196,11 @@ Recent focused evidence:
   `npm test -- --runInBand src/sales-reports` (17 tests), `npm run build`,
   `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
   (8 tests), and `flutter analyze --no-pub`.
+- `SALES-REPORT-001`, 2026-06-30: admin `Báo cáo sale` list/export now has a
+  `Ngày` filter that sends `startDate`/`endDate` date-only query params and
+  preserves the selected range when moving between pages. Validation:
+  `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
+  (10 tests).
 - `SALES-REPORT-001`, 2026-06-30: Sales report forms switch user-facing
   selectors from dropdowns to checkbox groups, add customer type/student and
   CTKM fields, expand installment capture to need/partner/approval/loan

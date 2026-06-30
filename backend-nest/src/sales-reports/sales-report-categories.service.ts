@@ -12,6 +12,7 @@ export type SalesReportCategoryGroupDto = {
   id: string;
   catGroupName: string;
   catGroupNameVi: string;
+  defaultType: string | null;
   sourceRowCount: number;
   sortOrder: number;
 };
@@ -42,6 +43,7 @@ export class SalesReportCategoriesService {
   private lastSyncedAt = 0;
   private cachedCategories: SalesReportCategoryGroupDto[] = [];
   private cachedCategoryAliases = new Map<string, string[]>();
+  private cachedCategoryTypeByKey = new Map<string, string>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -69,9 +71,8 @@ export class SalesReportCategoriesService {
     await this.ensureSynced();
     const categories = normalizedIds
       .map((id) => this.cachedCategories.find((item) => item.id === id))
-      .filter(
-        (category): category is SalesReportCategoryGroupDto =>
-          Boolean(category),
+      .filter((category): category is SalesReportCategoryGroupDto =>
+        Boolean(category),
       );
     if (
       normalizedIds.length === 0 ||
@@ -123,6 +124,26 @@ export class SalesReportCategoriesService {
     return [];
   }
 
+  async matchTypeFromListingCategories(
+    categories: unknown,
+    fallbackValues: Array<string | null | undefined> = [],
+  ) {
+    await this.ensureSynced();
+    const candidates = [
+      ...this.listingCategoryCandidates(categories),
+      ...fallbackValues
+        .map((value) => ({ value: this.rawText(value), rank: 0 }))
+        .filter((candidate) => Boolean(candidate.value)),
+    ].sort((left, right) => right.rank - left.rank);
+    for (const candidate of candidates) {
+      const type = this.cachedCategoryTypeByKey.get(
+        this.normalizeTypeLookupKey(candidate.value),
+      );
+      if (type) return type;
+    }
+    return null;
+  }
+
   private async ensureSynced() {
     const now = Date.now();
     if (
@@ -157,6 +178,7 @@ export class SalesReportCategoriesService {
     );
     this.cachedCategories = groups;
     this.cachedCategoryAliases = this.buildCategoryAliases(rows);
+    this.cachedCategoryTypeByKey = this.buildCategoryTypeMap(rows);
     this.lastSyncedAt = now;
     this.logger.log(`Sales report categories synced: count=${groups.length}`);
   }
@@ -189,23 +211,40 @@ export class SalesReportCategoriesService {
   private groupRows(rows: Array<Record<string, string>>) {
     const byId = new Map<
       string,
-      { id: string; catGroupName: string; sourceRowCount: number }
+      {
+        id: string;
+        catGroupName: string;
+        sourceRowCount: number;
+        typeCounts: Map<string, number>;
+      }
     >();
     for (const row of rows) {
       const id = this.normalizeCategoryId(row['Cat group ID']);
       const catGroupName = String(row['Cat group name'] || '').trim();
       if (!id || !catGroupName) continue;
+      const type = this.normalizeCategoryType(row.Type);
       const current = byId.get(id);
       if (current) {
         current.sourceRowCount += 1;
+        if (type) {
+          current.typeCounts.set(type, (current.typeCounts.get(type) ?? 0) + 1);
+        }
         continue;
       }
-      byId.set(id, { id, catGroupName, sourceRowCount: 1 });
+      byId.set(id, {
+        id,
+        catGroupName,
+        sourceRowCount: 1,
+        typeCounts: type ? new Map([[type, 1]]) : new Map(),
+      });
     }
     return Array.from(byId.values()).map((group, index) => ({
-      ...group,
+      id: group.id,
+      catGroupName: group.catGroupName,
       catGroupNameVi:
         CATEGORY_TRANSLATIONS[group.catGroupName] || group.catGroupName,
+      defaultType: this.primaryType(group.typeCounts),
+      sourceRowCount: group.sourceRowCount,
       sortOrder: index + 1,
     }));
   }
@@ -228,6 +267,75 @@ export class SalesReportCategoriesService {
         Array.from(values.values()),
       ]),
     );
+  }
+
+  private buildCategoryTypeMap(rows: Array<Record<string, string>>) {
+    const byKey = new Map<string, string>();
+    const typesByGroupId = new Map<string, Set<string>>();
+    for (const row of rows) {
+      const groupId = this.normalizeCategoryId(row['Cat group ID']);
+      const type = this.normalizeCategoryType(row.Type);
+      if (!groupId || !type) continue;
+      const types = typesByGroupId.get(groupId) ?? new Set<string>();
+      types.add(type);
+      typesByGroupId.set(groupId, types);
+    }
+    for (const row of rows) {
+      const type = this.normalizeCategoryType(row.Type);
+      if (!type) continue;
+      const groupId = this.normalizeCategoryId(row['Cat group ID']);
+      const groupHasSingleType = (typesByGroupId.get(groupId)?.size ?? 0) === 1;
+      const lookupKeys = [
+        'Subcat ID lowest level',
+        'Subcat name lowest level',
+        'Subcat 2 ID',
+        'Subcat 2 name',
+        ...(groupHasSingleType ? ['Cat group ID', 'Cat group name'] : []),
+      ];
+      for (const key of lookupKeys) {
+        const lookupKey = this.normalizeTypeLookupKey(row[key]);
+        if (lookupKey && !byKey.has(lookupKey)) {
+          byKey.set(lookupKey, type);
+        }
+      }
+    }
+    return byKey;
+  }
+
+  private listingCategoryCandidates(categories: unknown) {
+    const source = Array.isArray(categories)
+      ? categories
+      : categories && typeof categories === 'object'
+        ? Object.values(categories as Record<string, unknown>)
+        : [];
+    return source.flatMap((item, index) => {
+      if (typeof item === 'string') {
+        return [{ value: item, rank: index + 1 }];
+      }
+      if (!item || typeof item !== 'object') return [];
+      const record = item as Record<string, unknown>;
+      const rank =
+        this.firstNumber(
+          record.level,
+          record.lvl,
+          record.categoryLevel,
+          record.depth,
+          record.displayLevel,
+          record.priority,
+        ) ?? index + 1;
+      return [
+        record.code,
+        record.id,
+        record.categoryCode,
+        record.categoryId,
+        record.name,
+        record.displayName,
+        record.categoryName,
+      ]
+        .map((value) => this.rawText(value))
+        .filter((value): value is string => Boolean(value))
+        .map((value) => ({ value, rank }));
+    });
   }
 
   private parseCsv(content: string) {
@@ -287,6 +395,22 @@ export class SalesReportCategoriesService {
       .replace(/[^A-Z0-9_]/g, '');
   }
 
+  private normalizeCategoryType(value: unknown) {
+    const text = String(value || '')
+      .trim()
+      .replace(/\s+/g, '');
+    return text ? text.slice(0, 80) : null;
+  }
+
+  private normalizeTypeLookupKey(value: unknown) {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '');
+  }
+
   private normalizeComparable(value: unknown) {
     return String(value || '')
       .trim()
@@ -295,6 +419,28 @@ export class SalesReportCategoriesService {
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, ' ')
       .trim();
+  }
+
+  private rawText(value: unknown) {
+    const text = String(value ?? '').trim();
+    return text || null;
+  }
+
+  private firstNumber(...values: unknown[]) {
+    for (const value of values) {
+      const number = Number(value);
+      if (Number.isFinite(number)) return number;
+    }
+    return null;
+  }
+
+  private primaryType(typeCounts: Map<string, number>) {
+    return (
+      Array.from(typeCounts.entries()).sort(
+        ([leftType, leftCount], [rightType, rightCount]) =>
+          rightCount - leftCount || leftType.localeCompare(rightType),
+      )[0]?.[0] ?? null
+    );
   }
 
   private normalizeErpValues(values: Array<string | null | undefined>) {

@@ -161,6 +161,7 @@ class SalesReportProvider extends ChangeNotifier {
           'categoryGroupCount': input.categoryGroupIds.length,
           'hasOrder': (input.orderCode ?? '').trim().isNotEmpty,
           'orderLength': (input.orderCode ?? '').trim().length,
+          'hasCustomerName': (input.customerName ?? '').trim().isNotEmpty,
           'hasPhone': (input.customerPhone ?? '').trim().isNotEmpty,
           'customerType': input.customerType,
           'customerIsStudent': input.customerIsStudent,
@@ -181,6 +182,7 @@ class SalesReportProvider extends ChangeNotifier {
           'type': input.reportType,
           'categoryGroupId': input.categoryGroupId,
           'categoryGroupCount': input.categoryGroupIds.length,
+          'hasCustomerName': (input.customerName ?? '').trim().isNotEmpty,
           'customerType': input.customerType,
           'customerIsStudent': input.customerIsStudent,
           'promotionCount': input.promotionCodes.length,
@@ -201,6 +203,7 @@ class SalesReportProvider extends ChangeNotifier {
           'type': input.reportType,
           'categoryGroupId': input.categoryGroupId,
           'categoryGroupCount': input.categoryGroupIds.length,
+          'hasCustomerName': (input.customerName ?? '').trim().isNotEmpty,
           'customerType': input.customerType,
           'promotionCount': input.promotionCodes.length,
           'installmentSelected': input.installmentNeed,
@@ -231,11 +234,13 @@ class SalesReportProvider extends ChangeNotifier {
     notifyListeners();
     final effectiveQuery =
         query ?? SalesReportQuery(page: _adminPage, limit: _adminLimit);
+    final startedAt = DateTime.now();
+    final queryContext = _adminQueryLogContext(effectiveQuery);
     try {
       await AppLogger.instance.info(
         'SalesReport',
         'Sales report admin list started',
-        context: {'page': effectiveQuery.page, 'limit': effectiveQuery.limit},
+        context: queryContext,
       );
       final data = await _repository.fetchList(effectiveQuery);
       final rows = data['items'] is List ? data['items'] as List : const [];
@@ -255,7 +260,12 @@ class SalesReportProvider extends ChangeNotifier {
       await AppLogger.instance.info(
         'SalesReport',
         'Sales report admin list succeeded',
-        context: {'count': _adminItems.length, 'total': _adminTotal},
+        context: {
+          ...queryContext,
+          'count': _adminItems.length,
+          'total': _adminTotal,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
       );
     } catch (error) {
       _errorMessage = _messageFor(error, 'Chưa tải được danh sách báo cáo.');
@@ -263,6 +273,7 @@ class SalesReportProvider extends ChangeNotifier {
         'SalesReport',
         'Sales report admin list failed',
         error: error,
+        context: queryContext,
       );
     } finally {
       _isLoadingAdminList = false;
@@ -278,16 +289,19 @@ class SalesReportProvider extends ChangeNotifier {
     _errorMessage = null;
     _successMessage = null;
     notifyListeners();
+    final startedAt = DateTime.now();
+    final queryContext = _adminQueryLogContext(query);
     try {
       await AppLogger.instance.info(
         'SalesReport',
         'Sales report export started',
-        context: {'type': query.reportType},
+        context: queryContext,
       );
       final csvBytes = await _repository.exportCsv(query);
       final path = await FilePicker.saveFile(
         dialogTitle: 'Lưu file báo cáo sale',
-        fileName: 'opshub_bao_cao_sale_${_timestampForFile()}.csv',
+        fileName:
+            'opshub_${_exportTypeFilePart(query.exportType)}_${_timestampForFile()}.csv',
         type: FileType.custom,
         allowedExtensions: const ['csv'],
         bytes: _ensureUtf8BomForCsv(csvBytes),
@@ -297,7 +311,12 @@ class SalesReportProvider extends ChangeNotifier {
       await AppLogger.instance.info(
         'SalesReport',
         'Sales report export succeeded',
-        context: {'saved': path != null, 'bytes': csvBytes.length},
+        context: {
+          ...queryContext,
+          'saved': path != null,
+          'bytes': csvBytes.length,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
       );
     } catch (error) {
       _errorMessage = _messageFor(error, 'Xuất file thất bại.');
@@ -305,6 +324,7 @@ class SalesReportProvider extends ChangeNotifier {
         'SalesReport',
         'Sales report export failed',
         error: error,
+        context: queryContext,
       );
     } finally {
       _isExporting = false;
@@ -329,6 +349,30 @@ class SalesReportProvider extends ChangeNotifier {
     final now = _now();
     String two(int value) => value.toString().padLeft(2, '0');
     return '${now.year}${two(now.month)}${two(now.day)}_${two(now.hour)}${two(now.minute)}${two(now.second)}';
+  }
+
+  Map<String, Object?> _adminQueryLogContext(SalesReportQuery query) {
+    return {
+      'type': query.reportType,
+      'exportType': query.exportType,
+      'page': query.page,
+      'limit': query.limit,
+      'hasOrderCode': (query.orderCode ?? '').trim().isNotEmpty,
+      'hasCategoryGroup': (query.categoryGroupId ?? '').trim().isNotEmpty,
+      'hasStartDate': query.startDate != null,
+      'hasEndDate': query.endDate != null,
+      if (query.startDate != null) 'startDate': _dateForLog(query.startDate!),
+      if (query.endDate != null) 'endDate': _dateForLog(query.endDate!),
+    };
+  }
+
+  String _dateForLog(DateTime value) {
+    String two(int part) => part.toString().padLeft(2, '0');
+    return '${value.year}-${two(value.month)}-${two(value.day)}';
+  }
+
+  String _exportTypeFilePart(String? exportType) {
+    return exportType == 'REVENUE' ? 'bao_cao_doanh_so' : 'bao_cao_hvtc';
   }
 }
 

@@ -42,6 +42,26 @@ describe('SalesReportCategoriesService', () => {
     );
   });
 
+  it('maps product type from the highest Listing category level', async () => {
+    const service = createService();
+
+    const type = await service.matchTypeFromListingCategories([
+      { code: 'NH05', name: 'Apple', level: 1 },
+      { code: 'NH05-03-05', name: 'Apple watch', level: 2 },
+      { code: 'NH05-02-01-01', name: 'Iphone', level: 3 },
+    ]);
+
+    expect(type).toBe('apple');
+  });
+
+  it('does not infer a type from an ambiguous category group only', async () => {
+    const service = createService();
+
+    const type = await service.matchTypeFromListingCategories([], ['NH03']);
+
+    expect(type).toBeNull();
+  });
+
   it('falls back to network router listing names when code is missing', async () => {
     const service = createService();
 
