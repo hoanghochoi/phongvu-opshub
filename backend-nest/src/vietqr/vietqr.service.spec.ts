@@ -71,6 +71,9 @@ describe('VietQrService', () => {
       policyService as any,
       mapVietinService as any,
     );
+    jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2026-05-20T10:06:00.000Z').getTime());
   });
 
   afterEach(() => {
@@ -488,11 +491,11 @@ describe('VietQrService', () => {
     ).not.toHaveBeenCalled();
   });
 
-  it('marks still-pending VietQR intents failed after the Vietnam-local day changes', async () => {
+  it('marks still-pending VietQR intents failed after the 15-minute QR window', async () => {
     const nowSpy = jest
       .spyOn(Date, 'now')
       .mockReturnValue(new Date('2026-05-20T17:01:00.000Z').getTime());
-    const createdAt = new Date('2026-05-20T16:59:00.000Z');
+    const createdAt = new Date('2026-05-20T16:43:00.000Z');
     const pendingIntent = {
       id: 'payment-1',
       storeCode: 'CP62',
@@ -516,7 +519,7 @@ describe('VietQrService', () => {
     const failedIntent = {
       ...pendingIntent,
       status: 'FAILED',
-      lastCheckResult: { reason: 'EXPIRED_VIETNAM_DAY' },
+      lastCheckResult: { reason: 'EXPIRED_VIETNAM_15M' },
       updatedAt: new Date('2026-05-20T17:01:00.000Z'),
     };
     prisma.vietQrPaymentIntent.findUnique
@@ -530,7 +533,7 @@ describe('VietQrService', () => {
         paymentId: 'payment-1',
         status: 'FAILED',
         confirmed: false,
-        checkResult: { reason: 'EXPIRED_VIETNAM_DAY', confirmed: false },
+        checkResult: { reason: 'EXPIRED_VIETNAM_15M', confirmed: false },
       });
     } finally {
       nowSpy.mockRestore();
@@ -748,7 +751,7 @@ describe('VietQrService', () => {
       id: 'payment-1',
       status: 'FAILED',
       confirmed: false,
-      reason: 'EXPIRED_VIETNAM_DAY',
+      reason: 'EXPIRED_VIETNAM_15M',
     });
 
     expect(prisma.mapVietinTransaction.findMany).not.toHaveBeenCalled();

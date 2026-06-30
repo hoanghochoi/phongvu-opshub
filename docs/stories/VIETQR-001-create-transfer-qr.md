@@ -20,8 +20,15 @@ optional amount, optional transfer content, and the signed-in user's store code.
 - n8n can call OpsHub with a dedicated VietQR API key and receive transfer
   details plus a server-rendered PNG matching the app export layout.
 - Backend stores each QR as a payment intent.
+- `SUPER_ADMIN` can choose any showroom from the full showroom list; other
+  users remain scoped to assigned showrooms.
 - The QR result screen automatically checks payment status when amount and
   transfer content are fixed; staff can also run an immediate manual check.
+- Each QR expires 15 minutes after creation. Expired QRs remain in history but
+  cannot be reopened.
+- On desktop, the screen splits into a left creation/result column and a right
+  QR history column. The history column shows status and only reopens
+  still-valid QRs.
 - After confirmation, the QR is replaced by a green success state that shows
   available MAP transaction details such as payer, received amount, transfer
   content, transaction number, and transaction time.

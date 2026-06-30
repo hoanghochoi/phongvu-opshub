@@ -14,6 +14,8 @@ a customer to scan and pay manually.
   read-only. If the signed-in user has multiple assigned showrooms, the app must
   ask for one active showroom before creating a QR or running any single-SR
   payment flow.
+- `SUPER_ADMIN` users can load the full showroom list and choose any SR for QR
+  creation. Other users remain limited to their assigned showrooms.
 - When staff enters transfer content, the final content is generated as
   `{CONTENT} {STORE_CODE} BOT` and is read-only in the preview.
 - When amount or transfer content is blank, the backend omits the matching EMV
@@ -39,6 +41,11 @@ a customer to scan and pay manually.
 - The QR result screen automatically checks payment status while the screen is
   open when amount and transfer content are fixed. Staff can also tap
   `Kiểm tra ngay` to run the same check immediately.
+- Each generated QR stores `createdAt` and expires after 15 minutes. Expired QRs
+  stay in history, show an expired state, and cannot be reopened.
+- On desktop, the VietQR screen uses a two-column layout: creation/result on the
+  left and recent QR history on the right. The history panel shows status chips
+  and lets staff reopen only still-valid QRs.
 - Once payment is confirmed, the app hides the QR and shows a green success
   state with MAP transaction details when available: payer, received amount,
   transfer content, transaction number, and transaction time.

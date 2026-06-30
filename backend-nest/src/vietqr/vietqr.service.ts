@@ -21,6 +21,7 @@ import type { RenderedVietQrImage } from './vietqr-image.renderer';
 
 const VIETQR_AUTO_RECONCILE_INTERVAL_MS = 5_000;
 const VIETQR_AUTO_RECONCILE_BATCH_SIZE = 100;
+const VIETQR_PAYMENT_TTL_MINUTES = 15;
 const VIETNAM_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 const PHONGVU_QR_BRAND: VietQrBrand = {
@@ -509,7 +510,9 @@ export class VietQrService {
         intent,
         checkResult: {
           confirmed: false,
-          reason: 'EXPIRED_VIETNAM_DAY',
+          reason:
+            this.readCheckReason(intent.lastCheckResult) ||
+            'EXPIRED_VIETNAM_15M',
           source: options.source,
         },
       };
@@ -527,11 +530,11 @@ export class VietQrService {
       };
     }
 
-    if (this.isBeforeCurrentVietnamDay(intent.createdAt)) {
+    if (this.isPastPaymentExpiry(intent.createdAt)) {
       const now = new Date();
       const result = {
         confirmed: false,
-        reason: 'EXPIRED_VIETNAM_DAY',
+        reason: 'EXPIRED_VIETNAM_15M',
         source: options.source,
       };
       const updated = await this.updatePendingReconcileResult(intent.id, {
@@ -540,7 +543,7 @@ export class VietQrService {
         lastCheckResult: result as Prisma.InputJsonObject,
       });
       this.logger.log(
-        `VietQR payment intent expired: source=${options.source} paymentId=${intent.id} storeCode=${intent.storeCode} createdAt=${intent.createdAt.toISOString()}`,
+        `VietQR payment intent expired: source=${options.source} paymentId=${intent.id} storeCode=${intent.storeCode} createdAt=${intent.createdAt.toISOString()} ttlMinutes=${VIETQR_PAYMENT_TTL_MINUTES}`,
       );
       return { intent: updated ?? intent, checkResult: result };
     }
@@ -655,7 +658,8 @@ export class VietQrService {
         id: intent.id,
         status: intent.status,
         confirmed: false,
-        reason: 'EXPIRED_VIETNAM_DAY',
+        reason:
+          this.readCheckReason(intent.lastCheckResult) || 'EXPIRED_VIETNAM_15M',
         matchedTransactionNumber: intent.matchedTransactionNumber,
         matchedAmount: intent.matchedAmount,
         matchedTranTime: intent.matchedTranTime,
@@ -664,6 +668,14 @@ export class VietQrService {
         matchedTransactionContent: intent.matchedTransactionContent,
         confirmedAt: intent.confirmedAt,
       };
+    }
+
+    if (this.isPastPaymentExpiry(intent.createdAt)) {
+      return this.updateCheckResult(intent.id, 'FAILED', {
+        confirmed: false,
+        reason: 'EXPIRED_VIETNAM_15M',
+        ttlMinutes: VIETQR_PAYMENT_TTL_MINUTES,
+      });
     }
 
     if (!intent.amount || !intent.transferContent) {
@@ -1038,18 +1050,9 @@ export class VietQrService {
       : VIETQR_AUTO_RECONCILE_BATCH_SIZE;
   }
 
-  private isBeforeCurrentVietnamDay(value: Date) {
+  private isPastPaymentExpiry(createdAt: Date) {
     return (
-      this.vietnamDayNumber(value) < this.vietnamDayNumber(new Date(Date.now()))
-    );
-  }
-
-  private vietnamDayNumber(value: Date) {
-    const vietnamTime = new Date(value.getTime() + VIETNAM_UTC_OFFSET_MS);
-    return (
-      vietnamTime.getUTCFullYear() * 10000 +
-      (vietnamTime.getUTCMonth() + 1) * 100 +
-      vietnamTime.getUTCDate()
+      Date.now() - createdAt.getTime() >= VIETQR_PAYMENT_TTL_MINUTES * 60 * 1000
     );
   }
 
@@ -1066,7 +1069,7 @@ export class VietQrService {
   }
 
   private formatMapDate(value: Date) {
-    const vietnamTime = new Date(value.getTime() + 7 * 60 * 60 * 1000);
+    const vietnamTime = new Date(value.getTime() + VIETNAM_UTC_OFFSET_MS);
     return [
       String(vietnamTime.getUTCDate()).padStart(2, '0'),
       String(vietnamTime.getUTCMonth() + 1).padStart(2, '0'),
@@ -1185,6 +1188,15 @@ export class VietQrService {
       throw new BadRequestException('paymentId khong duoc de trong');
     }
     return normalized;
+  }
+
+  private readCheckReason(value: unknown): string | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    const reason = (value as Record<string, unknown>).reason;
+    const normalized = String(reason || '').trim();
+    return normalized || null;
   }
 
   private normalizeLogValue(value: string | null | undefined): string {

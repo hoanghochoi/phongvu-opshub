@@ -871,6 +871,14 @@ Recent focused evidence:
   tests), `flutter analyze --no-pub`, and full `flutter test --no-pub
   --reporter expanded` (68 tests). Gap: live registration/reset-code smoke for
   an `acare.vn` mailbox remains manual.
+- VIETQR-001, 2026-06-30: added 15-minute QR expiry, persisted QR history and
+  status, desktop two-column history layout, and `SUPER_ADMIN` full-showroom
+  selection in the VietQR flow. Validation: `flutter test --no-pub
+  test/vietqr_screen_test.dart test/validators_test.dart --reporter expanded`,
+  `npx jest --runInBand src/vietqr/vietqr.service.spec.ts
+  src/vietqr/vietqr.controller.spec.ts`, `npm run build`, `flutter analyze
+  --no-pub`, and `git diff --check`. Gap: live desktop click-through and
+  bank-app scan smoke remain manual.
 - VIETQR-001, 2026-06-06: VietQR responses now include `qrBrand`; stores in
   the ACareTek Region render/export QR images with title `ACareTek` and
   `assets/icon/acare_logo.png`, while other stores keep title `Phong Vũ` and

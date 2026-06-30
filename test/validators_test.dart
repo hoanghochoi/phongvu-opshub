@@ -93,5 +93,45 @@ void main() {
         'assets/icon/source/app_icon_master.png',
       );
     });
+
+    test('respects the 15-minute QR expiry boundary', () {
+      final createdAt = DateTime.utc(2026, 5, 20, 10, 0, 0);
+      final transfer = VietQrTransfer.fromJson({
+        'id': 'payment-1',
+        'qrPayload': 'payload',
+        'createdAt': createdAt.toIso8601String(),
+      });
+      final historyEntry = VietQrHistoryEntry(
+        storeCode: 'CP62',
+        transfer: transfer,
+      );
+      final boundary = createdAt.add(const Duration(minutes: 15));
+
+      expect(historyEntry.isExpired(boundary), isTrue);
+      expect(historyEntry.canOpenQr(boundary), isFalse);
+      expect(historyEntry.statusCode(boundary), 'EXPIRED');
+      expect(historyEntry.statusReason(boundary), 'EXPIRED_VIETNAM_15M');
+    });
+
+    test('round-trips history entries through JSON', () {
+      final createdAt = DateTime.utc(2026, 5, 20, 10, 0, 0);
+      final transfer = VietQrTransfer.fromJson({
+        'id': 'payment-1',
+        'qrPayload': 'payload',
+        'createdAt': createdAt.toIso8601String(),
+        'status': 'PENDING',
+      });
+      final entry = VietQrHistoryEntry(storeCode: 'CP62', transfer: transfer);
+
+      final parsed = VietQrHistoryEntry.fromJson(entry.toJson());
+
+      expect(parsed.storeCode, 'CP62');
+      expect(parsed.transfer.id, 'payment-1');
+      expect(parsed.transfer.createdAt.toUtc(), createdAt);
+      expect(
+        parsed.statusCode(createdAt.add(const Duration(minutes: 1))),
+        'PENDING',
+      );
+    });
   });
 }

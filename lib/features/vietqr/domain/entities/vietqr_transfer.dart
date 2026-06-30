@@ -44,6 +44,7 @@ class VietQrTransfer {
   final String transferContent;
   final String qrPayload;
   final String status;
+  final DateTime createdAt;
   final VietQrBrand qrBrand;
 
   const VietQrTransfer({
@@ -56,6 +57,7 @@ class VietQrTransfer {
     required this.transferContent,
     required this.qrPayload,
     required this.status,
+    required this.createdAt,
     this.qrBrand = VietQrBrand.fallback,
   });
 
@@ -71,8 +73,34 @@ class VietQrTransfer {
       transferContent: json['transferContent'] as String? ?? '',
       qrPayload: json['qrPayload'] as String? ?? '',
       status: json['status'] as String? ?? 'PENDING',
+      createdAt:
+          DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+          DateTime.now(),
       qrBrand: VietQrBrand.fromJson(json['qrBrand']),
     );
+  }
+
+  DateTime get expiresAt => createdAt.add(const Duration(minutes: 15));
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'bankBin': bankBin,
+      'bankName': bankName,
+      'accountNumber': accountNumber,
+      'accountName': accountName,
+      'amount': amount,
+      'transferContent': transferContent,
+      'qrPayload': qrPayload,
+      'status': status,
+      'createdAt': createdAt.toIso8601String(),
+      'qrBrand': {
+        'key': qrBrand.key,
+        'title': qrBrand.title,
+        'logoKey': qrBrand.logoKey,
+        'logoAsset': qrBrand.logoAsset,
+      },
+    };
   }
 }
 
@@ -123,6 +151,22 @@ class VietQrPaymentConfirmation {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'status': status,
+      'confirmed': confirmed,
+      'reason': reason,
+      'matchedTransactionNumber': matchedTransactionNumber,
+      'matchedAmount': matchedAmount,
+      'matchedTranTime': matchedTranTime?.toIso8601String(),
+      'matchedPayerName': matchedPayerName,
+      'matchedPayerAccount': matchedPayerAccount,
+      'matchedTransactionContent': matchedTransactionContent,
+      'confirmedAt': confirmedAt?.toIso8601String(),
+    };
+  }
+
   String? get matchedStatementNumber => _parseString(matchedTransactionNumber);
 
   static String? _parseString(Object? value) {
@@ -133,5 +177,110 @@ class VietQrPaymentConfirmation {
   static DateTime? _parseDateTime(Object? value) {
     if (value == null) return null;
     return DateTime.tryParse(value.toString());
+  }
+}
+
+class VietQrHistoryEntry {
+  final String storeCode;
+  final VietQrTransfer transfer;
+  final VietQrPaymentConfirmation? confirmation;
+
+  const VietQrHistoryEntry({
+    required this.storeCode,
+    required this.transfer,
+    this.confirmation,
+  });
+
+  String get paymentId => transfer.id;
+
+  VietQrHistoryEntry copyWith({
+    String? storeCode,
+    VietQrTransfer? transfer,
+    VietQrPaymentConfirmation? confirmation,
+  }) {
+    return VietQrHistoryEntry(
+      storeCode: storeCode ?? this.storeCode,
+      transfer: transfer ?? this.transfer,
+      confirmation: confirmation ?? this.confirmation,
+    );
+  }
+
+  DateTime get createdAt => transfer.createdAt;
+
+  DateTime get expiresAt => transfer.expiresAt;
+
+  bool isExpired(DateTime now) {
+    return !now.isBefore(expiresAt);
+  }
+
+  bool get hasConfirmation => confirmation != null;
+
+  bool get isConfirmed => confirmation?.confirmed == true;
+
+  bool canOpenQr(DateTime now) {
+    return !isExpired(now);
+  }
+
+  VietQrTransfer asTransfer() => transfer;
+
+  VietQrPaymentConfirmation? asConfirmation(DateTime now) {
+    if (confirmation != null) return confirmation;
+    if (!isExpired(now)) return null;
+    return VietQrPaymentConfirmation(
+      id: transfer.id,
+      status: 'FAILED',
+      confirmed: false,
+      reason: 'EXPIRED_VIETNAM_15M',
+      confirmedAt: null,
+    );
+  }
+
+  String statusCode(DateTime now) {
+    final currentConfirmation = confirmation;
+    if (currentConfirmation != null) {
+      if (currentConfirmation.confirmed) return 'PAID';
+      final reason = currentConfirmation.reason.toUpperCase();
+      if (reason == 'EXPIRED_VIETNAM_15M' || reason == 'EXPIRED_VIETNAM_DAY') {
+        return 'EXPIRED';
+      }
+      return currentConfirmation.status.toUpperCase();
+    }
+    if (isExpired(now)) return 'EXPIRED';
+    return transfer.status.trim().isEmpty
+        ? 'PENDING'
+        : transfer.status.trim().toUpperCase();
+  }
+
+  String statusReason(DateTime now) {
+    final currentConfirmation = confirmation;
+    if (currentConfirmation != null) {
+      return currentConfirmation.reason.trim().toUpperCase();
+    }
+    if (isExpired(now)) return 'EXPIRED_VIETNAM_15M';
+    return transfer.status.trim().toUpperCase();
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'storeCode': storeCode,
+      'transfer': transfer.toJson(),
+      if (confirmation != null) 'confirmation': confirmation!.toJson(),
+    };
+  }
+
+  factory VietQrHistoryEntry.fromJson(Map<String, dynamic> json) {
+    return VietQrHistoryEntry(
+      storeCode: (json['storeCode']?.toString().trim().isNotEmpty ?? false)
+          ? json['storeCode'].toString().trim().toUpperCase()
+          : '',
+      transfer: VietQrTransfer.fromJson(
+        Map<String, dynamic>.from(json['transfer'] as Map? ?? const {}),
+      ),
+      confirmation: json['confirmation'] is Map
+          ? VietQrPaymentConfirmation.fromJson(
+              Map<String, dynamic>.from(json['confirmation'] as Map),
+            )
+          : null,
+    );
   }
 }
