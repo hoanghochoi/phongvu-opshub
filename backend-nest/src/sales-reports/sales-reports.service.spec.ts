@@ -181,6 +181,28 @@ describe('SalesReportsService', () => {
     );
   });
 
+  it('uses ERP customer type over stale purchased-report payload', async () => {
+    const { service, prisma } = createHarness();
+
+    await service.create(userFixture(), {
+      ...baseInput(),
+      reportType: 'PURCHASED',
+      orderCode: '26061334475420',
+      customerType: 'PERSONAL',
+    });
+
+    expect(prisma.salesReport.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orderCode: '26061334475420',
+          erpCustomerType: 'BUSINESS',
+          customerType: 'BUSINESS',
+          customerIsStudent: false,
+        }),
+      }),
+    );
+  });
+
   it('stores multiple selected category groups with the first one as primary', async () => {
     const { service, prisma, categories } = createHarness();
 

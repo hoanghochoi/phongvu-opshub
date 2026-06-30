@@ -174,7 +174,7 @@ export class SalesReportsService {
       erpOrder = await this.erp.lookupOrder(orderCode ?? '', context.storeCode);
     }
     const customerType = this.normalizeCustomerType(
-      this.optionalText(body.customerType, 20) ?? erpOrder?.customerType,
+      erpOrder?.customerType ?? this.optionalText(body.customerType, 20),
     );
     const customerIsStudent = body.customerIsStudent === true;
     this.assertCustomerTypeStudentConsistency(customerType, customerIsStudent);
