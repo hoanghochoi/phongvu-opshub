@@ -251,6 +251,41 @@ describe('SalesReportsService', () => {
     expect(JSON.stringify(cacheFindArgs.where)).not.toContain('storeCode');
   });
 
+  it('lets store managers see cached unreported orders in their showroom scope', async () => {
+    const { service, prisma } = createHarness();
+    const manager = storeManagerFixture('CP01');
+    prisma.user.findUnique.mockResolvedValue(manager);
+    prisma.salesReport.count.mockResolvedValueOnce(0);
+    prisma.salesReportErpOrderCache.count.mockResolvedValueOnce(1);
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
+      { ...erpOrderCacheFixture('2607010003'), storeCode: 'CP01' },
+    ]);
+
+    const result = await service.orderCockpit(
+      { id: manager.id, email: manager.email, role: 'USER' },
+      {
+        date: '2026-07-01',
+      },
+    );
+
+    expect(result.scope).toBe('MANAGED_SCOPE');
+    expect(result.unreportedTotal).toBe(1);
+    expect(prisma.user.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({ jobRoleCode: true }),
+      }),
+    );
+    const cacheFindArgs =
+      prisma.salesReportErpOrderCache.findMany.mock.calls[0][0];
+    const cacheWhere = JSON.stringify(cacheFindArgs.where);
+    expect(cacheWhere).toContain('"storeCode":"CP01"');
+    expect(cacheWhere).not.toContain('consultantEmail');
+    expect(cacheWhere).not.toContain('sellerEmail');
+  });
+
   it('scheduled sync pulls ERP orders and upserts the cache without a client request', async () => {
     const { service, prisma, erp } = createHarness();
     const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
@@ -654,6 +689,35 @@ function userFixture() {
       organizationNode: { id: 'node-cp62', displayName: 'CP62' },
     },
     organizationNode: { id: 'node-cp62', displayName: 'CP62' },
+    organizationAssignments: [],
+  };
+}
+
+function storeManagerFixture(storeCode: string) {
+  return {
+    ...userFixture(),
+    id: `manager-${storeCode.toLowerCase()}`,
+    email: `manager.${storeCode.toLowerCase()}@phongvu.vn`,
+    firstName: 'Manager',
+    lastName: storeCode,
+    jobRoleCode: 'STORE_MANAGER',
+    store: {
+      storeId: storeCode,
+      storeName: storeCode,
+      area: {
+        code: 'HCM',
+        abbreviation: 'HCM',
+        region: { code: 'MN', abbreviation: 'MN' },
+      },
+      organizationNode: {
+        id: `node-${storeCode.toLowerCase()}`,
+        displayName: storeCode,
+      },
+    },
+    organizationNode: {
+      id: `node-${storeCode.toLowerCase()}`,
+      displayName: storeCode,
+    },
     organizationAssignments: [],
   };
 }

@@ -17,10 +17,11 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   service khởi động, mặc định 50 đơn, rồi upsert snapshot rút gọn vào bảng
   cache riêng. Flutter không kích hoạt ERP sync; client chỉ đọc cache DB khi mở
   màn hình, khi bấm `Tải lại`, và mỗi 3 phút khi còn ở màn này.
-- User thường chỉ thấy đơn/report của mình theo email/snapshot người bán;
-  STORE_MANAGER hoặc chức danh quản lý có `ADMIN_SALES_REPORTS` theo node xem
-  dữ liệu trong showroom/node con được gán; Super Admin xem toàn bộ cache/report
-  trong DB.
+- User thường chỉ thấy đơn/report của mình theo
+  `data.orders.creator.email`, fallback về consultant/seller/source-user
+  snapshot nếu ERP không trả creator. STORE_MANAGER hoặc chức danh quản lý theo
+  node xem dữ liệu trong showroom/node con được gán; Super Admin xem toàn bộ
+  cache/report trong DB.
 - Bấm đơn chưa báo cáo mở dialog báo cáo mua hàng và dùng lại luồng
   `check-order` để tự fill dữ liệu cần thiết trước khi sale nhập phần còn lại.
 - Form `Mua hàng` yêu cầu nhập hoặc quét QR/barcode mã đơn và check ERP trước

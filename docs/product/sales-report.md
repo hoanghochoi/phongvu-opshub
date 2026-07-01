@@ -12,9 +12,12 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Màn hình `Báo cáo` là cockpit đơn hàng trong ngày: cột trái là đơn chưa báo
   cáo, cột phải là đơn đã báo cáo. Mỗi cột hiển thị 20 đơn/trang, có scroll
   theo màn hình và nút chuyển trang riêng; số lượng ở header là total đếm từ DB
-  theo scope hiện tại. User thường chỉ thấy dữ liệu của mình theo email/snapshot
-  người bán; user có `ADMIN_SALES_REPORTS` xem trong phạm vi node tổ chức được
-  gán, gồm các showroom/node con; Super Admin xem toàn bộ cache/report trong DB.
+  theo scope hiện tại. User thường chỉ thấy dữ liệu của mình theo email từ
+  `data.orders.creator.email`, fallback về consultant/seller/source-user
+  snapshot nếu ERP không trả creator. User có vị trí quản lý như
+  `STORE_MANAGER`, hoặc có `ADMIN_SALES_REPORTS`, xem trong phạm vi node tổ chức
+  được gán, gồm các showroom/node con; Super Admin xem toàn bộ cache/report
+  trong DB.
 - Cockpit có nút `Báo cáo chưa mua`, `Tải lại`; user có quyền admin report có
   thêm nút xuất CSV và lối vào danh sách báo cáo chi tiết.
 - Backend tự đồng bộ danh sách đơn từ staff-bff ERP mỗi 3 phút và khi service
@@ -134,9 +137,10 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   toán và mã giao dịch khi ERP trả về.
 - `SalesReportErpOrderCache` lưu snapshot rút gọn của đơn ERP trong ngày để
   cockpit tách đơn chưa/đã báo cáo mà không phụ thuộc sale nhớ tự mở form. Dữ
-  liệu gồm mã đơn, ngày tạo, trạng thái, showroom/node, người tư vấn/người bán
-  nếu ERP trả về, tổng tiền, phương thức thanh toán, metadata lần sync nền và
-  snapshot đã sanitize. API cockpit đếm total chưa báo cáo trực tiếp trên cache
+  liệu gồm mã đơn, ngày tạo, trạng thái, showroom/node, `creator.email` từ
+  `data.orders.creator.email`, người tư vấn/người bán nếu ERP trả về, tổng tiền,
+  phương thức thanh toán, metadata lần sync nền và snapshot đã sanitize. API
+  cockpit đếm total chưa báo cáo trực tiếp trên cache
   DB, loại trừ các `orderCode` đã có báo cáo mua hàng trong cùng ngày/scope, rồi
   trả từng trang 20 đơn cho client.
 - `SalesReportCategoryGroup` đồng bộ từ `data/categories.csv`, dùng `Cat group

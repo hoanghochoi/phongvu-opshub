@@ -52,6 +52,11 @@ const ORDER_CACHE_SYNC_INTERVAL_MS = 3 * 60 * 1000;
 const MAX_ORDER_CACHE_SYNC_LOOKBACK_DAYS = 7;
 const INSTALLMENT_SUCCESS = 'SUCCESS';
 const INSTALLMENT_FAILED = 'FAILED';
+const MANAGED_SALES_REPORT_JOB_ROLE_CODES = new Set([
+  'STORE_MANAGER',
+  'AREA_MANAGER',
+  'REGION_MANAGER',
+]);
 
 type SalesReportFilters = {
   reportType: string | null;
@@ -752,20 +757,69 @@ export class SalesReportsService implements OnApplicationBootstrap {
     if (isSuperAdminRole(user?.role)) return true;
     if (this.featureService?.canAccessFeature) {
       try {
-        return await this.featureService.canAccessFeature(
+        const canAccess = await this.featureService.canAccessFeature(
           user,
           FEATURE_KEYS.ADMIN_SALES_REPORTS,
         );
+        if (canAccess) return true;
       } catch (error) {
         this.logger.warn(
           `Sales report admin feature check failed: user=${this.safeUserLabel(user)} error=${String(error)}`,
         );
       }
     }
-    return (
+    if (
       user?.featureAccess?.[FEATURE_KEYS.ADMIN_SALES_REPORTS] === true ||
       user?.resolvedFeatureAccess?.[FEATURE_KEYS.ADMIN_SALES_REPORTS] === true
-    );
+    ) {
+      return true;
+    }
+    return this.hasManagedSalesReportScope(user);
+  }
+
+  private async hasManagedSalesReportScope(user: any) {
+    if (this.hasManagedSalesReportJobRole(user)) return true;
+    if (!user?.id || !(this.prisma as any).user?.findUnique) return false;
+    try {
+      const savedUser = await this.prisma.user.findUnique({
+        where: { id: user.id },
+        select: {
+          jobRoleCode: true,
+          jobRole: {
+            select: {
+              code: true,
+            },
+          },
+        },
+      });
+      return this.hasManagedSalesReportJobRole(savedUser);
+    } catch (error) {
+      this.logger.warn(
+        `Sales report managed scope check failed: user=${this.safeUserLabel(user)} error=${String(error)}`,
+      );
+      return false;
+    }
+  }
+
+  private hasManagedSalesReportJobRole(user: any) {
+    const candidates = [
+      user?.jobRoleCode,
+      user?.jobRole?.code,
+      user?.jobRole?.businessCode,
+    ];
+    return candidates
+      .map((value) =>
+        String(value || '')
+          .trim()
+          .toUpperCase(),
+      )
+      .some(
+        (code) =>
+          MANAGED_SALES_REPORT_JOB_ROLE_CODES.has(code) ||
+          Array.from(MANAGED_SALES_REPORT_JOB_ROLE_CODES).some((roleCode) =>
+            code.endsWith(`_${roleCode}`),
+          ),
+      );
   }
 
   private resolveUserReportScopeWhere(user: any): Prisma.SalesReportWhereInput {

@@ -267,6 +267,12 @@ export class SalesReportErpService {
       order?.sale,
       order?.employee,
     );
+    const creator = this.firstObject(
+      order?.creator,
+      order?.createdBy,
+      order?.createdByUser,
+      order?.owner,
+    );
     const terminalName = this.firstText(
       order?.terminalName,
       order?.createdFromSiteDisplayName,
@@ -307,12 +313,33 @@ export class SalesReportErpService {
       order?.consultantCustomId,
       order?.sellerCustomId,
     );
+    const creatorId = this.firstText(
+      creator?.id,
+      creator?.userId,
+      creator?.staffId,
+      order?.creatorId,
+      order?.createdById,
+    );
+    const creatorName = this.firstText(
+      creator?.name,
+      creator?.fullName,
+      creator?.displayName,
+      order?.creatorName,
+      order?.createdByName,
+    );
+    const creatorEmail = this.firstText(
+      creator?.email,
+      creator?.username,
+      order?.creatorEmail,
+      order?.createdByEmail,
+    );
     const consultantName = this.firstText(
       consultant?.name,
       consultant?.fullName,
       consultant?.displayName,
       order?.consultantName,
       order?.sellerName,
+      creatorName,
     );
     const consultantEmail = this.firstText(
       consultant?.email,
@@ -321,6 +348,7 @@ export class SalesReportErpService {
       order?.sellerEmail,
       order?.staffEmail,
       order?.saleEmail,
+      creatorEmail,
     );
     const sellerId = this.firstText(
       seller?.id,
@@ -328,12 +356,14 @@ export class SalesReportErpService {
       seller?.code,
       order?.sellerId,
       order?.seller?.id,
+      creatorId,
     );
     const sellerName = this.firstText(
       seller?.name,
       seller?.fullName,
       seller?.displayName,
       order?.sellerName,
+      creatorName,
     );
     const sellerEmail = this.firstText(
       seller?.email,
@@ -341,6 +371,7 @@ export class SalesReportErpService {
       order?.sellerEmail,
       order?.staffEmail,
       order?.saleEmail,
+      creatorEmail,
     );
     const customerName = this.firstText(
       order?.customerName,
@@ -416,6 +447,11 @@ export class SalesReportErpService {
           id: sellerId,
           name: sellerName,
           email: sellerEmail,
+        },
+        creator: {
+          id: creatorId,
+          name: creatorName,
+          email: creatorEmail,
         },
       },
       fetchedAt,

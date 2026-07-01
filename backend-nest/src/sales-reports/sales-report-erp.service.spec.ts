@@ -380,6 +380,67 @@ describe('SalesReportErpService', () => {
       hasTaxCode: true,
     });
   });
+
+  it('uses data.orders.creator.email as the cached order owner email', async () => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = input.toString();
+      if (
+        url.startsWith(
+          'https://staff-bff.tekoapis.com/api/v2/staff-admin/orders?',
+        )
+      ) {
+        return jsonResponse({
+          data: {
+            orders: [
+              {
+                orderId: '2607010003',
+                createdAt: '2026-07-01T02:00:00Z',
+                paymentStatus: 'fully_paid',
+                confirmationStatus: 'active',
+                fulfillmentStatus: 'PROCESSING',
+                terminalName: 'CP01',
+                grandTotal: 3500000,
+                customerName: 'Le Van C',
+                creator: {
+                  id: 'creator-1',
+                  name: 'Sale CP01',
+                  email: 'sale.cp01@phongvu.vn',
+                },
+                payments: [{ paymentMethod: 'cash' }],
+              },
+            ],
+          },
+        });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    const service = new SalesReportErpService();
+    const result = await service.listRecentOrders({
+      date: '2026-07-01',
+      storeCode: 'CP01',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      orderCode: '2607010003',
+      storeCode: 'CP01',
+      consultantName: 'Sale CP01',
+      consultantEmail: 'sale.cp01@phongvu.vn',
+      sellerId: 'creator-1',
+      sellerName: 'Sale CP01',
+      sellerEmail: 'sale.cp01@phongvu.vn',
+    });
+    expect(result[0].sanitizedSnapshot).toMatchObject({
+      creator: {
+        id: 'creator-1',
+        name: 'Sale CP01',
+        email: 'sale.cp01@phongvu.vn',
+      },
+    });
+  });
 });
 
 function redirectResponse(location: string) {

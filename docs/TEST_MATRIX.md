@@ -50,10 +50,11 @@ Recent focused evidence:
   orders/page/column with DB-backed totals and independent pagination. Backend
   runs a scheduled staff-bff order-list sync every 3 minutes and on service
   startup, upserts rows into `SalesReportErpOrderCache`, keeps user/admin
-  visibility scoped by own email/seller snapshot or assigned organization
-  subtree, gives Super Admin the full saved cache/report scope, and reuses the
-  existing purchased `check-order` flow when a user opens an unreported order
-  dialog. Flutter only reads the DB cache on open,
+  visibility scoped by `data.orders.creator.email` with consultant/seller
+  fallback or assigned organization subtree for `STORE_MANAGER` and other
+  manager roles, gives Super Admin the full saved cache/report scope, and
+  reuses the existing purchased `check-order` flow when a user opens an
+  unreported order dialog. Flutter only reads the DB cache on open,
   manual reload, and every 3 minutes while the screen is mounted. The admin
   export surface also includes `Trả góp`, which filters `installmentNeed = true`
   and exports the requested installment columns plus the derived final payment
