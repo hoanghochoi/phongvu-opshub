@@ -42,6 +42,38 @@ describe('SalesReportCategoriesService', () => {
     );
   });
 
+  it('does not map service item names containing PC to the PC category', async () => {
+    const service = createService();
+
+    const categories = await service.matchCategoriesFromErp([
+      'Card màn hình/ VGA MSI GeForce RTX 3050 VENTUS 2X 6G OC',
+      'Nguồn máy tính/ PSU MIK C650B (SP006078)',
+      'Card mạng PCIe WiFi AX1800 + Bluetooth 5.2 TP-Link Archer TX20E',
+      'Dịch vụ lắp ráp VGA PC miễn phí',
+      'Dịch vụ lắp ráp Nguồn PC miễn phí',
+    ]);
+    const categoryIds = categories.map((category) => category.id);
+
+    expect(categoryIds).toEqual(
+      expect.arrayContaining(['NH03', 'NH08', 'NH95']),
+    );
+    expect(categoryIds).not.toContain('NH02');
+  });
+
+  it('still matches the PC category when ERP sends the exact group name', async () => {
+    const service = createService();
+
+    const category = await service.matchCategoryFromErp(['PC']);
+
+    expect(category).toEqual(
+      expect.objectContaining({
+        id: 'NH02',
+        catGroupName: 'PC',
+        catGroupNameVi: 'Máy tính bộ',
+      }),
+    );
+  });
+
   it('maps product type from the highest Listing category level', async () => {
     const service = createService();
 

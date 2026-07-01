@@ -247,6 +247,12 @@ Recent focused evidence:
   `data.order.billingInfo.taxCode`; top-level `order.customerType` is ignored.
   Validation: `npm test -- --runInBand src/sales-reports` (26 tests),
   `npm run build`, and `git diff --check`.
+- `SALES-REPORT-001`, 2026-07-01: Category auto-detect keeps canonical group
+  names such as `PC` exact-only, while IDs/Vietnamese labels/subcategory aliases
+  remain fallback candidates. This prevents service item names containing `PC`
+  from auto-selecting `Máy tính bộ`; the reported VGA/PSU/network-card/service
+  example maps to `NH03`, `NH08`, and `NH95` only. Validation:
+  `npm test -- --runInBand src/sales-reports/sales-report-categories.service.spec.ts`.
 - `SALES-REPORT-001`, 2026-06-30: Customer type UI makes
   `Học sinh - Sinh viên` a child checkbox of `Cá nhân`, auto-selects `Cá nhân`
   when HS-SV is checked, clears/locks personal flags when `Doanh nghiệp` is

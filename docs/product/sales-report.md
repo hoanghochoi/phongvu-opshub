@@ -46,6 +46,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   tiên được lưu làm ngành chính để filter/list cũ còn tương thích, toàn bộ
   ngành được lưu trong bảng selection và xuất CSV. Nếu không map được ngành
   hàng về nhóm ngành OpsHub thì sale bắt buộc chọn trước khi gửi báo cáo.
+  Tên nhóm gốc ngắn như `PC` chỉ được match khi ERP/Listing trả đúng giá trị
+  đó, không được match substring trong tên sản phẩm/dịch vụ như `... PC miễn
+  phí`.
 - Nhu cầu khách hàng và các câu hỏi hành vi tư vấn/trải nghiệm/Zalo/App đều là
   trường bắt buộc. `Tên khách hàng` là trường bắt buộc trên cả 2 báo cáo; với
   báo cáo mua hàng app tự điền nếu ERP trả về tên khách, sale vẫn có thể nhập

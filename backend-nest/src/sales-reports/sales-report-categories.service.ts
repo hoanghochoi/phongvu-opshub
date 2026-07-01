@@ -96,14 +96,19 @@ export class SalesReportCategoriesService {
     );
     const matched: SalesReportCategoryGroupDto[] = [];
     for (const category of this.cachedCategories) {
-      const candidates = [
-        this.normalizeComparable(category.id),
+      const exactCandidates = [
         this.normalizeComparable(category.catGroupName),
+      ];
+      const fuzzyCandidates = [
+        this.normalizeComparable(category.id),
         this.normalizeComparable(category.catGroupNameVi),
         ...(this.cachedCategoryAliases.get(category.id) || []),
       ];
       if (
-        candidates.some((candidate) =>
+        exactCandidates.some((candidate) =>
+          this.matchesExactCandidate(candidate, normalizedValues),
+        ) ||
+        fuzzyCandidates.some((candidate) =>
           this.matchesCandidate(candidate, normalizedValues),
         )
       ) {
@@ -466,6 +471,11 @@ export class SalesReportCategoriesService {
         value.includes(candidate) ||
         (this.canUseReverseMatch(value) && candidate.includes(value)),
     );
+  }
+
+  private matchesExactCandidate(candidate: string, values: string[]) {
+    if (!candidate) return false;
+    return values.some((value) => value === candidate);
   }
 
   private canUseReverseMatch(value: string) {
