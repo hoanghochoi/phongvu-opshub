@@ -273,22 +273,31 @@ export class SalesReportErpService {
       order?.createdByUser,
       order?.owner,
     );
+    const createdFromSiteDisplayName = this.firstText(
+      order?.createdFromSiteDisplayName,
+    );
     const terminalName = this.firstText(
       order?.terminalName,
-      order?.createdFromSiteDisplayName,
+      createdFromSiteDisplayName,
       order?.terminal?.name,
       order?.storeName,
       order?.store?.storeName,
       order?.store?.name,
     );
+    const createdFromSiteStoreCode = this.extractStoreCodeFromDisplayName(
+      createdFromSiteDisplayName,
+    );
+    const terminalStoreCode =
+      this.extractStoreCodeFromDisplayName(terminalName);
     const storeCode = this.normalizeStoreCode(
       this.firstText(
+        createdFromSiteStoreCode,
         order?.storeCode,
         order?.terminalCode,
         order?.terminal?.code,
         order?.store?.storeId,
         order?.store?.code,
-        terminalName,
+        terminalStoreCode,
         fallbackStoreCode,
       ),
     );
@@ -429,6 +438,7 @@ export class SalesReportErpService {
         confirmationStatus: this.optionalText(order?.confirmationStatus),
         fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
         terminalName,
+        createdFromSiteDisplayName,
         grandTotal: this.toInt(order?.grandTotal ?? order?.totalAmount),
         customerName,
         customerType,
@@ -1139,10 +1149,23 @@ export class SalesReportErpService {
       .trim()
       .toUpperCase();
     if (!text) return null;
-    const match = text.match(/\b[A-Z]{2}\d{1,3}\b/);
-    if (match) return match[0];
+    const match = text.match(
+      /(?:^|[^A-Z0-9])([A-Z]{2,3}\d{1,4})(?=$|[^A-Z0-9])/,
+    );
+    if (match) return match[1];
     const cleaned = text.replace(/[^A-Z0-9_]/g, '');
-    return cleaned ? cleaned.slice(0, 40) : null;
+    return /^[A-Z]{2,3}\d{1,4}$/.test(cleaned) ? cleaned : null;
+  }
+
+  private extractStoreCodeFromDisplayName(value: unknown) {
+    const text = String(value || '')
+      .trim()
+      .toUpperCase();
+    if (!text) return null;
+    const bracketMatch = text.match(/^\[([A-Z]{2,3}\d{1,4})\]/);
+    if (bracketMatch) return bracketMatch[1];
+    const leadingMatch = text.match(/^([A-Z]{2,3}\d{1,4})(?=$|[^A-Z0-9])/);
+    return leadingMatch?.[1] ?? null;
   }
 
   private normalizeDateOnly(value: unknown) {

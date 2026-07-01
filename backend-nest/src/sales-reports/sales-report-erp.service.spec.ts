@@ -412,7 +412,9 @@ describe('SalesReportErpService', () => {
                 paymentStatus: 'fully_paid',
                 confirmationStatus: 'active',
                 fulfillmentStatus: 'PROCESSING',
-                terminalName: 'CP62 - Phan Dang Luu',
+                terminalName: 'Kho DDKD37 - 40-42 Thai Nguyen, P. Phuong Sai',
+                createdFromSiteDisplayName:
+                  '[CP37] DIA DIEM KINH DOANH 37 - CONG TY CO PHAN THUONG MAI - DICH VU PHONG VU',
                 grandTotal: 2500000,
                 customerName: 'Tran Thi B',
                 customerType: 'PERSONAL',
@@ -439,13 +441,13 @@ describe('SalesReportErpService', () => {
     const service = new SalesReportErpService();
     const result = await service.listRecentOrders({
       date: '2026-07-01',
-      storeCode: 'CP62',
     });
 
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       orderCode: '2607010002',
-      storeCode: 'CP62',
+      storeCode: 'CP37',
+      terminalName: 'Kho DDKD37 - 40-42 Thai Nguyen, P. Phuong Sai',
       grandTotal: 2500000,
       customerType: 'BUSINESS',
       consultantEmail: 'sale@phongvu.vn',
@@ -455,6 +457,9 @@ describe('SalesReportErpService', () => {
       customerType: 'PERSONAL',
       hasTaxCode: true,
     });
+    expect(result[0].sanitizedSnapshot.createdFromSiteDisplayName).toBe(
+      '[CP37] DIA DIEM KINH DOANH 37 - CONG TY CO PHAN THUONG MAI - DICH VU PHONG VU',
+    );
   });
 
   it('uses data.orders.creator.email as the cached order owner email', async () => {
@@ -516,6 +521,58 @@ describe('SalesReportErpService', () => {
         email: 'sale.cp01@phongvu.vn',
       },
     });
+  });
+
+  it('extracts store code from leading createdFromSiteDisplayName text', async () => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = input.toString();
+      if (
+        url.startsWith(
+          'https://staff-bff.tekoapis.com/api/v2/staff-admin/orders?',
+        )
+      ) {
+        return jsonResponse({
+          data: {
+            orders: [
+              {
+                orderId: '26070133166730',
+                createdAt: '2026-07-01T03:50:00Z',
+                paymentStatus: 'fully_paid',
+                confirmationStatus: 'active',
+                fulfillmentStatus: 'PROCESSING',
+                terminalName: '264A-264B-264C Nguyen Thi Minh Khai',
+                createdFromSiteDisplayName:
+                  'CP01 - 264A-264B-264C Nguyen Thi Minh Khai, Phuong 6',
+                grandTotal: 160000,
+                creator: {
+                  email: 'sale.cp01@phongvu.vn',
+                },
+                payments: [{ paymentMethod: 'cash' }],
+              },
+            ],
+          },
+        });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    const service = new SalesReportErpService();
+    const result = await service.listRecentOrders({
+      date: '2026-07-01',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      orderCode: '26070133166730',
+      storeCode: 'CP01',
+      terminalName: '264A-264B-264C Nguyen Thi Minh Khai',
+      consultantEmail: 'sale.cp01@phongvu.vn',
+    });
+    expect(result[0].sanitizedSnapshot.createdFromSiteDisplayName).toBe(
+      'CP01 - 264A-264B-264C Nguyen Thi Minh Khai, Phuong 6',
+    );
   });
 });
 

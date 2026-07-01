@@ -148,9 +148,11 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   toán và mã giao dịch khi ERP trả về.
 - `SalesReportErpOrderCache` lưu snapshot rút gọn của đơn ERP trong ngày để
   cockpit tách đơn chưa/đã báo cáo mà không phụ thuộc sale nhớ tự mở form. Dữ
-  liệu gồm mã đơn, ngày tạo, trạng thái, showroom/node, `creator.email` từ
-  `data.orders.creator.email`, người tư vấn/người bán nếu ERP trả về, tổng tiền,
-  phương thức thanh toán, metadata lần sync nền và snapshot đã sanitize. API
+  liệu gồm mã đơn, ngày tạo, trạng thái, showroom/node, mã SR ưu tiên tách từ
+  `data.orders.createdFromSiteDisplayName` dạng `[CP01] ...`,
+  `creator.email` từ `data.orders.creator.email`, người tư vấn/người bán nếu
+  ERP trả về, tổng tiền, phương thức thanh toán, metadata lần sync nền và
+  snapshot đã sanitize. API
   cockpit đếm total chưa báo cáo trực tiếp trên cache
   DB, loại trừ các `orderCode` đã có báo cáo mua hàng trong cùng ngày/scope, rồi
   trả từng trang 20 đơn cho client. Backend publish sự kiện
