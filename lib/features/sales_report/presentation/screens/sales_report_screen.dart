@@ -414,18 +414,18 @@ class _SalesReportCockpit extends StatelessWidget {
               if (!twoColumns) {
                 return Column(
                   children: [
-                    reported,
-                    const SizedBox(height: AppLayoutTokens.cardGap),
                     unreported,
+                    const SizedBox(height: AppLayoutTokens.cardGap),
+                    reported,
                   ],
                 );
               }
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: reported),
-                  const SizedBox(width: AppLayoutTokens.cardGap),
                   Expanded(child: unreported),
+                  const SizedBox(width: AppLayoutTokens.cardGap),
+                  Expanded(child: reported),
                 ],
               );
             },

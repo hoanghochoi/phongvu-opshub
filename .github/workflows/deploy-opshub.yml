@@ -388,6 +388,7 @@ jobs:
             --build-name "${{ needs.prepare.outputs.version_name }}" \
             --build-number "${{ needs.prepare.outputs.version_code }}" \
             --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}"
+          WEB_CACHE_BUST_TOKEN="${GITHUB_SHA}" node scripts/patch-flutter-web-cache-busting.mjs
 
       - name: Connect Tailscale
         uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8

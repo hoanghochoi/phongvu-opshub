@@ -72,6 +72,10 @@ void main() {
     expect(find.text('Báo cáo chưa mua'), findsOneWidget);
     expect(find.text('Đã báo cáo'), findsOneWidget);
     expect(find.text('Chưa báo cáo'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Chưa báo cáo')).dx,
+      lessThan(tester.getTopLeft(find.text('Đã báo cáo')).dx),
+    );
     expect(find.text('2607010001'), findsOneWidget);
     expect(find.text('2607010002'), findsOneWidget);
     expect(find.byType(SegmentedButton<String>), findsNothing);

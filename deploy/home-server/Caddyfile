@@ -76,6 +76,12 @@ http://{$OPSHUB_DOMAIN} {
 
   header /flutter_service_worker.js Cache-Control "no-store, no-cache, must-revalidate"
   header /version.json Cache-Control "no-store, no-cache, must-revalidate"
+  header / Cache-Control "no-store, no-cache, must-revalidate"
+  header /index.html Cache-Control "no-store, no-cache, must-revalidate"
+  header /main.dart.js Cache-Control "no-store, no-cache, must-revalidate"
+  header /flutter_bootstrap.js Cache-Control "no-store, no-cache, must-revalidate"
+  header /flutter.js Cache-Control "no-store, no-cache, must-revalidate"
+  header /manifest.json Cache-Control "no-store, no-cache, must-revalidate"
 
   handle {
     root * /srv/web
