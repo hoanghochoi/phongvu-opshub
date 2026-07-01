@@ -393,7 +393,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       await this.assertCanUseStatements(user);
       this.assertStatementExportDateRangeAllowed(input);
       const where = selectedIds.length
-        ? await this.buildSelectedStatementWhere(user, selectedIds)
+        ? await this.buildSelectedStatementWhere(user, input, selectedIds)
         : (
             await this.buildStatementQuery(user, input, {
               requireFilter: true,
@@ -1021,7 +1021,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       );
       throw new BadRequestException('Vui lòng chọn bộ lọc trước khi tìm kiếm');
     }
-    const scopeWhere = await this.buildStatementScopeWhere(user, filters);
+    const scopeWhere = filters.globalLookup
+      ? {}
+      : await this.buildStatementScopeWhere(user, filters);
     const filterWhere = this.buildStatementFilterWhere(filters);
     return {
       where: this.andWhere(scopeWhere, filterWhere),
@@ -1031,12 +1033,19 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private async buildSelectedStatementWhere(user: any, ids: string[]) {
-    const scopeWhere = await this.buildStatementScopeWhere(user, {
-      requestedAllStores: false,
-      storeIds: [],
-    });
-    return this.andWhere(scopeWhere, { id: { in: ids } });
+  private async buildSelectedStatementWhere(
+    user: any,
+    input: ExportMapVietinStatementsDto,
+    ids: string[],
+  ) {
+    const filters = this.normalizeStatementFilters(input);
+    const scopeWhere = filters.globalLookup
+      ? {}
+      : await this.buildStatementScopeWhere(user, filters);
+    const filterWhere = filters.hasEffectiveFilter
+      ? this.buildStatementFilterWhere(filters)
+      : {};
+    return this.andWhere(scopeWhere, filterWhere, { id: { in: ids } });
   }
 
   private normalizeStatementFilters(input: ListMapVietinStatementsDto) {
@@ -1053,6 +1062,11 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const content = this.cleanText(input.content);
     const orderStatus = input.orderStatus || STATEMENT_ORDER_STATUS_ALL;
     const dateRange = this.resolveStoredTransactionDateRange(input);
+    const globalLookup =
+      Boolean(statementNumber) ||
+      Boolean(order) ||
+      amount !== null ||
+      Boolean(content);
     const primaryCount = [
       requestedAllStores || storeIds.length > 0,
       Boolean(statementNumber),
@@ -1080,10 +1094,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       order,
       amount,
       content,
+      globalLookup,
       orderStatus,
       dateRange,
       hasEffectiveFilter,
       summary: [
+        globalLookup ? 'globalLookup' : '',
         requestedAllStores ? 'allStores' : '',
         storeIds.length ? `stores:${storeIds.length}` : '',
         statementNumber ? 'statementNumber' : '',

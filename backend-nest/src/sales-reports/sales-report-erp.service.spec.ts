@@ -213,14 +213,90 @@ describe('SalesReportErpService', () => {
     const service = new SalesReportErpService();
     const result = await service.lookupOrder('26070132780090', 'CP62');
 
-    expect(result.categoryCandidates).toEqual(
-      expect.arrayContaining([
-        'NH08',
-        'Thiết bị mạng và an ninh',
-        'NH08-01-99-02',
-        'Card mạng',
-      ]),
-    );
+    expect(result.categoryCandidates).toEqual(['NH08']);
+  });
+
+  it('uses only Listing level-1 codes for a Logitech B100 order', async () => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = input.toString();
+      if (
+        url ===
+        'https://staff-bff.tekoapis.com/api/v2/staff-admin/orders/26070133166730?thousandSeparator=%2C&decimalSeparator=.'
+      ) {
+        return jsonResponse({
+          data: {
+            order: {
+              orderId: '26070133166730',
+              confirmationStatus: 'active',
+              fulfillmentStatus: 'PROCESSING',
+              orderCaptureLineItems: [
+                {
+                  sellerSku: '240901775',
+                  name: 'Chuột máy tính Logitech B100',
+                  quantity: 1,
+                },
+              ],
+              payments: [{ paymentMethod: 'cash', amount: 80000 }],
+            },
+          },
+        });
+      }
+      if (url.startsWith('https://listing.tekoapis.com/api/products/')) {
+        return jsonResponse({
+          result: {
+            products: [
+              {
+                sku: '240901775',
+                name: 'Chuột máy tính Logitech B100',
+                productGroup: {
+                  code: 'NH01-FAKE',
+                  name: 'Phụ kiện Laptop',
+                },
+                productType: {
+                  code: 'NH02-FAKE',
+                  name: 'Phụ kiện PC',
+                },
+                categories: [
+                  {
+                    id: 386106,
+                    code: 'NH06',
+                    name: 'Thiết bị ngoại vi',
+                    level: 1,
+                    parentId: 0,
+                  },
+                  {
+                    code: 'NH01-02-03',
+                    name: 'Phụ kiện Laptop',
+                    level: 2,
+                  },
+                  {
+                    code: 'NH02-02-03',
+                    name: 'Phụ kiện PC',
+                    level: 2,
+                  },
+                  {
+                    code: 'NH06-03-01-01',
+                    name: 'Chuột máy tính',
+                    level: 3,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    const service = new SalesReportErpService();
+    const result = await service.lookupOrder('26070133166730', 'CP62');
+
+    expect(result.customerNeed).toBe('Chuột máy tính Logitech B100');
+    expect(result.categoryCandidates).toEqual(['NH06']);
+    expect(result.categoryCandidates).not.toContain('NH01');
+    expect(result.categoryCandidates).not.toContain('NH02');
   });
 
   it.each([

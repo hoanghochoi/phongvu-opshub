@@ -1248,7 +1248,7 @@ describe('MapVietinService', () => {
     );
   });
 
-  it('lists statements with exact order and status filters inside store scope', async () => {
+  it('keeps status and date filters inside assigned store scope', async () => {
     prisma.store.findUnique.mockResolvedValue({
       id: 'store-uuid-1',
       storeId: 'CP01',
@@ -1260,7 +1260,6 @@ describe('MapVietinService', () => {
       service.listStatements(
         { role: 'MANAGER', storeId: 'store-uuid-1' },
         {
-          order: '26052912345678',
           orderStatus: 'HAS_ORDER',
           startDate: '2026-05-29',
           endDate: '2026-05-29',
@@ -1272,9 +1271,39 @@ describe('MapVietinService', () => {
 
     const where = prisma.mapVietinTransaction.findMany.mock.calls[0][0].where;
     expect(JSON.stringify(where)).toContain('CP01');
-    expect(JSON.stringify(where)).toContain('26052912345678');
     expect(JSON.stringify(where)).toContain('isEmpty');
   });
+
+  it.each([
+    ['amount', { amount: '1250000' }, '1250000'],
+    ['order', { order: '26052912345678' }, '26052912345678'],
+    [
+      'statement number',
+      { statementNumber: '00020300000000004567' },
+      '00020300000000004567',
+    ],
+    ['transfer content', { content: 'khach chuyen tien' }, 'khach chuyen tien'],
+  ])(
+    'searches statements by %s across all accounts for scoped users',
+    async (_name, input, expectedMarker) => {
+      prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+      prisma.mapVietinTransaction.count.mockResolvedValue(0);
+
+      await expect(
+        service.listStatements(
+          { role: 'MANAGER', storeId: 'store-uuid-1' },
+          { ...input, page: 0, limit: 20 },
+        ),
+      ).resolves.toMatchObject({ total: 0, list: [] });
+
+      const where =
+        prisma.mapVietinTransaction.findMany.mock.calls.at(-1)[0].where;
+      const serializedWhere = JSON.stringify(where);
+      expect(serializedWhere).toContain(expectedMarker);
+      expect(serializedWhere).not.toContain('storeCode');
+      expect(serializedWhere).not.toContain('CP01');
+    },
+  );
 
   it('filters statements by displayed statement number', async () => {
     prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
@@ -2091,6 +2120,22 @@ describe('MapVietinService', () => {
         where: expect.objectContaining({ id: { in: ['stored-1'] } }),
       }),
     );
+  });
+
+  it('exports selected global-lookup statement rows without assigned-store scope', async () => {
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+
+    await service.exportStatementsCsv(
+      { role: 'MANAGER', storeId: 'store-uuid-1' },
+      { transactionIds: ['stored-1'], amount: '1250000' },
+    );
+
+    const where = prisma.mapVietinTransaction.findMany.mock.calls[0][0].where;
+    const serializedWhere = JSON.stringify(where);
+    expect(serializedWhere).toContain('1250000');
+    expect(serializedWhere).toContain('stored-1');
+    expect(serializedWhere).not.toContain('storeCode');
+    expect(serializedWhere).not.toContain('CP01');
   });
 
   it('rejects statement CSV exports over one month', async () => {

@@ -122,7 +122,7 @@ export class SalesReportErpService {
       const result = this.normalizeOrder(orderCode, order, items, payments);
       const customerTaxCode = this.billingTaxCode(order);
       this.logger.log(
-        `Sales report ERP lookup succeeded: orderLength=${orderCode.length} itemCount=${items.length} paymentCount=${payments.length} customerType=${result.customerType} billingCustomerType=${result.erpCustomerType || 'none'} hasBillingTaxCode=${Boolean(customerTaxCode)} durationMs=${Date.now() - startedAt}`,
+        `Sales report ERP lookup succeeded: orderLength=${orderCode.length} itemCount=${items.length} paymentCount=${payments.length} levelOneCategoryCount=${result.categoryCandidates.length} customerType=${result.customerType} billingCustomerType=${result.erpCustomerType || 'none'} hasBillingTaxCode=${Boolean(customerTaxCode)} durationMs=${Date.now() - startedAt}`,
       );
       return result;
     } catch (error) {
@@ -655,17 +655,9 @@ export class SalesReportErpService {
       .join('; ');
     const categoryCandidates = Array.from(
       new Set(
-        items
-          .flatMap((item) => [
-            item.productGroupCode,
-            item.productGroupId,
-            item.productGroupName,
-            item.productTypeCode,
-            item.productTypeName,
-            ...this.listingCategoryCandidateValues(item.listingCategories),
-            item.name,
-          ])
-          .filter((value): value is string => Boolean(value)),
+        items.flatMap((item) =>
+          this.listingLevelOneCategoryCodes(item.listingCategories),
+        ),
       ),
     );
     const erpCustomerType = this.billingCustomerType(order);
@@ -1048,26 +1040,13 @@ export class SalesReportErpService {
     };
   }
 
-  private listingCategoryCandidateValues(categories: unknown[]) {
+  private listingLevelOneCategoryCodes(categories: unknown[]) {
     return categories.flatMap((category) => {
-      if (typeof category === 'string') {
-        return [this.optionalText(category)].filter(
-          (value): value is string => Boolean(value),
-        );
-      }
       if (!category || typeof category !== 'object') return [];
       const record = category as Record<string, unknown>;
-      return [
-        record.code,
-        record.id,
-        record.name,
-        record.displayName,
-        record.categoryCode,
-        record.categoryId,
-        record.categoryName,
-      ]
-        .map((value) => this.optionalText(value))
-        .filter((value): value is string => Boolean(value));
+      if (this.toInt(record.level) !== 1) return [];
+      const code = this.optionalText(record.code ?? record.categoryCode);
+      return code ? [code] : [];
     });
   }
 

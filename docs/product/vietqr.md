@@ -209,8 +209,10 @@ a customer to scan and pay manually.
 - Showroom filtering follows effective statement scope: national users and
   users with `BANK_STATEMENT_ALL_SCOPE` can search all or multiple showrooms;
   assigned-showroom users can search one or more of their assigned showrooms.
-  Statement number, order, amount, and content filters are allowed across the
-  user's statement scope.
+  Statement number, order, amount, and transfer-content searches scan all
+  stored statement accounts and are not limited by the user's assigned
+  showroom. Date range, order status, and showroom searches without one of
+  those global lookup filters remain limited to the user's statement scope.
 - Statement number filter is an exact match against the user-facing statement
   reference shown in `Sao ke`, falling back to the MAP transaction number when
   no statement reference exists. Order filter is an exact match against any

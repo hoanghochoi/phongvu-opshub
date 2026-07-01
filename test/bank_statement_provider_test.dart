@@ -127,6 +127,39 @@ void main() {
       provider.dispose();
     });
 
+    test('sends global lookup filters without assigned showroom ids', () async {
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+
+      await provider.initialize(_storeScopedManager);
+
+      provider.setAmount('1,250,000');
+      await provider.search();
+      expect(repository.lastQuery?.storeIds, isEmpty);
+      expect(repository.lastQuery?.allStores, isFalse);
+      expect(repository.lastQuery?.amount, '1250000');
+
+      provider.setOrder('26052912345678');
+      await provider.search();
+      expect(repository.lastQuery?.storeIds, isEmpty);
+      expect(repository.lastQuery?.allStores, isFalse);
+      expect(repository.lastQuery?.order, '26052912345678');
+
+      provider.setStatementNumber('00020300000000004567');
+      await provider.search();
+      expect(repository.lastQuery?.storeIds, isEmpty);
+      expect(repository.lastQuery?.allStores, isFalse);
+      expect(repository.lastQuery?.statementNumber, '00020300000000004567');
+
+      provider.setContent('customer transfer');
+      await provider.search();
+      expect(repository.lastQuery?.storeIds, isEmpty);
+      expect(repository.lastQuery?.allStores, isFalse);
+      expect(repository.lastQuery?.content, 'customer transfer');
+
+      provider.dispose();
+    });
+
     test(
       'keeps every assigned showroom visible for multi-store users',
       () async {

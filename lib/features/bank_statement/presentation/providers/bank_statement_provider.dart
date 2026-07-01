@@ -783,6 +783,12 @@ class BankStatementProvider extends ChangeNotifier {
 
   bool get _usesDefaultTodayDateRange => _startDate == null && _endDate == null;
 
+  bool get _usesGlobalLookup =>
+      (_statementNumber ?? '').isNotEmpty ||
+      (_order ?? '').isNotEmpty ||
+      (_amount ?? '').isNotEmpty ||
+      (_content ?? '').isNotEmpty;
+
   DateTime _todayInVietnam() {
     final vietnamNow = _now().toUtc().add(
       const Duration(hours: _vietnamUtcOffsetHours),
@@ -1078,6 +1084,7 @@ class BankStatementProvider extends ChangeNotifier {
       'hasOrder': (_order ?? '').isNotEmpty,
       'hasAmount': (_amount ?? '').isNotEmpty,
       'contentLength': _content?.length ?? 0,
+      'globalLookup': _usesGlobalLookup,
       'orderStatus': _orderStatus,
       'hasStartDate': _startDate != null,
       'hasEndDate': _endDate != null,

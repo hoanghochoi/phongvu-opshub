@@ -54,8 +54,10 @@ Recent focused evidence:
   fallback or assigned organization subtree for `STORE_MANAGER` and other
   manager roles, maps the ERP creator to the internal user and assigned
   store/node during the scheduled upsert without erasing an existing mapping
-  when a later payload is incomplete, gives Super Admin the full saved
-  cache/report scope, and
+  when a later payload is incomplete, and gives Super Admin the full saved
+  cache/report scope. Purchased-order category auto-fill accepts only Listing
+  `result.products[].categories[].code` values whose `level = 1`, so lower
+  Laptop/PC labels on a Logitech B100 mouse cannot select extra groups. It
   reuses the existing purchased `check-order` flow when a user opens an
   unreported order dialog. Flutter only reads the DB cache on open,
   manual reload, and every 3 minutes while the screen is mounted. The admin
@@ -64,7 +66,7 @@ Recent focused evidence:
   method. Validation:
   `npx prisma validate`, `npx prisma generate`,
   `npm test -- --runInBand src/sales-reports`
-  (34 tests), `npm run build`,
+  (35 tests), `npm run build`,
   `flutter test --no-pub --reporter expanded test\sales_report_hub_test.dart`
   (12 tests), focused `dart analyze` on changed sales-report files, and
   `git diff --check` (CRLF warnings only).
@@ -432,6 +434,14 @@ Recent focused evidence:
   back to MAP transaction number. Validation: focused Flutter bank statement
   provider/screen tests (24 tests), focused MAP statement Jest (54 tests),
   `flutter analyze --no-pub`, backend `npm run build`, and `git diff --check`.
+- PAYMENT-STATEMENT-001, 2026-07-01: statement number, order code, exact amount,
+  and transfer-content searches now scan all stored statement accounts instead
+  of being limited to the user's assigned showroom; showroom/date/status-only
+  searches remain scoped. Selected-row CSV export keeps the same global lookup
+  filter so visible out-of-showroom rows can be exported without allowing raw id
+  guessing. Validation: focused Flutter bank statement provider tests (23
+  tests), focused MAP statement Jest (59 tests), `flutter analyze --no-pub`,
+  backend `npm run build`, and `git diff --check`.
 - PROFILE-ADMIN-001, 2026-06-26: changed `Quản lý người dùng` text search to
   local filtering over the loaded user list, while backend reloads are reserved
   for filter changes or manual refresh; role/feature/scope-tree metadata is

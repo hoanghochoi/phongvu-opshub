@@ -46,10 +46,11 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   không phân biệt hoa/thường, app báo `Đơn đã bị hủy.` và không load thông tin
   đơn hàng về form.
 - ERP/Listing chỉ được tự điền ngành hàng khi map được về nhóm ngành OpsHub:
-  ưu tiên mã nhóm rõ ràng từ Listing như
-  `result.products[].categories[].code` hoặc `productGroup.code` khớp
-  `Cat group ID` trong `data/categories.csv`, rồi mới dùng tên/alias làm
-  fallback. Một báo cáo có thể chọn nhiều ngành hàng vì một đơn/khách có thể có
+  chỉ lấy `result.products[].categories[]` có `level = 1` và dùng đúng `code`
+  khớp `Cat group ID` trong `data/categories.csv`. Không dùng category level
+  2/3, `productGroup`, `productType` hoặc tên sản phẩm để suy đoán ngành hàng;
+  nếu Listing không có code level 1 thì sale phải chọn tay. Một báo cáo có thể
+  chọn nhiều ngành hàng vì một đơn/khách có thể có
   nhiều nhu cầu; ngành đầu tiên được lưu làm ngành chính để filter/list cũ còn
   tương thích, toàn bộ ngành được lưu trong bảng selection và xuất CSV. Nếu
   không map được ngành hàng về nhóm ngành OpsHub thì sale bắt buộc chọn trước
