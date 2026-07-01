@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { randomUUID } from 'crypto';
@@ -15,9 +16,11 @@ import { requestPathForLog } from './request-log';
 
 async function bootstrap() {
   validateRuntimeEnv();
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const requestLogger = new Logger('HttpRequest');
 
+  // The API is reached through exactly one trusted Caddy reverse-proxy hop.
+  app.set('trust proxy', 1);
   app.use(helmet());
   app.use((req: any, res: any, next: () => void) => {
     const requestId = req.headers['x-request-id']?.toString() || randomUUID();

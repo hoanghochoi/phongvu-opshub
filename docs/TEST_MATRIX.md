@@ -45,6 +45,17 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `AUTH-004`/`PAYMENT-MONITOR-001`, 2026-07-01: production diagnosis found
+  payment monitor clients behind Caddy sharing the default IP throttling bucket,
+  causing a newly opened client to receive HTTP 429 on its first request. The
+  high-risk fix changes tracking to the verified JWT user id first, then
+  request client identifiers such as `clientId`/`deviceId`, then a hashed public
+  auth email, and uses client IP only as the last-resort bucket. It also trusts
+  exactly one Caddy hop and returns Vietnamese action-oriented 429 copy.
+  Validation: focused guard tests (8), full backend Jest (46 suites, 398 tests),
+  NestJS build, focused ESLint on the new guard/spec and changed module wiring,
+  and `git diff --check`. Gap: production smoke with more than 20 concurrent
+  payment-monitor clients remains pending deployment.
 - `UPDATE-001`/`UPDATE-003`/`PAYMENT-MONITOR-001`, 2026-06-30: web update
   prompts now reload the current page instead of opening a download URL, web
   users with `PAYMENT_MONITOR` can open the `Tiền vào` transaction list, and

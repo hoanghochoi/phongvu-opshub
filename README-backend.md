@@ -133,6 +133,11 @@ Expected responses:
   `paidAt -> streamStartedAt`. Set `PAYMENT_TTS_CONCURRENCY=2` to match the
   recommended two Piper workers on `hoang-n8n`.
 - Keep placeholder values out of production; the Nest API validates env values on startup.
+- Keep the API behind exactly one trusted Caddy hop. Rate limits use the
+  verified JWT user id first, then stable request identifiers such as
+  `clientId`/`deviceId`, then a hashed auth email for public auth requests. The
+  resolved client IP is only a last-resort bucket, so normal clients do not
+  share Caddy's container IP.
 - Run `npx prisma migrate deploy` before starting the Nest API.
 - Start the Go service with the same Redis connection as NestJS.
 

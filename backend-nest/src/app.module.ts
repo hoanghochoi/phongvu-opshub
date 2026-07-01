@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -24,15 +24,20 @@ import { FeatureModule } from './feature/feature.module';
 import { OffsetAdjustmentsModule } from './offset-adjustments/offset-adjustments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { SalesReportsModule } from './sales-reports/sales-reports.module';
+import { UserAwareThrottlerGuard } from './common/user-aware-throttler.guard';
 
 @Module({
   imports: [
-    ThrottlerModule.forRoot([
-      {
-        ttl: 60_000,
-        limit: 120,
-      },
-    ]),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: 60_000,
+          limit: 120,
+        },
+      ],
+      errorMessage:
+        'Bạn đang thao tác quá nhanh. Vui lòng chờ một chút rồi thử lại.',
+    }),
     ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
@@ -60,7 +65,7 @@ import { SalesReportsModule } from './sales-reports/sales-reports.module';
     AppService,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: UserAwareThrottlerGuard,
     },
   ],
 })
