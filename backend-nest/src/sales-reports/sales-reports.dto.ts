@@ -14,7 +14,11 @@ import {
 
 export const SALES_REPORT_TYPES = ['PURCHASED', 'NOT_PURCHASED'] as const;
 
-export const SALES_REPORT_EXPORT_TYPES = ['HVTC', 'REVENUE'] as const;
+export const SALES_REPORT_EXPORT_TYPES = [
+  'HVTC',
+  'REVENUE',
+  'INSTALLMENT',
+] as const;
 
 export const YES_NO_REASON_CODES = [
   'YES',
@@ -318,4 +322,23 @@ export class ExportSalesReportsDto extends ListSalesReportsDto {
   @IsString()
   @IsIn(SALES_REPORT_EXPORT_TYPES)
   exportType?: string;
+}
+
+export class ListSalesReportOrdersDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  date?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  refresh?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
 }

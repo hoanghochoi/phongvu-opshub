@@ -169,8 +169,15 @@ a customer to scan and pay manually.
   the stream endpoint, prefer `rawAmount=true` amount audio plus the bundled
   cue-prefix asset, and acknowledge `STREAM_STARTED` when playback is about to
   begin. The stream endpoint is still an authenticated audio file response, not
-  chunked audio. Normal ready-notification polling remains as a fallback and
-  drains multiple ready batches in one poll when a speaker PC has backlog.
+  chunked audio. Stream audio requests include the speaker `clientId`, and the
+  backend records that stream open as an in-flight delivery claim. Normal
+  ready-notification polling remains as a fallback and drains multiple ready
+  batches in one poll when a speaker PC has backlog, but it excludes recent
+  `DELIVERED`/`STREAM_STARTED` claims for the same client so the fallback path
+  cannot re-fetch an audio notification that is already streaming. The Windows
+  client also skips locally terminal, queued, or active notification ids before
+  playback so repeated stream events and fallback ready polling cannot overlap
+  the same transaction audio.
 - When a speaker attempt fails, the client uploads `PaymentSpeaker` started /
   succeeded / failed logs with sanitized context and acknowledges
   `PLAYBACK_FAILED` for attempts 1-2. The client waits 10 seconds between

@@ -87,9 +87,11 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   const gap = AppLayoutTokens.formInlineGap;
-                  final columns = constraints.maxWidth >= 1180
+                  final columns = constraints.maxWidth >= 1300
+                      ? 6
+                      : constraints.maxWidth >= 1180
                       ? 5
-                      : constraints.maxWidth >= 1040
+                      : constraints.maxWidth >= 920
                       ? 4
                       : constraints.maxWidth >= 760
                       ? 3
@@ -153,6 +155,17 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
                               : () => _export('REVENUE'),
                           icon: Icons.download_rounded,
                           label: 'Xuất Doanh số',
+                          isLoading: provider.isExporting,
+                        ),
+                      ),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: AppSecondaryButton(
+                          onPressed: provider.isExporting
+                              ? null
+                              : () => _export('INSTALLMENT'),
+                          icon: Icons.download_rounded,
+                          label: 'Xuất Trả góp',
                           isLoading: provider.isExporting,
                         ),
                       ),

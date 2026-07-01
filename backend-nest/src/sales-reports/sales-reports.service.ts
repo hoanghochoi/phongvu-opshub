@@ -3,17 +3,22 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
+  OnApplicationBootstrap,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { Interval } from '@nestjs/schedule';
 import {
   organizationNodeStoreTreeInclude,
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
 import { isSuperAdminRole } from '../common/system-role';
+import { FEATURE_KEYS } from '../feature/feature.constants';
+import { FeatureService } from '../feature/feature.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SalesReportCategoriesService } from './sales-report-categories.service';
 import {
   SalesReportErpOrder,
+  SalesReportErpOrderListItem,
   SalesReportErpService,
 } from './sales-report-erp.service';
 import {
@@ -25,6 +30,7 @@ import {
   INSTALLMENT_NO_INSTALLMENT_REASON_CODES,
   INSTALLMENT_PARTNER_CODES,
   INSTALLMENT_STATUSES,
+  ListSalesReportOrdersDto,
   ListSalesReportsDto,
   NOT_PURCHASED_REASON_CODES,
   PROMOTION_CODES,
@@ -38,7 +44,11 @@ const REPORT_TYPE_PURCHASED = 'PURCHASED';
 const REPORT_TYPE_NOT_PURCHASED = 'NOT_PURCHASED';
 const EXPORT_TYPE_HVTC = 'HVTC';
 const EXPORT_TYPE_REVENUE = 'REVENUE';
+const EXPORT_TYPE_INSTALLMENT = 'INSTALLMENT';
 const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_ORDER_COCKPIT_LIMIT = 50;
+const ORDER_CACHE_SYNC_INTERVAL_MS = 3 * 60 * 1000;
+const MAX_ORDER_CACHE_SYNC_LOOKBACK_DAYS = 7;
 const INSTALLMENT_SUCCESS = 'SUCCESS';
 const INSTALLMENT_FAILED = 'FAILED';
 
@@ -51,6 +61,12 @@ type SalesReportFilters = {
   requestedAllStores: boolean;
   dateRange: { start: Date; end: Date } | null;
   page: number;
+  limit: number;
+};
+
+type SalesReportOrderCockpitFilters = {
+  date: string;
+  dateRange: { start: Date; end: Date };
   limit: number;
 };
 
@@ -123,17 +139,147 @@ const INSTALLMENT_NO_INSTALLMENT_REASON_LABELS: Record<string, string> = {
 };
 
 @Injectable()
-export class SalesReportsService {
+export class SalesReportsService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SalesReportsService.name);
+  private orderCacheSyncRunning = false;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly categories: SalesReportCategoriesService,
     private readonly erp: SalesReportErpService,
+    private readonly featureService?: FeatureService,
   ) {}
 
   async categoriesForReport() {
     return this.categories.listCategories();
+  }
+
+  onApplicationBootstrap() {
+    if (!this.orderCacheSyncOnStartup()) return;
+    void this.syncScheduledErpOrderCache('startup');
+  }
+
+  @Interval(ORDER_CACHE_SYNC_INTERVAL_MS)
+  async handleScheduledErpOrderCacheSync() {
+    await this.syncScheduledErpOrderCache('interval');
+  }
+
+  async syncScheduledErpOrderCache(source = 'manual') {
+    if (!this.orderCacheSyncEnabled()) {
+      this.logger.log(
+        `Sales report scheduled ERP order sync skipped: source=${source} reason=disabled`,
+      );
+      return { skipped: true, count: 0, dates: [] };
+    }
+    if (this.orderCacheSyncRunning) {
+      this.logger.warn(
+        `Sales report scheduled ERP order sync skipped: source=${source} reason=already_running`,
+      );
+      return { skipped: true, count: 0, dates: [] };
+    }
+
+    const startedAt = Date.now();
+    const dates = this.orderCacheSyncDates();
+    const limit = this.orderCacheSyncLimit();
+    this.orderCacheSyncRunning = true;
+    try {
+      let syncedCount = 0;
+      for (const date of dates) {
+        syncedCount += await this.syncErpOrderCache({
+          date,
+          limit,
+          source,
+        });
+      }
+      this.logger.log(
+        `Sales report scheduled ERP order sync succeeded: source=${source} dates=${dates.join(',')} count=${syncedCount} limit=${limit} durationMs=${Date.now() - startedAt}`,
+      );
+      return { skipped: false, count: syncedCount, dates };
+    } catch (error) {
+      this.logger.error(
+        `Sales report scheduled ERP order sync failed: source=${source} dates=${dates.join(',')} limit=${limit} durationMs=${Date.now() - startedAt} error=${String(error)}`,
+      );
+      return { skipped: false, count: 0, dates };
+    } finally {
+      this.orderCacheSyncRunning = false;
+    }
+  }
+
+  async orderCockpit(user: any, query: ListSalesReportOrdersDto) {
+    const filters = this.normalizeOrderCockpitFilters(query);
+    const context = await this.resolveUserSnapshot(user);
+    const adminView = await this.canViewAdminSalesReports(user);
+
+    const reportScopeWhere = adminView
+      ? await this.resolveAdminScopeWhere(user, {
+          requestedAllStores: true,
+          storeIds: [],
+        })
+      : this.resolveUserReportScopeWhere(user);
+    const orderScopeWhere = adminView
+      ? await this.resolveAdminOrderCacheScopeWhere(user)
+      : this.resolveUserOrderCacheScopeWhere(user, context);
+    const reportedWhere = this.andWhere(
+      reportScopeWhere,
+      this.reportedOrderDateWhere(filters.dateRange),
+      {
+        reportType: REPORT_TYPE_PURCHASED,
+        orderCode: { not: null },
+      },
+    );
+    const [reportedOrders, cachedOrders] = await this.prisma.$transaction([
+      this.prisma.salesReport.findMany({
+        where: reportedWhere,
+        orderBy: [{ erpOrderCreatedAt: 'desc' }, { submittedAt: 'desc' }],
+        take: filters.limit,
+        include: {
+          categorySelections: { orderBy: { sortOrder: 'asc' } },
+          items: { take: 20, orderBy: { createdAt: 'asc' } },
+          payments: { take: 20, orderBy: { createdAt: 'asc' } },
+        },
+      }),
+      this.prisma.salesReportErpOrderCache.findMany({
+        where: this.andOrderCacheWhere(
+          orderScopeWhere,
+          this.orderCacheDateWhere(filters.dateRange),
+        ),
+        orderBy: [
+          { orderCreatedAt: 'desc' },
+          { fetchedAt: 'desc' },
+          { updatedAt: 'desc' },
+        ],
+        take: filters.limit,
+      }),
+    ]);
+    const reportedCodes = new Set(
+      reportedOrders
+        .map((row: any) => this.normalizeOrderCode(row.orderCode))
+        .filter(Boolean),
+    );
+    const unreportedOrders = cachedOrders
+      .filter(
+        (row: any) =>
+          !reportedCodes.has(this.normalizeOrderCode(row.orderCode)),
+      )
+      .slice(0, filters.limit);
+
+    this.logger.log(
+      `Sales report order cockpit loaded from cache: user=${this.safeUserLabel(user)} date=${filters.date} admin=${adminView} reported=${reportedOrders.length} unreported=${unreportedOrders.length}`,
+    );
+    return {
+      date: filters.date,
+      refreshedAt: new Date(),
+      syncSucceeded: true,
+      syncError: null,
+      syncCount: 0,
+      scope: adminView ? 'MANAGED_SCOPE' : 'OWN',
+      reportedOrders: reportedOrders.map((row) =>
+        this.toReportedOrderCockpitDto(row),
+      ),
+      unreportedOrders: unreportedOrders.map((row) =>
+        this.toCachedOrderCockpitDto(row),
+      ),
+    };
   }
 
   async checkOrder(user: any, orderCodeInput: string) {
@@ -142,6 +288,7 @@ export class SalesReportsService {
     const context = await this.resolveUserSnapshot(user);
     const erpOrder = await this.erp.lookupOrder(orderCode, context.storeCode);
     await this.attachCategoryTypes(erpOrder);
+    await this.upsertErpOrderCacheFromOrder(user, context, erpOrder);
     const matchedCategories = await this.categories.matchCategoriesFromErp(
       erpOrder.categoryCandidates,
     );
@@ -381,8 +528,12 @@ export class SalesReportsService {
       storeIds: filters.storeIds,
     });
     const where = this.andWhere(scopeWhere, this.buildFilterWhere(filters));
+    const exportWhere =
+      exportType === EXPORT_TYPE_INSTALLMENT
+        ? this.andWhere(where, { installmentNeed: true })
+        : where;
     const rows = await this.prisma.salesReport.findMany({
-      where,
+      where: exportWhere,
       orderBy: { submittedAt: 'desc' },
       take: 10_000,
       include: {
@@ -394,9 +545,374 @@ export class SalesReportsService {
     this.logger.log(
       `Sales reports export completed: user=${this.safeUserLabel(user)} type=${exportType} count=${rows.length}`,
     );
-    return exportType === EXPORT_TYPE_REVENUE
-      ? this.buildRevenueCsv(rows)
-      : this.buildHvtcCsv(rows);
+    if (exportType === EXPORT_TYPE_REVENUE) return this.buildRevenueCsv(rows);
+    if (exportType === EXPORT_TYPE_INSTALLMENT) {
+      return this.buildInstallmentCsv(rows);
+    }
+    return this.buildHvtcCsv(rows);
+  }
+
+  private normalizeOrderCockpitFilters(
+    query: ListSalesReportOrdersDto,
+  ): SalesReportOrderCockpitFilters {
+    const date = this.parseDateParam(query.date) ?? this.todayVietnamDate();
+    const start = new Date(`${date}T00:00:00.000+07:00`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return {
+      date,
+      dateRange: { start, end },
+      limit: Math.max(
+        1,
+        Math.min(100, Number(query.limit ?? DEFAULT_ORDER_COCKPIT_LIMIT)),
+      ),
+    };
+  }
+
+  private async syncErpOrderCache(input: {
+    date: string;
+    limit: number;
+    source: string;
+  }) {
+    const orders: SalesReportErpOrderListItem[] =
+      await this.erp.listRecentOrders({
+        date: input.date,
+        limit: input.limit,
+      });
+    const context = this.systemOrderSyncContext();
+    const storeByCode = await this.storesByCode(
+      orders
+        .map(
+          (order: SalesReportErpOrderListItem) =>
+            order.storeCode ?? context.storeCode,
+        )
+        .filter((code: string | null): code is string => Boolean(code)),
+    );
+    for (const order of orders) {
+      await this.upsertErpOrderCacheItem(null, context, order, storeByCode);
+    }
+    return orders.length;
+  }
+
+  private systemOrderSyncContext(): Awaited<
+    ReturnType<SalesReportsService['resolveUserSnapshot']>
+  > {
+    return {
+      createdByUserId: null,
+      createdByEmail: null,
+      createdByName: null,
+      createdByPersonnelCode: null,
+      storeCode: null,
+      storeName: null,
+      organizationNodeId: null,
+      organizationNodeName: null,
+      regionCode: null,
+      areaCode: null,
+    };
+  }
+
+  private async upsertErpOrderCacheFromOrder(
+    user: any,
+    context: Awaited<ReturnType<SalesReportsService['resolveUserSnapshot']>>,
+    erpOrder: SalesReportErpOrder,
+  ) {
+    const orderCache = (this.prisma as any).salesReportErpOrderCache;
+    if (!orderCache?.upsert) return;
+    const item: SalesReportErpOrderListItem = {
+      orderCode: erpOrder.orderCode,
+      erpOrderId: erpOrder.erpOrderId,
+      erpExternalOrderRef: erpOrder.erpExternalOrderRef,
+      orderCreatedAt: erpOrder.erpOrderCreatedAt,
+      paymentStatus: erpOrder.erpPaymentStatus,
+      confirmationStatus: erpOrder.erpConfirmationStatus,
+      fulfillmentStatus: erpOrder.erpFulfillmentStatus,
+      terminalName: erpOrder.erpTerminalName,
+      grandTotal: erpOrder.erpGrandTotal,
+      customerName: erpOrder.customerName,
+      customerPhone: null,
+      customerType: erpOrder.erpCustomerType,
+      paymentMethods: erpOrder.paymentMethods,
+      platformId: erpOrder.erpPlatformId,
+      consultantCustomId: erpOrder.erpConsultantCustomId,
+      consultantName: erpOrder.erpConsultantName,
+      consultantEmail: null,
+      sellerId: null,
+      sellerName: null,
+      sellerEmail: null,
+      storeCode: context.storeCode,
+      storeName: context.storeName,
+      sanitizedSnapshot: erpOrder.sanitizedSnapshot,
+      fetchedAt: erpOrder.fetchedAt,
+    };
+    await this.upsertErpOrderCacheItem(user, context, item, new Map());
+  }
+
+  private async upsertErpOrderCacheItem(
+    user: any,
+    context: Awaited<ReturnType<SalesReportsService['resolveUserSnapshot']>>,
+    order: SalesReportErpOrderListItem,
+    storeByCode: Map<string, any>,
+  ) {
+    const orderCode = this.normalizeOrderCode(order.orderCode);
+    if (!orderCode) return;
+    const storeCode = this.normalizeStoreCode(
+      order.storeCode ?? context.storeCode,
+    );
+    const store = storeCode ? storeByCode.get(storeCode) : null;
+    const data = {
+      erpOrderId: this.optionalText(order.erpOrderId, 80),
+      erpExternalOrderRef: this.optionalText(order.erpExternalOrderRef, 120),
+      orderCreatedAt: order.orderCreatedAt,
+      paymentStatus: this.optionalText(order.paymentStatus, 80),
+      confirmationStatus: this.optionalText(order.confirmationStatus, 80),
+      fulfillmentStatus: this.optionalText(order.fulfillmentStatus, 80),
+      terminalName: this.optionalText(order.terminalName, 120),
+      grandTotal: order.grandTotal,
+      customerName: this.optionalText(order.customerName, 120),
+      customerPhone: this.optionalText(order.customerPhone, 30),
+      customerType: this.optionalText(order.customerType, 40),
+      paymentMethods: order.paymentMethods.slice(0, 20),
+      platformId: order.platformId,
+      consultantCustomId: this.optionalText(order.consultantCustomId, 80),
+      consultantName: this.optionalText(order.consultantName, 120),
+      consultantEmail: this.normalizeEmail(order.consultantEmail),
+      sellerId: this.optionalText(order.sellerId, 80),
+      sellerName: this.optionalText(order.sellerName, 120),
+      sellerEmail: this.normalizeEmail(order.sellerEmail),
+      storeCode,
+      storeName:
+        this.optionalText(order.storeName, 120) ??
+        this.optionalText(store?.storeName, 120) ??
+        context.storeName,
+      organizationNodeId:
+        store?.organizationNodeId ?? context.organizationNodeId,
+      sourceUserId: this.optionalText(user?.id, 80),
+      sourceUserEmail: this.normalizeEmail(
+        context.createdByEmail ?? user?.email,
+      ),
+      sanitizedSnapshot: order.sanitizedSnapshot as Prisma.InputJsonValue,
+      fetchedAt: order.fetchedAt,
+    };
+    await this.prisma.salesReportErpOrderCache.upsert({
+      where: { orderCode },
+      create: { orderCode, ...data },
+      update: data,
+    });
+  }
+
+  private async storesByCode(storeCodes: string[]) {
+    const unique = Array.from(
+      new Set(
+        storeCodes.map((code) => this.normalizeStoreCode(code)).filter(Boolean),
+      ),
+    ) as string[];
+    if (unique.length === 0 || !(this.prisma as any).store?.findMany) {
+      return new Map<string, any>();
+    }
+    const stores = await this.prisma.store.findMany({
+      where: { storeId: { in: unique } },
+      select: {
+        storeId: true,
+        storeName: true,
+        organizationNodeId: true,
+      },
+    });
+    const entries = stores
+      .map((store: any) => [this.normalizeStoreCode(store.storeId), store])
+      .filter((entry): entry is [string, any] => Boolean(entry[0]));
+    return new Map(entries);
+  }
+
+  private async canViewAdminSalesReports(user: any) {
+    if (isSuperAdminRole(user?.role)) return true;
+    if (this.featureService?.canAccessFeature) {
+      try {
+        return await this.featureService.canAccessFeature(
+          user,
+          FEATURE_KEYS.ADMIN_SALES_REPORTS,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Sales report admin feature check failed: user=${this.safeUserLabel(user)} error=${String(error)}`,
+        );
+      }
+    }
+    return (
+      user?.featureAccess?.[FEATURE_KEYS.ADMIN_SALES_REPORTS] === true ||
+      user?.resolvedFeatureAccess?.[FEATURE_KEYS.ADMIN_SALES_REPORTS] === true
+    );
+  }
+
+  private resolveUserReportScopeWhere(user: any): Prisma.SalesReportWhereInput {
+    const email = this.normalizeEmail(user?.email);
+    const userId = this.optionalText(user?.id, 80);
+    const parts: Prisma.SalesReportWhereInput[] = [];
+    if (userId) parts.push({ createdByUserId: userId });
+    if (email)
+      parts.push({ createdByEmail: { equals: email, mode: 'insensitive' } });
+    if (parts.length === 0) {
+      throw new ForbiddenException('Tài khoản chưa có thông tin người dùng.');
+    }
+    return { OR: parts };
+  }
+
+  private async resolveAdminOrderCacheScopeWhere(
+    user: any,
+  ): Promise<Prisma.SalesReportErpOrderCacheWhereInput> {
+    if (isSuperAdminRole(user?.role)) return {};
+    const allowedStores = await this.resolveUserStores(user);
+    const allowedStoreCodes = allowedStores.map((store) => store.storeId);
+    if (allowedStoreCodes.length === 0) {
+      throw new ForbiddenException('Tài khoản chưa được gán showroom.');
+    }
+    return { storeCode: this.storeCodeWhere(allowedStoreCodes) as any };
+  }
+
+  private resolveUserOrderCacheScopeWhere(
+    user: any,
+    context: Awaited<ReturnType<SalesReportsService['resolveUserSnapshot']>>,
+  ): Prisma.SalesReportErpOrderCacheWhereInput {
+    const email = this.normalizeEmail(context.createdByEmail ?? user?.email);
+    const personnelCode = this.optionalText(
+      context.createdByPersonnelCode,
+      120,
+    );
+    const parts: Prisma.SalesReportErpOrderCacheWhereInput[] = [];
+    if (email) {
+      parts.push(
+        { consultantEmail: { equals: email, mode: 'insensitive' } },
+        { sellerEmail: { equals: email, mode: 'insensitive' } },
+        { sourceUserEmail: { equals: email, mode: 'insensitive' } },
+      );
+    }
+    if (personnelCode) {
+      parts.push(
+        { consultantCustomId: { equals: personnelCode, mode: 'insensitive' } },
+        { sellerId: { equals: personnelCode, mode: 'insensitive' } },
+      );
+    }
+    if (parts.length === 0) {
+      throw new ForbiddenException('Tài khoản chưa có thông tin người dùng.');
+    }
+    return { OR: parts };
+  }
+
+  private reportedOrderDateWhere(dateRange: { start: Date; end: Date }) {
+    return {
+      OR: [
+        {
+          erpOrderCreatedAt: {
+            gte: dateRange.start,
+            lt: dateRange.end,
+          },
+        },
+        {
+          AND: [
+            { erpOrderCreatedAt: null },
+            {
+              submittedAt: {
+                gte: dateRange.start,
+                lt: dateRange.end,
+              },
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  private orderCacheDateWhere(dateRange: {
+    start: Date;
+    end: Date;
+  }): Prisma.SalesReportErpOrderCacheWhereInput {
+    return {
+      OR: [
+        {
+          orderCreatedAt: {
+            gte: dateRange.start,
+            lt: dateRange.end,
+          },
+        },
+        {
+          AND: [
+            { orderCreatedAt: null },
+            {
+              fetchedAt: {
+                gte: dateRange.start,
+                lt: dateRange.end,
+              },
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  private toCachedOrderCockpitDto(row: any) {
+    return {
+      status: 'UNREPORTED',
+      orderCode: row.orderCode,
+      orderId: row.erpOrderId,
+      externalOrderRef: row.erpExternalOrderRef,
+      orderCreatedAt: row.orderCreatedAt,
+      paymentStatus: row.paymentStatus,
+      confirmationStatus: row.confirmationStatus,
+      fulfillmentStatus: row.fulfillmentStatus,
+      terminalName: row.terminalName,
+      grandTotal: row.grandTotal,
+      customerName: row.customerName,
+      customerPhone: row.customerPhone,
+      customerType: row.customerType,
+      customerTypeLabel: row.customerType
+        ? this.customerTypeLabel(row.customerType)
+        : null,
+      paymentMethods: Array.isArray(row.paymentMethods)
+        ? row.paymentMethods
+        : [],
+      platformId: row.platformId,
+      consultantCustomId: row.consultantCustomId,
+      consultantName: row.consultantName,
+      sellerName: row.sellerName,
+      storeCode: row.storeCode,
+      storeName: row.storeName,
+      fetchedAt: row.fetchedAt,
+      reportedAt: null,
+      report: null,
+    };
+  }
+
+  private toReportedOrderCockpitDto(row: any) {
+    const report = this.toReportDto(row);
+    return {
+      status: 'REPORTED',
+      orderCode: row.orderCode,
+      orderId: row.erpOrderId,
+      externalOrderRef: row.erpExternalOrderRef,
+      orderCreatedAt: row.erpOrderCreatedAt,
+      paymentStatus: row.erpPaymentStatus,
+      confirmationStatus: row.erpConfirmationStatus,
+      fulfillmentStatus: row.erpFulfillmentStatus,
+      terminalName: row.erpTerminalName,
+      grandTotal: row.erpGrandTotal,
+      customerName: row.customerName,
+      customerPhone: row.customerPhone,
+      customerType: row.customerType,
+      customerTypeLabel: row.customerType
+        ? this.customerTypeLabel(row.customerType)
+        : null,
+      paymentMethods: Array.isArray(row.erpPaymentMethods)
+        ? row.erpPaymentMethods
+        : [],
+      platformId: row.erpPlatformId,
+      consultantCustomId: row.erpConsultantCustomId,
+      consultantName: row.erpConsultantName,
+      sellerName: null,
+      storeCode: row.storeCode,
+      storeName: row.storeName,
+      fetchedAt: row.erpFetchedAt,
+      reportedAt: row.submittedAt,
+      report,
+    };
   }
 
   private validateCreateBody(
@@ -1098,6 +1614,44 @@ export class SalesReportsService {
     ].join('\n')}`;
   }
 
+  private buildInstallmentCsv(rows: any[]) {
+    const headers = [
+      'Ngày báo cáo',
+      'createdByEmail',
+      'installmentLoanAmount',
+      'installmentPartnerCodes',
+      'installmentApproved',
+      'reportType',
+      'Phương thức thanh toán cuối cùng',
+      'installmentNoInstallmentReason',
+    ];
+    const lines = [headers.map((header) => this.csvCell(header)).join(',')];
+    for (const row of rows.filter((item) => item.installmentNeed === true)) {
+      const partnerCodes = this.cleanInstallmentPartnerCodes(
+        row.installmentPartnerCodes,
+      );
+      lines.push(
+        [
+          this.csvCell(this.csvVietnamDateTime(row.submittedAt)),
+          this.csvCell(row.createdByEmail),
+          this.csvCell(row.installmentLoanAmount),
+          this.csvCell(partnerCodes.join('; ')),
+          this.csvCell(this.installmentApprovedCsvLabel(row.installmentApproved)),
+          this.csvCell(this.reportTypeLabel(row.reportType)),
+          this.csvCell(this.finalPaymentMethodLabel(row)),
+          this.csvCell(
+            row.installmentNoInstallmentReason
+              ? this.installmentNoInstallmentReasonLabel(
+                  row.installmentNoInstallmentReason,
+                )
+              : '',
+          ),
+        ].join(','),
+      );
+    }
+    return `\ufeff${lines.join('\n')}`;
+  }
+
   private salesRevenueSummary(rows: any[]) {
     const uniquePurchased = new Map<string, any>();
     const noInstallmentReasons = new Map<string, number>();
@@ -1412,11 +1966,77 @@ export class SalesReportsService {
     return { start: rangeStart, end: rangeEnd };
   }
 
+  private parseDateParam(value?: string) {
+    const text = String(value || '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+  }
+
   private parseDateOnly(value?: string) {
     const text = String(value || '').trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
     const date = new Date(`${text}T00:00:00.000+07:00`);
     return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  private todayVietnamDate() {
+    const vnNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    const two = (part: number) => String(part).padStart(2, '0');
+    return `${vnNow.getUTCFullYear()}-${two(vnNow.getUTCMonth() + 1)}-${two(vnNow.getUTCDate())}`;
+  }
+
+  private orderCacheSyncEnabled() {
+    return this.envFlag('ERP_ORDER_CACHE_SYNC_ENABLED', true);
+  }
+
+  private orderCacheSyncOnStartup() {
+    return (
+      this.orderCacheSyncEnabled() &&
+      this.envFlag('ERP_ORDER_CACHE_SYNC_ON_STARTUP', true)
+    );
+  }
+
+  private orderCacheSyncLimit() {
+    return this.envInt(
+      'ERP_ORDER_CACHE_SYNC_LIMIT',
+      DEFAULT_ORDER_COCKPIT_LIMIT,
+      1,
+      100,
+    );
+  }
+
+  private orderCacheSyncDates() {
+    const lookbackDays = this.envInt(
+      'ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS',
+      1,
+      1,
+      MAX_ORDER_CACHE_SYNC_LOOKBACK_DAYS,
+    );
+    const todayStart = new Date(`${this.todayVietnamDate()}T00:00:00.000+07:00`);
+    return Array.from({ length: lookbackDays }, (_, index) => {
+      const date = new Date(todayStart);
+      date.setUTCDate(date.getUTCDate() - index);
+      return this.formatVietnamDate(date);
+    });
+  }
+
+  private formatVietnamDate(value: Date) {
+    const vnDate = new Date(value.getTime() + 7 * 60 * 60 * 1000);
+    const two = (part: number) => String(part).padStart(2, '0');
+    return `${vnDate.getUTCFullYear()}-${two(vnDate.getUTCMonth() + 1)}-${two(vnDate.getUTCDate())}`;
+  }
+
+  private envFlag(name: string, defaultValue: boolean) {
+    const raw = process.env[name];
+    if (raw === undefined) return defaultValue;
+    const normalized = raw.trim().toLowerCase();
+    if (!normalized) return defaultValue;
+    return !['0', 'false', 'off', 'no'].includes(normalized);
+  }
+
+  private envInt(name: string, defaultValue: number, min: number, max: number) {
+    const parsed = Number(process.env[name]);
+    const value = Number.isFinite(parsed) ? Math.trunc(parsed) : defaultValue;
+    return Math.max(min, Math.min(max, value));
   }
 
   private personnelCodeFor(user: any, store: any) {
@@ -1509,6 +2129,22 @@ export class SalesReportsService {
     return text ? text.slice(0, maxLength) : null;
   }
 
+  private normalizeEmail(value: unknown) {
+    const text = this.optionalText(value, 160);
+    return text ? text.toLowerCase() : null;
+  }
+
+  private normalizeStoreCode(value: unknown) {
+    const text = String(value || '')
+      .trim()
+      .toUpperCase();
+    if (!text) return null;
+    const match = text.match(/\b[A-Z]{2}\d{1,3}\b/);
+    if (match) return match[0];
+    const cleaned = text.replace(/[^A-Z0-9_]/g, '');
+    return cleaned ? cleaned.slice(0, 40) : null;
+  }
+
   private storeCodeWhere(storeCodes: string[]) {
     return storeCodes.length === 1 ? storeCodes[0] : { in: storeCodes };
   }
@@ -1518,6 +2154,20 @@ export class SalesReportsService {
   ) {
     const filtered = parts.filter(
       (part): part is Prisma.SalesReportWhereInput =>
+        Boolean(part && Object.keys(part).length > 0),
+    );
+    if (filtered.length === 0) return {};
+    if (filtered.length === 1) return filtered[0];
+    return { AND: filtered };
+  }
+
+  private andOrderCacheWhere(
+    ...parts: Array<
+      Prisma.SalesReportErpOrderCacheWhereInput | null | undefined
+    >
+  ) {
+    const filtered = parts.filter(
+      (part): part is Prisma.SalesReportErpOrderCacheWhereInput =>
         Boolean(part && Object.keys(part).length > 0),
     );
     if (filtered.length === 0) return {};
@@ -1555,6 +2205,25 @@ export class SalesReportsService {
 
   private installmentNoInstallmentReasonLabel(code: string) {
     return INSTALLMENT_NO_INSTALLMENT_REASON_LABELS[code] ?? code;
+  }
+
+  private installmentApprovedCsvLabel(value: unknown) {
+    if (value === true) return 'Đã duyệt';
+    if (value === false) return 'Chưa duyệt';
+    return '';
+  }
+
+  private finalPaymentMethodLabel(row: any) {
+    const paymentText = this.normalizeComparable(
+      Array.isArray(row?.erpPaymentMethods)
+        ? row.erpPaymentMethods.join(' ')
+        : row?.erpPaymentMethods,
+    );
+    const hasInstallment =
+      paymentText.includes('installment') ||
+      paymentText.includes('tra gop') ||
+      paymentText.includes('tragop');
+    return hasInstallment ? 'Trả góp' : 'Trả thẳng';
   }
 
   private cleanInstallmentPartnerCodes(value: unknown) {

@@ -92,6 +92,7 @@ class ApiConstants {
       '/sales-reports/categories';
   static const String salesReportsAdminCategoriesEndpoint =
       '/sales-reports/admin/categories';
+  static const String salesReportsOrdersEndpoint = '/sales-reports/orders';
   static const String salesReportsCheckOrderEndpoint =
       '/sales-reports/check-order';
   static const String salesReportsExportEndpoint = '/sales-reports/export';

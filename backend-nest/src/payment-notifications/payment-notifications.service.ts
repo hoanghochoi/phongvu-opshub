@@ -64,6 +64,7 @@ const DEFAULT_TTS_CONCURRENCY = 2;
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const STREAM_STARTED_EVENT = 'STREAM_STARTED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
+const IN_FLIGHT_DELIVERY_EVENTS = [DELIVERY_CLAIM_EVENT, STREAM_STARTED_EVENT];
 const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE = 'Không có quyền Đọc loa tiền vào';
 const PAYMENT_TTS_PREFIX_TEXT = 'Phong Vũ đã nhận:';
 
@@ -81,6 +82,10 @@ type StoredTransaction = {
   id: string;
   storeCode: string;
   amount: number;
+  content?: string | null;
+  transactionNumber?: string | null;
+  payerName?: string | null;
+  payerAccount?: string | null;
   paidAt?: Date | string | null;
   firstSeenAt?: Date | string | null;
 };
@@ -224,7 +229,7 @@ export class PaymentNotificationsService {
       ttsText,
       audioMode,
     );
-    await this.publishReadyEvent(notification);
+    await this.publishReadyEvent(notification, transaction);
     await this.logDeliveryEvent({
       notificationId: notification.id,
       transactionId: notification.transactionId,
@@ -266,7 +271,7 @@ export class PaymentNotificationsService {
             OR: [
               { event: { in: TERMINAL_DELIVERY_EVENTS } },
               {
-                event: DELIVERY_CLAIM_EVENT,
+                event: { in: IN_FLIGHT_DELIVERY_EVENTS },
                 createdAt: { gt: claimCutoff },
               },
             ],
@@ -408,14 +413,49 @@ export class PaymentNotificationsService {
   async getStreamForUser(
     user: any,
     notificationId: string,
-    options: { includeCue?: boolean; rawAmount?: boolean } = {},
+    options: {
+      includeCue?: boolean;
+      rawAmount?: boolean;
+      clientId?: string;
+    } = {},
   ) {
     const startedAt = Date.now();
     const audio = await this.getAudioForUser(user, notificationId, options);
+    await this.claimStreamDelivery(user, notificationId, options.clientId);
     this.logger.log(
-      `Payment speaker stream opened notification=${notificationId} user=${this.safeUserLabel(user)} rawAmount=${options.rawAmount === true} includeCue=${options.includeCue === true} durationMs=${Date.now() - startedAt}`,
+      `Payment speaker stream opened notification=${notificationId} user=${this.safeUserLabel(user)} client=${options.clientId ? this.safeClientLabel(options.clientId) : 'unknown'} rawAmount=${options.rawAmount === true} includeCue=${options.includeCue === true} durationMs=${Date.now() - startedAt}`,
     );
     return audio;
+  }
+
+  private async claimStreamDelivery(
+    user: any,
+    notificationId: string,
+    clientId?: string,
+  ) {
+    const normalizedClientId = String(clientId ?? '')
+      .trim()
+      .slice(0, 120);
+    if (!normalizedClientId) return;
+    try {
+      const notification = await this.prisma.paymentNotification.findUnique({
+        where: { id: notificationId },
+        select: { id: true, transactionId: true, storeCode: true },
+      });
+      if (!notification) return;
+      await this.logDeliveryEvent({
+        notificationId: notification.id,
+        transactionId: notification.transactionId,
+        storeCode: notification.storeCode,
+        userId: user?.id,
+        clientId: normalizedClientId,
+        event: DELIVERY_CLAIM_EVENT,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Payment speaker stream claim failed notification=${notificationId} user=${this.safeUserLabel(user)} client=${this.safeClientLabel(normalizedClientId)}: ${this.safeError(error)}`,
+      );
+    }
   }
 
   async acknowledge(
@@ -648,7 +688,8 @@ export class PaymentNotificationsService {
     const amountText = `${vietnameseAmountWords(notification.amount)} đồng.`;
     const fallbackText = `${PAYMENT_TTS_PREFIX_TEXT} ${amountText}`;
     const text = notification.text || fallbackText;
-    const audioMode = requestedMode ?? (await this.resolvePaymentTtsAudioMode());
+    const audioMode =
+      requestedMode ?? (await this.resolvePaymentTtsAudioMode());
     const ttsText = audioMode === 'amount_only_with_prefix' ? amountText : text;
     this.logger.log(
       `Payment notification audio generation requested notification=${notification.id} mode=${audioMode} status=${notification.audioStatus}`,
@@ -1280,13 +1321,16 @@ export class PaymentNotificationsService {
     });
   }
 
-  private async publishReadyEvent(notification: {
-    id: string;
-    storeCode: string;
-    transactionId: string;
-    amount: number;
-    audioStatus: string;
-  }) {
+  private async publishReadyEvent(
+    notification: {
+      id: string;
+      storeCode: string;
+      transactionId: string;
+      amount: number;
+      audioStatus: string;
+    },
+    transaction: StoredTransaction,
+  ) {
     const audioUrl =
       notification.audioStatus === 'READY'
         ? `/payment-notifications/${notification.id}/audio`
@@ -1296,6 +1340,13 @@ export class PaymentNotificationsService {
       transactionId: notification.transactionId,
       storeCode: notification.storeCode,
       amount: notification.amount,
+      transactionContent: transaction.content || '',
+      transferContent: transaction.content || '',
+      transactionNumber: transaction.transactionNumber || null,
+      payerName: transaction.payerName || null,
+      payerAccount: transaction.payerAccount || null,
+      paidAt: this.isoFromUnknown(transaction.paidAt),
+      firstSeenAt: this.isoFromUnknown(transaction.firstSeenAt),
       audioStatus: notification.audioStatus,
       audioUrl,
       createdAt: new Date().toISOString(),
@@ -1312,6 +1363,11 @@ export class PaymentNotificationsService {
       transactionId: notification.transactionId,
       storeCode: notification.storeCode,
       amount: notification.amount,
+      transactionContent: transaction.content || '',
+      transferContent: transaction.content || '',
+      transactionNumber: transaction.transactionNumber || null,
+      payerName: transaction.payerName || null,
+      payerAccount: transaction.payerAccount || null,
       paidAt: this.isoFromUnknown(transaction.paidAt),
       firstSeenAt: this.isoFromUnknown(transaction.firstSeenAt),
       streamUrl: `/payment-notifications/${notification.id}/stream`,

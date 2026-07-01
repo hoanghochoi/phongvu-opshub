@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phongvu_opshub/app/widgets/app_feature_grid.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -25,9 +24,7 @@ void main() {
     AppLogger.instance.setUploadsEnabledForTesting(true);
   });
 
-  testWidgets('Báo cáo opens a function hub instead of report tabs', (
-    tester,
-  ) async {
+  testWidgets('Báo cáo opens a two-column order cockpit', (tester) async {
     final authProvider = _FakeAuthProvider(
       const User(
         id: 'user-1',
@@ -37,6 +34,7 @@ void main() {
         featureAccess: {'SALES_REPORT': true},
       ),
     );
+    final repository = _FakeSalesReportRepository();
     final router = GoRouter(
       routes: [
         GoRoute(
@@ -57,26 +55,33 @@ void main() {
     );
 
     await tester.pumpWidget(
-      ChangeNotifierProvider<AuthProvider>.value(
-        value: authProvider,
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(repository),
+          ),
+        ],
         child: MaterialApp.router(routerConfig: router),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Mua hàng'), findsOneWidget);
-    expect(find.text('Chưa mua hàng'), findsOneWidget);
-    expect(find.text('Báo cáo sale'), findsNothing);
-    expect(find.byType(AppFeatureTile), findsNWidgets(2));
+    expect(repository.fetchOrdersCount, 1);
+    expect(find.text('Báo cáo chưa mua'), findsOneWidget);
+    expect(find.text('Đã báo cáo'), findsOneWidget);
+    expect(find.text('Chưa báo cáo'), findsOneWidget);
+    expect(find.text('2607010001'), findsOneWidget);
+    expect(find.text('2607010002'), findsOneWidget);
     expect(find.byType(SegmentedButton<String>), findsNothing);
 
-    await tester.tap(find.text('Mua hàng'));
+    await tester.tap(find.text('Báo cáo chưa mua'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Purchased form'), findsOneWidget);
+    expect(find.text('Not purchased form'), findsOneWidget);
   });
 
-  testWidgets('Báo cáo hub shows sale list only with admin report feature', (
+  testWidgets('Báo cáo hub shows export and list actions with admin feature', (
     tester,
   ) async {
     final authProvider = _FakeAuthProvider(
@@ -88,6 +93,7 @@ void main() {
         featureAccess: {'ADMIN_SALES_REPORTS': true},
       ),
     );
+    final repository = _FakeSalesReportRepository();
     final router = GoRouter(
       routes: [
         GoRoute(
@@ -103,19 +109,27 @@ void main() {
     );
 
     await tester.pumpWidget(
-      ChangeNotifierProvider<AuthProvider>.value(
-        value: authProvider,
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(repository),
+          ),
+        ],
         child: MaterialApp.router(routerConfig: router),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Mua hàng'), findsNothing);
-    expect(find.text('Chưa mua hàng'), findsNothing);
-    expect(find.text('Báo cáo sale'), findsOneWidget);
-    expect(find.byType(AppFeatureTile), findsOneWidget);
+    expect(find.text('Báo cáo chưa mua'), findsNothing);
+    expect(find.text('Xuất HVTC'), findsOneWidget);
+    expect(find.text('Xuất Doanh số'), findsOneWidget);
+    expect(find.text('Xuất Trả góp'), findsOneWidget);
+    expect(find.text('Danh sách'), findsOneWidget);
+    expect(find.text('Đã báo cáo'), findsOneWidget);
+    expect(find.text('Chưa báo cáo'), findsOneWidget);
 
-    await tester.tap(find.text('Báo cáo sale'));
+    await tester.tap(find.text('Danh sách'));
     await tester.pumpAndSettle();
 
     expect(find.text('Admin reports'), findsOneWidget);
@@ -376,6 +390,7 @@ void main() {
 
     expect(repository.fetchListCount, 1);
     expect(find.text('Ngày: Tất cả ngày'), findsOneWidget);
+    expect(find.text('Xuất Trả góp'), findsOneWidget);
 
     await tester.tap(find.text('Ngày: Tất cả ngày'));
     await tester.pumpAndSettle();
@@ -436,6 +451,34 @@ void main() {
       'page': '2',
       'limit': '50',
     });
+  });
+
+  test('SalesReportOrdersQuery serializes report date and limit', () {
+    final query = SalesReportOrdersQuery(
+      date: DateTime(2026, 7, 1, 9, 30),
+      limit: 75,
+    );
+
+    expect(query.toQueryParameters(), {'date': '2026-07-01', 'limit': '75'});
+  });
+
+  test('SalesReportOrderCockpit parses reported and unreported orders', () {
+    final cockpit = SalesReportOrderCockpit.fromJson({
+      'date': '2026-07-01',
+      'syncSucceeded': true,
+      'syncCount': 2,
+      'scope': 'MANAGED_SCOPE',
+      'reportedOrders': [
+        {'status': 'REPORTED', 'orderCode': '2607010001'},
+      ],
+      'unreportedOrders': [
+        {'status': 'UNREPORTED', 'orderCode': '2607010002'},
+      ],
+    });
+
+    expect(cockpit.scope, 'MANAGED_SCOPE');
+    expect(cockpit.reportedOrders.single.isReported, isTrue);
+    expect(cockpit.unreportedOrders.single.orderCode, '2607010002');
   });
 }
 
@@ -498,6 +541,7 @@ class _FakeAuthProvider extends AuthProvider {
 class _FakeSalesReportRepository extends SalesReportRepository {
   bool createCalled = false;
   int fetchListCount = 0;
+  int fetchOrdersCount = 0;
   SalesReportInput? lastInput;
   SalesReportQuery? lastListQuery;
 
@@ -533,5 +577,39 @@ class _FakeSalesReportRepository extends SalesReportRepository {
       'limit': query.limit,
       'total': 0,
     };
+  }
+
+  @override
+  Future<SalesReportOrderCockpit> fetchOrders(
+    SalesReportOrdersQuery query,
+  ) async {
+    fetchOrdersCount += 1;
+    return SalesReportOrderCockpit.fromJson({
+      'date': '2026-07-01',
+      'refreshedAt': '2026-07-01T09:03:00.000Z',
+      'syncSucceeded': true,
+      'syncCount': 2,
+      'scope': 'OWN',
+      'reportedOrders': [
+        {
+          'status': 'REPORTED',
+          'orderCode': '2607010001',
+          'customerName': 'Nguyễn Văn A',
+          'grandTotal': 1200000,
+          'storeCode': 'CP62',
+          'reportedAt': '2026-07-01T02:30:00.000Z',
+        },
+      ],
+      'unreportedOrders': [
+        {
+          'status': 'UNREPORTED',
+          'orderCode': '2607010002',
+          'customerName': 'Trần Thị B',
+          'grandTotal': 2500000,
+          'storeCode': 'CP62',
+          'consultantName': 'Sale CP62',
+        },
+      ],
+    });
   }
 }

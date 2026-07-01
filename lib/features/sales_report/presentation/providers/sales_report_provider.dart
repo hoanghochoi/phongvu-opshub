@@ -13,8 +13,10 @@ class SalesReportProvider extends ChangeNotifier {
 
   final List<SalesReportCategoryGroup> _categories = [];
   final List<Map<String, dynamic>> _adminItems = [];
+  SalesReportOrderCockpit? _orderCockpit;
   SalesReportOrderCheck? _checkedOrder;
   bool _isLoadingCategories = false;
+  bool _isLoadingOrders = false;
   bool _isCheckingOrder = false;
   bool _isSubmitting = false;
   bool _isLoadingAdminList = false;
@@ -31,8 +33,14 @@ class SalesReportProvider extends ChangeNotifier {
   List<SalesReportCategoryGroup> get categories =>
       List.unmodifiable(_categories);
   List<Map<String, dynamic>> get adminItems => List.unmodifiable(_adminItems);
+  SalesReportOrderCockpit? get orderCockpit => _orderCockpit;
+  List<SalesReportOrderCockpitItem> get reportedOrders =>
+      List.unmodifiable(_orderCockpit?.reportedOrders ?? const []);
+  List<SalesReportOrderCockpitItem> get unreportedOrders =>
+      List.unmodifiable(_orderCockpit?.unreportedOrders ?? const []);
   SalesReportOrderCheck? get checkedOrder => _checkedOrder;
   bool get isLoadingCategories => _isLoadingCategories;
+  bool get isLoadingOrders => _isLoadingOrders;
   bool get isCheckingOrder => _isCheckingOrder;
   bool get isSubmitting => _isSubmitting;
   bool get isLoadingAdminList => _isLoadingAdminList;
@@ -45,12 +53,19 @@ class SalesReportProvider extends ChangeNotifier {
   bool get canGoPrevious => _adminPage > 0;
   bool get canGoNext => (_adminPage + 1) * _adminLimit < _adminTotal;
 
-  Future<void> initialize(User? user, {bool admin = false}) async {
+  Future<void> initialize(
+    User? user, {
+    bool admin = false,
+    bool orders = false,
+    bool categories = true,
+  }) async {
     await AppLogger.instance.info(
       'SalesReport',
       admin ? 'Sales report admin screen opened' : 'Sales report screen opened',
       context: {
         'admin': admin,
+        'orders': orders,
+        'categories': categories,
         'userId': user?.id,
         'storeId': user?.storeId,
         'hasSalesReport': user?.canUseFeature('SALES_REPORT') == true,
@@ -58,8 +73,9 @@ class SalesReportProvider extends ChangeNotifier {
             user?.canUseFeature('ADMIN_SALES_REPORTS') == true,
       },
     );
-    await loadCategories(admin: admin);
+    if (categories) await loadCategories(admin: admin);
     if (admin) await loadAdminList();
+    if (orders) await loadOrderCockpit();
   }
 
   Future<void> loadCategories({bool admin = false}) async {
@@ -140,6 +156,52 @@ class SalesReportProvider extends ChangeNotifier {
       return null;
     } finally {
       _isCheckingOrder = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadOrderCockpit({
+    SalesReportOrdersQuery query = const SalesReportOrdersQuery(),
+  }) async {
+    if (_isLoadingOrders) return;
+    _isLoadingOrders = true;
+    _errorMessage = null;
+    notifyListeners();
+    final startedAt = DateTime.now();
+    try {
+      await AppLogger.instance.info(
+        'SalesReport',
+        'Sales report order cockpit load started',
+        context: _ordersQueryLogContext(query),
+      );
+      final result = await _repository.fetchOrders(query);
+      _orderCockpit = result;
+      if ((result.syncError ?? '').trim().isNotEmpty) {
+        _errorMessage = result.syncError;
+      }
+      await AppLogger.instance.info(
+        'SalesReport',
+        'Sales report order cockpit load succeeded',
+        context: {
+          ..._ordersQueryLogContext(query),
+          'reportedCount': result.reportedOrders.length,
+          'unreportedCount': result.unreportedOrders.length,
+          'syncSucceeded': result.syncSucceeded,
+          'syncCount': result.syncCount,
+          'scope': result.scope,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+    } catch (error) {
+      _errorMessage = _messageFor(error, 'Chưa tải được danh sách đơn hàng.');
+      await AppLogger.instance.error(
+        'SalesReport',
+        'Sales report order cockpit load failed',
+        error: error,
+        context: _ordersQueryLogContext(query),
+      );
+    } finally {
+      _isLoadingOrders = false;
       notifyListeners();
     }
   }
@@ -366,13 +428,25 @@ class SalesReportProvider extends ChangeNotifier {
     };
   }
 
+  Map<String, Object?> _ordersQueryLogContext(SalesReportOrdersQuery query) {
+    return {
+      'limit': query.limit,
+      'hasDate': query.date != null,
+      if (query.date != null) 'date': _dateForLog(query.date!),
+    };
+  }
+
   String _dateForLog(DateTime value) {
     String two(int part) => part.toString().padLeft(2, '0');
     return '${value.year}-${two(value.month)}-${two(value.day)}';
   }
 
   String _exportTypeFilePart(String? exportType) {
-    return exportType == 'REVENUE' ? 'bao_cao_doanh_so' : 'bao_cao_hvtc';
+    return switch (exportType) {
+      'REVENUE' => 'bao_cao_doanh_so',
+      'INSTALLMENT' => 'bao_cao_tra_gop',
+      _ => 'bao_cao_hvtc',
+    };
   }
 }
 

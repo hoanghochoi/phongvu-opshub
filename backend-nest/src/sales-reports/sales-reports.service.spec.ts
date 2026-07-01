@@ -23,6 +23,19 @@ describe('SalesReportsService', () => {
         count: jest.fn(),
         findMany: jest.fn(),
       },
+      salesReportErpOrderCache: {
+        findMany: jest.fn(),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+      store: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            storeId: 'CP62',
+            storeName: 'CP62',
+            organizationNodeId: 'node-cp62',
+          },
+        ]),
+      },
       $transaction: jest.fn((value: any) =>
         Array.isArray(value) ? Promise.all(value) : value(prisma),
       ),
@@ -47,6 +60,7 @@ describe('SalesReportsService', () => {
     };
     const erp = {
       lookupOrder: jest.fn().mockResolvedValue(erpOrderFixture()),
+      listRecentOrders: jest.fn().mockResolvedValue([erpListOrderFixture()]),
     };
     const service = new SalesReportsService(
       prisma as any,
@@ -136,6 +150,91 @@ describe('SalesReportsService', () => {
         }),
       }),
     );
+  });
+
+  it('reads cached ERP orders and splits reported from unreported orders', async () => {
+    const { service, prisma, erp } = createHarness();
+    prisma.salesReport.findMany.mockResolvedValueOnce([
+      { ...exportReportFixture(), orderCode: '2607010001' },
+    ]);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
+      erpOrderCacheFixture('2607010001'),
+      erpOrderCacheFixture('2607010002'),
+    ]);
+
+    const result = await service.orderCockpit(userFixture(), {
+      date: '2026-07-01',
+    });
+
+    expect(erp.listRecentOrders).not.toHaveBeenCalled();
+    expect(prisma.salesReportErpOrderCache.upsert).not.toHaveBeenCalled();
+    expect(result.reportedOrders).toHaveLength(1);
+    expect(result.unreportedOrders).toHaveLength(1);
+    expect(result.unreportedOrders[0].orderCode).toBe('2607010002');
+    expect(result.scope).toBe('OWN');
+    expect(result.syncSucceeded).toBe(true);
+    expect(result.syncCount).toBe(0);
+  });
+
+  it('scheduled sync pulls ERP orders and upserts the cache without a client request', async () => {
+    const { service, prisma, erp } = createHarness();
+    const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+    delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = '1';
+
+    try {
+      const result = await service.syncScheduledErpOrderCache('test');
+
+      expect(erp.listRecentOrders).toHaveBeenCalledWith(
+        expect.objectContaining({
+          date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+          limit: 50,
+        }),
+      );
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '2607010002' },
+          create: expect.objectContaining({
+            orderCode: '2607010002',
+            sourceUserEmail: null,
+            storeCode: 'CP62',
+          }),
+        }),
+      );
+      expect(result).toMatchObject({ skipped: false, count: 1 });
+    } finally {
+      if (oldEnabled === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_ENABLED = oldEnabled;
+      }
+      if (oldLookback === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = oldLookback;
+      }
+    }
+  });
+
+  it('can disable the scheduled ERP order cache sync through env', async () => {
+    const { service, prisma, erp } = createHarness();
+    const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    process.env.ERP_ORDER_CACHE_SYNC_ENABLED = 'false';
+
+    try {
+      const result = await service.syncScheduledErpOrderCache('test');
+
+      expect(erp.listRecentOrders).not.toHaveBeenCalled();
+      expect(prisma.salesReportErpOrderCache.upsert).not.toHaveBeenCalled();
+      expect(result).toEqual({ skipped: true, count: 0, dates: [] });
+    } finally {
+      if (oldEnabled === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_ENABLED = oldEnabled;
+      }
+    }
   });
 
   it('re-checks ERP and stores normalized order rows for purchased report', async () => {
@@ -376,6 +475,65 @@ describe('SalesReportsService', () => {
     expect(lines[1]).toContain(',3,2,1,1,3,1,4,1');
     expect(lines[1]).not.toContain('"');
   });
+
+  it('exports installment CSV rows only for installment reports', async () => {
+    const { service, prisma } = createHarness();
+    prisma.salesReport.findMany.mockResolvedValueOnce([
+      {
+        ...exportReportFixture(),
+        erpPaymentMethods: ['cash', 'installment'],
+      },
+      {
+        ...exportReportFixture(),
+        id: 'report-installment-cash',
+        orderCode: '2606290999',
+        erpPaymentMethods: ['cash'],
+        installmentApproved: false,
+        installmentLoanAmount: 2500000,
+        installmentPartnerCodes: ['PAYOO_POS'],
+        installmentNoInstallmentReason: 'HIGH_INTEREST_OR_FEE',
+      },
+      {
+        ...exportReportFixture(),
+        id: 'report-no-installment',
+        orderCode: '2606290888',
+        installmentNeed: false,
+        installmentPartnerCodes: [],
+      },
+    ]);
+
+    const csv = await service.exportCsv(
+      { ...userFixture(), role: 'SUPER_ADMIN' },
+      { exportType: 'INSTALLMENT' },
+    );
+    const lines = csv.replace(/^\ufeff/, '').split('\n');
+
+    expect(prisma.salesReport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { installmentNeed: true },
+      }),
+    );
+    expect(lines[0]).toBe(
+      [
+        'Ngày báo cáo',
+        'createdByEmail',
+        'installmentLoanAmount',
+        'installmentPartnerCodes',
+        'installmentApproved',
+        'reportType',
+        'Phương thức thanh toán cuối cùng',
+        'installmentNoInstallmentReason',
+      ].join(','),
+    );
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toContain('sale@phongvu.vn,5000000,VNPAY_POS; MPOS');
+    expect(lines[1]).toContain('Đã duyệt,Mua hàng,Trả góp');
+    expect(lines[1]).toContain('Khách chốt trả góp bình thường (Không có lý do)');
+    expect(lines[2]).toContain('2500000,PAYOO_POS,Chưa duyệt');
+    expect(lines[2]).toContain('Trả thẳng');
+    expect(lines.join('\n')).not.toContain('2606290888');
+    expect(lines[1]).not.toContain('"');
+  });
 });
 
 function baseInput() {
@@ -476,6 +634,70 @@ function erpOrderFixture() {
     paymentMethods: ['cash'],
     sanitizedSnapshot: { orderId: '2606290001' },
     fetchedAt: new Date('2026-06-29T00:06:00Z'),
+  };
+}
+
+function erpListOrderFixture() {
+  return {
+    orderCode: '2607010002',
+    erpOrderId: '2607010002',
+    erpExternalOrderRef: null,
+    orderCreatedAt: new Date('2026-07-01T01:00:00Z'),
+    paymentStatus: 'fully_paid',
+    confirmationStatus: 'active',
+    fulfillmentStatus: 'PROCESSING',
+    terminalName: 'CP62',
+    grandTotal: 2500000,
+    customerName: 'Tran Thi B',
+    customerPhone: '0900000000',
+    customerType: 'PERSONAL',
+    paymentMethods: ['cash'],
+    platformId: 3,
+    consultantCustomId: 'SA_CP62_HCM_MN',
+    consultantName: 'Sale CP62',
+    consultantEmail: 'sale@phongvu.vn',
+    sellerId: null,
+    sellerName: null,
+    sellerEmail: null,
+    storeCode: 'CP62',
+    storeName: 'CP62',
+    sanitizedSnapshot: { orderCode: '2607010002' },
+    fetchedAt: new Date('2026-07-01T01:03:00Z'),
+  };
+}
+
+function erpOrderCacheFixture(orderCode: string) {
+  return {
+    id: `cache-${orderCode}`,
+    orderCode,
+    erpOrderId: orderCode,
+    erpExternalOrderRef: null,
+    orderCreatedAt: new Date('2026-07-01T01:00:00Z'),
+    paymentStatus: 'fully_paid',
+    confirmationStatus: 'active',
+    fulfillmentStatus: 'PROCESSING',
+    terminalName: 'CP62',
+    grandTotal: 2500000,
+    customerName: 'Tran Thi B',
+    customerPhone: '0900000000',
+    customerType: 'PERSONAL',
+    paymentMethods: ['cash'],
+    platformId: 3,
+    consultantCustomId: 'SA_CP62_HCM_MN',
+    consultantName: 'Sale CP62',
+    consultantEmail: 'sale@phongvu.vn',
+    sellerId: null,
+    sellerName: null,
+    sellerEmail: null,
+    storeCode: 'CP62',
+    storeName: 'CP62',
+    organizationNodeId: 'node-cp62',
+    sourceUserId: 'user-1',
+    sourceUserEmail: 'sale@phongvu.vn',
+    sanitizedSnapshot: { orderCode },
+    fetchedAt: new Date('2026-07-01T01:03:00Z'),
+    createdAt: new Date('2026-07-01T01:03:00Z'),
+    updatedAt: new Date('2026-07-01T01:03:00Z'),
   };
 }
 

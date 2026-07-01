@@ -17,6 +17,7 @@ import {
   CheckSalesReportOrderDto,
   CreateSalesReportDto,
   ExportSalesReportsDto,
+  ListSalesReportOrdersDto,
   ListSalesReportsDto,
 } from './sales-reports.dto';
 import { SalesReportsService } from './sales-reports.service';
@@ -36,6 +37,12 @@ export class SalesReportsController {
   @RequireFeature(FEATURE_KEYS.ADMIN_SALES_REPORTS)
   categoriesForAdmin() {
     return this.service.categoriesForReport();
+  }
+
+  @Get('orders')
+  @RequireFeature([FEATURE_KEYS.SALES_REPORT, FEATURE_KEYS.ADMIN_SALES_REPORTS])
+  orders(@Request() req: any, @Query() query: ListSalesReportOrdersDto) {
+    return this.service.orderCockpit(req.user, query);
   }
 
   @Post('check-order')
@@ -67,6 +74,8 @@ export class SalesReportsController {
     const filename =
       query.exportType === 'REVENUE'
         ? 'opshub-bao-cao-doanh-so.csv'
+        : query.exportType === 'INSTALLMENT'
+          ? 'opshub-bao-cao-tra-gop.csv'
         : 'opshub-bao-cao-hvtc.csv';
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

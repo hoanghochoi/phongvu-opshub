@@ -150,6 +150,12 @@ describe('PaymentNotificationsService', () => {
       id: 'txn-1',
       storeCode: 'CP01',
       amount: 1250000,
+      content: 'DH001 CP01 BOT',
+      transactionNumber: 'STMT-1',
+      payerName: 'NGUYEN VAN A',
+      payerAccount: '123456',
+      paidAt: new Date('2026-06-27T01:00:00.000Z'),
+      firstSeenAt: new Date('2026-06-27T01:00:01.000Z'),
     });
 
     expect(prisma.paymentNotification.create).toHaveBeenCalledWith(
@@ -168,6 +174,13 @@ describe('PaymentNotificationsService', () => {
         notificationId: 'note-1',
         storeCode: 'CP01',
         amount: 1250000,
+        transactionContent: 'DH001 CP01 BOT',
+        transferContent: 'DH001 CP01 BOT',
+        transactionNumber: 'STMT-1',
+        payerName: 'NGUYEN VAN A',
+        payerAccount: '123456',
+        paidAt: '2026-06-27T01:00:00.000Z',
+        firstSeenAt: '2026-06-27T01:00:01.000Z',
         audioStatus: 'FAILED',
         audioUrl: null,
       }),
@@ -196,6 +209,10 @@ describe('PaymentNotificationsService', () => {
       id: 'txn-stream',
       storeCode: 'CP01',
       amount: 1250000,
+      content: 'DH002 CP01 BOT',
+      transactionNumber: 'STMT-2',
+      payerName: 'NGUYEN VAN B',
+      payerAccount: '987654',
       paidAt: new Date('2026-06-27T00:59:58.000Z'),
       firstSeenAt: new Date('2026-06-27T01:00:00.000Z'),
     });
@@ -209,6 +226,11 @@ describe('PaymentNotificationsService', () => {
         transactionId: 'txn-stream',
         storeCode: 'CP01',
         amount: 1250000,
+        transactionContent: 'DH002 CP01 BOT',
+        transferContent: 'DH002 CP01 BOT',
+        transactionNumber: 'STMT-2',
+        payerName: 'NGUYEN VAN B',
+        payerAccount: '987654',
         paidAt: '2026-06-27T00:59:58.000Z',
         firstSeenAt: '2026-06-27T01:00:00.000Z',
         streamUrl: '/payment-notifications/note-stream/stream',
@@ -221,6 +243,46 @@ describe('PaymentNotificationsService', () => {
         transactionId: 'txn-stream',
         storeCode: 'CP01',
         event: 'SERVER_STREAM_PENDING',
+      }),
+    });
+  });
+
+  it('claims a stream download for the current client', async () => {
+    const audio = {
+      fileName: 'note-stream.wav',
+      mimeType: 'audio/wav',
+      stream: {},
+    };
+    jest.spyOn(service, 'getAudioForUser').mockResolvedValue(audio as any);
+    prisma.paymentNotification.findUnique.mockResolvedValue({
+      id: 'note-stream',
+      storeCode: 'CP01',
+      transactionId: 'txn-stream',
+    });
+    prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({
+      createdAt: new Date('2026-06-27T01:00:00.000Z'),
+    });
+
+    await expect(
+      service.getStreamForUser(speakerUser(), 'note-stream', {
+        rawAmount: true,
+        clientId: 'pc-1',
+      }),
+    ).resolves.toBe(audio);
+
+    expect(service.getAudioForUser).toHaveBeenCalledWith(
+      expect.any(Object),
+      'note-stream',
+      expect.objectContaining({ rawAmount: true, clientId: 'pc-1' }),
+    );
+    expect(prisma.paymentNotificationDeliveryLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        notificationId: 'note-stream',
+        transactionId: 'txn-stream',
+        storeCode: 'CP01',
+        userId: 'user-speaker',
+        clientId: 'pc-1',
+        event: 'DELIVERED',
       }),
     });
   });
@@ -1217,7 +1279,7 @@ describe('PaymentNotificationsService', () => {
           OR: expect.arrayContaining([
             { event: { in: ['PLAYED', 'SILENCED', 'FAILED'] } },
             expect.objectContaining({
-              event: 'DELIVERED',
+              event: { in: ['DELIVERED', 'STREAM_STARTED'] },
               createdAt: expect.any(Object),
             }),
           ]),

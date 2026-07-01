@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
@@ -17,6 +19,7 @@ import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/info_row.dart';
+import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
@@ -34,18 +37,27 @@ import '../services/vietqr_history_store.dart';
 import '../services/vietqr_image_saver.dart';
 import 'package:go_router/go_router.dart';
 
+typedef VietQrRealtimeConnector = WebSocketChannel Function(Uri uri);
+
 class VietQrScreen extends StatefulWidget {
   final AuthRepository? authRepository;
+  final VietQrRepository? repository;
+  final VietQrRealtimeConnector? realtimeConnector;
 
-  const VietQrScreen({super.key, this.authRepository});
+  const VietQrScreen({
+    super.key,
+    this.authRepository,
+    this.repository,
+    this.realtimeConnector,
+  });
 
   @override
   State<VietQrScreen> createState() => _VietQrScreenState();
 }
 
 class _VietQrScreenState extends State<VietQrScreen> {
-  static const _paymentPollInterval = Duration(seconds: 10);
-  static const _paymentPollMaxAttempts = 36;
+  static const _realtimeReconnectDelay = Duration(seconds: 2);
+  static const _maxRealtimeReconnectDelay = Duration(seconds: 30);
 
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
@@ -57,15 +69,19 @@ class _VietQrScreenState extends State<VietQrScreen> {
   final _historyStore = VietQrHistoryStore();
   late final AuthRepository _authRepository;
   late final VietQrRepository _repository;
+  late final VietQrRealtimeConnector _realtimeConnector;
   VietQrTransfer? _transfer;
   VietQrPaymentConfirmation? _paymentConfirmation;
   List<VietQrHistoryEntry> _historyEntries = [];
   List<StoreBranch> _accessibleStoreOptions = [];
-  Timer? _paymentPollingTimer;
+  WebSocketChannel? _realtimeChannel;
+  StreamSubscription<dynamic>? _realtimeSubscription;
+  Timer? _realtimeReconnectTimer;
   Timer? _historyRefreshTimer;
   String? _storeScopeSignature;
   String? _storeOptionsSignature;
   String? _historyUserId;
+  String? _realtimeKey;
   bool _isHistoryLoading = false;
   String? _historyErrorMessage;
   bool _isStoreOptionsLoading = false;
@@ -74,13 +90,16 @@ class _VietQrScreenState extends State<VietQrScreen> {
   bool _isSaving = false;
   bool _isCheckingPayment = false;
   int _paymentPollAttempts = 0;
+  int _realtimeReconnectAttempt = 0;
   bool _hasShownPaymentReceived = false;
 
   @override
   void initState() {
     super.initState();
     _authRepository = widget.authRepository ?? AuthRepository(ApiClient());
-    _repository = VietQrRepository(ApiClient());
+    _repository = widget.repository ?? VietQrRepository(ApiClient());
+    _realtimeConnector =
+        widget.realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri));
     _orderCodeController.addListener(_updatePreviewContent);
     _storeCodeController.addListener(_updatePreviewContent);
     _historyRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
@@ -103,11 +122,14 @@ class _VietQrScreenState extends State<VietQrScreen> {
     _syncStoreSelection(user);
     _syncAccessibleStoreOptions(user);
     _syncHistoryScope(user);
+    _syncRealtimeConnection(user);
   }
 
   @override
   void dispose() {
     _stopPaymentPolling();
+    _disconnectRealtime('dispose');
+    _realtimeReconnectTimer?.cancel();
     _historyRefreshTimer?.cancel();
     _amountController.dispose();
     _orderCodeController.dispose();
@@ -376,6 +398,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
         context: {'storeCode': storeCode},
       ),
     );
+    _syncRealtimeConnection(context.read<AuthProvider>().user);
   }
 
   Future<void> _createQr() async {
@@ -407,6 +430,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
       );
 
       if (mounted) {
+        final authUser = context.read<AuthProvider>().user;
         setState(() {
           _transfer = transfer;
           _paymentConfirmation = null;
@@ -418,6 +442,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
           confirmation: null,
           insertAtTop: true,
         );
+        _syncRealtimeConnection(authUser);
         await AppLogger.instance.info(
           'VietQR',
           'Create QR succeeded',
@@ -430,7 +455,16 @@ class _VietQrScreenState extends State<VietQrScreen> {
             'hasTransferContent': transfer.transferContent.trim().isNotEmpty,
           },
         );
-        _startPaymentPolling(transfer);
+        await AppLogger.instance.info(
+          'VietQRRealtime',
+          'Realtime payment confirmation armed',
+          context: {
+            'paymentId': transfer.id,
+            'storeCode': _storeCodeController.text.trim().toUpperCase(),
+            'amount': transfer.amount,
+            'hasTransferContent': transfer.transferContent.trim().isNotEmpty,
+          },
+        );
       }
     } catch (e) {
       await AppLogger.instance.error(
@@ -562,6 +596,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
     }
 
     _stopPaymentPolling();
+    _syncRealtimeConnection(context.read<AuthProvider>().user);
     setState(() {
       _transfer = entry.transfer;
       _paymentConfirmation = entry.confirmation;
@@ -618,7 +653,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
   }
 
   void _syncHistoryScope(User? user) {
-    final userId = user?.id?.trim() ?? '';
+    final userId = _historyScopeForUser(user);
     if (_historyUserId == userId) return;
 
     _historyUserId = userId;
@@ -636,6 +671,13 @@ class _VietQrScreenState extends State<VietQrScreen> {
     }
 
     unawaited(_loadHistory(userId));
+  }
+
+  String _historyScopeForUser(User? user) {
+    final userId = user?.id?.trim() ?? '';
+    if (userId.isNotEmpty) return userId;
+    final email = user?.email.trim().toLowerCase() ?? '';
+    return email;
   }
 
   Future<void> _loadHistory(String userId) async {
@@ -693,40 +735,8 @@ class _VietQrScreenState extends State<VietQrScreen> {
     }
   }
 
-  void _startPaymentPolling(VietQrTransfer transfer) {
-    _stopPaymentPolling();
-    if (!_canAutoConfirm(transfer)) return;
-    unawaited(
-      AppLogger.instance.info(
-        'VietQR',
-        'Payment polling started',
-        context: {
-          'paymentId': transfer.id,
-          'storeCode': _storeCodeController.text.trim(),
-        },
-      ),
-    );
-    _paymentPollAttempts = 0;
-    _hasShownPaymentReceived = false;
-    _checkPayment();
-    _paymentPollingTimer = Timer.periodic(
-      _paymentPollInterval,
-      (_) => _checkPayment(),
-    );
-  }
-
   void _stopPaymentPolling() {
-    if (_paymentPollingTimer != null) {
-      unawaited(
-        AppLogger.instance.info(
-          'VietQR',
-          'Payment polling stopped',
-          context: {'attempts': _paymentPollAttempts},
-        ),
-      );
-    }
-    _paymentPollingTimer?.cancel();
-    _paymentPollingTimer = null;
+    _isCheckingPayment = false;
   }
 
   bool _canAutoConfirm(VietQrTransfer transfer) {
@@ -753,11 +763,6 @@ class _VietQrScreenState extends State<VietQrScreen> {
         _hasConfirmedPayment) {
       return;
     }
-    if (!showFeedback && _paymentPollAttempts >= _paymentPollMaxAttempts) {
-      _stopPaymentPolling();
-      return;
-    }
-
     setState(() {
       _isCheckingPayment = true;
       _paymentPollAttempts += 1;
@@ -820,6 +825,435 @@ class _VietQrScreenState extends State<VietQrScreen> {
     } finally {
       if (mounted) setState(() => _isCheckingPayment = false);
     }
+  }
+
+  void _syncRealtimeConnection(User? user) {
+    final token = ApiClient().authToken?.trim() ?? '';
+    final storeCode = _storeCodeController.text.trim().toUpperCase();
+    final userKey = user?.id?.trim().isNotEmpty == true
+        ? user!.id!.trim()
+        : user?.email.trim() ?? '';
+    if (user == null || userKey.isEmpty || storeCode.isEmpty || token.isEmpty) {
+      _disconnectRealtime('missing_scope');
+      return;
+    }
+
+    final nextKey = '$userKey|$storeCode|$token';
+    if (_realtimeKey == nextKey && _realtimeChannel != null) return;
+    _realtimeReconnectTimer?.cancel();
+    _realtimeReconnectTimer = null;
+    _disconnectRealtime('reconnect');
+
+    final url = ApiConstants.realtimeWsUrl(
+      storeId: storeCode,
+      accessToken: token,
+    );
+    try {
+      final channel = _realtimeConnector(Uri.parse(url));
+      _realtimeChannel = channel;
+      _realtimeKey = nextKey;
+      _realtimeReconnectAttempt = 0;
+      _realtimeSubscription = channel.stream.listen(
+        _handleRealtimeMessage,
+        onError: (Object error, StackTrace stackTrace) {
+          unawaited(
+            AppLogger.instance.error(
+              'VietQRRealtime',
+              'VietQR realtime error',
+              error: error,
+              stackTrace: stackTrace,
+              context: {'storeCode': storeCode},
+            ),
+          );
+          _handleRealtimeClosed('error');
+        },
+        onDone: () {
+          unawaited(
+            AppLogger.instance.info(
+              'VietQRRealtime',
+              'VietQR realtime disconnected',
+              context: {'storeCode': storeCode},
+            ),
+          );
+          _handleRealtimeClosed('done');
+        },
+      );
+      unawaited(
+        AppLogger.instance.info(
+          'VietQRRealtime',
+          'VietQR realtime connected',
+          context: {'storeCode': storeCode},
+        ),
+      );
+    } catch (error, stackTrace) {
+      unawaited(
+        AppLogger.instance.error(
+          'VietQRRealtime',
+          'VietQR realtime connect failed',
+          error: error,
+          stackTrace: stackTrace,
+          context: {'storeCode': storeCode},
+        ),
+      );
+      _disconnectRealtime('connect_failed');
+      _scheduleRealtimeReconnect('connect_failed');
+    }
+  }
+
+  void _disconnectRealtime(String reason) {
+    final hadConnection = _realtimeChannel != null || _realtimeKey != null;
+    _realtimeReconnectTimer?.cancel();
+    _realtimeReconnectTimer = null;
+    unawaited(_realtimeSubscription?.cancel());
+    _realtimeSubscription = null;
+    unawaited(_realtimeChannel?.sink.close());
+    _realtimeChannel = null;
+    _realtimeKey = null;
+    if (hadConnection) {
+      unawaited(
+        AppLogger.instance.info(
+          'VietQRRealtime',
+          'VietQR realtime disconnected',
+          context: {
+            'reason': reason,
+            'storeCode': _storeCodeController.text.trim().toUpperCase(),
+          },
+        ),
+      );
+    }
+  }
+
+  void _handleRealtimeClosed(String reason) {
+    _realtimeSubscription = null;
+    _realtimeChannel = null;
+    _realtimeKey = null;
+    _scheduleRealtimeReconnect(reason);
+  }
+
+  void _scheduleRealtimeReconnect(String reason) {
+    if (!mounted || _realtimeReconnectTimer != null) return;
+    final delay = _nextRealtimeReconnectDelay();
+    _realtimeReconnectTimer = Timer(delay, () {
+      _realtimeReconnectTimer = null;
+      if (!mounted) return;
+      _syncRealtimeConnection(context.read<AuthProvider>().user);
+    });
+    unawaited(
+      AppLogger.instance.info(
+        'VietQRRealtime',
+        'VietQR realtime reconnect scheduled',
+        context: {
+          'reason': reason,
+          'attempt': _realtimeReconnectAttempt,
+          'delayMs': delay.inMilliseconds,
+          'storeCode': _storeCodeController.text.trim().toUpperCase(),
+        },
+      ),
+    );
+  }
+
+  Duration _nextRealtimeReconnectDelay() {
+    final attempt = _realtimeReconnectAttempt;
+    _realtimeReconnectAttempt += 1;
+    final multiplier = 1 << attempt.clamp(0, 4).toInt();
+    final delayMs = (_realtimeReconnectDelay.inMilliseconds * multiplier).clamp(
+      1,
+      _maxRealtimeReconnectDelay.inMilliseconds,
+    );
+    return Duration(milliseconds: delayMs);
+  }
+
+  Future<void> _handleRealtimeMessage(dynamic message) async {
+    try {
+      final decoded = jsonDecode(message.toString());
+      if (decoded is! Map<String, dynamic>) return;
+      final eventType = decoded['type']?.toString();
+      if (eventType != 'PAYMENT_NOTIFICATION' &&
+          eventType != 'PAYMENT_SPEAKER_STREAM') {
+        return;
+      }
+      final payload = _payloadMap(decoded['payload']);
+      if (payload == null) return;
+      await _applyRealtimePaymentEvent(eventType ?? '', payload);
+    } catch (error, stackTrace) {
+      await AppLogger.instance.warn(
+        'VietQRRealtime',
+        'VietQR realtime event ignored',
+        context: {
+          'error': error.toString(),
+          'stackTrace': stackTrace.toString(),
+        },
+      );
+    }
+  }
+
+  Map<String, dynamic>? _payloadMap(Object? rawPayload) {
+    if (rawPayload is Map<String, dynamic>) return rawPayload;
+    if (rawPayload is Map) {
+      return rawPayload.map((key, value) => MapEntry(key.toString(), value));
+    }
+    if (rawPayload is String && rawPayload.trim().isNotEmpty) {
+      final decoded = jsonDecode(rawPayload);
+      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is Map) {
+        return decoded.map((key, value) => MapEntry(key.toString(), value));
+      }
+    }
+    return null;
+  }
+
+  Future<void> _applyRealtimePaymentEvent(
+    String eventType,
+    Map<String, dynamic> payload,
+  ) async {
+    final amount = _readRealtimeAmount(payload['amount']);
+    final transactionContent = _firstRealtimeText(payload, const [
+      'transactionContent',
+      'transferContent',
+      'content',
+      'description',
+    ]);
+    final eventStoreCode = _firstRealtimeText(payload, const [
+      'storeCode',
+      'storeId',
+    ]).toUpperCase();
+    if (amount == null || transactionContent.isEmpty) {
+      await AppLogger.instance.info(
+        'VietQRRealtime',
+        'VietQR realtime event skipped because match fields are missing',
+        context: {
+          'eventType': eventType,
+          'storeCode': eventStoreCode,
+          'hasAmount': amount != null,
+          'hasTransactionContent': transactionContent.isNotEmpty,
+        },
+      );
+      return;
+    }
+
+    final now = DateTime.now();
+    final matches = <int>[];
+    for (var index = 0; index < _historyEntries.length; index += 1) {
+      final entry = _historyEntries[index];
+      if (_historyEntryMatchesRealtime(
+        entry,
+        now,
+        eventStoreCode,
+        amount,
+        transactionContent,
+      )) {
+        matches.add(index);
+      }
+    }
+
+    if (matches.isEmpty) {
+      await AppLogger.instance.info(
+        'VietQRRealtime',
+        'VietQR realtime event did not match pending QR history',
+        context: {
+          'eventType': eventType,
+          'storeCode': eventStoreCode,
+          'amount': amount,
+          'pendingCount': _historyEntries
+              .where((entry) => !entry.isConfirmed && entry.canOpenQr(now))
+              .length,
+        },
+      );
+      return;
+    }
+
+    final matchedIndex = matches.first;
+    final entry = _historyEntries[matchedIndex];
+    final confirmation = VietQrPaymentConfirmation(
+      id: entry.paymentId,
+      status: 'PAID',
+      confirmed: true,
+      reason: 'REALTIME_PAYMENT_EVENT',
+      matchedTransactionNumber: _firstRealtimeText(payload, const [
+        'transactionNumber',
+        'transactionReference',
+        'txnReference',
+        'statementNumber',
+        'transactionId',
+      ]),
+      matchedAmount: amount,
+      matchedTranTime:
+          _readRealtimeDate(payload['paidAt']) ??
+          _readRealtimeDate(payload['createdAt']),
+      matchedPayerName: _nullableRealtimeText(payload, 'payerName'),
+      matchedPayerAccount: _nullableRealtimeText(payload, 'payerAccount'),
+      matchedTransactionContent: transactionContent,
+      confirmedAt: DateTime.now(),
+    );
+    final nextEntries = List<VietQrHistoryEntry>.from(_historyEntries);
+    nextEntries[matchedIndex] = entry.copyWith(confirmation: confirmation);
+    final isCurrentTransfer = _transfer?.id == entry.paymentId;
+    final shouldShowSnack = isCurrentTransfer && !_hasShownPaymentReceived;
+
+    if (!mounted) return;
+    setState(() {
+      _historyEntries = nextEntries;
+      if (isCurrentTransfer) {
+        _paymentConfirmation = confirmation;
+        _isCheckingPayment = false;
+        _hasShownPaymentReceived = true;
+      }
+      _historyErrorMessage = null;
+    });
+    await _saveHistoryEntries(
+      trigger: 'realtime_match',
+      entryCount: nextEntries.length,
+    );
+    await AppLogger.instance.info(
+      'VietQRRealtime',
+      'VietQR realtime payment matched pending QR',
+      context: {
+        'eventType': eventType,
+        'paymentId': entry.paymentId,
+        'storeCode': entry.storeCode,
+        'amount': amount,
+        'matchCount': matches.length,
+        'transactionId': payload['transactionId']?.toString(),
+      },
+    );
+    if (shouldShowSnack && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã nhận thanh toán'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
+  }
+
+  bool _historyEntryMatchesRealtime(
+    VietQrHistoryEntry entry,
+    DateTime now,
+    String eventStoreCode,
+    int amount,
+    String transactionContent,
+  ) {
+    if (entry.isConfirmed || !entry.canOpenQr(now)) return false;
+    final transfer = entry.transfer;
+    if (transfer.amount == null || transfer.amount != amount) return false;
+    final entryStoreCode = entry.storeCode.trim().toUpperCase();
+    if (eventStoreCode.isNotEmpty &&
+        entryStoreCode.isNotEmpty &&
+        eventStoreCode != entryStoreCode) {
+      return false;
+    }
+    final expectedContent = _normalizeMatchText(transfer.transferContent);
+    final actualContent = _normalizeMatchText(transactionContent);
+    return expectedContent.isNotEmpty &&
+        actualContent.contains(expectedContent);
+  }
+
+  int? _readRealtimeAmount(Object? value) {
+    if (value is num) return value.toInt();
+    final normalized = value?.toString().replaceAll(RegExp(r'[^0-9]'), '');
+    if (normalized == null || normalized.isEmpty) return null;
+    return int.tryParse(normalized);
+  }
+
+  String _firstRealtimeText(Map<String, dynamic> payload, List<String> keys) {
+    for (final key in keys) {
+      final value = payload[key]?.toString().trim() ?? '';
+      if (value.isNotEmpty) return value;
+    }
+    return '';
+  }
+
+  String? _nullableRealtimeText(Map<String, dynamic> payload, String key) {
+    final value = payload[key]?.toString().trim() ?? '';
+    return value.isEmpty ? null : value;
+  }
+
+  DateTime? _readRealtimeDate(Object? value) {
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString());
+  }
+
+  String _normalizeMatchText(String value) {
+    const accentMap = {
+      'À': 'A',
+      'Á': 'A',
+      'Ả': 'A',
+      'Ã': 'A',
+      'Ạ': 'A',
+      'Ă': 'A',
+      'Ằ': 'A',
+      'Ắ': 'A',
+      'Ẳ': 'A',
+      'Ẵ': 'A',
+      'Ặ': 'A',
+      'Â': 'A',
+      'Ầ': 'A',
+      'Ấ': 'A',
+      'Ẩ': 'A',
+      'Ẫ': 'A',
+      'Ậ': 'A',
+      'Đ': 'D',
+      'È': 'E',
+      'É': 'E',
+      'Ẻ': 'E',
+      'Ẽ': 'E',
+      'Ẹ': 'E',
+      'Ê': 'E',
+      'Ề': 'E',
+      'Ế': 'E',
+      'Ể': 'E',
+      'Ễ': 'E',
+      'Ệ': 'E',
+      'Ì': 'I',
+      'Í': 'I',
+      'Ỉ': 'I',
+      'Ĩ': 'I',
+      'Ị': 'I',
+      'Ò': 'O',
+      'Ó': 'O',
+      'Ỏ': 'O',
+      'Õ': 'O',
+      'Ọ': 'O',
+      'Ô': 'O',
+      'Ồ': 'O',
+      'Ố': 'O',
+      'Ổ': 'O',
+      'Ỗ': 'O',
+      'Ộ': 'O',
+      'Ơ': 'O',
+      'Ờ': 'O',
+      'Ớ': 'O',
+      'Ở': 'O',
+      'Ỡ': 'O',
+      'Ợ': 'O',
+      'Ù': 'U',
+      'Ú': 'U',
+      'Ủ': 'U',
+      'Ũ': 'U',
+      'Ụ': 'U',
+      'Ư': 'U',
+      'Ừ': 'U',
+      'Ứ': 'U',
+      'Ử': 'U',
+      'Ữ': 'U',
+      'Ự': 'U',
+      'Ỳ': 'Y',
+      'Ý': 'Y',
+      'Ỷ': 'Y',
+      'Ỹ': 'Y',
+      'Ỵ': 'Y',
+    };
+    final upper = value.toUpperCase();
+    final buffer = StringBuffer();
+    for (final rune in upper.runes) {
+      final char = String.fromCharCode(rune);
+      buffer.write(accentMap[char] ?? char);
+    }
+    return buffer
+        .toString()
+        .replaceAll(RegExp(r'[^A-Z0-9]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   Future<void> _scanOrderCode() async {
@@ -1184,7 +1618,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
                 'Mã này vẫn xem lại được từ lịch sử trong thời gian còn hạn.',
             tone: AppStateTone.info,
           ),
-        if (!expired) ...[
+        if (!expired && !confirmed) ...[
           const SizedBox(height: 16),
           _buildTransferCard(transfer),
         ],
@@ -1194,24 +1628,20 @@ class _VietQrScreenState extends State<VietQrScreen> {
             confirmation: _paymentConfirmation!,
             amountFormatter: _currencyFormatter,
           ),
-        ] else if (!confirmed &&
-            canAutoConfirm &&
-            _paymentPollingTimer != null) ...[
+        ] else if (!confirmed && canAutoConfirm) ...[
           const SizedBox(height: 16),
           PaymentWaitingCard(isChecking: _isCheckingPayment),
         ],
-        if (!expired) ...[
+        if (!expired && !confirmed) ...[
           const SizedBox(height: 16),
-          if (!confirmed) ...[
-            AppPrimaryButton(
-              onPressed: _confirmPayment,
-              icon: Icons.sync_rounded,
-              label: 'Kiểm tra ngay',
-              isLoading: _isCheckingPayment,
-              loadingLabel: 'Đang kiểm tra...',
-            ),
-            const SizedBox(height: 10),
-          ],
+          AppPrimaryButton(
+            onPressed: _confirmPayment,
+            icon: Icons.sync_rounded,
+            label: 'Kiểm tra ngay',
+            isLoading: _isCheckingPayment,
+            loadingLabel: 'Đang kiểm tra...',
+          ),
+          const SizedBox(height: 10),
           AppPrimaryButton(
             onPressed: _saveQrImage,
             icon: Icons.download_rounded,

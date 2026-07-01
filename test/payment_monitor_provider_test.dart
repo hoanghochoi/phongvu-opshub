@@ -491,6 +491,63 @@ void main() {
   );
 
   test(
+    'stream event keeps same ready notification from playing twice',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notificationBatches: const [[]],
+        notifications: [
+          _readyNotification(
+            notificationId: 'note-race',
+            transactionId: 'txn-note-race',
+          ),
+        ],
+      );
+      final speaker = _FakePaymentSpeaker(
+        playDelay: const Duration(milliseconds: 1000),
+      );
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
+
+      await provider.handleRealtimeMessageForTesting(
+        jsonEncode({
+          'type': 'PAYMENT_SPEAKER_STREAM',
+          'payload': _streamPayload('note-race'),
+        }),
+      );
+      await _waitUntil(
+        () =>
+            repository.readyFetchCount >= 2 &&
+            repository.ackEvents.contains('PLAYED'),
+      );
+
+      expect(repository.streamDownloadCount, 1);
+      expect(repository.requestedStreamClientIds.single, isNotNull);
+      expect(repository.downloadCount, 0);
+      expect(speaker.playCount, 1);
+      expect(
+        repository.ackEvents.where((event) => event == 'STREAM_STARTED'),
+        hasLength(1),
+      );
+      expect(
+        repository.ackEvents.where((event) => event == 'PLAYED'),
+        hasLength(1),
+      );
+
+      provider.dispose();
+    },
+  );
+
+  test(
     'drains ready notification backlog without waiting for fallback tick',
     () async {
       final repository = _FakePaymentMonitorRepository(
@@ -1016,6 +1073,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<bool> requestedIncludeTotals = [];
   final List<bool> requestedIncludeCues = [];
   final List<bool> requestedRawAmounts = [];
+  final List<String?> requestedStreamClientIds = [];
   final List<List<String>> savedOrderInputs = [];
   final List<List<String>> requestedOrderTransfers = [];
   final List<String> approvedRequestIds = [];
@@ -1145,8 +1203,10 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     String notificationId, {
     bool includeCue = false,
     bool rawAmount = false,
+    String? clientId,
   }) async {
     streamDownloadCount += 1;
+    requestedStreamClientIds.add(clientId);
     requestedIncludeCues.add(includeCue);
     requestedRawAmounts.add(rawAmount);
     final rawError = rawAmountAudioError;
@@ -1171,6 +1231,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
 class _FakePaymentSpeaker extends PaymentSpeaker {
   final int failuresBeforeSuccess;
   final bool nonRetryableFailure;
+  final Duration playDelay;
   final List<bool> playLocalCueValues = [];
   final List<bool> playLocalCuePrefixValues = [];
   int playCount = 0;
@@ -1178,6 +1239,7 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
   _FakePaymentSpeaker({
     this.failuresBeforeSuccess = 0,
     this.nonRetryableFailure = false,
+    this.playDelay = Duration.zero,
   });
 
   @override
@@ -1208,6 +1270,9 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
     }
     if (playCount <= failuresBeforeSuccess) {
       throw StateError('speaker failed $playCount');
+    }
+    if (playDelay > Duration.zero) {
+      await Future<void>.delayed(playDelay);
     }
     return const PaymentSpeakerResult(
       backend: 'fake',

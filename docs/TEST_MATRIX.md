@@ -45,6 +45,23 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `SALES-REPORT-001`, 2026-07-01: `Báo cáo` now opens a 2-column order
+  cockpit for same-day ERP orders: left reported, right unreported. Backend
+  runs a scheduled staff-bff order-list sync every 3 minutes and on service
+  startup, upserts rows into `SalesReportErpOrderCache`, keeps user/admin
+  visibility scoped by own email/seller snapshot or assigned organization
+  subtree, and reuses the existing purchased `check-order` flow when a user
+  opens an unreported order dialog. Flutter only reads the DB cache on open,
+  manual reload, and every 3 minutes while the screen is mounted. The admin
+  export surface also includes `Trả góp`, which filters `installmentNeed = true`
+  and exports the requested installment columns plus the derived final payment
+  method. Validation:
+  `npx prisma validate`, `npx prisma generate`,
+  `npm test -- --runInBand src/feature/feature.guard.spec.ts src/sales-reports`
+  (30 tests), `npm run build`,
+  `flutter test --no-pub --reporter expanded test\sales_report_hub_test.dart`
+  (12 tests), focused `dart analyze` on changed sales-report files, and
+  `git diff --check` (CRLF warnings only).
 - `AUTH-004`/`PAYMENT-MONITOR-001`, 2026-07-01: production diagnosis found
   payment monitor clients behind Caddy sharing the default IP throttling bucket,
   causing a newly opened client to receive HTTP 429 on its first request. The
@@ -181,9 +198,10 @@ Recent focused evidence:
   post-deploy checks.
 - `SALES-REPORT-001`, 2026-07-01: sales reports now require `Tên khách hàng`,
   map Listing `categories` to `Type` in `data/categories.csv` by highest
-  category level for order-item `categoryType`, and export 2 Vietnamese CSV
-  shapes: `HVTC` one row per report and `Doanh số` summary by customer
-  type/category type. CSV values are sanitized instead of quote-wrapped.
+  category level for order-item `categoryType`, and export Vietnamese CSV
+  shapes. At that point `HVTC` was one row per report and `Doanh số` was a
+  summary by customer type/category type; later evidence above adds the
+  `Trả góp` export. CSV values are sanitized instead of quote-wrapped.
   Validation: `npx prisma validate`, `npx prisma generate`,
   `npm test -- --runInBand src/sales-reports` (21 tests), `npm run build`,
   `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
@@ -686,6 +704,15 @@ Recent focused evidence:
   notification batches in one poll so a speaker PC with backlog does not wait
   for later fallback ticks. Validation in current patch: focused Flutter
   `payment_monitor_provider_test.dart`, Flutter analyze, and `git diff --check`.
+- PAYMENT-MONITOR-001, 2026-07-01: fixed overlapping speaker playback when a
+  repeated `PAYMENT_SPEAKER_STREAM` event and fallback `/ready` refresh raced
+  for the same transaction. Stream audio requests now pass `clientId`, backend
+  records stream opens as `DELIVERED` claims, `/ready` excludes recent
+  `DELIVERED`/`STREAM_STARTED` in-flight rows for that client, and Flutter
+  skips notification ids that are already queued or actively playing. Validation
+  in current patch: focused Flutter payment monitor/repository tests, focused
+  backend payment-notifications Jest, backend `npm run build`, and
+  `git diff --check`.
 - PROFILE-ADMIN-001, 2026-06-13: changed runtime feature access from per-user
   allowlists to direct organization node-group assignments. Backend added
   `OrganizationNodeFeatureAssignment`, migration preflight/backfill, read-only

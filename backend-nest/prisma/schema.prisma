@@ -937,6 +937,48 @@ model SalesReportPayment {
   @@index([paidAt])
 }
 
+model SalesReportErpOrderCache {
+  id                    String    @id @default(uuid())
+  orderCode             String    @unique
+  erpOrderId            String?
+  erpExternalOrderRef   String?
+  orderCreatedAt        DateTime?
+  paymentStatus         String?
+  confirmationStatus    String?
+  fulfillmentStatus     String?
+  terminalName          String?
+  grandTotal            Int?
+  customerName          String?
+  customerPhone         String?
+  customerType          String?
+  paymentMethods        String[]  @default([])
+  platformId            Int?
+  consultantCustomId    String?
+  consultantName        String?
+  consultantEmail       String?
+  sellerId              String?
+  sellerName            String?
+  sellerEmail           String?
+  storeCode             String?
+  storeName             String?
+  organizationNodeId    String?
+  sourceUserId          String?
+  sourceUserEmail       String?
+  sanitizedSnapshot     Json?
+  fetchedAt             DateTime
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([orderCreatedAt])
+  @@index([storeCode, orderCreatedAt])
+  @@index([organizationNodeId, orderCreatedAt])
+  @@index([consultantEmail, orderCreatedAt])
+  @@index([sellerEmail, orderCreatedAt])
+  @@index([sourceUserEmail, orderCreatedAt])
+  @@index([consultantCustomId, orderCreatedAt])
+  @@index([sellerId, orderCreatedAt])
+}
+
 // ============================================================
 // FIFO LOG (Lịch sử Kiểm tra FIFO & Sắp xếp FIFO)
 // ============================================================

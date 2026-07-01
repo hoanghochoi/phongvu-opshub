@@ -17,16 +17,20 @@ describe('FeatureGuard', () => {
     featureAllowed = false,
     policyAllowed = false,
     featureKey = FEATURE_KEYS.BANK_STATEMENTS,
+    allowedFeatureKey,
   }: {
     featureAllowed?: boolean;
     policyAllowed?: boolean;
-    featureKey?: string;
+    featureKey?: string | string[];
+    allowedFeatureKey?: string;
   }) {
     const reflector = {
       getAllAndOverride: jest.fn(() => featureKey),
     };
     const featureService = {
-      canAccessFeature: jest.fn(async () => featureAllowed),
+      canAccessFeature: jest.fn(async (_user: any, key: string) =>
+        allowedFeatureKey ? key === allowedFeatureKey : featureAllowed,
+      ),
     };
     const policyService = {
       canAccessPolicy: jest.fn(async (_user: any, code: string) => {
@@ -85,6 +89,24 @@ describe('FeatureGuard', () => {
     expect(policyService.canAccessPolicy).toHaveBeenCalledWith(
       requestUser,
       ADMIN_POLICY_CODES.OFFSET_ADJUSTMENTS,
+    );
+  });
+
+  it('allows routes that accept any one of multiple feature keys', async () => {
+    const { guard, featureService } = createGuard({
+      featureAllowed: false,
+      featureKey: [FEATURE_KEYS.SALES_REPORT, FEATURE_KEYS.ADMIN_SALES_REPORTS],
+      allowedFeatureKey: FEATURE_KEYS.ADMIN_SALES_REPORTS,
+    });
+
+    await expect(guard.canActivate(executionContext)).resolves.toBe(true);
+    expect(featureService.canAccessFeature).toHaveBeenCalledWith(
+      requestUser,
+      FEATURE_KEYS.SALES_REPORT,
+    );
+    expect(featureService.canAccessFeature).toHaveBeenCalledWith(
+      requestUser,
+      FEATURE_KEYS.ADMIN_SALES_REPORTS,
     );
   });
 });

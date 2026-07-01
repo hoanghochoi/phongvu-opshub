@@ -84,6 +84,7 @@ void main() {
     await repository.downloadNotificationStreamAudio(
       'note-1',
       rawAmount: true,
+      clientId: 'pc-1',
     );
 
     expect(requests, hasLength(1));
@@ -92,6 +93,7 @@ void main() {
       endsWith('/payment-notifications/note-1/stream'),
     );
     expect(requests.single.url.queryParameters['rawAmount'], 'true');
+    expect(requests.single.url.queryParameters['clientId'], 'pc-1');
   });
 
   test('fetchDeliveryMetrics parses average and trend data', () async {

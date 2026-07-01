@@ -226,6 +226,71 @@ describe('SalesReportErpService', () => {
     expect(result.paymentMethods).toEqual(['Ví điện tử']);
     expect(result.payments[0].amount).toBe(1230000);
   });
+
+  it('fetches recent ERP orders for the sales report cockpit cache', async () => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = input.toString();
+      if (
+        url.startsWith(
+          'https://staff-bff.tekoapis.com/api/v2/staff-admin/orders?',
+        )
+      ) {
+        const parsed = new URL(url);
+        expect(parsed.searchParams.get('createdAtGte')).toBe(
+          '2026-07-01T00:00:00+07:00',
+        );
+        expect(parsed.searchParams.get('createdAtLte')).toBe(
+          '2026-07-01T23:59:59+07:00',
+        );
+        expect(parsed.searchParams.get('sellerId')).toBe('1');
+        expect(parsed.searchParams.get('platformId')).toBe('3');
+        expect(parsed.searchParams.get('limit')).toBe('50');
+        expect(parsed.searchParams.get('sort')).toBe('-createdAt');
+        return jsonResponse({
+          data: {
+            orders: [
+              {
+                orderId: '2607010002',
+                createdAt: '2026-07-01T01:00:00Z',
+                paymentStatus: 'fully_paid',
+                confirmationStatus: 'active',
+                fulfillmentStatus: 'PROCESSING',
+                terminalName: 'CP62 - Phan Dang Luu',
+                grandTotal: 2500000,
+                customerName: 'Tran Thi B',
+                customerType: 'PERSONAL',
+                platformId: 3,
+                consultant: {
+                  customId: 'SA_CP62_HCM_MN',
+                  name: 'Sale CP62',
+                  email: 'sale@phongvu.vn',
+                },
+                payments: [{ paymentMethod: 'cash' }],
+              },
+            ],
+          },
+        });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    const service = new SalesReportErpService();
+    const result = await service.listRecentOrders({
+      date: '2026-07-01',
+      storeCode: 'CP62',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      orderCode: '2607010002',
+      storeCode: 'CP62',
+      grandTotal: 2500000,
+      consultantEmail: 'sale@phongvu.vn',
+      paymentMethods: ['cash'],
+    });
+  });
 });
 
 function redirectResponse(location: string) {

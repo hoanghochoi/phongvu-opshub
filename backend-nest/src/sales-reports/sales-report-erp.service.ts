@@ -60,6 +60,33 @@ export type SalesReportErpOrder = {
   fetchedAt: Date;
 };
 
+export type SalesReportErpOrderListItem = {
+  orderCode: string;
+  erpOrderId: string | null;
+  erpExternalOrderRef: string | null;
+  orderCreatedAt: Date | null;
+  paymentStatus: string | null;
+  confirmationStatus: string | null;
+  fulfillmentStatus: string | null;
+  terminalName: string | null;
+  grandTotal: number | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  customerType: string | null;
+  paymentMethods: string[];
+  platformId: number | null;
+  consultantCustomId: string | null;
+  consultantName: string | null;
+  consultantEmail: string | null;
+  sellerId: string | null;
+  sellerName: string | null;
+  sellerEmail: string | null;
+  storeCode: string | null;
+  storeName: string | null;
+  sanitizedSnapshot: Record<string, unknown>;
+  fetchedAt: Date;
+};
+
 type CachedToken = {
   accessToken: string;
   expiresAt: number;
@@ -111,6 +138,272 @@ export class SalesReportErpService {
         'Chưa kiểm tra được mã đơn hàng. Vui lòng thử lại sau ít phút.',
       );
     }
+  }
+
+  async listRecentOrders(input: {
+    date: string;
+    storeCode?: string | null;
+    limit?: number;
+  }) {
+    const startedAt = Date.now();
+    const date = this.normalizeDateOnly(input.date);
+    const limit = Math.max(1, Math.min(100, Number(input.limit ?? 50)));
+    this.logger.log(
+      `Sales report ERP order list sync started: date=${date} limit=${limit} store=${input.storeCode || 'none'}`,
+    );
+    try {
+      const accessToken = await this.getAccessToken();
+      const rows: any[] = await this.fetchOrderList(date, accessToken, limit);
+      const fetchedAt = new Date();
+      const orders = rows
+        .map((row: any) =>
+          this.normalizeOrderListItem(row, input.storeCode ?? null, fetchedAt),
+        )
+        .filter(
+          (
+            row: SalesReportErpOrderListItem | null,
+          ): row is SalesReportErpOrderListItem => Boolean(row?.orderCode),
+        );
+      this.logger.log(
+        `Sales report ERP order list sync succeeded: date=${date} count=${orders.length} durationMs=${Date.now() - startedAt}`,
+      );
+      return orders;
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error;
+      this.logger.error(
+        `Sales report ERP order list sync failed: date=${date} durationMs=${Date.now() - startedAt} error=${String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Chưa đồng bộ được danh sách đơn hàng. Vui lòng thử lại sau ít phút.',
+      );
+    }
+  }
+
+  private async fetchOrderList(
+    date: string,
+    accessToken: string,
+    limit: number,
+  ) {
+    const baseUrl = this.env(
+      'ERP_STAFF_BFF_BASE_URL',
+      'https://staff-bff.tekoapis.com',
+    ).replace(/\/$/, '');
+    const url = new URL(`${baseUrl}/api/v2/staff-admin/orders`);
+    url.searchParams.set('createdAtGte', `${date}T00:00:00+07:00`);
+    url.searchParams.set('createdAtLte', `${date}T23:59:59+07:00`);
+    const sellerId =
+      process.env.ERP_ORDER_LIST_SELLER_ID === undefined
+        ? '1'
+        : process.env.ERP_ORDER_LIST_SELLER_ID.trim();
+    if (sellerId && sellerId.toUpperCase() !== 'ALL') {
+      url.searchParams.set('sellerId', sellerId);
+    }
+    const platformId = this.env('ERP_ORDER_LIST_PLATFORM_ID', '3');
+    if (platformId && platformId.toUpperCase() !== 'ALL') {
+      url.searchParams.set('platformId', platformId);
+    }
+    url.searchParams.set('limit', String(limit));
+    url.searchParams.set('sort', this.env('ERP_ORDER_LIST_SORT', '-createdAt'));
+    const response = await this.fetchWithTimeout(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    });
+    if (!response.ok) {
+      this.logger.warn(
+        `Sales report ERP order list endpoint failed: status=${response.status}`,
+      );
+      throw new ServiceUnavailableException(
+        'Chưa đồng bộ được danh sách đơn hàng. Vui lòng thử lại sau ít phút.',
+      );
+    }
+    const body = (await response.json()) as any;
+    return this.extractOrderListRows(body);
+  }
+
+  private extractOrderListRows(body: any) {
+    const candidates = [
+      body?.data?.orders,
+      body?.data?.items,
+      body?.data?.data,
+      body?.orders,
+      body?.items,
+      body?.result?.orders,
+      body?.result?.items,
+    ];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) return candidate;
+    }
+    if (Array.isArray(body?.data)) return body.data;
+    if (Array.isArray(body)) return body;
+    return [];
+  }
+
+  private normalizeOrderListItem(
+    row: any,
+    fallbackStoreCode: string | null,
+    fetchedAt: Date,
+  ): SalesReportErpOrderListItem | null {
+    const order = row?.order && typeof row.order === 'object' ? row.order : row;
+    const consultant = this.firstObject(
+      order?.consultant,
+      order?.seller,
+      order?.staff,
+      order?.sale,
+      order?.employee,
+    );
+    const seller = this.firstObject(
+      order?.seller,
+      order?.sellerInfo,
+      order?.staff,
+      order?.sale,
+      order?.employee,
+    );
+    const terminalName = this.firstText(
+      order?.terminalName,
+      order?.createdFromSiteDisplayName,
+      order?.terminal?.name,
+      order?.storeName,
+      order?.store?.storeName,
+      order?.store?.name,
+    );
+    const storeCode = this.normalizeStoreCode(
+      this.firstText(
+        order?.storeCode,
+        order?.terminalCode,
+        order?.terminal?.code,
+        order?.store?.storeId,
+        order?.store?.code,
+        terminalName,
+        fallbackStoreCode,
+      ),
+    );
+    const orderCode = this.normalizeOrderCode(
+      this.firstText(
+        order?.orderCode,
+        order?.orderId,
+        order?.code,
+        order?.displayOrderCode,
+        order?.externalOrderRef,
+      ),
+    );
+    if (!orderCode) return null;
+    const paymentMethods = this.cleanPaymentMethods(
+      order?.paymentMethods ?? order?.payments ?? order?.paymentMethod,
+    );
+    const consultantCustomId = this.firstText(
+      consultant?.customId,
+      consultant?.code,
+      consultant?.staffCode,
+      consultant?.employeeCode,
+      order?.consultantCustomId,
+      order?.sellerCustomId,
+    );
+    const consultantName = this.firstText(
+      consultant?.name,
+      consultant?.fullName,
+      consultant?.displayName,
+      order?.consultantName,
+      order?.sellerName,
+    );
+    const consultantEmail = this.firstText(
+      consultant?.email,
+      consultant?.username,
+      order?.consultantEmail,
+      order?.sellerEmail,
+      order?.staffEmail,
+      order?.saleEmail,
+    );
+    const sellerId = this.firstText(
+      seller?.id,
+      seller?.sellerId,
+      seller?.code,
+      order?.sellerId,
+      order?.seller?.id,
+    );
+    const sellerName = this.firstText(
+      seller?.name,
+      seller?.fullName,
+      seller?.displayName,
+      order?.sellerName,
+    );
+    const sellerEmail = this.firstText(
+      seller?.email,
+      seller?.username,
+      order?.sellerEmail,
+      order?.staffEmail,
+      order?.saleEmail,
+    );
+    const customerName = this.firstText(
+      order?.customerName,
+      order?.customer?.name,
+      order?.customer?.fullName,
+      order?.customerInfo?.name,
+      order?.buyerName,
+      order?.receiverName,
+      order?.shippingAddress?.fullName,
+    );
+    const customerPhone = this.firstText(
+      order?.customerPhone,
+      order?.customer?.phone,
+      order?.customer?.phoneNumber,
+      order?.customerInfo?.phone,
+      order?.buyerPhone,
+      order?.receiverPhone,
+      order?.shippingAddress?.phone,
+    );
+    const orderCreatedAt = this.parseDate(order?.createdAt);
+    const customerType = this.optionalText(order?.customerType);
+    return {
+      orderCode,
+      erpOrderId: this.firstText(order?.orderId, order?.id),
+      erpExternalOrderRef: this.optionalText(order?.externalOrderRef),
+      orderCreatedAt,
+      paymentStatus: this.optionalText(order?.paymentStatus),
+      confirmationStatus: this.optionalText(order?.confirmationStatus),
+      fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
+      terminalName,
+      grandTotal: this.toInt(order?.grandTotal ?? order?.totalAmount),
+      customerName,
+      customerPhone,
+      customerType,
+      paymentMethods,
+      platformId: this.toInt(order?.platformId),
+      consultantCustomId,
+      consultantName,
+      consultantEmail,
+      sellerId,
+      sellerName,
+      sellerEmail,
+      storeCode,
+      storeName: this.firstText(order?.storeName, order?.store?.storeName),
+      sanitizedSnapshot: {
+        orderId: this.firstText(order?.orderId, order?.id),
+        orderCode,
+        createdAt: this.optionalText(order?.createdAt),
+        paymentStatus: this.optionalText(order?.paymentStatus),
+        confirmationStatus: this.optionalText(order?.confirmationStatus),
+        fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
+        terminalName,
+        grandTotal: this.toInt(order?.grandTotal ?? order?.totalAmount),
+        customerName,
+        customerType,
+        paymentMethods,
+        platformId: this.toInt(order?.platformId),
+        consultant: {
+          customId: consultantCustomId,
+          name: consultantName,
+          email: consultantEmail,
+        },
+        seller: {
+          id: sellerId,
+          name: sellerName,
+          email: sellerEmail,
+        },
+      },
+      fetchedAt,
+    };
   }
 
   private async fetchOrder(orderCode: string, accessToken: string) {
@@ -723,6 +1016,33 @@ export class SalesReportErpService {
     return null;
   }
 
+  private firstObject(...values: unknown[]) {
+    return values.find(
+      (value) => value && typeof value === 'object' && !Array.isArray(value),
+    ) as Record<string, unknown> | undefined;
+  }
+
+  private cleanPaymentMethods(value: unknown) {
+    const raw = Array.isArray(value) ? value : value ? [value] : [];
+    return Array.from(
+      new Set(
+        raw
+          .map((item) =>
+            typeof item === 'object' && item !== null
+              ? this.firstText(
+                  (item as any).paymentMethod,
+                  (item as any).paymentMethodName,
+                  (item as any).method,
+                  (item as any).methodName,
+                  (item as any).name,
+                )
+              : this.optionalText(item),
+          )
+          .filter((item): item is string => Boolean(item)),
+      ),
+    ).slice(0, 20);
+  }
+
   private rawText(value: unknown) {
     const text = String(value ?? '').trim();
     return text || null;
@@ -733,6 +1053,26 @@ export class SalesReportErpService {
       .trim()
       .toUpperCase()
       .replace(/\s+/g, '');
+  }
+
+  private normalizeStoreCode(value: unknown) {
+    const text = String(value || '')
+      .trim()
+      .toUpperCase();
+    if (!text) return null;
+    const match = text.match(/\b[A-Z]{2}\d{1,3}\b/);
+    if (match) return match[0];
+    const cleaned = text.replace(/[^A-Z0-9_]/g, '');
+    return cleaned ? cleaned.slice(0, 40) : null;
+  }
+
+  private normalizeDateOnly(value: unknown) {
+    const text = String(value || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+    const now = new Date();
+    const vnNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+    const two = (part: number) => String(part).padStart(2, '0');
+    return `${vnNow.getUTCFullYear()}-${two(vnNow.getUTCMonth() + 1)}-${two(vnNow.getUTCDate())}`;
   }
 
   private env(key: string, fallback: string) {

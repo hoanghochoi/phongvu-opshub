@@ -8,7 +8,6 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
-import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -121,26 +120,42 @@ class SalesReportScreen extends StatefulWidget {
 
 class _SalesReportScreenState extends State<SalesReportScreen> {
   bool _logged = false;
+  bool _initialized = false;
+  Timer? _refreshTimer;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_logged) return;
-    _logged = true;
     final user = context.read<AuthProvider>().user;
+    if (!_logged) {
+      _logged = true;
+      unawaited(
+        AppLogger.instance.info(
+          'SalesReport',
+          'Sales report hub opened',
+          context: {
+            'userId': user?.id,
+            'storeId': user?.storeId,
+            'hasSalesReport': user?.canUseFeature('SALES_REPORT') == true,
+            'hasAdminSalesReports':
+                user?.canUseFeature('ADMIN_SALES_REPORTS') == true,
+          },
+        ),
+      );
+    }
+    if (_initialized) return;
+    _initialized = true;
     unawaited(
-      AppLogger.instance.info(
-        'SalesReport',
-        'Sales report hub opened',
-        context: {
-          'userId': user?.id,
-          'storeId': user?.storeId,
-          'hasSalesReport': user?.canUseFeature('SALES_REPORT') == true,
-          'hasAdminSalesReports':
-              user?.canUseFeature('ADMIN_SALES_REPORTS') == true,
-        },
+      context.read<SalesReportProvider>().initialize(
+        user,
+        orders: true,
+        categories: false,
       ),
     );
+    _refreshTimer = Timer.periodic(const Duration(minutes: 3), (_) {
+      if (!mounted) return;
+      unawaited(context.read<SalesReportProvider>().loadOrderCockpit());
+    });
   }
 
   Future<void> _openReport(String route, String reportType) async {
@@ -176,6 +191,47 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     context.push('/admin/sales-reports');
   }
 
+  Future<void> _openPurchasedDialog(SalesReportOrderCockpitItem order) async {
+    final user = context.read<AuthProvider>().user;
+    await AppLogger.instance.info(
+      'SalesReport',
+      'Sales report order selected from cockpit',
+      context: {
+        'orderLength': order.orderCode.length,
+        'userId': user?.id,
+        'storeId': user?.storeId,
+      },
+    );
+    if (!mounted) return;
+    final submitted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        final size = MediaQuery.sizeOf(context);
+        return Dialog(
+          insetPadding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: size.width >= 960 ? 900 : size.width * 0.94,
+            height: size.height * 0.90,
+            child: SalesReportFormScreen.purchased(
+              initialOrderCode: order.orderCode,
+              closeOnSuccess: true,
+            ),
+          ),
+        );
+      },
+    );
+    if (submitted == true && mounted) {
+      unawaited(context.read<SalesReportProvider>().loadOrderCockpit());
+    }
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final canSubmitReports = context.select<AuthProvider, bool>(
@@ -184,55 +240,351 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     final canViewAdminReports = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('ADMIN_SALES_REPORTS') == true,
     );
+    final provider = context.watch<SalesReportProvider>();
     return Scaffold(
       appBar: const GradientHeader(title: 'Báo cáo', showBack: true),
       body: AppResponsiveScrollView(
         maxWidth: AppLayoutTokens.pageMaxWidth,
-        child: AppFeatureSection(
-          actions: [
-            if (canSubmitReports)
-              AppFeatureAction(
-                icon: Icons.receipt_long_outlined,
-                title: 'Mua hàng',
-                description: 'Báo cáo đơn đã phát sinh mua hàng.',
-                color: AppColors.info,
-                onTap: () =>
-                    _openReport('/sales-reports/purchased', _typePurchased),
-              ),
-            if (canSubmitReports)
-              AppFeatureAction(
-                icon: Icons.person_search_outlined,
-                title: 'Chưa mua hàng',
-                description: 'Ghi nhận nhu cầu và lý do khách chưa mua.',
-                color: AppColors.warning,
-                onTap: () => _openReport(
+        child: _SalesReportCockpit(
+          provider: provider,
+          canSubmitReports: canSubmitReports,
+          canViewAdminReports: canViewAdminReports,
+          onNotPurchased: canSubmitReports
+              ? () => _openReport(
                   '/sales-reports/not-purchased',
                   _typeNotPurchased,
-                ),
-              ),
-            if (canViewAdminReports)
-              AppFeatureAction(
-                icon: Icons.assignment_outlined,
-                title: 'Báo cáo sale',
-                description: 'Danh sách & xuất file',
-                color: AppColors.info,
-                onTap: _openAdminReports,
-              ),
-          ],
+                )
+              : null,
+          onOpenAdmin: canViewAdminReports ? _openAdminReports : null,
+          onReload: () => provider.loadOrderCockpit(),
+          onExportHvtc: canViewAdminReports
+              ? () => provider.exportCsv(
+                  query: const SalesReportQuery(exportType: 'HVTC'),
+                )
+              : null,
+          onExportRevenue: canViewAdminReports
+              ? () => provider.exportCsv(
+                  query: const SalesReportQuery(exportType: 'REVENUE'),
+                )
+              : null,
+          onExportInstallment: canViewAdminReports
+              ? () => provider.exportCsv(
+                  query: const SalesReportQuery(exportType: 'INSTALLMENT'),
+                )
+              : null,
+          onOrderTap: canSubmitReports ? _openPurchasedDialog : null,
         ),
       ),
     );
   }
 }
 
+class _SalesReportCockpit extends StatelessWidget {
+  final SalesReportProvider provider;
+  final bool canSubmitReports;
+  final bool canViewAdminReports;
+  final VoidCallback? onNotPurchased;
+  final VoidCallback? onOpenAdmin;
+  final VoidCallback onReload;
+  final VoidCallback? onExportHvtc;
+  final VoidCallback? onExportRevenue;
+  final VoidCallback? onExportInstallment;
+  final ValueChanged<SalesReportOrderCockpitItem>? onOrderTap;
+
+  const _SalesReportCockpit({
+    required this.provider,
+    required this.canSubmitReports,
+    required this.canViewAdminReports,
+    required this.onNotPurchased,
+    required this.onOpenAdmin,
+    required this.onReload,
+    required this.onExportHvtc,
+    required this.onExportRevenue,
+    required this.onExportInstallment,
+    required this.onOrderTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cockpit = provider.orderCockpit;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppSurfaceCard(
+          child: Wrap(
+            spacing: AppLayoutTokens.formInlineGap,
+            runSpacing: AppLayoutTokens.formInlineGap,
+            alignment: WrapAlignment.start,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (canSubmitReports)
+                SizedBox(
+                  width: 220,
+                  child: AppPrimaryButton(
+                    onPressed: onNotPurchased,
+                    icon: Icons.person_search_outlined,
+                    label: 'Báo cáo chưa mua',
+                  ),
+                ),
+              SizedBox(
+                width: 160,
+                child: AppSecondaryButton(
+                  onPressed: provider.isLoadingOrders ? null : onReload,
+                  icon: Icons.refresh_rounded,
+                  label: 'Tải lại',
+                  isLoading: provider.isLoadingOrders,
+                ),
+              ),
+              if (canViewAdminReports)
+                SizedBox(
+                  width: 180,
+                  child: AppSecondaryButton(
+                    onPressed: provider.isExporting ? null : onExportHvtc,
+                    icon: Icons.download_rounded,
+                    label: 'Xuất HVTC',
+                    isLoading: provider.isExporting,
+                  ),
+                ),
+              if (canViewAdminReports)
+                SizedBox(
+                  width: 190,
+                  child: AppSecondaryButton(
+                    onPressed: provider.isExporting ? null : onExportRevenue,
+                    icon: Icons.download_rounded,
+                    label: 'Xuất Doanh số',
+                    isLoading: provider.isExporting,
+                  ),
+                ),
+              if (canViewAdminReports)
+                SizedBox(
+                  width: 190,
+                  child: AppSecondaryButton(
+                    onPressed: provider.isExporting
+                        ? null
+                        : onExportInstallment,
+                    icon: Icons.download_rounded,
+                    label: 'Xuất Trả góp',
+                    isLoading: provider.isExporting,
+                  ),
+                ),
+              if (canViewAdminReports)
+                SizedBox(
+                  width: 170,
+                  child: AppSecondaryButton(
+                    onPressed: onOpenAdmin,
+                    icon: Icons.assignment_outlined,
+                    label: 'Danh sách',
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppLayoutTokens.cardGap),
+        if (provider.errorMessage != null)
+          AppStatusBanner(
+            icon: Icons.error_outline_rounded,
+            title: 'Chưa tải đủ dữ liệu',
+            message: provider.errorMessage!,
+            tone: AppStateTone.error,
+          ),
+        if (provider.isLoadingOrders && cockpit == null)
+          const AppListSkeleton(itemCount: 6)
+        else
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final twoColumns = constraints.maxWidth >= 760;
+              final reported = _OrdersColumn(
+                title: 'Đã báo cáo',
+                count: provider.reportedOrders.length,
+                emptyMessage: 'Chưa có đơn đã báo cáo.',
+                orders: provider.reportedOrders,
+                onTap: null,
+              );
+              final unreported = _OrdersColumn(
+                title: 'Chưa báo cáo',
+                count: provider.unreportedOrders.length,
+                emptyMessage: 'Chưa có đơn chờ báo cáo.',
+                orders: provider.unreportedOrders,
+                onTap: onOrderTap,
+              );
+              if (!twoColumns) {
+                return Column(
+                  children: [
+                    reported,
+                    const SizedBox(height: AppLayoutTokens.cardGap),
+                    unreported,
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: reported),
+                  const SizedBox(width: AppLayoutTokens.cardGap),
+                  Expanded(child: unreported),
+                ],
+              );
+            },
+          ),
+      ],
+    );
+  }
+}
+
+class _OrdersColumn extends StatelessWidget {
+  final String title;
+  final int count;
+  final String emptyMessage;
+  final List<SalesReportOrderCockpitItem> orders;
+  final ValueChanged<SalesReportOrderCockpitItem>? onTap;
+
+  const _OrdersColumn({
+    required this.title,
+    required this.count,
+    required this.emptyMessage,
+    required this.orders,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text(title, style: AppTextStyles.headingS)),
+            Text(
+              '$count',
+              style: AppTextStyles.labelM.copyWith(color: AppColors.neutral600),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppLayoutTokens.formInlineGap),
+        if (orders.isEmpty)
+          AppStatePanel.empty(title: title, message: emptyMessage)
+        else
+          for (final order in orders) ...[
+            _OrderCockpitTile(order: order, onTap: onTap),
+            const SizedBox(height: AppLayoutTokens.cardGap),
+          ],
+      ],
+    );
+  }
+}
+
+class _OrderCockpitTile extends StatelessWidget {
+  final SalesReportOrderCockpitItem order;
+  final ValueChanged<SalesReportOrderCockpitItem>? onTap;
+
+  const _OrderCockpitTile({required this.order, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final money = formatVndAmount(order.grandTotal);
+    final reporter =
+        order.consultantName ?? order.sellerName ?? order.consultantCustomId;
+    final subtitle = [
+      if ((order.storeCode ?? '').trim().isNotEmpty) order.storeCode,
+      if ((order.terminalName ?? '').trim().isNotEmpty) order.terminalName,
+      if ((reporter ?? '').trim().isNotEmpty) reporter,
+    ].whereType<String>().join(' • ');
+    final meta = [
+      if (money.isNotEmpty) money,
+      if ((order.paymentStatus ?? '').trim().isNotEmpty) order.paymentStatus,
+      if (order.reportedAt != null)
+        'Đã báo cáo ${_shortDate(order.reportedAt)}',
+    ].whereType<String>().join(' • ');
+    return AppSurfaceCard(
+      onTap: onTap == null ? null : () => onTap!(order),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            order.isReported
+                ? Icons.verified_outlined
+                : Icons.receipt_long_outlined,
+            color: order.isReported ? AppColors.success : AppColors.warning,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  order.orderCode,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelM,
+                ),
+                if ((order.customerName ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    order.customerName!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.bodyM,
+                  ),
+                ],
+                if (subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.bodyM.copyWith(
+                      color: AppColors.neutral600,
+                    ),
+                  ),
+                ],
+                if (meta.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    meta,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.labelS.copyWith(
+                      color: AppColors.neutral500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (onTap != null)
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.neutral500,
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _shortDate(DateTime? value) {
+    if (value == null) return '';
+    final local = value.toLocal();
+    String two(int part) => part.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)} ${two(local.hour)}:${two(local.minute)}';
+  }
+}
+
 class SalesReportFormScreen extends StatefulWidget {
   final String reportType;
+  final String? initialOrderCode;
+  final bool closeOnSuccess;
 
-  const SalesReportFormScreen.purchased({super.key})
-    : reportType = _typePurchased;
+  const SalesReportFormScreen.purchased({
+    super.key,
+    this.initialOrderCode,
+    this.closeOnSuccess = false,
+  }) : reportType = _typePurchased;
 
-  const SalesReportFormScreen.notPurchased({super.key})
-    : reportType = _typeNotPurchased;
+  const SalesReportFormScreen.notPurchased({
+    super.key,
+    this.closeOnSuccess = false,
+  }) : reportType = _typeNotPurchased,
+       initialOrderCode = null;
 
   @override
   State<SalesReportFormScreen> createState() => _SalesReportFormScreenState();
@@ -267,6 +619,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
   String? _installmentNoInstallmentReason;
   final List<String> _installmentPartnerCodes = [];
   bool _initialized = false;
+  bool _autoCheckedInitialOrder = false;
 
   @override
   void initState() {
@@ -274,6 +627,15 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     _reportType = widget.reportType == _typeNotPurchased
         ? _typeNotPurchased
         : _typePurchased;
+    final initialOrderCode = _normalizeOrderCode(widget.initialOrderCode ?? '');
+    if (_reportType == _typePurchased && initialOrderCode.isNotEmpty) {
+      _orderController.text = initialOrderCode;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _autoCheckedInitialOrder) return;
+        _autoCheckedInitialOrder = true;
+        unawaited(_checkOrder());
+      });
+    }
   }
 
   @override
@@ -535,6 +897,9 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       _showSnack('Đã gửi báo cáo.', AppColors.success);
       _resetFormAfterSubmit();
       await _scrollToTopAfterSubmit();
+      if (widget.closeOnSuccess && mounted) {
+        Navigator.of(context).pop(true);
+      }
     } else {
       _showSnack(
         provider.errorMessage ?? 'Chưa gửi được báo cáo.',

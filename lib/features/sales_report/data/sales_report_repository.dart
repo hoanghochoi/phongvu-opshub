@@ -40,6 +40,16 @@ class SalesReportRepository {
     return SalesReportOrderCheck.fromJson(jsonDecode(response.body));
   }
 
+  Future<SalesReportOrderCockpit> fetchOrders(
+    SalesReportOrdersQuery query,
+  ) async {
+    final response = await _apiClient.get(
+      ApiConstants.salesReportsOrdersEndpoint,
+      queryParameters: query.toQueryParameters(),
+    );
+    return SalesReportOrderCockpit.fromJson(jsonDecode(response.body));
+  }
+
   Future<Map<String, dynamic>> create(SalesReportInput input) async {
     final response = await _apiClient.post(
       ApiConstants.salesReportsEndpoint,

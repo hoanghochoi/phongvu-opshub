@@ -131,6 +131,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool _isDrainingStreamNotifications = false;
   bool _canReviewOrderTransfers = false;
   int _realtimeReconnectAttempt = 0;
+  final Set<String> _activeNotificationIds = {};
 
   PaymentMonitorProvider(
     this._repository,
@@ -546,6 +547,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _loggedMonitorStarted = false;
     _terminalNotificationIds.clear();
     _queuedStreamNotificationIds.clear();
+    _activeNotificationIds.clear();
     _streamNotificationQueue.clear();
     _isDrainingStreamNotifications = false;
     _realtimeReconnectAttempt = 0;
@@ -596,6 +598,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _queuedRefreshIncludeTotal = false;
     _terminalNotificationIds.clear();
     _queuedStreamNotificationIds.clear();
+    _activeNotificationIds.clear();
     _streamNotificationQueue.clear();
     _isDrainingStreamNotifications = false;
     _realtimeReconnectAttempt = 0;
@@ -878,7 +881,28 @@ class PaymentMonitorProvider extends ChangeNotifier {
     String clientId,
   ) {
     if (_terminalNotificationIds.contains(notification.notificationId) ||
-        _queuedStreamNotificationIds.contains(notification.notificationId)) {
+        _queuedStreamNotificationIds.contains(notification.notificationId) ||
+        _activeNotificationIds.contains(notification.notificationId)) {
+      unawaited(
+        AppLogger.instance.info(
+          'PaymentMonitor',
+          'Payment speaker stream notification ignored because already active',
+          context: {
+            'notificationId': notification.notificationId,
+            'transactionId': notification.transactionId,
+            'storeCode': notification.storeCode,
+            'terminal': _terminalNotificationIds.contains(
+              notification.notificationId,
+            ),
+            'queued': _queuedStreamNotificationIds.contains(
+              notification.notificationId,
+            ),
+            'active': _activeNotificationIds.contains(
+              notification.notificationId,
+            ),
+          },
+        ),
+      );
       return;
     }
     _queuedStreamNotificationIds.add(notification.notificationId);
@@ -905,7 +929,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
       while (_streamNotificationQueue.isNotEmpty) {
         final notification = _streamNotificationQueue.removeFirst();
         _queuedStreamNotificationIds.remove(notification.notificationId);
-        if (_terminalNotificationIds.contains(notification.notificationId)) {
+        if (_terminalNotificationIds.contains(notification.notificationId) ||
+            _activeNotificationIds.contains(notification.notificationId)) {
           continue;
         }
         if (!_canUsePaymentSpeaker) {
@@ -929,11 +954,17 @@ class PaymentMonitorProvider extends ChangeNotifier {
           );
           continue;
         }
-        await _playReadyNotifications(
-          [notification],
-          clientId,
-          useStreamEndpoint: true,
-        );
+        _activeNotificationIds.add(notification.notificationId);
+        try {
+          await _playReadyNotifications(
+            [notification],
+            clientId,
+            useStreamEndpoint: true,
+            activeNotificationIds: {notification.notificationId},
+          );
+        } finally {
+          _activeNotificationIds.remove(notification.notificationId);
+        }
       }
     } finally {
       _isDrainingStreamNotifications = false;
@@ -1525,6 +1556,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     List<PaymentNotification> notifications,
     String clientId, {
     bool useStreamEndpoint = false,
+    Set<String> activeNotificationIds = const {},
   }) async {
     final storeCode = _requestStoreId ?? _user?.storeId;
     await AppLogger.instance.info(
@@ -1559,6 +1591,26 @@ class PaymentMonitorProvider extends ChangeNotifier {
           },
         );
         continue;
+      }
+      final ownsActiveNotification = activeNotificationIds.contains(
+        notification.notificationId,
+      );
+      if (_activeNotificationIds.contains(notification.notificationId) &&
+          !ownsActiveNotification) {
+        await AppLogger.instance.info(
+          'PaymentMonitor',
+          'Payment notification skipped because playback is already active',
+          context: {
+            'notificationId': notification.notificationId,
+            'transactionId': notification.transactionId,
+            'storeCode': notification.storeCode,
+            'streaming': useStreamEndpoint,
+          },
+        );
+        continue;
+      }
+      if (!ownsActiveNotification) {
+        _activeNotificationIds.add(notification.notificationId);
       }
       try {
         await _playNotificationWithRetry(
@@ -1610,6 +1662,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
           message: _buildSpeakerErrorMessage(safeError),
         );
         notifyListeners();
+      } finally {
+        if (!ownsActiveNotification) {
+          _activeNotificationIds.remove(notification.notificationId);
+        }
       }
     }
   }
@@ -1627,6 +1683,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
     final audio = await _downloadNotificationAudio(
       notification,
+      clientId: clientId,
       useStreamEndpoint: useStreamEndpoint,
     );
     var streamStartedAckSent = false;
@@ -1808,6 +1865,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   Future<_DownloadedPaymentAudio> _downloadNotificationAudio(
     PaymentNotification notification, {
+    required String clientId,
     bool useStreamEndpoint = false,
   }) async {
     await AppLogger.instance.info(
@@ -1827,6 +1885,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           ? await _repository.downloadNotificationStreamAudio(
               notification.notificationId,
               rawAmount: true,
+              clientId: clientId,
             )
           : await _repository.downloadNotificationAudio(
               notification.notificationId,
@@ -1888,6 +1947,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           ? await _repository.downloadNotificationStreamAudio(
               notification.notificationId,
               includeCue: true,
+              clientId: clientId,
             )
           : await _repository.downloadNotificationAudio(
               notification.notificationId,
@@ -1947,6 +2007,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     final audioBytes = useStreamEndpoint
         ? await _repository.downloadNotificationStreamAudio(
             notification.notificationId,
+            clientId: clientId,
           )
         : await _repository.downloadNotificationAudio(
             notification.notificationId,

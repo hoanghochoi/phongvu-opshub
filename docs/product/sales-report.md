@@ -9,15 +9,27 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 
 - Home hiển thị ô `Báo cáo` khi user có feature `SALES_REPORT` hoặc
   `ADMIN_SALES_REPORTS`.
-- Màn hình `Báo cáo` có 2 luồng gửi `Mua hàng` và `Chưa mua hàng` khi user có
-  `SALES_REPORT`.
+- Màn hình `Báo cáo` là cockpit đơn hàng trong ngày: cột trái là đơn đã báo
+  cáo, cột phải là đơn chưa báo cáo. User thường chỉ thấy dữ liệu của mình theo
+  email/snapshot người bán; user có `ADMIN_SALES_REPORTS` xem trong phạm vi
+  node tổ chức được gán, gồm các showroom/node con.
+- Cockpit có nút `Báo cáo chưa mua`, `Tải lại`; user có quyền admin report có
+  thêm nút xuất CSV và lối vào danh sách báo cáo chi tiết.
+- Backend tự đồng bộ danh sách đơn từ staff-bff ERP mỗi 3 phút và khi service
+  khởi động, rồi upsert snapshot rút gọn vào bảng cache riêng. Flutter không
+  kích hoạt ERP sync; client chỉ đọc dữ liệu realtime/near-realtime từ cache DB
+  khi mở màn hình, khi bấm `Tải lại`, và mỗi 3 phút khi màn hình còn mở.
+- Khi sale bấm một đơn chưa báo cáo, app mở form báo cáo mua hàng trong dialog,
+  tự kiểm tra lại mã đơn qua luồng `check-order` hiện tại rồi fill tên khách,
+  nhu cầu, loại khách, ngành hàng và thông tin đơn cần thiết.
 - Màn hình `Báo cáo` hiển thị lối vào `Báo cáo sale` để xem danh sách và xuất
   CSV khi user có `ADMIN_SALES_REPORTS`; entry này không nằm trong menu
   `Quản trị`.
 - Màn hình `Báo cáo sale` của admin lọc danh sách và CSV theo loại báo cáo và
   khoảng `Từ ngày` / `Đến ngày` dựa trên thời điểm gửi báo cáo (`submittedAt`).
-  Admin xuất được 2 file tiếng Việt: `HVTC` là mỗi dòng một báo cáo mua/chưa
-  mua; `Doanh số` là một dòng tổng hợp doanh thu/số lượng theo type ngành hàng.
+  Admin xuất được 3 file tiếng Việt: `HVTC` là mỗi dòng một báo cáo mua/chưa
+  mua; `Doanh số` là một dòng tổng hợp doanh thu/số lượng theo type ngành hàng;
+  `Trả góp` chỉ lấy báo cáo có `installmentNeed = true`.
 - `Mua hàng` bắt buộc nhập hoặc quét QR/barcode `Mã đơn hàng` và bấm
   `Kiểm tra đơn hàng` trước khi mở phần form còn lại. Sau khi đã kiểm tra, sale
   có nút `Kiểm tra đơn khác` để nhập/quét lại đơn mới. Backend kiểm tra ERP
@@ -79,6 +91,12 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   nhất, doanh thu doanh nghiệp/cá nhân, các lý do khách không trả góp, số lượng
   laptop, PC, PC ráp, Apple chỉ tính Macbook/iPhone/iPad, màn hình, máy in,
   phụ kiện và dịch vụ bảo hiểm.
+- File `Trả góp` xuất một dòng cho mỗi báo cáo có nhu cầu trả góp, gồm:
+  `Ngày báo cáo`, `createdByEmail`, `installmentLoanAmount`,
+  `installmentPartnerCodes`, `installmentApproved`, `reportType`,
+  `Phương thức thanh toán cuối cùng`, `installmentNoInstallmentReason`.
+  `Phương thức thanh toán cuối cùng` đọc từ `erpPaymentMethods`: có payment
+  method installment thì ghi `Trả góp`, không có thì ghi `Trả thẳng`.
 - Giá trị trong CSV không bọc dấu nháy kép; dấu phẩy trong nội dung được đổi
   thành dấu chấm phẩy và xuống dòng được đổi thành khoảng trắng để không vỡ cột.
 - `orderCode` là unique trên bảng `SalesReport`; một đơn mua hàng chỉ được báo
@@ -105,6 +123,11 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   raw snapshot đã sanitize.
 - `SalesReportPayment` lưu phương thức thanh toán, số tiền, thời điểm thanh
   toán và mã giao dịch khi ERP trả về.
+- `SalesReportErpOrderCache` lưu snapshot rút gọn của đơn ERP trong ngày để
+  cockpit tách đơn chưa/đã báo cáo mà không phụ thuộc sale nhớ tự mở form. Dữ
+  liệu gồm mã đơn, ngày tạo, trạng thái, showroom/node, người tư vấn/người bán
+  nếu ERP trả về, tổng tiền, phương thức thanh toán, metadata lần sync nền và
+  snapshot đã sanitize.
 - `SalesReportCategoryGroup` đồng bộ từ `data/categories.csv`, dùng `Cat group
   ID` làm code, `Cat group name` làm tên gốc và `catGroupNameVi` làm nhãn tiếng
   Việt.
@@ -115,10 +138,12 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 
 - Backend: Prisma validate/generate, Nest build, tests cho category sync,
   duplicate `orderCode`, purchased re-check ERP, not-purchased no ERP call,
-  feature guard và export CSV.
+  scheduled ERP cache sync, order cockpit cache-only list, feature guard và
+  export CSV.
 - Flutter: Home/Report hub entry theo feature, route guard, order check before
-  submit, QR/barcode scan mã đơn, auto-fill nhiều category/need/customer type
-  từ mock ERP, checkbox selectors, installment partner/approval/reason
-  validation, không gửi `MSNV`, form validation và export CSV.
+  submit, cockpit 2 cột đã/chưa báo cáo, refresh 3 phút, QR/barcode scan mã
+  đơn, auto-fill nhiều category/need/customer type từ mock ERP, checkbox
+  selectors, installment partner/approval/reason validation, không gửi `MSNV`,
+  form validation và export CSV.
 - Manual smoke sau deploy: cấu hình ERP env trên VPS, check một mã đơn thật,
   gửi một báo cáo mua hàng và xác nhận duplicate bị chặn.

@@ -7,7 +7,20 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 
 ## Acceptance
 
-- Home hiện `Báo cáo` khi user có `SALES_REPORT`.
+- Home hiện `Báo cáo` khi user có `SALES_REPORT` hoặc
+  `ADMIN_SALES_REPORTS`.
+- Màn hình `Báo cáo` hiển thị cockpit 2 cột trong ngày: trái là đơn đã báo
+  cáo, phải là đơn chưa báo cáo; phía trên có `Báo cáo chưa mua`, `Tải lại` và
+  action xuất file/danh sách khi user có quyền admin report.
+- Backend tự đồng bộ danh sách đơn ERP từ staff-bff theo ngày mỗi 3 phút và khi
+  service khởi động, mặc định 50 đơn, rồi upsert snapshot rút gọn vào bảng
+  cache riêng. Flutter không kích hoạt ERP sync; client chỉ đọc cache DB khi mở
+  màn hình, khi bấm `Tải lại`, và mỗi 3 phút khi còn ở màn này.
+- User thường chỉ thấy đơn/report của mình theo email/snapshot người bán;
+  STORE_MANAGER hoặc chức danh quản lý có `ADMIN_SALES_REPORTS` theo node xem
+  dữ liệu trong showroom/node con được gán; Super Admin xem toàn app.
+- Bấm đơn chưa báo cáo mở dialog báo cáo mua hàng và dùng lại luồng
+  `check-order` để tự fill dữ liệu cần thiết trước khi sale nhập phần còn lại.
 - Form `Mua hàng` yêu cầu nhập hoặc quét QR/barcode mã đơn và check ERP trước
   khi nhập/gửi báo cáo; sau khi check có thể bấm `Kiểm tra đơn khác` để đổi đơn.
 - Nếu ERP trả `confirmationStatus` hoặc `fulfillmentStatus` là `cancelled`
@@ -41,10 +54,14 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   đã sanitize, và từng sản phẩm thành từng row trong `SalesReportOrderItem`.
   Backend map thêm `categoryType` bằng `Type` trong `data/categories.csv`, ưu
   tiên category level cao nhất trong payload `categories` từ Listing.
-- Admin xuất 2 file CSV tiếng Việt: `HVTC` một dòng mỗi báo cáo mua/chưa mua
+- Admin xuất 3 file CSV tiếng Việt: `HVTC` một dòng mỗi báo cáo mua/chưa mua
   theo các cột hành vi khách hàng; `Doanh số` một dòng tổng hợp số đơn duy
   nhất, doanh thu doanh nghiệp/cá nhân, lý do không trả góp và số lượng theo
-  type laptop/PC/PC ráp/Apple/màn hình/máy in/phụ kiện/bảo hiểm mở rộng.
+  type laptop/PC/PC ráp/Apple/màn hình/máy in/phụ kiện/bảo hiểm mở rộng;
+  `Trả góp` chỉ lấy các row có `installmentNeed = true`, gồm các cột
+  `Ngày báo cáo`, `createdByEmail`, `installmentLoanAmount`,
+  `installmentPartnerCodes`, `installmentApproved`, `reportType`,
+  `Phương thức thanh toán cuối cùng`, `installmentNoInstallmentReason`.
 - Admin có `ADMIN_SALES_REPORTS` theo node tổ chức xem/query/export báo cáo
   trong phạm vi được gán; Super Admin thấy toàn app.
 - Ngành hàng lấy từ `data/categories.csv`, hiển thị tiếng Việt và lưu snapshot

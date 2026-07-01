@@ -177,12 +177,15 @@ class PaymentMonitorRepository {
     String notificationId, {
     bool includeCue = false,
     bool rawAmount = false,
+    String? clientId,
   }) {
     return _apiClient.getBytes(
       ApiConstants.paymentNotificationStreamEndpoint(notificationId),
       queryParameters: {
         if (includeCue) 'includeCue': 'true',
         if (rawAmount) 'rawAmount': 'true',
+        if (clientId != null && clientId.trim().isNotEmpty)
+          'clientId': clientId.trim(),
       },
     );
   }

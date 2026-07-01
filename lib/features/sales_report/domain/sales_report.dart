@@ -95,6 +95,155 @@ class SalesReportOrderCheck {
   }
 }
 
+class SalesReportOrderCockpitItem {
+  final String status;
+  final String orderCode;
+  final String? orderId;
+  final DateTime? orderCreatedAt;
+  final String? paymentStatus;
+  final String? confirmationStatus;
+  final String? fulfillmentStatus;
+  final String? terminalName;
+  final int? grandTotal;
+  final String? customerName;
+  final String? customerPhone;
+  final String? customerType;
+  final String? customerTypeLabel;
+  final List<String> paymentMethods;
+  final String? consultantCustomId;
+  final String? consultantName;
+  final String? sellerName;
+  final String? storeCode;
+  final String? storeName;
+  final DateTime? fetchedAt;
+  final DateTime? reportedAt;
+  final Map<String, dynamic>? report;
+
+  const SalesReportOrderCockpitItem({
+    required this.status,
+    required this.orderCode,
+    required this.orderId,
+    required this.orderCreatedAt,
+    required this.paymentStatus,
+    required this.confirmationStatus,
+    required this.fulfillmentStatus,
+    required this.terminalName,
+    required this.grandTotal,
+    required this.customerName,
+    required this.customerPhone,
+    required this.customerType,
+    required this.customerTypeLabel,
+    required this.paymentMethods,
+    required this.consultantCustomId,
+    required this.consultantName,
+    required this.sellerName,
+    required this.storeCode,
+    required this.storeName,
+    required this.fetchedAt,
+    required this.reportedAt,
+    required this.report,
+  });
+
+  bool get isReported => status == 'REPORTED';
+
+  factory SalesReportOrderCockpitItem.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(Object? value) {
+      final text = value?.toString();
+      if (text == null || text.isEmpty) return null;
+      return DateTime.tryParse(text);
+    }
+
+    Map<String, dynamic>? cleanMap(Object? value) {
+      if (value is! Map) return null;
+      return value.map((key, value) => MapEntry(key.toString(), value));
+    }
+
+    int? parseInt(Object? value) {
+      if (value == null || value == '') return null;
+      return int.tryParse(value.toString().replaceAll(',', ''));
+    }
+
+    return SalesReportOrderCockpitItem(
+      status: json['status']?.toString() ?? 'UNREPORTED',
+      orderCode: json['orderCode']?.toString() ?? '',
+      orderId: json['orderId']?.toString(),
+      orderCreatedAt: parseDate(json['orderCreatedAt']),
+      paymentStatus: json['paymentStatus']?.toString(),
+      confirmationStatus: json['confirmationStatus']?.toString(),
+      fulfillmentStatus: json['fulfillmentStatus']?.toString(),
+      terminalName: json['terminalName']?.toString(),
+      grandTotal: parseInt(json['grandTotal']),
+      customerName: json['customerName']?.toString(),
+      customerPhone: json['customerPhone']?.toString(),
+      customerType: json['customerType']?.toString(),
+      customerTypeLabel: json['customerTypeLabel']?.toString(),
+      paymentMethods:
+          (json['paymentMethods'] is List
+                  ? json['paymentMethods'] as List
+                  : const [])
+              .map((value) => value.toString())
+              .where((value) => value.trim().isNotEmpty)
+              .toList(),
+      consultantCustomId: json['consultantCustomId']?.toString(),
+      consultantName: json['consultantName']?.toString(),
+      sellerName: json['sellerName']?.toString(),
+      storeCode: json['storeCode']?.toString(),
+      storeName: json['storeName']?.toString(),
+      fetchedAt: parseDate(json['fetchedAt']),
+      reportedAt: parseDate(json['reportedAt']),
+      report: cleanMap(json['report']),
+    );
+  }
+}
+
+class SalesReportOrderCockpit {
+  final String date;
+  final DateTime? refreshedAt;
+  final bool syncSucceeded;
+  final String? syncError;
+  final int syncCount;
+  final String scope;
+  final List<SalesReportOrderCockpitItem> reportedOrders;
+  final List<SalesReportOrderCockpitItem> unreportedOrders;
+
+  const SalesReportOrderCockpit({
+    required this.date,
+    required this.refreshedAt,
+    required this.syncSucceeded,
+    required this.syncError,
+    required this.syncCount,
+    required this.scope,
+    required this.reportedOrders,
+    required this.unreportedOrders,
+  });
+
+  factory SalesReportOrderCockpit.fromJson(Map<String, dynamic> json) {
+    List<SalesReportOrderCockpitItem> itemList(Object? value) {
+      if (value is! List) return const [];
+      return value
+          .whereType<Map>()
+          .map(
+            (item) => SalesReportOrderCockpitItem.fromJson(
+              item.map((key, value) => MapEntry(key.toString(), value)),
+            ),
+          )
+          .where((item) => item.orderCode.isNotEmpty)
+          .toList();
+    }
+
+    return SalesReportOrderCockpit(
+      date: json['date']?.toString() ?? '',
+      refreshedAt: DateTime.tryParse(json['refreshedAt']?.toString() ?? ''),
+      syncSucceeded: json['syncSucceeded'] == true,
+      syncError: json['syncError']?.toString(),
+      syncCount: int.tryParse(json['syncCount']?.toString() ?? '') ?? 0,
+      scope: json['scope']?.toString() ?? 'OWN',
+      reportedOrders: itemList(json['reportedOrders']),
+      unreportedOrders: itemList(json['unreportedOrders']),
+    );
+  }
+}
+
 class SalesReportInput {
   final String reportType;
   final String? orderCode;
@@ -253,5 +402,19 @@ class SalesReportQuery {
   static String _date(DateTime value) {
     String two(int part) => part.toString().padLeft(2, '0');
     return '${value.year}-${two(value.month)}-${two(value.day)}';
+  }
+}
+
+class SalesReportOrdersQuery {
+  final DateTime? date;
+  final int limit;
+
+  const SalesReportOrdersQuery({this.date, this.limit = 50});
+
+  Map<String, String> toQueryParameters() {
+    return {
+      if (date != null) 'date': SalesReportQuery._date(date!),
+      'limit': limit.toString(),
+    };
   }
 }
