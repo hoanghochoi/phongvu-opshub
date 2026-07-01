@@ -242,7 +242,7 @@ class AppRouter {
         ),
         GoRoute(
           path: '/sales-reports',
-          builder: (context, state) => _selectable(const SalesReportScreen()),
+          builder: (context, state) => buildSalesReportHubRoute(),
         ),
         GoRoute(
           path: '/sales-reports/purchased',
@@ -317,6 +317,15 @@ class AppRouter {
       return user?.canUseOffsetAdjustments == true;
     }
     return user?.canUseFeature(featureCode) == true;
+  }
+
+  @visibleForTesting
+  static Widget buildSalesReportHubRoute({SalesReportRepository? repository}) {
+    return ChangeNotifierProvider(
+      create: (_) =>
+          SalesReportProvider(repository ?? SalesReportRepository(ApiClient())),
+      child: _selectable(const SalesReportScreen()),
+    );
   }
 
   @visibleForTesting

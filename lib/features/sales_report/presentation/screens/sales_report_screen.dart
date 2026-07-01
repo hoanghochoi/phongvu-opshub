@@ -193,6 +193,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 
   Future<void> _openPurchasedDialog(SalesReportOrderCockpitItem order) async {
     final user = context.read<AuthProvider>().user;
+    final provider = context.read<SalesReportProvider>();
     await AppLogger.instance.info(
       'SalesReport',
       'Sales report order selected from cockpit',
@@ -213,9 +214,12 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           child: SizedBox(
             width: size.width >= 960 ? 900 : size.width * 0.94,
             height: size.height * 0.90,
-            child: SalesReportFormScreen.purchased(
-              initialOrderCode: order.orderCode,
-              closeOnSuccess: true,
+            child: ChangeNotifierProvider<SalesReportProvider>.value(
+              value: provider,
+              child: SalesReportFormScreen.purchased(
+                initialOrderCode: order.orderCode,
+                closeOnSuccess: true,
+              ),
             ),
           ),
         );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/app/navigation/app_router.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -79,6 +80,72 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Not purchased form'), findsOneWidget);
+  });
+
+  testWidgets('Báo cáo app route provides the sales report provider', (
+    tester,
+  ) async {
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'user-1',
+        email: 'sale@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+        featureAccess: {'SALES_REPORT': true},
+      ),
+    );
+    final repository = _FakeSalesReportRepository();
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp(
+          home: AppRouter.buildSalesReportHubRoute(repository: repository),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(repository.fetchOrdersCount, 1);
+    expect(find.text('Đã báo cáo'), findsOneWidget);
+    expect(find.text('Chưa báo cáo'), findsOneWidget);
+  });
+
+  testWidgets('Báo cáo opens purchased dialog from unreported order', (
+    tester,
+  ) async {
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'user-1',
+        email: 'sale@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+        featureAccess: {'SALES_REPORT': true},
+      ),
+    );
+    final repository = _FakeSalesReportRepository();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(repository),
+          ),
+        ],
+        child: const MaterialApp(home: SalesReportScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('2607010002'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(repository.checkOrderCount, 1);
+    expect(find.text('Báo cáo mua hàng'), findsOneWidget);
+    expect(find.text('Đơn hàng đã kiểm tra'), findsOneWidget);
   });
 
   testWidgets('Báo cáo hub shows export and list actions with admin feature', (
@@ -542,6 +609,7 @@ class _FakeSalesReportRepository extends SalesReportRepository {
   bool createCalled = false;
   int fetchListCount = 0;
   int fetchOrdersCount = 0;
+  int checkOrderCount = 0;
   SalesReportInput? lastInput;
   SalesReportQuery? lastListQuery;
 
@@ -577,6 +645,37 @@ class _FakeSalesReportRepository extends SalesReportRepository {
       'limit': query.limit,
       'total': 0,
     };
+  }
+
+  @override
+  Future<SalesReportOrderCheck> checkOrder(String orderCode) async {
+    checkOrderCount += 1;
+    return SalesReportOrderCheck.fromJson({
+      'orderCode': orderCode,
+      'isCancelled': false,
+      'customerName': 'Trần Thị B',
+      'customerNeed': 'Laptop trả góp',
+      'customerType': 'PERSONAL',
+      'categoryGroups': [
+        {
+          'id': 'NH08',
+          'catGroupName': 'Network and Security equipment',
+          'catGroupNameVi': 'Thiết bị mạng và an ninh',
+        },
+      ],
+      'items': [
+        {'sku': 'SKU-1', 'name': 'Laptop', 'quantity': 1},
+      ],
+      'payments': [
+        {'method': 'cash'},
+      ],
+      'order': {
+        'orderCode': orderCode,
+        'grandTotal': 2500000,
+        'paymentStatus': 'PAID',
+        'terminalName': 'CP62',
+      },
+    });
   }
 
   @override
