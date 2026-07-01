@@ -1162,8 +1162,8 @@ export class SalesReportErpService {
       .trim()
       .toUpperCase();
     if (!text) return null;
-    const bracketMatch = text.match(/^\[([A-Z]{2,3}\d{1,4})\]/);
-    if (bracketMatch) return bracketMatch[1];
+    const bracketMatch = text.match(/^\[([^\]]+)\]/);
+    if (bracketMatch) return this.normalizeStoreCode(bracketMatch[1]);
     const leadingMatch = text.match(/^([A-Z]{2,3}\d{1,4})(?=$|[^A-Z0-9])/);
     return leadingMatch?.[1] ?? null;
   }

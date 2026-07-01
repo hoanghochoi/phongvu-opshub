@@ -414,7 +414,7 @@ describe('SalesReportErpService', () => {
                 fulfillmentStatus: 'PROCESSING',
                 terminalName: 'Kho DDKD37 - 40-42 Thai Nguyen, P. Phuong Sai',
                 createdFromSiteDisplayName:
-                  '[CP37] DIA DIEM KINH DOANH 37 - CONG TY CO PHAN THUONG MAI - DICH VU PHONG VU',
+                  '[CH1001] CHI NHANH 30 - CONG TY CO PHAN THUONG MAI - DICH VU PHONG VU',
                 grandTotal: 2500000,
                 customerName: 'Tran Thi B',
                 customerType: 'PERSONAL',
@@ -446,7 +446,7 @@ describe('SalesReportErpService', () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       orderCode: '2607010002',
-      storeCode: 'CP37',
+      storeCode: 'CH1001',
       terminalName: 'Kho DDKD37 - 40-42 Thai Nguyen, P. Phuong Sai',
       grandTotal: 2500000,
       customerType: 'BUSINESS',
@@ -458,7 +458,7 @@ describe('SalesReportErpService', () => {
       hasTaxCode: true,
     });
     expect(result[0].sanitizedSnapshot.createdFromSiteDisplayName).toBe(
-      '[CP37] DIA DIEM KINH DOANH 37 - CONG TY CO PHAN THUONG MAI - DICH VU PHONG VU',
+      '[CH1001] CHI NHANH 30 - CONG TY CO PHAN THUONG MAI - DICH VU PHONG VU',
     );
   });
 

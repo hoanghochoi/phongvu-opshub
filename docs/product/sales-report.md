@@ -18,12 +18,11 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   `STORE_MANAGER`, hoặc có `ADMIN_SALES_REPORTS`, xem trong phạm vi node tổ chức
   được gán, gồm các showroom/node con; Super Admin xem toàn bộ cache/report
   trong DB.
-- Cockpit có nút `Báo cáo chưa mua`, `Tải lại`; user có quyền admin report có
-  thêm nút xuất CSV và lối vào danh sách báo cáo chi tiết.
-- Cockpit có bộ lọc `Ngày`, `SR` và `User`. Bộ lọc `SR`/`User` chỉ hiện với
-  scope quản lý, lấy option từ chính cache/report đang nằm trong phạm vi user
-  được phép xem. Các nút xuất file trên cockpit dùng cùng bộ lọc ngày/SR/user
-  đang chọn.
+- Cockpit tách hàng filter `Ngày`/`SR`/`User`/`Tải lại` khỏi hàng thao tác
+  `Báo cáo chưa mua`, xuất CSV và lối vào danh sách báo cáo chi tiết. Bộ lọc
+  `SR`/`User` chỉ hiện với scope quản lý, lấy option từ chính cache/report đang
+  nằm trong phạm vi user được phép xem. Các nút xuất file dùng cùng bộ lọc
+  ngày/SR/user đang chọn.
 - Backend tự đồng bộ danh sách đơn từ staff-bff ERP mỗi 3 phút và khi service
   khởi động, map `creator.email` sang user nội bộ cùng showroom/node tổ chức
   được gán, rồi upsert snapshot rút gọn vào bảng cache riêng. Mapping này diễn
@@ -149,7 +148,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - `SalesReportErpOrderCache` lưu snapshot rút gọn của đơn ERP trong ngày để
   cockpit tách đơn chưa/đã báo cáo mà không phụ thuộc sale nhớ tự mở form. Dữ
   liệu gồm mã đơn, ngày tạo, trạng thái, showroom/node, mã SR ưu tiên tách từ
-  `data.orders.createdFromSiteDisplayName` dạng `[CP01] ...`,
+  `data.orders.createdFromSiteDisplayName` dạng `[CP01] ...` hoặc
+  `[CH1001] ...`,
   `creator.email` từ `data.orders.creator.email`, người tư vấn/người bán nếu
   ERP trả về, tổng tiền, phương thức thanh toán, metadata lần sync nền và
   snapshot đã sanitize. API

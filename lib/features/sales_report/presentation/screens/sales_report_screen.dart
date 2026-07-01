@@ -319,131 +319,150 @@ class _SalesReportCockpit extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cockpit = provider.orderCockpit;
+    final hasActionRow = canSubmitReports || canViewAdminReports;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AppSurfaceCard(
-          child: Wrap(
-            spacing: AppLayoutTokens.formInlineGap,
-            runSpacing: AppLayoutTokens.formInlineGap,
-            alignment: WrapAlignment.start,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(
-                width: 190,
-                child: OutlinedButton.icon(
-                  onPressed: provider.isLoadingOrders ? null : onSelectDate,
-                  icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                  label: Text('Ngày: ${_dateLabel(provider.ordersDate)}'),
-                ),
-              ),
-              if (cockpit?.scope == 'MANAGED_SCOPE')
-                SizedBox(
-                  width: 220,
-                  child: AppFilterDropdown<String>(
-                    label: 'SR',
-                    value: provider.ordersStoreCode,
-                    allLabel: 'Tất cả',
-                    icon: Icons.store_outlined,
-                    options: provider.orderStoreOptions
-                        .map(
-                          (option) => AppFilterOption<String>(
-                            value: option.value,
-                            label: option.label,
-                          ),
-                        )
-                        .toList(growable: false),
-                    onChanged: (value) => unawaited(
-                      provider.setOrderFilters(
-                        storeCode: value,
-                        updateStore: true,
-                      ),
+              Wrap(
+                spacing: AppLayoutTokens.formInlineGap,
+                runSpacing: AppLayoutTokens.formInlineGap,
+                alignment: WrapAlignment.start,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 190,
+                    child: OutlinedButton.icon(
+                      onPressed: provider.isLoadingOrders ? null : onSelectDate,
+                      icon: const Icon(Icons.calendar_today_outlined, size: 18),
+                      label: Text('Ngày: ${_dateLabel(provider.ordersDate)}'),
                     ),
                   ),
-                ),
-              if (cockpit?.scope == 'MANAGED_SCOPE')
-                SizedBox(
-                  width: 280,
-                  child: AppSearchableFilterDropdown<String>(
-                    label: 'User',
-                    value: provider.ordersUserEmail,
-                    allLabel: 'Tất cả',
-                    icon: Icons.person_outline_rounded,
-                    options: provider.orderUserOptions
-                        .map(
-                          (option) => AppFilterOption<String>(
-                            value: option.value,
-                            label: option.label,
+                  if (cockpit?.scope == 'MANAGED_SCOPE')
+                    SizedBox(
+                      width: 220,
+                      child: AppFilterDropdown<String>(
+                        label: 'SR',
+                        value: provider.ordersStoreCode,
+                        allLabel: 'Tất cả',
+                        icon: Icons.store_outlined,
+                        options: provider.orderStoreOptions
+                            .map(
+                              (option) => AppFilterOption<String>(
+                                value: option.value,
+                                label: option.label,
+                              ),
+                            )
+                            .toList(growable: false),
+                        onChanged: (value) => unawaited(
+                          provider.setOrderFilters(
+                            storeCode: value,
+                            updateStore: true,
                           ),
-                        )
-                        .toList(growable: false),
-                    onChanged: (value) => unawaited(
-                      provider.setOrderFilters(
-                        userEmail: value,
-                        updateUser: true,
+                        ),
                       ),
                     ),
+                  if (cockpit?.scope == 'MANAGED_SCOPE')
+                    SizedBox(
+                      width: 280,
+                      child: AppSearchableFilterDropdown<String>(
+                        label: 'User',
+                        value: provider.ordersUserEmail,
+                        allLabel: 'Tất cả',
+                        icon: Icons.person_outline_rounded,
+                        options: provider.orderUserOptions
+                            .map(
+                              (option) => AppFilterOption<String>(
+                                value: option.value,
+                                label: option.label,
+                              ),
+                            )
+                            .toList(growable: false),
+                        onChanged: (value) => unawaited(
+                          provider.setOrderFilters(
+                            userEmail: value,
+                            updateUser: true,
+                          ),
+                        ),
+                      ),
+                    ),
+                  SizedBox(
+                    width: 160,
+                    child: AppSecondaryButton(
+                      onPressed: provider.isLoadingOrders ? null : onReload,
+                      icon: Icons.refresh_rounded,
+                      label: 'Tải lại',
+                      isLoading: provider.isLoadingOrders,
+                    ),
                   ),
-                ),
-              if (canSubmitReports)
-                SizedBox(
-                  width: 220,
-                  child: AppPrimaryButton(
-                    onPressed: onNotPurchased,
-                    icon: Icons.person_search_outlined,
-                    label: 'Báo cáo chưa mua',
-                  ),
-                ),
-              SizedBox(
-                width: 160,
-                child: AppSecondaryButton(
-                  onPressed: provider.isLoadingOrders ? null : onReload,
-                  icon: Icons.refresh_rounded,
-                  label: 'Tải lại',
-                  isLoading: provider.isLoadingOrders,
-                ),
+                ],
               ),
-              if (canViewAdminReports)
-                SizedBox(
-                  width: 180,
-                  child: AppSecondaryButton(
-                    onPressed: provider.isExporting ? null : onExportHvtc,
-                    icon: Icons.download_rounded,
-                    label: 'Xuất HVTC',
-                    isLoading: provider.isExporting,
-                  ),
+              if (hasActionRow) ...[
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                Wrap(
+                  spacing: AppLayoutTokens.formInlineGap,
+                  runSpacing: AppLayoutTokens.formInlineGap,
+                  alignment: WrapAlignment.start,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (canSubmitReports)
+                      SizedBox(
+                        width: 220,
+                        child: AppPrimaryButton(
+                          onPressed: onNotPurchased,
+                          icon: Icons.person_search_outlined,
+                          label: 'Báo cáo chưa mua',
+                        ),
+                      ),
+                    if (canViewAdminReports)
+                      SizedBox(
+                        width: 180,
+                        child: AppSecondaryButton(
+                          onPressed: provider.isExporting ? null : onExportHvtc,
+                          icon: Icons.download_rounded,
+                          label: 'Xuất HVTC',
+                          isLoading: provider.isExporting,
+                        ),
+                      ),
+                    if (canViewAdminReports)
+                      SizedBox(
+                        width: 190,
+                        child: AppSecondaryButton(
+                          onPressed: provider.isExporting
+                              ? null
+                              : onExportRevenue,
+                          icon: Icons.download_rounded,
+                          label: 'Xuất Doanh số',
+                          isLoading: provider.isExporting,
+                        ),
+                      ),
+                    if (canViewAdminReports)
+                      SizedBox(
+                        width: 190,
+                        child: AppSecondaryButton(
+                          onPressed: provider.isExporting
+                              ? null
+                              : onExportInstallment,
+                          icon: Icons.download_rounded,
+                          label: 'Xuất Trả góp',
+                          isLoading: provider.isExporting,
+                        ),
+                      ),
+                    if (canViewAdminReports)
+                      SizedBox(
+                        width: 170,
+                        child: AppSecondaryButton(
+                          onPressed: onOpenAdmin,
+                          icon: Icons.assignment_outlined,
+                          label: 'Danh sách',
+                        ),
+                      ),
+                  ],
                 ),
-              if (canViewAdminReports)
-                SizedBox(
-                  width: 190,
-                  child: AppSecondaryButton(
-                    onPressed: provider.isExporting ? null : onExportRevenue,
-                    icon: Icons.download_rounded,
-                    label: 'Xuất Doanh số',
-                    isLoading: provider.isExporting,
-                  ),
-                ),
-              if (canViewAdminReports)
-                SizedBox(
-                  width: 190,
-                  child: AppSecondaryButton(
-                    onPressed: provider.isExporting
-                        ? null
-                        : onExportInstallment,
-                    icon: Icons.download_rounded,
-                    label: 'Xuất Trả góp',
-                    isLoading: provider.isExporting,
-                  ),
-                ),
-              if (canViewAdminReports)
-                SizedBox(
-                  width: 170,
-                  child: AppSecondaryButton(
-                    onPressed: onOpenAdmin,
-                    icon: Icons.assignment_outlined,
-                    label: 'Danh sách',
-                  ),
-                ),
+              ],
             ],
           ),
         ),
