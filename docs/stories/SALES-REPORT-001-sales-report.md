@@ -15,8 +15,10 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   action xuất file/danh sách khi user có quyền admin report.
 - Backend tự đồng bộ danh sách đơn ERP từ staff-bff theo ngày mỗi 3 phút và khi
   service khởi động, mặc định 50 đơn, rồi upsert snapshot rút gọn vào bảng
-  cache riêng. Flutter không kích hoạt ERP sync; client chỉ đọc cache DB khi mở
-  màn hình, khi bấm `Tải lại`, và mỗi 3 phút khi còn ở màn này.
+  cache riêng. Ngay trong lần sync, backend map `creator.email` sang user nội
+  bộ và showroom/node được gán; payload sync thiếu dữ liệu không được xóa
+  mapping đã lưu. Flutter không kích hoạt ERP sync; client chỉ đọc cache DB khi
+  mở màn hình, khi bấm `Tải lại`, và mỗi 3 phút khi còn ở màn này.
 - User thường chỉ thấy đơn/report của mình theo
   `data.orders.creator.email`, fallback về consultant/seller/source-user
   snapshot nếu ERP không trả creator. STORE_MANAGER hoặc chức danh quản lý theo
@@ -66,10 +68,10 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   theo các cột hành vi khách hàng; `Doanh số` một dòng tổng hợp số đơn duy
   nhất, doanh thu doanh nghiệp/cá nhân, lý do không trả góp và số lượng theo
   type laptop/PC/PC ráp/Apple/màn hình/máy in/phụ kiện/bảo hiểm mở rộng;
-  `Trả góp` chỉ lấy các row có `installmentNeed = true`, gồm các cột
-  `Ngày báo cáo`, `createdByEmail`, `installmentLoanAmount`,
-  `installmentPartnerCodes`, `installmentApproved`, `reportType`,
-  `Phương thức thanh toán cuối cùng`, `installmentNoInstallmentReason`.
+  `Trả góp` chỉ lấy các row có `installmentNeed = true`, gồm các cột tiếng Việt
+  `Ngày báo cáo`, `Email người báo cáo`, `Số tiền vay trả góp`,
+  `Đối tác trả góp`, `Kết quả duyệt hồ sơ`, `Loại báo cáo`,
+  `Phương thức thanh toán cuối cùng`, `Lý do không trả góp`.
 - Admin có `ADMIN_SALES_REPORTS` theo node tổ chức xem/query/export báo cáo
   trong phạm vi được gán; Super Admin thấy toàn app.
 - Ngành hàng lấy từ `data/categories.csv`, hiển thị tiếng Việt và lưu snapshot

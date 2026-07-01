@@ -21,7 +21,10 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Cockpit có nút `Báo cáo chưa mua`, `Tải lại`; user có quyền admin report có
   thêm nút xuất CSV và lối vào danh sách báo cáo chi tiết.
 - Backend tự đồng bộ danh sách đơn từ staff-bff ERP mỗi 3 phút và khi service
-  khởi động, rồi upsert snapshot rút gọn vào bảng cache riêng. Flutter không
+  khởi động, map `creator.email` sang user nội bộ cùng showroom/node tổ chức
+  được gán, rồi upsert snapshot rút gọn vào bảng cache riêng. Mapping này diễn
+  ra ngay trong sync nền, không phụ thuộc sale bấm kiểm tra đơn; lần sync thiếu
+  dữ liệu cũng không được xóa mapping user/showroom đã lưu. Flutter không
   kích hoạt ERP sync; client chỉ đọc dữ liệu realtime/near-realtime từ cache DB
   khi mở màn hình, khi bấm `Tải lại`, và mỗi 3 phút khi màn hình còn mở.
 - Khi sale bấm một đơn chưa báo cáo, app mở form báo cáo mua hàng trong dialog,
@@ -104,9 +107,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   laptop, PC, PC ráp, Apple chỉ tính Macbook/iPhone/iPad, màn hình, máy in,
   phụ kiện và dịch vụ bảo hiểm.
 - File `Trả góp` xuất một dòng cho mỗi báo cáo có nhu cầu trả góp, gồm:
-  `Ngày báo cáo`, `createdByEmail`, `installmentLoanAmount`,
-  `installmentPartnerCodes`, `installmentApproved`, `reportType`,
-  `Phương thức thanh toán cuối cùng`, `installmentNoInstallmentReason`.
+  `Ngày báo cáo`, `Email người báo cáo`, `Số tiền vay trả góp`,
+  `Đối tác trả góp`, `Kết quả duyệt hồ sơ`, `Loại báo cáo`,
+  `Phương thức thanh toán cuối cùng`, `Lý do không trả góp`.
   `Phương thức thanh toán cuối cùng` đọc từ `erpPaymentMethods`: có payment
   method installment thì ghi `Trả góp`, không có thì ghi `Trả thẳng`.
 - Giá trị trong CSV không bọc dấu nháy kép; dấu phẩy trong nội dung được đổi

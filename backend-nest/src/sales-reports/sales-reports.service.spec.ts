@@ -6,6 +6,7 @@ describe('SalesReportsService', () => {
     const prisma = {
       user: {
         findUnique: jest.fn().mockResolvedValue(userFixture()),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       salesReport: {
         findUnique: jest.fn().mockResolvedValue(null),
@@ -327,6 +328,136 @@ describe('SalesReportsService', () => {
     }
   });
 
+  it('maps the ERP creator to the assigned user and store during scheduled sync', async () => {
+    const { service, prisma, erp } = createHarness();
+    const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+    delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = '1';
+    erp.listRecentOrders.mockResolvedValueOnce([
+      {
+        ...erpListOrderFixture(),
+        orderCode: '2607010003',
+        storeCode: null,
+        storeName: null,
+        consultantEmail: 'sale.cp01@phongvu.vn',
+        sellerEmail: 'sale.cp01@phongvu.vn',
+      },
+    ]);
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'sale-cp01',
+        email: 'Sale.CP01@phongvu.vn',
+        store: null,
+        organizationNode: null,
+        organizationAssignments: [
+          {
+            organizationNode: {
+              id: 'node-cp01',
+              stores: [
+                {
+                  storeId: 'CP01',
+                  storeName: 'Phong Vu CP01',
+                },
+              ],
+              children: [],
+              parent: null,
+            },
+          },
+        ],
+      },
+    ]);
+
+    try {
+      await service.syncScheduledErpOrderCache('test-owner-map');
+
+      expect(prisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            email: {
+              in: ['sale.cp01@phongvu.vn'],
+              mode: 'insensitive',
+            },
+          },
+        }),
+      );
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '2607010003' },
+          create: expect.objectContaining({
+            sourceUserId: 'sale-cp01',
+            sourceUserEmail: 'sale.cp01@phongvu.vn',
+            storeCode: 'CP01',
+            storeName: 'Phong Vu CP01',
+            organizationNodeId: 'node-cp01',
+          }),
+          update: expect.objectContaining({
+            sourceUserId: 'sale-cp01',
+            sourceUserEmail: 'sale.cp01@phongvu.vn',
+            storeCode: 'CP01',
+            organizationNodeId: 'node-cp01',
+          }),
+        }),
+      );
+    } finally {
+      if (oldEnabled === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_ENABLED = oldEnabled;
+      }
+      if (oldLookback === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = oldLookback;
+      }
+    }
+  });
+
+  it('does not erase an existing cache owner or store when ERP mapping is missing', async () => {
+    const { service, prisma, erp } = createHarness();
+    const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+    delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = '1';
+    erp.listRecentOrders.mockResolvedValueOnce([
+      {
+        ...erpListOrderFixture(),
+        storeCode: null,
+        storeName: null,
+        consultantCustomId: null,
+        consultantName: null,
+        consultantEmail: null,
+        sellerId: null,
+        sellerName: null,
+        sellerEmail: null,
+      },
+    ]);
+
+    try {
+      await service.syncScheduledErpOrderCache('test-preserve-map');
+
+      const upsert = prisma.salesReportErpOrderCache.upsert.mock.calls[0][0];
+      expect(upsert.create).toEqual(
+        expect.objectContaining({ storeCode: null, sourceUserEmail: null }),
+      );
+      expect(upsert.update).not.toHaveProperty('storeCode');
+      expect(upsert.update).not.toHaveProperty('organizationNodeId');
+      expect(upsert.update).not.toHaveProperty('sourceUserEmail');
+      expect(upsert.update).not.toHaveProperty('consultantEmail');
+    } finally {
+      if (oldEnabled === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_ENABLED = oldEnabled;
+      }
+      if (oldLookback === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = oldLookback;
+      }
+    }
+  });
+
   it('can disable the scheduled ERP order cache sync through env', async () => {
     const { service, prisma, erp } = createHarness();
     const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
@@ -626,13 +757,13 @@ describe('SalesReportsService', () => {
     expect(lines[0]).toBe(
       [
         'Ngày báo cáo',
-        'createdByEmail',
-        'installmentLoanAmount',
-        'installmentPartnerCodes',
-        'installmentApproved',
-        'reportType',
+        'Email người báo cáo',
+        'Số tiền vay trả góp',
+        'Đối tác trả góp',
+        'Kết quả duyệt hồ sơ',
+        'Loại báo cáo',
         'Phương thức thanh toán cuối cùng',
-        'installmentNoInstallmentReason',
+        'Lý do không trả góp',
       ].join(','),
     );
     expect(lines).toHaveLength(3);

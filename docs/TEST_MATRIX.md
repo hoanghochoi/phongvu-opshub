@@ -52,16 +52,19 @@ Recent focused evidence:
   startup, upserts rows into `SalesReportErpOrderCache`, keeps user/admin
   visibility scoped by `data.orders.creator.email` with consultant/seller
   fallback or assigned organization subtree for `STORE_MANAGER` and other
-  manager roles, gives Super Admin the full saved cache/report scope, and
+  manager roles, maps the ERP creator to the internal user and assigned
+  store/node during the scheduled upsert without erasing an existing mapping
+  when a later payload is incomplete, gives Super Admin the full saved
+  cache/report scope, and
   reuses the existing purchased `check-order` flow when a user opens an
   unreported order dialog. Flutter only reads the DB cache on open,
   manual reload, and every 3 minutes while the screen is mounted. The admin
   export surface also includes `Trả góp`, which filters `installmentNeed = true`
-  and exports the requested installment columns plus the derived final payment
+  and exports Vietnamese installment columns plus the derived final payment
   method. Validation:
   `npx prisma validate`, `npx prisma generate`,
-  `npm test -- --runInBand src/feature/feature.guard.spec.ts src/sales-reports`
-  (30 tests), `npm run build`,
+  `npm test -- --runInBand src/sales-reports`
+  (34 tests), `npm run build`,
   `flutter test --no-pub --reporter expanded test\sales_report_hub_test.dart`
   (12 tests), focused `dart analyze` on changed sales-report files, and
   `git diff --check` (CRLF warnings only).

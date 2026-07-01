@@ -78,6 +78,14 @@ type SalesReportOrderCockpitFilters = {
   unreportedPage: number;
 };
 
+type SalesReportOrderSyncOwner = {
+  id: string;
+  email: string;
+  storeCode: string | null;
+  storeName: string | null;
+  organizationNodeId: string | null;
+};
+
 const ANSWER_LABELS: Record<string, string> = {
   YES: 'Có',
   CUSTOMER_BUSY_OR_NO_NEED:
@@ -610,6 +618,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         limit: input.limit,
       });
     const context = this.systemOrderSyncContext();
+    const ownerByEmail = await this.syncOrderOwnersByEmail(orders);
     const storeByCode = await this.storesByCode(
       orders
         .map(
@@ -618,10 +627,105 @@ export class SalesReportsService implements OnApplicationBootstrap {
         )
         .filter((code: string | null): code is string => Boolean(code)),
     );
+    let ownerMappedCount = 0;
+    let storeMappedCount = 0;
     for (const order of orders) {
-      await this.upsertErpOrderCacheItem(null, context, order, storeByCode);
+      const owner = this.syncOrderOwner(order, ownerByEmail);
+      if (owner) ownerMappedCount += 1;
+      if (order.storeCode || owner?.storeCode) storeMappedCount += 1;
+      await this.upsertErpOrderCacheItem(
+        null,
+        context,
+        order,
+        storeByCode,
+        owner,
+      );
     }
+    this.logger.log(
+      `Sales report ERP order cache mapping completed: source=${input.source} orders=${orders.length} ownerMapped=${ownerMappedCount} storeMapped=${storeMappedCount} missingStore=${orders.length - storeMappedCount}`,
+    );
     return orders.length;
+  }
+
+  private async syncOrderOwnersByEmail(
+    orders: SalesReportErpOrderListItem[],
+  ): Promise<Map<string, SalesReportOrderSyncOwner>> {
+    const emails = Array.from(
+      new Set(
+        orders
+          .flatMap((order) => [order.consultantEmail, order.sellerEmail])
+          .map((email) => this.normalizeEmail(email))
+          .filter((email): email is string => Boolean(email)),
+      ),
+    );
+    if (emails.length === 0 || !(this.prisma as any).user?.findMany) {
+      return new Map();
+    }
+    const users = await this.prisma.user.findMany({
+      where: { email: { in: emails, mode: 'insensitive' } },
+      include: {
+        store: { include: { organizationNode: true } },
+        organizationNode: true,
+        organizationAssignments: {
+          where: { isActive: true },
+          orderBy: [
+            { isPrimary: Prisma.SortOrder.desc },
+            { createdAt: Prisma.SortOrder.asc },
+          ],
+          include: {
+            organizationNode: {
+              include: organizationNodeStoreTreeInclude(),
+            },
+          },
+        },
+      },
+    });
+    const entries = users
+      .map((user: any) => {
+        const email = this.normalizeEmail(user.email);
+        if (!email) return null;
+        const primaryAssignment = user.organizationAssignments?.[0] ?? null;
+        const assignedStore =
+          storesForOrganizationNodeTree(
+            primaryAssignment?.organizationNode,
+          )[0] ??
+          user.store ??
+          null;
+        const organizationNode =
+          assignedStore?.organizationNode ??
+          primaryAssignment?.organizationNode ??
+          user.organizationNode ??
+          null;
+        return [
+          email,
+          {
+            id: user.id,
+            email,
+            storeCode: this.normalizeStoreCode(assignedStore?.storeId),
+            storeName: this.optionalText(assignedStore?.storeName, 120),
+            organizationNodeId:
+              this.optionalText(organizationNode?.id, 80) ?? null,
+          } satisfies SalesReportOrderSyncOwner,
+        ] as const;
+      })
+      .filter((entry): entry is readonly [string, SalesReportOrderSyncOwner] =>
+        Boolean(entry),
+      );
+    return new Map(entries);
+  }
+
+  private syncOrderOwner(
+    order: SalesReportErpOrderListItem,
+    ownerByEmail: Map<string, SalesReportOrderSyncOwner>,
+  ) {
+    const emails = [order.consultantEmail, order.sellerEmail]
+      .map((email) => this.normalizeEmail(email))
+      .filter((email): email is string => Boolean(email));
+    for (const email of emails) {
+      const owner = ownerByEmail.get(email);
+      if (owner) return owner;
+    }
+    return null;
   }
 
   private systemOrderSyncContext(): Awaited<
@@ -682,11 +786,12 @@ export class SalesReportsService implements OnApplicationBootstrap {
     context: Awaited<ReturnType<SalesReportsService['resolveUserSnapshot']>>,
     order: SalesReportErpOrderListItem,
     storeByCode: Map<string, any>,
+    syncOwner: SalesReportOrderSyncOwner | null = null,
   ) {
     const orderCode = this.normalizeOrderCode(order.orderCode);
     if (!orderCode) return;
     const storeCode = this.normalizeStoreCode(
-      order.storeCode ?? context.storeCode,
+      order.storeCode ?? syncOwner?.storeCode ?? context.storeCode,
     );
     const store = storeCode ? storeByCode.get(storeCode) : null;
     const data = {
@@ -713,20 +818,41 @@ export class SalesReportsService implements OnApplicationBootstrap {
       storeName:
         this.optionalText(order.storeName, 120) ??
         this.optionalText(store?.storeName, 120) ??
+        (storeCode === syncOwner?.storeCode ? syncOwner.storeName : null) ??
         context.storeName,
       organizationNodeId:
-        store?.organizationNodeId ?? context.organizationNodeId,
-      sourceUserId: this.optionalText(user?.id, 80),
+        store?.organizationNodeId ??
+        (storeCode === syncOwner?.storeCode
+          ? syncOwner.organizationNodeId
+          : null) ??
+        context.organizationNodeId,
+      sourceUserId: this.optionalText(syncOwner?.id ?? user?.id, 80),
       sourceUserEmail: this.normalizeEmail(
-        context.createdByEmail ?? user?.email,
+        syncOwner?.email ?? context.createdByEmail ?? user?.email,
       ),
       sanitizedSnapshot: order.sanitizedSnapshot as Prisma.InputJsonValue,
       fetchedAt: order.fetchedAt,
     };
+    const updateData = { ...data } as Record<string, unknown>;
+    for (const key of [
+      'consultantCustomId',
+      'consultantName',
+      'consultantEmail',
+      'sellerId',
+      'sellerName',
+      'sellerEmail',
+      'storeCode',
+      'storeName',
+      'organizationNodeId',
+      'sourceUserId',
+      'sourceUserEmail',
+    ]) {
+      if (updateData[key] === null) delete updateData[key];
+    }
     await this.prisma.salesReportErpOrderCache.upsert({
       where: { orderCode },
       create: { orderCode, ...data },
-      update: data,
+      update: updateData,
     });
   }
 
@@ -1696,13 +1822,13 @@ export class SalesReportsService implements OnApplicationBootstrap {
   private buildInstallmentCsv(rows: any[]) {
     const headers = [
       'Ngày báo cáo',
-      'createdByEmail',
-      'installmentLoanAmount',
-      'installmentPartnerCodes',
-      'installmentApproved',
-      'reportType',
+      'Email người báo cáo',
+      'Số tiền vay trả góp',
+      'Đối tác trả góp',
+      'Kết quả duyệt hồ sơ',
+      'Loại báo cáo',
       'Phương thức thanh toán cuối cùng',
-      'installmentNoInstallmentReason',
+      'Lý do không trả góp',
     ];
     const lines = [headers.map((header) => this.csvCell(header)).join(',')];
     for (const row of rows.filter((item) => item.installmentNeed === true)) {
