@@ -335,10 +335,10 @@ class _SalesReportCockpit extends StatelessWidget {
                 children: [
                   SizedBox(
                     width: 190,
-                    child: OutlinedButton.icon(
+                    child: AppSecondaryButton(
                       onPressed: provider.isLoadingOrders ? null : onSelectDate,
-                      icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                      label: Text('Ngày: ${_dateLabel(provider.ordersDate)}'),
+                      icon: Icons.calendar_today_outlined,
+                      label: 'Ngày: ${_dateLabel(provider.ordersDate)}',
                     ),
                   ),
                   if (cockpit?.scope == 'MANAGED_SCOPE')

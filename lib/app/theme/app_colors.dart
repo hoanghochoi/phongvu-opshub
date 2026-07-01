@@ -22,6 +22,9 @@ class AppColors {
 
   // ── Design-system semantic colours (Figma Foundation/Color 2026) ─
   static const Color primary = Color(0xFF0A66C2);
+  static const Color primaryHover = Color(0xFF07539F);
+  static const Color primaryPressed = Color(0xFF054987);
+  static const Color primarySurface = Color(0xFFE8F2FF);
   static const Color secondary = Color(0xFF0F766E);
   static const Color accent = Color(0xFF7C3AED);
 
@@ -33,9 +36,13 @@ class AppColors {
   // ── Semantic ─────────────────────────────────────────────────────
   static const Color info = Color(0xFF2563EB);
   static const Color success = Color(0xFF12805C);
-  static const Color warning = Color(0xFFB7791F);
+  static const Color warning = Color(0xFF8A5A08);
   static const Color error = Color(0xFFC2410C);
   static const Color danger = error;
+  static const Color successSurface = Color(0xFFDCFCE7);
+  static const Color warningSurface = Color(0xFFFEF3C7);
+  static const Color errorSurface = Color(0xFFFFEDD5);
+  static const Color infoSurface = Color(0xFFDBEAFE);
   static const Color teal600 = secondary; // VietQR
   static const Color violet600 = accent; // Payment monitor
   static const Color indigo600 = Color(0xFF4F46E5);
@@ -66,10 +73,19 @@ class AppColors {
   static const Color divider = Color(0xFFE6EAF0);
   static const Color hover = Color(0xFFEAF3FF);
   static const Color pressed = Color(0xFFD8EAFE);
+  static const Color selected = Color(0xFFE0F2FE);
   static const Color focus = info;
   static const Color disabled = neutral400;
   static const Color onSurface = Color(0xFF111827);
   static const Color onSurfaceVariant = Color(0xFF64748B);
+  static const Color textSecondary = Color(0xFF4B5563);
+  static const Color textMuted = Color(0xFF64748B);
+
+  // ── Navigation ──────────────────────────────────────────────────
+  static const Color sidebarSurface = Color(0xFF101828);
+  static const Color sidebarText = Color(0xFFFFFFFF);
+  static const Color sidebarMuted = Color(0xFFD0D5DD);
+  static const Color sidebarSelected = Color(0xFFE8F2FF);
 
   // ── Chip / tag background ────────────────────────────────────────
   static const Color chipBackground = Color(0xFFF1F5F9);
@@ -90,23 +106,84 @@ class AppColors {
 
   // ── Dark-mode variants ────────────────────────────────────────────
   static const Color darkPrimary = Color(0xFF6EB6FF);
+  static const Color darkPrimaryHover = Color(0xFF93C5FD);
+  static const Color darkPrimaryPressed = Color(0xFF25476F);
+  static const Color darkPrimarySurface = Color(0xFF071D33);
   static const Color darkSecondary = Color(0xFF5EEAD4);
   static const Color darkAccent = Color(0xFFC4B5FD);
   static const Color darkInfo = Color(0xFF93C5FD);
   static const Color darkSuccess = Color(0xFF34D399);
   static const Color darkWarning = Color(0xFFFBBF24);
   static const Color darkError = Color(0xFFFB7185);
+  static const Color darkSuccessSurface = Color(0xFF052E22);
+  static const Color darkWarningSurface = Color(0xFF3A2604);
+  static const Color darkErrorSurface = Color(0xFF3B0A03);
+  static const Color darkInfoSurface = Color(0xFF061D3A);
   static const Color darkSurface = Color(0xFF111827);
   static const Color darkCard = Color(0xFF172033);
+  static const Color darkRaised = Color(0xFF1F2937);
   static const Color darkScaffold = Color(0xFF0B1220);
   static const Color darkBorder = Color(0xFF334155);
   static const Color darkDivider = Color(0xFF1F2937);
   static const Color darkTextPrimary = Color(0xFFF8FAFC);
   static const Color darkTextSecondary = Color(0xFFCBD5E1);
+  static const Color darkTextMuted = Color(0xFF94A3B8);
+  static const Color darkSidebarSurface = Color(0xFF070D19);
+  static const Color darkSidebarText = Color(0xFFF8FAFC);
+  static const Color darkSidebarMuted = Color(0xFFCBD5E1);
+  static const Color darkSidebarSelected = Color(0xFF17324D);
   static const Color darkChipBg = Color(0xFF2A2A2A);
   static const Color darkNeutral50 = Color(0xFF1A1A1A);
   static const Color darkNeutral100 = Color(0xFF2D2D2D);
   static const Color darkGradientStart = Color(0xFF0B1220);
   static const Color darkGradientMid = Color(0xFF1E3A5F);
   static const Color darkGradientEnd = Color(0xFF25476F);
+
+  static bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  static Color canvasOf(BuildContext context) =>
+      isDark(context) ? darkScaffold : background;
+
+  static Color cardOf(BuildContext context) =>
+      isDark(context) ? darkCard : card;
+
+  static Color raisedOf(BuildContext context) =>
+      isDark(context) ? darkRaised : surface;
+
+  static Color overlayOf(BuildContext context) =>
+      isDark(context) ? darkSurface : surface;
+
+  static Color textPrimaryOf(BuildContext context) =>
+      isDark(context) ? darkTextPrimary : onSurface;
+
+  static Color textSecondaryOf(BuildContext context) =>
+      isDark(context) ? darkTextSecondary : textSecondary;
+
+  static Color textMutedOf(BuildContext context) =>
+      isDark(context) ? darkTextMuted : textMuted;
+
+  static Color borderOf(BuildContext context) =>
+      isDark(context) ? darkBorder : border;
+
+  static Color subtleBorderOf(BuildContext context) =>
+      isDark(context) ? darkDivider : divider;
+
+  static Color primaryOf(BuildContext context) =>
+      isDark(context) ? darkPrimary : primary;
+
+  static Color primarySurfaceOf(BuildContext context) =>
+      isDark(context) ? darkPrimarySurface : primarySurface;
+
+  static Color sidebarSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkSidebarSurface : sidebarSurface;
+
+  static Color sidebarTextOf(BuildContext context) =>
+      isDark(context) ? darkSidebarText : sidebarText;
+
+  static Color sidebarMutedOf(BuildContext context) =>
+      isDark(context) ? darkSidebarMuted : sidebarMuted;
+
+  static Color sidebarSelectedOf(BuildContext context) =>
+      isDark(context) ? darkSidebarSelected : sidebarSelected;
 }

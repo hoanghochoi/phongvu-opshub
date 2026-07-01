@@ -8,8 +8,14 @@ class AppLayoutTokens {
   AppLayoutTokens._();
 
   static const double compactBreakpoint = 600;
-  static const double desktopBreakpoint = 900;
+  static const double tabletBreakpoint = 900;
+  static const double desktopBreakpoint = 1200;
+  static const double legacyDesktopBreakpoint = tabletBreakpoint;
   static const double pageMaxWidth = 1180;
+  static const double sidebarWidth = 250;
+  static const double tabletRailWidth = 88;
+  static const double shellTopBarHeight = 72;
+  static const double mobileBottomNavHeight = 76;
   static const double formMaxWidth = 720;
   static const double actionBarMaxWidth = 560;
   static const double authMaxWidth = 460;
@@ -23,13 +29,13 @@ class AppLayoutTokens {
   static const double cardMarginBottom = 10;
 
   static EdgeInsets pagePaddingFor(double width) {
-    if (width >= desktopBreakpoint) {
+    if (width >= tabletBreakpoint) {
       return const EdgeInsets.fromLTRB(32, 24, 32, 24);
     }
     return const EdgeInsets.fromLTRB(16, 16, 16, 16);
   }
 
-  static int formColumnsFor(double width) => width >= desktopBreakpoint ? 2 : 1;
+  static int formColumnsFor(double width) => width >= tabletBreakpoint ? 2 : 1;
 }
 
 class AppResponsiveContent extends StatelessWidget {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/storage/app_storage_keys.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -46,7 +47,7 @@ void main() {
     expect(find.byKey(const ValueKey(avatarUrl)), findsOneWidget);
   });
 
-  testWidgets('App info dialog shows developer credit', (
+  testWidgets('App info dialog shows OpsHub summary from account menu', (
     WidgetTester tester,
   ) async {
     SharedPreferences.setMockInitialValues({
@@ -68,20 +69,23 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider<AuthProvider>(
         create: (_) => AuthProvider(AuthRepository(ApiClient())),
-        child: const MaterialApp(home: HomeScreen()),
+        child: const MaterialApp(
+          home: AppShell(location: '/home', child: HomeScreen()),
+        ),
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Menu'));
+    await tester.tap(find.byTooltip('Tài khoản'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Thông tin ứng dụng'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Dev by Hoang Nguyen aka Hoàng Học Hỏi'), findsOneWidget);
+    expect(find.text('Thông tin ứng dụng'), findsOneWidget);
+    expect(find.text('Kết nối con người. Đồng bộ vận hành.'), findsOneWidget);
   });
 
-  testWidgets('Home moves logout from header into side menu', (
+  testWidgets('AppShell keeps logout in the account menu', (
     WidgetTester tester,
   ) async {
     SharedPreferences.setMockInitialValues({
@@ -103,20 +107,22 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider<AuthProvider>(
         create: (_) => AuthProvider(AuthRepository(ApiClient())),
-        child: const MaterialApp(home: HomeScreen()),
+        child: const MaterialApp(
+          home: AppShell(location: '/home', child: HomeScreen()),
+        ),
       ),
     );
     await tester.pumpAndSettle();
 
     expect(find.byTooltip('Đăng xuất'), findsNothing);
 
-    await tester.tap(find.byTooltip('Menu'));
+    await tester.tap(find.byTooltip('Tài khoản'));
     await tester.pumpAndSettle();
 
     expect(find.text('Đăng xuất'), findsOneWidget);
   });
 
-  testWidgets('Home side menu exposes the help page link', (
+  testWidgets('AppShell account menu exposes the help page link', (
     WidgetTester tester,
   ) async {
     SharedPreferences.setMockInitialValues({
@@ -138,12 +144,14 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider<AuthProvider>(
         create: (_) => AuthProvider(AuthRepository(ApiClient())),
-        child: const MaterialApp(home: HomeScreen()),
+        child: const MaterialApp(
+          home: AppShell(location: '/home', child: HomeScreen()),
+        ),
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Menu'));
+    await tester.tap(find.byTooltip('Tài khoản'));
     await tester.pumpAndSettle();
 
     expect(find.text('Hướng dẫn sử dụng'), findsOneWidget);

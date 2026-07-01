@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phongvu_opshub/app/widgets/app_feature_grid.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
@@ -302,9 +303,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('TB 7.2s'), findsOneWidget);
-    final pillCenter = tester.getCenter(find.text('TB 7.2s'));
-    final supportCenter = tester.getCenter(find.byTooltip('Hỗ trợ'));
-    expect((pillCenter.dy - supportCenter.dy).abs(), lessThan(1));
 
     await tester.tap(find.text('TB 7.2s'));
     await tester.pumpAndSettle();
@@ -338,7 +336,9 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider<AuthProvider>.value(
         value: authProvider,
-        child: const MaterialApp(home: HomeScreen()),
+        child: const MaterialApp(
+          home: AppShell(location: '/home', child: HomeScreen()),
+        ),
       ),
     );
     await tester.pumpAndSettle();

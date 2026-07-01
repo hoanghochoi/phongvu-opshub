@@ -31,6 +31,7 @@ import '../../features/warranty/presentation/screens/warranty_screen.dart';
 import '../../features/warranty/presentation/screens/warranty_main_screen.dart';
 import '../../features/warranty/presentation/screens/check_warranty_screen.dart';
 import '../../features/feedback/presentation/screens/feedback_screen.dart';
+import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/payment_monitor/presentation/screens/payment_monitor_screen.dart';
 import '../../features/payment_monitor/presentation/screens/payment_monitor_unsupported_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
@@ -40,7 +41,8 @@ import '../../features/fifo/presentation/screens/fifo_menu_screen.dart';
 import '../../features/fifo/presentation/screens/fifo_history_screen.dart';
 import '../../features/sort/presentation/screens/sort_screen.dart';
 import '../../core/platform/app_platform_capabilities.dart';
-import 'main_navigation_screen.dart';
+import 'app_shell.dart';
+import 'tasks_screen.dart';
 
 class AppRouter {
   AppRouter._();
@@ -129,140 +131,145 @@ class AppRouter {
           builder: (context, state) =>
               _selectable(const AssignmentPendingScreen()),
         ),
-        GoRoute(
-          path: '/home',
-          builder: (context, state) =>
-              _selectable(const MainNavigationScreen()),
-        ),
-        GoRoute(
-          path: '/profile',
-          builder: (context, state) => _selectable(const ProfileScreen()),
-        ),
-        GoRoute(
-          path: '/admin',
-          builder: (context, state) => _selectable(const AdminMenuScreen()),
-        ),
-        GoRoute(
-          path: '/admin/users',
-          builder: (context, state) => _selectable(const UserAdminScreen()),
-        ),
-        GoRoute(
-          path: '/admin/roles',
-          builder: (context, state) => _selectable(const RoleAdminScreen()),
-        ),
-        GoRoute(
-          path: '/admin/organization',
-          builder: (context, state) =>
-              _selectable(const OrganizationTreeAdminScreen()),
-        ),
-        GoRoute(
-          path: '/admin/policies',
-          builder: (context, state) => _selectable(const PolicyAdminScreen()),
-        ),
-        GoRoute(
-          path: '/admin/inventory-import',
-          builder: (context, state) =>
-              _selectable(const InventoryImportScreen()),
-        ),
-        GoRoute(
-          path: '/admin/feedback',
-          builder: (context, state) => _selectable(const FeedbackAdminScreen()),
-        ),
-        GoRoute(
-          path: '/admin/sales-reports',
-          builder: (context, state) => ChangeNotifierProvider(
-            create: (_) =>
-                SalesReportProvider(SalesReportRepository(ApiClient())),
-            child: _selectable(const SalesReportAdminScreen()),
-          ),
-        ),
-        GoRoute(
-          path: '/fifo-menu',
-          builder: (context, state) => _selectable(const FifoMenuScreen()),
-        ),
-        GoRoute(
-          path: '/fifo-check',
-          builder: (context, state) => _selectable(const FifoCheckScreen()),
-        ),
-        GoRoute(
-          path: '/fifo-history',
-          builder: (context, state) => _selectable(const FifoHistoryScreen()),
-        ),
-        GoRoute(
-          path: '/fifo/inventory-import',
-          builder: (context, state) =>
-              _selectable(const InventoryImportScreen()),
-        ),
-        GoRoute(
-          path: '/sort',
-          builder: (context, state) => _selectable(const SortScreen()),
-        ),
-        GoRoute(
-          path: '/warranty-main',
-          builder: (context, state) => _selectable(
-            WarrantyMainScreen(onBackToHome: () => context.go('/home')),
-          ),
-        ),
-        GoRoute(
-          path: '/warranty',
-          builder: (context, state) => _selectable(const WarrantyScreen()),
-        ),
-        GoRoute(
-          path: '/check-warranty',
-          builder: (context, state) => _selectable(const CheckWarrantyScreen()),
-        ),
-        GoRoute(
-          path: '/vietqr',
-          builder: (context, state) => _selectable(const VietQrScreen()),
-        ),
-        GoRoute(
-          path: '/payment-monitor',
-          builder: (context, state) => buildPaymentMonitorRoute(),
-        ),
-        GoRoute(
-          path: '/bank-statement',
-          builder: (context, state) => ChangeNotifierProvider(
-            create: (_) =>
-                BankStatementProvider(BankStatementRepository(ApiClient())),
-            child: _selectable(const BankStatementScreen()),
-          ),
-        ),
-        GoRoute(
-          path: '/offset-adjustments',
-          builder: (context, state) => ChangeNotifierProvider(
-            create: (_) => OffsetAdjustmentProvider(
-              OffsetAdjustmentRepository(ApiClient()),
+        ShellRoute(
+          builder: (context, state, child) =>
+              AppShell(location: state.uri.path, child: _selectable(child)),
+          routes: [
+            GoRoute(
+              path: '/home',
+              builder: (context, state) => const HomeScreen(),
             ),
-            child: _selectable(const OffsetAdjustmentScreen()),
-          ),
-        ),
-        GoRoute(
-          path: '/feedback',
-          builder: (context, state) => _selectable(const FeedbackScreen()),
-        ),
-        GoRoute(
-          path: '/sales-reports',
-          builder: (context, state) => buildSalesReportHubRoute(),
-        ),
-        GoRoute(
-          path: '/sales-reports/purchased',
-          builder: (context, state) => ChangeNotifierProvider(
-            create: (_) =>
-                SalesReportProvider(SalesReportRepository(ApiClient())),
-            child: _selectable(const SalesReportFormScreen.purchased()),
-          ),
-        ),
-        GoRoute(
-          path: '/sales-reports/not-purchased',
-          builder: (context, state) => ChangeNotifierProvider(
-            create: (_) =>
-                SalesReportProvider(SalesReportRepository(ApiClient())),
-            child: _selectable(const SalesReportFormScreen.notPurchased()),
-          ),
-        ),
-        GoRoute(
-          path: '/settings',
-          builder: (context, state) => _selectable(const SettingsScreen()),
+            GoRoute(
+              path: '/tasks',
+              builder: (context, state) => const TasksScreen(),
+            ),
+            GoRoute(
+              path: '/profile',
+              builder: (context, state) => const ProfileScreen(),
+            ),
+            GoRoute(
+              path: '/admin',
+              builder: (context, state) => const AdminMenuScreen(),
+            ),
+            GoRoute(
+              path: '/admin/users',
+              builder: (context, state) => const UserAdminScreen(),
+            ),
+            GoRoute(
+              path: '/admin/roles',
+              builder: (context, state) => const RoleAdminScreen(),
+            ),
+            GoRoute(
+              path: '/admin/organization',
+              builder: (context, state) => const OrganizationTreeAdminScreen(),
+            ),
+            GoRoute(
+              path: '/admin/policies',
+              builder: (context, state) => const PolicyAdminScreen(),
+            ),
+            GoRoute(
+              path: '/admin/inventory-import',
+              builder: (context, state) => const InventoryImportScreen(),
+            ),
+            GoRoute(
+              path: '/admin/feedback',
+              builder: (context, state) => const FeedbackAdminScreen(),
+            ),
+            GoRoute(
+              path: '/admin/sales-reports',
+              builder: (context, state) => ChangeNotifierProvider(
+                create: (_) =>
+                    SalesReportProvider(SalesReportRepository(ApiClient())),
+                child: const SalesReportAdminScreen(),
+              ),
+            ),
+            GoRoute(
+              path: '/fifo-menu',
+              builder: (context, state) => const FifoMenuScreen(),
+            ),
+            GoRoute(
+              path: '/fifo-check',
+              builder: (context, state) => const FifoCheckScreen(),
+            ),
+            GoRoute(
+              path: '/fifo-history',
+              builder: (context, state) => const FifoHistoryScreen(),
+            ),
+            GoRoute(
+              path: '/fifo/inventory-import',
+              builder: (context, state) => const InventoryImportScreen(),
+            ),
+            GoRoute(
+              path: '/sort',
+              builder: (context, state) => const SortScreen(),
+            ),
+            GoRoute(
+              path: '/warranty-main',
+              builder: (context, state) =>
+                  WarrantyMainScreen(onBackToHome: () => context.go('/home')),
+            ),
+            GoRoute(
+              path: '/warranty',
+              builder: (context, state) => const WarrantyScreen(),
+            ),
+            GoRoute(
+              path: '/check-warranty',
+              builder: (context, state) => const CheckWarrantyScreen(),
+            ),
+            GoRoute(
+              path: '/vietqr',
+              builder: (context, state) => const VietQrScreen(),
+            ),
+            GoRoute(
+              path: '/payment-monitor',
+              builder: (context, state) => buildPaymentMonitorRoute(),
+            ),
+            GoRoute(
+              path: '/bank-statement',
+              builder: (context, state) => ChangeNotifierProvider(
+                create: (_) =>
+                    BankStatementProvider(BankStatementRepository(ApiClient())),
+                child: const BankStatementScreen(),
+              ),
+            ),
+            GoRoute(
+              path: '/offset-adjustments',
+              builder: (context, state) => ChangeNotifierProvider(
+                create: (_) => OffsetAdjustmentProvider(
+                  OffsetAdjustmentRepository(ApiClient()),
+                ),
+                child: const OffsetAdjustmentScreen(),
+              ),
+            ),
+            GoRoute(
+              path: '/feedback',
+              builder: (context, state) => const FeedbackScreen(),
+            ),
+            GoRoute(
+              path: '/sales-reports',
+              builder: (context, state) => buildSalesReportHubRoute(),
+            ),
+            GoRoute(
+              path: '/sales-reports/purchased',
+              builder: (context, state) => ChangeNotifierProvider(
+                create: (_) =>
+                    SalesReportProvider(SalesReportRepository(ApiClient())),
+                child: const SalesReportFormScreen.purchased(),
+              ),
+            ),
+            GoRoute(
+              path: '/sales-reports/not-purchased',
+              builder: (context, state) => ChangeNotifierProvider(
+                create: (_) =>
+                    SalesReportProvider(SalesReportRepository(ApiClient())),
+                child: const SalesReportFormScreen.notPurchased(),
+              ),
+            ),
+            GoRoute(
+              path: '/settings',
+              builder: (context, state) => const SettingsScreen(),
+            ),
+          ],
         ),
       ],
     );
@@ -278,6 +285,7 @@ class AppRouter {
       '/admin/inventory-import' => 'FIFO_IMPORT',
       '/admin/feedback' => 'ADMIN_FEEDBACK',
       '/admin/sales-reports' => 'ADMIN_SALES_REPORTS',
+      '/tasks' => null,
       '/fifo-check' => 'FIFO',
       '/fifo-history' => 'FIFO',
       '/fifo/inventory-import' => 'FIFO_IMPORT',

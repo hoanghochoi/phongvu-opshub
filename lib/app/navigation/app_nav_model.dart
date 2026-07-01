@@ -1,0 +1,263 @@
+import 'package:flutter/material.dart';
+
+import '../../core/platform/app_platform_capabilities.dart';
+import '../../features/auth/domain/entities/user.dart';
+import '../theme/app_colors.dart';
+
+enum AppNavGroup { root, workspace, account }
+
+class AppNavDestination {
+  final String id;
+  final String label;
+  final String description;
+  final String route;
+  final IconData icon;
+  final Color color;
+  final AppNavGroup group;
+  final bool showInSidebar;
+  final bool showInTasks;
+  final bool showInMobileNav;
+
+  const AppNavDestination({
+    required this.id,
+    required this.label,
+    required this.description,
+    required this.route,
+    required this.icon,
+    required this.color,
+    required this.group,
+    this.showInSidebar = true,
+    this.showInTasks = false,
+    this.showInMobileNav = false,
+  });
+}
+
+class AppNavModel {
+  AppNavModel._();
+
+  static const List<AppNavDestination> destinations = [
+    AppNavDestination(
+      id: 'home',
+      label: 'Trang chủ',
+      description: 'Tổng quan vận hành',
+      route: '/home',
+      icon: Icons.dashboard_outlined,
+      color: AppColors.primary,
+      group: AppNavGroup.root,
+      showInMobileNav: true,
+    ),
+    AppNavDestination(
+      id: 'tasks',
+      label: 'Tác vụ',
+      description: 'Mở nhanh các không gian làm việc',
+      route: '/tasks',
+      icon: Icons.apps_rounded,
+      color: AppColors.secondary,
+      group: AppNavGroup.root,
+      showInMobileNav: true,
+    ),
+    AppNavDestination(
+      id: 'admin',
+      label: 'Quản trị',
+      description: 'Tài khoản, vai trò và cấu hình',
+      route: '/admin',
+      icon: Icons.admin_panel_settings_outlined,
+      color: AppColors.neutral600,
+      group: AppNavGroup.workspace,
+      showInTasks: true,
+    ),
+    AppNavDestination(
+      id: 'fifo',
+      label: 'FIFO',
+      description: 'Kiểm tra và sắp xếp tồn kho',
+      route: '/fifo-menu',
+      icon: Icons.qr_code_scanner_rounded,
+      color: AppColors.info,
+      group: AppNavGroup.workspace,
+      showInTasks: true,
+    ),
+    AppNavDestination(
+      id: 'sort',
+      label: 'Sắp xếp',
+      description: 'Theo dõi và xử lý danh sách sắp xếp',
+      route: '/sort',
+      icon: Icons.sort_rounded,
+      color: AppColors.indigo600,
+      group: AppNavGroup.workspace,
+      showInTasks: true,
+    ),
+    AppNavDestination(
+      id: 'warranty',
+      label: 'BH / SC',
+      description: 'Tiếp nhận và tra cứu bảo hành',
+      route: '/warranty-main',
+      icon: Icons.camera_alt_rounded,
+      color: AppColors.success,
+      group: AppNavGroup.workspace,
+      showInTasks: true,
+    ),
+    AppNavDestination(
+      id: 'vietqr',
+      label: 'VietQR',
+      description: 'Tạo mã chuyển khoản',
+      route: '/vietqr',
+      icon: Icons.qr_code_2_rounded,
+      color: AppColors.teal600,
+      group: AppNavGroup.workspace,
+      showInTasks: true,
+    ),
+    AppNavDestination(
+      id: 'payment',
+      label: 'Tiền vào',
+      description: 'Theo dõi giao dịch thanh toán',
+      route: '/payment-monitor',
+      icon: Icons.payments_outlined,
+      color: AppColors.violet600,
+      group: AppNavGroup.workspace,
+      showInTasks: true,
+    ),
+    AppNavDestination(
+      id: 'statement',
+      label: 'Sao kê',
+      description: 'Rà soát giao dịch theo mã đơn',
+      route: '/bank-statement',
+      icon: Icons.fact_check_outlined,
+      color: AppColors.info,
+      group: AppNavGroup.workspace,
+      showInTasks: true,
+    ),
+    AppNavDestination(
+      id: 'offset',
+      label: 'Cấn trừ',
+      description: 'Gửi yêu cầu xác nhận cấn trừ',
+      route: '/offset-adjustments',
+      icon: Icons.swap_horiz_rounded,
+      color: AppColors.teal600,
+      group: AppNavGroup.workspace,
+      showInTasks: true,
+    ),
+    AppNavDestination(
+      id: 'sales',
+      label: 'Báo cáo',
+      description: 'Theo dõi và gửi báo cáo sale',
+      route: '/sales-reports',
+      icon: Icons.assignment_outlined,
+      color: AppColors.info,
+      group: AppNavGroup.workspace,
+      showInTasks: true,
+    ),
+    AppNavDestination(
+      id: 'feedback',
+      label: 'Góp ý',
+      description: 'Gửi đề xuất và báo lỗi',
+      route: '/feedback',
+      icon: Icons.lightbulb_outline_rounded,
+      color: AppColors.amber500,
+      group: AppNavGroup.workspace,
+      showInTasks: true,
+    ),
+    AppNavDestination(
+      id: 'settings',
+      label: 'Cài đặt',
+      description: 'Tùy chỉnh ứng dụng',
+      route: '/settings',
+      icon: Icons.settings_outlined,
+      color: AppColors.neutral600,
+      group: AppNavGroup.account,
+      showInTasks: true,
+    ),
+    AppNavDestination(
+      id: 'profile',
+      label: 'Tài khoản',
+      description: 'Thông tin cá nhân',
+      route: '/profile',
+      icon: Icons.person_outline,
+      color: AppColors.primary,
+      group: AppNavGroup.account,
+      showInSidebar: false,
+      showInMobileNav: true,
+    ),
+  ];
+
+  static List<AppNavDestination> visibleSidebarDestinations(User? user) {
+    return destinations
+        .where((destination) => destination.showInSidebar)
+        .where((destination) => canUseDestination(user, destination))
+        .toList(growable: false);
+  }
+
+  static List<AppNavDestination> visibleTaskDestinations(User? user) {
+    return destinations
+        .where((destination) => destination.showInTasks)
+        .where((destination) => canUseDestination(user, destination))
+        .toList(growable: false);
+  }
+
+  static List<AppNavDestination> visibleMobileDestinations(User? user) {
+    return destinations
+        .where((destination) => destination.showInMobileNav)
+        .where((destination) => canUseDestination(user, destination))
+        .toList(growable: false);
+  }
+
+  static int hiddenSidebarCount(User? user) {
+    return destinations
+        .where((destination) => destination.showInSidebar)
+        .where((destination) => !canUseDestination(user, destination))
+        .length;
+  }
+
+  static AppNavDestination? destinationForLocation(String location) {
+    for (final destination in destinations) {
+      if (isSelected(destination, location)) return destination;
+    }
+    return null;
+  }
+
+  static bool isSelected(AppNavDestination destination, String location) {
+    if (location == destination.route) return true;
+    return switch (destination.id) {
+      'admin' => location.startsWith('/admin'),
+      'fifo' =>
+        location == '/fifo-check' ||
+            location == '/fifo-history' ||
+            location == '/fifo/inventory-import',
+      'warranty' => location == '/warranty' || location == '/check-warranty',
+      'sales' => location.startsWith('/sales-reports'),
+      _ => false,
+    };
+  }
+
+  static bool canUseDestination(User? user, AppNavDestination destination) {
+    return switch (destination.id) {
+      'home' || 'tasks' || 'profile' || 'settings' => true,
+      'admin' => _canUseAdmin(user),
+      'fifo' =>
+        user?.canUseFeature('FIFO') == true ||
+            user?.canUseFeature('FIFO_IMPORT') == true,
+      'sort' => user?.canUseFeature('FIFO') == true,
+      'warranty' => user?.canUseFeature('WARRANTY') == true,
+      'vietqr' => user?.canUseFeature('VIETQR') == true,
+      'payment' =>
+        user?.canUseFeature('PAYMENT_MONITOR') == true &&
+            AppPlatformCapabilities.isPaymentMonitorSupported(),
+      'statement' => user?.canUseBankStatements == true,
+      'offset' => user?.canUseOffsetAdjustments == true,
+      'sales' =>
+        user?.canUseFeature('SALES_REPORT') == true ||
+            user?.canUseFeature('ADMIN_SALES_REPORTS') == true,
+      'feedback' => user?.canUseFeature('FEEDBACK') == true,
+      _ => false,
+    };
+  }
+
+  static bool _canUseAdmin(User? user) {
+    return user?.isAdmin == true ||
+        user?.canUseFeature('ADMIN') == true ||
+        user?.canUseFeature('ADMIN_USERS') == true ||
+        user?.canUseFeature('ADMIN_ROLES') == true ||
+        user?.canUseFeature('ADMIN_ORG_TREE') == true ||
+        user?.canUseFeature('ADMIN_POLICIES') == true ||
+        user?.canUseFeature('ADMIN_FEEDBACK') == true;
+  }
+}

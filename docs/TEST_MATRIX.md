@@ -45,6 +45,26 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`, 2026-07-01: started the OpsHub Redesign System 2026 repo import
+  with Batch 1 foundation work. Authenticated routes now render inside a shared
+  responsive `AppShell`: desktop persistent sidebar, tablet rail, mobile app bar
+  plus bottom navigation for `Trang chủ`, `Tác vụ`, and `Tài khoản`. Added the
+  `/tasks` workspace index, a shared permission-aware nav model that hides
+  unavailable destinations and logs visible/hidden counts through `AppLogger`,
+  and Figma variable parity tokens for sidebar/status/primary surface plus
+  contextual light/dark surface/text/border helpers. Home is now content-only
+  inside the shell and keeps its command-center cards, SR header info, feedback
+  placement, payment speaker quick toggle, support QR flow through AppShell,
+  and delivery metrics dialog behavior. Route gaps from the Figma file are
+  recorded in `docs/product/opshub-redesign-gap-map-2026-07-01.md` and harness
+  tech debt instead of being scaffolded prematurely. Validation: changed-file
+  `dart format --output=none --set-exit-if-changed`, `flutter analyze --no-pub`,
+  focused
+  `flutter test --no-pub --reporter expanded test\app_nav_model_test.dart test\home_feedback_action_test.dart test\app_router_test.dart`
+  (10 tests), full `flutter test --no-pub --reporter expanded` (237 tests),
+  AppShell light/dark widget screenshots for desktop/tablet/mobile under the
+  ignored `.screenshot/figma_merge`, and `git diff --check`. Gap: real runtime
+  smoke on Windows, Android, and Web remains separate visual acceptance work.
 - `SALES-REPORT-001`, 2026-07-01: `Báo cáo` now opens a 2-column order
   cockpit for same-day ERP orders: left unreported, right reported, 20
   orders/page/column with DB-backed totals and independent pagination. Backend

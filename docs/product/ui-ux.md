@@ -41,6 +41,16 @@ visual systems that make the app feel assembled from unrelated screens.
 
 ## Standard Components
 
+- Authenticated pages use the shared `AppShell` instead of feature-local
+  navigation chrome. Desktop uses a persistent sidebar and top bar, tablet uses
+  a compact rail, and mobile uses an app bar with bottom navigation for
+  `Trang chủ`, `Tác vụ`, and `Tài khoản`. Feature screens should provide page
+  content only and let the shell own global notification, support, account, and
+  route navigation entry points.
+- Navigation visibility is role/feature-aware and must hide unavailable
+  destinations in normal staff UI. Log the resolved visible/hidden counts
+  through `AppLogger` so permission issues can be debugged without exposing
+  raw feature codes to staff.
 - Pages and forms must use `AppResponsiveContent` or `AppResponsiveScrollView`.
   Form-heavy screens should prefer `AppFormColumn` and `formMaxWidth`.
 - Primary actions use `AppPrimaryButton`; secondary actions use
@@ -85,6 +95,10 @@ visual systems that make the app feel assembled from unrelated screens.
 - Figma screen migration must stay incremental: upgrade shared Button, Input,
   Dropdown, State, Card, Table, Scanner, and Notification patterns before
   migrating Home, Admin, Tiền vào, Sao kê, Cấn trừ, and Báo cáo screens.
+  Batch 1 of the OpsHub Redesign System 2026 import established the shared
+  shell, `/tasks` workspace index, sidebar/bottom-nav permission model, and
+  light/dark navigation tokens; later batches must migrate individual hub,
+  form, dialog, loading, empty, error, and permission states into that shell.
 - The feature-layer baseline for the 2026 migration is guarded by
   `test/design_system_migration_guard_test.dart`. New feature UI must use shared
   tokens/components instead of raw local `Colors.*`, `Color(0x...)`,
