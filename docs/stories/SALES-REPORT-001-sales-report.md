@@ -9,8 +9,9 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 
 - Home hiện `Báo cáo` khi user có `SALES_REPORT` hoặc
   `ADMIN_SALES_REPORTS`.
-- Màn hình `Báo cáo` hiển thị cockpit 2 cột trong ngày: trái là đơn đã báo
-  cáo, phải là đơn chưa báo cáo; phía trên có `Báo cáo chưa mua`, `Tải lại` và
+- Màn hình `Báo cáo` hiển thị cockpit 2 cột trong ngày: trái là đơn chưa báo
+  cáo, phải là đơn đã báo cáo; mỗi cột hiển thị 20 đơn/trang, có total đếm từ
+  DB và nút chuyển trang riêng. Phía trên có `Báo cáo chưa mua`, `Tải lại` và
   action xuất file/danh sách khi user có quyền admin report.
 - Backend tự đồng bộ danh sách đơn ERP từ staff-bff theo ngày mỗi 3 phút và khi
   service khởi động, mặc định 50 đơn, rồi upsert snapshot rút gọn vào bảng
@@ -18,7 +19,8 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   màn hình, khi bấm `Tải lại`, và mỗi 3 phút khi còn ở màn này.
 - User thường chỉ thấy đơn/report của mình theo email/snapshot người bán;
   STORE_MANAGER hoặc chức danh quản lý có `ADMIN_SALES_REPORTS` theo node xem
-  dữ liệu trong showroom/node con được gán; Super Admin xem toàn app.
+  dữ liệu trong showroom/node con được gán; Super Admin xem toàn bộ cache/report
+  trong DB.
 - Bấm đơn chưa báo cáo mở dialog báo cáo mua hàng và dùng lại luồng
   `check-order` để tự fill dữ liệu cần thiết trước khi sale nhập phần còn lại.
 - Form `Mua hàng` yêu cầu nhập hoặc quét QR/barcode mã đơn và check ERP trước
@@ -36,8 +38,9 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 - Cả 2 form bắt buộc nhập `Tên khách hàng`; báo cáo mua hàng tự fill khi ERP
   trả được tên khách hàng nhưng vẫn cho sale nhập khi ERP không có dữ liệu.
 - Form lưu loại khách hàng bằng `customerType`; báo cáo mua hàng tự fill
-  `Doanh nghiệp` khi ERP trả `customerType = BUSINESS`; `customerType` rỗng từ
-  ERP được xem là `Cá nhân`. `Học sinh - Sinh viên` là checkbox con của
+  `Doanh nghiệp` khi ERP trả `billingInfo.customerType = BUSINESS` hoặc
+  `billingInfo.taxCode` có giá trị; nếu cả hai không thể hiện doanh nghiệp thì
+  xem là `Cá nhân`. `Học sinh - Sinh viên` là checkbox con của
   `Cá nhân`, được lưu bằng flag riêng `customerIsStudent`; tick HS-SV tự tick
   `Cá nhân`, còn chọn `Doanh nghiệp` thì khóa/bỏ chọn `Cá nhân` và HS-SV.
 - Form có nhóm checkbox `CTKM áp dụng`: `Đổi điểm thi`,

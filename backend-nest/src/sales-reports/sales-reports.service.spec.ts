@@ -24,6 +24,7 @@ describe('SalesReportsService', () => {
         findMany: jest.fn(),
       },
       salesReportErpOrderCache: {
+        count: jest.fn(),
         findMany: jest.fn(),
         upsert: jest.fn().mockResolvedValue({}),
       },
@@ -154,11 +155,14 @@ describe('SalesReportsService', () => {
 
   it('reads cached ERP orders and splits reported from unreported orders', async () => {
     const { service, prisma, erp } = createHarness();
-    prisma.salesReport.findMany.mockResolvedValueOnce([
-      { ...exportReportFixture(), orderCode: '2607010001' },
-    ]);
+    prisma.salesReport.count.mockResolvedValueOnce(1);
+    prisma.salesReportErpOrderCache.count.mockResolvedValueOnce(1);
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([{ orderCode: '2607010001' }])
+      .mockResolvedValueOnce([
+        { ...exportReportFixture(), orderCode: '2607010001' },
+      ]);
     prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
-      erpOrderCacheFixture('2607010001'),
       erpOrderCacheFixture('2607010002'),
     ]);
 
@@ -174,6 +178,77 @@ describe('SalesReportsService', () => {
     expect(result.scope).toBe('OWN');
     expect(result.syncSucceeded).toBe(true);
     expect(result.syncCount).toBe(0);
+    expect(result.limit).toBe(20);
+    expect(result.reportedPage).toBe(0);
+    expect(result.reportedTotal).toBe(1);
+    expect(result.unreportedPage).toBe(0);
+    expect(result.unreportedTotal).toBe(1);
+    expect(prisma.salesReport.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        select: { orderCode: true },
+      }),
+    );
+    expect(prisma.salesReport.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        skip: 0,
+        take: 20,
+      }),
+    );
+    const cacheFindArgs =
+      prisma.salesReportErpOrderCache.findMany.mock.calls[0][0];
+    expect(cacheFindArgs).toEqual(
+      expect.objectContaining({
+        skip: 0,
+        take: 20,
+      }),
+    );
+    expect(JSON.stringify(cacheFindArgs.where)).toContain(
+      '"notIn":["2607010001"]',
+    );
+  });
+
+  it('lets super admin see all cached unreported orders without store scope', async () => {
+    const { service, prisma } = createHarness();
+    prisma.salesReport.count.mockResolvedValueOnce(0);
+    prisma.salesReportErpOrderCache.count.mockResolvedValueOnce(25);
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
+      erpOrderCacheFixture('2607010002'),
+    ]);
+
+    const result = await service.orderCockpit(
+      { ...userFixture(), role: 'SUPER_ADMIN' },
+      {
+        date: '2026-07-01',
+        reportedPage: 2,
+        unreportedPage: 1,
+      },
+    );
+
+    expect(result.scope).toBe('MANAGED_SCOPE');
+    expect(result.reportedPage).toBe(2);
+    expect(result.unreportedPage).toBe(1);
+    expect(result.unreportedTotal).toBe(25);
+    expect(prisma.salesReport.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        skip: 40,
+        take: 20,
+      }),
+    );
+    const cacheFindArgs =
+      prisma.salesReportErpOrderCache.findMany.mock.calls[0][0];
+    expect(cacheFindArgs).toEqual(
+      expect.objectContaining({
+        skip: 20,
+        take: 20,
+      }),
+    );
+    expect(JSON.stringify(cacheFindArgs.where)).not.toContain('storeCode');
   });
 
   it('scheduled sync pulls ERP orders and upserts the cache without a client request', async () => {
@@ -528,7 +603,9 @@ describe('SalesReportsService', () => {
     expect(lines).toHaveLength(3);
     expect(lines[1]).toContain('sale@phongvu.vn,5000000,VNPAY_POS; MPOS');
     expect(lines[1]).toContain('Đã duyệt,Mua hàng,Trả góp');
-    expect(lines[1]).toContain('Khách chốt trả góp bình thường (Không có lý do)');
+    expect(lines[1]).toContain(
+      'Khách chốt trả góp bình thường (Không có lý do)',
+    );
     expect(lines[2]).toContain('2500000,PAYOO_POS,Chưa duyệt');
     expect(lines[2]).toContain('Trả thẳng');
     expect(lines.join('\n')).not.toContain('2606290888');

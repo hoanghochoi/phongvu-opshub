@@ -8,6 +8,8 @@ import '../../data/sales_report_repository.dart';
 import '../../domain/sales_report.dart';
 
 class SalesReportProvider extends ChangeNotifier {
+  static const int _defaultOrdersLimit = 20;
+
   final SalesReportRepository _repository;
   final DateTime Function() _now;
 
@@ -26,6 +28,9 @@ class SalesReportProvider extends ChangeNotifier {
   int _adminTotal = 0;
   int _adminPage = 0;
   int _adminLimit = 20;
+  int _reportedOrdersPage = 0;
+  int _unreportedOrdersPage = 0;
+  int _ordersLimit = _defaultOrdersLimit;
 
   SalesReportProvider(this._repository, {DateTime Function()? now})
     : _now = now ?? DateTime.now;
@@ -38,6 +43,21 @@ class SalesReportProvider extends ChangeNotifier {
       List.unmodifiable(_orderCockpit?.reportedOrders ?? const []);
   List<SalesReportOrderCockpitItem> get unreportedOrders =>
       List.unmodifiable(_orderCockpit?.unreportedOrders ?? const []);
+  int get reportedOrdersTotal =>
+      _orderCockpit?.reportedTotal ?? reportedOrders.length;
+  int get unreportedOrdersTotal =>
+      _orderCockpit?.unreportedTotal ?? unreportedOrders.length;
+  int get reportedOrdersPage =>
+      _orderCockpit?.reportedPage ?? _reportedOrdersPage;
+  int get unreportedOrdersPage =>
+      _orderCockpit?.unreportedPage ?? _unreportedOrdersPage;
+  int get ordersLimit => _orderCockpit?.limit ?? _ordersLimit;
+  bool get canGoPreviousReportedOrders => reportedOrdersPage > 0;
+  bool get canGoNextReportedOrders =>
+      (reportedOrdersPage + 1) * ordersLimit < reportedOrdersTotal;
+  bool get canGoPreviousUnreportedOrders => unreportedOrdersPage > 0;
+  bool get canGoNextUnreportedOrders =>
+      (unreportedOrdersPage + 1) * ordersLimit < unreportedOrdersTotal;
   SalesReportOrderCheck? get checkedOrder => _checkedOrder;
   bool get isLoadingCategories => _isLoadingCategories;
   bool get isLoadingOrders => _isLoadingOrders;
@@ -160,22 +180,30 @@ class SalesReportProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> loadOrderCockpit({
-    SalesReportOrdersQuery query = const SalesReportOrdersQuery(),
-  }) async {
+  Future<void> loadOrderCockpit({SalesReportOrdersQuery? query}) async {
     if (_isLoadingOrders) return;
     _isLoadingOrders = true;
     _errorMessage = null;
     notifyListeners();
     final startedAt = DateTime.now();
+    final effectiveQuery =
+        query ??
+        SalesReportOrdersQuery(
+          reportedPage: _reportedOrdersPage,
+          unreportedPage: _unreportedOrdersPage,
+          limit: _ordersLimit,
+        );
     try {
       await AppLogger.instance.info(
         'SalesReport',
         'Sales report order cockpit load started',
-        context: _ordersQueryLogContext(query),
+        context: _ordersQueryLogContext(effectiveQuery),
       );
-      final result = await _repository.fetchOrders(query);
+      final result = await _repository.fetchOrders(effectiveQuery);
       _orderCockpit = result;
+      _reportedOrdersPage = result.reportedPage;
+      _unreportedOrdersPage = result.unreportedPage;
+      _ordersLimit = result.limit;
       if ((result.syncError ?? '').trim().isNotEmpty) {
         _errorMessage = result.syncError;
       }
@@ -183,9 +211,11 @@ class SalesReportProvider extends ChangeNotifier {
         'SalesReport',
         'Sales report order cockpit load succeeded',
         context: {
-          ..._ordersQueryLogContext(query),
+          ..._ordersQueryLogContext(effectiveQuery),
           'reportedCount': result.reportedOrders.length,
+          'reportedTotal': result.reportedTotal,
           'unreportedCount': result.unreportedOrders.length,
+          'unreportedTotal': result.unreportedTotal,
           'syncSucceeded': result.syncSucceeded,
           'syncCount': result.syncCount,
           'scope': result.scope,
@@ -198,12 +228,32 @@ class SalesReportProvider extends ChangeNotifier {
         'SalesReport',
         'Sales report order cockpit load failed',
         error: error,
-        context: _ordersQueryLogContext(query),
+        context: _ordersQueryLogContext(effectiveQuery),
       );
     } finally {
       _isLoadingOrders = false;
       notifyListeners();
     }
+  }
+
+  Future<void> loadReportedOrdersPage(int page) async {
+    await loadOrderCockpit(
+      query: SalesReportOrdersQuery(
+        reportedPage: page < 0 ? 0 : page,
+        unreportedPage: unreportedOrdersPage,
+        limit: ordersLimit,
+      ),
+    );
+  }
+
+  Future<void> loadUnreportedOrdersPage(int page) async {
+    await loadOrderCockpit(
+      query: SalesReportOrdersQuery(
+        reportedPage: reportedOrdersPage,
+        unreportedPage: page < 0 ? 0 : page,
+        limit: ordersLimit,
+      ),
+    );
   }
 
   Future<bool> submit(SalesReportInput input, User? user) async {
@@ -430,6 +480,8 @@ class SalesReportProvider extends ChangeNotifier {
 
   Map<String, Object?> _ordersQueryLogContext(SalesReportOrdersQuery query) {
     return {
+      'reportedPage': query.reportedPage,
+      'unreportedPage': query.unreportedPage,
       'limit': query.limit,
       'hasDate': query.date != null,
       if (query.date != null) 'date': _dateForLog(query.date!),

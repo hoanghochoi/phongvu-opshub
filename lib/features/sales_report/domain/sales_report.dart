@@ -203,6 +203,11 @@ class SalesReportOrderCockpit {
   final String? syncError;
   final int syncCount;
   final String scope;
+  final int limit;
+  final int reportedPage;
+  final int reportedTotal;
+  final int unreportedPage;
+  final int unreportedTotal;
   final List<SalesReportOrderCockpitItem> reportedOrders;
   final List<SalesReportOrderCockpitItem> unreportedOrders;
 
@@ -213,6 +218,11 @@ class SalesReportOrderCockpit {
     required this.syncError,
     required this.syncCount,
     required this.scope,
+    required this.limit,
+    required this.reportedPage,
+    required this.reportedTotal,
+    required this.unreportedPage,
+    required this.unreportedTotal,
     required this.reportedOrders,
     required this.unreportedOrders,
   });
@@ -231,15 +241,29 @@ class SalesReportOrderCockpit {
           .toList();
     }
 
+    int parseInt(Object? value, int fallback) {
+      return int.tryParse(value?.toString() ?? '') ?? fallback;
+    }
+
+    final reportedOrders = itemList(json['reportedOrders']);
+    final unreportedOrders = itemList(json['unreportedOrders']);
     return SalesReportOrderCockpit(
       date: json['date']?.toString() ?? '',
       refreshedAt: DateTime.tryParse(json['refreshedAt']?.toString() ?? ''),
       syncSucceeded: json['syncSucceeded'] == true,
       syncError: json['syncError']?.toString(),
-      syncCount: int.tryParse(json['syncCount']?.toString() ?? '') ?? 0,
+      syncCount: parseInt(json['syncCount'], 0),
       scope: json['scope']?.toString() ?? 'OWN',
-      reportedOrders: itemList(json['reportedOrders']),
-      unreportedOrders: itemList(json['unreportedOrders']),
+      limit: parseInt(json['limit'], 20),
+      reportedPage: parseInt(json['reportedPage'], 0),
+      reportedTotal: parseInt(json['reportedTotal'], reportedOrders.length),
+      unreportedPage: parseInt(json['unreportedPage'], 0),
+      unreportedTotal: parseInt(
+        json['unreportedTotal'],
+        unreportedOrders.length,
+      ),
+      reportedOrders: reportedOrders,
+      unreportedOrders: unreportedOrders,
     );
   }
 }
@@ -407,13 +431,22 @@ class SalesReportQuery {
 
 class SalesReportOrdersQuery {
   final DateTime? date;
+  final int reportedPage;
+  final int unreportedPage;
   final int limit;
 
-  const SalesReportOrdersQuery({this.date, this.limit = 50});
+  const SalesReportOrdersQuery({
+    this.date,
+    this.reportedPage = 0,
+    this.unreportedPage = 0,
+    this.limit = 20,
+  });
 
   Map<String, String> toQueryParameters() {
     return {
       if (date != null) 'date': SalesReportQuery._date(date!),
+      'reportedPage': reportedPage.toString(),
+      'unreportedPage': unreportedPage.toString(),
       'limit': limit.toString(),
     };
   }

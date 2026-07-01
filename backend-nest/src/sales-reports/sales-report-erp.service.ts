@@ -120,8 +120,9 @@ export class SalesReportErpService {
       );
       const payments = this.normalizePayments(order?.payments);
       const result = this.normalizeOrder(orderCode, order, items, payments);
+      const customerTaxCode = this.billingTaxCode(order);
       this.logger.log(
-        `Sales report ERP lookup succeeded: orderLength=${orderCode.length} itemCount=${items.length} paymentCount=${payments.length} durationMs=${Date.now() - startedAt}`,
+        `Sales report ERP lookup succeeded: orderLength=${orderCode.length} itemCount=${items.length} paymentCount=${payments.length} customerType=${result.customerType} billingCustomerType=${result.erpCustomerType || 'none'} hasBillingTaxCode=${Boolean(customerTaxCode)} durationMs=${Date.now() - startedAt}`,
       );
       return result;
     } catch (error) {
@@ -164,8 +165,14 @@ export class SalesReportErpService {
             row: SalesReportErpOrderListItem | null,
           ): row is SalesReportErpOrderListItem => Boolean(row?.orderCode),
         );
+      const businessCount = orders.filter(
+        (order) => order.customerType === 'BUSINESS',
+      ).length;
+      const personalCount = orders.filter(
+        (order) => order.customerType === 'PERSONAL',
+      ).length;
       this.logger.log(
-        `Sales report ERP order list sync succeeded: date=${date} count=${orders.length} durationMs=${Date.now() - startedAt}`,
+        `Sales report ERP order list sync succeeded: date=${date} count=${orders.length} businessCount=${businessCount} personalCount=${personalCount} durationMs=${Date.now() - startedAt}`,
       );
       return orders;
     } catch (error) {
@@ -354,7 +361,12 @@ export class SalesReportErpService {
       order?.shippingAddress?.phone,
     );
     const orderCreatedAt = this.parseDate(order?.createdAt);
-    const customerType = this.optionalText(order?.customerType);
+    const billingCustomerType = this.billingCustomerType(order);
+    const billingTaxCode = this.billingTaxCode(order);
+    const customerType = this.detectCustomerType(
+      billingCustomerType,
+      billingTaxCode,
+    );
     return {
       orderCode,
       erpOrderId: this.firstText(order?.orderId, order?.id),
@@ -389,6 +401,10 @@ export class SalesReportErpService {
         grandTotal: this.toInt(order?.grandTotal ?? order?.totalAmount),
         customerName,
         customerType,
+        billingInfo: {
+          customerType: billingCustomerType,
+          hasTaxCode: Boolean(billingTaxCode),
+        },
         paymentMethods,
         platformId: this.toInt(order?.platformId),
         consultant: {
@@ -615,9 +631,12 @@ export class SalesReportErpService {
           .filter((value): value is string => Boolean(value)),
       ),
     );
-    const erpCustomerType = this.optionalText(order?.customerType);
-    const customerType =
-      erpCustomerType?.toUpperCase() === 'BUSINESS' ? 'BUSINESS' : 'PERSONAL';
+    const erpCustomerType = this.billingCustomerType(order);
+    const billingTaxCode = this.billingTaxCode(order);
+    const customerType = this.detectCustomerType(
+      erpCustomerType,
+      billingTaxCode,
+    );
     const customerName = this.firstText(
       order?.customerName,
       order?.customer?.name,
@@ -665,6 +684,10 @@ export class SalesReportErpService {
         orderId: this.optionalText(order?.orderId),
         createdAt: this.optionalText(order?.createdAt),
         customerType: erpCustomerType,
+        billingInfo: {
+          customerType: erpCustomerType,
+          hasTaxCode: Boolean(billingTaxCode),
+        },
         paymentStatus: this.optionalText(order?.paymentStatus),
         confirmationStatus: this.optionalText(order?.confirmationStatus),
         fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
@@ -986,6 +1009,23 @@ export class SalesReportErpService {
       displayName: this.optionalText(record.displayName),
       level,
     };
+  }
+
+  private billingCustomerType(order: any) {
+    return this.optionalText(order?.billingInfo?.customerType);
+  }
+
+  private billingTaxCode(order: any) {
+    return this.optionalText(order?.billingInfo?.taxCode);
+  }
+
+  private detectCustomerType(
+    billingCustomerType: string | null,
+    billingTaxCode: string | null,
+  ) {
+    return billingCustomerType?.toUpperCase() === 'BUSINESS' || billingTaxCode
+      ? 'BUSINESS'
+      : 'PERSONAL';
   }
 
   private parseDate(value: unknown) {

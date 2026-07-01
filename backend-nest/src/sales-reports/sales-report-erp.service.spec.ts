@@ -59,7 +59,11 @@ describe('SalesReportErpService', () => {
               orderId: '2606290001',
               createdAt: '2026-06-29T00:00:00Z',
               paymentStatus: 'fully_paid',
-              customerType: 'BUSINESS',
+              customerType: 'PERSONAL',
+              billingInfo: {
+                customerType: 'PERSONAL',
+                taxCode: '0301485534',
+              },
               customerName: 'Nguyen Van A',
               confirmationStatus: 'active',
               fulfillmentStatus: 'PROCESSING',
@@ -117,7 +121,11 @@ describe('SalesReportErpService', () => {
     expect(result.erpOrderId).toBe('2606290001');
     expect(result.customerType).toBe('BUSINESS');
     expect(result.customerName).toBe('Nguyen Van A');
-    expect(result.erpCustomerType).toBe('BUSINESS');
+    expect(result.erpCustomerType).toBe('PERSONAL');
+    expect(result.sanitizedSnapshot.billingInfo).toEqual({
+      customerType: 'PERSONAL',
+      hasTaxCode: true,
+    });
     expect(result.paymentMethods).toEqual(['cash']);
     expect(result.items).toHaveLength(1);
     expect(result.items[0].productGroupId).toBe('80283');
@@ -188,7 +196,7 @@ describe('SalesReportErpService', () => {
     ).toBe(false);
   });
 
-  it('defaults blank ERP customerType to personal customer type', async () => {
+  it('defaults blank ERP billingInfo to personal customer type', async () => {
     process.env.ERP_ACCESS_TOKEN = 'static-access-token';
     const fetchMock = jest.fn(async (input: string | URL) => {
       const url = input.toString();
@@ -200,7 +208,8 @@ describe('SalesReportErpService', () => {
           data: {
             order: {
               orderId: '2606290003',
-              customerType: '',
+              customerType: 'BUSINESS',
+              billingInfo: { customerType: '', taxCode: '' },
               confirmationStatus: 'active',
               fulfillmentStatus: 'PROCESSING',
               orderCaptureLineItems: [],
@@ -260,6 +269,10 @@ describe('SalesReportErpService', () => {
                 grandTotal: 2500000,
                 customerName: 'Tran Thi B',
                 customerType: 'PERSONAL',
+                billingInfo: {
+                  customerType: 'PERSONAL',
+                  taxCode: '0301485534',
+                },
                 platformId: 3,
                 consultant: {
                   customId: 'SA_CP62_HCM_MN',
@@ -287,8 +300,13 @@ describe('SalesReportErpService', () => {
       orderCode: '2607010002',
       storeCode: 'CP62',
       grandTotal: 2500000,
+      customerType: 'BUSINESS',
       consultantEmail: 'sale@phongvu.vn',
       paymentMethods: ['cash'],
+    });
+    expect(result[0].sanitizedSnapshot.billingInfo).toEqual({
+      customerType: 'PERSONAL',
+      hasTaxCode: true,
     });
   });
 });

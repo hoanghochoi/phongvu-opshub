@@ -46,7 +46,8 @@ const EXPORT_TYPE_HVTC = 'HVTC';
 const EXPORT_TYPE_REVENUE = 'REVENUE';
 const EXPORT_TYPE_INSTALLMENT = 'INSTALLMENT';
 const DEFAULT_PAGE_SIZE = 20;
-const DEFAULT_ORDER_COCKPIT_LIMIT = 50;
+const DEFAULT_ORDER_COCKPIT_LIMIT = 20;
+const DEFAULT_ORDER_CACHE_SYNC_LIMIT = 50;
 const ORDER_CACHE_SYNC_INTERVAL_MS = 3 * 60 * 1000;
 const MAX_ORDER_CACHE_SYNC_LOOKBACK_DAYS = 7;
 const INSTALLMENT_SUCCESS = 'SUCCESS';
@@ -68,6 +69,8 @@ type SalesReportOrderCockpitFilters = {
   date: string;
   dateRange: { start: Date; end: Date };
   limit: number;
+  reportedPage: number;
+  unreportedPage: number;
 };
 
 const ANSWER_LABELS: Record<string, string> = {
@@ -227,44 +230,54 @@ export class SalesReportsService implements OnApplicationBootstrap {
         orderCode: { not: null },
       },
     );
-    const [reportedOrders, cachedOrders] = await this.prisma.$transaction([
-      this.prisma.salesReport.findMany({
-        where: reportedWhere,
-        orderBy: [{ erpOrderCreatedAt: 'desc' }, { submittedAt: 'desc' }],
-        take: filters.limit,
-        include: {
-          categorySelections: { orderBy: { sortOrder: 'asc' } },
-          items: { take: 20, orderBy: { createdAt: 'asc' } },
-          payments: { take: 20, orderBy: { createdAt: 'asc' } },
-        },
-      }),
-      this.prisma.salesReportErpOrderCache.findMany({
-        where: this.andOrderCacheWhere(
-          orderScopeWhere,
-          this.orderCacheDateWhere(filters.dateRange),
-        ),
-        orderBy: [
-          { orderCreatedAt: 'desc' },
-          { fetchedAt: 'desc' },
-          { updatedAt: 'desc' },
-        ],
-        take: filters.limit,
-      }),
-    ]);
-    const reportedCodes = new Set(
-      reportedOrders
-        .map((row: any) => this.normalizeOrderCode(row.orderCode))
-        .filter(Boolean),
+    const cacheDateScopeWhere = this.andOrderCacheWhere(
+      orderScopeWhere,
+      this.orderCacheDateWhere(filters.dateRange),
     );
-    const unreportedOrders = cachedOrders
-      .filter(
-        (row: any) =>
-          !reportedCodes.has(this.normalizeOrderCode(row.orderCode)),
-      )
-      .slice(0, filters.limit);
+    const reportedCodeRows = await this.prisma.salesReport.findMany({
+      where: reportedWhere,
+      select: { orderCode: true },
+    });
+    const reportedCodes = Array.from(
+      new Set(
+        reportedCodeRows
+          .map((row: any) => this.normalizeOrderCode(row.orderCode))
+          .filter(Boolean),
+      ),
+    );
+    const unreportedWhere = this.andOrderCacheWhere(
+      cacheDateScopeWhere,
+      reportedCodes.length > 0 ? { orderCode: { notIn: reportedCodes } } : {},
+    );
+    const [reportedTotal, unreportedTotal, reportedOrders, unreportedOrders] =
+      await this.prisma.$transaction([
+        this.prisma.salesReport.count({ where: reportedWhere }),
+        this.prisma.salesReportErpOrderCache.count({ where: unreportedWhere }),
+        this.prisma.salesReport.findMany({
+          where: reportedWhere,
+          orderBy: [{ erpOrderCreatedAt: 'desc' }, { submittedAt: 'desc' }],
+          skip: filters.reportedPage * filters.limit,
+          take: filters.limit,
+          include: {
+            categorySelections: { orderBy: { sortOrder: 'asc' } },
+            items: { take: 20, orderBy: { createdAt: 'asc' } },
+            payments: { take: 20, orderBy: { createdAt: 'asc' } },
+          },
+        }),
+        this.prisma.salesReportErpOrderCache.findMany({
+          where: unreportedWhere,
+          orderBy: [
+            { orderCreatedAt: 'desc' },
+            { fetchedAt: 'desc' },
+            { updatedAt: 'desc' },
+          ],
+          skip: filters.unreportedPage * filters.limit,
+          take: filters.limit,
+        }),
+      ]);
 
     this.logger.log(
-      `Sales report order cockpit loaded from cache: user=${this.safeUserLabel(user)} date=${filters.date} admin=${adminView} reported=${reportedOrders.length} unreported=${unreportedOrders.length}`,
+      `Sales report order cockpit loaded from cache: user=${this.safeUserLabel(user)} date=${filters.date} admin=${adminView} reported=${reportedOrders.length}/${reportedTotal} unreported=${unreportedOrders.length}/${unreportedTotal} reportedPage=${filters.reportedPage} unreportedPage=${filters.unreportedPage} limit=${filters.limit}`,
     );
     return {
       date: filters.date,
@@ -273,6 +286,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
       syncError: null,
       syncCount: 0,
       scope: adminView ? 'MANAGED_SCOPE' : 'OWN',
+      limit: filters.limit,
+      reportedPage: filters.reportedPage,
+      reportedTotal,
+      unreportedPage: filters.unreportedPage,
+      unreportedTotal,
       reportedOrders: reportedOrders.map((row) =>
         this.toReportedOrderCockpitDto(row),
       ),
@@ -559,13 +577,20 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const start = new Date(`${date}T00:00:00.000+07:00`);
     const end = new Date(start);
     end.setDate(end.getDate() + 1);
+    const normalizeNumber = (value: unknown, fallback: number) => {
+      const normalized = Math.trunc(Number(value ?? fallback));
+      return Number.isFinite(normalized) ? normalized : fallback;
+    };
+    const limit = Math.max(
+      1,
+      Math.min(100, normalizeNumber(query.limit, DEFAULT_ORDER_COCKPIT_LIMIT)),
+    );
     return {
       date,
       dateRange: { start, end },
-      limit: Math.max(
-        1,
-        Math.min(100, Number(query.limit ?? DEFAULT_ORDER_COCKPIT_LIMIT)),
-      ),
+      limit,
+      reportedPage: Math.max(0, normalizeNumber(query.reportedPage, 0)),
+      unreportedPage: Math.max(0, normalizeNumber(query.unreportedPage, 0)),
     };
   }
 
@@ -630,7 +655,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       grandTotal: erpOrder.erpGrandTotal,
       customerName: erpOrder.customerName,
       customerPhone: null,
-      customerType: erpOrder.erpCustomerType,
+      customerType: erpOrder.customerType,
       paymentMethods: erpOrder.paymentMethods,
       platformId: erpOrder.erpPlatformId,
       consultantCustomId: erpOrder.erpConsultantCustomId,
@@ -1636,7 +1661,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
           this.csvCell(row.createdByEmail),
           this.csvCell(row.installmentLoanAmount),
           this.csvCell(partnerCodes.join('; ')),
-          this.csvCell(this.installmentApprovedCsvLabel(row.installmentApproved)),
+          this.csvCell(
+            this.installmentApprovedCsvLabel(row.installmentApproved),
+          ),
           this.csvCell(this.reportTypeLabel(row.reportType)),
           this.csvCell(this.finalPaymentMethodLabel(row)),
           this.csvCell(
@@ -1998,7 +2025,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
   private orderCacheSyncLimit() {
     return this.envInt(
       'ERP_ORDER_CACHE_SYNC_LIMIT',
-      DEFAULT_ORDER_COCKPIT_LIMIT,
+      DEFAULT_ORDER_CACHE_SYNC_LIMIT,
       1,
       100,
     );
@@ -2011,7 +2038,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
       1,
       MAX_ORDER_CACHE_SYNC_LOOKBACK_DAYS,
     );
-    const todayStart = new Date(`${this.todayVietnamDate()}T00:00:00.000+07:00`);
+    const todayStart = new Date(
+      `${this.todayVietnamDate()}T00:00:00.000+07:00`,
+    );
     return Array.from({ length: lookbackDays }, (_, index) => {
       const date = new Date(todayStart);
       date.setUTCDate(date.getUTCDate() - index);

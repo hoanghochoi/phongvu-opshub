@@ -9,10 +9,12 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 
 - Home hiển thị ô `Báo cáo` khi user có feature `SALES_REPORT` hoặc
   `ADMIN_SALES_REPORTS`.
-- Màn hình `Báo cáo` là cockpit đơn hàng trong ngày: cột trái là đơn đã báo
-  cáo, cột phải là đơn chưa báo cáo. User thường chỉ thấy dữ liệu của mình theo
-  email/snapshot người bán; user có `ADMIN_SALES_REPORTS` xem trong phạm vi
-  node tổ chức được gán, gồm các showroom/node con.
+- Màn hình `Báo cáo` là cockpit đơn hàng trong ngày: cột trái là đơn chưa báo
+  cáo, cột phải là đơn đã báo cáo. Mỗi cột hiển thị 20 đơn/trang, có scroll
+  theo màn hình và nút chuyển trang riêng; số lượng ở header là total đếm từ DB
+  theo scope hiện tại. User thường chỉ thấy dữ liệu của mình theo email/snapshot
+  người bán; user có `ADMIN_SALES_REPORTS` xem trong phạm vi node tổ chức được
+  gán, gồm các showroom/node con; Super Admin xem toàn bộ cache/report trong DB.
 - Cockpit có nút `Báo cáo chưa mua`, `Tải lại`; user có quyền admin report có
   thêm nút xuất CSV và lối vào danh sách báo cáo chi tiết.
 - Backend tự đồng bộ danh sách đơn từ staff-bff ERP mỗi 3 phút và khi service
@@ -56,7 +58,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   checkbox con của `Cá nhân`. Khi tick `Học sinh - Sinh viên`, app tự tick
   `Cá nhân`; khi chọn `Doanh nghiệp`, app khóa và bỏ chọn `Cá nhân` /
   `Học sinh - Sinh viên`. Với báo cáo mua hàng, app tự fill `Doanh nghiệp` khi
-  ERP trả `customerType = BUSINESS`, còn giá trị rỗng được xem là `Cá nhân`.
+  ERP trả `billingInfo.customerType = BUSINESS` hoặc
+  `billingInfo.taxCode` có giá trị; nếu cả hai không thể hiện doanh nghiệp thì
+  xem là `Cá nhân`.
   Với báo cáo chưa mua, sale chọn loại khách thủ công. DB lưu bằng
   `customerType` và flag riêng `customerIsStudent`.
 - `CTKM áp dụng` là nhóm checkbox gồm `Đổi điểm thi`,
@@ -127,7 +131,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   cockpit tách đơn chưa/đã báo cáo mà không phụ thuộc sale nhớ tự mở form. Dữ
   liệu gồm mã đơn, ngày tạo, trạng thái, showroom/node, người tư vấn/người bán
   nếu ERP trả về, tổng tiền, phương thức thanh toán, metadata lần sync nền và
-  snapshot đã sanitize.
+  snapshot đã sanitize. API cockpit đếm total chưa báo cáo trực tiếp trên cache
+  DB, loại trừ các `orderCode` đã có báo cáo mua hàng trong cùng ngày/scope, rồi
+  trả từng trang 20 đơn cho client.
 - `SalesReportCategoryGroup` đồng bộ từ `data/categories.csv`, dùng `Cat group
   ID` làm code, `Cat group name` làm tên gốc và `catGroupNameVi` làm nhãn tiếng
   Việt.
@@ -141,7 +147,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   scheduled ERP cache sync, order cockpit cache-only list, feature guard và
   export CSV.
 - Flutter: Home/Report hub entry theo feature, route guard, order check before
-  submit, cockpit 2 cột đã/chưa báo cáo, refresh 3 phút, QR/barcode scan mã
+  submit, cockpit 2 cột chưa/đã báo cáo, phân trang 20 đơn/cột, refresh 3 phút,
+  QR/barcode scan mã
   đơn, auto-fill nhiều category/need/customer type từ mock ERP, checkbox
   selectors, installment partner/approval/reason validation, không gửi `MSNV`,
   form validation và export CSV.

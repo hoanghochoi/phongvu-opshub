@@ -78,8 +78,19 @@ void main() {
     );
     expect(find.text('2607010001'), findsOneWidget);
     expect(find.text('2607010002'), findsOneWidget);
+    expect(find.text('Trang 1/2'), findsOneWidget);
     expect(find.byType(SegmentedButton<String>), findsNothing);
 
+    await tester.ensureVisible(find.text('Sau'));
+    await tester.tap(find.text('Sau'));
+    await tester.pumpAndSettle();
+
+    expect(repository.fetchOrdersCount, 2);
+    expect(repository.lastOrdersQuery?.reportedPage, 0);
+    expect(repository.lastOrdersQuery?.unreportedPage, 1);
+    expect(repository.lastOrdersQuery?.limit, 20);
+
+    await tester.ensureVisible(find.text('Báo cáo chưa mua'));
     await tester.tap(find.text('Báo cáo chưa mua'));
     await tester.pumpAndSettle();
 
@@ -524,13 +535,20 @@ void main() {
     });
   });
 
-  test('SalesReportOrdersQuery serializes report date and limit', () {
+  test('SalesReportOrdersQuery serializes report date, pages and limit', () {
     final query = SalesReportOrdersQuery(
       date: DateTime(2026, 7, 1, 9, 30),
+      reportedPage: 2,
+      unreportedPage: 3,
       limit: 75,
     );
 
-    expect(query.toQueryParameters(), {'date': '2026-07-01', 'limit': '75'});
+    expect(query.toQueryParameters(), {
+      'date': '2026-07-01',
+      'reportedPage': '2',
+      'unreportedPage': '3',
+      'limit': '75',
+    });
   });
 
   test('SalesReportOrderCockpit parses reported and unreported orders', () {
@@ -539,6 +557,11 @@ void main() {
       'syncSucceeded': true,
       'syncCount': 2,
       'scope': 'MANAGED_SCOPE',
+      'limit': 20,
+      'reportedPage': 1,
+      'reportedTotal': 21,
+      'unreportedPage': 2,
+      'unreportedTotal': 42,
       'reportedOrders': [
         {'status': 'REPORTED', 'orderCode': '2607010001'},
       ],
@@ -548,6 +571,11 @@ void main() {
     });
 
     expect(cockpit.scope, 'MANAGED_SCOPE');
+    expect(cockpit.limit, 20);
+    expect(cockpit.reportedPage, 1);
+    expect(cockpit.reportedTotal, 21);
+    expect(cockpit.unreportedPage, 2);
+    expect(cockpit.unreportedTotal, 42);
     expect(cockpit.reportedOrders.single.isReported, isTrue);
     expect(cockpit.unreportedOrders.single.orderCode, '2607010002');
   });
@@ -616,6 +644,7 @@ class _FakeSalesReportRepository extends SalesReportRepository {
   int checkOrderCount = 0;
   SalesReportInput? lastInput;
   SalesReportQuery? lastListQuery;
+  SalesReportOrdersQuery? lastOrdersQuery;
 
   _FakeSalesReportRepository() : super(ApiClient());
 
@@ -687,12 +716,18 @@ class _FakeSalesReportRepository extends SalesReportRepository {
     SalesReportOrdersQuery query,
   ) async {
     fetchOrdersCount += 1;
+    lastOrdersQuery = query;
     return SalesReportOrderCockpit.fromJson({
       'date': '2026-07-01',
       'refreshedAt': '2026-07-01T09:03:00.000Z',
       'syncSucceeded': true,
       'syncCount': 2,
       'scope': 'OWN',
+      'limit': query.limit,
+      'reportedPage': query.reportedPage,
+      'reportedTotal': 1,
+      'unreportedPage': query.unreportedPage,
+      'unreportedTotal': 21,
       'reportedOrders': [
         {
           'status': 'REPORTED',

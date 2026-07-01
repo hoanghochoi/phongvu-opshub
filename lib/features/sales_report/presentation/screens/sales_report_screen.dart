@@ -399,16 +399,46 @@ class _SalesReportCockpit extends StatelessWidget {
               final twoColumns = constraints.maxWidth >= 760;
               final reported = _OrdersColumn(
                 title: 'Đã báo cáo',
-                count: provider.reportedOrders.length,
+                count: provider.reportedOrdersTotal,
                 emptyMessage: 'Chưa có đơn đã báo cáo.',
                 orders: provider.reportedOrders,
+                page: provider.reportedOrdersPage,
+                limit: provider.ordersLimit,
+                isLoading: provider.isLoadingOrders,
+                canGoPrevious: provider.canGoPreviousReportedOrders,
+                canGoNext: provider.canGoNextReportedOrders,
+                onPreviousPage: () => unawaited(
+                  provider.loadReportedOrdersPage(
+                    provider.reportedOrdersPage - 1,
+                  ),
+                ),
+                onNextPage: () => unawaited(
+                  provider.loadReportedOrdersPage(
+                    provider.reportedOrdersPage + 1,
+                  ),
+                ),
                 onTap: null,
               );
               final unreported = _OrdersColumn(
                 title: 'Chưa báo cáo',
-                count: provider.unreportedOrders.length,
+                count: provider.unreportedOrdersTotal,
                 emptyMessage: 'Chưa có đơn chờ báo cáo.',
                 orders: provider.unreportedOrders,
+                page: provider.unreportedOrdersPage,
+                limit: provider.ordersLimit,
+                isLoading: provider.isLoadingOrders,
+                canGoPrevious: provider.canGoPreviousUnreportedOrders,
+                canGoNext: provider.canGoNextUnreportedOrders,
+                onPreviousPage: () => unawaited(
+                  provider.loadUnreportedOrdersPage(
+                    provider.unreportedOrdersPage - 1,
+                  ),
+                ),
+                onNextPage: () => unawaited(
+                  provider.loadUnreportedOrdersPage(
+                    provider.unreportedOrdersPage + 1,
+                  ),
+                ),
                 onTap: onOrderTap,
               );
               if (!twoColumns) {
@@ -440,6 +470,13 @@ class _OrdersColumn extends StatelessWidget {
   final int count;
   final String emptyMessage;
   final List<SalesReportOrderCockpitItem> orders;
+  final int page;
+  final int limit;
+  final bool isLoading;
+  final bool canGoPrevious;
+  final bool canGoNext;
+  final VoidCallback onPreviousPage;
+  final VoidCallback onNextPage;
   final ValueChanged<SalesReportOrderCockpitItem>? onTap;
 
   const _OrdersColumn({
@@ -447,11 +484,19 @@ class _OrdersColumn extends StatelessWidget {
     required this.count,
     required this.emptyMessage,
     required this.orders,
+    required this.page,
+    required this.limit,
+    required this.isLoading,
+    required this.canGoPrevious,
+    required this.canGoNext,
+    required this.onPreviousPage,
+    required this.onNextPage,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final pageCount = count <= 0 || limit <= 0 ? 1 : ((count - 1) ~/ limit) + 1;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -472,6 +517,30 @@ class _OrdersColumn extends StatelessWidget {
             _OrderCockpitTile(order: order, onTap: onTap),
             const SizedBox(height: AppLayoutTokens.cardGap),
           ],
+        if (count > limit || page > 0) ...[
+          Text(
+            'Trang ${page + 1}/$pageCount',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodyS.copyWith(color: AppColors.neutral600),
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          AppActionRow(
+            maxButtonWidth: 160,
+            desktopAlignment: MainAxisAlignment.center,
+            children: [
+              AppSecondaryButton(
+                onPressed: !isLoading && canGoPrevious ? onPreviousPage : null,
+                icon: Icons.chevron_left_rounded,
+                label: 'Trước',
+              ),
+              AppSecondaryButton(
+                onPressed: !isLoading && canGoNext ? onNextPage : null,
+                icon: Icons.chevron_right_rounded,
+                label: 'Sau',
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }

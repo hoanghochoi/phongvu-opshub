@@ -46,12 +46,14 @@ This file maps product behavior to proof. Existing flows are marked
 Recent focused evidence:
 
 - `SALES-REPORT-001`, 2026-07-01: `Báo cáo` now opens a 2-column order
-  cockpit for same-day ERP orders: left reported, right unreported. Backend
+  cockpit for same-day ERP orders: left unreported, right reported, 20
+  orders/page/column with DB-backed totals and independent pagination. Backend
   runs a scheduled staff-bff order-list sync every 3 minutes and on service
   startup, upserts rows into `SalesReportErpOrderCache`, keeps user/admin
   visibility scoped by own email/seller snapshot or assigned organization
-  subtree, and reuses the existing purchased `check-order` flow when a user
-  opens an unreported order dialog. Flutter only reads the DB cache on open,
+  subtree, gives Super Admin the full saved cache/report scope, and reuses the
+  existing purchased `check-order` flow when a user opens an unreported order
+  dialog. Flutter only reads the DB cache on open,
   manual reload, and every 3 minutes while the screen is mounted. The admin
   export surface also includes `Trả góp`, which filters `installmentNeed = true`
   and exports the requested installment columns plus the derived final payment
@@ -240,6 +242,11 @@ Recent focused evidence:
   `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
   (5 tests), `flutter analyze --no-pub`, and `git diff --check` (CRLF warnings
   only).
+- `SALES-REPORT-001`, 2026-07-01: Purchased-report customer type auto-detect
+  reads `data.order.billingInfo.customerType` and
+  `data.order.billingInfo.taxCode`; top-level `order.customerType` is ignored.
+  Validation: `npm test -- --runInBand src/sales-reports` (26 tests),
+  `npm run build`, and `git diff --check`.
 - `SALES-REPORT-001`, 2026-06-30: Customer type UI makes
   `Học sinh - Sinh viên` a child checkbox of `Cá nhân`, auto-selects `Cá nhân`
   when HS-SV is checked, clears/locks personal flags when `Doanh nghiệp` is
