@@ -253,6 +253,11 @@ Recent focused evidence:
   from auto-selecting `Máy tính bộ`; the reported VGA/PSU/network-card/service
   example maps to `NH03`, `NH08`, and `NH95` only. Validation:
   `npm test -- --runInBand src/sales-reports/sales-report-categories.service.spec.ts`.
+- `SALES-REPORT-001`, 2026-07-01: Purchased-order category candidates now
+  include `result.products[].categories[].code/id/name` from Listing before the
+  product name fallback, so level-1 codes like `NH08` are used directly for
+  auto-ticking ngành hàng even when `productGroup` is missing. Validation:
+  `npm test -- --runInBand src/sales-reports/sales-report-erp.service.spec.ts`.
 - `SALES-REPORT-001`, 2026-06-30: Customer type UI makes
   `Học sinh - Sinh viên` a child checkbox of `Cá nhân`, auto-selects `Cá nhân`
   when HS-SV is checked, clears/locks personal flags when `Doanh nghiệp` is

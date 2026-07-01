@@ -29,9 +29,11 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   không phân biệt hoa/thường, app báo `Đơn đã bị hủy.` và không load thông tin
   đơn hàng vào form.
 - ERP/Listing trả được ngành hàng/nhu cầu thì app tự fill; ngành hàng ưu tiên
-  map bằng `productGroup.code` khớp `Cat group ID` trong `data/categories.csv`.
-  Một báo cáo có thể chọn nhiều ngành hàng; nếu không map được ngành hàng về
-  nhóm ngành OpsHub thì bắt buộc sale chọn tay trước khi gửi.
+  map bằng mã nhóm rõ ràng từ Listing như
+  `result.products[].categories[].code` hoặc `productGroup.code` khớp
+  `Cat group ID` trong `data/categories.csv`. Một báo cáo có thể chọn nhiều
+  ngành hàng; nếu không map được ngành hàng về nhóm ngành OpsHub thì bắt buộc
+  sale chọn tay trước khi gửi.
   Tên nhóm gốc ngắn như `PC` chỉ match khi ERP/Listing trả đúng `PC`, không
   được tự tick `Máy tính bộ` chỉ vì tên sản phẩm/dịch vụ có chữ `PC`.
 - Nhu cầu khách hàng và các câu hỏi hành vi sale là bắt buộc; hành vi tư vấn,

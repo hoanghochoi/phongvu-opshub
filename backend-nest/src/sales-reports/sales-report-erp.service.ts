@@ -626,6 +626,7 @@ export class SalesReportErpService {
             item.productGroupName,
             item.productTypeCode,
             item.productTypeName,
+            ...this.listingCategoryCandidateValues(item.listingCategories),
             item.name,
           ])
           .filter((value): value is string => Boolean(value)),
@@ -1009,6 +1010,29 @@ export class SalesReportErpService {
       displayName: this.optionalText(record.displayName),
       level,
     };
+  }
+
+  private listingCategoryCandidateValues(categories: unknown[]) {
+    return categories.flatMap((category) => {
+      if (typeof category === 'string') {
+        return [this.optionalText(category)].filter(
+          (value): value is string => Boolean(value),
+        );
+      }
+      if (!category || typeof category !== 'object') return [];
+      const record = category as Record<string, unknown>;
+      return [
+        record.code,
+        record.id,
+        record.name,
+        record.displayName,
+        record.categoryCode,
+        record.categoryId,
+        record.categoryName,
+      ]
+        .map((value) => this.optionalText(value))
+        .filter((value): value is string => Boolean(value));
+    });
   }
 
   private billingCustomerType(order: any) {

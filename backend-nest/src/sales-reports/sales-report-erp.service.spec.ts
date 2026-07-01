@@ -152,6 +152,77 @@ describe('SalesReportErpService', () => {
     ).toBe(true);
   });
 
+  it('uses Listing category codes as auto-fill category candidates', async () => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = input.toString();
+      if (
+        url ===
+        'https://staff-bff.tekoapis.com/api/v2/staff-admin/orders/26070132780090?thousandSeparator=%2C&decimalSeparator=.'
+      ) {
+        return jsonResponse({
+          data: {
+            order: {
+              orderId: '26070132780090',
+              confirmationStatus: 'active',
+              fulfillmentStatus: 'PROCESSING',
+              orderCaptureLineItems: [
+                {
+                  sellerSku: 'SKU-WIFI',
+                  name: 'Card mạng PCIe WiFi AX1800 + Bluetooth 5.2 TP-Link Archer TX20E',
+                  quantity: 1,
+                },
+              ],
+              payments: [{ paymentMethod: 'cash', amount: 500000 }],
+            },
+          },
+        });
+      }
+      if (url.startsWith('https://listing.tekoapis.com/api/products/')) {
+        return jsonResponse({
+          result: {
+            products: [
+              {
+                sku: 'SKU-WIFI',
+                name: 'Card mạng PCIe WiFi AX1800 + Bluetooth 5.2 TP-Link Archer TX20E',
+                categories: [
+                  {
+                    id: 386102,
+                    code: 'NH08',
+                    name: 'Thiết bị mạng và an ninh',
+                    level: 1,
+                    parentId: 0,
+                  },
+                  {
+                    id: 386200,
+                    code: 'NH08-01-99-02',
+                    name: 'Card mạng',
+                    level: 3,
+                    parentId: 386102,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    const service = new SalesReportErpService();
+    const result = await service.lookupOrder('26070132780090', 'CP62');
+
+    expect(result.categoryCandidates).toEqual(
+      expect.arrayContaining([
+        'NH08',
+        'Thiết bị mạng và an ninh',
+        'NH08-01-99-02',
+        'Card mạng',
+      ]),
+    );
+  });
+
   it.each([
     ['confirmationStatus', 'CANCELLED'],
     ['fulfillmentStatus', 'cancelled'],
