@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   OnApplicationBootstrap,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Interval } from '@nestjs/schedule';
@@ -15,6 +16,7 @@ import { isSuperAdminRole } from '../common/system-role';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { FeatureService } from '../feature/feature.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { SalesReportCategoriesService } from './sales-report-categories.service';
 import {
   SalesReportErpOrder,
@@ -49,6 +51,7 @@ const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_ORDER_COCKPIT_LIMIT = 20;
 const DEFAULT_ORDER_CACHE_SYNC_LIMIT = 50;
 const ORDER_CACHE_SYNC_INTERVAL_MS = 3 * 60 * 1000;
+const SALES_REPORT_ORDERS_UPDATED_CHANNEL = 'SALES_REPORT_ORDERS_UPDATED';
 const MAX_ORDER_CACHE_SYNC_LOOKBACK_DAYS = 7;
 const INSTALLMENT_SUCCESS = 'SUCCESS';
 const INSTALLMENT_FAILED = 'FAILED';
@@ -73,6 +76,8 @@ type SalesReportFilters = {
 type SalesReportOrderCockpitFilters = {
   date: string;
   dateRange: { start: Date; end: Date };
+  storeCode: string | null;
+  userEmail: string | null;
   limit: number;
   reportedPage: number;
   unreportedPage: number;
@@ -163,7 +168,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
     private readonly prisma: PrismaService,
     private readonly categories: SalesReportCategoriesService,
     private readonly erp: SalesReportErpService,
+    @Optional()
     private readonly featureService?: FeatureService,
+    @Optional() private readonly redisService?: RedisService,
   ) {}
 
   async categoriesForReport() {
@@ -200,17 +207,46 @@ export class SalesReportsService implements OnApplicationBootstrap {
     this.orderCacheSyncRunning = true;
     try {
       let syncedCount = 0;
+      let newOrderCount = 0;
+      let mappedOrderCount = 0;
+      const updatedDates = new Set<string>();
+      const storeCodes = new Set<string>();
+      const recipientUserIds = new Set<string>();
       for (const date of dates) {
-        syncedCount += await this.syncErpOrderCache({
+        const result = await this.syncErpOrderCache({
           date,
           limit,
           source,
         });
+        syncedCount += result.count;
+        newOrderCount += result.newOrderCount;
+        mappedOrderCount += result.mappedOrderCount;
+        if (result.newOrderCount > 0 || result.mappedOrderCount > 0) {
+          updatedDates.add(date);
+        }
+        result.storeCodes.forEach((code) => storeCodes.add(code));
+        result.recipientUserIds.forEach((id) => recipientUserIds.add(id));
+      }
+      if (newOrderCount > 0 || mappedOrderCount > 0) {
+        await this.publishOrderCacheUpdated({
+          source,
+          dates: Array.from(updatedDates),
+          newOrderCount,
+          mappedOrderCount,
+          storeCodes: Array.from(storeCodes),
+          recipientUserIds: Array.from(recipientUserIds),
+        });
       }
       this.logger.log(
-        `Sales report scheduled ERP order sync succeeded: source=${source} dates=${dates.join(',')} count=${syncedCount} limit=${limit} durationMs=${Date.now() - startedAt}`,
+        `Sales report scheduled ERP order sync succeeded: source=${source} dates=${dates.join(',')} count=${syncedCount} newOrderCount=${newOrderCount} mappedOrderCount=${mappedOrderCount} limit=${limit} durationMs=${Date.now() - startedAt}`,
       );
-      return { skipped: false, count: syncedCount, dates };
+      return {
+        skipped: false,
+        count: syncedCount,
+        newOrderCount,
+        mappedOrderCount,
+        dates,
+      };
     } catch (error) {
       this.logger.error(
         `Sales report scheduled ERP order sync failed: source=${source} dates=${dates.join(',')} limit=${limit} durationMs=${Date.now() - startedAt} error=${String(error)}`,
@@ -226,15 +262,23 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const context = await this.resolveUserSnapshot(user);
     const adminView = await this.canViewAdminSalesReports(user);
 
-    const reportScopeWhere = adminView
+    const baseReportScopeWhere = adminView
       ? await this.resolveAdminScopeWhere(user, {
           requestedAllStores: true,
           storeIds: [],
         })
       : this.resolveUserReportScopeWhere(user);
-    const orderScopeWhere = adminView
+    const baseOrderScopeWhere = adminView
       ? await this.resolveAdminOrderCacheScopeWhere(user)
       : this.resolveUserOrderCacheScopeWhere(user, context);
+    const reportScopeWhere = this.andWhere(
+      baseReportScopeWhere,
+      this.orderCockpitReportFilterWhere(filters),
+    );
+    const orderScopeWhere = this.andOrderCacheWhere(
+      baseOrderScopeWhere,
+      this.orderCockpitCacheFilterWhere(filters),
+    );
     const reportedWhere = this.andWhere(
       reportScopeWhere,
       this.reportedOrderDateWhere(filters.dateRange),
@@ -247,8 +291,20 @@ export class SalesReportsService implements OnApplicationBootstrap {
       orderScopeWhere,
       this.orderCacheDateWhere(filters.dateRange),
     );
+    const baseReportedWhere = this.andWhere(
+      baseReportScopeWhere,
+      this.reportedOrderDateWhere(filters.dateRange),
+      {
+        reportType: REPORT_TYPE_PURCHASED,
+        orderCode: { not: null },
+      },
+    );
+    const baseCacheDateWhere = this.andOrderCacheWhere(
+      baseOrderScopeWhere,
+      this.orderCacheDateWhere(filters.dateRange),
+    );
     const reportedCodeRows = await this.prisma.salesReport.findMany({
-      where: reportedWhere,
+      where: baseReportedWhere,
       select: { orderCode: true },
     });
     const reportedCodes = Array.from(
@@ -262,35 +318,69 @@ export class SalesReportsService implements OnApplicationBootstrap {
       cacheDateScopeWhere,
       reportedCodes.length > 0 ? { orderCode: { notIn: reportedCodes } } : {},
     );
-    const [reportedTotal, unreportedTotal, reportedOrders, unreportedOrders] =
-      await this.prisma.$transaction([
-        this.prisma.salesReport.count({ where: reportedWhere }),
-        this.prisma.salesReportErpOrderCache.count({ where: unreportedWhere }),
-        this.prisma.salesReport.findMany({
-          where: reportedWhere,
-          orderBy: [{ erpOrderCreatedAt: 'desc' }, { submittedAt: 'desc' }],
-          skip: filters.reportedPage * filters.limit,
-          take: filters.limit,
-          include: {
-            categorySelections: { orderBy: { sortOrder: 'asc' } },
-            items: { take: 20, orderBy: { createdAt: 'asc' } },
-            payments: { take: 20, orderBy: { createdAt: 'asc' } },
-          },
-        }),
-        this.prisma.salesReportErpOrderCache.findMany({
-          where: unreportedWhere,
-          orderBy: [
-            { orderCreatedAt: 'desc' },
-            { fetchedAt: 'desc' },
-            { updatedAt: 'desc' },
-          ],
-          skip: filters.unreportedPage * filters.limit,
-          take: filters.limit,
-        }),
-      ]);
+    const [
+      reportedTotal,
+      unreportedTotal,
+      reportedOrders,
+      unreportedOrders,
+      reportOptionRows,
+      cacheOptionRows,
+    ] = await this.prisma.$transaction([
+      this.prisma.salesReport.count({ where: reportedWhere }),
+      this.prisma.salesReportErpOrderCache.count({ where: unreportedWhere }),
+      this.prisma.salesReport.findMany({
+        where: reportedWhere,
+        orderBy: [{ erpOrderCreatedAt: 'desc' }, { submittedAt: 'desc' }],
+        skip: filters.reportedPage * filters.limit,
+        take: filters.limit,
+        include: {
+          categorySelections: { orderBy: { sortOrder: 'asc' } },
+          items: { take: 20, orderBy: { createdAt: 'asc' } },
+          payments: { take: 20, orderBy: { createdAt: 'asc' } },
+        },
+      }),
+      this.prisma.salesReportErpOrderCache.findMany({
+        where: unreportedWhere,
+        orderBy: [
+          { orderCreatedAt: 'desc' },
+          { fetchedAt: 'desc' },
+          { updatedAt: 'desc' },
+        ],
+        skip: filters.unreportedPage * filters.limit,
+        take: filters.limit,
+      }),
+      this.prisma.salesReport.findMany({
+        where: baseReportedWhere,
+        select: {
+          storeCode: true,
+          storeName: true,
+          createdByEmail: true,
+          createdByName: true,
+        },
+        take: 10_000,
+      }),
+      this.prisma.salesReportErpOrderCache.findMany({
+        where: baseCacheDateWhere,
+        select: {
+          storeCode: true,
+          storeName: true,
+          consultantEmail: true,
+          consultantName: true,
+          sellerEmail: true,
+          sellerName: true,
+          sourceUserEmail: true,
+        },
+        take: 10_000,
+      }),
+    ]);
+
+    const filterOptions = this.orderCockpitFilterOptions(
+      reportOptionRows ?? [],
+      cacheOptionRows ?? [],
+    );
 
     this.logger.log(
-      `Sales report order cockpit loaded from cache: user=${this.safeUserLabel(user)} date=${filters.date} admin=${adminView} reported=${reportedOrders.length}/${reportedTotal} unreported=${unreportedOrders.length}/${unreportedTotal} reportedPage=${filters.reportedPage} unreportedPage=${filters.unreportedPage} limit=${filters.limit}`,
+      `Sales report order cockpit loaded from cache: user=${this.safeUserLabel(user)} date=${filters.date} admin=${adminView} hasStoreFilter=${Boolean(filters.storeCode)} hasUserFilter=${Boolean(filters.userEmail)} storeOptionCount=${filterOptions.stores.length} userOptionCount=${filterOptions.users.length} reported=${reportedOrders.length}/${reportedTotal} unreported=${unreportedOrders.length}/${unreportedTotal} reportedPage=${filters.reportedPage} unreportedPage=${filters.unreportedPage} limit=${filters.limit}`,
     );
     return {
       date: filters.date,
@@ -299,6 +389,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
       syncError: null,
       syncCount: 0,
       scope: adminView ? 'MANAGED_SCOPE' : 'OWN',
+      selectedStoreCode: filters.storeCode,
+      selectedUserEmail: filters.userEmail,
+      storeOptions: adminView ? filterOptions.stores : [],
+      userOptions: adminView ? filterOptions.users : [],
       limit: filters.limit,
       reportedPage: filters.reportedPage,
       reportedTotal,
@@ -601,10 +695,95 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return {
       date,
       dateRange: { start, end },
+      storeCode: this.normalizeStoreCode(query.storeCode),
+      userEmail: this.normalizeEmail(query.userEmail),
       limit,
       reportedPage: Math.max(0, normalizeNumber(query.reportedPage, 0)),
       unreportedPage: Math.max(0, normalizeNumber(query.unreportedPage, 0)),
     };
+  }
+
+  private orderCockpitReportFilterWhere(
+    filters: SalesReportOrderCockpitFilters,
+  ): Prisma.SalesReportWhereInput {
+    return this.andWhere(
+      filters.storeCode ? { storeCode: filters.storeCode } : {},
+      filters.userEmail
+        ? {
+            createdByEmail: {
+              equals: filters.userEmail,
+              mode: 'insensitive',
+            },
+          }
+        : {},
+    );
+  }
+
+  private orderCockpitCacheFilterWhere(
+    filters: SalesReportOrderCockpitFilters,
+  ): Prisma.SalesReportErpOrderCacheWhereInput {
+    const userWhere = filters.userEmail
+      ? {
+          OR: [
+            {
+              consultantEmail: {
+                equals: filters.userEmail,
+                mode: Prisma.QueryMode.insensitive,
+              },
+            },
+            {
+              sellerEmail: {
+                equals: filters.userEmail,
+                mode: Prisma.QueryMode.insensitive,
+              },
+            },
+            {
+              sourceUserEmail: {
+                equals: filters.userEmail,
+                mode: Prisma.QueryMode.insensitive,
+              },
+            },
+          ],
+        }
+      : {};
+    return this.andOrderCacheWhere(
+      filters.storeCode ? { storeCode: filters.storeCode } : {},
+      userWhere,
+    );
+  }
+
+  private orderCockpitFilterOptions(reportRows: any[], cacheRows: any[]) {
+    const stores = new Map<string, string>();
+    const users = new Map<string, string>();
+    const addStore = (codeValue: unknown, nameValue: unknown) => {
+      const code = this.normalizeStoreCode(codeValue);
+      if (!code) return;
+      const name = this.optionalText(nameValue, 120);
+      stores.set(code, name ? `${code} - ${name}` : code);
+    };
+    const addUser = (emailValue: unknown, nameValue: unknown) => {
+      const email = this.normalizeEmail(emailValue);
+      if (!email) return;
+      const name = this.optionalText(nameValue, 120);
+      const current = users.get(email);
+      if (current && (!name || current !== email)) return;
+      users.set(email, name ? `${name} - ${email}` : email);
+    };
+    for (const row of reportRows) {
+      addStore(row.storeCode, row.storeName);
+      addUser(row.createdByEmail, row.createdByName);
+    }
+    for (const row of cacheRows) {
+      addStore(row.storeCode, row.storeName);
+      addUser(row.consultantEmail, row.consultantName);
+      addUser(row.sellerEmail, row.sellerName);
+      addUser(row.sourceUserEmail, null);
+    }
+    const toOptions = (values: Map<string, string>) =>
+      Array.from(values.entries())
+        .map(([value, label]) => ({ value, label }))
+        .sort((left, right) => left.label.localeCompare(right.label));
+    return { stores: toOptions(stores), users: toOptions(users) };
   }
 
   private async syncErpOrderCache(input: {
@@ -617,22 +796,99 @@ export class SalesReportsService implements OnApplicationBootstrap {
         date: input.date,
         limit: input.limit,
       });
+    const orderCodes = orders
+      .map((order) => this.normalizeOrderCode(order.orderCode))
+      .filter(Boolean);
+    const existingRows = orderCodes.length
+      ? ((await this.prisma.salesReportErpOrderCache.findMany({
+          where: { orderCode: { in: orderCodes } },
+          select: {
+            orderCode: true,
+            consultantEmail: true,
+            sellerEmail: true,
+            storeCode: true,
+            organizationNodeId: true,
+            sourceUserId: true,
+            sourceUserEmail: true,
+          },
+        })) ?? [])
+      : [];
+    const existingByCode = new Map(
+      existingRows
+        .map((row: any) => [this.normalizeOrderCode(row.orderCode), row])
+        .filter((entry): entry is [string, any] => Boolean(entry[0])),
+    );
+    const existingCodes = new Set(
+      existingRows.map((row: any) => this.normalizeOrderCode(row.orderCode)),
+    );
     const context = this.systemOrderSyncContext();
-    const ownerByEmail = await this.syncOrderOwnersByEmail(orders);
+    const ownerByEmail = await this.syncOrderOwnersByEmail(
+      orders,
+      existingRows.flatMap((row: any) => [
+        row.sourceUserEmail,
+        row.consultantEmail,
+        row.sellerEmail,
+      ]),
+    );
     const storeByCode = await this.storesByCode(
-      orders
-        .map(
+      [
+        ...orders.map(
           (order: SalesReportErpOrderListItem) =>
             order.storeCode ?? context.storeCode,
-        )
-        .filter((code: string | null): code is string => Boolean(code)),
+        ),
+        ...Array.from(ownerByEmail.values()).map((owner) => owner.storeCode),
+      ].filter((code: string | null): code is string => Boolean(code)),
     );
     let ownerMappedCount = 0;
     let storeMappedCount = 0;
+    let newOrderCount = 0;
+    let mappedOrderCount = 0;
+    const storeCodes = new Set<string>();
+    const recipientUserIds = new Set<string>();
     for (const order of orders) {
-      const owner = this.syncOrderOwner(order, ownerByEmail);
+      const orderCode = this.normalizeOrderCode(order.orderCode);
+      const existingRow = orderCode ? existingByCode.get(orderCode) : null;
+      const owner =
+        this.syncOrderOwner(order, ownerByEmail) ??
+        this.syncOrderOwnerFromEmails(
+          [
+            existingRow?.sourceUserEmail,
+            existingRow?.consultantEmail,
+            existingRow?.sellerEmail,
+          ],
+          ownerByEmail,
+        );
+      const isNew = orderCode ? !existingCodes.has(orderCode) : false;
+      if (isNew) newOrderCount += 1;
       if (owner) ownerMappedCount += 1;
       if (order.storeCode || owner?.storeCode) storeMappedCount += 1;
+      const mappedStoreCode = this.normalizeStoreCode(
+        order.storeCode ?? owner?.storeCode,
+      );
+      const mappedStore = mappedStoreCode
+        ? storeByCode.get(mappedStoreCode)
+        : null;
+      const mappedOrganizationNodeId =
+        mappedStore?.organizationNodeId ??
+        (mappedStoreCode === owner?.storeCode
+          ? owner.organizationNodeId
+          : null) ??
+        context.organizationNodeId;
+      const mappingBackfilled =
+        !isNew &&
+        Boolean(
+          (!existingRow?.storeCode && mappedStoreCode) ||
+          (!existingRow?.organizationNodeId && mappedOrganizationNodeId) ||
+          (!existingRow?.sourceUserId && owner?.id) ||
+          (!existingRow?.sourceUserEmail && owner?.email),
+        );
+      if (mappingBackfilled) mappedOrderCount += 1;
+      if ((isNew || mappingBackfilled) && owner?.id) {
+        recipientUserIds.add(owner.id);
+      }
+      if ((isNew || mappingBackfilled) && mappedStoreCode) {
+        storeCodes.add(mappedStoreCode);
+      }
       await this.upsertErpOrderCacheItem(
         null,
         context,
@@ -642,18 +898,53 @@ export class SalesReportsService implements OnApplicationBootstrap {
       );
     }
     this.logger.log(
-      `Sales report ERP order cache mapping completed: source=${input.source} orders=${orders.length} ownerMapped=${ownerMappedCount} storeMapped=${storeMappedCount} missingStore=${orders.length - storeMappedCount}`,
+      `Sales report ERP order cache mapping completed: source=${input.source} orders=${orders.length} newOrderCount=${newOrderCount} mappedOrderCount=${mappedOrderCount} ownerMapped=${ownerMappedCount} storeMapped=${storeMappedCount} missingStore=${orders.length - storeMappedCount}`,
     );
-    return orders.length;
+    return {
+      count: orders.length,
+      newOrderCount,
+      mappedOrderCount,
+      storeCodes: Array.from(storeCodes),
+      recipientUserIds: Array.from(recipientUserIds),
+    };
+  }
+
+  private async publishOrderCacheUpdated(payload: {
+    source: string;
+    dates: string[];
+    newOrderCount: number;
+    mappedOrderCount: number;
+    storeCodes: string[];
+    recipientUserIds: string[];
+  }) {
+    if (!this.redisService) {
+      this.logger.warn(
+        `Sales report realtime publish skipped: source=${payload.source} reason=redis_unavailable newOrderCount=${payload.newOrderCount}`,
+      );
+      return;
+    }
+    await this.redisService.publishMessage(
+      SALES_REPORT_ORDERS_UPDATED_CHANNEL,
+      payload,
+    );
+    this.logger.log(
+      `Sales report realtime update published: source=${payload.source} dateCount=${payload.dates.length} newOrderCount=${payload.newOrderCount} mappedOrderCount=${payload.mappedOrderCount} storeCount=${payload.storeCodes.length} recipientCount=${payload.recipientUserIds.length}`,
+    );
   }
 
   private async syncOrderOwnersByEmail(
     orders: SalesReportErpOrderListItem[],
+    extraEmailValues: unknown[] = [],
   ): Promise<Map<string, SalesReportOrderSyncOwner>> {
     const emails = Array.from(
       new Set(
-        orders
-          .flatMap((order) => [order.consultantEmail, order.sellerEmail])
+        [
+          ...orders.flatMap((order) => [
+            order.consultantEmail,
+            order.sellerEmail,
+          ]),
+          ...extraEmailValues,
+        ]
           .map((email) => this.normalizeEmail(email))
           .filter((email): email is string => Boolean(email)),
       ),
@@ -718,7 +1009,17 @@ export class SalesReportsService implements OnApplicationBootstrap {
     order: SalesReportErpOrderListItem,
     ownerByEmail: Map<string, SalesReportOrderSyncOwner>,
   ) {
-    const emails = [order.consultantEmail, order.sellerEmail]
+    return this.syncOrderOwnerFromEmails(
+      [order.consultantEmail, order.sellerEmail],
+      ownerByEmail,
+    );
+  }
+
+  private syncOrderOwnerFromEmails(
+    emailValues: unknown[],
+    ownerByEmail: Map<string, SalesReportOrderSyncOwner>,
+  ) {
+    const emails = emailValues
       .map((email) => this.normalizeEmail(email))
       .filter((email): email is string => Boolean(email));
     for (const email of emails) {

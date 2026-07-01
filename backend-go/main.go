@@ -26,12 +26,14 @@ const (
 	appVersionRedisChannel             = "APP_VERSION_UPDATED"
 	statementOrderTransferRedisChannel = "STATEMENT_ORDER_TRANSFER_REQUESTED"
 	offsetAdjustmentRedisChannel       = "OFFSET_ADJUSTMENT_UPDATED"
+	salesReportOrdersRedisChannel      = "SALES_REPORT_ORDERS_UPDATED"
 	warrantyEventType                  = "WARRANTY_EVENT"
 	paymentEventType                   = "PAYMENT_NOTIFICATION"
 	paymentStreamEventType             = "PAYMENT_SPEAKER_STREAM"
 	appUpdateEventType                 = "APP_UPDATE"
 	statementOrderTransferEventType    = "STATEMENT_ORDER_TRANSFER_REQUEST"
 	offsetAdjustmentEventType          = "OFFSET_ADJUSTMENT_NOTIFICATION"
+	salesReportOrdersEventType         = "SALES_REPORT_ORDERS_UPDATED"
 )
 
 var upgrader = websocket.Upgrader{
@@ -342,9 +344,10 @@ func (h *Hub) listenToRedis() {
 		appVersionRedisChannel,
 		statementOrderTransferRedisChannel,
 		offsetAdjustmentRedisChannel,
+		salesReportOrdersRedisChannel,
 	)
 	defer pubsub.Close()
-	log.Println("Listening to Redis channels: WARRANTY_STATUS_UPDATED, PAYMENT_NOTIFICATION_READY, PAYMENT_SPEAKER_STREAM, APP_VERSION_UPDATED, STATEMENT_ORDER_TRANSFER_REQUESTED, OFFSET_ADJUSTMENT_UPDATED...")
+	log.Println("Listening to Redis channels: WARRANTY_STATUS_UPDATED, PAYMENT_NOTIFICATION_READY, PAYMENT_SPEAKER_STREAM, APP_VERSION_UPDATED, STATEMENT_ORDER_TRANSFER_REQUESTED, OFFSET_ADJUSTMENT_UPDATED, SALES_REPORT_ORDERS_UPDATED...")
 
 	ch := pubsub.Channel()
 
@@ -374,6 +377,8 @@ func formatRedisEvent(channel string, payload string) ([]byte, bool) {
 		eventType = statementOrderTransferEventType
 	case offsetAdjustmentRedisChannel:
 		eventType = offsetAdjustmentEventType
+	case salesReportOrdersRedisChannel:
+		eventType = salesReportOrdersEventType
 	default:
 		return nil, false
 	}

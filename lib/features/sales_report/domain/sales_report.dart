@@ -203,6 +203,10 @@ class SalesReportOrderCockpit {
   final String? syncError;
   final int syncCount;
   final String scope;
+  final String? selectedStoreCode;
+  final String? selectedUserEmail;
+  final List<SalesReportFilterOption> storeOptions;
+  final List<SalesReportFilterOption> userOptions;
   final int limit;
   final int reportedPage;
   final int reportedTotal;
@@ -218,6 +222,10 @@ class SalesReportOrderCockpit {
     required this.syncError,
     required this.syncCount,
     required this.scope,
+    required this.selectedStoreCode,
+    required this.selectedUserEmail,
+    required this.storeOptions,
+    required this.userOptions,
     required this.limit,
     required this.reportedPage,
     required this.reportedTotal,
@@ -254,6 +262,10 @@ class SalesReportOrderCockpit {
       syncError: json['syncError']?.toString(),
       syncCount: parseInt(json['syncCount'], 0),
       scope: json['scope']?.toString() ?? 'OWN',
+      selectedStoreCode: json['selectedStoreCode']?.toString(),
+      selectedUserEmail: json['selectedUserEmail']?.toString(),
+      storeOptions: SalesReportFilterOption.listFromJson(json['storeOptions']),
+      userOptions: SalesReportFilterOption.listFromJson(json['userOptions']),
       limit: parseInt(json['limit'], 20),
       reportedPage: parseInt(json['reportedPage'], 0),
       reportedTotal: parseInt(json['reportedTotal'], reportedOrders.length),
@@ -265,6 +277,26 @@ class SalesReportOrderCockpit {
       reportedOrders: reportedOrders,
       unreportedOrders: unreportedOrders,
     );
+  }
+}
+
+class SalesReportFilterOption {
+  final String value;
+  final String label;
+
+  const SalesReportFilterOption({required this.value, required this.label});
+
+  static List<SalesReportFilterOption> listFromJson(Object? value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<Map>()
+        .map((item) {
+          final value = item['value']?.toString().trim() ?? '';
+          final label = item['label']?.toString().trim() ?? value;
+          return SalesReportFilterOption(value: value, label: label);
+        })
+        .where((item) => item.value.isNotEmpty)
+        .toList(growable: false);
   }
 }
 
@@ -394,6 +426,8 @@ class SalesReportQuery {
   final String? exportType;
   final DateTime? startDate;
   final DateTime? endDate;
+  final String? reporter;
+  final List<String> storeIds;
   final int page;
   final int limit;
 
@@ -404,6 +438,8 @@ class SalesReportQuery {
     this.exportType,
     this.startDate,
     this.endDate,
+    this.reporter,
+    this.storeIds = const [],
     this.page = 0,
     this.limit = 20,
   });
@@ -418,6 +454,8 @@ class SalesReportQuery {
         'exportType': exportType!.trim(),
       if (startDate != null) 'startDate': _date(startDate!),
       if (endDate != null) 'endDate': _date(endDate!),
+      if ((reporter ?? '').trim().isNotEmpty) 'reporter': reporter!.trim(),
+      if (storeIds.isNotEmpty) 'storeIds': storeIds.join(','),
       'page': page.toString(),
       'limit': limit.toString(),
     };
@@ -431,12 +469,16 @@ class SalesReportQuery {
 
 class SalesReportOrdersQuery {
   final DateTime? date;
+  final String? storeCode;
+  final String? userEmail;
   final int reportedPage;
   final int unreportedPage;
   final int limit;
 
   const SalesReportOrdersQuery({
     this.date,
+    this.storeCode,
+    this.userEmail,
     this.reportedPage = 0,
     this.unreportedPage = 0,
     this.limit = 20,
@@ -445,6 +487,8 @@ class SalesReportOrdersQuery {
   Map<String, String> toQueryParameters() {
     return {
       if (date != null) 'date': SalesReportQuery._date(date!),
+      if ((storeCode ?? '').trim().isNotEmpty) 'storeCode': storeCode!.trim(),
+      if ((userEmail ?? '').trim().isNotEmpty) 'userEmail': userEmail!.trim(),
       'reportedPage': reportedPage.toString(),
       'unreportedPage': unreportedPage.toString(),
       'limit': limit.toString(),

@@ -295,6 +295,20 @@ func TestFormatsPaymentSpeakerStreamRedisEvent(t *testing.T) {
 	}
 }
 
+func TestFormatsSalesReportOrdersRedisEvent(t *testing.T) {
+	message, ok := formatRedisEvent(
+		salesReportOrdersRedisChannel,
+		`{"dates":["2026-07-01"],"newOrderCount":1,"mappedOrderCount":0,"storeCodes":["CP01"],"recipientUserIds":["user-1"]}`,
+	)
+	if !ok {
+		t.Fatal("expected sales report orders Redis event to be formatted")
+	}
+	expected := `{"type":"SALES_REPORT_ORDERS_UPDATED","payload":{"dates":["2026-07-01"],"newOrderCount":1,"mappedOrderCount":0,"storeCodes":["CP01"],"recipientUserIds":["user-1"]}}`
+	if string(message) != expected {
+		t.Fatalf("expected %s, got %s", expected, string(message))
+	}
+}
+
 func TestFormatsAppVersionRedisEvent(t *testing.T) {
 	message, ok := formatRedisEvent(
 		appVersionRedisChannel,

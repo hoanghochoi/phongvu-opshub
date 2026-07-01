@@ -13,12 +13,17 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   cáo, phải là đơn đã báo cáo; mỗi cột hiển thị 20 đơn/trang, có total đếm từ
   DB và nút chuyển trang riêng. Phía trên có `Báo cáo chưa mua`, `Tải lại` và
   action xuất file/danh sách khi user có quyền admin report.
+- Cockpit lọc theo `Ngày`, `SR` và `User`; filter `SR`/`User` chỉ hiện trong
+  scope quản lý và các nút xuất file dùng cùng filter đang chọn.
 - Backend tự đồng bộ danh sách đơn ERP từ staff-bff theo ngày mỗi 3 phút và khi
   service khởi động, mặc định 50 đơn, rồi upsert snapshot rút gọn vào bảng
   cache riêng. Ngay trong lần sync, backend map `creator.email` sang user nội
   bộ và showroom/node được gán; payload sync thiếu dữ liệu không được xóa
-  mapping đã lưu. Flutter không kích hoạt ERP sync; client chỉ đọc cache DB khi
-  mở màn hình, khi bấm `Tải lại`, và mỗi 3 phút khi còn ở màn này.
+  mapping đã lưu. Cache cũ đã có user nhưng thiếu showroom/node sẽ được
+  backfill lại từ user nội bộ trong lần sync sau. Flutter không kích hoạt ERP
+  sync; client đọc cache DB khi mở màn hình hoặc bấm `Tải lại`, và refresh
+  realtime qua WebSocket khi backend báo có đơn mới hoặc mapping vừa được bổ
+  sung trong scope liên quan.
 - User thường chỉ thấy đơn/report của mình theo
   `data.orders.creator.email`, fallback về consultant/seller/source-user
   snapshot nếu ERP không trả creator. STORE_MANAGER hoặc chức danh quản lý theo

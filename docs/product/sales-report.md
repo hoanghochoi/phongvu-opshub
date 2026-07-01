@@ -20,13 +20,20 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   trong DB.
 - Cockpit có nút `Báo cáo chưa mua`, `Tải lại`; user có quyền admin report có
   thêm nút xuất CSV và lối vào danh sách báo cáo chi tiết.
+- Cockpit có bộ lọc `Ngày`, `SR` và `User`. Bộ lọc `SR`/`User` chỉ hiện với
+  scope quản lý, lấy option từ chính cache/report đang nằm trong phạm vi user
+  được phép xem. Các nút xuất file trên cockpit dùng cùng bộ lọc ngày/SR/user
+  đang chọn.
 - Backend tự đồng bộ danh sách đơn từ staff-bff ERP mỗi 3 phút và khi service
   khởi động, map `creator.email` sang user nội bộ cùng showroom/node tổ chức
   được gán, rồi upsert snapshot rút gọn vào bảng cache riêng. Mapping này diễn
   ra ngay trong sync nền, không phụ thuộc sale bấm kiểm tra đơn; lần sync thiếu
-  dữ liệu cũng không được xóa mapping user/showroom đã lưu. Flutter không
-  kích hoạt ERP sync; client chỉ đọc dữ liệu realtime/near-realtime từ cache DB
-  khi mở màn hình, khi bấm `Tải lại`, và mỗi 3 phút khi màn hình còn mở.
+  dữ liệu cũng không được xóa mapping user/showroom đã lưu. Nếu cache cũ đã có
+  user nhưng thiếu showroom/node, lần sync sau sẽ bổ sung lại showroom/node từ
+  user nội bộ rồi phát sự kiện realtime. Flutter không kích hoạt ERP sync;
+  client đọc dữ liệu từ cache DB khi mở màn hình hoặc bấm `Tải lại`, và tự
+  refresh qua WebSocket khi backend báo có đơn mới hoặc mapping cache vừa được
+  bổ sung trong scope liên quan.
 - Khi sale bấm một đơn chưa báo cáo, app mở form báo cáo mua hàng trong dialog,
   tự kiểm tra lại mã đơn qua luồng `check-order` hiện tại rồi fill tên khách,
   nhu cầu, loại khách, ngành hàng và thông tin đơn cần thiết.
@@ -146,7 +153,11 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   phương thức thanh toán, metadata lần sync nền và snapshot đã sanitize. API
   cockpit đếm total chưa báo cáo trực tiếp trên cache
   DB, loại trừ các `orderCode` đã có báo cáo mua hàng trong cùng ngày/scope, rồi
-  trả từng trang 20 đơn cho client.
+  trả từng trang 20 đơn cho client. Backend publish sự kiện
+  `SALES_REPORT_ORDERS_UPDATED` qua Redis/WebSocket sau sync khi có đơn mới
+  hoặc cache cũ vừa được backfill user/showroom/node; payload chỉ chứa ngày,
+  số lượng, user/SR liên quan để client tự lọc và gọi lại API scoped, không đẩy
+  chi tiết đơn hàng qua websocket.
 - `SalesReportCategoryGroup` đồng bộ từ `data/categories.csv`, dùng `Cat group
   ID` làm code, `Cat group name` làm tên gốc và `catGroupNameVi` làm nhãn tiếng
   Việt.
@@ -160,8 +171,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   scheduled ERP cache sync, order cockpit cache-only list, feature guard và
   export CSV.
 - Flutter: Home/Report hub entry theo feature, route guard, order check before
-  submit, cockpit 2 cột chưa/đã báo cáo, phân trang 20 đơn/cột, refresh 3 phút,
-  QR/barcode scan mã
+  submit, cockpit 2 cột chưa/đã báo cáo, lọc ngày/SR/user, phân trang 20
+  đơn/cột, realtime WebSocket refresh từ cache DB, QR/barcode scan mã
   đơn, auto-fill nhiều category/need/customer type từ mock ERP, checkbox
   selectors, installment partner/approval/reason validation, không gửi `MSNV`,
   form validation và export CSV.

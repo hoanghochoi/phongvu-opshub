@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { SalesReportsService } from './sales-reports.service';
 
 describe('SalesReportsService', () => {
-  function createHarness() {
+  function createHarness(options: { redis?: any } = {}) {
     const prisma = {
       user: {
         findUnique: jest.fn().mockResolvedValue(userFixture()),
@@ -68,6 +68,8 @@ describe('SalesReportsService', () => {
       prisma as any,
       categories as any,
       erp as any,
+      undefined,
+      options.redis,
     );
     return { service, prisma, categories, erp };
   }
@@ -287,6 +289,71 @@ describe('SalesReportsService', () => {
     expect(cacheWhere).not.toContain('sellerEmail');
   });
 
+  it('filters the manager cockpit by date, store and user with scoped options', async () => {
+    const { service, prisma } = createHarness();
+    const manager = storeManagerFixture('CP01');
+    prisma.user.findUnique.mockResolvedValue(manager);
+    prisma.salesReport.count.mockResolvedValueOnce(0);
+    prisma.salesReportErpOrderCache.count.mockResolvedValueOnce(1);
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          storeCode: 'CP01',
+          storeName: 'Phong Vu CP01',
+          createdByEmail: 'sale.cp01@phongvu.vn',
+          createdByName: 'Sale CP01',
+        },
+      ]);
+    prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce([
+        { ...erpOrderCacheFixture('2607010003'), storeCode: 'CP01' },
+      ])
+      .mockResolvedValueOnce([
+        {
+          storeCode: 'CP01',
+          storeName: 'Phong Vu CP01',
+          consultantEmail: 'sale.cp01@phongvu.vn',
+          consultantName: 'Sale CP01',
+          sellerEmail: null,
+          sellerName: null,
+          sourceUserEmail: 'sale.cp01@phongvu.vn',
+        },
+      ]);
+
+    const result = await service.orderCockpit(
+      { id: manager.id, email: manager.email, role: 'USER' },
+      {
+        date: '2026-07-01',
+        storeCode: 'CP01',
+        userEmail: 'SALE.CP01@phongvu.vn',
+      },
+    );
+
+    expect(result.selectedStoreCode).toBe('CP01');
+    expect(result.selectedUserEmail).toBe('sale.cp01@phongvu.vn');
+    expect(result.storeOptions).toEqual([
+      { value: 'CP01', label: 'CP01 - Phong Vu CP01' },
+    ]);
+    expect(result.userOptions).toEqual([
+      {
+        value: 'sale.cp01@phongvu.vn',
+        label: 'Sale CP01 - sale.cp01@phongvu.vn',
+      },
+    ]);
+    const reportedWhere = JSON.stringify(
+      prisma.salesReport.findMany.mock.calls[1][0].where,
+    );
+    const cacheWhere = JSON.stringify(
+      prisma.salesReportErpOrderCache.findMany.mock.calls[0][0].where,
+    );
+    expect(reportedWhere).toContain('sale.cp01@phongvu.vn');
+    expect(reportedWhere).toContain('CP01');
+    expect(cacheWhere).toContain('sale.cp01@phongvu.vn');
+    expect(cacheWhere).toContain('CP01');
+  });
+
   it('scheduled sync pulls ERP orders and upserts the cache without a client request', async () => {
     const { service, prisma, erp } = createHarness();
     const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
@@ -397,6 +464,115 @@ describe('SalesReportsService', () => {
             storeCode: 'CP01',
             organizationNodeId: 'node-cp01',
           }),
+        }),
+      );
+    } finally {
+      if (oldEnabled === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_ENABLED = oldEnabled;
+      }
+      if (oldLookback === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = oldLookback;
+      }
+    }
+  });
+
+  it('backfills missing store scope from an existing mapped user during scheduled sync', async () => {
+    const redis = {
+      publishMessage: jest.fn().mockResolvedValue(undefined),
+    };
+    const { service, prisma, erp } = createHarness({ redis });
+    const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+    delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = '1';
+    erp.listRecentOrders.mockResolvedValueOnce([
+      {
+        ...erpListOrderFixture(),
+        orderCode: '2607010004',
+        storeCode: null,
+        storeName: null,
+        consultantEmail: null,
+        sellerEmail: null,
+      },
+    ]);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
+      {
+        orderCode: '2607010004',
+        consultantEmail: null,
+        sellerEmail: null,
+        storeCode: null,
+        organizationNodeId: null,
+        sourceUserId: 'sale-cp01',
+        sourceUserEmail: 'sale.cp01@phongvu.vn',
+      },
+    ]);
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'sale-cp01',
+        email: 'Sale.CP01@phongvu.vn',
+        store: null,
+        organizationNode: null,
+        organizationAssignments: [
+          {
+            organizationNode: {
+              id: 'node-cp01',
+              stores: [
+                {
+                  storeId: 'CP01',
+                  storeName: 'Phong Vu CP01',
+                },
+              ],
+              children: [],
+              parent: null,
+            },
+          },
+        ],
+      },
+    ]);
+
+    try {
+      const result =
+        await service.syncScheduledErpOrderCache('test-backfill-map');
+
+      expect(result).toMatchObject({
+        skipped: false,
+        count: 1,
+        newOrderCount: 0,
+        mappedOrderCount: 1,
+      });
+      expect(prisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            email: {
+              in: ['sale.cp01@phongvu.vn'],
+              mode: 'insensitive',
+            },
+          },
+        }),
+      );
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '2607010004' },
+          update: expect.objectContaining({
+            sourceUserId: 'sale-cp01',
+            sourceUserEmail: 'sale.cp01@phongvu.vn',
+            storeCode: 'CP01',
+            storeName: 'Phong Vu CP01',
+            organizationNodeId: 'node-cp01',
+          }),
+        }),
+      );
+      expect(redis.publishMessage).toHaveBeenCalledWith(
+        'SALES_REPORT_ORDERS_UPDATED',
+        expect.objectContaining({
+          newOrderCount: 0,
+          mappedOrderCount: 1,
+          storeCodes: ['CP01'],
+          recipientUserIds: ['sale-cp01'],
         }),
       );
     } finally {

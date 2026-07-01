@@ -332,6 +332,16 @@ export class ListSalesReportOrdersDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(40)
+  storeCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  userEmail?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(10)
   refresh?: string;
 

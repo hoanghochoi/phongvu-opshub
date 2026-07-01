@@ -59,16 +59,19 @@ Recent focused evidence:
   `result.products[].categories[].code` values whose `level = 1`, so lower
   Laptop/PC labels on a Logitech B100 mouse cannot select extra groups. It
   reuses the existing purchased `check-order` flow when a user opens an
-  unreported order dialog. Flutter only reads the DB cache on open,
-  manual reload, and every 3 minutes while the screen is mounted. The admin
-  export surface also includes `Trả góp`, which filters `installmentNeed = true`
-  and exports Vietnamese installment columns plus the derived final payment
-  method. Validation:
+  unreported order dialog. Cockpit filters by date, SR, and user, with exports
+  sharing the selected cockpit filters. Flutter reads the DB cache on open or
+  manual reload, then refreshes from the same scoped API when the Go WebSocket
+  forwards `SALES_REPORT_ORDERS_UPDATED` for a relevant user/SR/date; the
+  event also fires when scheduled sync backfills missing store/node mapping for
+  older cache rows. The admin export surface also includes `Trả góp`, which
+  filters `installmentNeed = true` and exports Vietnamese installment columns
+  plus the derived final payment method. Validation:
   `npx prisma validate`, `npx prisma generate`,
   `npm test -- --runInBand src/sales-reports`
-  (35 tests), `npm run build`,
+  (37 tests), `npm run build`, Go realtime `go test ./...`,
   `flutter test --no-pub --reporter expanded test\sales_report_hub_test.dart`
-  (12 tests), focused `dart analyze` on changed sales-report files, and
+  (16 tests), focused `dart analyze` on changed sales-report files, and
   `git diff --check` (CRLF warnings only).
 - `AUTH-004`/`PAYMENT-MONITOR-001`, 2026-07-01: production diagnosis found
   payment monitor clients behind Caddy sharing the default IP throttling bucket,

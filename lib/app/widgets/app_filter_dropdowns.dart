@@ -123,6 +123,7 @@ class _AppFilterDropdownState<T> extends State<AppFilterDropdown<T>> {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 320),
                 child: SingleChildScrollView(
+                  primary: false,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -257,6 +258,7 @@ class _AppMultiSelectFilterDropdownState<T>
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 320),
                 child: SingleChildScrollView(
+                  primary: false,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [

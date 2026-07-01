@@ -8,6 +8,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -121,7 +122,6 @@ class SalesReportScreen extends StatefulWidget {
 class _SalesReportScreenState extends State<SalesReportScreen> {
   bool _logged = false;
   bool _initialized = false;
-  Timer? _refreshTimer;
 
   @override
   void didChangeDependencies() {
@@ -152,10 +152,6 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
         categories: false,
       ),
     );
-    _refreshTimer = Timer.periodic(const Duration(minutes: 3), (_) {
-      if (!mounted) return;
-      unawaited(context.read<SalesReportProvider>().loadOrderCockpit());
-    });
   }
 
   Future<void> _openReport(String route, String reportType) async {
@@ -189,6 +185,21 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     );
     if (!mounted) return;
     context.push('/admin/sales-reports');
+  }
+
+  Future<void> _selectOrdersDate() async {
+    final provider = context.read<SalesReportProvider>();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: provider.ordersDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      helpText: 'Chọn ngày báo cáo',
+      cancelText: 'Hủy',
+      confirmText: 'Chọn',
+    );
+    if (picked == null || !mounted) return;
+    await provider.setOrderFilters(date: picked, updateDate: true);
   }
 
   Future<void> _openPurchasedDialog(SalesReportOrderCockpitItem order) async {
@@ -231,12 +242,6 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   }
 
   @override
-  void dispose() {
-    _refreshTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final canSubmitReports = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('SALES_REPORT') == true,
@@ -261,19 +266,20 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
               : null,
           onOpenAdmin: canViewAdminReports ? _openAdminReports : null,
           onReload: () => provider.loadOrderCockpit(),
+          onSelectDate: _selectOrdersDate,
           onExportHvtc: canViewAdminReports
               ? () => provider.exportCsv(
-                  query: const SalesReportQuery(exportType: 'HVTC'),
+                  query: provider.cockpitExportQuery('HVTC'),
                 )
               : null,
           onExportRevenue: canViewAdminReports
               ? () => provider.exportCsv(
-                  query: const SalesReportQuery(exportType: 'REVENUE'),
+                  query: provider.cockpitExportQuery('REVENUE'),
                 )
               : null,
           onExportInstallment: canViewAdminReports
               ? () => provider.exportCsv(
-                  query: const SalesReportQuery(exportType: 'INSTALLMENT'),
+                  query: provider.cockpitExportQuery('INSTALLMENT'),
                 )
               : null,
           onOrderTap: canSubmitReports ? _openPurchasedDialog : null,
@@ -290,6 +296,7 @@ class _SalesReportCockpit extends StatelessWidget {
   final VoidCallback? onNotPurchased;
   final VoidCallback? onOpenAdmin;
   final VoidCallback onReload;
+  final VoidCallback onSelectDate;
   final VoidCallback? onExportHvtc;
   final VoidCallback? onExportRevenue;
   final VoidCallback? onExportInstallment;
@@ -302,6 +309,7 @@ class _SalesReportCockpit extends StatelessWidget {
     required this.onNotPurchased,
     required this.onOpenAdmin,
     required this.onReload,
+    required this.onSelectDate,
     required this.onExportHvtc,
     required this.onExportRevenue,
     required this.onExportInstallment,
@@ -321,6 +329,62 @@ class _SalesReportCockpit extends StatelessWidget {
             alignment: WrapAlignment.start,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
+              SizedBox(
+                width: 190,
+                child: OutlinedButton.icon(
+                  onPressed: provider.isLoadingOrders ? null : onSelectDate,
+                  icon: const Icon(Icons.calendar_today_outlined, size: 18),
+                  label: Text('Ngày: ${_dateLabel(provider.ordersDate)}'),
+                ),
+              ),
+              if (cockpit?.scope == 'MANAGED_SCOPE')
+                SizedBox(
+                  width: 220,
+                  child: AppFilterDropdown<String>(
+                    label: 'SR',
+                    value: provider.ordersStoreCode,
+                    allLabel: 'Tất cả',
+                    icon: Icons.store_outlined,
+                    options: provider.orderStoreOptions
+                        .map(
+                          (option) => AppFilterOption<String>(
+                            value: option.value,
+                            label: option.label,
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (value) => unawaited(
+                      provider.setOrderFilters(
+                        storeCode: value,
+                        updateStore: true,
+                      ),
+                    ),
+                  ),
+                ),
+              if (cockpit?.scope == 'MANAGED_SCOPE')
+                SizedBox(
+                  width: 280,
+                  child: AppSearchableFilterDropdown<String>(
+                    label: 'User',
+                    value: provider.ordersUserEmail,
+                    allLabel: 'Tất cả',
+                    icon: Icons.person_outline_rounded,
+                    options: provider.orderUserOptions
+                        .map(
+                          (option) => AppFilterOption<String>(
+                            value: option.value,
+                            label: option.label,
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (value) => unawaited(
+                      provider.setOrderFilters(
+                        userEmail: value,
+                        updateUser: true,
+                      ),
+                    ),
+                  ),
+                ),
               if (canSubmitReports)
                 SizedBox(
                   width: 220,
@@ -462,6 +526,11 @@ class _SalesReportCockpit extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  String _dateLabel(DateTime value) {
+    String two(int part) => part.toString().padLeft(2, '0');
+    return '${two(value.day)}/${two(value.month)}/${value.year}';
   }
 }
 

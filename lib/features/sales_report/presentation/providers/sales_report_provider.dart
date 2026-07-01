@@ -1,17 +1,30 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:web_socket_channel/status.dart' as ws_status;
 
+import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../data/sales_report_repository.dart';
 import '../../domain/sales_report.dart';
+
+typedef SalesReportRealtimeConnector = WebSocketChannel Function(Uri uri);
 
 class SalesReportProvider extends ChangeNotifier {
   static const int _defaultOrdersLimit = 20;
 
   final SalesReportRepository _repository;
   final DateTime Function() _now;
+  final SalesReportRealtimeConnector _realtimeConnector;
+  final Duration _realtimeDebounce;
+  final Duration _realtimeReconnectBaseDelay;
 
   final List<SalesReportCategoryGroup> _categories = [];
   final List<Map<String, dynamic>> _adminItems = [];
@@ -31,9 +44,29 @@ class SalesReportProvider extends ChangeNotifier {
   int _reportedOrdersPage = 0;
   int _unreportedOrdersPage = 0;
   int _ordersLimit = _defaultOrdersLimit;
+  DateTime? _ordersDate;
+  String? _ordersStoreCode;
+  String? _ordersUserEmail;
+  User? _user;
+  WebSocketChannel? _realtimeChannel;
+  StreamSubscription<dynamic>? _realtimeSubscription;
+  Timer? _realtimeDebounceTimer;
+  Timer? _realtimeReconnectTimer;
+  int _realtimeReconnectAttempt = 0;
+  bool _realtimeConnectedOnce = false;
+  bool _disposed = false;
 
-  SalesReportProvider(this._repository, {DateTime Function()? now})
-    : _now = now ?? DateTime.now;
+  SalesReportProvider(
+    this._repository, {
+    DateTime Function()? now,
+    SalesReportRealtimeConnector? realtimeConnector,
+    Duration realtimeDebounce = const Duration(milliseconds: 350),
+    Duration realtimeReconnectBaseDelay = const Duration(seconds: 2),
+  }) : _now = now ?? DateTime.now,
+       _realtimeConnector =
+           realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri)),
+       _realtimeDebounce = realtimeDebounce,
+       _realtimeReconnectBaseDelay = realtimeReconnectBaseDelay;
 
   List<SalesReportCategoryGroup> get categories =>
       List.unmodifiable(_categories);
@@ -52,6 +85,14 @@ class SalesReportProvider extends ChangeNotifier {
   int get unreportedOrdersPage =>
       _orderCockpit?.unreportedPage ?? _unreportedOrdersPage;
   int get ordersLimit => _orderCockpit?.limit ?? _ordersLimit;
+  DateTime get ordersDate =>
+      _ordersDate ?? DateTime(_now().year, _now().month, _now().day);
+  String? get ordersStoreCode => _ordersStoreCode;
+  String? get ordersUserEmail => _ordersUserEmail;
+  List<SalesReportFilterOption> get orderStoreOptions =>
+      List.unmodifiable(_orderCockpit?.storeOptions ?? const []);
+  List<SalesReportFilterOption> get orderUserOptions =>
+      List.unmodifiable(_orderCockpit?.userOptions ?? const []);
   bool get canGoPreviousReportedOrders => reportedOrdersPage > 0;
   bool get canGoNextReportedOrders =>
       (reportedOrdersPage + 1) * ordersLimit < reportedOrdersTotal;
@@ -79,6 +120,7 @@ class SalesReportProvider extends ChangeNotifier {
     bool orders = false,
     bool categories = true,
   }) async {
+    _user = user;
     await AppLogger.instance.info(
       'SalesReport',
       admin ? 'Sales report admin screen opened' : 'Sales report screen opened',
@@ -95,7 +137,10 @@ class SalesReportProvider extends ChangeNotifier {
     );
     if (categories) await loadCategories(admin: admin);
     if (admin) await loadAdminList();
-    if (orders) await loadOrderCockpit();
+    if (orders) {
+      await loadOrderCockpit();
+      _connectRealtime();
+    }
   }
 
   Future<void> loadCategories({bool admin = false}) async {
@@ -189,6 +234,9 @@ class SalesReportProvider extends ChangeNotifier {
     final effectiveQuery =
         query ??
         SalesReportOrdersQuery(
+          date: _ordersDate,
+          storeCode: _ordersStoreCode,
+          userEmail: _ordersUserEmail,
           reportedPage: _reportedOrdersPage,
           unreportedPage: _unreportedOrdersPage,
           limit: _ordersLimit,
@@ -204,6 +252,9 @@ class SalesReportProvider extends ChangeNotifier {
       _reportedOrdersPage = result.reportedPage;
       _unreportedOrdersPage = result.unreportedPage;
       _ordersLimit = result.limit;
+      _ordersDate = DateTime.tryParse(result.date) ?? effectiveQuery.date;
+      _ordersStoreCode = result.selectedStoreCode;
+      _ordersUserEmail = result.selectedUserEmail;
       if ((result.syncError ?? '').trim().isNotEmpty) {
         _errorMessage = result.syncError;
       }
@@ -239,6 +290,9 @@ class SalesReportProvider extends ChangeNotifier {
   Future<void> loadReportedOrdersPage(int page) async {
     await loadOrderCockpit(
       query: SalesReportOrdersQuery(
+        date: ordersDate,
+        storeCode: _ordersStoreCode,
+        userEmail: _ordersUserEmail,
         reportedPage: page < 0 ? 0 : page,
         unreportedPage: unreportedOrdersPage,
         limit: ordersLimit,
@@ -249,10 +303,41 @@ class SalesReportProvider extends ChangeNotifier {
   Future<void> loadUnreportedOrdersPage(int page) async {
     await loadOrderCockpit(
       query: SalesReportOrdersQuery(
+        date: ordersDate,
+        storeCode: _ordersStoreCode,
+        userEmail: _ordersUserEmail,
         reportedPage: reportedOrdersPage,
         unreportedPage: page < 0 ? 0 : page,
         limit: ordersLimit,
       ),
+    );
+  }
+
+  Future<void> setOrderFilters({
+    DateTime? date,
+    String? storeCode,
+    String? userEmail,
+    bool updateDate = false,
+    bool updateStore = false,
+    bool updateUser = false,
+  }) async {
+    if (_isLoadingOrders) return;
+    if (updateDate) _ordersDate = date;
+    if (updateStore) _ordersStoreCode = _cleanFilter(storeCode);
+    if (updateUser) _ordersUserEmail = _cleanFilter(userEmail)?.toLowerCase();
+    _reportedOrdersPage = 0;
+    _unreportedOrdersPage = 0;
+    await loadOrderCockpit();
+  }
+
+  SalesReportQuery cockpitExportQuery(String exportType) {
+    final date = ordersDate;
+    return SalesReportQuery(
+      exportType: exportType,
+      startDate: date,
+      endDate: date,
+      reporter: _ordersUserEmail,
+      storeIds: _ordersStoreCode == null ? const [] : [_ordersStoreCode!],
     );
   }
 
@@ -484,8 +569,202 @@ class SalesReportProvider extends ChangeNotifier {
       'unreportedPage': query.unreportedPage,
       'limit': query.limit,
       'hasDate': query.date != null,
+      'hasStoreFilter': (query.storeCode ?? '').trim().isNotEmpty,
+      'hasUserFilter': (query.userEmail ?? '').trim().isNotEmpty,
       if (query.date != null) 'date': _dateForLog(query.date!),
     };
+  }
+
+  String? _cleanFilter(String? value) {
+    final text = value?.trim();
+    return text == null || text.isEmpty ? null : text;
+  }
+
+  void _connectRealtime() {
+    if (_disposed || _user == null) return;
+    final token = ApiClient().authToken?.trim();
+    if (token == null || token.isEmpty) {
+      unawaited(
+        AppLogger.instance.warn(
+          'SalesReportRealtime',
+          'Sales report realtime connection skipped',
+          context: {'reason': 'missing_token'},
+        ),
+      );
+      return;
+    }
+    _closeRealtime('reconnect');
+    try {
+      final channel = _realtimeConnector(
+        Uri.parse(ApiConstants.realtimeWsUrl(accessToken: token)),
+      );
+      _realtimeChannel = channel;
+      _realtimeReconnectAttempt = 0;
+      _realtimeSubscription = channel.stream.listen(
+        _handleRealtimeMessage,
+        onError: (Object error, StackTrace stackTrace) {
+          unawaited(
+            AppLogger.instance.error(
+              'SalesReportRealtime',
+              'Sales report realtime connection failed',
+              error: error,
+              stackTrace: stackTrace,
+            ),
+          );
+          _handleRealtimeClosed('error');
+        },
+        onDone: () => _handleRealtimeClosed('done'),
+      );
+      if (_realtimeConnectedOnce) unawaited(loadOrderCockpit());
+      _realtimeConnectedOnce = true;
+      unawaited(
+        AppLogger.instance.info(
+          'SalesReportRealtime',
+          'Sales report realtime connected',
+          context: {'userId': _user?.id},
+        ),
+      );
+    } catch (error, stackTrace) {
+      unawaited(
+        AppLogger.instance.error(
+          'SalesReportRealtime',
+          'Sales report realtime connect failed',
+          error: error,
+          stackTrace: stackTrace,
+        ),
+      );
+      _scheduleRealtimeReconnect('connect_failed');
+    }
+  }
+
+  void _handleRealtimeMessage(dynamic message) {
+    try {
+      final decoded = jsonDecode(message.toString());
+      if (decoded is! Map ||
+          decoded['type']?.toString() != 'SALES_REPORT_ORDERS_UPDATED') {
+        return;
+      }
+      final payload = decoded['payload'];
+      if (payload is! Map || !_isRelevantRealtimePayload(payload)) return;
+      _realtimeDebounceTimer?.cancel();
+      _realtimeDebounceTimer = Timer(_realtimeDebounce, () {
+        if (!_disposed) unawaited(loadOrderCockpit());
+      });
+      unawaited(
+        AppLogger.instance.info(
+          'SalesReportRealtime',
+          'Sales report realtime update received',
+          context: {
+            'newOrderCount': payload['newOrderCount'],
+            'dateCount': payload['dates'] is List
+                ? (payload['dates'] as List).length
+                : 0,
+          },
+        ),
+      );
+    } catch (error) {
+      unawaited(
+        AppLogger.instance.warn(
+          'SalesReportRealtime',
+          'Sales report realtime event ignored',
+          context: {'error': error.toString()},
+        ),
+      );
+    }
+  }
+
+  bool _isRelevantRealtimePayload(Map<dynamic, dynamic> payload) {
+    final dates =
+        (payload['dates'] is List ? payload['dates'] as List : const [])
+            .map((value) => value.toString())
+            .toSet();
+    if (dates.isNotEmpty && !dates.contains(_dateForLog(ordersDate))) {
+      return false;
+    }
+    final user = _user;
+    if (user == null || user.isSuperAdmin) return user != null;
+    final recipientIds =
+        (payload['recipientUserIds'] is List
+                ? payload['recipientUserIds'] as List
+                : const [])
+            .map((value) => value.toString())
+            .toSet();
+    if (user.id != null && recipientIds.contains(user.id)) return true;
+    final eventStores =
+        (payload['storeCodes'] is List
+                ? payload['storeCodes'] as List
+                : const [])
+            .map((value) => value.toString().trim().toUpperCase())
+            .where((value) => value.isNotEmpty)
+            .toSet();
+    final assignedStores = {
+      ...user.assignedStoreIds.map((value) => value.trim().toUpperCase()),
+      if ((user.storeId ?? '').trim().isNotEmpty)
+        user.storeId!.trim().toUpperCase(),
+    };
+    if (eventStores.intersection(assignedStores).isNotEmpty) return true;
+    return recipientIds.isEmpty && eventStores.isEmpty;
+  }
+
+  void _handleRealtimeClosed(String reason) {
+    _realtimeSubscription = null;
+    _realtimeChannel = null;
+    _scheduleRealtimeReconnect(reason);
+  }
+
+  void _scheduleRealtimeReconnect(String reason) {
+    if (_disposed || _realtimeReconnectTimer != null) return;
+    final multiplier = 1 << math.min(_realtimeReconnectAttempt, 4);
+    _realtimeReconnectAttempt += 1;
+    final delay = Duration(
+      milliseconds: math.min(
+        _realtimeReconnectBaseDelay.inMilliseconds * multiplier,
+        const Duration(seconds: 30).inMilliseconds,
+      ),
+    );
+    _realtimeReconnectTimer = Timer(delay, () {
+      _realtimeReconnectTimer = null;
+      _connectRealtime();
+    });
+    unawaited(
+      AppLogger.instance.info(
+        'SalesReportRealtime',
+        'Sales report realtime reconnect scheduled',
+        context: {'reason': reason, 'delayMs': delay.inMilliseconds},
+      ),
+    );
+  }
+
+  void _closeRealtime(String reason) {
+    _realtimeReconnectTimer?.cancel();
+    _realtimeReconnectTimer = null;
+    _realtimeDebounceTimer?.cancel();
+    _realtimeDebounceTimer = null;
+    unawaited(_realtimeSubscription?.cancel());
+    _realtimeSubscription = null;
+    unawaited(_realtimeChannel?.sink.close(ws_status.goingAway));
+    _realtimeChannel = null;
+    if (reason != 'reconnect') {
+      unawaited(
+        AppLogger.instance.info(
+          'SalesReportRealtime',
+          'Sales report realtime disconnected',
+          context: {'reason': reason},
+        ),
+      );
+    }
+  }
+
+  @visibleForTesting
+  void handleRealtimeMessageForTesting(dynamic message) {
+    _handleRealtimeMessage(message);
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _closeRealtime('dispose');
+    super.dispose();
   }
 
   String _dateForLog(DateTime value) {

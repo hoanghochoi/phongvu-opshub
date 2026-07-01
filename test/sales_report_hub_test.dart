@@ -127,6 +127,51 @@ void main() {
     expect(find.text('Chưa báo cáo'), findsOneWidget);
   });
 
+  testWidgets('manager cockpit filters orders by date, SR and user', (
+    tester,
+  ) async {
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'manager-1',
+        email: 'manager@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+        featureAccess: {'SALES_REPORT': true, 'ADMIN_SALES_REPORTS': true},
+      ),
+    );
+    final repository = _FakeSalesReportRepository(managedScope: true);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(
+              repository,
+              now: () => DateTime(2026, 7, 1),
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: SalesReportScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ngày: 01/07/2026'), findsOneWidget);
+    expect(find.text('SR: Tất cả'), findsOneWidget);
+    expect(find.text('User: Tất cả'), findsOneWidget);
+
+    await tester.tap(find.text('SR: Tất cả'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CP01 - Phong Vu CP01'));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastOrdersQuery?.storeCode, 'CP01');
+    expect(repository.lastOrdersQuery?.date, DateTime(2026, 7, 1));
+    expect(repository.lastOrdersQuery?.reportedPage, 0);
+    expect(repository.lastOrdersQuery?.unreportedPage, 0);
+  });
+
   testWidgets('Báo cáo opens purchased dialog from unreported order', (
     tester,
   ) async {
@@ -521,6 +566,8 @@ void main() {
       exportType: 'REVENUE',
       startDate: DateTime(2026, 6, 1, 15, 30),
       endDate: DateTime(2026, 6, 30, 23, 59),
+      reporter: 'sale.cp01@phongvu.vn',
+      storeIds: const ['CP01'],
       page: 2,
       limit: 50,
     );
@@ -530,6 +577,8 @@ void main() {
       'exportType': 'REVENUE',
       'startDate': '2026-06-01',
       'endDate': '2026-06-30',
+      'reporter': 'sale.cp01@phongvu.vn',
+      'storeIds': 'CP01',
       'page': '2',
       'limit': '50',
     });
@@ -541,10 +590,14 @@ void main() {
       reportedPage: 2,
       unreportedPage: 3,
       limit: 75,
+      storeCode: 'CP01',
+      userEmail: 'sale.cp01@phongvu.vn',
     );
 
     expect(query.toQueryParameters(), {
       'date': '2026-07-01',
+      'storeCode': 'CP01',
+      'userEmail': 'sale.cp01@phongvu.vn',
       'reportedPage': '2',
       'unreportedPage': '3',
       'limit': '75',
@@ -557,6 +610,17 @@ void main() {
       'syncSucceeded': true,
       'syncCount': 2,
       'scope': 'MANAGED_SCOPE',
+      'selectedStoreCode': 'CP01',
+      'selectedUserEmail': 'sale.cp01@phongvu.vn',
+      'storeOptions': [
+        {'value': 'CP01', 'label': 'CP01 - Phong Vu CP01'},
+      ],
+      'userOptions': [
+        {
+          'value': 'sale.cp01@phongvu.vn',
+          'label': 'Sale CP01 - sale.cp01@phongvu.vn',
+        },
+      ],
       'limit': 20,
       'reportedPage': 1,
       'reportedTotal': 21,
@@ -571,6 +635,10 @@ void main() {
     });
 
     expect(cockpit.scope, 'MANAGED_SCOPE');
+    expect(cockpit.selectedStoreCode, 'CP01');
+    expect(cockpit.selectedUserEmail, 'sale.cp01@phongvu.vn');
+    expect(cockpit.storeOptions.single.value, 'CP01');
+    expect(cockpit.userOptions.single.value, 'sale.cp01@phongvu.vn');
     expect(cockpit.limit, 20);
     expect(cockpit.reportedPage, 1);
     expect(cockpit.reportedTotal, 21);
@@ -579,6 +647,47 @@ void main() {
     expect(cockpit.reportedOrders.single.isReported, isTrue);
     expect(cockpit.unreportedOrders.single.orderCode, '2607010002');
   });
+
+  test(
+    'SalesReportProvider refreshes orders from relevant realtime events',
+    () async {
+      final repository = _FakeSalesReportRepository(managedScope: true);
+      final provider = SalesReportProvider(
+        repository,
+        now: () => DateTime(2026, 7, 1, 9),
+        realtimeDebounce: Duration.zero,
+      );
+
+      await provider.initialize(
+        const User(
+          id: 'manager-1',
+          email: 'manager.cp01@phongvu.vn',
+          role: 'USER',
+          jobRoleCode: 'STORE_MANAGER',
+          storeId: 'CP01',
+          featureAccess: {'SALES_REPORT': true, 'ADMIN_SALES_REPORTS': true},
+        ),
+        orders: true,
+        categories: false,
+      );
+      expect(repository.fetchOrdersCount, 1);
+
+      provider.handleRealtimeMessageForTesting(
+        '{"type":"SALES_REPORT_ORDERS_UPDATED","payload":{"dates":["2026-07-01"],"newOrderCount":1,"mappedOrderCount":0,"storeCodes":["CP01"],"recipientUserIds":["manager-1"]}}',
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      expect(repository.fetchOrdersCount, 2);
+
+      provider.handleRealtimeMessageForTesting(
+        '{"type":"SALES_REPORT_ORDERS_UPDATED","payload":{"dates":["2026-07-02"],"newOrderCount":1,"mappedOrderCount":0,"storeCodes":["CP01"],"recipientUserIds":["manager-1"]}}',
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      expect(repository.fetchOrdersCount, 2);
+      provider.dispose();
+    },
+  );
 }
 
 Future<void> _pumpNotPurchasedForm(
@@ -638,6 +747,7 @@ class _FakeAuthProvider extends AuthProvider {
 }
 
 class _FakeSalesReportRepository extends SalesReportRepository {
+  final bool managedScope;
   bool createCalled = false;
   int fetchListCount = 0;
   int fetchOrdersCount = 0;
@@ -646,7 +756,7 @@ class _FakeSalesReportRepository extends SalesReportRepository {
   SalesReportQuery? lastListQuery;
   SalesReportOrdersQuery? lastOrdersQuery;
 
-  _FakeSalesReportRepository() : super(ApiClient());
+  _FakeSalesReportRepository({this.managedScope = false}) : super(ApiClient());
 
   @override
   Future<List<SalesReportCategoryGroup>> fetchCategories({
@@ -722,7 +832,22 @@ class _FakeSalesReportRepository extends SalesReportRepository {
       'refreshedAt': '2026-07-01T09:03:00.000Z',
       'syncSucceeded': true,
       'syncCount': 2,
-      'scope': 'OWN',
+      'scope': managedScope ? 'MANAGED_SCOPE' : 'OWN',
+      'selectedStoreCode': query.storeCode,
+      'selectedUserEmail': query.userEmail,
+      'storeOptions': managedScope
+          ? [
+              {'value': 'CP01', 'label': 'CP01 - Phong Vu CP01'},
+            ]
+          : const [],
+      'userOptions': managedScope
+          ? [
+              {
+                'value': 'sale.cp01@phongvu.vn',
+                'label': 'Sale CP01 - sale.cp01@phongvu.vn',
+              },
+            ]
+          : const [],
       'limit': query.limit,
       'reportedPage': query.reportedPage,
       'reportedTotal': 1,
