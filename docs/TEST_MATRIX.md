@@ -87,9 +87,20 @@ Recent focused evidence:
   debug runtime smoke with a live saved session refreshed through
   `/auth/get-user` verified Home has no standalone `Sắp xếp`, FIFO still shows
   `Sắp xếp FIFO`, and the sort screen opens with FIFO selected after dismissing
-  the optional update dialog with `Để sau`. Gap: Web live login/API smoke
-  remains separate acceptance work because localhost Web is blocked by
-  production CORS unless deployed or proxied. Admin Feature Management route
+  the optional update dialog with `Để sau`. 2026-07-03 Web live HTTP smoke then
+  built local Web with `APP_ENV=smoke` and
+  `API_BASE_URL=http://127.0.0.1:8765/api`, served `build/web` through a local
+  same-origin proxy, and used headed Playwright Chromium with the admin test
+  account to prove `POST /api/auth/login` 201 plus `/api/features/me`,
+  `/api/policies/me`, payment delivery metrics, statement notifications, and
+  offset adjustments API calls returning 200. Runtime UI proof covered Home
+  without standalone `Sắp xếp`, FIFO hub with `Sắp xếp FIFO`, sort form
+  input/scan/empty state, Organization Tree search/no-result on live
+  `/api/admin/org-tree` data, Sales Report hub/admin live 200 APIs with one
+  `Xuất file` dropdown for `HVTC`/`Doanh số`/`Trả góp`, and `/profile`
+  showing `Đăng xuất`. This smoke intentionally excludes realtime websocket
+  acceptance because the temporary proxy only handled `/api` and static Web
+  assets, not `/ws`. Admin Feature Management route
   gap was closed by exposing `/admin/features` in the Admin workspace with
   `ADMIN_FEATURES` route/menu guard proof. Follow-up validation:
   `flutter test --no-pub --reporter expanded test\app_router_test.dart

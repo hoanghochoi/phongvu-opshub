@@ -692,8 +692,20 @@ class này không xuất hiện trong `app_router.dart`.
   `flutter analyze --no-pub`, 69 focused tests trên 18 test files, full
   `flutter test --no-pub --reporter compact` (262 tests), và
   `flutter build web --no-pub` kèm wasm dry-run.
-- Chưa có Web smoke đăng nhập/API thật do localhost Web bị production CORS nếu
-  chưa deploy hoặc proxy.
+- Web HTTP smoke 03/07/2026 đã pass trên browser ngoài qua local same-origin
+  proxy `http://127.0.0.1:8765`, build bằng
+  `flutter build web --no-pub --dart-define=APP_ENV=smoke
+  --dart-define=API_BASE_URL=http://127.0.0.1:8765/api`. Playwright Chromium
+  headed đăng nhập tài khoản admin và xác nhận `POST /api/auth/login` 201,
+  `/api/features/me`, `/api/policies/me`, delivery metrics, statement
+  notifications, offset adjustments đều trả 200. Runtime UI smoke xác nhận
+  Home không còn card `Sắp xếp` riêng, FIFO hub có `Sắp xếp FIFO`, sort form
+  render input/scan/empty state, Organization Tree `/api/admin/org-tree` 200
+  và search theo `SALE`/non-match hoạt động, Sales Report hub/admin gọi API
+  200 và dùng một nút `Xuất file` xổ `HVTC`/`Doanh số`/`Trả góp`, `/profile`
+  có nút `Đăng xuất`. Giới hạn: proxy smoke này chưa proxy `/ws`, nên
+  realtime websocket/update/payment stream vẫn là acceptance riêng, không
+  được tính là đã cover trong bằng chứng Web HTTP/UI này.
 - Audit route 02/07/2026 không còn phát hiện hub/form/data-heavy runtime route
   nào dùng `GradientHeader` riêng. Phần còn lại của plan nằm ở nhóm
   route/frame gap phía trên: Data Workspace và Generic Report cần quyết định
