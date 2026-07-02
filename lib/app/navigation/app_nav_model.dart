@@ -207,14 +207,17 @@ class AppNavModel {
   static bool isSelected(AppNavDestination destination, String location) {
     if (location == destination.route) return true;
     return switch (destination.id) {
-      'admin' => location.startsWith('/admin'),
+      'admin' =>
+        location.startsWith('/admin') && location != '/admin/sales-reports',
       'fifo' =>
         location == '/fifo-check' ||
             location == '/fifo-history' ||
             location == '/fifo/inventory-import' ||
             location == '/sort',
       'warranty' => location == '/warranty' || location == '/check-warranty',
-      'sales' => location.startsWith('/sales-reports'),
+      'sales' =>
+        location.startsWith('/sales-reports') ||
+            location == '/admin/sales-reports',
       _ => false,
     };
   }

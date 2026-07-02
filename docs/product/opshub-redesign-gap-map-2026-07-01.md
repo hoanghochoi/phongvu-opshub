@@ -703,9 +703,24 @@ class này không xuất hiện trong `app_router.dart`.
   render input/scan/empty state, Organization Tree `/api/admin/org-tree` 200
   và search theo `SALE`/non-match hoạt động, Sales Report hub/admin gọi API
   200 và dùng một nút `Xuất file` xổ `HVTC`/`Doanh số`/`Trả góp`, `/profile`
-  có nút `Đăng xuất`. Giới hạn: proxy smoke này chưa proxy `/ws`, nên
-  realtime websocket/update/payment stream vẫn là acceptance riêng, không
-  được tính là đã cover trong bằng chứng Web HTTP/UI này.
+  có nút `Đăng xuất`.
+- Web realtime smoke follow-up 03/07/2026 thêm
+  `scripts/opshub-web-smoke-proxy.mjs` để phục vụ `build/web`, proxy `/api`
+  và tunnel `/ws` same-origin về `opshub.hoanghochoi.com`. Node WebSocket
+  smoke xác nhận `ws://127.0.0.1:8765/ws/app-updates` mở được; Playwright
+  Chromium headed login tài khoản admin, mở Sales Report admin và xác nhận
+  console 0 error, `/api/sales-reports/admin/categories` 200,
+  `/api/sales-reports?reportType=ALL&page=0&limit=20` 200, không còn lỗi
+  WebSocket handshake hoặc `/api/app-logs` 400. Slice này cũng sửa client log
+  upload để `environment` nằm trong `context` đúng DTO backend, và đóng Sales
+  Report realtime bằng close code hợp lệ trên Web. Giới hạn còn lại: chưa giả
+  lập/bắn event Redis post-deploy thật để chứng minh prompt realtime sau deploy.
+- Web viewport follow-up 03/07/2026 sửa `web/index.html` để có `viewport`
+  meta và reset `html/body`; lỗi trước đó làm `flutter-view` rộng 2160px trong
+  viewport 1440px, khiến mọi màn nhìn phóng to và tràn ngang. Playwright smoke
+  sau fix xác nhận `flutterViewWidth=1440`, `bodyScrollWidth=1440`, console 0
+  error trên `/admin/sales-reports`; route admin sales cũng được map về
+  workspace `Báo cáo` thay vì hiển thị topbar/sidebar `Quản trị`.
 - Audit route 02/07/2026 không còn phát hiện hub/form/data-heavy runtime route
   nào dùng `GradientHeader` riêng. Phần còn lại của plan nằm ở nhóm
   route/frame gap phía trên: Data Workspace và Generic Report cần quyết định

@@ -51,4 +51,13 @@ void main() {
     expect(destination?.id, 'fifo');
     expect(destination?.label, 'FIFO');
   });
+
+  test('admin sales report route stays inside Báo cáo workspace', () {
+    final destination = AppNavModel.destinationForLocation(
+      '/admin/sales-reports',
+    );
+
+    expect(destination?.id, 'sales');
+    expect(destination?.label, 'Báo cáo');
+  });
 }

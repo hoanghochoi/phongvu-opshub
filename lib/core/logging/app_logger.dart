@@ -38,6 +38,23 @@ class AppLogger {
     _uploadsEnabled = enabled;
   }
 
+  @visibleForTesting
+  Map<String, Object?> buildUploadBodyForTesting(
+    String level,
+    String source,
+    String message, {
+    Map<String, Object?>? context,
+    String? storeCode,
+  }) {
+    return _buildUploadBody(
+      level,
+      source,
+      message,
+      context: context,
+      storeCode: storeCode,
+    );
+  }
+
   Future<void> initialize({String? clientId}) async {
     _clientId = clientId;
     if (kIsWeb) return;
@@ -104,15 +121,13 @@ class AppLogger {
     try {
       await _apiClient.post(
         ApiConstants.appLogsEndpoint,
-        body: {
-          'level': _sanitize(level),
-          'source': _sanitize(source),
-          'message': _sanitize(message),
-          'environment': AppStorageKeys.environment,
-          if (_clientId != null) 'clientId': _sanitize(_clientId!),
-          if (storeCode != null) 'storeCode': _sanitize(storeCode),
-          if (context != null) 'context': _sanitizeJson(context),
-        },
+        body: _buildUploadBody(
+          level,
+          source,
+          message,
+          context: context,
+          storeCode: storeCode,
+        ),
       );
     } catch (error) {
       if (kDebugMode) debugPrint('[AppLogger] upload failed: $error');
@@ -301,6 +316,27 @@ class AppLogger {
     } catch (_) {
       return null;
     }
+  }
+
+  Map<String, Object?> _buildUploadBody(
+    String level,
+    String source,
+    String message, {
+    Map<String, Object?>? context,
+    String? storeCode,
+  }) {
+    final uploadContext = <String, Object?>{
+      'environment': AppStorageKeys.environment,
+      if (context != null) ...context,
+    };
+    return {
+      'level': _sanitize(level),
+      'source': _sanitize(source),
+      'message': _sanitize(message),
+      if (_clientId != null) 'clientId': _sanitize(_clientId!),
+      if (storeCode != null) 'storeCode': _sanitize(storeCode),
+      'context': _sanitizeJson(uploadContext),
+    };
   }
 
   Object? _sanitizeJson(Object? value) {

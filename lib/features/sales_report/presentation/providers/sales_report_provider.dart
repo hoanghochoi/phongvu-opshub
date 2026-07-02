@@ -5,7 +5,6 @@ import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:web_socket_channel/status.dart' as ws_status;
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -742,7 +741,7 @@ class SalesReportProvider extends ChangeNotifier {
     _realtimeDebounceTimer = null;
     unawaited(_realtimeSubscription?.cancel());
     _realtimeSubscription = null;
-    unawaited(_realtimeChannel?.sink.close(ws_status.goingAway));
+    unawaited(_realtimeChannel?.sink.close());
     _realtimeChannel = null;
     if (reason != 'reconnect') {
       unawaited(
