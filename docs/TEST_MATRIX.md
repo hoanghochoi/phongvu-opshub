@@ -403,13 +403,21 @@ Recent focused evidence:
   Figma was synced for BH/SC hub frames `101:2`, `135:675`, `135:229` and
   Warranty Intake frames `152:2943`, `152:704`, `151:524`; visual QA confirmed
   no stale mock copy, zero-size text, or wrapped chips after screenshot fixes.
-  Focused validation passed `flutter test --no-pub --reporter expanded
-  test\warranty_redesign_test.dart` (2 tests), focused BH/SC + route/nav/upload
-  regression (20 tests), `dart format --output=none --set-exit-if-changed`,
-  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
-  (269 tests), and `flutter build web --no-pub`. Gap: `/check-warranty`,
-  warranty detail/image viewer, physical camera upload, and WebSocket status
-  smoke remain follow-up work.
+  Follow-up lookup/detail migration moves `/check-warranty` to content-only
+  search/list surfaces and removes `GradientHeader` from receipt detail/image
+  viewer while preserving `WarrantyProvider.showAllWarranty`, search,
+  barcode scanner, base64/remote image rendering, zoom/pan viewer and download
+  behavior. Figma was also synced for Warranty Lookup frames `152:3051`,
+  `152:743`, `151:553` and Warranty Detail frames `152:3159`, `152:782`,
+  `151:582`; visual QA confirmed no stale mock copy (`26 kết quả`, `CP75`,
+  `4 ảnh`, `Tải thêm hình ảnh`), no text overlap and no auto-stacked desktop
+  detail columns. Focused validation passed `flutter test --no-pub --reporter
+  expanded test\warranty_redesign_test.dart` (4 tests), focused BH/SC +
+  route/nav/upload regression (22 tests), `dart format
+  --output=none --set-exit-if-changed`, `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter compact` (271 tests), and
+  `flutter build web --no-pub`. Gap: physical camera upload and WebSocket
+  status smoke remain follow-up work.
 - `SALES-REPORT-001`, 2026-07-01: `Báo cáo` now opens a 2-column order
   cockpit for same-day ERP orders: left unreported, right reported, 20
   orders/page/column with DB-backed totals and independent pagination. Backend

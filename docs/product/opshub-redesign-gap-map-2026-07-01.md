@@ -173,6 +173,20 @@ Ngày cập nhật: 02/07/2026
   (`135:229`) và form upload `Desktop v2 / Warranty Intake` (`152:2943`),
   `Tablet v2 / Warranty Intake` (`152:704`), `Mobile v2 / Warranty Intake`
   (`151:524`), bỏ gallery/detail/search/upload mock cũ không thuộc slice này.
+- BH/SC lookup `/check-warranty`, detail biên nhận và image viewer đã được
+  migrate khỏi `GradientHeader`: lookup là content-only dưới `AppShell` với
+  header/action card, search card có scanner action và danh sách biên nhận;
+  detail dùng page surface tokenized với header/back action, info card, gallery
+  `Hình ảnh (2)` và viewer ảnh nền tối vẫn giữ zoom/pan/download contract.
+  `WarrantyProvider.showAllWarranty`, `searchWarranty`, barcode scanner,
+  route guard `WARRANTY`, chi tiết ảnh base64/remote URL và download ảnh vẫn
+  giữ runtime contract hiện có. Figma đã sync các frame lookup/detail
+  desktop/tablet/mobile: `Desktop v2 / Warranty Lookup` (`152:3051`),
+  `Tablet v2 / Warranty Lookup` (`152:743`),
+  `Mobile v2 / Warranty Lookup` (`151:553`),
+  `Desktop v2 / Warranty Detail` (`152:3159`),
+  `Tablet v2 / Warranty Detail` (`152:782`) và
+  `Mobile v2 / Warranty Detail` (`151:582`).
 
 ## Route/frame gap được ghi nợ kỹ thuật
 
@@ -407,6 +421,23 @@ Batch 1. Không thêm route tạm nếu chưa có runtime contract rõ.
   `flutter test --no-pub --reporter expanded test\warranty_redesign_test.dart`
   (2 tests), regression BH/SC + route/nav/upload contract (20 tests), full
   `flutter test --no-pub --reporter compact` (269 tests), và
+  `flutter build web --no-pub`.
+- BH/SC lookup/detail focused widget proof đã pass, xác nhận
+  `/check-warranty` content-only không còn `Scaffold`/`GradientHeader`, search
+  + scanner action + receipt list giữ provider contract, detail render header
+  `Chi tiết biên nhận`, `Thông tin biên nhận`, `Hình ảnh (2)` và mở image
+  viewer không còn `GradientHeader`. Figma desktop/tablet/mobile screenshots
+  đã được kiểm lại sau khi sync 6 frame lookup/detail; các frame không còn
+  master-detail mock, `26 kết quả`, `CP75`, `4 ảnh`, `Tải thêm hình ảnh`,
+  text bị chồng hoặc content auto-stack sai cột. Focused validation đã pass
+  `flutter test --no-pub --reporter expanded test\warranty_redesign_test.dart`
+  (4 tests). Validation sau slice lookup/detail đã pass `dart format
+  --output=none --set-exit-if-changed`,
+  `flutter analyze --no-pub`, focused BH/SC + route/nav/upload regression
+  `flutter test --no-pub --reporter expanded test\warranty_redesign_test.dart
+  test\warranty_upload_contract_test.dart test\validators_test.dart
+  test\app_router_test.dart test\app_nav_model_test.dart` (22 tests), full
+  `flutter test --no-pub --reporter compact` (271 tests), và
   `flutter build web --no-pub`.
 - Lượt hợp nhất Batch 1-4 trên `staging` đã pass format cho 42 Dart files,
   `flutter analyze --no-pub`, 69 focused tests trên 18 test files, full

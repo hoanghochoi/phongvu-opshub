@@ -13,9 +13,9 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/warranty_provider.dart';
@@ -350,57 +350,222 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: GradientHeader(title: widget.receiptNumber, showBack: true),
+      backgroundColor: AppColors.canvasOf(context),
       body: SafeArea(
         child: Consumer<WarrantyProvider>(
           builder: (context, warrantyProvider, _) {
+            final details = warrantyProvider.currentDetails;
+            final images = details == null
+                ? <String>[]
+                : _extractImages(details);
+            final imageCount = details == null ? null : images.length;
+
             if (warrantyProvider.isLoading) {
-              return const AppStatePanel.loading(
-                title: 'Đang tải chi tiết biên nhận',
+              return AppResponsiveScrollView(
+                child: _WarrantyDetailLayout(
+                  receiptNumber: widget.receiptNumber,
+                  imageCount: imageCount,
+                  onBack: () => Navigator.of(context).maybePop(),
+                  child: const AppSurfaceCard(
+                    child: AppStatePanel.loading(
+                      title: 'Đang tải chi tiết biên nhận',
+                    ),
+                  ),
+                ),
               );
             }
 
             if (warrantyProvider.errorMessage != null) {
               return AppResponsiveScrollView(
-                maxWidth: AppLayoutTokens.formMaxWidth,
-                child: AppStatePanel.error(
-                  title: 'Chưa tải được chi tiết biên nhận',
-                  message: warrantyProvider.errorMessage!,
-                  actionLabel: 'Thử lại',
-                  actionIcon: Icons.refresh_rounded,
-                  onAction: _loadDetails,
-                ),
-              );
-            }
-
-            final details = warrantyProvider.currentDetails;
-            if (details == null) {
-              return const AppResponsiveScrollView(
-                maxWidth: AppLayoutTokens.formMaxWidth,
-                child: AppStatePanel.empty(
-                  title: 'Không có dữ liệu biên nhận',
-                  icon: Icons.receipt_long_outlined,
-                ),
-              );
-            }
-
-            final images = _extractImages(details);
-            return AppResponsiveScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _ReceiptInfoCard(details: details, formatDate: _formatDate),
-                  const SizedBox(height: AppLayoutTokens.formSectionGap),
-                  _ImageSection(
-                    images: images,
-                    onView: _viewImage,
-                    onDownload: _downloadImage,
+                child: _WarrantyDetailLayout(
+                  receiptNumber: widget.receiptNumber,
+                  imageCount: imageCount,
+                  onBack: () => Navigator.of(context).maybePop(),
+                  child: AppSurfaceCard(
+                    child: AppStatePanel.error(
+                      title: 'Chưa tải được chi tiết biên nhận',
+                      message: warrantyProvider.errorMessage!,
+                      actionLabel: 'Thử lại',
+                      actionIcon: Icons.refresh_rounded,
+                      onAction: _loadDetails,
+                    ),
                   ),
-                ],
+                ),
+              );
+            }
+
+            if (details == null) {
+              return AppResponsiveScrollView(
+                child: _WarrantyDetailLayout(
+                  receiptNumber: widget.receiptNumber,
+                  imageCount: imageCount,
+                  onBack: () => Navigator.of(context).maybePop(),
+                  child: const AppSurfaceCard(
+                    child: AppStatePanel.empty(
+                      title: 'Không có dữ liệu biên nhận',
+                      icon: Icons.receipt_long_outlined,
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            return AppResponsiveScrollView(
+              child: _WarrantyDetailLayout(
+                receiptNumber: widget.receiptNumber,
+                imageCount: imageCount,
+                onBack: () => Navigator.of(context).maybePop(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ReceiptInfoCard(details: details, formatDate: _formatDate),
+                    const SizedBox(height: AppLayoutTokens.formSectionGap),
+                    _ImageSection(
+                      images: images,
+                      onView: _viewImage,
+                      onDownload: _downloadImage,
+                    ),
+                  ],
+                ),
               ),
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+class _WarrantyDetailLayout extends StatelessWidget {
+  final String receiptNumber;
+  final int? imageCount;
+  final VoidCallback onBack;
+  final Widget child;
+
+  const _WarrantyDetailLayout({
+    required this.receiptNumber,
+    required this.imageCount,
+    required this.onBack,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _WarrantyDetailHeader(
+          receiptNumber: receiptNumber,
+          imageCount: imageCount,
+          onBack: onBack,
+        ),
+        const SizedBox(height: AppLayoutTokens.sectionGap),
+        child,
+      ],
+    );
+  }
+}
+
+class _WarrantyDetailHeader extends StatelessWidget {
+  final String receiptNumber;
+  final int? imageCount;
+  final VoidCallback onBack;
+
+  const _WarrantyDetailHeader({
+    required this.receiptNumber,
+    required this.imageCount,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final imageLabel = imageCount == null ? 'Đang tải ảnh' : '$imageCount ảnh';
+    return AppSurfaceCard(
+      key: const Key('warranty-detail-header'),
+      backgroundColor: AppColors.infoSurface,
+      borderColor: AppColors.info.withValues(alpha: 0.22),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact =
+              constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
+          final icon = Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppColors.info.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+            ),
+            child: const Icon(
+              Icons.receipt_long_rounded,
+              color: AppColors.info,
+            ),
+          );
+          final content = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Chi tiết biên nhận', style: AppTextStyles.headingM),
+              const SizedBox(height: 6),
+              Text(
+                receiptNumber,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.bodyM.copyWith(
+                  color: AppColors.neutral600,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: AppLayoutTokens.cardGap),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  AppStatusChip(
+                    label: imageLabel,
+                    color: imageCount == null || imageCount == 0
+                        ? AppColors.neutral700
+                        : AppColors.info,
+                    backgroundColor: AppColors.surface,
+                  ),
+                  const AppStatusChip(
+                    label: 'Có thể tải ảnh',
+                    color: AppColors.info,
+                    backgroundColor: AppColors.surface,
+                  ),
+                ],
+              ),
+            ],
+          );
+          final backButton = SizedBox(
+            width: 132,
+            child: AppSecondaryButton(
+              onPressed: onBack,
+              icon: Icons.arrow_back_rounded,
+              label: 'Quay lại',
+            ),
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [icon, const Spacer(), backButton]),
+                const SizedBox(height: 14),
+                content,
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              icon,
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              Expanded(child: content),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              backButton,
+            ],
+          );
+        },
       ),
     );
   }
@@ -650,6 +815,7 @@ class _ImageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppSurfaceCard(
+      key: Key('warranty-image-card-$index'),
       padding: EdgeInsets.zero,
       onTap: onTap,
       child: ClipRRect(
@@ -794,9 +960,11 @@ class _ImageViewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: GradientHeader(
-        title: title,
-        showBack: true,
+      backgroundColor: AppColors.neutral900,
+      appBar: AppBar(
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        backgroundColor: AppColors.neutral900,
+        foregroundColor: AppColors.surface,
         actions: [
           IconButton(
             icon: const Icon(Icons.download_rounded),
@@ -805,10 +973,13 @@ class _ImageViewScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: InteractiveViewer(
-        minScale: 0.5,
-        maxScale: 4.0,
-        child: Center(child: _ImageContent(imageSource: imageSource)),
+      body: ColoredBox(
+        color: AppColors.neutral900,
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: Center(child: _ImageContent(imageSource: imageSource)),
+        ),
       ),
     );
   }
