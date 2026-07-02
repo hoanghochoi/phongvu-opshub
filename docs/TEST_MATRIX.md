@@ -107,8 +107,11 @@ Recent focused evidence:
   Web viewport meta/reset that made `flutter-view` render 2160px wide inside a
   1440px Chrome viewport; final smoke measured `flutterViewWidth=1440` and
   `bodyScrollWidth=1440`, with `/admin/sales-reports` selected under `Báo cáo`
-  rather than `Quản trị`. Remaining realtime acceptance is event delivery after
-  an actual deploy/Redis publish, not Web handshake or route smoke. Admin
+  rather than `Quản trị`. A Go realtime follow-up added route-level proof that
+  a public `/ws/app-updates` WebSocket client ignores non-update broadcasts and
+  receives `APP_UPDATE` from the hub (`go test ./...` in `backend-go/`).
+  Remaining realtime acceptance is event delivery after an actual deploy/Redis
+  publish, not Web handshake or local hub-route smoke. Admin
   Feature Management route
   gap was closed by exposing `/admin/features` in the Admin workspace with
   `ADMIN_FEATURES` route/menu guard proof. Follow-up validation:

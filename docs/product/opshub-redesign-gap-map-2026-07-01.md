@@ -715,6 +715,11 @@ class này không xuất hiện trong `app_router.dart`.
   upload để `environment` nằm trong `context` đúng DTO backend, và đóng Sales
   Report realtime bằng close code hợp lệ trên Web. Giới hạn còn lại: chưa giả
   lập/bắn event Redis post-deploy thật để chứng minh prompt realtime sau deploy.
+- Go realtime delivery proof 03/07/2026 thêm route-level test cho
+  `/ws/app-updates`: public WebSocket client kết nối không cần auth, bỏ qua
+  event nội bộ không phải update và nhận đúng broadcast `APP_UPDATE` từ hub.
+  `go test ./...` pass trong `backend-go/`. Giới hạn còn lại vẫn là live
+  deploy/Redis publish thật, không phải formatter/filter/hub route local.
 - Web viewport follow-up 03/07/2026 sửa `web/index.html` để có `viewport`
   meta và reset `html/body`; lỗi trước đó làm `flutter-view` rộng 2160px trong
   viewport 1440px, khiến mọi màn nhìn phóng to và tràn ngang. Playwright smoke

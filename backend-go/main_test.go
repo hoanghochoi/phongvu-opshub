@@ -108,6 +108,44 @@ func TestPublicAppUpdateWebSocketDoesNotRequireAuth(t *testing.T) {
 	defer connection.Close()
 }
 
+func TestPublicAppUpdateWebSocketReceivesOnlyUpdateBroadcasts(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	hub := newHub()
+	go hub.run()
+	router := gin.New()
+	registerRoutes(router, hub)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws/app-updates"
+	connection, response, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		status := 0
+		if response != nil {
+			status = response.StatusCode
+		}
+		t.Fatalf("expected public app-update websocket connection, status=%d error=%v", status, err)
+	}
+	defer connection.Close()
+
+	waitForClientCount(t, hub, 1)
+
+	hub.broadcast <- []byte(`{"type":"PAYMENT_NOTIFICATION","payload":{"storeCode":"CP01"}}`)
+	expected := `{"type":"APP_UPDATE","payload":{"schemaVersion":1,"platforms":{"web":{"latestBuild":20260703}}}}`
+	hub.broadcast <- []byte(expected)
+
+	if err := connection.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatalf("failed to set read deadline: %v", err)
+	}
+	_, message, err := connection.ReadMessage()
+	if err != nil {
+		t.Fatalf("expected public app-update websocket to receive APP_UPDATE: %v", err)
+	}
+	if string(message) != expected {
+		t.Fatalf("expected %s, got %s", expected, string(message))
+	}
+}
+
 func TestPaymentEventFilteringByStore(t *testing.T) {
 	client := &Client{auth: &ClientAuth{Role: "MANAGER", StoreCode: "CP01"}}
 	message := []byte(`{"type":"PAYMENT_NOTIFICATION","payload":{"storeCode":"CP01"}}`)
@@ -327,6 +365,18 @@ func TestRejectsInvalidRedisEventPayload(t *testing.T) {
 	if _, ok := formatRedisEvent(appVersionRedisChannel, `{invalid`); ok {
 		t.Fatal("expected invalid JSON payload to be rejected")
 	}
+}
+
+func waitForClientCount(t *testing.T, hub *Hub, want int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(hub.clients) >= want {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("expected at least %d websocket clients, got %d", want, len(hub.clients))
 }
 
 func signTestToken(t *testing.T, subject string) string {
