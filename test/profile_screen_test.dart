@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
+import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/storage/app_storage_keys.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -13,6 +15,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    AppLogger.instance.setUploadsEnabledForTesting(false);
+  });
+
+  tearDown(() {
+    AppLogger.instance.setUploadsEnabledForTesting(true);
+  });
 
   testWidgets(
     'Profile shows tree assignment instead of legacy personnel fields',
@@ -47,7 +57,15 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Quản lý Cửa hàng'), findsOneWidget);
+      expect(find.byType(Scaffold), findsNothing);
+      expect(find.byType(GradientHeader), findsNothing);
+      expect(find.byKey(const Key('profile-header')), findsOneWidget);
+      expect(find.byKey(const Key('profile-edit-card')), findsOneWidget);
+      expect(find.byKey(const Key('profile-info-card')), findsOneWidget);
+      expect(find.text('Thông tin hiển thị'), findsOneWidget);
+      expect(find.text('Thông tin tài khoản'), findsOneWidget);
+      expect(find.text('Đăng xuất'), findsOneWidget);
+      expect(find.text('Quản lý Cửa hàng'), findsWidgets);
       expect(find.text('Cây tổ chức'), findsOneWidget);
       expect(find.textContaining('CP62 - Phan Đăng Lưu'), findsOneWidget);
       expect(find.textContaining('CP75 - Phan Đăng Lưu 2'), findsOneWidget);

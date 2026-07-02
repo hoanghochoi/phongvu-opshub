@@ -117,6 +117,17 @@ Ngày cập nhật: 02/07/2026
   bỏ search/save, ERP endpoint, bank webhook, SSO, audit/security mock không có
   runtime contract, thay bằng đúng theme segmented control và Windows startup
   card.
+- Profile `/profile` đã được migrate khỏi `GradientHeader` riêng sang
+  content-only workspace trong `AppShell`: header card hiển thị avatar/tên/email
+  và chip vai trò/cây tổ chức, card chỉnh sửa giữ luồng đổi mật khẩu/lưu tên,
+  card thông tin tài khoản giữ email, vai trò, cây tổ chức và SR được gán, đồng
+  thời bổ sung nút `Đăng xuất` dùng `AuthProvider.logout()` rồi điều hướng về
+  `/login`. Các log mở màn, lưu profile, đổi mật khẩu và đăng xuất
+  thành công/thất bại được ghi qua `AppLogger`. Các frame `Desktop v2 /
+  Profile` (`152:1245`), `Tablet v2 / Profile` (`152:158`) và
+  `Mobile v2 / Profile` (`151:118`) trong Figma đã bỏ mock `Họ tên`, `Phạm vi`,
+  `Toàn hệ thống`, `Lưu thay đổi` và thay bằng header/edit/info cards đúng
+  runtime contract.
 - Inventory Import `/fifo/inventory-import` đã được migrate khỏi
   `GradientHeader` riêng sang content-only workspace trong `AppShell`: header
   card thể hiện trạng thái file import, panel chọn file/cập nhật dùng shared
@@ -358,6 +369,20 @@ Batch 1. Không thêm route tạm nếu chưa có runtime contract rõ.
   `flutter test --no-pub --reporter expanded
   test\settings_screen_redesign_test.dart test\design_system_migration_guard_test.dart
   test\app_router_test.dart test\app_nav_model_test.dart` (9 tests),
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (274 tests), và `flutter build web --no-pub`.
+- Profile focused widget proof đã pass, xác nhận màn `/profile` content-only
+  không còn `Scaffold`/`GradientHeader`, header/edit/info cards render đúng cây
+  tổ chức, SR được gán và nút `Đăng xuất`; các field nhân sự legacy vẫn không
+  hiển thị. Figma text/structure QA sau khi sync Profile desktop/tablet/mobile
+  xác nhận đủ text runtime `Thông tin cá nhân`, `Thông tin hiển thị`,
+  `Thông tin tài khoản`, `Tên`, `Họ`, `Đổi mật khẩu`, `Lưu`, `Email`,
+  `Vai trò`, `Cây tổ chức`, `SR được gán`, `Đăng xuất`; không còn `Họ tên`,
+  `Phạm vi`, `Toàn hệ thống`, `Lưu thay đổi`, và zero-size text bằng `0`.
+  Validation sau batch Profile đã pass `dart format`, focused Profile + guard +
+  router/nav `flutter test --no-pub --reporter expanded
+  test\profile_screen_test.dart test\design_system_migration_guard_test.dart
+  test\app_router_test.dart test\app_nav_model_test.dart` (8 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
   (274 tests), và `flutter build web --no-pub`.
 - Inventory Import focused widget proof đã pass, xác nhận màn

@@ -197,6 +197,24 @@ Recent focused evidence:
   search/save, ERP endpoint, bank webhook, SSO, security, and audit mock
   controls, with visual QA confirming runtime theme + Windows startup content
   and zero-size text count `0`.
+- `UI-UX-001`/`PROFILE-ADMIN-001`, 2026-07-02: `/profile` now renders as a
+  content-only workspace under `AppShell` instead of nesting a
+  `Scaffold`/`GradientHeader`. It uses shared header/edit/info cards, preserves
+  avatar update, change-password, profile-name save, organization-node and
+  assigned-SR display, keeps legacy personnel fields hidden, and adds a
+  profile-level `Đăng xuất` action that calls `AuthProvider.logout()` before
+  routing back to `/login`. The changed flow logs screen open, save, password
+  change, and logout success/failure through `AppLogger`. Focused validation:
+  `dart format --output=none --set-exit-if-changed` on changed Dart/test files,
+  `flutter test --no-pub --reporter expanded
+  test\profile_screen_test.dart test\design_system_migration_guard_test.dart
+  test\app_router_test.dart test\app_nav_model_test.dart` (8 tests),
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (274 tests), and `flutter build web --no-pub`. Figma Profile frames
+  `152:1245`, `152:158`, and `151:118` were synced to remove unsupported
+  `Họ tên`, `Phạm vi`, `Toàn hệ thống`, and `Lưu thay đổi` mock copy, with
+  text/structure QA confirming the runtime header/edit/info/logout content and
+  zero-size text count `0`.
 - `UI-UX-001`/`ADMIN-ROLES`, 2026-07-02: `/admin/roles` now renders as a
   content-only workspace under `AppShell` instead of nesting a
   `GradientHeader`. The read-only role catalog uses shared header/state/list
