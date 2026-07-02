@@ -451,6 +451,26 @@ Recent focused evidence:
   test\payment_monitor_unsupported_screen_test.dart --reporter expanded` (34
   tests), full `flutter test --no-pub --reporter expanded` (259 tests), and
   `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`.
+- `UI-UX-001`/`PAYMENT-MONITOR-001`, 2026-07-02: `/payment-monitor`
+  unsupported fallback now renders as content-only shell content instead of
+  nesting a `Scaffold`/`GradientHeader`, while preserving
+  `AppPlatformCapabilities` route fallback behavior, the `AppLogger` warning
+  with platform/isWeb context, and the `/home` recovery action. The fallback
+  now uses the shared header/state-card pattern with device and `Chưa hỗ trợ
+  loa` chips, plus Vietnamese action-oriented copy for web/unsupported
+  devices. Figma unsupported frames `152:3479`, `152:899`, and `151:669` were
+  synced to remove fake transaction/speaker/history/manual-link actions; visual
+  QA confirmed required runtime copy present, forbidden old mock text absent,
+  and zero-size text count `0`. Validation passed focused
+  `flutter test --no-pub --reporter expanded
+  test\payment_monitor_unsupported_screen_test.dart
+  test\design_system_migration_guard_test.dart` (3 tests), focused route +
+  Payment Monitor regression `flutter test --no-pub --reporter expanded
+  test\app_router_test.dart test\payment_monitor_screen_redesign_test.dart
+  test\payment_monitor_provider_test.dart test\payment_transaction_tile_test.dart
+  test\payment_monitor_unsupported_screen_test.dart` (34 tests),
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (275 tests), and `flutter build web --no-pub`.
 - `UI-UX-001`/`OFFSET-ADJUSTMENT-001`, 2026-07-02:
   `/offset-adjustments` now renders as a content-only workspace under
   `AppShell` instead of nesting a `GradientHeader`. It keeps the existing

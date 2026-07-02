@@ -203,6 +203,15 @@ Ngày cập nhật: 02/07/2026
   trong Figma đã được sync theo runtime: bỏ metric/timeline/action giả, filter
   gom gọn trong card, active nav/rail là `Tiền vào`, và không đưa các control
   không có runtime contract như gắn đơn/lịch sử phát loa.
+- Payment Monitor unsupported fallback `/payment-monitor` đã được migrate khỏi
+  `GradientHeader` riêng sang content-only fallback trong `AppShell`: màn giữ
+  log cảnh báo platform/isWeb, action quay về `/home`, copy hướng dẫn thiết bị
+  chưa hỗ trợ và trạng thái `Chưa hỗ trợ loa`; không còn `Scaffold`/app bar
+  riêng chen vào shell. Các frame Figma `Desktop v2 / Payment Monitor
+  Unsupported` (`152:3479`), `Tablet v2 / Payment Monitor Unsupported`
+  (`152:899`) và `Mobile v2 / Payment Monitor Unsupported` (`151:669`) đã được
+  sync theo runtime fallback, bỏ các action/mock không có contract như xem tiền
+  vào, lịch sử phát loa, kiểm tra thiết bị và gắn đơn thủ công.
 - Offset Adjustment `/offset-adjustments` đã được migrate khỏi
   `GradientHeader` riêng sang content-only workspace trong `AppShell`: header
   card có chips scope/số hồ sơ/chờ Kế toán/trạng thái, nhóm nút tạo cấn trừ,
@@ -509,6 +518,23 @@ Batch 1. Không thêm route tạm nếu chưa có runtime contract rõ.
   tests), full `flutter test --no-pub --reporter expanded` (259 tests), và
   Windows debug build `flutter build windows --debug --dart-define=APP_ENV=smoke
   --no-pub`.
+- Payment Monitor unsupported fallback proof đã pass, xác nhận màn fallback
+  content-only không còn `Scaffold`/`GradientHeader`, render header/card keys
+  `payment-monitor-unsupported-header` và
+  `payment-monitor-unsupported-card`, có copy `Theo dõi tiền vào`,
+  `Chưa hỗ trợ trên web`, `Chưa hỗ trợ loa` và action `Về trang chủ`. Figma
+  visual/structure QA cho frames `152:3479`, `152:899` và `151:669` có
+  required text missing `[]`, forbidden old mock/action text `[]` và
+  zero-size text count `0`. Validation sau slice unsupported đã pass focused
+  `flutter test --no-pub --reporter expanded
+  test\payment_monitor_unsupported_screen_test.dart
+  test\design_system_migration_guard_test.dart` (3 tests), focused route +
+  Payment Monitor regression `flutter test --no-pub --reporter expanded
+  test\app_router_test.dart test\payment_monitor_screen_redesign_test.dart
+  test\payment_monitor_provider_test.dart test\payment_transaction_tile_test.dart
+  test\payment_monitor_unsupported_screen_test.dart` (34 tests),
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (275 tests), và `flutter build web --no-pub`.
 - Offset Adjustment focused widget proof đã pass, xác nhận màn
   `/offset-adjustments` content-only không còn `Scaffold`/`GradientHeader`,
   render header/filter/toolbar/result card, mobile dùng filter collapsed không
