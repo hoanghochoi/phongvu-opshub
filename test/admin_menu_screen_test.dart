@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
 import 'package:phongvu_opshub/features/admin/presentation/screens/admin_menu_screen.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
@@ -33,9 +34,43 @@ void main() {
     );
     await tester.pump();
 
+    expect(find.byType(Scaffold), findsNothing);
+    expect(find.byType(GradientHeader), findsNothing);
+    expect(find.byKey(const Key('admin-menu-header')), findsOneWidget);
+    expect(find.text('Quản trị'), findsOneWidget);
+    expect(find.text('1 chức năng khả dụng'), findsOneWidget);
+    expect(find.text('Chức năng quản trị'), findsOneWidget);
     expect(find.text('Quản lý tính năng'), findsOneWidget);
     expect(find.text('Feature và luật cấp quyền'), findsOneWidget);
     expect(find.text('Quản lý người dùng'), findsNothing);
+  });
+
+  testWidgets('Admin menu keeps empty state content-only without permissions', (
+    tester,
+  ) async {
+    const user = User(
+      email: 'staff@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-staff',
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(user),
+        child: const MaterialApp(home: AdminMenuScreen()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(Scaffold), findsNothing);
+    expect(find.byType(GradientHeader), findsNothing);
+    expect(find.byKey(const Key('admin-menu-header')), findsOneWidget);
+    expect(find.text('Chưa có chức năng khả dụng'), findsOneWidget);
+    expect(find.text('Chưa có tính năng quản trị'), findsOneWidget);
+    expect(
+      find.text('Liên hệ quản trị viên để được cấp quyền phù hợp.'),
+      findsOneWidget,
+    );
   });
 }
 

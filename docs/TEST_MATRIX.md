@@ -165,6 +165,22 @@ Recent focused evidence:
   `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`. Figma
   visual QA confirmed no remaining placeholders or zero-size text in either
   frame.
+- `UI-UX-001`/`ADMIN-MENU`, 2026-07-02: `/admin` now renders as a
+  content-only admin hub under `AppShell` instead of nesting a
+  `GradientHeader`. The hub uses a shared header card, `AppFeatureSection`/
+  `AppFeatureGrid`, and a shared empty state while preserving the runtime
+  feature-access menu contract for `ADMIN_USERS`, `ADMIN_ROLES`,
+  `ADMIN_ORG_TREE`, `ADMIN_POLICIES`, `ADMIN_FEATURES`, plus the Super
+  Admin-only feedback list action. Focused validation after the slice:
+  `flutter test --no-pub --reporter expanded test\admin_menu_screen_test.dart
+  test\design_system_migration_guard_test.dart test\app_router_test.dart
+  test\app_nav_model_test.dart` (9 tests), `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter compact` (272 tests), and
+  `flutter build web --no-pub`. Figma Admin
+  Workspace frames `102:2`, `135:714`, and `135:258` were synced to remove
+  unsupported metrics, tables, permission matrix, audit log, add-user CTA, and
+  Sales Report action, with visual QA confirming the six runtime admin actions
+  and no stale mock copy in all three frames.
 - `UI-UX-001`/`ADMIN-ROLES`, 2026-07-02: `/admin/roles` now renders as a
   content-only workspace under `AppShell` instead of nesting a
   `GradientHeader`. The read-only role catalog uses shared header/state/list

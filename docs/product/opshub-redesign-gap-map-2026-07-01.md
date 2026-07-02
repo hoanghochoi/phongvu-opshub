@@ -32,6 +32,16 @@ Ngày cập nhật: 02/07/2026
   content-only screen trong `AppShell`: card mô tả + action row ở đầu màn,
   tab surface dùng shared token, và các danh sách data-heavy giữ nguyên runtime
   contract hiện có.
+- Admin Menu `/admin` đã được migrate khỏi `GradientHeader` riêng sang
+  content-only hub trong `AppShell`: header card hiển thị số chức năng khả dụng,
+  danh sách action dùng `AppFeatureSection`/`AppFeatureGrid`, empty state dùng
+  shared state panel, và các route vẫn bám feature access hiện có
+  (`ADMIN_USERS`, `ADMIN_ROLES`, `ADMIN_ORG_TREE`, `ADMIN_POLICIES`,
+  `ADMIN_FEATURES`) cộng thêm `Danh sách góp ý` cho Super Admin. Các frame
+  `Desktop v2 / Admin Workspace` (`102:2`), `Tablet v2 / Admin Workspace`
+  (`135:714`) và `Mobile v2 / Admin Workspace` (`135:258`) trong Figma đã bỏ
+  metric/table/permission-matrix/audit/add-user/sales-report mock không có
+  runtime contract, thay bằng hub action đúng màn đang chạy.
 - Sales Report hub `/sales-reports` đã được migrate khỏi `GradientHeader`
   riêng sang content-only cockpit trong `AppShell`: card mô tả ở đầu màn, bộ
   lọc/action và 2 cột đơn hàng giữ nguyên runtime contract hiện có.
@@ -314,6 +324,19 @@ Batch 1. Không thêm route tạm nếu chưa có runtime contract rõ.
   Feedback form; ba frame không còn inbox/detail/ticket admin mock, không lộ mã
   `FEEDBACK`, và đủ các text runtime `Không bắt buộc, tối đa 20 ảnh`,
   `Thêm ảnh`, `Gửi góp ý`.
+- Admin Menu focused widget proof đã pass, xác nhận màn `/admin` content-only
+  không còn `Scaffold`/`GradientHeader`, header card render đúng `Quản trị`,
+  số chức năng khả dụng, section `Chức năng quản trị`, action theo feature
+  access và empty state khi tài khoản chưa có quyền quản trị. Figma
+  desktop/tablet/mobile screenshots đã được kiểm lại sau khi sync Admin
+  Workspace; ba frame không còn metric/table/permission-matrix/audit/add-user
+  mock hoặc action `Báo cáo sale` không có trong runtime menu Admin. Validation
+  sau batch Admin Menu đã pass `dart format`, focused Admin Menu + guard +
+  router/nav `flutter test --no-pub --reporter expanded
+  test\admin_menu_screen_test.dart test\design_system_migration_guard_test.dart
+  test\app_router_test.dart test\app_nav_model_test.dart` (9 tests),
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (272 tests), và `flutter build web --no-pub`.
 - Inventory Import focused widget proof đã pass, xác nhận màn
   `/fifo/inventory-import` content-only không còn `Scaffold`/`GradientHeader`,
   chọn file giả render đúng tên/định dạng, upload thành công render result
