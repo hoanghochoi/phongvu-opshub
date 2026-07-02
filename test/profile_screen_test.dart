@@ -60,6 +60,7 @@ void main() {
       expect(find.byType(Scaffold), findsNothing);
       expect(find.byType(GradientHeader), findsNothing);
       expect(find.byKey(const Key('profile-header')), findsOneWidget);
+      expect(find.byKey(const Key('profile-logout-button')), findsOneWidget);
       expect(find.byKey(const Key('profile-edit-card')), findsOneWidget);
       expect(find.byKey(const Key('profile-info-card')), findsOneWidget);
       expect(find.text('Thông tin hiển thị'), findsOneWidget);

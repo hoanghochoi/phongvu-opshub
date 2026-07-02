@@ -227,7 +227,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             user: user,
             avatarUrl: avatarUrl,
             organizationNodeLabel: organizationNodeLabel,
+            isLoading: isLoading,
             onPickAvatar: _pickAvatar,
+            onLogout: _logout,
           ),
           const SizedBox(height: AppLayoutTokens.sectionGap),
           LayoutBuilder(
@@ -244,8 +246,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               final infoCard = _ProfileInfoCard(
                 user: user,
                 organizationNodeLabel: organizationNodeLabel,
-                isLoading: isLoading,
-                onLogout: _logout,
               );
 
               if (!useTwoColumns) {
@@ -285,13 +285,17 @@ class _ProfileHeader extends StatelessWidget {
   final User? user;
   final String? avatarUrl;
   final String? organizationNodeLabel;
+  final bool isLoading;
   final VoidCallback onPickAvatar;
+  final VoidCallback onLogout;
 
   const _ProfileHeader({
     required this.user,
     required this.avatarUrl,
     required this.organizationNodeLabel,
+    required this.isLoading,
     required this.onPickAvatar,
+    required this.onLogout,
   });
 
   @override
@@ -300,74 +304,105 @@ class _ProfileHeader extends StatelessWidget {
       key: const Key('profile-header'),
       backgroundColor: AppColors.primarySurfaceOf(context),
       borderColor: AppColors.primaryOf(context).withValues(alpha: 0.22),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            alignment: Alignment.bottomRight,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact =
+              constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+          final profileSummary = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 44,
-                backgroundImage:
-                    avatarUrl != null && avatarUrl!.startsWith('http')
-                    ? NetworkImage(avatarUrl!)
-                    : null,
-                child: avatarUrl == null
-                    ? Text(
-                        _profileInitial(user),
-                        style: AppTextStyles.headingM.copyWith(
-                          color: AppColors.primaryOf(context),
-                        ),
-                      )
-                    : null,
-              ),
-              AppIconAction(
-                onPressed: onPickAvatar,
-                icon: Icons.camera_alt_outlined,
-                tooltip: 'Cập nhật avatar',
-                filled: true,
-              ),
-            ],
-          ),
-          const SizedBox(width: AppLayoutTokens.formInlineGap),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _profileDisplayName(user),
-                  style: AppTextStyles.headingM,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  user?.email ?? 'Chưa có email',
-                  style: AppTextStyles.bodyM.copyWith(
-                    color: AppColors.textSecondaryOf(context),
+              Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  CircleAvatar(
+                    radius: 44,
+                    backgroundImage:
+                        avatarUrl != null && avatarUrl!.startsWith('http')
+                        ? NetworkImage(avatarUrl!)
+                        : null,
+                    child: avatarUrl == null
+                        ? Text(
+                            _profileInitial(user),
+                            style: AppTextStyles.headingM.copyWith(
+                              color: AppColors.primaryOf(context),
+                            ),
+                          )
+                        : null,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: AppLayoutTokens.formInlineGap),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  AppIconAction(
+                    onPressed: onPickAvatar,
+                    icon: Icons.camera_alt_outlined,
+                    tooltip: 'Cập nhật avatar',
+                    filled: true,
+                  ),
+                ],
+              ),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _ProfileStatusChip(
-                      icon: Icons.verified_user_outlined,
-                      label: User.roleDisplayName(user?.role),
+                    Text(
+                      _profileDisplayName(user),
+                      style: AppTextStyles.headingM,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    _ProfileStatusChip(
-                      icon: Icons.account_tree_outlined,
-                      label: organizationNodeLabel ?? 'Chưa gán cây tổ chức',
+                    const SizedBox(height: 6),
+                    Text(
+                      user?.email ?? 'Chưa có email',
+                      style: AppTextStyles.bodyM.copyWith(
+                        color: AppColors.textSecondaryOf(context),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: AppLayoutTokens.formInlineGap),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _ProfileStatusChip(
+                          icon: Icons.verified_user_outlined,
+                          label: User.roleDisplayName(user?.role),
+                        ),
+                        _ProfileStatusChip(
+                          icon: Icons.account_tree_outlined,
+                          label:
+                              organizationNodeLabel ?? 'Chưa gán cây tổ chức',
+                        ),
+                      ],
                     ),
                   ],
                 ),
+              ),
+            ],
+          );
+          final logoutButton = _ProfileLogoutButton(
+            key: const Key('profile-logout-button'),
+            onPressed: isLoading ? null : onLogout,
+          );
+
+          if (isCompact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                profileSummary,
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                logoutButton,
               ],
-            ),
-          ),
-        ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: profileSummary),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              SizedBox(width: 172, child: logoutButton),
+            ],
+          );
+        },
       ),
     );
   }
@@ -431,14 +466,10 @@ class _ProfileEditCard extends StatelessWidget {
 class _ProfileInfoCard extends StatelessWidget {
   final User? user;
   final String? organizationNodeLabel;
-  final bool isLoading;
-  final VoidCallback onLogout;
 
   const _ProfileInfoCard({
     required this.user,
     required this.organizationNodeLabel,
-    required this.isLoading,
-    required this.onLogout,
   });
 
   @override
@@ -472,8 +503,6 @@ class _ProfileInfoCard extends StatelessWidget {
                 ? storeDetails!
                 : 'Chưa có SR được gán',
           ),
-          const SizedBox(height: 4),
-          _ProfileLogoutButton(onPressed: isLoading ? null : onLogout),
         ],
       ),
     );
@@ -564,7 +593,7 @@ class _ProfileStatusChip extends StatelessWidget {
 class _ProfileLogoutButton extends StatelessWidget {
   final VoidCallback? onPressed;
 
-  const _ProfileLogoutButton({required this.onPressed});
+  const _ProfileLogoutButton({super.key, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
