@@ -732,13 +732,24 @@ retired không được quay lại router/backlog tạm.
   `/api/sales-reports?reportType=ALL&page=0&limit=20` 200, không còn lỗi
   WebSocket handshake hoặc `/api/app-logs` 400. Slice này cũng sửa client log
   upload để `environment` nằm trong `context` đúng DTO backend, và đóng Sales
-  Report realtime bằng close code hợp lệ trên Web. Giới hạn còn lại: chưa giả
-  lập/bắn event Redis post-deploy thật để chứng minh prompt realtime sau deploy.
+  Report realtime bằng close code hợp lệ trên Web.
 - Go realtime delivery proof 03/07/2026 thêm route-level test cho
   `/ws/app-updates`: public WebSocket client kết nối không cần auth, bỏ qua
   event nội bộ không phải update và nhận đúng broadcast `APP_UPDATE` từ hub.
-  `go test ./...` pass trong `backend-go/`. Giới hạn còn lại vẫn là live
-  deploy/Redis publish thật, không phải formatter/filter/hub route local.
+  `go test ./...` pass trong `backend-go/`.
+- Live staging app-update smoke 03/07/2026 đóng gap Redis/WebSocket sau deploy:
+  raw public WebSocket kết nối
+  `wss://opshub-staging.hoanghochoi.com/ws/app-updates`, Redis staging publish
+  `APP_VERSION_UPDATED` trả `redisSubscribers=1`, client nhận `APP_UPDATE` với
+  `web.latestBuild=200083`, `forceUpdate=false` và
+  `smokeId=codex-live-app-update-1783028461146`. Chrome CDP mở deployed
+  Flutter web login trên staging, thấy `/ws/app-updates`, nhận smoke frame
+  `codex-browser-app-update-1783028664223`, rồi app re-read
+  `/api/app-version?platform=web` một lần; console error và page exception đều
+  bằng 0. Realtime logs trên server có `APP_VERSION_UPDATED` cho cả raw và
+  browser smoke, Redis `PING` trả `PONG`. Payload live cố ý dùng metadata hiện
+  tại (`2026.07.02.83+200083`) để không ép staff thấy modal update; phần render
+  forced prompt vẫn được khóa bằng widget/local update-gate tests.
 - Web viewport follow-up 03/07/2026 sửa `web/index.html` để có `viewport`
   meta và reset `html/body`; lỗi trước đó làm `flutter-view` rộng 2160px trong
   viewport 1440px, khiến mọi màn nhìn phóng to và tràn ngang. Playwright smoke

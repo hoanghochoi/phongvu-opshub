@@ -19,6 +19,10 @@ development services for OpsHub.
   endpoint. Running clients recheck `GET /app-version` after the signal,
   WebSocket reconnect, and app resume; no update decision trusts WebSocket
   payload alone.
+- 2026-07-03 staging proof: publishing `APP_VERSION_UPDATED` through staging
+  Redis reached both a raw public WebSocket client and the deployed Flutter web
+  client; the web client then re-read `/api/app-version?platform=web` before any
+  UI decision. The smoke used current metadata to avoid forcing staff updates.
 - Staff client downloads are exposed by `GET /download`, backed by the public
   manifest at `GET /downloads/latest.json`.
 - Public staff guidance is exposed by `GET /help`, backed by Markdown content

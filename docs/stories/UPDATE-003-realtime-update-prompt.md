@@ -41,5 +41,10 @@ an app restart.
 - Focused Flutter update-gate tests, analyze, full tests, and Android/Windows/
   web build proof when the changed surface affects build output.
 - `git diff --check` and exact diff review.
-- Live deploy proof remains the final end-to-end verification for Redis publish,
-  WebSocket delivery, and the prompt on an already-running old client.
+- 2026-07-03 live staging smoke published `APP_VERSION_UPDATED` through staging
+  Redis and proved public WebSocket delivery plus deployed Flutter web recheck:
+  raw WS received `APP_UPDATE`; Chrome CDP on staging web saw `/ws/app-updates`,
+  the smoke frame, and one follow-up `/api/app-version?platform=web` request
+  with console/runtime errors at 0.
+- The live smoke reused current metadata to avoid forcing staff updates; visible
+  forced-prompt rendering remains covered by widget/local update-gate tests.
