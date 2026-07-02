@@ -63,8 +63,295 @@ Recent focused evidence:
   `flutter test --no-pub --reporter expanded test\app_nav_model_test.dart test\home_feedback_action_test.dart test\app_router_test.dart`
   (10 tests), full `flutter test --no-pub --reporter expanded` (237 tests),
   AppShell light/dark widget screenshots for desktop/tablet/mobile under the
-  ignored `.screenshot/figma_merge`, and `git diff --check`. Gap: real runtime
-  smoke on Windows, Android, and Web remains separate visual acceptance work.
+  ignored `.screenshot/figma_merge`, Android production debug APK
+  build/install/runtime login smoke on `21081111RG`, and `git diff --check`.
+  Follow-up Android smoke caught mobile shell/Home header clipping in dark mode;
+  the mobile header now places the delivery metrics pill on the left, the
+  active title in the center, and support plus the notification bell on the
+  right.
+  Authenticated Android smoke also caught duplicated account avatars on mobile
+  Home; account/profile entry now belongs to the bottom `Tài khoản` destination,
+  while the Home card keeps only the user identity block. 2026-07-02 follow-up:
+  removed the standalone Home/Tasks/sidebar `Sắp xếp` destination because
+  sorting is already exposed as `Sắp xếp FIFO` inside the FIFO workspace; route
+  `/sort` remains guarded by `FIFO` and selected under FIFO for compatibility.
+  Web Chrome fullscreen smoke with a seeded local session verified Home has 9
+  workspace actions with no standalone `Sắp xếp`, FIFO still shows `Sắp xếp
+  FIFO`, and `/sort` opens the FIFO sort screen with FIFO selected
+  (`output/playwright/sortfix-home-full.png`,
+  `output/playwright/sortfix-fifo-full.png`,
+  `output/playwright/sortfix-sort-full.png`). Follow-up validation reran full
+  `flutter test --no-pub --reporter expanded` (238 tests),
+  `flutter analyze --no-pub`, `flutter build web --debug --no-pub`,
+  `flutter build windows --debug --no-pub`, and `git diff --check`. Windows
+  debug runtime smoke with a live saved session refreshed through
+  `/auth/get-user` verified Home has no standalone `Sắp xếp`, FIFO still shows
+  `Sắp xếp FIFO`, and the sort screen opens with FIFO selected after dismissing
+  the optional update dialog with `Để sau`. Gap: Web live login/API smoke
+  remains separate acceptance work because localhost Web is blocked by
+  production CORS unless deployed or proxied. Admin Feature Management route
+  gap was closed by exposing `/admin/features` in the Admin workspace with
+  `ADMIN_FEATURES` route/menu guard proof. Follow-up validation:
+  `flutter test --no-pub --reporter expanded test\app_router_test.dart
+  test\admin_menu_screen_test.dart test\app_nav_model_test.dart` (6 tests),
+  `dart format --output=none --set-exit-if-changed` on changed Dart files,
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter expanded`
+  (240 tests), and `git diff --check`. Personnel Catalog Admin remains
+  intentionally hidden because `ADMIN_PERSONNEL` is legacy under the tree-first
+  organization contract. The follow-up data-heavy migration keeps the same
+  `/admin/features` runtime contract but removes the nested feature
+  `GradientHeader`; the screen now renders content-only under `AppShell`, with a
+  shared surface header/action row and shared tab surface before the existing
+  feature/node/rule lists. Validation rerun: `dart format
+  --output=none --set-exit-if-changed`, focused route/menu/nav tests,
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter expanded`
+  (240 tests), `flutter build windows --debug --dart-define=APP_ENV=smoke
+  --no-pub`, Windows debug runtime smoke opening Admin > `Quản lý tính năng`,
+  and `git diff --check`. Runtime log proof in
+  `%APPDATA%\com.example\OpsHub\logs\opshub.log` shows `/admin/features`
+  shell navigation plus `Feature management load started/succeeded`. Sales
+  Report hub `/sales-reports` was then migrated from a nested
+  `GradientHeader` screen to content-only `AppShell` rendering; its cockpit
+  keeps the same provider/API contract and adds a shared surface intro above
+  the existing filter/action card and reported/unreported order columns.
+  Validation rerun: `dart format --output=none --set-exit-if-changed`,
+  `flutter test --no-pub --reporter expanded test\sales_report_hub_test.dart`
+  (16 tests), `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter expanded` (240 tests),
+  `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`,
+  Windows debug runtime smoke opening Home > `Báo cáo`, and `git diff --check`.
+  Runtime log proof shows `/sales-reports` shell navigation plus
+  `Sales report order cockpit load started/succeeded`.
+- `UI-UX-001`/`VIETQR-001`, 2026-07-02: `/vietqr` now renders as a
+  content-only workspace under `AppShell` instead of nesting a
+  `Scaffold`/`GradientHeader`. The runtime header shows selected SR, QR state,
+  and history count while preserving SR scope selection, order scan, QR
+  creation, MAP confirmation, realtime payment matching, non-expired history
+  reopen, 15-minute expiry, and QR image save. Figma was synced for
+  `Desktop v2 / VietQR Workspace` (`398:14`),
+  `Tablet v2 / VietQR Workspace` (`135:558`), and
+  `Mobile v2 / VietQR Workspace` (`135:142`). Focused widget proof is covered
+  by `test\vietqr_screen_test.dart`; physical camera scanning remains a manual
+  device/browser acceptance item.
+- `SALES-REPORT-001`/`UI-UX-001`, 2026-07-02: Sales Report form/admin polish
+  now removes the remaining Sales Report `GradientHeader` shells, adds
+  content header cards to the purchased/not-purchased forms, changes the admin
+  report-type selector from checkbox tiles to the shared dropdown filter, and
+  groups HVTC/revenue/installment exports behind one `Xuất file` menu in both
+  hub and admin list. The Figma file `OpsHub Redesign System - 2026-06-30` was
+  updated in the desktop/tablet/mobile Sales Report hub/admin/form frames to
+  show the compact filter/action toolbar and export-menu options. Hub/admin
+  frame ids are desktop `152:3577`/`152:2179`, tablet
+  `152:938`/`152:470`, and mobile `151:698`/`151:350`. Validation:
+  `dart format --output=none --set-exit-if-changed` on changed Dart/test files,
+  focused
+  `flutter test --no-pub --reporter expanded test\sales_report_hub_test.dart`
+  (16 tests), focused design-system guard (2 tests), `flutter analyze --no-pub`,
+  full `flutter test --no-pub --reporter expanded` (240 tests), and
+  `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`.
+- `UI-UX-001`/`ADMIN-USERS`, 2026-07-02: `/admin/users` now renders as a
+  content-only workspace under `AppShell` instead of nesting a
+  `GradientHeader`. The screen uses shared header/filter cards, compact
+  searchable dropdown filters, responsive account rows, and preserves the
+  existing Super Admin import/create plus admin reset/edit/delete contract.
+  `AuthRepository` can be injected only for widget proof; production still
+  constructs the same repository and API client. Figma desktop/mobile Admin
+  Users frames were updated to remove unsupported detail/export surfaces and
+  show the runtime header, search, five filters, reset action, and account-row
+  actions. Focused validation: `flutter test --no-pub --reporter expanded
+  test\user_admin_redesign_test.dart` (2 tests); combined focused User Admin +
+  design-system guard (4 tests); `flutter analyze --no-pub`; full
+  `flutter test --no-pub --reporter expanded` (242 tests); and
+  `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`. Figma
+  visual QA confirmed no remaining placeholders or zero-size text in either
+  frame.
+- `UI-UX-001`/`ADMIN-ROLES`, 2026-07-02: `/admin/roles` now renders as a
+  content-only workspace under `AppShell` instead of nesting a
+  `GradientHeader`. The read-only role catalog uses shared header/state/list
+  surfaces, logs load start/success/failure through `AppLogger`, exposes an
+  injected repository only for widget proof, keeps the production
+  `/admin/roles` repository contract, and maps missing role descriptions to
+  Vietnamese user-facing copy instead of showing technical role codes. Figma
+  desktop/mobile Admin Roles frames were updated to remove unsupported
+  search/filter/export/detail surfaces and show the runtime header, refresh
+  action, role-count/read-only chips, and role cards. Focused validation:
+  `dart format --output=none --set-exit-if-changed` on the changed Dart/test
+  files, `flutter test --no-pub --reporter expanded
+  test\role_admin_redesign_test.dart test\design_system_migration_guard_test.dart`
+  (4 tests), `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter expanded` (246 tests),
+  `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`, and
+  Figma visual QA confirmed no placeholders, zero-size text, or unsupported
+  runtime copy in either frame.
+- `UI-UX-001`/`ADMIN-ORG-TREE`, 2026-07-02: `/admin/organization` now renders
+  as a content-only workspace under `AppShell` instead of nesting a
+  `GradientHeader`. The organization tree keeps the existing
+  `/admin/org-tree` repository/API contract and node create/edit/delete/feature
+  assignment flows, adds shared header cards, shared tree/detail surfaces,
+  retryable error state, permission chips for structure and node-feature
+  management, and a quick search inside the tree panel that matches business
+  code, abbreviation, or node title, including accent-insensitive title input.
+  `AuthRepository` can be injected only for widget proof; production still
+  constructs the same repository and API client. Figma Organization Tree
+  frames `152:1741`, `152:314`, and `151:234` were updated to remove
+  unsupported filter/export/tab surfaces and show the runtime header,
+  refresh/add actions, tree search, tree panel, and detail panel. Focused
+  validation:
+  `flutter test --no-pub --reporter expanded
+  test\organization_tree_admin_redesign_test.dart test\admin_user_tree_scope_test.dart`
+  (15 tests), `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter expanded` (246 tests),
+  `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`, and
+  Figma visual QA confirmed no placeholders, zero-size text, or unsupported
+  runtime copy in all three frames. Follow-up search proof:
+  `flutter test --no-pub --reporter expanded
+  test\organization_tree_admin_redesign_test.dart test\admin_user_tree_scope_test.dart`
+  (15 tests), with `AppLogger` search applied/cleared logs carrying query
+  length and result counts. The merged screen also keeps a persistent retry
+  action after load failure. Follow-up broad validation also passed
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter expanded`
+  (249 tests), `flutter build windows --debug --dart-define=APP_ENV=smoke
+  --no-pub`, and `git diff --check` with CRLF warnings only.
+- `UI-UX-001`/`ADMIN-POLICIES`, 2026-07-02: `/admin/policies` now renders as a
+  content-only workspace under `AppShell` instead of nesting a
+  `GradientHeader`. It keeps the existing policy/rule/settings repository/API
+  contract, adds shared header/tabs/list cards, retryable load error state,
+  and focused widget injection only for proof. Production still constructs the
+  same repository and API client. Focused validation:
+  `flutter test --no-pub --reporter expanded
+  test\organization_tree_admin_redesign_test.dart test\policy_admin_redesign_test.dart`
+  (5 tests). Follow-up broad validation also passed `flutter analyze --no-pub`,
+  full `flutter test --no-pub --reporter expanded` (249 tests),
+  `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`, and
+  `git diff --check` with CRLF warnings only. Figma Policy Management
+  desktop/tablet/mobile frames were synced to the runtime header/tabs/cards,
+  with visual QA confirming no unsupported search/filter/export controls or raw
+  policy codes such as `ADMIN_USERS`, `BANK_STATEMENT`, or `SALES_REPORT`.
+- `UI-UX-001`, 2026-07-02: consolidated the pre-barcode redesign checkpoint
+  with the later VietQR, Sales Report, and Organization Tree work on
+  `staging`, while keeping the barcode/mobile-web scanner experiment outside
+  the working tree. Validation passed changed-file formatting (42 Dart files),
+  `flutter analyze --no-pub`, 69 focused tests across 18 changed test files,
+  full `flutter test --no-pub --reporter compact` (262 tests), and
+  `flutter build web --no-pub` with a successful wasm dry-run.
+- `UI-UX-001`/`FEEDBACK-001`/`ADMIN-FEEDBACK`, 2026-07-02: `/admin/feedback`
+  now renders as a content-only workspace under `AppShell` instead of nesting a
+  `GradientHeader`. It keeps the existing `/feedback/admin` API contract,
+  still relies on the backend/Super Admin visibility contract, adds shared
+  metric header, refresh action, retryable load error state, AppLogger
+  start/success/failure logs, and feedback cards with sender, content, module,
+  rating, timestamp, email, image counts, and inline image thumbnails. The
+  loader can be injected only for widget proof; production still constructs the
+  same API client. Focused validation:
+  `flutter test --no-pub test\feedback_admin_redesign_test.dart --reporter
+  expanded` (2 tests). Follow-up broad validation also passed
+  `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter expanded` (251 tests), and
+  `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`. Figma
+  Admin Feedback List desktop/tablet/mobile frames were synced to remove
+  unsupported search/filter/export/add/status controls and visual QA confirmed
+  no clipped feedback body text after metric-chip layout repair.
+- `UI-UX-001`/`FIFO-001`/`INVENTORY-IMPORT`, 2026-07-02:
+  `/fifo/inventory-import` now renders as a content-only workspace under
+  `AppShell` instead of nesting a `GradientHeader`. It keeps the existing
+  `/fifo/inventory/import` API contract, `FIFO_IMPORT` guard, and
+  `/admin/inventory-import` backward-compatible alias, adds shared runtime
+  header/upload/result/error surfaces, AppLogger picker/upload
+  start/success/failure/cancel/blocked logs, and retryable upload errors. File
+  picker and uploader can be injected only for widget proof; production still
+  uses `FilePicker.pickFiles` and `InventoryImportRepository(ApiClient())`.
+  Focused validation:
+  `flutter test --no-pub test\inventory_import_redesign_test.dart --reporter
+  expanded` (2 tests), and combined Inventory Import + Admin Feedback focused
+  validation passed 4 tests. Follow-up broad validation also passed
+  `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter expanded` (253 tests), and
+  `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`. Figma
+  Inventory Import desktop/tablet/mobile frames were synced to remove
+  unsupported history/search/filter/export/add controls, with visual QA
+  confirming no zero-size text and the desktop/tablet shell active state now
+  belongs to the FIFO workspace.
+- `UI-UX-001`/`FIFO-001`/`SORT-FIFO`, 2026-07-02: `/sort` now renders as a
+  content-only workspace under `AppShell` instead of nesting a
+  `GradientHeader`. It keeps the existing `SortProvider`/`SortRepository`,
+  scanner route, FIFO route guard, and completion report contract, while adding
+  a shared runtime header, SKU/BIN command card, loading/empty/error states, and
+  result list surface. Focused validation passed in the combined Sort FIFO +
+  Inventory Import + Admin Feedback batch:
+  `flutter test --no-pub test\sort_screen_redesign_test.dart
+  test\inventory_import_redesign_test.dart test\feedback_admin_redesign_test.dart
+  --reporter expanded` (6 tests). Follow-up broad validation also passed
+  `dart format --output=none --set-exit-if-changed`, `flutter analyze
+  --no-pub`, full `flutter test --no-pub --reporter expanded` (255 tests), and
+  `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`. Figma
+  Sort Workspace desktop/tablet/mobile frames were synced to remove the stale
+  empty mock and unsupported fake controls, with visual QA confirming no
+  zero-size text and required runtime values `250403171`, `SN001`, and
+  `LK.04-A-03-a` in all three frames.
+- `UI-UX-001`/`FIFO-001`/`FIFO-CHECK`, 2026-07-02: `/fifo-check` now renders
+  as a content-only workspace under `AppShell` instead of nesting a
+  `GradientHeader`. It keeps the existing `FifoProvider`/`FifoRepository`,
+  scanner route, FIFO route guard, include-exported toggle, and
+  export/unexport contract, while adding a shared runtime header, SKU/serial
+  command card, loading/empty/error states, and serial/SKU result surface.
+  Focused validation passed:
+  `flutter test --no-pub test\fifo_check_redesign_test.dart --reporter
+  expanded` (2 tests). Figma FIFO Check desktop/tablet/mobile frames were
+  synced to remove stale SKU/BIN/copy mock controls, with visual QA confirming
+  no overlap, no zero-size text, no unsupported copy such as `SKU hoặc BIN` or
+  `Hiển thị đề xuất kho`, and required runtime values `250403171`, `SN001`,
+  `LK.04-A-03-a`, `A1`, `2026-07-01`, and `Đúng FIFO. Lấy sản phẩm này.` in
+  all three frames. Follow-up broad validation also passed `dart format
+  --output=none --set-exit-if-changed`, `flutter analyze --no-pub`, focused
+  FIFO Check + Sort FIFO + Inventory Import + Admin Feedback
+  `flutter test --no-pub test\fifo_check_redesign_test.dart
+  test\sort_screen_redesign_test.dart test\inventory_import_redesign_test.dart
+  test\feedback_admin_redesign_test.dart --reporter expanded` (8 tests), full
+  `flutter test --no-pub --reporter expanded` (257 tests),
+  `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`, and
+  `git diff --check` with CRLF warnings only.
+- `UI-UX-001`/`PAYMENT-STATEMENT-001`, 2026-07-02: `/bank-statement` now
+  renders as a content-only workspace under `AppShell` instead of nesting a
+  `GradientHeader`. It keeps the existing `BankStatementProvider`,
+  `BankStatementRepository`, scoped SR/default-date search, global statement
+  number/order code/exact amount/transfer-content lookup, export, pagination,
+  inline order correction/history, ACC review transfer notifications, and
+  AppLogger runtime contract, while adding a shared statement header, compact
+  runtime chips, toolbar surface, and responsive transaction list. Focused
+  validation passed:
+  `flutter test --no-pub test\bank_statement_screen_test.dart --reporter
+  expanded` (3 tests). Figma Statement Workspace desktop/tablet/mobile frames
+  were synced to the runtime layout, including a newly added desktop frame and
+  visual QA confirming no stale `Sắp xếp FIFO` title, no overflowing filters,
+  and no overlapping transaction metadata. Follow-up broad validation also
+  passed `dart format --output=none --set-exit-if-changed`,
+  `flutter analyze --no-pub`, focused Sao kê screen/provider/detail
+  `flutter test --no-pub test\bank_statement_screen_test.dart
+  test\bank_statement_provider_test.dart
+  test\bank_statement_transaction_details_test.dart --reporter expanded` (27
+  tests), full `flutter test --no-pub --reporter expanded` (258 tests), and
+  `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`.
+- `UI-UX-001`/`PAYMENT-MONITOR-001`, 2026-07-02: `/payment-monitor` now
+  renders as a content-only workspace under `AppShell` instead of nesting a
+  `GradientHeader`. It keeps the existing `PaymentMonitorProvider`,
+  `PaymentMonitorRepository`, realtime refresh, payment speaker/list-only
+  platform gating, selected-store scope, date/page filters, transaction rows,
+  order edit, transfer request/review, and history callbacks, while adding a
+  shared runtime header with SR/sync/speaker/transaction chips above the
+  existing speaker and transaction surfaces. Focused validation passed:
+  `flutter test --no-pub test\payment_monitor_screen_redesign_test.dart
+  --reporter expanded` (1 test). Figma Payment Monitor desktop/tablet/mobile
+  frames were synced to remove fake metrics/timeline/actions and show the
+  runtime header, speaker/list-only panel, filters, transaction row, and active
+  `Tiền vào` nav/rail with visual QA confirming no overlap or stale controls.
+  Follow-up broad validation also passed `dart format
+  --output=none --set-exit-if-changed`, `flutter analyze --no-pub`, focused
+  route + Payment Monitor regression `flutter test --no-pub
+  test\app_router_test.dart test\payment_monitor_screen_redesign_test.dart
+  test\payment_monitor_provider_test.dart test\payment_transaction_tile_test.dart
+  test\payment_monitor_unsupported_screen_test.dart --reporter expanded` (34
+  tests), full `flutter test --no-pub --reporter expanded` (259 tests), and
+  `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`.
 - `SALES-REPORT-001`, 2026-07-01: `Báo cáo` now opens a 2-column order
   cockpit for same-day ERP orders: left unreported, right reported, 20
   orders/page/column with DB-backed totals and independent pagination. Backend

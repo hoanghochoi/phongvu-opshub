@@ -8,7 +8,6 @@ import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
@@ -371,81 +370,117 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
-      child: Scaffold(
-        appBar: GradientHeader(
-          title: 'Quản lý tính năng',
-          showBack: true,
-          bottom: TabBar(
-            labelColor: AppColors.surface,
-            unselectedLabelColor: AppColors.surface.withValues(alpha: 0.70),
-            indicatorColor: AppColors.surface,
-            dividerColor: AppColors.transparent,
-            tabs: const [
-              Tab(text: 'Tính năng'),
-              Tab(text: 'Theo node'),
-              Tab(text: 'Quy tắc cũ'),
-            ],
-          ),
-          actions: [
-            IconButton(
-              onPressed: _loading ? null : () => _openFeatureEditor(),
-              icon: const Icon(Icons.add_box_outlined),
-              tooltip: 'Thêm tính năng',
-            ),
-            IconButton(
-              onPressed: _loading ? null : () => _openNodeAssignmentEditor(),
-              icon: const Icon(Icons.account_tree_outlined),
-              tooltip: 'Gán tính năng theo node',
-            ),
-            IconButton(
-              onPressed: _loading ? null : () => _openRuleEditor(),
-              icon: const Icon(Icons.rule_folder_outlined),
-              tooltip: 'Thêm rule cũ',
-            ),
-          ],
-        ),
-        body: _loading
-            ? const AppResponsiveContent(
-                child: AppListSkeleton(itemCount: 6, itemHeight: 76),
-              )
-            : TabBarView(
+      child: Column(
+        children: [
+          AppResponsiveContent(
+            child: AppSurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _FeatureList(
-                    features: _features,
-                    onEdit: _openFeatureEditor,
-                    onDelete: (feature) => feature.isSystem
-                        ? null
-                        : () {
-                            _deleteFeature(feature);
-                          },
+                  Text(
+                    'Quản lý tính năng',
+                    style: AppTextStyles.headingM.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
-                  _NodeAssignmentList(
-                    assignments: _nodeAssignments,
-                    features: _features,
-                    featureFilter: _nodeFeatureFilter,
-                    onFilterChanged: (value) async {
-                      setState(() => _nodeFeatureFilter = value);
-                      await _load();
-                    },
-                    onAdd: () => _openNodeAssignmentEditor(),
-                    onEdit: _editNodeAssignmentGroup,
-                    onToggle: _toggleNodeAssignment,
-                    onDelete: _deleteNodeAssignment,
+                  const SizedBox(height: 6),
+                  Text(
+                    'Quản lý feature, gán quyền theo node và theo dõi rule cũ.',
+                    style: AppTextStyles.bodyM.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                  _RuleList(
-                    rules: _rules,
-                    features: _features,
-                    featureFilter: _ruleFeatureFilter,
-                    featureTitle: _featureTitle,
-                    onFilterChanged: (value) async {
-                      setState(() => _ruleFeatureFilter = value);
-                      await _load();
-                    },
-                    onEdit: _openRuleEditor,
-                    onDelete: _deleteRule,
+                  const SizedBox(height: 16),
+                  AppActionRow(
+                    desktopAlignment: MainAxisAlignment.start,
+                    maxButtonWidth: 210,
+                    children: [
+                      AppSecondaryButton(
+                        onPressed: _loading ? null : () => _openFeatureEditor(),
+                        icon: Icons.add_box_outlined,
+                        label: 'Thêm tính năng',
+                      ),
+                      AppSecondaryButton(
+                        onPressed: _loading
+                            ? null
+                            : () => _openNodeAssignmentEditor(),
+                        icon: Icons.account_tree_outlined,
+                        label: 'Gán node',
+                      ),
+                      AppSecondaryButton(
+                        onPressed: _loading ? null : () => _openRuleEditor(),
+                        icon: Icons.rule_folder_outlined,
+                        label: 'Thêm rule cũ',
+                      ),
+                    ],
                   ),
                 ],
               ),
+            ),
+          ),
+          AppResponsiveContent(
+            child: AppSurfaceCard(
+              padding: EdgeInsets.zero,
+              child: TabBar(
+                labelColor: AppColors.primary,
+                unselectedLabelColor: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant,
+                indicatorColor: AppColors.primary,
+                dividerColor: Theme.of(context).dividerColor,
+                tabs: const [
+                  Tab(text: 'Tính năng'),
+                  Tab(text: 'Theo node'),
+                  Tab(text: 'Quy tắc cũ'),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: _loading
+                ? const AppResponsiveContent(
+                    child: AppListSkeleton(itemCount: 6, itemHeight: 76),
+                  )
+                : TabBarView(
+                    children: [
+                      _FeatureList(
+                        features: _features,
+                        onEdit: _openFeatureEditor,
+                        onDelete: (feature) => feature.isSystem
+                            ? null
+                            : () {
+                                _deleteFeature(feature);
+                              },
+                      ),
+                      _NodeAssignmentList(
+                        assignments: _nodeAssignments,
+                        features: _features,
+                        featureFilter: _nodeFeatureFilter,
+                        onFilterChanged: (value) async {
+                          setState(() => _nodeFeatureFilter = value);
+                          await _load();
+                        },
+                        onAdd: () => _openNodeAssignmentEditor(),
+                        onEdit: _editNodeAssignmentGroup,
+                        onToggle: _toggleNodeAssignment,
+                        onDelete: _deleteNodeAssignment,
+                      ),
+                      _RuleList(
+                        rules: _rules,
+                        features: _features,
+                        featureFilter: _ruleFeatureFilter,
+                        featureTitle: _featureTitle,
+                        onFilterChanged: (value) async {
+                          setState(() => _ruleFeatureFilter = value);
+                          await _load();
+                        },
+                        onEdit: _openRuleEditor,
+                        onDelete: _deleteRule,
+                      ),
+                    ],
+                  ),
+          ),
+        ],
       ),
     );
   }

@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -8,11 +10,18 @@ import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/features/admin/domain/admin_feature_definition.dart';
 import 'package:phongvu_opshub/features/admin/domain/admin_organization_node.dart';
 import 'package:phongvu_opshub/features/admin/domain/admin_user_editor_payload.dart';
-import 'package:phongvu_opshub/features/admin/presentation/widgets/node_feature_assignment_dialog.dart';
+import 'package:phongvu_opshub/features/admin/presentation/screens/organization_tree_admin_screen.dart';
 import 'package:phongvu_opshub/features/admin/presentation/screens/user_admin_screen.dart';
+import 'package:phongvu_opshub/features/admin/presentation/widgets/node_feature_assignment_dialog.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
+import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
+import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test(
     'AuthRepository loads user scope tree from ADMIN_USERS endpoint',
     () async {
@@ -339,6 +348,162 @@ void main() {
   });
 
   test(
+    'Organization tree search filters by business code, abbreviation and node title',
+    () {
+      const nodes = [
+        AdminOrganizationNode(
+          id: 'org-domain',
+          code: 'DOMAIN_PHONGVU_VN',
+          title: 'phongvu.vn',
+          type: 'LV0_DOMAIN',
+        ),
+        AdminOrganizationNode(
+          id: 'org-region',
+          code: 'REGION_MIEN_NAM',
+          title: 'Miền Nam',
+          businessCode: 'MN',
+          abbreviation: 'MN',
+          type: 'LV2_REGION',
+          parentId: 'org-domain',
+        ),
+        AdminOrganizationNode(
+          id: 'org-area',
+          code: 'AREA_HCM',
+          title: 'Hồ Chí Minh',
+          businessCode: 'HCM',
+          abbreviation: 'SG',
+          type: 'LV3_AREA',
+          parentId: 'org-region',
+        ),
+        AdminOrganizationNode(
+          id: 'org-store',
+          code: 'STORE_CP62',
+          title: 'PV Nguyễn Kiệm',
+          businessCode: 'CP62',
+          abbreviation: 'NK',
+          type: 'LV4_STORE',
+          parentId: 'org-area',
+        ),
+      ];
+
+      List<String> idsFor(String query) =>
+          filterAdminOrganizationNodesForSearch(
+            nodes,
+            query,
+          ).map((node) => node.id).toList();
+
+      expect(idsFor('CP62'), [
+        'org-domain',
+        'org-region',
+        'org-area',
+        'org-store',
+      ]);
+      expect(idsFor('SG'), ['org-domain', 'org-region', 'org-area']);
+      expect(idsFor('nguyen kiem'), [
+        'org-domain',
+        'org-region',
+        'org-area',
+        'org-store',
+      ]);
+      expect(idsFor('khong co'), isEmpty);
+      expect(idsFor('   '), nodes.map((node) => node.id));
+    },
+  );
+
+  testWidgets(
+    'Organization tree screen renders content-only search and filters loaded nodes',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      FlutterSecureStorage.setMockInitialValues({});
+      final repository = _FakeOrganizationRepository(const [
+        AdminOrganizationNode(
+          id: 'org-domain',
+          code: 'DOMAIN_PHONGVU_VN',
+          title: 'phongvu.vn',
+          type: 'LV0_DOMAIN',
+        ),
+        AdminOrganizationNode(
+          id: 'org-region-nam',
+          code: 'REGION_MIEN_NAM',
+          title: 'Miền Nam',
+          businessCode: 'MN',
+          abbreviation: 'MN',
+          type: 'LV2_REGION',
+          parentId: 'org-domain',
+        ),
+        AdminOrganizationNode(
+          id: 'org-area-hcm',
+          code: 'AREA_HCM',
+          title: 'Hồ Chí Minh',
+          businessCode: 'HCM',
+          abbreviation: 'SG',
+          type: 'LV3_AREA',
+          parentId: 'org-region-nam',
+        ),
+        AdminOrganizationNode(
+          id: 'org-store-cp62',
+          code: 'STORE_CP62',
+          title: 'PV Nguyễn Kiệm',
+          businessCode: 'CP62',
+          abbreviation: 'NK',
+          type: 'LV4_STORE',
+          parentId: 'org-area-hcm',
+        ),
+        AdminOrganizationNode(
+          id: 'org-region-bac',
+          code: 'REGION_MIEN_BAC',
+          title: 'Miền Bắc',
+          businessCode: 'MB',
+          abbreviation: 'MB',
+          type: 'LV2_REGION',
+          parentId: 'org-domain',
+        ),
+      ]);
+      final authProvider = _FakeAuthProvider(
+        const User(
+          id: 'admin-1',
+          email: 'admin@hoanghochoi.com',
+          role: 'SUPER_ADMIN',
+          organizationNodeId: 'org-domain',
+        ),
+      );
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AuthProvider>.value(
+          value: authProvider,
+          child: MaterialApp(
+            home: Scaffold(
+              body: SizedBox.expand(
+                child: OrganizationTreeAdminScreen(repository: repository),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(Scaffold), findsOneWidget);
+      expect(find.text('Cơ cấu tổ chức'), findsOneWidget);
+      expect(
+        find.byKey(const Key('organization-tree-search-field')),
+        findsOneWidget,
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('organization-tree-search-field')),
+        'CP62',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Đang hiển thị 4/5 node'), findsOneWidget);
+      expect(find.text('PV Nguyễn Kiệm'), findsWidgets);
+      expect(find.text('Mã cửa hàng'), findsOneWidget);
+      expect(find.text('Miền Bắc'), findsNothing);
+    },
+  );
+
+  test(
     'Admin user editor snackbar message keeps backend ApiException text',
     () {
       expect(
@@ -351,4 +516,23 @@ void main() {
       );
     },
   );
+}
+
+class _FakeOrganizationRepository extends AuthRepository {
+  final List<AdminOrganizationNode> nodes;
+
+  _FakeOrganizationRepository(this.nodes) : super(ApiClient());
+
+  @override
+  Future<List<AdminOrganizationNode>> listAdminOrganizationTree() async =>
+      nodes;
+}
+
+class _FakeAuthProvider extends AuthProvider {
+  final User currentUser;
+
+  _FakeAuthProvider(this.currentUser) : super(AuthRepository(ApiClient()));
+
+  @override
+  User? get user => currentUser;
 }

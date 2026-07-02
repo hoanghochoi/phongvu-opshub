@@ -77,16 +77,6 @@ class AppNavModel {
       showInTasks: true,
     ),
     AppNavDestination(
-      id: 'sort',
-      label: 'Sắp xếp',
-      description: 'Theo dõi và xử lý danh sách sắp xếp',
-      route: '/sort',
-      icon: Icons.sort_rounded,
-      color: AppColors.indigo600,
-      group: AppNavGroup.workspace,
-      showInTasks: true,
-    ),
-    AppNavDestination(
       id: 'warranty',
       label: 'BH / SC',
       description: 'Tiếp nhận và tra cứu bảo hành',
@@ -221,7 +211,8 @@ class AppNavModel {
       'fifo' =>
         location == '/fifo-check' ||
             location == '/fifo-history' ||
-            location == '/fifo/inventory-import',
+            location == '/fifo/inventory-import' ||
+            location == '/sort',
       'warranty' => location == '/warranty' || location == '/check-warranty',
       'sales' => location.startsWith('/sales-reports'),
       _ => false,
@@ -235,7 +226,6 @@ class AppNavModel {
       'fifo' =>
         user?.canUseFeature('FIFO') == true ||
             user?.canUseFeature('FIFO_IMPORT') == true,
-      'sort' => user?.canUseFeature('FIFO') == true,
       'warranty' => user?.canUseFeature('WARRANTY') == true,
       'vietqr' => user?.canUseFeature('VIETQR') == true,
       'payment' =>

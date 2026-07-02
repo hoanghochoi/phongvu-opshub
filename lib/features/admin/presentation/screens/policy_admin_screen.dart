@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
@@ -17,29 +19,36 @@ import '../../domain/admin_policy_definition.dart';
 import '../../domain/admin_role_definition.dart';
 
 class PolicyAdminScreen extends StatefulWidget {
-  const PolicyAdminScreen({super.key});
+  final AuthRepository? repository;
+
+  const PolicyAdminScreen({super.key, this.repository});
 
   @override
   State<PolicyAdminScreen> createState() => _PolicyAdminScreenState();
 }
 
 class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
-  final _repository = AuthRepository(ApiClient());
+  late final AuthRepository _repository;
   List<AdminPolicyDefinition> _policies = [];
   List<AdminPolicyRule> _rules = [];
   List<AdminSettingDefinition> _settings = [];
   List<AdminOrganizationNode> _organizationNodes = [];
   String? _rulePolicyFilter;
   bool _loading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
+    _repository = widget.repository ?? AuthRepository(ApiClient());
     _load();
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
     final startedAt = DateTime.now();
     try {
       await AppLogger.instance.info(
@@ -59,6 +68,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
         _rules = results[1] as List<AdminPolicyRule>;
         _settings = results[2] as List<AdminSettingDefinition>;
         _organizationNodes = results[3] as List<AdminOrganizationNode>;
+        _errorMessage = null;
       });
       await AppLogger.instance.info(
         'AdminPolicies',
@@ -78,8 +88,14 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
         error: error,
         stackTrace: stackTrace,
         upload: true,
+        context: {
+          'policyFilter': _rulePolicyFilter,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
       );
-      if (mounted) _showMessage('Chưa tải được quản lý policy.');
+      if (mounted) {
+        setState(() => _errorMessage = 'Chưa tải được quản lý chính sách.');
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -117,7 +133,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
   }
 
   Future<void> _deletePolicy(AdminPolicyDefinition policy) async {
-    final confirmed = await _confirm('Xóa policy ${policy.code}?');
+    final confirmed = await _confirm('Xóa chính sách "${policy.title}"?');
     if (!confirmed) return;
     try {
       await AppLogger.instance.warn(
@@ -141,14 +157,18 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
         upload: true,
         context: {'policyCode': policy.code},
       );
-      if (mounted) _showMessage('Chưa xóa được policy. Có thể đang có rule.');
+      if (mounted) {
+        _showMessage('Chưa xóa được chính sách. Có thể còn quy tắc liên quan.');
+      }
     }
   }
 
   Future<void> _deleteRule(AdminPolicyRule rule) async {
     final id = rule.id;
     if (id == null || id.isEmpty) return;
-    final confirmed = await _confirm('Xóa rule của ${rule.policyCode}?');
+    final confirmed = await _confirm(
+      'Xóa quy tắc của ${_policyTitle(rule.policyCode)}?',
+    );
     if (!confirmed) return;
     try {
       await AppLogger.instance.warn(
@@ -172,7 +192,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
         upload: true,
         context: {'ruleId': id, 'policyCode': rule.policyCode},
       );
-      if (mounted) _showMessage('Chưa xóa được rule.');
+      if (mounted) _showMessage('Chưa xóa được quy tắc.');
     }
   }
 
@@ -206,60 +226,70 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
     for (final policy in _policies) {
       if (policy.code == code) return policy.title;
     }
-    return code;
+    return 'Chính sách chưa đồng bộ';
   }
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
-      child: Scaffold(
-        appBar: GradientHeader(
-          title: 'Quản lý chính sách',
-          showBack: true,
-          bottom: TabBar(
-            labelColor: AppColors.surface,
-            unselectedLabelColor: AppColors.surface.withValues(alpha: 0.70),
-            indicatorColor: AppColors.surface,
-            dividerColor: AppColors.transparent,
-            tabs: const [
-              Tab(text: 'Chính sách'),
-              Tab(text: 'Quy tắc'),
-              Tab(text: 'Cấu hình'),
-            ],
-          ),
-          actions: [
-            IconButton(
-              onPressed: _loading ? null : () => _openPolicyEditor(),
-              icon: const Icon(Icons.add_box_outlined),
-              tooltip: 'Thêm chính sách',
+      child: AppResponsiveContent(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _PolicyAdminHeader(
+              loading: _loading,
+              policyCount: _policies.length,
+              ruleCount: _rules.length,
+              settingCount: _settings.length,
+              onRefresh: _loading ? null : _load,
+              onCreatePolicy: _loading ? null : () => _openPolicyEditor(),
+              onCreateRule: _loading ? null : () => _openRuleEditor(),
+              onCreateSetting: _loading ? null : () => _openSettingEditor(),
             ),
-            IconButton(
-              onPressed: _loading ? null : () => _openRuleEditor(),
-              icon: const Icon(Icons.rule_folder_outlined),
-              tooltip: 'Thêm quy tắc',
+            const SizedBox(height: AppLayoutTokens.cardGap),
+            AppSurfaceCard(
+              key: const Key('policy-admin-tabs'),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: TabBar(
+                labelColor: AppColors.primary,
+                unselectedLabelColor: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant,
+                indicatorColor: AppColors.primary,
+                dividerColor: AppColors.transparent,
+                tabs: const [
+                  Tab(text: 'Chính sách'),
+                  Tab(text: 'Quy tắc'),
+                  Tab(text: 'Cấu hình'),
+                ],
+              ),
             ),
-            IconButton(
-              onPressed: _loading ? null : () => _openSettingEditor(),
-              icon: const Icon(Icons.settings_outlined),
-              tooltip: 'Thêm cấu hình',
-            ),
+            const SizedBox(height: AppLayoutTokens.cardGap),
+            Expanded(child: _buildBody()),
           ],
         ),
-        body: _loading
-            ? const AppResponsiveContent(
-                child: AppListSkeleton(itemCount: 6, itemHeight: 76),
-              )
-            : AppResponsiveContent(
-                child: TabBarView(
-                  children: [
-                    _buildPoliciesTab(),
-                    _buildRulesTab(),
-                    _buildSettingsTab(),
-                  ],
-                ),
-              ),
       ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const AppListSkeleton(itemCount: 6, itemHeight: 92);
+    }
+
+    if (_errorMessage != null) {
+      return AppStatePanel.error(
+        title: _errorMessage!,
+        message: 'Kiểm tra kết nối rồi thử tải lại dữ liệu chính sách.',
+        actionLabel: 'Thử tải lại',
+        actionIcon: Icons.refresh,
+        onAction: _load,
+      );
+    }
+
+    return TabBarView(
+      children: [_buildPoliciesTab(), _buildRulesTab(), _buildSettingsTab()],
     );
   }
 
@@ -272,34 +302,17 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
       );
     }
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      key: const Key('policy-admin-policy-list'),
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _policies.length,
-      separatorBuilder: (context, index) => const Divider(height: 1),
+      separatorBuilder: (context, index) =>
+          const SizedBox(height: AppLayoutTokens.cardGap),
       itemBuilder: (context, index) {
         final policy = _policies[index];
-        return ListTile(
-          title: Text('${policy.title} (${policy.code})'),
-          subtitle: Text(
-            '${policy.category} • Mặc định ${policy.defaultAllowed ? 'bật' : 'tắt'} • ${policy.ruleCount} quy tắc',
-          ),
-          leading: Icon(
-            policy.isActive ? Icons.policy_outlined : Icons.block_outlined,
-          ),
-          trailing: Wrap(
-            spacing: 4,
-            children: [
-              IconButton(
-                onPressed: () => _openPolicyEditor(policy),
-                icon: const Icon(Icons.edit_outlined),
-                tooltip: 'Sửa',
-              ),
-              IconButton(
-                onPressed: policy.isSystem ? null : () => _deletePolicy(policy),
-                icon: const Icon(Icons.delete_outline),
-                tooltip: 'Xóa',
-              ),
-            ],
-          ),
+        return _PolicyCard(
+          policy: policy,
+          onEdit: () => _openPolicyEditor(policy),
+          onDelete: policy.isSystem ? null : () => _deletePolicy(policy),
         );
       },
     );
@@ -308,8 +321,8 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
   Widget _buildRulesTab() {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
+        AppSurfaceCard(
+          padding: const EdgeInsets.all(12),
           child: AppSelectField<String?>(
             value: _rulePolicyFilter,
             label: 'Lọc theo chính sách',
@@ -321,7 +334,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
               ..._policies.map(
                 (policy) => DropdownMenuItem<String?>(
                   value: policy.code,
-                  child: Text('${policy.title} (${policy.code})'),
+                  child: Text(policy.title),
                 ),
               ),
             ],
@@ -331,6 +344,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
             },
           ),
         ),
+        const SizedBox(height: AppLayoutTokens.cardGap),
         Expanded(
           child: _rules.isEmpty
               ? const AppStatePanel.empty(
@@ -339,40 +353,19 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
                   icon: Icons.rule_folder_outlined,
                 )
               : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  key: const Key('policy-admin-rule-list'),
+                  physics: const AlwaysScrollableScrollPhysics(),
                   itemCount: _rules.length,
                   separatorBuilder: (context, index) =>
-                      const Divider(height: 1),
+                      const SizedBox(height: AppLayoutTokens.cardGap),
                   itemBuilder: (context, index) {
                     final rule = _rules[index];
-                    return ListTile(
-                      leading: Icon(
-                        rule.allowed
-                            ? Icons.check_circle_outline
-                            : Icons.block_outlined,
-                        color: rule.allowed
-                            ? AppColors.success
-                            : AppColors.error,
-                      ),
-                      title: Text(
-                        '${_policyTitle(rule.policyCode)} (${rule.policyCode})',
-                      ),
-                      subtitle: Text(_ruleSummary(rule)),
-                      trailing: Wrap(
-                        spacing: 4,
-                        children: [
-                          IconButton(
-                            onPressed: () => _openRuleEditor(rule),
-                            icon: const Icon(Icons.edit_outlined),
-                            tooltip: 'Sửa',
-                          ),
-                          IconButton(
-                            onPressed: () => _deleteRule(rule),
-                            icon: const Icon(Icons.delete_outline),
-                            tooltip: 'Xóa',
-                          ),
-                        ],
-                      ),
+                    return _PolicyRuleCard(
+                      title: _policyTitle(rule.policyCode),
+                      summary: _ruleSummary(rule),
+                      rule: rule,
+                      onEdit: () => _openRuleEditor(rule),
+                      onDelete: () => _deleteRule(rule),
                     );
                   },
                 ),
@@ -390,22 +383,17 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
       );
     }
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      key: const Key('policy-admin-setting-list'),
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _settings.length,
-      separatorBuilder: (context, index) => const Divider(height: 1),
+      separatorBuilder: (context, index) =>
+          const SizedBox(height: AppLayoutTokens.cardGap),
       itemBuilder: (context, index) {
         final setting = _settings[index];
-        return ListTile(
-          leading: const Icon(Icons.tune_outlined),
-          title: Text('${setting.title} (${setting.key})'),
-          subtitle: Text(
-            '${setting.category} • ${_compactJson(setting.value)}',
-          ),
-          trailing: IconButton(
-            onPressed: () => _openSettingEditor(setting),
-            icon: const Icon(Icons.edit_outlined),
-            tooltip: 'Sửa',
-          ),
+        return _SettingCard(
+          setting: setting,
+          valuePreview: _compactJson(setting.value),
+          onEdit: () => _openSettingEditor(setting),
         );
       },
     );
@@ -422,9 +410,8 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
         'Node tổ chức: ${rule.organizationNodeName}',
       if (rule.organizationNodeId?.isNotEmpty == true &&
           rule.organizationNodeName == null)
-        'Node tổ chức: ${rule.organizationNodeId}',
-      if (_legacyRuleSummary(rule) != null)
-        'Điều kiện cũ: ${_legacyRuleSummary(rule)}',
+        'Node tổ chức: Đã chọn node',
+      if (_legacyRuleSummary(rule) != null) 'Điều kiện cũ: Đã cấu hình',
     ];
     return parts.join(' • ');
   }
@@ -450,6 +437,440 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
   String _compactJson(dynamic value) {
     final text = jsonEncode(value);
     return text.length <= 120 ? text : '${text.substring(0, 120)}...';
+  }
+}
+
+class _PolicyAdminHeader extends StatelessWidget {
+  final bool loading;
+  final int policyCount;
+  final int ruleCount;
+  final int settingCount;
+  final VoidCallback? onRefresh;
+  final VoidCallback? onCreatePolicy;
+  final VoidCallback? onCreateRule;
+  final VoidCallback? onCreateSetting;
+
+  const _PolicyAdminHeader({
+    required this.loading,
+    required this.policyCount,
+    required this.ruleCount,
+    required this.settingCount,
+    required this.onRefresh,
+    required this.onCreatePolicy,
+    required this.onCreateRule,
+    required this.onCreateSetting,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      key: const Key('policy-admin-header'),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact =
+              constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+          final heading = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Quản lý chính sách',
+                style: AppTextStyles.headingM.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Quản trị chính sách, quy tắc áp dụng và cấu hình vận hành.',
+                style: AppTextStyles.bodyM.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
+              Wrap(
+                spacing: AppLayoutTokens.formInlineGap,
+                runSpacing: 8,
+                children: [
+                  AppStatusChip(
+                    label: loading
+                        ? 'Đang tải chính sách'
+                        : '$policyCount chính sách',
+                    color: AppColors.primary,
+                  ),
+                  AppStatusChip(
+                    label: '$ruleCount quy tắc',
+                    color: AppColors.info,
+                  ),
+                  AppStatusChip(
+                    label: '$settingCount cấu hình',
+                    color: AppColors.neutral700,
+                  ),
+                ],
+              ),
+            ],
+          );
+          final actions = Wrap(
+            spacing: AppLayoutTokens.formInlineGap,
+            runSpacing: AppLayoutTokens.formInlineGap,
+            alignment: isCompact ? WrapAlignment.start : WrapAlignment.end,
+            children: [
+              AppIconAction(
+                onPressed: onRefresh,
+                icon: Icons.refresh,
+                tooltip: 'Tải lại chính sách',
+              ),
+              AppIconAction(
+                onPressed: onCreatePolicy,
+                icon: Icons.add_box_outlined,
+                tooltip: 'Thêm chính sách',
+                filled: true,
+              ),
+              AppIconAction(
+                onPressed: onCreateRule,
+                icon: Icons.rule_folder_outlined,
+                tooltip: 'Thêm quy tắc',
+              ),
+              AppIconAction(
+                onPressed: onCreateSetting,
+                icon: Icons.settings_outlined,
+                tooltip: 'Thêm cấu hình',
+              ),
+            ],
+          );
+
+          if (isCompact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                heading,
+                const SizedBox(height: AppLayoutTokens.formFieldGap),
+                actions,
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: heading),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              actions,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PolicyCard extends StatelessWidget {
+  final AdminPolicyDefinition policy;
+  final VoidCallback onEdit;
+  final VoidCallback? onDelete;
+
+  const _PolicyCard({
+    required this.policy,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _PolicyIcon(
+            icon: policy.isActive
+                ? Icons.policy_outlined
+                : Icons.block_outlined,
+            color: policy.isActive ? AppColors.info : AppColors.error,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  policy.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyL.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  policy.description.isEmpty
+                      ? 'Chưa có mô tả chính sách.'
+                      : policy.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    AppStatusChip(
+                      label: policy.isActive ? 'Đang hoạt động' : 'Đã tắt',
+                      color: policy.isActive
+                          ? AppColors.success
+                          : AppColors.error,
+                    ),
+                    AppStatusChip(
+                      label: policy.defaultAllowed
+                          ? 'Mặc định cho phép'
+                          : 'Mặc định chặn',
+                      color: policy.defaultAllowed
+                          ? AppColors.success
+                          : AppColors.neutral700,
+                    ),
+                    AppStatusChip(
+                      label: '${policy.ruleCount} quy tắc',
+                      color: AppColors.info,
+                    ),
+                    AppStatusChip(
+                      label: policy.isSystem ? 'Hệ thống' : 'Tùy chỉnh',
+                      color: AppColors.neutral700,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _RowActions(
+            onEdit: onEdit,
+            onDelete: onDelete,
+            deleteTooltip: policy.isSystem
+                ? 'Chính sách hệ thống không thể xóa'
+                : 'Xóa chính sách',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PolicyRuleCard extends StatelessWidget {
+  final String title;
+  final String summary;
+  final AdminPolicyRule rule;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _PolicyRuleCard({
+    required this.title,
+    required this.summary,
+    required this.rule,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _PolicyIcon(
+            icon: rule.allowed
+                ? Icons.check_circle_outline
+                : Icons.block_outlined,
+            color: rule.allowed ? AppColors.success : AppColors.error,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyL.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  summary.isEmpty
+                      ? 'Áp dụng cho phạm vi đã cấu hình.'
+                      : summary,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    AppStatusChip(
+                      label: rule.allowed ? 'Cho phép' : 'Chặn',
+                      color: rule.allowed ? AppColors.success : AppColors.error,
+                    ),
+                    if (rule.organizationNodeId?.isNotEmpty == true)
+                      const AppStatusChip(
+                        label: 'Có node tổ chức',
+                        color: AppColors.info,
+                      ),
+                    if (rule.note?.isNotEmpty == true)
+                      const AppStatusChip(
+                        label: 'Có ghi chú',
+                        color: AppColors.neutral700,
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _RowActions(
+            onEdit: onEdit,
+            onDelete: onDelete,
+            deleteTooltip: 'Xóa quy tắc',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingCard extends StatelessWidget {
+  final AdminSettingDefinition setting;
+  final String valuePreview;
+  final VoidCallback onEdit;
+
+  const _SettingCard({
+    required this.setting,
+    required this.valuePreview,
+    required this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _PolicyIcon(icon: Icons.tune_outlined, color: AppColors.info),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  setting.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyL.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  setting.description.isEmpty
+                      ? 'Chưa có mô tả cấu hình.'
+                      : setting.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (setting.isSensitive)
+                      const AppStatusChip(
+                        label: 'Nhạy cảm',
+                        color: AppColors.error,
+                      ),
+                    AppStatusChip(
+                      label: 'Giá trị: $valuePreview',
+                      color: AppColors.neutral700,
+                      maxWidth: 260,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          AppIconAction(
+            onPressed: onEdit,
+            icon: Icons.edit_outlined,
+            tooltip: 'Sửa cấu hình',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PolicyIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+
+  const _PolicyIcon({required this.icon, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.11),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Icon(icon, color: color, size: 22),
+    );
+  }
+}
+
+class _RowActions extends StatelessWidget {
+  final VoidCallback onEdit;
+  final VoidCallback? onDelete;
+  final String deleteTooltip;
+
+  const _RowActions({
+    required this.onEdit,
+    required this.onDelete,
+    required this.deleteTooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        AppIconAction(
+          onPressed: onEdit,
+          icon: Icons.edit_outlined,
+          tooltip: 'Sửa',
+        ),
+        AppIconAction(
+          onPressed: onDelete,
+          icon: Icons.delete_outline,
+          tooltip: deleteTooltip,
+        ),
+      ],
+    );
   }
 }
 

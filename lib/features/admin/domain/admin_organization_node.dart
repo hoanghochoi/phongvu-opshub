@@ -161,6 +161,78 @@ class AdminOrganizationNode {
   }
 }
 
+List<AdminOrganizationNode> filterAdminOrganizationNodesForSearch(
+  List<AdminOrganizationNode> nodes,
+  String query,
+) {
+  final normalizedQuery = normalizeAdminOrganizationSearchText(query);
+  if (normalizedQuery.isEmpty) return List<AdminOrganizationNode>.of(nodes);
+
+  final byId = {for (final node in nodes) node.id: node};
+  final includedIds = <String>{};
+
+  void includeWithAncestors(AdminOrganizationNode node) {
+    if (!includedIds.add(node.id)) return;
+    final parentId = node.parentId;
+    if (parentId == null) return;
+    final parent = byId[parentId];
+    if (parent != null) includeWithAncestors(parent);
+  }
+
+  for (final node in nodes) {
+    if (adminOrganizationNodeMatchesSearch(node, normalizedQuery)) {
+      includeWithAncestors(node);
+    }
+  }
+
+  return [
+    for (final node in nodes)
+      if (includedIds.contains(node.id)) node,
+  ];
+}
+
+bool adminOrganizationNodeMatchesSearch(
+  AdminOrganizationNode node,
+  String query,
+) {
+  final normalizedQuery = normalizeAdminOrganizationSearchText(query);
+  if (normalizedQuery.isEmpty) return true;
+
+  final fields = [
+    node.businessCode,
+    node.abbreviation,
+    node.title,
+    node.code,
+    node.storeId,
+    node.storeName,
+  ];
+
+  return fields
+      .where((value) => value?.trim().isNotEmpty == true)
+      .any(
+        (value) => normalizeAdminOrganizationSearchText(
+          value!,
+        ).contains(normalizedQuery),
+      );
+}
+
+String normalizeAdminOrganizationSearchText(String value) {
+  var normalized = value.trim().toLowerCase();
+  const replacements = {
+    'a': 'àáạảãâầấậẩẫăằắặẳẵ',
+    'e': 'èéẹẻẽêềếệểễ',
+    'i': 'ìíịỉĩ',
+    'o': 'òóọỏõôồốộổỗơờớợởỡ',
+    'u': 'ùúụủũưừứựửữ',
+    'y': 'ỳýỵỷỹ',
+    'd': 'đ',
+  };
+  for (final entry in replacements.entries) {
+    normalized = normalized.replaceAll(RegExp('[${entry.value}]'), entry.key);
+  }
+  return normalized;
+}
+
 class AdminOrganizationNodeTypes {
   AdminOrganizationNodeTypes._();
 

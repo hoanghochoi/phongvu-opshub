@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
+import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provider.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/payment_speaker.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/repositories/payment_monitor_repository.dart';
@@ -13,6 +14,30 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('admin feature management route requires matching feature access', () {
+    const featureAdmin = User(
+      email: 'feature-admin@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-admin',
+      featureAccess: {'ADMIN_FEATURES': true},
+    );
+    const staff = User(
+      email: 'staff@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-store',
+      featureAccess: {'FIFO': true},
+    );
+
+    expect(AppRouter.canUseRouteForTesting(featureAdmin, '/admin'), isTrue);
+    expect(
+      AppRouter.canUseRouteForTesting(featureAdmin, '/admin/features'),
+      isTrue,
+    );
+
+    expect(AppRouter.canUseRouteForTesting(staff, '/admin'), isFalse);
+    expect(AppRouter.canUseRouteForTesting(staff, '/admin/features'), isFalse);
+  });
+
   testWidgets('payment monitor route renders list screen on web', (
     tester,
   ) async {

@@ -11,7 +11,6 @@ import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/payment_monitor_provider.dart';
@@ -42,219 +41,212 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
     final canUsePaymentSpeaker = monitor.canUsePaymentSpeaker;
     final speakerSelectionNotice = monitor.speakerSelectionNotice;
 
-    return Scaffold(
-      appBar: const GradientHeader(title: 'Theo dõi tiền vào', showBack: true),
-      body: SafeArea(
-        child: AppResponsiveContent(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (canUsePaymentSpeaker ||
-                  speakerSelectionNotice != null ||
-                  requiresStoreInput)
-                AppSurfaceCard(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (canUsePaymentSpeaker) ...[
-                        Row(
-                          children: [
-                            Icon(
-                              monitor.isSpeakerEnabled
-                                  ? Icons.volume_up_rounded
-                                  : Icons.volume_off_rounded,
-                              color: monitor.isSpeakerEnabled
-                                  ? AppColors.success
-                                  : AppColors.neutral500,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                monitor.isSpeakerEnabled
-                                    ? 'Đang đọc loa khi có tiền vào'
-                                    : 'Đã tắt đọc loa',
+    return AppResponsiveContent(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PaymentMonitorHeader(monitor: monitor, user: user),
+          if (canUsePaymentSpeaker ||
+              speakerSelectionNotice != null ||
+              requiresStoreInput) ...[
+            const SizedBox(height: AppLayoutTokens.sectionGap),
+            AppSurfaceCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (canUsePaymentSpeaker) ...[
+                    Row(
+                      children: [
+                        Icon(
+                          monitor.isSpeakerEnabled
+                              ? Icons.volume_up_rounded
+                              : Icons.volume_off_rounded,
+                          color: monitor.isSpeakerEnabled
+                              ? AppColors.success
+                              : AppColors.neutral500,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            monitor.isSpeakerEnabled
+                                ? 'Đang đọc loa khi có tiền vào'
+                                : 'Đã tắt đọc loa',
+                            style: AppTextStyles.titleEmphasis,
+                          ),
+                        ),
+                        Switch.adaptive(
+                          value: monitor.isSpeakerEnabled,
+                          onChanged: monitor.canMonitorOnThisDevice
+                              ? (value) => context
+                                    .read<PaymentMonitorProvider>()
+                                    .setSpeakerEnabled(value)
+                              : null,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _SyncStatusPill(monitor: monitor),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Giao dịch mới tự cập nhật theo realtime; nếu mất kết nối, máy sẽ tự kiểm tra lại định kỳ.',
+                      style: AppTextStyles.bodyS.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                  if (!canUsePaymentSpeaker &&
+                      speakerSelectionNotice != null) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.volume_off_rounded,
+                          color: AppColors.warning,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Loa tạm dừng',
                                 style: AppTextStyles.titleEmphasis,
                               ),
-                            ),
-                            Switch.adaptive(
-                              value: monitor.isSpeakerEnabled,
-                              onChanged: monitor.canMonitorOnThisDevice
-                                  ? (value) => context
-                                        .read<PaymentMonitorProvider>()
-                                        .setSpeakerEnabled(value)
-                                  : null,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: _SyncStatusPill(monitor: monitor),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Giao dịch mới tự cập nhật theo realtime; nếu mất kết nối, máy sẽ tự kiểm tra lại định kỳ.',
-                          style: AppTextStyles.bodyS.copyWith(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                              const SizedBox(height: 4),
+                              Text(
+                                speakerSelectionNotice,
+                                style: AppTextStyles.bodyS.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                      if (!canUsePaymentSpeaker &&
-                          speakerSelectionNotice != null) ...[
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(
-                              Icons.volume_off_rounded,
-                              color: AppColors.warning,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Loa tạm dừng',
-                                    style: AppTextStyles.titleEmphasis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    speakerSelectionNotice,
-                                    style: AppTextStyles.bodyS.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: _SyncStatusPill(monitor: monitor),
-                        ),
-                      ],
-                      if (requiresStoreInput) ...[
-                        if (canUsePaymentSpeaker ||
-                            speakerSelectionNotice != null)
-                          const SizedBox(height: AppLayoutTokens.formFieldGap),
-                        AppTextInput(
-                          controller: _storeController,
-                          label: 'Mã showroom cần xem',
-                          icon: Icons.store_outlined,
-                          textCapitalization: TextCapitalization.characters,
-                          onSubmitted: (_) => _applyStoreOverride(context),
-                        ),
-                        const SizedBox(height: AppLayoutTokens.formInlineGap),
-                        AppSecondaryButton(
-                          onPressed: () => _applyStoreOverride(context),
-                          icon: Icons.check_rounded,
-                          label: 'Xem showroom này',
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              if (canUsePaymentSpeaker && monitor.speakerError != null) ...[
-                const SizedBox(height: 12),
-                _SpeakerErrorCard(
-                  error: monitor.speakerError!,
-                  amountText:
-                      '${_currencyFormatter.format(monitor.speakerError!.amount)} VND',
-                  onRestart: () =>
-                      context.read<PaymentMonitorProvider>().restartApp(),
-                ),
-              ],
-              if (monitor.errorMessage != null) ...[
-                const SizedBox(height: 12),
-                _StatusCard(
-                  icon: Icons.error_outline_rounded,
-                  tone: AppStateTone.error,
-                  title: 'Chưa cập nhật được giao dịch',
-                  message: monitor.errorMessage!,
-                ),
-              ],
-              const SizedBox(height: 14),
-              _TransactionFilters(monitor: monitor, user: user),
-              const SizedBox(height: 16),
-              Text(
-                'Giao dịch tiền vào',
-                style: AppTextStyles.labelL.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: Column(
-                  children: [
-                    if (monitor.isLoading &&
-                        monitor.latestTransactions.isNotEmpty) ...[
-                      const LinearProgressIndicator(minHeight: 2),
-                      const SizedBox(height: AppLayoutTokens.cardGap),
-                    ],
-                    Expanded(
-                      child: monitor.latestTransactions.isEmpty
-                          ? monitor.isLoading
-                                ? const AppListSkeleton(
-                                    itemCount: 5,
-                                    showLeading: false,
-                                    itemHeight: 92,
-                                  )
-                                : const _EmptyTransactions()
-                          : ListView.builder(
-                              itemCount: monitor.latestTransactions.length,
-                              itemBuilder: (context, index) {
-                                final transaction =
-                                    monitor.latestTransactions[index];
-                                return PaymentTransactionTile(
-                                  transaction: transaction,
-                                  amountFormatter: _currencyFormatter,
-                                  rowMessage:
-                                      monitor.rowMessages[transaction.id],
-                                  canReviewTransfer:
-                                      monitor.canReviewOrderTransfers,
-                                  onSaveOrders: (rawInput) => context
-                                      .read<PaymentMonitorProvider>()
-                                      .updateOrders(transaction.id, rawInput),
-                                  onRequestTransfer: (rawInput) => context
-                                      .read<PaymentMonitorProvider>()
-                                      .requestOrderTransfer(
-                                        transaction.id,
-                                        rawInput,
-                                      ),
-                                  onApproveTransfer: (requestId) => context
-                                      .read<PaymentMonitorProvider>()
-                                      .approveOrderTransferRequest(
-                                        transaction.id,
-                                        requestId,
-                                      ),
-                                  onRejectTransfer: (requestId, {note}) =>
-                                      context
-                                          .read<PaymentMonitorProvider>()
-                                          .rejectOrderTransferRequest(
-                                            transaction.id,
-                                            requestId,
-                                            note: note,
-                                          ),
-                                  onLoadHistory: () => context
-                                      .read<PaymentMonitorProvider>()
-                                      .fetchOrderHistory(transaction.id),
-                                );
-                              },
-                            ),
+                    ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _SyncStatusPill(monitor: monitor),
                     ),
                   ],
-                ),
+                  if (requiresStoreInput) ...[
+                    if (canUsePaymentSpeaker || speakerSelectionNotice != null)
+                      const SizedBox(height: AppLayoutTokens.formFieldGap),
+                    AppTextInput(
+                      controller: _storeController,
+                      label: 'Mã showroom cần xem',
+                      icon: Icons.store_outlined,
+                      textCapitalization: TextCapitalization.characters,
+                      onSubmitted: (_) => _applyStoreOverride(context),
+                    ),
+                    const SizedBox(height: AppLayoutTokens.formInlineGap),
+                    AppSecondaryButton(
+                      onPressed: () => _applyStoreOverride(context),
+                      icon: Icons.check_rounded,
+                      label: 'Xem showroom này',
+                    ),
+                  ],
+                ],
               ),
-            ],
+            ),
+          ],
+          if (canUsePaymentSpeaker && monitor.speakerError != null) ...[
+            const SizedBox(height: 12),
+            _SpeakerErrorCard(
+              error: monitor.speakerError!,
+              amountText:
+                  '${_currencyFormatter.format(monitor.speakerError!.amount)} VND',
+              onRestart: () =>
+                  context.read<PaymentMonitorProvider>().restartApp(),
+            ),
+          ],
+          if (monitor.errorMessage != null) ...[
+            const SizedBox(height: 12),
+            _StatusCard(
+              icon: Icons.error_outline_rounded,
+              tone: AppStateTone.error,
+              title: 'Chưa cập nhật được giao dịch',
+              message: monitor.errorMessage!,
+            ),
+          ],
+          const SizedBox(height: 14),
+          _TransactionFilters(monitor: monitor, user: user),
+          const SizedBox(height: 16),
+          Text(
+            'Giao dịch tiền vào',
+            style: AppTextStyles.labelL.copyWith(
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
-        ),
+          const SizedBox(height: 10),
+          Expanded(
+            child: Column(
+              children: [
+                if (monitor.isLoading &&
+                    monitor.latestTransactions.isNotEmpty) ...[
+                  const LinearProgressIndicator(minHeight: 2),
+                  const SizedBox(height: AppLayoutTokens.cardGap),
+                ],
+                Expanded(
+                  child: monitor.latestTransactions.isEmpty
+                      ? monitor.isLoading
+                            ? const AppListSkeleton(
+                                itemCount: 5,
+                                showLeading: false,
+                                itemHeight: 92,
+                              )
+                            : const _EmptyTransactions()
+                      : ListView.builder(
+                          itemCount: monitor.latestTransactions.length,
+                          itemBuilder: (context, index) {
+                            final transaction =
+                                monitor.latestTransactions[index];
+                            return PaymentTransactionTile(
+                              transaction: transaction,
+                              amountFormatter: _currencyFormatter,
+                              rowMessage: monitor.rowMessages[transaction.id],
+                              canReviewTransfer:
+                                  monitor.canReviewOrderTransfers,
+                              onSaveOrders: (rawInput) => context
+                                  .read<PaymentMonitorProvider>()
+                                  .updateOrders(transaction.id, rawInput),
+                              onRequestTransfer: (rawInput) => context
+                                  .read<PaymentMonitorProvider>()
+                                  .requestOrderTransfer(
+                                    transaction.id,
+                                    rawInput,
+                                  ),
+                              onApproveTransfer: (requestId) => context
+                                  .read<PaymentMonitorProvider>()
+                                  .approveOrderTransferRequest(
+                                    transaction.id,
+                                    requestId,
+                                  ),
+                              onRejectTransfer: (requestId, {note}) => context
+                                  .read<PaymentMonitorProvider>()
+                                  .rejectOrderTransferRequest(
+                                    transaction.id,
+                                    requestId,
+                                    note: note,
+                                  ),
+                              onLoadHistory: () => context
+                                  .read<PaymentMonitorProvider>()
+                                  .fetchOrderHistory(transaction.id),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -262,6 +254,122 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
   void _applyStoreOverride(BuildContext context) {
     context.read<PaymentMonitorProvider>().setStoreOverride(
       _storeController.text,
+    );
+  }
+}
+
+class _PaymentMonitorHeader extends StatelessWidget {
+  final PaymentMonitorProvider monitor;
+  final User? user;
+
+  const _PaymentMonitorHeader({required this.monitor, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedStores = monitor.selectedStoreIds.length;
+    final assignedStores = user?.assignedStoreIds.length ?? 0;
+    final storeLabel = selectedStores > 0
+        ? '$selectedStores SR'
+        : assignedStores > 0
+        ? '$assignedStores SR'
+        : user?.isSuperAdmin == true
+        ? 'Chọn SR'
+        : 'Chưa có SR';
+    final syncLabel = monitor.isActive
+        ? 'Đang đồng bộ'
+        : monitor.hasMonitorScope
+        ? 'Sẵn sàng đồng bộ'
+        : 'Chưa chọn SR';
+    final speakerLabel = monitor.canUsePaymentSpeaker
+        ? monitor.isSpeakerEnabled
+              ? 'Loa đang bật'
+              : 'Loa đang tắt'
+        : 'Chỉ xem danh sách';
+
+    return AppSurfaceCard(
+      key: const Key('payment-monitor-header'),
+      backgroundColor: AppColors.successSurface,
+      borderColor: AppColors.success.withValues(alpha: 0.24),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact =
+              constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
+          final icon = Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+            ),
+            child: const Icon(Icons.payments_rounded, color: AppColors.success),
+          );
+          final textBlock = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Theo dõi tiền vào', style: AppTextStyles.headingM),
+              const SizedBox(height: 6),
+              Text(
+                'Theo dõi giao dịch MAP theo SR, ngày và số dòng; loa đọc tiền vào chỉ bật khi thiết bị và quyền phù hợp.',
+                style: AppTextStyles.bodyM.copyWith(
+                  color: AppColors.neutral600,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: AppLayoutTokens.cardGap),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  AppStatusChip(
+                    label: storeLabel,
+                    color: AppColors.success,
+                    backgroundColor: AppColors.successSurface,
+                  ),
+                  AppStatusChip(
+                    label: syncLabel,
+                    color: monitor.isActive
+                        ? AppColors.success
+                        : AppColors.neutral700,
+                    backgroundColor: monitor.isActive
+                        ? AppColors.successSurface
+                        : AppColors.neutral100,
+                  ),
+                  AppStatusChip(
+                    label: speakerLabel,
+                    color: monitor.canUsePaymentSpeaker
+                        ? AppColors.primary
+                        : AppColors.neutral700,
+                    backgroundColor: monitor.canUsePaymentSpeaker
+                        ? AppColors.primarySurface
+                        : AppColors.neutral100,
+                  ),
+                  AppStatusChip(
+                    label: '${monitor.totalTransactions} giao dịch',
+                    color: AppColors.neutral700,
+                    backgroundColor: AppColors.neutral100,
+                  ),
+                ],
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [icon, const SizedBox(height: 14), textBlock],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              icon,
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              Expanded(child: textBlock),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -627,9 +735,31 @@ class _EmptyTransactions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const AppStatePanel.empty(
-      title: 'Chưa có giao dịch trong khoảng ngày đã chọn',
-      icon: Icons.receipt_long_outlined,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxHeight < 130) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Chưa có giao dịch',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.labelM.copyWith(
+                  color: AppColors.neutral500,
+                ),
+              ),
+            ),
+          );
+        }
+
+        return AppStatePanel.empty(
+          title: 'Chưa có giao dịch trong khoảng ngày đã chọn',
+          icon: Icons.receipt_long_outlined,
+          compact: constraints.maxHeight < 180,
+        );
+      },
     );
   }
 }

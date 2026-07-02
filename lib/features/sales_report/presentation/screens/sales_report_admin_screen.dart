@@ -7,14 +7,16 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/formatting/money_formatters.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/sales_report.dart';
 import '../providers/sales_report_provider.dart';
+import '../widgets/sales_report_export_menu.dart';
+import '../widgets/sales_report_workspace_header.dart';
 
 class SalesReportAdminScreen extends StatefulWidget {
   const SalesReportAdminScreen({super.key});
@@ -76,152 +78,145 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<SalesReportProvider>();
-    return Scaffold(
-      appBar: const GradientHeader(title: 'Báo cáo sale', showBack: true),
-      body: AppResponsiveScrollView(
-        maxWidth: AppLayoutTokens.pageMaxWidth,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AppSurfaceCard(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  const gap = AppLayoutTokens.formInlineGap;
-                  final columns = constraints.maxWidth >= 1300
-                      ? 6
-                      : constraints.maxWidth >= 1180
-                      ? 5
-                      : constraints.maxWidth >= 920
-                      ? 4
-                      : constraints.maxWidth >= 760
-                      ? 3
-                      : constraints.maxWidth >= 520
-                      ? 2
-                      : 1;
-                  final fieldWidth =
-                      (constraints.maxWidth - (gap * (columns - 1))) / columns;
-                  return Wrap(
-                    spacing: gap,
-                    runSpacing: gap,
-                    crossAxisAlignment: WrapCrossAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: fieldWidth,
-                        child: _ReportTypeFilter(
-                          value: _reportType,
-                          enabled: !provider.isLoadingAdminList,
-                          onChanged: (value) {
-                            setState(() => _reportType = value);
-                            unawaited(_reload());
-                          },
-                        ),
-                      ),
-                      SizedBox(
-                        width: fieldWidth,
-                        child: AppDateRangeDropdown(
-                          label: 'Ngày',
-                          start: _startDate,
-                          end: _endDate,
-                          onChanged: _setDateRange,
-                        ),
-                      ),
-                      SizedBox(
-                        width: fieldWidth,
-                        child: AppSecondaryButton(
-                          onPressed: provider.isLoadingAdminList
-                              ? null
-                              : _reload,
-                          icon: Icons.refresh_rounded,
-                          label: 'Tải lại',
-                          isLoading: provider.isLoadingAdminList,
-                        ),
-                      ),
-                      SizedBox(
-                        width: fieldWidth,
-                        child: AppSecondaryButton(
-                          onPressed: provider.isExporting
-                              ? null
-                              : () => _export('HVTC'),
-                          icon: Icons.download_rounded,
-                          label: 'Xuất HVTC',
-                          isLoading: provider.isExporting,
-                        ),
-                      ),
-                      SizedBox(
-                        width: fieldWidth,
-                        child: AppSecondaryButton(
-                          onPressed: provider.isExporting
-                              ? null
-                              : () => _export('REVENUE'),
-                          icon: Icons.download_rounded,
-                          label: 'Xuất Doanh số',
-                          isLoading: provider.isExporting,
-                        ),
-                      ),
-                      SizedBox(
-                        width: fieldWidth,
-                        child: AppSecondaryButton(
-                          onPressed: provider.isExporting
-                              ? null
-                              : () => _export('INSTALLMENT'),
-                          icon: Icons.download_rounded,
-                          label: 'Xuất Trả góp',
-                          isLoading: provider.isExporting,
-                        ),
-                      ),
-                    ],
-                  );
-                },
+    return AppResponsiveScrollView(
+      maxWidth: AppLayoutTokens.pageMaxWidth,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SalesReportWorkspaceHeader(
+            key: const Key('sales-report-admin-workspace-header'),
+            title: 'Báo cáo sale',
+            subtitle:
+                'Lọc danh sách báo cáo và xuất đúng file theo cùng bộ lọc đang xem.',
+            icon: Icons.assignment_outlined,
+            chips: [
+              AppStatusChip(
+                label: '${provider.adminTotal} báo cáo',
+                color: AppColors.primary,
               ),
-            ),
-            const SizedBox(height: AppLayoutTokens.cardGap),
-            if (provider.errorMessage != null)
-              AppStatusBanner(
-                icon: Icons.error_outline_rounded,
-                title: 'Chưa tải được dữ liệu',
-                message: provider.errorMessage!,
-                tone: AppStateTone.error,
+              AppStatusChip(
+                label: 'Trang ${provider.adminPage + 1}',
+                color: AppColors.neutral600,
               ),
-            if (provider.isLoadingAdminList && provider.adminItems.isEmpty)
-              const AppListSkeleton(itemCount: 5)
-            else if (provider.adminItems.isEmpty)
-              const AppStatePanel.empty(
-                title: 'Chưa có báo cáo',
-                message: 'Dữ liệu sẽ xuất hiện sau khi sale gửi báo cáo.',
-              )
-            else
-              Column(
-                children: [
-                  for (final item in provider.adminItems) ...[
-                    _SalesReportAdminTile(item: item),
-                    const SizedBox(height: AppLayoutTokens.cardGap),
+              AppStatusChip(
+                label: _reportTypeLabel(_reportType),
+                color: AppColors.success,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppLayoutTokens.cardGap),
+          AppSurfaceCard(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                const gap = AppLayoutTokens.formInlineGap;
+                final columns = constraints.maxWidth >= 920
+                    ? 4
+                    : constraints.maxWidth >= 680
+                    ? 2
+                    : 1;
+                final fieldWidth =
+                    (constraints.maxWidth - (gap * (columns - 1))) / columns;
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  crossAxisAlignment: WrapCrossAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: fieldWidth,
+                      child: _ReportTypeFilter(
+                        value: _reportType,
+                        enabled: !provider.isLoadingAdminList,
+                        onChanged: (value) {
+                          setState(() => _reportType = value);
+                          unawaited(_reload());
+                        },
+                      ),
+                    ),
+                    SizedBox(
+                      width: fieldWidth,
+                      child: AppDateRangeDropdown(
+                        label: 'Ngày',
+                        start: _startDate,
+                        end: _endDate,
+                        onChanged: _setDateRange,
+                      ),
+                    ),
+                    SizedBox(
+                      width: fieldWidth,
+                      child: AppSecondaryButton(
+                        onPressed: provider.isLoadingAdminList ? null : _reload,
+                        icon: Icons.refresh_rounded,
+                        label: 'Tải lại',
+                        isLoading: provider.isLoadingAdminList,
+                      ),
+                    ),
+                    SizedBox(
+                      width: fieldWidth,
+                      child: SalesReportExportMenuButton(
+                        isExporting: provider.isExporting,
+                        onExport: _export,
+                      ),
+                    ),
                   ],
-                ],
-              ),
-            AppActionRow(
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: AppLayoutTokens.cardGap),
+          if (provider.errorMessage != null)
+            AppStatusBanner(
+              icon: Icons.error_outline_rounded,
+              title: 'Chưa tải được dữ liệu',
+              message: provider.errorMessage!,
+              tone: AppStateTone.error,
+            ),
+          if (provider.isLoadingAdminList && provider.adminItems.isEmpty)
+            const AppListSkeleton(itemCount: 5)
+          else if (provider.adminItems.isEmpty)
+            const AppStatePanel.empty(
+              title: 'Chưa có báo cáo',
+              message: 'Dữ liệu sẽ xuất hiện sau khi sale gửi báo cáo.',
+            )
+          else
+            Column(
               children: [
-                AppSecondaryButton(
-                  onPressed: provider.canGoPrevious
-                      ? () => _reload(page: provider.adminPage - 1)
-                      : null,
-                  icon: Icons.chevron_left_rounded,
-                  label: 'Trang trước',
-                ),
-                AppSecondaryButton(
-                  onPressed: provider.canGoNext
-                      ? () => _reload(page: provider.adminPage + 1)
-                      : null,
-                  icon: Icons.chevron_right_rounded,
-                  label: 'Trang sau',
-                ),
+                for (final item in provider.adminItems) ...[
+                  _SalesReportAdminTile(item: item),
+                  const SizedBox(height: AppLayoutTokens.cardGap),
+                ],
               ],
             ),
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
-          ],
-        ),
+          AppActionRow(
+            children: [
+              AppSecondaryButton(
+                onPressed: provider.canGoPrevious
+                    ? () => _reload(page: provider.adminPage - 1)
+                    : null,
+                icon: Icons.chevron_left_rounded,
+                label: 'Trang trước',
+              ),
+              AppSecondaryButton(
+                onPressed: provider.canGoNext
+                    ? () => _reload(page: provider.adminPage + 1)
+                    : null,
+                icon: Icons.chevron_right_rounded,
+                label: 'Trang sau',
+              ),
+            ],
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+        ],
       ),
     );
   }
+}
+
+String _reportTypeLabel(String value) {
+  return switch (value) {
+    'PURCHASED' => 'Mua hàng',
+    'NOT_PURCHASED' => 'Chưa mua hàng',
+    _ => 'Tất cả',
+  };
 }
 
 class _ReportTypeFilter extends StatelessWidget {
@@ -237,34 +232,22 @@ class _ReportTypeFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const options = {
-      'ALL': 'Tất cả',
-      'PURCHASED': 'Mua hàng',
-      'NOT_PURCHASED': 'Chưa mua hàng',
-    };
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Loại báo cáo',
-          style: AppTextStyles.labelS.copyWith(color: AppColors.neutral600),
+    return AbsorbPointer(
+      absorbing: !enabled,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.55,
+        child: AppFilterDropdown<String>(
+          label: 'Loại',
+          value: value == 'ALL' ? null : value,
+          allLabel: 'Tất cả',
+          icon: Icons.tune_rounded,
+          options: const [
+            AppFilterOption(value: 'PURCHASED', label: 'Mua hàng'),
+            AppFilterOption(value: 'NOT_PURCHASED', label: 'Chưa mua hàng'),
+          ],
+          onChanged: (next) => onChanged(next ?? 'ALL'),
         ),
-        const SizedBox(height: 4),
-        for (final entry in options.entries)
-          CheckboxListTile(
-            key: ValueKey('sales-report-admin-type-${entry.key}'),
-            value: value == entry.key,
-            onChanged: !enabled
-                ? null
-                : (checked) {
-                    if (checked == true) onChanged(entry.key);
-                  },
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            dense: true,
-            title: Text(entry.value),
-          ),
-      ],
+      ),
     );
   }
 }

@@ -15,9 +15,7 @@ import '../../../../core/logging/app_logger.dart';
 import '../../../../core/platform/app_platform_capabilities.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../payment_monitor/presentation/providers/payment_delivery_metrics_provider.dart';
 import '../../../payment_monitor/presentation/providers/payment_monitor_provider.dart';
-import '../../../payment_monitor/presentation/widgets/payment_delivery_metrics_chip.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -137,6 +135,9 @@ class _HomeCommandPanel extends StatelessWidget {
     final initials = cleanName.trim().isNotEmpty
         ? cleanName.trim().substring(0, 1).toUpperCase()
         : '?';
+    final isCompact =
+        MediaQuery.sizeOf(context).width < AppLayoutTokens.compactBreakpoint;
+    final avatarSize = isCompact ? 104.0 : 52.0;
 
     return AppSurfaceCard(
       padding: const EdgeInsets.all(18),
@@ -144,12 +145,12 @@ class _HomeCommandPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 52,
-            height: 52,
+            width: avatarSize,
+            height: avatarSize,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: AppColors.primarySurfaceOf(context),
-              borderRadius: AppRadius.allLg,
+              borderRadius: isCompact ? AppRadius.allXl : AppRadius.allLg,
               border: Border.all(color: AppColors.borderOf(context)),
             ),
             clipBehavior: Clip.antiAlias,
@@ -157,38 +158,34 @@ class _HomeCommandPanel extends StatelessWidget {
                 ? Image.network(
                     avatarUrl,
                     key: ValueKey(avatarUrl),
-                    width: 52,
-                    height: 52,
+                    width: avatarSize,
+                    height: avatarSize,
                     fit: BoxFit.cover,
                     frameBuilder: (context, child, frame, _) {
-                      if (frame == null) return _AvatarInitials(initials);
+                      if (frame == null) {
+                        return _AvatarInitials(initials, large: isCompact);
+                      }
                       return child;
                     },
-                    errorBuilder: (_, _, _) => _AvatarInitials(initials),
+                    errorBuilder: (_, _, _) =>
+                        _AvatarInitials(initials, large: isCompact),
                   )
-                : _AvatarInitials(initials),
+                : _AvatarInitials(initials, large: isCompact),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: isCompact ? 18 : 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Trang chủ vận hành',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.headingS.copyWith(
-                          color: AppColors.textPrimaryOf(context),
-                        ),
-                      ),
-                    ),
-                    const _HomePaymentDeliveryMetricsPill(),
-                  ],
+                Text(
+                  'Trang chủ vận hành',
+                  maxLines: isCompact ? 2 : 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.headingS.copyWith(
+                    color: AppColors.textPrimaryOf(context),
+                  ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: isCompact ? 10 : 6),
                 Text(
                   userName,
                   maxLines: 1,
@@ -197,7 +194,7 @@ class _HomeCommandPanel extends StatelessWidget {
                     color: AppColors.textPrimaryOf(context),
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: isCompact ? 8 : 4),
                 Row(
                   children: [
                     Icon(
@@ -209,8 +206,9 @@ class _HomeCommandPanel extends StatelessWidget {
                     Expanded(
                       child: Text(
                         storeInfo,
-                        maxLines: 2,
+                        maxLines: isCompact ? 1 : 2,
                         overflow: TextOverflow.ellipsis,
+                        softWrap: false,
                         style: AppTextStyles.bodyS.copyWith(
                           color: AppColors.textMutedOf(context),
                         ),
@@ -229,16 +227,16 @@ class _HomeCommandPanel extends StatelessWidget {
 
 class _AvatarInitials extends StatelessWidget {
   final String initials;
+  final bool large;
 
-  const _AvatarInitials(this.initials);
+  const _AvatarInitials(this.initials, {this.large = false});
 
   @override
   Widget build(BuildContext context) {
     return Text(
       initials,
-      style: AppTextStyles.headingS.copyWith(
-        color: AppColors.primaryOf(context),
-      ),
+      style: (large ? AppTextStyles.headingXL : AppTextStyles.headingS)
+          .copyWith(color: AppColors.primaryOf(context)),
     );
   }
 }
@@ -280,28 +278,6 @@ class _PaymentMonitorQuickToggle extends StatelessWidget {
         subtitle: Text(statusText, style: AppTextStyles.bodyS),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       ),
-    );
-  }
-}
-
-class _HomePaymentDeliveryMetricsPill extends StatelessWidget {
-  const _HomePaymentDeliveryMetricsPill();
-
-  @override
-  Widget build(BuildContext context) {
-    late final bool shouldShow;
-    try {
-      shouldShow = context.select<PaymentDeliveryMetricsProvider, bool>(
-        (provider) => provider.shouldShow,
-      );
-    } on ProviderNotFoundException {
-      return const SizedBox.shrink();
-    }
-    if (!shouldShow) return const SizedBox.shrink();
-
-    return const Padding(
-      padding: EdgeInsets.only(left: 8),
-      child: PaymentDeliveryMetricsChip(),
     );
   }
 }

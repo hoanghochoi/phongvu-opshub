@@ -124,12 +124,8 @@ class _AppShellState extends State<AppShell> {
               location: widget.location,
               destinations: mobileDestinations,
               activeDestination: activeDestination,
-              user: user,
               onNavigate: _navigate,
               onSupport: () => _showSupportDialog(context),
-              onHelp: () => _openHelpPage(context),
-              onLogout: () => _logout(context),
-              onAppInfo: () => _showAppInfoDialog(context),
               child: widget.child,
             ),
     );
@@ -486,24 +482,16 @@ class _MobileShell extends StatelessWidget {
   final String location;
   final List<AppNavDestination> destinations;
   final AppNavDestination activeDestination;
-  final User? user;
   final ValueChanged<AppNavDestination> onNavigate;
   final VoidCallback onSupport;
-  final VoidCallback onHelp;
-  final VoidCallback onLogout;
-  final VoidCallback onAppInfo;
   final Widget child;
 
   const _MobileShell({
     required this.location,
     required this.destinations,
     required this.activeDestination,
-    required this.user,
     required this.onNavigate,
     required this.onSupport,
-    required this.onHelp,
-    required this.onLogout,
-    required this.onAppInfo,
     required this.child,
   });
 
@@ -513,21 +501,25 @@ class _MobileShell extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.canvasOf(context),
       appBar: AppBar(
-        title: Text(activeDestination.label),
+        centerTitle: true,
+        leadingWidth: 116,
+        leading: const Align(
+          alignment: Alignment.centerLeft,
+          child: _ShellMetricsPill(),
+        ),
+        title: Text(
+          activeDestination.label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         actions: [
           IconButton(
             tooltip: 'Hỗ trợ',
             onPressed: onSupport,
             icon: const Icon(Icons.support_agent_rounded),
           ),
-          const _ShellMetricsPill(),
           const AppNotificationsBell(),
-          _AccountMenuButton(
-            user: user,
-            onHelp: onHelp,
-            onLogout: onLogout,
-            onAppInfo: onAppInfo,
-          ),
+          const SizedBox(width: 4),
         ],
       ),
       body: child,
@@ -941,9 +933,11 @@ class _ShellMetricsPill extends StatelessWidget {
       return const SizedBox.shrink();
     }
     if (!shouldShow) return const SizedBox.shrink();
-    return const Padding(
-      padding: EdgeInsets.only(left: 4),
-      child: PaymentDeliveryMetricsChip(),
+    final compact =
+        MediaQuery.sizeOf(context).width < AppLayoutTokens.compactBreakpoint;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: PaymentDeliveryMetricsChip(compact: compact),
     );
   }
 }

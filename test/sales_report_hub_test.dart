@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
+import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -12,6 +13,7 @@ import 'package:phongvu_opshub/features/sales_report/domain/sales_report.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/providers/sales_report_provider.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/screens/sales_report_admin_screen.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/screens/sales_report_screen.dart';
+import 'package:phongvu_opshub/features/sales_report/presentation/widgets/sales_report_export_menu.dart';
 import 'package:provider/provider.dart';
 
 void main() {
@@ -40,7 +42,8 @@ void main() {
       routes: [
         GoRoute(
           path: '/',
-          builder: (context, state) => const SalesReportScreen(),
+          builder: (context, state) =>
+              const Scaffold(body: SalesReportScreen()),
         ),
         GoRoute(
           path: '/sales-reports/purchased',
@@ -152,7 +155,7 @@ void main() {
             ),
           ),
         ],
-        child: const MaterialApp(home: SalesReportScreen()),
+        child: const MaterialApp(home: Scaffold(body: SalesReportScreen())),
       ),
     );
     await tester.pumpAndSettle();
@@ -194,7 +197,7 @@ void main() {
             create: (_) => SalesReportProvider(repository),
           ),
         ],
-        child: const MaterialApp(home: SalesReportScreen()),
+        child: const MaterialApp(home: Scaffold(body: SalesReportScreen())),
       ),
     );
     await tester.pumpAndSettle();
@@ -225,7 +228,8 @@ void main() {
       routes: [
         GoRoute(
           path: '/',
-          builder: (context, state) => const SalesReportScreen(),
+          builder: (context, state) =>
+              const Scaffold(body: SalesReportScreen()),
         ),
         GoRoute(
           path: '/admin/sales-reports',
@@ -248,13 +252,22 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(
+      find.byKey(const Key('sales-report-workspace-header')),
+      findsOneWidget,
+    );
+    expect(find.byType(GradientHeader), findsNothing);
     expect(find.text('Báo cáo chưa mua'), findsNothing);
-    expect(find.text('Xuất HVTC'), findsOneWidget);
-    expect(find.text('Xuất Doanh số'), findsOneWidget);
-    expect(find.text('Xuất Trả góp'), findsOneWidget);
+    expect(find.text('Xuất file'), findsOneWidget);
     expect(find.text('Danh sách'), findsOneWidget);
     expect(find.text('Đã báo cáo'), findsOneWidget);
     expect(find.text('Chưa báo cáo'), findsOneWidget);
+
+    await tester.tap(find.text('Xuất file'));
+    await tester.pumpAndSettle();
+    expect(find.text('HVTC'), findsOneWidget);
+    expect(find.text('Doanh số'), findsOneWidget);
+    expect(find.text('Trả góp'), findsOneWidget);
 
     await tester.tap(find.text('Danh sách'));
     await tester.pumpAndSettle();
@@ -284,7 +297,9 @@ void main() {
             create: (_) => SalesReportProvider(repository),
           ),
         ],
-        child: const MaterialApp(home: SalesReportFormScreen.notPurchased()),
+        child: const MaterialApp(
+          home: Scaffold(body: SalesReportFormScreen.notPurchased()),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -452,7 +467,9 @@ void main() {
               create: (_) => SalesReportProvider(repository),
             ),
           ],
-          child: const MaterialApp(home: SalesReportFormScreen.notPurchased()),
+          child: const MaterialApp(
+            home: Scaffold(body: SalesReportFormScreen.notPurchased()),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -510,14 +527,28 @@ void main() {
             create: (_) => SalesReportProvider(repository),
           ),
         ],
-        child: const MaterialApp(home: SalesReportAdminScreen()),
+        child: const MaterialApp(
+          home: Scaffold(body: SalesReportAdminScreen()),
+        ),
       ),
     );
     await tester.pumpAndSettle();
 
     expect(repository.fetchListCount, 1);
+    expect(
+      find.byKey(const Key('sales-report-admin-workspace-header')),
+      findsOneWidget,
+    );
+    expect(find.byType(GradientHeader), findsNothing);
     expect(find.text('Ngày: Tất cả ngày'), findsOneWidget);
-    expect(find.text('Xuất Trả góp'), findsOneWidget);
+    expect(find.text('Loại: Tất cả'), findsOneWidget);
+    expect(find.text('Xuất file'), findsOneWidget);
+
+    await tester.tap(find.text('Xuất file'));
+    await tester.pumpAndSettle();
+    expect(find.text('HVTC'), findsOneWidget);
+    expect(find.text('Doanh số'), findsOneWidget);
+    expect(find.text('Trả góp'), findsOneWidget);
 
     await tester.tap(find.text('Ngày: Tất cả ngày'));
     await tester.pumpAndSettle();
@@ -529,6 +560,34 @@ void main() {
     expect(repository.fetchListCount, 2);
     expect(repository.lastListQuery?.startDate, today);
     expect(repository.lastListQuery?.endDate, today);
+  });
+
+  testWidgets('Sales report export menu emits selected export type', (
+    tester,
+  ) async {
+    String? selectedType;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 180,
+              child: SalesReportExportMenuButton(
+                isExporting: false,
+                onExport: (type) => selectedType = type,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Xuất file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Doanh số'));
+    await tester.pumpAndSettle();
+
+    expect(selectedType, 'REVENUE');
   });
 
   test('SalesReportOrderCheck parses multiple category groups', () {
@@ -712,7 +771,9 @@ Future<void> _pumpNotPurchasedForm(
           create: (_) => SalesReportProvider(repository),
         ),
       ],
-      child: const MaterialApp(home: SalesReportFormScreen.notPurchased()),
+      child: const MaterialApp(
+        home: Scaffold(body: SalesReportFormScreen.notPurchased()),
+      ),
     ),
   );
   await tester.pumpAndSettle();

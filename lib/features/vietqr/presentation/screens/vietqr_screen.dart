@@ -14,10 +14,10 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../../app/widgets/info_row.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -53,6 +53,138 @@ class VietQrScreen extends StatefulWidget {
 
   @override
   State<VietQrScreen> createState() => _VietQrScreenState();
+}
+
+class _VietQrWorkspaceHeader extends StatelessWidget {
+  final String selectedStoreCode;
+  final int storeCount;
+  final bool isStoreLoading;
+  final bool hasStoreError;
+  final bool hasTransfer;
+  final bool isConfirmed;
+  final bool isExpired;
+  final int historyCount;
+
+  const _VietQrWorkspaceHeader({
+    required this.selectedStoreCode,
+    required this.storeCount,
+    required this.isStoreLoading,
+    required this.hasStoreError,
+    required this.hasTransfer,
+    required this.isConfirmed,
+    required this.isExpired,
+    required this.historyCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedStore = selectedStoreCode.trim().toUpperCase();
+    final storeLabel = hasStoreError
+        ? 'Cần tải lại SR'
+        : isStoreLoading
+        ? 'Đang tải SR'
+        : selectedStore.isNotEmpty
+        ? selectedStore
+        : storeCount > 0
+        ? '$storeCount SR'
+        : 'Chưa có SR';
+    final stateLabel = isConfirmed
+        ? 'Đã nhận tiền'
+        : isExpired
+        ? 'QR đã hết hạn'
+        : hasTransfer
+        ? 'Đang chờ chuyển khoản'
+        : 'Sẵn sàng tạo QR';
+    final stateColor = isConfirmed
+        ? AppColors.success
+        : isExpired
+        ? AppColors.warning
+        : hasTransfer
+        ? AppColors.primary500
+        : AppColors.neutral700;
+
+    return AppSurfaceCard(
+      key: const Key('vietqr-workspace-header'),
+      backgroundColor: AppColors.primary500.withValues(alpha: 0.08),
+      borderColor: AppColors.primary500.withValues(alpha: 0.22),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact =
+              constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+          final icon = Container(
+            width: compact ? 44 : 52,
+            height: compact ? 44 : 52,
+            decoration: BoxDecoration(
+              color: AppColors.primary500.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: const Icon(
+              Icons.qr_code_2_rounded,
+              color: AppColors.primary500,
+            ),
+          );
+          final content = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Tạo VietQR', style: AppTextStyles.headingM),
+              const SizedBox(height: 6),
+              Text(
+                'Tạo QR chuyển khoản theo SR, kiểm tra thanh toán MAP và mở lại mã còn hạn từ lịch sử.',
+                style: AppTextStyles.bodyM.copyWith(
+                  color: AppColors.neutral600,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: AppLayoutTokens.cardGap),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  AppStatusChip(
+                    label: storeLabel,
+                    color: hasStoreError
+                        ? AppColors.warning
+                        : AppColors.primary500,
+                    backgroundColor:
+                        (hasStoreError
+                                ? AppColors.warning
+                                : AppColors.primary500)
+                            .withValues(alpha: 0.12),
+                  ),
+                  AppStatusChip(
+                    label: stateLabel,
+                    color: stateColor,
+                    backgroundColor: stateColor.withValues(alpha: 0.12),
+                  ),
+                  AppStatusChip(
+                    label: '$historyCount lịch sử',
+                    color: AppColors.neutral700,
+                    backgroundColor: AppColors.neutral100,
+                  ),
+                ],
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [icon, const SizedBox(height: 14), content],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              icon,
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              Expanded(child: content),
+            ],
+          );
+        },
+      ),
+    );
+  }
 }
 
 class _VietQrScreenState extends State<VietQrScreen> {
@@ -1471,54 +1603,64 @@ class _VietQrScreenState extends State<VietQrScreen> {
     final transfer = _transfer;
     final user = context.watch<AuthProvider>().user;
     final storeOptions = _currentStoreOptions(user);
+    final expired =
+        transfer != null && _isTransferExpired(transfer, DateTime.now());
 
-    return Scaffold(
-      appBar: const GradientHeader(title: 'Tạo VietQR', showBack: true),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isDesktop =
-                constraints.maxWidth >= AppLayoutTokens.desktopBreakpoint;
-            final currentPanel = transfer == null
-                ? Form(
-                    key: _formKey,
-                    child: _buildInputCard(user, storeOptions),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop =
+            constraints.maxWidth >= AppLayoutTokens.desktopBreakpoint;
+        final currentPanel = transfer == null
+            ? Form(key: _formKey, child: _buildInputCard(user, storeOptions))
+            : _buildResultView(transfer);
+        final historyPanel = _buildHistoryPanel();
+
+        return AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: AppResponsiveScrollView(
+            maxWidth: AppLayoutTokens.pageMaxWidth,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _VietQrWorkspaceHeader(
+                  selectedStoreCode: _storeCodeController.text,
+                  storeCount: storeOptions.length,
+                  isStoreLoading: _isStoreOptionsLoading,
+                  hasStoreError: _storeOptionsErrorMessage != null,
+                  hasTransfer: transfer != null,
+                  isConfirmed: _hasConfirmedPayment,
+                  isExpired: expired,
+                  historyCount: _historyEntries.length,
+                ),
+                const SizedBox(height: AppLayoutTokens.sectionGap),
+                if (isDesktop)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 3, child: currentPanel),
+                      const SizedBox(width: AppLayoutTokens.sectionGap),
+                      SizedBox(width: 380, child: historyPanel),
+                    ],
                   )
-                : _buildResultView(transfer);
-            final historyPanel = _buildHistoryPanel();
-
-            return AnimatedPadding(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.viewInsetsOf(context).bottom,
-              ),
-              child: AppResponsiveScrollView(
-                maxWidth: AppLayoutTokens.pageMaxWidth,
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                child: isDesktop
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(flex: 3, child: currentPanel),
-                          const SizedBox(width: AppLayoutTokens.sectionGap),
-                          SizedBox(width: 380, child: historyPanel),
-                        ],
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          currentPanel,
-                          const SizedBox(height: AppLayoutTokens.sectionGap),
-                          historyPanel,
-                        ],
-                      ),
-              ),
-            );
-          },
-        ),
-      ),
+                else
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      currentPanel,
+                      const SizedBox(height: AppLayoutTokens.sectionGap),
+                      historyPanel,
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

@@ -38,9 +38,17 @@ void main() {
       user,
     ).map((destination) => destination.label).toList(growable: false);
 
-    expect(taskLabels, containsAll(['FIFO', 'Sắp xếp', 'BH / SC', 'Góp ý']));
+    expect(taskLabels, containsAll(['FIFO', 'BH / SC', 'Góp ý']));
+    expect(taskLabels, isNot(contains('Sắp xếp')));
     expect(taskLabels, isNot(contains('VietQR')));
     expect(taskLabels, isNot(contains('Tiền vào')));
     expect(taskLabels, isNot(contains('Sao kê')));
+  });
+
+  test('sort route stays inside the FIFO workspace', () {
+    final destination = AppNavModel.destinationForLocation('/sort');
+
+    expect(destination?.id, 'fifo');
+    expect(destination?.label, 'FIFO');
   });
 }

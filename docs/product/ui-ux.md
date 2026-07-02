@@ -46,7 +46,11 @@ visual systems that make the app feel assembled from unrelated screens.
   a compact rail, and mobile uses an app bar with bottom navigation for
   `Trang chủ`, `Tác vụ`, and `Tài khoản`. Feature screens should provide page
   content only and let the shell own global notification, support, account, and
-  route navigation entry points.
+  route navigation entry points. On mobile, the app bar places the delivery
+  metrics pill on the left, the active destination title in the center, and
+  support plus the notification bell on the right. Account/profile entry
+  belongs to the bottom `Tài khoản` destination; do not duplicate the account
+  avatar in the app bar when the screen content already shows user identity.
 - Navigation visibility is role/feature-aware and must hide unavailable
   destinations in normal staff UI. Log the resolved visible/hidden counts
   through `AppLogger` so permission issues can be debugged without exposing

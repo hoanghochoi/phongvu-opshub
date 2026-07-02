@@ -2,6 +2,9 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:phongvu_opshub/app/navigation/app_shell.dart';
+import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
@@ -22,11 +25,16 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+      appName: 'PhongVu OpsHub',
+      packageName: 'com.example.phongvu_opshub',
+      version: '1.1.1',
+      buildNumber: '2',
+      buildSignature: '',
+    );
   });
 
-  testWidgets('shows accounting bell, pending transfer state, and offset tag', (
-    tester,
-  ) async {
+  testWidgets('renders content-only statement workspace', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1200, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -61,13 +69,63 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('1 thông báo mới'), findsOneWidget);
+    expect(find.byKey(const Key('bank-statement-header')), findsOneWidget);
+    expect(find.byKey(const Key('bank-statement-toolbar')), findsOneWidget);
+    expect(find.byType(Scaffold), findsNothing);
+    expect(find.byType(GradientHeader), findsNothing);
+    expect(find.text('Sao kê'), findsOneWidget);
+    expect(find.textContaining('Tra cứu giao dịch VietinBank'), findsOneWidget);
     expect(find.text('Chờ Kế toán xác nhận'), findsOneWidget);
     expect(find.text('Đã cấn trừ'), findsOneWidget);
     expect(find.byTooltip('Giao dịch đang chờ Kế toán xác nhận'), findsWidgets);
 
     expect(provider.pendingOrderTransferTotal, 1);
     expect(appNotificationsProvider.totalCount, 1);
+
+    appNotificationsProvider.dispose();
+  });
+
+  testWidgets('shows accounting bell through AppShell', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final repository = _WidgetBankStatementRepository();
+    final provider = BankStatementProvider(
+      repository,
+      notificationReadStore: _FakeNotificationReadStore(),
+    );
+    final appNotificationsProvider = AppNotificationsProvider(
+      repository,
+      offsetAdjustmentRepository: _FakeOffsetAdjustmentRepository(),
+      notificationReadStore: _FakeNotificationReadStore(),
+    );
+    await provider.initialize(_accUser);
+    provider.setOrder('26062512345678');
+    await provider.search();
+    await appNotificationsProvider.syncAuth(_accUser, isInitialized: true);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: _FakeAuthProvider(_accUser),
+          ),
+          ChangeNotifierProvider<BankStatementProvider>.value(value: provider),
+          ChangeNotifierProvider<AppNotificationsProvider>.value(
+            value: appNotificationsProvider,
+          ),
+        ],
+        child: const MaterialApp(
+          home: AppShell(
+            location: '/bank-statement',
+            child: BankStatementScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('1 thông báo mới'), findsOneWidget);
 
     await tester.tap(find.byTooltip('1 thông báo mới'));
     await tester.pumpAndSettle();

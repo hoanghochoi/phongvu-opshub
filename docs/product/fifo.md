@@ -10,6 +10,9 @@ history where permitted.
 - Flutter FIFO screens live under `lib/features/fifo/`; sort widgets live under
   `lib/features/sort/`; shared FIFO check scanner/history helpers live under
   `lib/features/fifo_check/`.
+- Home, Tasks, sidebar, and mobile navigation expose one FIFO workspace only.
+  `Sắp xếp FIFO` stays inside the FIFO menu and keeps route `/sort` for runtime
+  compatibility; do not add a standalone Home/sidebar `Sắp xếp` entry.
 - NestJS owns FIFO, sort, inventory compatibility, and FIFO log modules.
 - FIFO inventory reads and export/unexport writes use the OpsHub database table
   `fifo_inventory`. The table uses BigQuery inventory column names as the

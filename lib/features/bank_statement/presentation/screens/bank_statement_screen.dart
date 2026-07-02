@@ -12,7 +12,6 @@ import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../notifications/presentation/providers/app_notifications_provider.dart';
 import '../../domain/bank_statement_transaction.dart';
@@ -79,54 +78,55 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
     final provider = context.watch<BankStatementProvider>();
     _syncControllers(provider);
 
-    return Scaffold(
-      appBar: const GradientHeader(title: 'Sao kê', showBack: true),
-      body: SafeArea(
-        child: SelectionArea(
-          child: AppResponsiveContent(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _FilterPanel(
-                  provider: provider,
-                  statementNumberController: _statementNumberController,
-                  orderController: _orderController,
-                  amountController: _amountController,
-                  contentController: _contentController,
-                  statementNumberFocus: _statementNumberFocus,
-                  orderFocus: _orderFocus,
-                  amountFocus: _amountFocus,
-                  contentFocus: _contentFocus,
-                ),
-                if (provider.errorMessage != null) ...[
-                  const SizedBox(height: 10),
-                  AppStatusBanner(
-                    icon: Icons.error_outline_rounded,
-                    title: 'Chưa tải được sao kê',
-                    message: provider.errorMessage!,
-                    tone: AppStateTone.error,
-                  ),
-                ],
-                if (provider.exportMessage != null) ...[
-                  const SizedBox(height: 10),
-                  AppStatusBanner(
-                    icon: Icons.download_done_rounded,
-                    title: 'Xuất file',
-                    message: provider.exportMessage!,
-                    tone: AppStateTone.info,
-                  ),
-                ],
-                const SizedBox(height: 12),
-                _StatementToolbar(provider: provider),
-                const SizedBox(height: 10),
-                if (provider.isLoading && provider.transactions.isNotEmpty) ...[
-                  const LinearProgressIndicator(),
-                  const SizedBox(height: 10),
-                ],
-                Expanded(child: _buildList(provider)),
-              ],
+    return SelectionArea(
+      child: AppResponsiveContent(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _StatementHeader(provider: provider),
+            const SizedBox(height: AppLayoutTokens.sectionGap),
+            _FilterPanel(
+              provider: provider,
+              statementNumberController: _statementNumberController,
+              orderController: _orderController,
+              amountController: _amountController,
+              contentController: _contentController,
+              statementNumberFocus: _statementNumberFocus,
+              orderFocus: _orderFocus,
+              amountFocus: _amountFocus,
+              contentFocus: _contentFocus,
             ),
-          ),
+            if (provider.errorMessage != null) ...[
+              const SizedBox(height: 10),
+              AppStatusBanner(
+                icon: Icons.error_outline_rounded,
+                title: 'Chưa tải được sao kê',
+                message: provider.errorMessage!,
+                tone: AppStateTone.error,
+              ),
+            ],
+            if (provider.exportMessage != null) ...[
+              const SizedBox(height: 10),
+              AppStatusBanner(
+                icon: Icons.download_done_rounded,
+                title: 'Xuất file',
+                message: provider.exportMessage!,
+                tone: AppStateTone.info,
+              ),
+            ],
+            const SizedBox(height: 12),
+            AppSurfaceCard(
+              key: const Key('bank-statement-toolbar'),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: _StatementToolbar(provider: provider),
+            ),
+            if (provider.isLoading && provider.transactions.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              const LinearProgressIndicator(),
+            ],
+            const SizedBox(height: 10),
+            Expanded(child: _buildList(provider)),
+          ],
         ),
       ),
     );
@@ -187,6 +187,121 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
     }
     sync(_amountController, _amountFocus, formattedAmount);
     sync(_contentController, _contentFocus, provider.content ?? '');
+  }
+}
+
+class _StatementHeader extends StatelessWidget {
+  final BankStatementProvider provider;
+
+  const _StatementHeader({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final scopeLabel = provider.allStores
+        ? 'Tất cả SR'
+        : provider.selectedStoreIds.isNotEmpty
+        ? '${provider.selectedStoreIds.length} SR'
+        : 'SR được gán';
+    final filterLabel = provider.canSearch
+        ? 'Sẵn sàng tìm'
+        : 'Chọn 1 filter chính';
+    final pendingCount = provider.pendingOrderTransferUnreadCount;
+
+    return AppSurfaceCard(
+      key: const Key('bank-statement-header'),
+      backgroundColor: AppColors.infoSurface,
+      borderColor: AppColors.info.withValues(alpha: 0.24),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact =
+              constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
+          final icon = Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppColors.info.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+            ),
+            child: const Icon(
+              Icons.receipt_long_rounded,
+              color: AppColors.info,
+            ),
+          );
+          final textBlock = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Sao kê', style: AppTextStyles.headingM),
+              const SizedBox(height: 6),
+              Text(
+                'Tra cứu giao dịch VietinBank theo SR, mã sao kê, đơn hàng, số tiền hoặc nội dung chuyển khoản.',
+                style: AppTextStyles.bodyM.copyWith(
+                  color: AppColors.neutral600,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: AppLayoutTokens.cardGap),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  AppStatusChip(
+                    label: scopeLabel,
+                    color: AppColors.info,
+                    backgroundColor: AppColors.infoSurface,
+                  ),
+                  AppStatusChip(
+                    label: '${provider.total} giao dịch',
+                    color: AppColors.neutral700,
+                    backgroundColor: AppColors.neutral100,
+                  ),
+                  AppStatusChip(
+                    label: '${provider.selectedIds.length} đã chọn',
+                    color: AppColors.success,
+                    backgroundColor: AppColors.successSurface,
+                  ),
+                  AppStatusChip(
+                    label: pendingCount > 0
+                        ? '$pendingCount chờ Kế toán'
+                        : 'Không có yêu cầu mới',
+                    color: pendingCount > 0
+                        ? AppColors.warning
+                        : AppColors.neutral700,
+                    backgroundColor: pendingCount > 0
+                        ? AppColors.warningSurface
+                        : AppColors.neutral100,
+                  ),
+                  AppStatusChip(
+                    label: filterLabel,
+                    color: provider.canSearch
+                        ? AppColors.primary
+                        : AppColors.warning,
+                    backgroundColor: provider.canSearch
+                        ? AppColors.primarySurface
+                        : AppColors.warningSurface,
+                  ),
+                ],
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [icon, const SizedBox(height: 14), textBlock],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              icon,
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              Expanded(child: textBlock),
+            ],
+          );
+        },
+      ),
+    );
   }
 }
 

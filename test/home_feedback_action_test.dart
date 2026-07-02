@@ -18,6 +18,7 @@ import 'package:phongvu_opshub/features/payment_monitor/domain/payment_delivery_
 import 'package:phongvu_opshub/features/payment_monitor/domain/payment_notification.dart';
 import 'package:phongvu_opshub/features/payment_monitor/presentation/providers/payment_delivery_metrics_provider.dart';
 import 'package:phongvu_opshub/features/payment_monitor/presentation/providers/payment_monitor_provider.dart';
+import 'package:phongvu_opshub/features/payment_monitor/presentation/widgets/payment_delivery_metrics_chip.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -62,7 +63,9 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider<AuthProvider>.value(
         value: authProvider,
-        child: const MaterialApp(home: HomeScreen()),
+        child: const MaterialApp(
+          home: AppShell(location: '/home', child: HomeScreen()),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -105,7 +108,9 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider<AuthProvider>.value(
         value: authProvider,
-        child: const MaterialApp(home: HomeScreen()),
+        child: const MaterialApp(
+          home: AppShell(location: '/home', child: HomeScreen()),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -297,14 +302,17 @@ void main() {
             value: metricsProvider,
           ),
         ],
-        child: const MaterialApp(home: HomeScreen()),
+        child: const MaterialApp(
+          home: AppShell(location: '/home', child: HomeScreen()),
+        ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('TB 7.2s'), findsOneWidget);
+    final metricsChip = find.byType(PaymentDeliveryMetricsChip);
+    expect(metricsChip, findsOneWidget);
 
-    await tester.tap(find.text('TB 7.2s'));
+    await tester.tap(metricsChip);
     await tester.pumpAndSettle();
 
     expect(metricsRepository.deliveryHistoryFetchCount, 1);

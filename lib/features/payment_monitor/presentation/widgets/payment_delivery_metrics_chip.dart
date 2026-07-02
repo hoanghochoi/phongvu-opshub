@@ -14,7 +14,9 @@ import '../../domain/payment_delivery_metrics.dart';
 import '../providers/payment_delivery_metrics_provider.dart';
 
 class PaymentDeliveryMetricsChip extends StatelessWidget {
-  const PaymentDeliveryMetricsChip({super.key});
+  final bool compact;
+
+  const PaymentDeliveryMetricsChip({super.key, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +49,19 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
         : averageMs == null
         ? 'TB --'
         : 'TB ${_formatDuration(averageMs)}';
+    final compactLabel = deltaMs != null
+        ? _formatDuration(math.max(0, deltaMs.abs()))
+        : hasError && metrics == null
+        ? 'Lỗi'
+        : averageMs == null
+        ? '--'
+        : _formatDuration(averageMs);
+    final compactIcon = deltaMs != null
+        ? _trendIcon(trend)
+        : hasError && metrics == null
+        ? Icons.error_outline_rounded
+        : Icons.timer_outlined;
+    final compactColor = deltaMs != null ? trendColor : statusColor;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -56,10 +71,9 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
           button: true,
           label: 'Mở lịch sử tốc độ đọc loa',
           child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              minWidth: 88,
-              maxWidth: 156,
-              minHeight: 36,
+            constraints: const BoxConstraints(minHeight: 36).copyWith(
+              minWidth: compact ? 76 : 88,
+              maxWidth: compact ? 108 : 156,
             ),
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -79,67 +93,112 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                   onTap: () => _openHistoryDialog(context, provider),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 7 : 8,
                       vertical: 6,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.timer_outlined,
-                          size: 17,
-                          color: statusColor,
-                        ),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              label,
-                              maxLines: 1,
-                              softWrap: false,
-                              style: Theme.of(context).textTheme.labelMedium
-                                  ?.copyWith(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.w700,
+                    child: compact
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(compactIcon, size: 17, color: compactColor),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    compactLabel,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          color: compactColor,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                   ),
-                            ),
-                          ),
-                        ),
-                        if (deltaMs != null) ...[
-                          const SizedBox(width: 5),
-                          Icon(_trendIcon(trend), size: 16, color: trendColor),
-                          const SizedBox(width: 2),
-                          Flexible(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                _formatDuration(math.max(0, deltaMs.abs())),
-                                maxLines: 1,
-                                softWrap: false,
-                                style: Theme.of(context).textTheme.labelSmall
-                                    ?.copyWith(
-                                      color: trendColor,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                ),
                               ),
-                            ),
+                              if (provider.isLoading) ...[
+                                const SizedBox(width: 4),
+                                SizedBox.square(
+                                  dimension: 12,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: statusColor,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.timer_outlined,
+                                size: 17,
+                                color: statusColor,
+                              ),
+                              const SizedBox(width: 5),
+                              Flexible(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    label,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          color: statusColor,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                ),
+                              ),
+                              if (deltaMs != null) ...[
+                                const SizedBox(width: 5),
+                                Icon(
+                                  _trendIcon(trend),
+                                  size: 16,
+                                  color: trendColor,
+                                ),
+                                const SizedBox(width: 2),
+                                Flexible(
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      _formatDuration(
+                                        math.max(0, deltaMs.abs()),
+                                      ),
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(
+                                            color: trendColor,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              if (provider.isLoading) ...[
+                                const SizedBox(width: 5),
+                                SizedBox.square(
+                                  dimension: 12,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: statusColor,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                        ],
-                        if (provider.isLoading) ...[
-                          const SizedBox(width: 5),
-                          SizedBox.square(
-                            dimension: 12,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: statusColor,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
                   ),
                 ),
               ),

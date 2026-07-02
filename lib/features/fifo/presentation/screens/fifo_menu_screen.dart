@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
@@ -55,11 +54,9 @@ class FifoMenuScreen extends StatelessWidget {
         ),
     ];
 
-    return Scaffold(
-      appBar: const GradientHeader(title: 'FIFO', showBack: true),
-      body: actions.isEmpty
-          ? const Center(child: Text('Chưa có tính năng FIFO được bật.'))
-          : AppResponsiveContent(child: AppFeatureSection(actions: actions)),
-    );
+    if (actions.isEmpty) {
+      return const Center(child: Text('Chưa có tính năng FIFO được bật.'));
+    }
+    return AppResponsiveContent(child: AppFeatureSection(actions: actions));
   }
 }

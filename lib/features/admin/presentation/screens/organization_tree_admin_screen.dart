@@ -1,13 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
@@ -19,7 +21,9 @@ import '../../domain/admin_organization_node.dart';
 import '../widgets/node_feature_assignment_dialog.dart';
 
 class OrganizationTreeAdminScreen extends StatefulWidget {
-  const OrganizationTreeAdminScreen({super.key});
+  final AuthRepository? repository;
+
+  const OrganizationTreeAdminScreen({super.key, this.repository});
 
   @override
   State<OrganizationTreeAdminScreen> createState() =>
@@ -28,16 +32,26 @@ class OrganizationTreeAdminScreen extends StatefulWidget {
 
 class _OrganizationTreeAdminScreenState
     extends State<OrganizationTreeAdminScreen> {
-  final _repository = AuthRepository(ApiClient());
+  late final AuthRepository _repository;
+  final _treeSearchController = TextEditingController();
   List<AdminOrganizationNode> _nodes = [];
   String? _selectedId;
+  String _treeSearchQuery = '';
   final Set<String> _expandedIds = <String>{};
   bool _loading = true;
+  String? _loadError;
 
   @override
   void initState() {
     super.initState();
+    _repository = widget.repository ?? AuthRepository(ApiClient());
     _load();
+  }
+
+  @override
+  void dispose() {
+    _treeSearchController.dispose();
+    super.dispose();
   }
 
   AdminOrganizationNode? get _selectedNode {
@@ -48,7 +62,10 @@ class _OrganizationTreeAdminScreenState
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     final startedAt = DateTime.now();
     await AppLogger.instance.info(
       'AdminOrganization',
@@ -60,6 +77,7 @@ class _OrganizationTreeAdminScreenState
       setState(() {
         _nodes = nodes;
         _selectedId = _selectedId ?? (nodes.isEmpty ? null : nodes.first.id);
+        _loadError = null;
       });
       await AppLogger.instance.info(
         'AdminOrganization',
@@ -77,10 +95,78 @@ class _OrganizationTreeAdminScreenState
         stackTrace: stackTrace,
         upload: true,
       );
-      if (mounted) _showMessage('Chưa tải được cơ cấu tổ chức.');
+      if (mounted) {
+        setState(() => _loadError = 'Chưa tải được cơ cấu tổ chức.');
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _applyTreeSearch(String value) {
+    final filtered = filterAdminOrganizationNodesForSearch(_nodes, value);
+    final normalizedQuery = normalizeAdminOrganizationSearchText(value);
+    AdminOrganizationNode? firstMatch;
+    if (normalizedQuery.isNotEmpty) {
+      for (final node in _nodes) {
+        if (adminOrganizationNodeMatchesSearch(node, normalizedQuery)) {
+          firstMatch = node;
+          break;
+        }
+      }
+    }
+    setState(() {
+      _treeSearchQuery = value;
+      if (value.trim().isEmpty || filtered.isEmpty) return;
+      if (firstMatch != null && firstMatch.id != _selectedId) {
+        _selectedId = firstMatch.id;
+      } else if (filtered.every((node) => node.id != _selectedId)) {
+        _selectedId = firstMatch?.id ?? filtered.first.id;
+      }
+    });
+  }
+
+  void _clearTreeSearch() {
+    _treeSearchController.clear();
+    _applyTreeSearch('');
+  }
+
+  Future<void> _logTreeSearch() async {
+    final query = _treeSearchQuery.trim();
+    if (query.isEmpty) return;
+    final resultCount = filterAdminOrganizationNodesForSearch(
+      _nodes,
+      query,
+    ).length;
+    await AppLogger.instance.info(
+      'AdminOrganization',
+      'Organization tree search submitted',
+      context: {'queryLength': query.length, 'resultCount': resultCount},
+    );
+  }
+
+  Set<String> _ancestorIdsFor(List<AdminOrganizationNode> visibleNodes) {
+    final byId = {for (final node in _nodes) node.id: node};
+    final ancestorIds = <String>{};
+    for (final node in visibleNodes) {
+      var parentId = node.parentId;
+      while (parentId != null) {
+        if (!ancestorIds.add(parentId)) break;
+        parentId = byId[parentId]?.parentId;
+      }
+    }
+    return ancestorIds;
+  }
+
+  AdminOrganizationNode? _visibleSelectedNode(
+    List<AdminOrganizationNode> visibleNodes,
+    AdminOrganizationNode? fallback,
+  ) {
+    if (_treeSearchQuery.trim().isEmpty) return fallback;
+    for (final node in visibleNodes) {
+      if (node.id == fallback?.id) return node;
+    }
+    return visibleNodes.isEmpty ? null : visibleNodes.first;
   }
 
   Future<void> _openEditor({
@@ -217,72 +303,104 @@ class _OrganizationTreeAdminScreenState
         role == 'SUPER_ADMIN' ||
         currentUser?.canUseFeature('ADMIN_FEATURES') == true;
     final selected = _selectedNode;
-    return Scaffold(
-      appBar: GradientHeader(
-        title: 'Cơ cấu tổ chức',
-        showBack: true,
-        actions: [
-          IconButton(
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh_outlined),
-            tooltip: 'Tải lại',
+    return AppResponsiveContent(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _OrganizationTreeHeader(
+            key: const Key('organization-tree-header'),
+            loading: _loading,
+            selected: selected,
+            canEditStructure: canEditStructure,
+            onReload: _load,
+            onAdd: selected == null || (selected.level >= 5)
+                ? null
+                : () => _openEditor(parentId: selected.id),
           ),
-          if (canEditStructure)
-            IconButton(
-              onPressed: _loading || (selected?.level ?? -1) >= 5
-                  ? null
-                  : () => _openEditor(parentId: selected?.id),
-              icon: const Icon(Icons.add_outlined),
-              tooltip: 'Thêm node',
-            ),
-        ],
-      ),
-      body: _loading
-          ? const AppResponsiveContent(
-              child: AppListSkeleton(itemCount: 6, itemHeight: 76),
+          const SizedBox(height: AppLayoutTokens.cardGap),
+          if (_loading)
+            const Expanded(child: AppListSkeleton(itemCount: 6, itemHeight: 76))
+          else if (_loadError != null)
+            Expanded(
+              child: AppStatePanel.error(
+                title: _loadError!,
+                message: 'Kiểm tra kết nối rồi thử tải lại cây tổ chức.',
+                actionLabel: 'Thử tải lại',
+                actionIcon: Icons.refresh_outlined,
+                onAction: () => unawaited(_load()),
+              ),
             )
-          : AppResponsiveContent(
+          else
+            Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final tree = _OrganizationTreeList(
-                    nodes: _nodes,
-                    selectedId: selected?.id,
-                    expandedIds: _expandedIds,
-                    onSelect: (id) => setState(() => _selectedId = id),
-                    onExpansionChanged: (id, expanded) => setState(() {
-                      if (expanded) {
-                        _expandedIds.add(id);
-                      } else {
-                        _expandedIds.remove(id);
-                      }
-                    }),
+                  final searchActive = _treeSearchQuery.trim().isNotEmpty;
+                  final visibleNodes = filterAdminOrganizationNodesForSearch(
+                    _nodes,
+                    _treeSearchQuery,
+                  );
+                  final visibleSelected = _visibleSelectedNode(
+                    visibleNodes,
+                    selected,
+                  );
+                  final expandedIds = searchActive
+                      ? <String>{
+                          ..._expandedIds,
+                          ..._ancestorIdsFor(visibleNodes),
+                        }
+                      : _expandedIds;
+                  final tree = _OrganizationTreePanel(
+                    key: const Key('organization-tree-list-panel'),
+                    searchController: _treeSearchController,
+                    searchQuery: _treeSearchQuery,
+                    onSearchChanged: _applyTreeSearch,
+                    onSearchSubmitted: (_) => unawaited(_logTreeSearch()),
+                    onClearSearch: _clearTreeSearch,
+                    child: _OrganizationTreeList(
+                      nodes: visibleNodes,
+                      totalCount: _nodes.length,
+                      searchQuery: _treeSearchQuery,
+                      selectedId: visibleSelected?.id,
+                      expandedIds: expandedIds,
+                      onSelect: (id) => setState(() => _selectedId = id),
+                      onExpansionChanged: (id, expanded) => setState(() {
+                        if (expanded) {
+                          _expandedIds.add(id);
+                        } else {
+                          _expandedIds.remove(id);
+                        }
+                      }),
+                    ),
                   );
                   final detail = _OrganizationNodeDetail(
-                    node: selected,
+                    key: const Key('organization-tree-detail-panel'),
+                    node: visibleSelected,
                     nodes: _nodes,
-                    canAddChild: canEditStructure && (selected?.level ?? 0) < 5,
+                    canAddChild:
+                        canEditStructure && (visibleSelected?.level ?? 0) < 5,
                     canEdit:
                         canEditStructure ||
-                        (canEditMap && selected?.type == 'LV4_STORE'),
+                        (canEditMap && visibleSelected?.type == 'LV4_STORE'),
                     canDelete: canEditStructure,
                     canManageFeatures: canManageFeatures,
-                    onAddChild: selected == null
+                    onAddChild: visibleSelected == null
                         ? null
-                        : () => _openEditor(parentId: selected.id),
-                    onEdit: selected == null
+                        : () => _openEditor(parentId: visibleSelected.id),
+                    onEdit: visibleSelected == null
                         ? null
-                        : () => _openEditor(node: selected),
-                    onDelete: selected == null || selected.isSystem
+                        : () => _openEditor(node: visibleSelected),
+                    onDelete:
+                        visibleSelected == null || visibleSelected.isSystem
                         ? null
                         : _deleteSelected,
-                    onManageFeatures: selected == null
+                    onManageFeatures: visibleSelected == null
                         ? null
                         : _openFeatureAssignment,
                   );
                   if (constraints.maxWidth < 760) {
                     return Column(
                       children: [
-                        SizedBox(height: 300, child: tree),
+                        SizedBox(height: 380, child: tree),
                         const SizedBox(height: AppLayoutTokens.sectionGap),
                         Expanded(child: detail),
                       ],
@@ -291,7 +409,7 @@ class _OrganizationTreeAdminScreenState
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SizedBox(width: 360, child: tree),
+                      SizedBox(width: 380, child: tree),
                       const SizedBox(width: AppLayoutTokens.sectionGap),
                       Expanded(child: detail),
                     ],
@@ -299,12 +417,173 @@ class _OrganizationTreeAdminScreenState
                 },
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrganizationTreeHeader extends StatelessWidget {
+  final bool loading;
+  final AdminOrganizationNode? selected;
+  final bool canEditStructure;
+  final Future<void> Function() onReload;
+  final VoidCallback? onAdd;
+
+  const _OrganizationTreeHeader({
+    super.key,
+    required this.loading,
+    required this.selected,
+    required this.canEditStructure,
+    required this.onReload,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 640;
+          final title = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Cơ cấu tổ chức', style: AppTextStyles.headingM),
+              const SizedBox(height: 6),
+              Text(
+                'Quản lý cây Lv0-Lv5, node showroom và phân quyền tính năng theo tổ chức.',
+                style: AppTextStyles.bodyM.copyWith(
+                  color: AppColors.neutral600,
+                ),
+              ),
+              if (selected != null) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Chip(
+                      label: Text(
+                        AdminOrganizationNodeTypes.titleOf(selected!.type),
+                      ),
+                    ),
+                    Chip(
+                      label: Text(
+                        selected!.isActive ? 'Đang hoạt động' : 'Đã tắt',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          );
+          final actions = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppIconAction(
+                onPressed: loading ? null : () => unawaited(onReload()),
+                icon: Icons.refresh_outlined,
+                tooltip: 'Tải lại',
+              ),
+              if (canEditStructure) ...[
+                const SizedBox(width: 8),
+                AppIconAction(
+                  onPressed: loading ? null : onAdd,
+                  icon: Icons.add_outlined,
+                  tooltip: 'Thêm node',
+                ),
+              ],
+            ],
+          );
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.account_tree_outlined,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: title),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                actions,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.account_tree_outlined, color: AppColors.primary),
+              const SizedBox(width: 12),
+              Expanded(child: title),
+              const SizedBox(width: 12),
+              actions,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _OrganizationTreePanel extends StatelessWidget {
+  final TextEditingController searchController;
+  final String searchQuery;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<String> onSearchSubmitted;
+  final VoidCallback onClearSearch;
+  final Widget child;
+
+  const _OrganizationTreePanel({
+    super.key,
+    required this.searchController,
+    required this.searchQuery,
+    required this.onSearchChanged,
+    required this.onSearchSubmitted,
+    required this.onClearSearch,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppTextInput(
+            key: const Key('organization-tree-search-field'),
+            controller: searchController,
+            label: 'Tìm node',
+            hintText: 'Mã nghiệp vụ, viết tắt hoặc tên node',
+            icon: Icons.search,
+            textInputAction: TextInputAction.search,
+            onChanged: onSearchChanged,
+            onSubmitted: onSearchSubmitted,
+            suffixIcon: searchQuery.trim().isEmpty
+                ? null
+                : AppIconAction(
+                    onPressed: onClearSearch,
+                    icon: Icons.close_rounded,
+                    tooltip: 'Xóa tìm kiếm',
+                  ),
+          ),
+          const SizedBox(height: AppLayoutTokens.cardGap),
+          Expanded(child: child),
+        ],
+      ),
     );
   }
 }
 
 class _OrganizationTreeList extends StatelessWidget {
   final List<AdminOrganizationNode> nodes;
+  final int totalCount;
+  final String searchQuery;
   final String? selectedId;
   final Set<String> expandedIds;
   final ValueChanged<String> onSelect;
@@ -312,6 +591,8 @@ class _OrganizationTreeList extends StatelessWidget {
 
   const _OrganizationTreeList({
     required this.nodes,
+    required this.totalCount,
+    required this.searchQuery,
     required this.selectedId,
     required this.expandedIds,
     required this.onSelect,
@@ -321,9 +602,12 @@ class _OrganizationTreeList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (nodes.isEmpty) {
-      return const AppStatePanel.empty(
-        title: 'Chưa có node tổ chức',
-        message: 'Bấm nút thêm để tạo node đầu tiên.',
+      final hasSearch = searchQuery.trim().isNotEmpty;
+      return AppStatePanel.empty(
+        title: hasSearch ? 'Không tìm thấy node' : 'Chưa có node tổ chức',
+        message: hasSearch
+            ? 'Thử mã nghiệp vụ, viết tắt hoặc tên node khác.'
+            : 'Bấm nút thêm để tạo node đầu tiên.',
         icon: Icons.account_tree_outlined,
       );
     }
@@ -337,8 +621,19 @@ class _OrganizationTreeList extends StatelessWidget {
         return order != 0 ? order : a.title.compareTo(b.title);
       });
     }
+    final hasSearch = searchQuery.trim().isNotEmpty;
     return ListView(
       children: [
+        if (hasSearch)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Text(
+              'Đang hiển thị ${nodes.length}/$totalCount node',
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.neutral600,
+              ),
+            ),
+          ),
         for (final node in byParent[null] ?? const <AdminOrganizationNode>[])
           _TreeNodeTile(
             node: node,
@@ -430,6 +725,7 @@ class _OrganizationNodeDetail extends StatelessWidget {
   final VoidCallback? onManageFeatures;
 
   const _OrganizationNodeDetail({
+    super.key,
     required this.node,
     required this.nodes,
     required this.canAddChild,

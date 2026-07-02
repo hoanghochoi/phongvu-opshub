@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/storage/app_storage_keys.dart';
@@ -62,6 +63,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(find.byKey(const Key('vietqr-workspace-header')), findsOneWidget);
+      expect(find.byType(Scaffold), findsNothing);
+      expect(find.byType(GradientHeader), findsNothing);
       expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
       expect(find.text('CP62 - SR CP62'), findsOneWidget);
 

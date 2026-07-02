@@ -50,6 +50,7 @@ void main() {
   testWidgets('App info dialog shows OpsHub summary from account menu', (
     WidgetTester tester,
   ) async {
+    _useDesktopSurface(tester);
     SharedPreferences.setMockInitialValues({
       AppStorageKeys.shared('user_email'): 'dai.ca@example.com',
       AppStorageKeys.shared('user_name'): 'Dai Ca',
@@ -88,6 +89,7 @@ void main() {
   testWidgets('AppShell keeps logout in the account menu', (
     WidgetTester tester,
   ) async {
+    _useDesktopSurface(tester);
     SharedPreferences.setMockInitialValues({
       AppStorageKeys.shared('user_email'): 'dai.ca@example.com',
       AppStorageKeys.shared('user_name'): 'Dai Ca',
@@ -125,6 +127,7 @@ void main() {
   testWidgets('AppShell account menu exposes the help page link', (
     WidgetTester tester,
   ) async {
+    _useDesktopSurface(tester);
     SharedPreferences.setMockInitialValues({
       AppStorageKeys.shared('user_email'): 'dai.ca@example.com',
       AppStorageKeys.shared('user_name'): 'Dai Ca',
@@ -156,4 +159,11 @@ void main() {
 
     expect(find.text('Hướng dẫn sử dụng'), findsOneWidget);
   });
+}
+
+void _useDesktopSurface(WidgetTester tester) {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(1366, 768);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
 }

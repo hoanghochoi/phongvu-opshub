@@ -21,6 +21,7 @@ import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/profile_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/admin/presentation/screens/admin_menu_screen.dart';
+import '../../features/admin/presentation/screens/feature_admin_screen.dart';
 import '../../features/admin/presentation/screens/feedback_admin_screen.dart';
 import '../../features/admin/presentation/screens/inventory_import_screen.dart';
 import '../../features/admin/presentation/screens/organization_tree_admin_screen.dart';
@@ -168,6 +169,10 @@ class AppRouter {
               builder: (context, state) => const PolicyAdminScreen(),
             ),
             GoRoute(
+              path: '/admin/features',
+              builder: (context, state) => const FeatureAdminScreen(),
+            ),
+            GoRoute(
               path: '/admin/inventory-import',
               builder: (context, state) => const InventoryImportScreen(),
             ),
@@ -282,6 +287,7 @@ class AppRouter {
       '/admin/roles' => 'ADMIN_ROLES',
       '/admin/organization' => 'ADMIN_ORG_TREE',
       '/admin/policies' => 'ADMIN_POLICIES',
+      '/admin/features' => 'ADMIN_FEATURES',
       '/admin/inventory-import' => 'FIFO_IMPORT',
       '/admin/feedback' => 'ADMIN_FEEDBACK',
       '/admin/sales-reports' => 'ADMIN_SALES_REPORTS',
@@ -312,6 +318,7 @@ class AppRouter {
           user?.canUseFeature('ADMIN_ROLES') == true ||
           user?.canUseFeature('ADMIN_ORG_TREE') == true ||
           user?.canUseFeature('ADMIN_POLICIES') == true ||
+          user?.canUseFeature('ADMIN_FEATURES') == true ||
           user?.canUseFeature('ADMIN_FEEDBACK') == true;
     }
     if (featureCode == 'SALES_REPORT_HUB') {
@@ -325,6 +332,13 @@ class AppRouter {
       return user?.canUseOffsetAdjustments == true;
     }
     return user?.canUseFeature(featureCode) == true;
+  }
+
+  @visibleForTesting
+  static bool canUseRouteForTesting(User? user, String location) {
+    final routeFeature = _featureForRoute(location);
+    if (routeFeature == null) return true;
+    return _canUseRouteFeature(user, routeFeature);
   }
 
   @visibleForTesting

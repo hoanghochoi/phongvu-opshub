@@ -1,0 +1,55 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/features/admin/presentation/screens/admin_menu_screen.dart';
+import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
+import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
+import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+  });
+
+  testWidgets('Admin menu shows feature management action by feature access', (
+    tester,
+  ) async {
+    const user = User(
+      email: 'admin@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-admin',
+      featureAccess: {'ADMIN_FEATURES': true},
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(user),
+        child: const MaterialApp(home: AdminMenuScreen()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Quản lý tính năng'), findsOneWidget);
+    expect(find.text('Feature và luật cấp quyền'), findsOneWidget);
+    expect(find.text('Quản lý người dùng'), findsNothing);
+  });
+}
+
+class _FakeAuthProvider extends AuthProvider {
+  _FakeAuthProvider(this.currentUser) : super(AuthRepository(ApiClient()));
+
+  final User currentUser;
+
+  @override
+  User? get user => currentUser;
+
+  @override
+  bool get isInitialized => true;
+
+  @override
+  bool get isAuthenticated => true;
+}

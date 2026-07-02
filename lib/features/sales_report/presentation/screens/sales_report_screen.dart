@@ -8,17 +8,19 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/formatting/money_formatters.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../fifo_check/presentation/widgets/barcode_scanner_screen.dart';
 import '../../domain/sales_report.dart';
 import '../providers/sales_report_provider.dart';
+import '../widgets/sales_report_export_menu.dart';
+import '../widgets/sales_report_workspace_header.dart';
 
 const _typePurchased = 'PURCHASED';
 const _typeNotPurchased = 'NOT_PURCHASED';
@@ -250,40 +252,56 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       (auth) => auth.user?.canUseFeature('ADMIN_SALES_REPORTS') == true,
     );
     final provider = context.watch<SalesReportProvider>();
-    return Scaffold(
-      appBar: const GradientHeader(title: 'Báo cáo', showBack: true),
-      body: AppResponsiveScrollView(
-        maxWidth: AppLayoutTokens.pageMaxWidth,
-        child: _SalesReportCockpit(
-          provider: provider,
-          canSubmitReports: canSubmitReports,
-          canViewAdminReports: canViewAdminReports,
-          onNotPurchased: canSubmitReports
-              ? () => _openReport(
-                  '/sales-reports/not-purchased',
-                  _typeNotPurchased,
-                )
-              : null,
-          onOpenAdmin: canViewAdminReports ? _openAdminReports : null,
-          onReload: () => provider.loadOrderCockpit(),
-          onSelectDate: _selectOrdersDate,
-          onExportHvtc: canViewAdminReports
-              ? () => provider.exportCsv(
-                  query: provider.cockpitExportQuery('HVTC'),
-                )
-              : null,
-          onExportRevenue: canViewAdminReports
-              ? () => provider.exportCsv(
-                  query: provider.cockpitExportQuery('REVENUE'),
-                )
-              : null,
-          onExportInstallment: canViewAdminReports
-              ? () => provider.exportCsv(
-                  query: provider.cockpitExportQuery('INSTALLMENT'),
-                )
-              : null,
-          onOrderTap: canSubmitReports ? _openPurchasedDialog : null,
-        ),
+    return AppResponsiveScrollView(
+      maxWidth: AppLayoutTokens.pageMaxWidth,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SalesReportWorkspaceHeader(
+            key: const Key('sales-report-workspace-header'),
+            title: 'Báo cáo',
+            subtitle:
+                'Theo dõi đơn trong ngày, gửi báo cáo thiếu và xuất file theo bộ lọc đang xem.',
+            icon: Icons.analytics_outlined,
+            chips: [
+              AppStatusChip(
+                label: '${provider.unreportedOrdersTotal} chưa báo cáo',
+                color: AppColors.warning,
+              ),
+              AppStatusChip(
+                label: '${provider.reportedOrdersTotal} đã báo cáo',
+                color: AppColors.success,
+              ),
+              AppStatusChip(
+                label: canViewAdminReports ? 'Có quyền xuất file' : 'Cá nhân',
+                color: canViewAdminReports
+                    ? AppColors.primary
+                    : AppColors.neutral600,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppLayoutTokens.cardGap),
+          _SalesReportCockpit(
+            provider: provider,
+            canSubmitReports: canSubmitReports,
+            canViewAdminReports: canViewAdminReports,
+            onNotPurchased: canSubmitReports
+                ? () => _openReport(
+                    '/sales-reports/not-purchased',
+                    _typeNotPurchased,
+                  )
+                : null,
+            onOpenAdmin: canViewAdminReports ? _openAdminReports : null,
+            onReload: () => provider.loadOrderCockpit(),
+            onSelectDate: _selectOrdersDate,
+            onExportCsv: canViewAdminReports
+                ? (exportType) => provider.exportCsv(
+                    query: provider.cockpitExportQuery(exportType),
+                  )
+                : null,
+            onOrderTap: canSubmitReports ? _openPurchasedDialog : null,
+          ),
+        ],
       ),
     );
   }
@@ -297,9 +315,7 @@ class _SalesReportCockpit extends StatelessWidget {
   final VoidCallback? onOpenAdmin;
   final VoidCallback onReload;
   final VoidCallback onSelectDate;
-  final VoidCallback? onExportHvtc;
-  final VoidCallback? onExportRevenue;
-  final VoidCallback? onExportInstallment;
+  final ValueChanged<String>? onExportCsv;
   final ValueChanged<SalesReportOrderCockpitItem>? onOrderTap;
 
   const _SalesReportCockpit({
@@ -310,9 +326,7 @@ class _SalesReportCockpit extends StatelessWidget {
     required this.onOpenAdmin,
     required this.onReload,
     required this.onSelectDate,
-    required this.onExportHvtc,
-    required this.onExportRevenue,
-    required this.onExportInstallment,
+    required this.onExportCsv,
     required this.onOrderTap,
   });
 
@@ -420,35 +434,9 @@ class _SalesReportCockpit extends StatelessWidget {
                     if (canViewAdminReports)
                       SizedBox(
                         width: 180,
-                        child: AppSecondaryButton(
-                          onPressed: provider.isExporting ? null : onExportHvtc,
-                          icon: Icons.download_rounded,
-                          label: 'Xuất HVTC',
-                          isLoading: provider.isExporting,
-                        ),
-                      ),
-                    if (canViewAdminReports)
-                      SizedBox(
-                        width: 190,
-                        child: AppSecondaryButton(
-                          onPressed: provider.isExporting
-                              ? null
-                              : onExportRevenue,
-                          icon: Icons.download_rounded,
-                          label: 'Xuất Doanh số',
-                          isLoading: provider.isExporting,
-                        ),
-                      ),
-                    if (canViewAdminReports)
-                      SizedBox(
-                        width: 190,
-                        child: AppSecondaryButton(
-                          onPressed: provider.isExporting
-                              ? null
-                              : onExportInstallment,
-                          icon: Icons.download_rounded,
-                          label: 'Xuất Trả góp',
-                          isLoading: provider.isExporting,
+                        child: SalesReportExportMenuButton(
+                          isExporting: provider.isExporting,
+                          onExport: onExportCsv!,
                         ),
                       ),
                     if (canViewAdminReports)
@@ -1140,144 +1128,165 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     final canEditReportBody = !_isPurchased || provider.checkedOrder != null;
     final title = _isPurchased ? 'Báo cáo mua hàng' : 'Báo cáo chưa mua hàng';
 
-    return Scaffold(
-      appBar: GradientHeader(title: title, showBack: true),
-      body: Form(
-        key: _formKey,
-        child: AppResponsiveScrollView(
-          controller: _scrollController,
-          maxWidth: AppLayoutTokens.formMaxWidth,
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          child: AppFormColumn(
-            spacing: AppLayoutTokens.formSectionGap,
-            children: [
-              if (_isPurchased)
-                _OrderCheckCard(
-                  onCheck: _checkOrder,
-                  onScan: _scanOrderCode,
-                  onCheckAnother: _checkAnotherOrder,
+    return Form(
+      key: _formKey,
+      child: AppResponsiveScrollView(
+        controller: _scrollController,
+        maxWidth: AppLayoutTokens.formMaxWidth,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        child: AppFormColumn(
+          spacing: AppLayoutTokens.formSectionGap,
+          children: [
+            SalesReportWorkspaceHeader(
+              key: const Key('sales-report-form-header'),
+              title: title,
+              subtitle: _isPurchased
+                  ? 'Quét hoặc nhập mã đơn, kiểm tra ERP rồi hoàn tất thông tin khách hàng.'
+                  : 'Ghi nhận khách chưa mua, ngành hàng quan tâm và các bước tư vấn tại SR.',
+              icon: _isPurchased
+                  ? Icons.receipt_long_outlined
+                  : Icons.person_search_outlined,
+              chips: [
+                AppStatusChip(
+                  label: _isPurchased ? 'Mua hàng' : 'Chưa mua hàng',
+                  color: _isPurchased ? AppColors.success : AppColors.warning,
                 ),
-              if (provider.errorMessage != null)
-                AppStatusBanner(
-                  icon: Icons.error_outline_rounded,
-                  title: 'Chưa thực hiện được',
-                  message: provider.errorMessage!,
-                  tone: AppStateTone.error,
+                AppStatusChip(
+                  label: canEditReportBody
+                      ? 'Sẵn sàng nhập'
+                      : 'Cần kiểm tra đơn',
+                  color: canEditReportBody
+                      ? AppColors.primary
+                      : AppColors.neutral600,
                 ),
-              if (_isPurchased && provider.checkedOrder != null)
-                _OrderSummaryCard(check: provider.checkedOrder!),
-              AbsorbPointer(
-                absorbing: !canEditReportBody || provider.isSubmitting,
-                child: Opacity(
-                  opacity: canEditReportBody ? 1 : 0.55,
-                  child: Column(
-                    children: [
-                      _CustomerSection(
-                        nameController: _nameController,
-                        phoneController: _phoneController,
-                        needController: _needController,
-                        customerType: _customerType,
-                        customerIsStudent: _customerIsStudent,
-                        promotionCodes: _promotionCodes,
-                        categories: provider.categories,
-                        categoryGroupIds: _categoryGroupIds,
-                        loadingCategories: provider.isLoadingCategories,
-                        onCustomerTypeChanged: _setCustomerType,
-                        onStudentChanged: _setCustomerIsStudent,
-                        onPromotionsChanged: (value) {
-                          setState(() {
-                            _promotionCodes
-                              ..clear()
-                              ..addAll(value);
-                          });
-                        },
-                        onCategoryChanged: (value) {
-                          setState(() {
-                            _categoryGroupIds
-                              ..clear()
-                              ..addAll(value);
-                          });
-                        },
+              ],
+            ),
+            if (_isPurchased)
+              _OrderCheckCard(
+                onCheck: _checkOrder,
+                onScan: _scanOrderCode,
+                onCheckAnother: _checkAnotherOrder,
+              ),
+            if (provider.errorMessage != null)
+              AppStatusBanner(
+                icon: Icons.error_outline_rounded,
+                title: 'Chưa thực hiện được',
+                message: provider.errorMessage!,
+                tone: AppStateTone.error,
+              ),
+            if (_isPurchased && provider.checkedOrder != null)
+              _OrderSummaryCard(check: provider.checkedOrder!),
+            AbsorbPointer(
+              absorbing: !canEditReportBody || provider.isSubmitting,
+              child: Opacity(
+                opacity: canEditReportBody ? 1 : 0.55,
+                child: Column(
+                  children: [
+                    _CustomerSection(
+                      nameController: _nameController,
+                      phoneController: _phoneController,
+                      needController: _needController,
+                      customerType: _customerType,
+                      customerIsStudent: _customerIsStudent,
+                      promotionCodes: _promotionCodes,
+                      categories: provider.categories,
+                      categoryGroupIds: _categoryGroupIds,
+                      loadingCategories: provider.isLoadingCategories,
+                      onCustomerTypeChanged: _setCustomerType,
+                      onStudentChanged: _setCustomerIsStudent,
+                      onPromotionsChanged: (value) {
+                        setState(() {
+                          _promotionCodes
+                            ..clear()
+                            ..addAll(value);
+                        });
+                      },
+                      onCategoryChanged: (value) {
+                        setState(() {
+                          _categoryGroupIds
+                            ..clear()
+                            ..addAll(value);
+                        });
+                      },
+                    ),
+                    const SizedBox(height: AppLayoutTokens.formSectionGap),
+                    _InstallmentSection(
+                      isPurchased: _isPurchased,
+                      selected: _installmentSelected,
+                      approved: _installmentApproved,
+                      noInstallmentReason: _installmentNoInstallmentReason,
+                      selectedPartnerCodes: _installmentPartnerCodes,
+                      loanController: _installmentLoanController,
+                      onChanged: (value) {
+                        setState(() {
+                          _installmentSelected = value ?? false;
+                          if (!_installmentSelected) {
+                            _installmentLoanController.clear();
+                            _installmentApproved = null;
+                            _installmentNoInstallmentReason = null;
+                            _installmentPartnerCodes.clear();
+                          }
+                        });
+                      },
+                      onPartnersChanged: (value) {
+                        setState(() {
+                          _installmentPartnerCodes
+                            ..clear()
+                            ..addAll(value);
+                        });
+                      },
+                      onApprovedChanged: (value) =>
+                          setState(() => _installmentApproved = value),
+                      onNoInstallmentReasonChanged: (value) => setState(
+                        () => _installmentNoInstallmentReason = value,
                       ),
+                    ),
+                    const SizedBox(height: AppLayoutTokens.formSectionGap),
+                    _BehaviorSection(
+                      consultedAnswer: _consultedAnswer,
+                      experiencedAnswer: _experiencedAnswer,
+                      zaloAnswer: _zaloAnswer,
+                      appDownloadAnswer: _appDownloadAnswer,
+                      consultedOtherController: _consultedOtherController,
+                      experiencedOtherController: _experiencedOtherController,
+                      zaloOtherController: _zaloOtherController,
+                      appOtherController: _appOtherController,
+                      onConsultedChanged: (value) =>
+                          setState(() => _consultedAnswer = value),
+                      onExperiencedChanged: (value) =>
+                          setState(() => _experiencedAnswer = value),
+                      onZaloChanged: (value) =>
+                          setState(() => _zaloAnswer = value),
+                      onAppChanged: (value) =>
+                          setState(() => _appDownloadAnswer = value),
+                    ),
+                    if (!_isPurchased) ...[
                       const SizedBox(height: AppLayoutTokens.formSectionGap),
-                      _InstallmentSection(
-                        isPurchased: _isPurchased,
-                        selected: _installmentSelected,
-                        approved: _installmentApproved,
-                        noInstallmentReason: _installmentNoInstallmentReason,
-                        selectedPartnerCodes: _installmentPartnerCodes,
-                        loanController: _installmentLoanController,
-                        onChanged: (value) {
-                          setState(() {
-                            _installmentSelected = value ?? false;
-                            if (!_installmentSelected) {
-                              _installmentLoanController.clear();
-                              _installmentApproved = null;
-                              _installmentNoInstallmentReason = null;
-                              _installmentPartnerCodes.clear();
-                            }
-                          });
-                        },
-                        onPartnersChanged: (value) {
-                          setState(() {
-                            _installmentPartnerCodes
-                              ..clear()
-                              ..addAll(value);
-                          });
-                        },
-                        onApprovedChanged: (value) =>
-                            setState(() => _installmentApproved = value),
-                        onNoInstallmentReasonChanged: (value) => setState(
-                          () => _installmentNoInstallmentReason = value,
-                        ),
+                      _NotPurchasedSection(
+                        reason: _notPurchasedReason,
+                        otherController: _notPurchasedOtherController,
+                        onChanged: (value) =>
+                            setState(() => _notPurchasedReason = value),
                       ),
-                      const SizedBox(height: AppLayoutTokens.formSectionGap),
-                      _BehaviorSection(
-                        consultedAnswer: _consultedAnswer,
-                        experiencedAnswer: _experiencedAnswer,
-                        zaloAnswer: _zaloAnswer,
-                        appDownloadAnswer: _appDownloadAnswer,
-                        consultedOtherController: _consultedOtherController,
-                        experiencedOtherController: _experiencedOtherController,
-                        zaloOtherController: _zaloOtherController,
-                        appOtherController: _appOtherController,
-                        onConsultedChanged: (value) =>
-                            setState(() => _consultedAnswer = value),
-                        onExperiencedChanged: (value) =>
-                            setState(() => _experiencedAnswer = value),
-                        onZaloChanged: (value) =>
-                            setState(() => _zaloAnswer = value),
-                        onAppChanged: (value) =>
-                            setState(() => _appDownloadAnswer = value),
-                      ),
-                      if (!_isPurchased) ...[
-                        const SizedBox(height: AppLayoutTokens.formSectionGap),
-                        _NotPurchasedSection(
-                          reason: _notPurchasedReason,
-                          otherController: _notPurchasedOtherController,
-                          onChanged: (value) =>
-                              setState(() => _notPurchasedReason = value),
-                        ),
-                      ],
                     ],
-                  ),
+                  ],
                 ),
               ),
-              AppPrimaryButton(
-                onPressed:
-                    provider.isSubmitting ||
-                        provider.isCheckingOrder ||
-                        !canEditReportBody
-                    ? null
-                    : _submit,
-                icon: Icons.send_rounded,
-                label: 'Gửi báo cáo',
-                isLoading: provider.isSubmitting,
-                loadingLabel: 'Đang gửi...',
-              ),
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
-            ],
-          ),
+            ),
+            AppPrimaryButton(
+              onPressed:
+                  provider.isSubmitting ||
+                      provider.isCheckingOrder ||
+                      !canEditReportBody
+                  ? null
+                  : _submit,
+              icon: Icons.send_rounded,
+              label: 'Gửi báo cáo',
+              isLoading: provider.isSubmitting,
+              loadingLabel: 'Đang gửi...',
+            ),
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
+          ],
         ),
       ),
     );

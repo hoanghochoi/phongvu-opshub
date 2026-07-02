@@ -8,10 +8,12 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -29,14 +31,16 @@ String adminUserSaveErrorMessage(Object error) =>
     error is ApiException ? error.message : 'Không lưu được người dùng';
 
 class UserAdminScreen extends StatefulWidget {
-  const UserAdminScreen({super.key});
+  final AuthRepository? repository;
+
+  const UserAdminScreen({super.key, this.repository});
 
   @override
   State<UserAdminScreen> createState() => _UserAdminScreenState();
 }
 
 class _UserAdminScreenState extends State<UserAdminScreen> {
-  final _repository = AuthRepository(ApiClient());
+  late final AuthRepository _repository;
   final _searchController = TextEditingController();
   List<User> _allUsers = [];
   List<User> _users = [];
@@ -59,6 +63,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   @override
   void initState() {
     super.initState();
+    _repository = widget.repository ?? AuthRepository(ApiClient());
     _searchController.addListener(_onSearchChanged);
     _load();
   }
@@ -550,6 +555,126 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     _load();
   }
 
+  Widget _buildFilterToolbar() {
+    final controls = <({double width, Widget child})>[
+      (
+        width: 180,
+        child: AppFilterDropdown<String>(
+          label: 'Miền email',
+          value: _domainFilter,
+          options: _domainOptions
+              .map((domain) => AppFilterOption(value: domain, label: domain))
+              .toList(growable: false),
+          onChanged: (value) {
+            setState(() => _domainFilter = value);
+            _load();
+          },
+        ),
+      ),
+      (
+        width: 220,
+        child: AppSearchableFilterDropdown<String>(
+          label: 'Cơ cấu',
+          value: _orgNodeFilter,
+          options: _orgNodes
+              .map((node) => AppFilterOption(value: node.id, label: node.title))
+              .toList(growable: false),
+          onChanged: (value) {
+            setState(() => _orgNodeFilter = value);
+            _load();
+          },
+        ),
+      ),
+      (
+        width: 220,
+        child: AppSearchableFilterDropdown<String>(
+          label: 'Tính năng',
+          value: _featureFilter,
+          options: _features
+              .map(
+                (feature) =>
+                    AppFilterOption(value: feature.code, label: feature.title),
+              )
+              .toList(growable: false),
+          onChanged: (value) {
+            setState(() => _featureFilter = value);
+            _load();
+          },
+        ),
+      ),
+      (
+        width: 180,
+        child: AppFilterDropdown<String>(
+          label: 'Vai trò',
+          value: _roleFilter,
+          options: _roles
+              .map(
+                (role) => AppFilterOption(value: role.value, label: role.title),
+              )
+              .toList(growable: false),
+          onChanged: (value) {
+            setState(() => _roleFilter = value);
+            _load();
+          },
+        ),
+      ),
+      (
+        width: 170,
+        child: AppFilterDropdown<String>(
+          label: 'Trạng thái',
+          value: _statusFilter,
+          options: const [
+            AppFilterOption(value: 'yes', label: 'Hoạt động'),
+            AppFilterOption(value: 'no', label: 'Đã khóa'),
+          ],
+          onChanged: (value) {
+            setState(() => _statusFilter = value);
+            _load();
+          },
+        ),
+      ),
+      (
+        width: 150,
+        child: AppSecondaryButton(
+          onPressed: _resetFilters,
+          icon: Icons.filter_alt_off_outlined,
+          label: 'Xóa bộ lọc',
+        ),
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AppLayoutTokens.tabletBreakpoint) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (var index = 0; index < controls.length; index++) ...[
+                  if (index > 0)
+                    const SizedBox(width: AppLayoutTokens.formInlineGap),
+                  SizedBox(
+                    width: controls[index].width,
+                    child: controls[index].child,
+                  ),
+                ],
+              ],
+            ),
+          );
+        }
+
+        return Wrap(
+          spacing: AppLayoutTokens.formInlineGap,
+          runSpacing: AppLayoutTokens.formInlineGap,
+          children: [
+            for (final control in controls)
+              SizedBox(width: control.width, child: control.child),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUser = context.watch<AuthProvider>().user;
@@ -557,245 +682,278 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     final canCreateUsers = currentRole == 'SUPER_ADMIN';
     final canResetPassword =
         currentRole == 'SUPER_ADMIN' || User.isAdminRole(currentRole);
-    return Scaffold(
-      appBar: GradientHeader(
-        title: 'Quản lý người dùng',
-        showBack: true,
-        actions: [
-          if (canCreateUsers)
-            IconButton(
-              onPressed: _importing ? null : _importUsers,
-              icon: _importing
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.upload_file_outlined),
-              tooltip: 'Nhập danh sách nhân sự',
-            ),
-          if (canCreateUsers)
-            IconButton(
-              onPressed: () => _openEditor(),
-              icon: const Icon(Icons.person_add_alt_1_outlined),
-              tooltip: 'Thêm người dùng',
-            ),
-        ],
-      ),
-      body: AppResponsiveContent(
-        child: Column(
-          children: [
-            AppTextInput(
-              controller: _searchController,
-              label: 'Tìm người dùng',
-              hintText: 'Tìm trong danh sách đã tải',
-              icon: Icons.search,
-              suffixIcon: AppIconAction(
-                onPressed: _load,
-                icon: Icons.refresh,
-                tooltip: 'Tải lại',
-              ),
-              onSubmitted: (_) => _applyLocalSearch(logSearch: true),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+    return AppResponsiveContent(
+      child: Column(
+        children: [
+          AppSurfaceCard(
+            key: const Key('user-admin-header'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _FilterDropdown<String>(
-                  width: 180,
-                  value: _domainFilter,
-                  label: 'Miền email',
-                  items: _domainOptions
-                      .map(
-                        (domain) => DropdownMenuItem(
-                          value: domain,
-                          child: Text(domain),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() => _domainFilter = value);
-                    _load();
-                  },
-                ),
-                _FilterDropdown<String>(
-                  width: 220,
-                  value: _orgNodeFilter,
-                  label: 'Cơ cấu',
-                  items: _orgNodes
-                      .map(
-                        (node) => DropdownMenuItem(
-                          value: node.id,
-                          child: Text(node.title),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() => _orgNodeFilter = value);
-                    _load();
-                  },
-                ),
-                _FilterDropdown<String>(
-                  width: 220,
-                  value: _featureFilter,
-                  label: 'Tính năng',
-                  items: _features
-                      .map(
-                        (feature) => DropdownMenuItem(
-                          value: feature.code,
-                          child: Text(feature.title),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() => _featureFilter = value);
-                    _load();
-                  },
-                ),
-                _FilterDropdown<String>(
-                  width: 180,
-                  value: _roleFilter,
-                  label: 'Vai trò',
-                  items: _roles
-                      .map(
-                        (role) => DropdownMenuItem(
-                          value: role.value,
-                          child: Text(role.title),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() => _roleFilter = value);
-                    _load();
-                  },
-                ),
-                _FilterDropdown<String>(
-                  width: 160,
-                  value: _statusFilter,
-                  label: 'Trạng thái',
-                  items: const [
-                    DropdownMenuItem(value: 'yes', child: Text('Hoạt động')),
-                    DropdownMenuItem(value: 'no', child: Text('Khóa')),
-                  ],
-                  onChanged: (value) {
-                    setState(() => _statusFilter = value);
-                    _load();
-                  },
-                ),
-                SizedBox(
-                  width: 150,
-                  child: AppSecondaryButton(
-                    onPressed: _resetFilters,
-                    icon: Icons.filter_alt_off_outlined,
-                    label: 'Xóa bộ lọc',
+                Text(
+                  'Quản lý người dùng',
+                  style: AppTextStyles.headingM.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  'Tìm, lọc và cập nhật tài khoản theo phạm vi quản trị.',
+                  style: AppTextStyles.bodyM.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (canCreateUsers) ...[
+                  const SizedBox(height: AppLayoutTokens.formFieldGap),
+                  AppActionRow(
+                    desktopAlignment: MainAxisAlignment.start,
+                    maxButtonWidth: 220,
+                    children: [
+                      AppSecondaryButton(
+                        onPressed: _importing ? null : _importUsers,
+                        icon: Icons.upload_file_outlined,
+                        label: 'Nhập danh sách',
+                        isLoading: _importing,
+                        loadingLabel: 'Đang nhập dữ liệu',
+                      ),
+                      AppPrimaryButton(
+                        onPressed: () => _openEditor(),
+                        icon: Icons.person_add_alt_1_outlined,
+                        label: 'Thêm người dùng',
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
-            const SizedBox(height: AppLayoutTokens.formFieldGap),
-            Expanded(
-              child: _loading
-                  ? const AppListSkeleton(itemCount: 6, itemHeight: 84)
-                  : _users.isEmpty
-                  ? AppStatePanel.empty(
-                      title: 'Không tìm thấy người dùng',
-                      message: 'Thử đổi từ khóa hoặc xóa bộ lọc hiện tại.',
-                      icon: Icons.person_search_outlined,
-                      actionLabel: 'Xóa bộ lọc',
-                      actionIcon: Icons.filter_alt_off_outlined,
-                      onAction: _resetFilters,
-                    )
-                  : ListView.separated(
-                      itemCount: _users.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final user = _users[index];
-                        final canDeleteUser =
-                            canCreateUsers &&
-                            user.id != currentUser?.id &&
-                            user.status?.toLowerCase() == 'no';
-                        return ListTile(
-                          tileColor: Theme.of(context).colorScheme.surface,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.sm),
-                          ),
-                          leading: CircleAvatar(
-                            child: Text(
-                              (user.name ?? user.email)[0].toUpperCase(),
-                            ),
-                          ),
-                          title: Text(user.email),
-                          subtitle: Text(
-                            '${_roleTitle(user.role)} • ${user.storeInfo}\n${_personnelTitle(user)}',
-                          ),
-                          isThreeLine: true,
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (canResetPassword) ...[
-                                AppIconAction(
-                                  onPressed: () => _resetPassword(user),
-                                  icon: Icons.lock_reset_outlined,
-                                  tooltip: 'Reset mật khẩu',
-                                ),
-                                const SizedBox(width: 8),
-                              ],
-                              AppIconAction(
-                                onPressed: () => _openEditor(user),
-                                icon: Icons.edit_outlined,
-                                tooltip: 'Sửa người dùng',
-                              ),
-                              if (canDeleteUser) ...[
-                                const SizedBox(width: 8),
-                                AppIconAction(
-                                  onPressed: () => _deleteUser(user),
-                                  icon: Icons.delete_outline,
-                                  tooltip: 'Xóa tài khoản đã khóa',
-                                ),
-                              ],
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+          ),
+          const SizedBox(height: AppLayoutTokens.cardGap),
+          AppSurfaceCard(
+            key: const Key('user-admin-filters'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AppTextInput(
+                  controller: _searchController,
+                  label: 'Tìm người dùng',
+                  hintText: 'Tìm trong danh sách đã tải',
+                  icon: Icons.search,
+                  suffixIcon: AppIconAction(
+                    onPressed: _loading ? null : _load,
+                    icon: Icons.refresh,
+                    tooltip: 'Tải lại danh sách',
+                  ),
+                  onSubmitted: (_) => _applyLocalSearch(logSearch: true),
+                ),
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                _buildFilterToolbar(),
+              ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: AppLayoutTokens.cardGap),
+          Expanded(
+            child: _loading
+                ? const AppListSkeleton(itemCount: 6, itemHeight: 108)
+                : _users.isEmpty
+                ? AppStatePanel.empty(
+                    title: 'Không tìm thấy người dùng',
+                    message: 'Thử đổi từ khóa hoặc xóa bộ lọc hiện tại.',
+                    icon: Icons.person_search_outlined,
+                    actionLabel: 'Xóa bộ lọc',
+                    actionIcon: Icons.filter_alt_off_outlined,
+                    onAction: _resetFilters,
+                  )
+                : ListView.separated(
+                    itemCount: _users.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: AppLayoutTokens.cardGap),
+                    itemBuilder: (context, index) {
+                      final user = _users[index];
+                      final canDeleteUser =
+                          canCreateUsers &&
+                          user.id != currentUser?.id &&
+                          user.status?.toLowerCase() == 'no';
+                      return _UserListItem(
+                        user: user,
+                        roleTitle: _roleTitle(user.role),
+                        personnelTitle: _personnelTitle(user),
+                        canResetPassword: canResetPassword,
+                        canDelete: canDeleteUser,
+                        onResetPassword: () => _resetPassword(user),
+                        onEdit: () => _openEditor(user),
+                        onDelete: () => _deleteUser(user),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _FilterDropdown<T> extends StatelessWidget {
-  final double width;
-  final T? value;
-  final String label;
-  final List<DropdownMenuItem<T>> items;
-  final ValueChanged<T?> onChanged;
+class _UserListItem extends StatelessWidget {
+  final User user;
+  final String roleTitle;
+  final String personnelTitle;
+  final bool canResetPassword;
+  final bool canDelete;
+  final VoidCallback onResetPassword;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
-  const _FilterDropdown({
-    required this.width,
-    required this.value,
-    required this.label,
-    required this.items,
-    required this.onChanged,
+  const _UserListItem({
+    required this.user,
+    required this.roleTitle,
+    required this.personnelTitle,
+    required this.canResetPassword,
+    required this.canDelete,
+    required this.onResetPassword,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      child: AppSelectField<T?>(
-        value: value,
-        label: label,
-        dense: true,
-        items: [
-          DropdownMenuItem<T?>(value: null, child: const Text('Tất cả')),
-          ...items,
+    final displayName = user.name?.trim().isNotEmpty == true
+        ? user.name!.trim()
+        : user.email;
+    final isLocked = user.status?.toLowerCase() == 'no';
+    final statusLabel = user.assignmentPending
+        ? 'Chờ gán tổ chức'
+        : isLocked
+        ? 'Đã khóa'
+        : 'Hoạt động';
+    final statusColor = user.assignmentPending || isLocked
+        ? AppColors.warning
+        : AppColors.success;
+    final metadata = '$roleTitle • ${user.storeInfo}';
+
+    final identity = Row(
+      children: [
+        CircleAvatar(child: Text(displayName.characters.first.toUpperCase())),
+        const SizedBox(width: AppLayoutTokens.formInlineGap),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.labelL.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                user.email,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.bodyS.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                metadata,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.caption.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final actions = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (canResetPassword) ...[
+          AppIconAction(
+            onPressed: onResetPassword,
+            icon: Icons.lock_reset_outlined,
+            tooltip: 'Đặt lại mật khẩu',
+          ),
+          const SizedBox(width: 8),
         ],
-        onChanged: onChanged,
+        AppIconAction(
+          onPressed: onEdit,
+          icon: Icons.edit_outlined,
+          tooltip: 'Sửa người dùng',
+        ),
+        if (canDelete) ...[
+          const SizedBox(width: 8),
+          AppIconAction(
+            onPressed: onDelete,
+            icon: Icons.delete_outline,
+            tooltip: 'Xóa tài khoản đã khóa',
+          ),
+        ],
+      ],
+    );
+
+    return AppSurfaceCard(
+      key: ValueKey('admin-user-${user.id ?? user.email}'),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 720;
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                identity,
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                Row(
+                  children: [
+                    AppStatusChip(label: statusLabel, color: statusColor),
+                    const Spacer(),
+                    actions,
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  personnelTitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(flex: 5, child: identity),
+              const SizedBox(width: AppLayoutTokens.sectionGap),
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppStatusChip(label: statusLabel, color: statusColor),
+                    const SizedBox(height: 8),
+                    Text(
+                      personnelTitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodyS.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppLayoutTokens.sectionGap),
+              actions,
+            ],
+          );
+        },
       ),
     );
   }
