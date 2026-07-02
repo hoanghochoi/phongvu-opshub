@@ -372,6 +372,27 @@ Recent focused evidence:
   test\payment_monitor_unsupported_screen_test.dart --reporter expanded` (34
   tests), full `flutter test --no-pub --reporter expanded` (259 tests), and
   `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`.
+- `UI-UX-001`/`OFFSET-ADJUSTMENT-001`, 2026-07-02:
+  `/offset-adjustments` now renders as a content-only workspace under
+  `AppShell` instead of nesting a `GradientHeader`. It keeps the existing
+  `OffsetAdjustmentProvider`, `OffsetAdjustmentRepository`, all-store reviewer
+  query, create/edit dialogs, detail/review actions, export menu, realtime
+  notification, and `OFFSET_ADJUSTMENTS` route guard while adding a shared
+  header, compact action/filter/toolbar surfaces, and mobile collapsed filters.
+  Figma Offset Workspace frames `107:100`, `135:948`, and `135:432` were
+  synced to remove unsupported kanban/drawer/CTA/search/empty mocks and show
+  the runtime header/action/filter/toolbar/result-card state. Focused
+  validation passed `flutter test --no-pub --reporter expanded
+  test\offset_adjustment_screen_redesign_test.dart` (2 tests), and Figma QA
+  confirmed no stale `OFF-*` mock copy, zero-size text, or out-of-bounds nodes.
+  Follow-up broad validation also passed `dart format
+  --output=none --set-exit-if-changed`, `flutter analyze --no-pub`, focused
+  Offset/route/nav regression `flutter test --no-pub --reporter expanded
+  test\offset_adjustment_screen_redesign_test.dart
+  test\offset_adjustment_provider_test.dart test\app_router_test.dart
+  test\app_nav_model_test.dart` (13 tests), full `flutter test --no-pub
+  --reporter compact` (267 tests), `flutter build web --no-pub`, and
+  `git diff --check` with CRLF warnings only.
 - `SALES-REPORT-001`, 2026-07-01: `Báo cáo` now opens a 2-column order
   cockpit for same-day ERP orders: left unreported, right reported, 20
   orders/page/column with DB-backed totals and independent pagination. Backend

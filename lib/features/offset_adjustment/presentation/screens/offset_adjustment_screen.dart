@@ -14,7 +14,6 @@ import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/offset_adjustment.dart';
 import '../providers/offset_adjustment_provider.dart';
@@ -53,56 +52,79 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<OffsetAdjustmentProvider>();
     _syncControllers(provider);
-    return Scaffold(
-      appBar: GradientHeader(title: 'Cấn trừ', showBack: true),
-      body: SafeArea(
-        child: SelectionArea(
-          child: AppResponsiveContent(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _ActionBar(onCreate: _showCreateDialog),
-                const SizedBox(height: 10),
-                _FilterPanel(
-                  provider: provider,
-                  orderController: _orderController,
-                  amountController: _amountController,
-                ),
-                if (provider.errorMessage != null) ...[
-                  const SizedBox(height: 10),
-                  AppStatusBanner(
-                    icon: Icons.error_outline_rounded,
-                    title: 'Chưa thực hiện được',
-                    message: provider.errorMessage!,
-                    tone: AppStateTone.error,
-                  ),
-                ],
-                if (provider.successMessage != null) ...[
-                  const SizedBox(height: 10),
-                  AppStatusBanner(
-                    icon: Icons.check_circle_outline_rounded,
-                    title: 'Đã cập nhật',
-                    message: provider.successMessage!,
-                    tone: AppStateTone.success,
-                  ),
-                ],
-                const SizedBox(height: 10),
-                _ListToolbar(provider: provider),
-                const SizedBox(height: 10),
-                if (provider.isLoading && provider.items.isNotEmpty) ...[
-                  const LinearProgressIndicator(),
-                  const SizedBox(height: 10),
-                ],
-                Expanded(child: _buildList(provider)),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final compact = width < 520;
+        return SelectionArea(
+          child: compact
+              ? AppResponsiveScrollView(child: _workspace(provider, compact))
+              : AppResponsiveContent(child: _workspace(provider, compact)),
+        );
+      },
     );
   }
 
-  Widget _buildList(OffsetAdjustmentProvider provider) {
+  Widget _workspace(OffsetAdjustmentProvider provider, bool compact) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _OffsetHeader(
+          key: const Key('offset-adjustment-header'),
+          provider: provider,
+          onRefresh: provider.isLoading ? null : () => provider.search(),
+        ),
+        const SizedBox(height: AppLayoutTokens.sectionGap),
+        _ActionBar(onCreate: _showCreateDialog),
+        const SizedBox(height: 10),
+        _FilterPanel(
+          provider: provider,
+          orderController: _orderController,
+          amountController: _amountController,
+        ),
+        if (provider.errorMessage != null) ...[
+          const SizedBox(height: 10),
+          AppStatusBanner(
+            icon: Icons.error_outline_rounded,
+            title: 'Chưa thực hiện được',
+            message: provider.errorMessage!,
+            tone: AppStateTone.error,
+          ),
+        ],
+        if (provider.successMessage != null) ...[
+          const SizedBox(height: 10),
+          AppStatusBanner(
+            icon: Icons.check_circle_outline_rounded,
+            title: 'Đã cập nhật',
+            message: provider.successMessage!,
+            tone: AppStateTone.success,
+          ),
+        ],
+        const SizedBox(height: 10),
+        AppSurfaceCard(
+          key: const Key('offset-adjustment-toolbar'),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: _ListToolbar(provider: provider),
+        ),
+        if (provider.isLoading && provider.items.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          const LinearProgressIndicator(),
+        ],
+        const SizedBox(height: 10),
+        if (compact)
+          _buildList(provider, shrinkWrap: true)
+        else
+          Expanded(child: _buildList(provider)),
+      ],
+    );
+  }
+
+  Widget _buildList(
+    OffsetAdjustmentProvider provider, {
+    bool shrinkWrap = false,
+  }) {
     if (provider.isLoading && provider.items.isEmpty) {
       return const AppListSkeleton(
         itemCount: 5,
@@ -125,6 +147,8 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
       );
     }
     return ListView.builder(
+      shrinkWrap: shrinkWrap,
+      physics: shrinkWrap ? const NeverScrollableScrollPhysics() : null,
       itemCount: provider.items.length,
       itemBuilder: (context, index) {
         final item = provider.items[index];
@@ -268,6 +292,133 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
   }
 }
 
+class _OffsetHeader extends StatelessWidget {
+  final OffsetAdjustmentProvider provider;
+  final VoidCallback? onRefresh;
+
+  const _OffsetHeader({super.key, required this.provider, this.onRefresh});
+
+  @override
+  Widget build(BuildContext context) {
+    final scopeLabel = provider.canReview
+        ? provider.selectedStoreIds.isEmpty
+              ? 'Tất cả SR'
+              : '${provider.selectedStoreIds.length} SR'
+        : provider.stores.length <= 1
+        ? 'SR được gán'
+        : '${provider.stores.length} SR được gán';
+    final statusLabel = provider.hasSearched
+        ? '${provider.items.length}/${provider.total} hồ sơ'
+        : 'Chưa tải dữ liệu';
+    final pendingLabel = provider.canReview
+        ? '${provider.pendingTotal} chờ Kế toán'
+        : 'Gửi yêu cầu';
+    final filterStatusLabel = provider.status == 'ALL'
+        ? 'Tất cả trạng thái'
+        : OffsetAdjustmentStatus.label(provider.status);
+
+    return AppSurfaceCard(
+      backgroundColor: AppColors.selected,
+      borderColor: AppColors.teal600.withValues(alpha: 0.24),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact =
+              constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
+          final icon = Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppColors.teal600.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+            ),
+            child: const Icon(
+              Icons.swap_horiz_rounded,
+              color: AppColors.teal600,
+            ),
+          );
+          final refresh = IconButton.filledTonal(
+            tooltip: 'Tải lại',
+            onPressed: onRefresh,
+            icon: const Icon(Icons.refresh_rounded),
+          );
+          final textBlock = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Cấn trừ', style: AppTextStyles.headingM),
+              const SizedBox(height: 6),
+              Text(
+                'Tạo và theo dõi hồ sơ cấn trừ; Kế toán xác nhận hoặc từ chối để nhân viên sửa lại khi cần.',
+                style: AppTextStyles.bodyM.copyWith(
+                  color: AppColors.neutral600,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: AppLayoutTokens.cardGap),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  AppStatusChip(
+                    label: scopeLabel,
+                    color: AppColors.teal600,
+                    backgroundColor: AppColors.selected,
+                  ),
+                  AppStatusChip(
+                    label: statusLabel,
+                    color: AppColors.neutral700,
+                    backgroundColor: AppColors.neutral100,
+                  ),
+                  AppStatusChip(
+                    label: pendingLabel,
+                    color: provider.canReview && provider.pendingTotal > 0
+                        ? AppColors.warning
+                        : AppColors.primary,
+                    backgroundColor:
+                        provider.canReview && provider.pendingTotal > 0
+                        ? AppColors.warningSurface
+                        : AppColors.primarySurface,
+                  ),
+                  AppStatusChip(
+                    label: filterStatusLabel,
+                    color: provider.status == OffsetAdjustmentStatus.pending
+                        ? AppColors.warning
+                        : AppColors.neutral700,
+                    backgroundColor: provider.status == 'ALL'
+                        ? AppColors.neutral100
+                        : AppColors.warningSurface,
+                  ),
+                ],
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [icon, const Spacer(), refresh]),
+                const SizedBox(height: 14),
+                textBlock,
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              icon,
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              Expanded(child: textBlock),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              refresh,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _ActionBar extends StatelessWidget {
   final void Function(String type) onCreate;
 
@@ -336,7 +487,7 @@ class _ActionBar extends StatelessWidget {
   }
 }
 
-class _FilterPanel extends StatelessWidget {
+class _FilterPanel extends StatefulWidget {
   final OffsetAdjustmentProvider provider;
   final TextEditingController orderController;
   final TextEditingController amountController;
@@ -348,11 +499,74 @@ class _FilterPanel extends StatelessWidget {
   });
 
   @override
+  State<_FilterPanel> createState() => _FilterPanelState();
+}
+
+class _FilterPanelState extends State<_FilterPanel> {
+  bool _isExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
     return AppSurfaceCard(
+      key: const Key('offset-adjustment-filter-card'),
       child: LayoutBuilder(
         builder: (context, constraints) {
           const gap = AppLayoutTokens.formInlineGap;
+          final isMobile = constraints.maxWidth < 520;
+          if (isMobile) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                InkWell(
+                  onTap: () => setState(() => _isExpanded = !_isExpanded),
+                  borderRadius: BorderRadius.circular(
+                    AppLayoutTokens.cardRadius,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 4,
+                      horizontal: 2,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.filter_alt_outlined),
+                        const SizedBox(width: 8),
+                        Text('Bộ lọc cấn trừ', style: AppTextStyles.labelM),
+                        const Spacer(),
+                        Icon(
+                          _isExpanded
+                              ? Icons.expand_less_rounded
+                              : Icons.expand_more_rounded,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: gap),
+                _FilterActions(provider: widget.provider),
+                if (_isExpanded) ...[
+                  const Divider(height: 22),
+                  _storeFilter(),
+                  const SizedBox(height: gap),
+                  _typeFilter(),
+                  const SizedBox(height: gap),
+                  _statusFilter(),
+                  const SizedBox(height: gap),
+                  _orderField(),
+                  const SizedBox(height: gap),
+                  _amountField(),
+                  const SizedBox(height: gap),
+                  AppDateRangeDropdown(
+                    label: 'Ngày',
+                    start: widget.provider.startDate,
+                    end: widget.provider.endDate,
+                    onChanged: widget.provider.setDateRange,
+                  ),
+                ],
+              ],
+            );
+          }
+
           final columns = constraints.maxWidth >= 1040
               ? 4
               : constraints.maxWidth >= _breakpoint
@@ -376,14 +590,14 @@ class _FilterPanel extends StatelessWidget {
                 width: fieldWidth,
                 child: AppDateRangeDropdown(
                   label: 'Ngày',
-                  start: provider.startDate,
-                  end: provider.endDate,
-                  onChanged: provider.setDateRange,
+                  start: widget.provider.startDate,
+                  end: widget.provider.endDate,
+                  onChanged: widget.provider.setDateRange,
                 ),
               ),
               SizedBox(
                 width: fieldWidth,
-                child: _FilterActions(provider: provider),
+                child: _FilterActions(provider: widget.provider),
               ),
             ],
           );
@@ -393,16 +607,16 @@ class _FilterPanel extends StatelessWidget {
   }
 
   Widget _storeFilter() {
-    if (!provider.canReview && provider.stores.length <= 1) {
+    if (!widget.provider.canReview && widget.provider.stores.length <= 1) {
       return InputDecorator(
         decoration: appInputDecoration(
           label: 'SR',
           icon: Icons.storefront_outlined,
         ),
         child: Text(
-          provider.stores.isEmpty
+          widget.provider.stores.isEmpty
               ? 'Chưa có SR được gán'
-              : provider.stores.first.storeId,
+              : widget.provider.stores.first.storeId,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -411,10 +625,12 @@ class _FilterPanel extends StatelessWidget {
     return AppMultiSelectFilterDropdown<String>(
       label: 'SR',
       icon: Icons.storefront_outlined,
-      values: provider.selectedStoreIds,
-      emptyLabel: provider.canReview ? 'Tất cả SR' : 'Tất cả SR được gán',
+      values: widget.provider.selectedStoreIds,
+      emptyLabel: widget.provider.canReview
+          ? 'Tất cả SR'
+          : 'Tất cả SR được gán',
       forceSearch: true,
-      options: provider.stores
+      options: widget.provider.stores
           .map(
             (store) => AppFilterOption<String>(
               value: store.storeId,
@@ -423,8 +639,8 @@ class _FilterPanel extends StatelessWidget {
             ),
           )
           .toList(growable: false),
-      onChanged: (ids) => provider.setStoreSelection(
-        allStores: provider.canReview && ids.isEmpty,
+      onChanged: (ids) => widget.provider.setStoreSelection(
+        allStores: widget.provider.canReview && ids.isEmpty,
         ids: ids,
       ),
     );
@@ -432,7 +648,7 @@ class _FilterPanel extends StatelessWidget {
 
   Widget _typeFilter() {
     return AppSelectField<String>(
-      value: provider.type,
+      value: widget.provider.type,
       label: 'Loại',
       icon: Icons.category_outlined,
       items: const [
@@ -454,13 +670,13 @@ class _FilterPanel extends StatelessWidget {
           child: Text('Shopee Pay'),
         ),
       ],
-      onChanged: (value) => provider.setType(value ?? 'ALL'),
+      onChanged: (value) => widget.provider.setType(value ?? 'ALL'),
     );
   }
 
   Widget _statusFilter() {
     return AppSelectField<String>(
-      value: provider.status,
+      value: widget.provider.status,
       label: 'Trạng thái',
       icon: Icons.flag_outlined,
       items: const [
@@ -478,27 +694,27 @@ class _FilterPanel extends StatelessWidget {
           child: Text('Kế toán từ chối chờ sửa'),
         ),
       ],
-      onChanged: (value) => provider.setStatus(value ?? 'ALL'),
+      onChanged: (value) => widget.provider.setStatus(value ?? 'ALL'),
     );
   }
 
   Widget _orderField() {
     return AppTextInput(
-      controller: orderController,
+      controller: widget.orderController,
       label: 'Mã đơn',
       icon: Icons.tag_rounded,
-      onChanged: provider.setOrder,
+      onChanged: widget.provider.setOrder,
     );
   }
 
   Widget _amountField() {
     return AppTextInput(
-      controller: amountController,
+      controller: widget.amountController,
       keyboardType: TextInputType.number,
       inputFormatters: [ThousandsSeparatorInputFormatter()],
       label: 'Số tiền',
       icon: Icons.payments_outlined,
-      onChanged: provider.setAmount,
+      onChanged: widget.provider.setAmount,
     );
   }
 }

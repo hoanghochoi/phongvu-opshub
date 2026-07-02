@@ -150,6 +150,17 @@ Ngày cập nhật: 02/07/2026
   trong Figma đã được sync theo runtime: bỏ metric/timeline/action giả, filter
   gom gọn trong card, active nav/rail là `Tiền vào`, và không đưa các control
   không có runtime contract như gắn đơn/lịch sử phát loa.
+- Offset Adjustment `/offset-adjustments` đã được migrate khỏi
+  `GradientHeader` riêng sang content-only workspace trong `AppShell`: header
+  card có chips scope/số hồ sơ/chờ Kế toán/trạng thái, nhóm nút tạo cấn trừ,
+  filter responsive, toolbar phân trang, danh sách hồ sơ, dialog tạo/sửa/xem
+  chi tiết và export menu vẫn giữ `OffsetAdjustmentProvider`,
+  `OffsetAdjustmentRepository`, realtime notification và route guard
+  `OFFSET_ADJUSTMENTS` hiện có. Các frame `Desktop v2 / Offset Workspace`
+  (`107:100`), `Tablet v2 / Offset Workspace` (`135:948`) và
+  `Mobile v2 / Offset Workspace` (`135:432`) trong Figma đã bỏ kanban/drawer,
+  CTA/search/empty mock cũ không có runtime contract, thay bằng header/action,
+  filter, toolbar và result card theo dữ liệu runtime.
 
 ## Route/frame gap được ghi nợ kỹ thuật
 
@@ -357,6 +368,23 @@ Batch 1. Không thêm route tạm nếu chưa có runtime contract rõ.
   tests), full `flutter test --no-pub --reporter expanded` (259 tests), và
   Windows debug build `flutter build windows --debug --dart-define=APP_ENV=smoke
   --no-pub`.
+- Offset Adjustment focused widget proof đã pass, xác nhận màn
+  `/offset-adjustments` content-only không còn `Scaffold`/`GradientHeader`,
+  render header/filter/toolbar/result card, mobile dùng filter collapsed không
+  phát sinh overflow và vẫn giữ all-store reviewer query qua repository. Figma
+  desktop/tablet/mobile screenshots đã được kiểm lại sau khi sync Offset
+  Workspace; ba frame không còn kanban/drawer/CTA/search/empty mock, text
+  zero-size, stale copy kiểu `OFF-*` hoặc node tràn khỏi frame. Focused
+  validation đã pass `flutter test --no-pub --reporter expanded
+  test\offset_adjustment_screen_redesign_test.dart` (2 tests). Validation sau
+  batch Offset đã pass `dart format --output=none --set-exit-if-changed`,
+  `flutter analyze --no-pub`, focused Offset/route/nav regression
+  `flutter test --no-pub --reporter expanded
+  test\offset_adjustment_screen_redesign_test.dart
+  test\offset_adjustment_provider_test.dart test\app_router_test.dart
+  test\app_nav_model_test.dart` (13 tests), full `flutter test --no-pub
+  --reporter compact` (267 tests), `flutter build web --no-pub`, và
+  `git diff --check` pass với cảnh báo CRLF trên Windows.
 - Lượt hợp nhất Batch 1-4 trên `staging` đã pass format cho 42 Dart files,
   `flutter analyze --no-pub`, 69 focused tests trên 18 test files, full
   `flutter test --no-pub --reporter compact` (262 tests), và
