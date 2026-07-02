@@ -151,6 +151,14 @@ Ngày cập nhật: 02/07/2026
   `Mobile v2 / Inventory Import` trong Figma đã bỏ lịch sử/search/filter/export
   và thêm mới giả không có runtime contract, thay bằng header/upload/result
   state theo màn đang chạy.
+- FIFO hub `/fifo-menu` đã được migrate thành content-only workspace trong
+  `AppShell`: header card hiển thị số tác vụ khả dụng/số tác vụ cần thêm
+  quyền, danh sách action dùng `AppFeatureSection`, empty state dùng
+  `AppStatePanel`, và click từng action log qua `AppLogger` trước khi mở
+  `/fifo-check`, `/sort`, `/fifo/inventory-import` hoặc `/fifo-history`.
+  Figma đã bổ sung các frame runtime `Desktop v2 / FIFO Menu` (`476:2`),
+  `Tablet v2 / FIFO Menu` (`476:48`) và `Mobile v2 / FIFO Menu` (`476:92`)
+  theo đúng action/copy đang chạy.
 - Sort FIFO `/sort` đã được migrate khỏi `GradientHeader` riêng sang
   content-only workspace trong `AppShell`: header card có chips nhóm/vị trí/đã
   kiểm, command card nhập hoặc quét SKU/BIN, trạng thái loading/empty/error và
@@ -440,6 +448,19 @@ class này không xuất hiện trong `app_router.dart`.
   `flutter analyze --no-pub`, full
   `flutter test --no-pub --reporter expanded` (253 tests), và Windows debug
   build `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`.
+- FIFO Menu focused widget proof đã pass, xác nhận hub `/fifo-menu`
+  content-only không còn `Scaffold`/`GradientHeader`, render header key
+  `fifo-menu-header`, đủ action `Kiểm tra FIFO`, `Sắp xếp FIFO`,
+  `Cập nhật tồn kho`, `Lịch sử FIFO`, và empty state
+  `Chưa có tính năng FIFO` khi tài khoản chưa có quyền. Figma desktop/tablet/
+  mobile frames `476:2`, `476:48`, `476:92` đã được tạo mới theo runtime menu;
+  QA xác nhận required text missing `[]`, zero-size text `0`, và screenshot
+  mobile cuối không còn card/header collapse hoặc chip chồng copy. Validation
+  đã pass `flutter test --no-pub --reporter expanded
+  test\fifo_menu_redesign_test.dart` (2 tests), focused FIFO Menu + migration
+  guard/router/nav batch (10 tests), `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter compact` (278 tests), và
+  `flutter build web --no-pub`.
 - Sort FIFO focused widget proof đã pass trong focused batch, xác nhận màn
   `/sort` content-only không còn `Scaffold`/`GradientHeader`, empty state có
   input + scan/send actions, submit SKU render group result đúng serial/BIN và

@@ -350,6 +350,21 @@ Recent focused evidence:
   unsupported history/search/filter/export/add controls, with visual QA
   confirming no zero-size text and the desktop/tablet shell active state now
   belongs to the FIFO workspace.
+- `UI-UX-001`/`FIFO-001`, 2026-07-02: `/fifo-menu` now renders as a
+  content-only FIFO hub under `AppShell`. It keeps the existing feature-gated
+  navigation to `/fifo-check`, `/sort`, `/fifo/inventory-import`, and
+  `/fifo-history`, while adding a shared runtime header with visible/hidden
+  action chips, `AppFeatureSection` action grid, shared empty state, and
+  `AppLogger` proof for hub resolution plus action open decisions. Focused
+  validation passed `flutter test --no-pub --reporter expanded
+  test\fifo_menu_redesign_test.dart` (2 tests), combined FIFO Menu + migration
+  guard/router/nav validation passed 10 tests, `flutter analyze --no-pub`
+  passed, full `flutter test --no-pub --reporter compact` passed 278 tests, and
+  `flutter build web --no-pub` passed. Figma FIFO Menu desktop, tablet, and
+  mobile frames (`476:2`, `476:48`, `476:92`) were created from the runtime
+  action contract, with QA confirming required text missing `[]`, zero-size
+  text `0`, and a follow-up mobile screenshot after fixing collapsed card
+  heights/chip overlap.
 - `UI-UX-001`/`FIFO-001`/`SORT-FIFO`, 2026-07-02: `/sort` now renders as a
   content-only workspace under `AppShell` instead of nesting a
   `GradientHeader`. It keeps the existing `SortProvider`/`SortRepository`,
