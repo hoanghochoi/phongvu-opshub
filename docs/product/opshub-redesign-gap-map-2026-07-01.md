@@ -107,6 +107,16 @@ Ngày cập nhật: 02/07/2026
   `Mobile v2 / Feedback Workspace` (`135:345`) trong Figma đã được sync về
   staff form runtime, bỏ inbox/detail/ticket admin mock không thuộc route
   `/feedback`.
+- Settings `/settings` đã được migrate khỏi `GradientHeader` riêng sang
+  content-only workspace trong `AppShell`: header card hiển thị trạng thái giao
+  diện/Windows startup, selector giao diện vẫn đổi `ThemeProvider`, toggle
+  khởi động cùng Windows vẫn dùng `StartupSettingsService`, và log mở màn,
+  load, toggle thành công/thất bại qua `AppLogger`. Các frame `Desktop v2 /
+  Settings Workspace` (`106:105`), `Tablet v2 / Settings Workspace`
+  (`135:870`) và `Mobile v2 / Settings Workspace` (`135:374`) trong Figma đã
+  bỏ search/save, ERP endpoint, bank webhook, SSO, audit/security mock không có
+  runtime contract, thay bằng đúng theme segmented control và Windows startup
+  card.
 - Inventory Import `/fifo/inventory-import` đã được migrate khỏi
   `GradientHeader` riêng sang content-only workspace trong `AppShell`: header
   card thể hiện trạng thái file import, panel chọn file/cập nhật dùng shared
@@ -337,6 +347,19 @@ Batch 1. Không thêm route tạm nếu chưa có runtime contract rõ.
   test\app_router_test.dart test\app_nav_model_test.dart` (9 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
   (272 tests), và `flutter build web --no-pub`.
+- Settings focused widget proof đã pass, xác nhận màn `/settings` content-only
+  không còn `Scaffold`/`GradientHeader`, header/theme/startup cards render đúng
+  runtime copy, theme segmented control cập nhật trạng thái `ThemeProvider`,
+  và startup flow dùng injection trong test để không đụng registry thật. Figma
+  desktop/tablet/mobile screenshots đã được kiểm lại sau khi sync Settings;
+  ba frame không còn search/save, ERP endpoint, webhook, SSO, security/audit
+  mock, và zero-size text bằng `0`. Validation sau batch Settings đã pass
+  `dart format`, focused Settings + guard + router/nav
+  `flutter test --no-pub --reporter expanded
+  test\settings_screen_redesign_test.dart test\design_system_migration_guard_test.dart
+  test\app_router_test.dart test\app_nav_model_test.dart` (9 tests),
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (274 tests), và `flutter build web --no-pub`.
 - Inventory Import focused widget proof đã pass, xác nhận màn
   `/fifo/inventory-import` content-only không còn `Scaffold`/`GradientHeader`,
   chọn file giả render đúng tên/định dạng, upload thành công render result

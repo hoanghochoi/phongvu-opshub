@@ -181,6 +181,22 @@ Recent focused evidence:
   unsupported metrics, tables, permission matrix, audit log, add-user CTA, and
   Sales Report action, with visual QA confirming the six runtime admin actions
   and no stale mock copy in all three frames.
+- `UI-UX-001`/`SETTINGS-001`, 2026-07-02: `/settings` now renders as a
+  content-only workspace under `AppShell` instead of nesting a
+  `GradientHeader`. It uses a shared header card, responsive theme/startup
+  cards, preserves the `ThemeProvider` segmented-control contract, preserves
+  the Windows startup `StartupSettingsService` contract, and adds screen-level
+  `AppLogger` proof around open/load/toggle success and failure. Focused
+  validation:
+  `flutter test --no-pub --reporter expanded
+  test\settings_screen_redesign_test.dart test\design_system_migration_guard_test.dart
+  test\app_router_test.dart test\app_nav_model_test.dart` (9 tests),
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (274 tests), and `flutter build web --no-pub`. Figma Settings Workspace
+  frames `106:105`, `135:870`, and `135:374` were synced to remove unsupported
+  search/save, ERP endpoint, bank webhook, SSO, security, and audit mock
+  controls, with visual QA confirming runtime theme + Windows startup content
+  and zero-size text count `0`.
 - `UI-UX-001`/`ADMIN-ROLES`, 2026-07-02: `/admin/roles` now renders as a
   content-only workspace under `AppShell` instead of nesting a
   `GradientHeader`. The read-only role catalog uses shared header/state/list
