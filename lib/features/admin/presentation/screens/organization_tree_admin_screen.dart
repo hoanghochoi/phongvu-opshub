@@ -451,7 +451,7 @@ class _OrganizationTreeHeader extends StatelessWidget {
               Text('Cơ cấu tổ chức', style: AppTextStyles.headingM),
               const SizedBox(height: 6),
               Text(
-                'Quản lý cây Lv0-Lv5, node showroom và phân quyền tính năng theo tổ chức.',
+                'Quản lý cây tổ chức và quyền theo node.',
                 style: AppTextStyles.bodyM.copyWith(
                   color: AppColors.neutral600,
                 ),
@@ -605,9 +605,7 @@ class _OrganizationTreeList extends StatelessWidget {
       final hasSearch = searchQuery.trim().isNotEmpty;
       return AppStatePanel.empty(
         title: hasSearch ? 'Không tìm thấy node' : 'Chưa có node tổ chức',
-        message: hasSearch
-            ? 'Thử mã nghiệp vụ, viết tắt hoặc tên node khác.'
-            : 'Bấm nút thêm để tạo node đầu tiên.',
+        message: hasSearch ? null : 'Bấm nút thêm để tạo node đầu tiên.',
         icon: Icons.account_tree_outlined,
       );
     }
@@ -742,7 +740,12 @@ class _OrganizationNodeDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     final node = this.node;
     if (node == null) {
-      return const Center(child: Text('Chọn node để xem chi tiết'));
+      return const AppStatePanel.empty(
+        key: Key('organization-tree-detail-empty-state'),
+        icon: Icons.account_tree_outlined,
+        title: 'Chưa chọn node',
+        message: 'Chọn node để xem chi tiết.',
+      );
     }
     AdminOrganizationNode? parent;
     for (final item in nodes) {

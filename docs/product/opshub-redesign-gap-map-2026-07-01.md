@@ -95,7 +95,9 @@ Ngày cập nhật: 03/07/2026
   `Tablet v2 / Organization Tree` (`152:314`) và
   `Mobile v2 / Organization Tree` (`151:234`) trong Figma đã bỏ
   filter/export/tab giả không có runtime contract, thay bằng header + search
-  trong tree panel + detail panel theo màn đang chạy.
+  trong tree panel + detail panel theo màn đang chạy. Khi search không có kết
+  quả, tree và detail đều dùng shared empty-state; Figma có thêm ba biến thể
+  no-results desktop `494:11`, tablet `494:151` và mobile `494:271`.
 - Policy Management `/admin/policies` đã được migrate khỏi `GradientHeader`
   riêng sang content-only workspace trong `AppShell`: header card có chip đếm
   chính sách/quy tắc/cấu hình, icon action tải lại/thêm mới, tab
@@ -386,7 +388,18 @@ class này không xuất hiện trong `app_router.dart`.
   trên Windows). Figma desktop/tablet/mobile screenshots đã được kiểm lại sau
   khi thêm search runtime thật; ba frame không còn placeholder, text
   width/height bằng `0`, hoặc copy không có runtime contract như `Bộ lọc`,
-  `Xuất file`, `Thêm mới`.
+  `Xuất file`, `Thêm mới`. Follow-up 03/07/2026 đã thay detail placeholder
+  cục bộ bằng `AppStatePanel.empty` khi search không có node phù hợp và thêm
+  widget proof cho trạng thái xuất hiện/biến mất theo query. Ba frame Figma
+  no-results desktop/tablet/mobile (`494:11`, `494:151`, `494:271`) đã qua QA:
+  required text missing `[]`, zero-size text `0`, out-of-parent `[]`, missing
+  font `0`; screenshot mobile sau lượt fix không còn bị bottom navigation che
+  copy của detail state. Copy follow-up đã bỏ message tìm kiếm bị lặp, rút mô
+  tả header thành `Quản lý cây tổ chức và quyền theo node.` và rút detail
+  guidance thành `Chọn node để xem chi tiết.`; chip mobile đã được thu gọn để
+  không chạm action. Validation cuối pass focused Organization Tree + scope +
+  design-system guard (18 tests), `flutter analyze --no-pub`,
+  `flutter build web --no-pub` kèm wasm dry-run và `git diff --check`.
 - Policy Management focused widget proof đã pass, xác nhận màn
   `/admin/policies` content-only không còn `Scaffold`/`GradientHeader`, load
   error có thể retry và UI không lộ mã quyền thô. Figma desktop/tablet/mobile

@@ -57,6 +57,11 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Cơ cấu tổ chức'), findsOneWidget);
+    expect(
+      find.text('Quản lý cây tổ chức và quyền theo node.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Lv0-Lv5'), findsNothing);
     expect(find.text('Phong Vũ Quận 3'), findsWidgets);
     expect(find.text('Mã cửa hàng'), findsOneWidget);
     expect(find.byTooltip('Thêm node'), findsOneWidget);
@@ -155,12 +160,26 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Không tìm thấy node'), findsOneWidget);
+      expect(
+        find.byKey(const Key('organization-tree-detail-empty-state')),
+        findsOneWidget,
+      );
+      expect(find.text('Chưa chọn node'), findsOneWidget);
+      expect(find.text('Chọn node để xem chi tiết.'), findsOneWidget);
+      expect(
+        find.text('Thử mã nghiệp vụ, viết tắt hoặc tên node khác.'),
+        findsNothing,
+      );
       expect(find.text('Phong Vũ Quận 3'), findsNothing);
 
       await tester.tap(find.byTooltip('Xóa tìm kiếm'));
       await tester.pumpAndSettle();
 
       expect(find.text('Không tìm thấy node'), findsNothing);
+      expect(
+        find.byKey(const Key('organization-tree-detail-empty-state')),
+        findsNothing,
+      );
       expect(find.text('Phong Vũ'), findsWidgets);
       expect(tester.takeException(), isNull);
     },

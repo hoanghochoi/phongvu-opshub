@@ -323,7 +323,22 @@ Recent focused evidence:
   action after load failure. Follow-up broad validation also passed
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter expanded`
   (249 tests), `flutter build windows --debug --dart-define=APP_ENV=smoke
-  --no-pub`, and `git diff --check` with CRLF warnings only.
+  --no-pub`, and `git diff --check` with CRLF warnings only. 2026-07-03
+  no-results follow-up: the detail panel now uses shared `AppStatePanel.empty`
+  with key `organization-tree-detail-empty-state` while the query has no
+  matching node, then returns to node detail when the query is cleared. Figma
+  variants `494:11`, `494:151`, and `494:271` cover desktop/tablet/mobile tree
+  and detail empty states. Figma QA found no missing required copy, zero-size
+  text, out-of-parent state content, missing font, placeholder, or stale
+  selected-node detail; the mobile screenshot was rechecked after moving the
+  detail card above bottom navigation. The final copy pass removes the repeated
+  no-result guidance, shortens the header to `Quản lý cây tổ chức và quyền theo
+  node.`, shortens detail guidance to `Chọn node để xem chi tiết.`, and keeps
+  the mobile status chip clear of header actions in both selected/no-results
+  Figma states. Validation: focused Organization Tree + admin scope +
+  design-system guard (18 tests), `flutter analyze --no-pub`,
+  `flutter build web --no-pub` with successful wasm dry-run, and
+  `git diff --check`.
 - `UI-UX-001`/`ADMIN-POLICIES`, 2026-07-02: `/admin/policies` now renders as a
   content-only workspace under `AppShell` instead of nesting a
   `GradientHeader`. It keeps the existing policy/rule/settings repository/API
