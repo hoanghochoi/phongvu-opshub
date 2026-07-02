@@ -25,7 +25,12 @@ Ngày cập nhật: 03/07/2026
   surfaces, sidebar light/dark, contextual surface/text/border helpers, và
   breakpoint desktop `1200`.
 - Home được chuyển thành nội dung command center để global support,
-  notification, account menu và app navigation nằm ở shell.
+  notification, account menu và app navigation nằm ở shell. Figma hiện đã có
+  lại các frame runtime `Desktop v2 / Home Workspace` (`485:2`),
+  `Tablet v2 / Home Workspace` (`485:86`) và
+  `Mobile v2 / Home Workspace` (`485:160`): desktop/tablet mô tả Home nhiều
+  quyền với 9 action, mobile mô tả staff có 5 action và bottom nav
+  `Trang chủ`/`Tác vụ`/`Tài khoản`.
 - VietQR `/vietqr` đã được migrate khỏi `GradientHeader` riêng sang
   content-only workspace trong `AppShell`: header hiển thị SR đang chọn, trạng
   thái QR và số lịch sử; chọn SR, quét mã đơn, tạo QR, kiểm tra MAP, realtime
@@ -302,6 +307,13 @@ class này không xuất hiện trong `app_router.dart`.
   đôi avatar ở app bar và command panel; đã sửa bằng cách bỏ account/avatar
   button khỏi mobile app bar, giữ entry `Tài khoản` ở bottom nav. Home card chỉ
   giữ avatar nhận diện, title, tên người dùng và chi nhánh.
+- Figma Home restore 03/07/2026 đã tạo lại desktop/tablet/mobile Home frames
+  (`485:2`, `485:86`, `485:160`) theo runtime contract hiện có: command card,
+  shell topbar/mobile app bar, action grid không có `Sắp xếp` độc lập, feedback
+  nằm cuối và mobile giữ bottom nav. QA bằng Figma tool xác nhận required text
+  missing `[]`, zero-size text `0`, missing font `0`, out-of-parent `[]`, và
+  screenshot desktop/tablet/mobile không còn account text overlap sau lượt fix
+  topbar.
 - Web Chrome fullscreen smoke với seeded local session đã kiểm Home, FIFO menu,
   và route `/sort`; proof ảnh nằm trong `output/playwright/`.
 - Windows debug build đã pass ở `build/windows/x64/runner/Debug`.

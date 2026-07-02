@@ -122,6 +122,22 @@ Recent focused evidence:
   Windows debug runtime smoke opening Home > `Báo cáo`, and `git diff --check`.
   Runtime log proof shows `/sales-reports` shell navigation plus
   `Sales report order cockpit load started/succeeded`.
+- `UI-UX-001`/`HOME-REDESIGN`, 2026-07-03: restored the current Figma Home
+  Workspace evidence for the already-migrated content-only Home route. The
+  Figma file now has `Desktop v2 / Home Workspace` (`485:2`),
+  `Tablet v2 / Home Workspace` (`485:86`), and
+  `Mobile v2 / Home Workspace` (`485:160`) matching the runtime Home contract:
+  command card, shell topbar/mobile app bar, 9-action high-permission Home
+  state without standalone `Sắp xếp`, feedback last, and a limited staff
+  mobile state with bottom nav `Trang chủ`/`Tác vụ`/`Tài khoản`. Figma QA
+  confirmed required missing `[]`, zero-size text `0`, missing font `0`,
+  out-of-parent `[]`, and screenshots were checked after fixing desktop/tablet
+  account text overlap. Runtime validation for this docs/Figma slice:
+  `flutter test --no-pub --reporter expanded
+  test\home_feedback_action_test.dart test\home_avatar_test.dart
+  test\design_system_migration_guard_test.dart test\app_router_test.dart
+  test\app_nav_model_test.dart`, `flutter analyze --no-pub`,
+  `flutter build web --no-pub`, and `git diff --check`.
 - `UI-UX-001`/`VIETQR-001`, 2026-07-02: `/vietqr` now renders as a
   content-only workspace under `AppShell` instead of nesting a
   `Scaffold`/`GradientHeader`. The runtime header shows selected SR, QR state,
