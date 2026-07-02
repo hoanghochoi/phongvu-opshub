@@ -87,6 +87,16 @@ Ngày cập nhật: 02/07/2026
   Figma đã bỏ search/filter/export/thêm mới/status giả không có runtime
   contract, thay bằng header, metric chips, refresh action và feedback cards
   theo màn đang chạy.
+- Staff Feedback form `/feedback` đã được migrate khỏi `GradientHeader` riêng
+  sang content-only form trong `AppShell`: header card thể hiện trạng thái gửi
+  và số ảnh `0/20`, form card giữ validation `Chức năng liên quan`/`Nội dung
+  góp ý`, card ảnh minh họa giữ giới hạn 20 ảnh, submit multipart vẫn dùng
+  endpoint `/feedback`, và các log mở màn/thêm ảnh/gửi thành công/thất bại
+  hiện có vẫn được giữ. Các frame `Desktop v2 / Feedback Workspace`
+  (`106:30`), `Tablet v2 / Feedback Workspace` (`135:831`) và
+  `Mobile v2 / Feedback Workspace` (`135:345`) trong Figma đã được sync về
+  staff form runtime, bỏ inbox/detail/ticket admin mock không thuộc route
+  `/feedback`.
 - Inventory Import `/fifo/inventory-import` đã được migrate khỏi
   `GradientHeader` riêng sang content-only workspace trong `AppShell`: header
   card thể hiện trạng thái file import, panel chọn file/cập nhật dùng shared
@@ -296,6 +306,14 @@ Batch 1. Không thêm route tạm nếu chưa có runtime contract rõ.
   `flutter analyze --no-pub`, full
   `flutter test --no-pub --reporter expanded` (251 tests), và Windows debug
   build `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`.
+- Staff Feedback focused widget proof đã pass, xác nhận màn `/feedback`
+  content-only không còn `Scaffold`/`GradientHeader`, header card và form card
+  render đúng copy `Góp ý`, `Sẵn sàng gửi`, `0/20 ảnh`, validation rỗng vẫn
+  trả `Vui lòng nhập chức năng liên quan` và `Vui lòng nhập nội dung góp ý`.
+  Figma desktop/tablet/mobile screenshots đã được kiểm lại sau khi sync Staff
+  Feedback form; ba frame không còn inbox/detail/ticket admin mock, không lộ mã
+  `FEEDBACK`, và đủ các text runtime `Không bắt buộc, tối đa 20 ảnh`,
+  `Thêm ảnh`, `Gửi góp ý`.
 - Inventory Import focused widget proof đã pass, xác nhận màn
   `/fifo/inventory-import` content-only không còn `Scaffold`/`GradientHeader`,
   chọn file giả render đúng tên/định dạng, upload thành công render result

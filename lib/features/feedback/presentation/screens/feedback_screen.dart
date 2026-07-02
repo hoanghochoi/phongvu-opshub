@@ -9,8 +9,7 @@ import 'package:provider/provider.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
-import '../../../../app/widgets/app_state_widgets.dart';
-import '../../../../app/widgets/gradient_header.dart';
+import '../../../../app/widgets/app_chips.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
@@ -303,80 +302,216 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const GradientHeader(title: 'Góp ý', showBack: true),
-      body: Form(
-        key: _formKey,
-        child: AppResponsiveScrollView(
-          maxWidth: AppLayoutTokens.formMaxWidth,
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          child: AppFormColumn(
-            spacing: AppLayoutTokens.formSectionGap,
+    return Form(
+      key: _formKey,
+      child: AppResponsiveScrollView(
+        maxWidth: AppLayoutTokens.formMaxWidth,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        child: AppFormColumn(
+          spacing: AppLayoutTokens.sectionGap,
+          children: [
+            _FeedbackHeader(
+              imageCount: _images.length,
+              maxImages: _maxImages,
+              isSubmitting: _isSubmitting,
+            ),
+            _FeedbackFormCard(
+              functionController: _functionController,
+              descriptionController: _descriptionController,
+              images: _images,
+              maxImages: _maxImages,
+              isSubmitting: _isSubmitting,
+              onAddImage: _showImageSourceDialog,
+              onRemoveImage: (index) => unawaited(_removeImage(index)),
+              onSubmit: _submitFeedback,
+            ),
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FeedbackHeader extends StatelessWidget {
+  final int imageCount;
+  final int maxImages;
+  final bool isSubmitting;
+
+  const _FeedbackHeader({
+    required this.imageCount,
+    required this.maxImages,
+    required this.isSubmitting,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      key: const Key('feedback-header'),
+      backgroundColor: AppColors.infoSurface,
+      borderColor: AppColors.info.withValues(alpha: 0.22),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact =
+              constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+          final icon = Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppColors.info.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+            ),
+            child: const Icon(
+              Icons.lightbulb_outline_rounded,
+              color: AppColors.info,
+            ),
+          );
+          final heading = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const AppStatusBanner(
-                icon: Icons.lightbulb_outline_rounded,
-                title: 'Cùng cải thiện OpsHub',
-                message:
-                    'Chia sẻ đề xuất, điểm chưa thuận tiện hoặc lỗi bạn gặp '
-                    'trong lúc làm việc.',
-                tone: AppStateTone.info,
-              ),
-              AppFormTextInput(
-                key: const ValueKey('suggestion-function-field'),
-                controller: _functionController,
-                enabled: !_isSubmitting,
-                textInputAction: TextInputAction.next,
-                maxLength: 120,
-                label: 'Chức năng liên quan',
-                hintText: 'Ví dụ: FIFO, VietQR, Sao kê, Tiền vào, BH / SC...',
-                helperText: 'Cho biết khu vực bạn đang sử dụng.',
-                icon: Icons.category_outlined,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Vui lòng nhập chức năng liên quan';
-                  }
-                  return null;
-                },
-              ),
-              AppFormTextInput(
-                key: const ValueKey('suggestion-description-field'),
-                controller: _descriptionController,
-                enabled: !_isSubmitting,
-                minLines: 5,
-                maxLines: 8,
-                maxLength: 5000,
-                label: 'Nội dung góp ý',
-                hintText:
-                    'Bạn mong muốn thay đổi điều gì? Nếu là lỗi, hãy mô tả '
-                    'các bước đã thực hiện.',
-                alignLabelWithHint: true,
-                icon: Icons.edit_note_rounded,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Vui lòng nhập nội dung góp ý';
-                  }
-                  return null;
-                },
-              ),
-              _SuggestionImagesCard(
-                images: _images,
-                maxImages: _maxImages,
-                isSubmitting: _isSubmitting,
-                onAdd: _showImageSourceDialog,
-                onRemove: (index) => unawaited(_removeImage(index)),
-              ),
-              AppPrimaryButton(
-                key: const ValueKey('submit-suggestion-button'),
-                onPressed: _submitFeedback,
-                icon: Icons.send_rounded,
-                label: 'Gửi góp ý',
-                isLoading: _isSubmitting,
-                loadingLabel: 'Đang gửi...',
+              Text('Góp ý', style: AppTextStyles.headingM),
+              const SizedBox(height: 6),
+              Text(
+                'Chia sẻ đề xuất, điểm chưa thuận tiện hoặc lỗi bạn gặp '
+                'trong lúc làm việc.',
+                style: AppTextStyles.bodyM.copyWith(
+                  color: AppColors.neutral600,
+                  height: 1.35,
+                ),
               ),
               const SizedBox(height: AppLayoutTokens.formInlineGap),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  AppStatusChip(
+                    label: isSubmitting ? 'Đang gửi' : 'Sẵn sàng gửi',
+                    color: isSubmitting ? AppColors.warning : AppColors.info,
+                    backgroundColor: AppColors.surface,
+                  ),
+                  AppStatusChip(
+                    label: '$imageCount/$maxImages ảnh',
+                    color: imageCount >= maxImages
+                        ? AppColors.warning
+                        : AppColors.neutral700,
+                    backgroundColor: AppColors.surface,
+                  ),
+                  const AppStatusChip(
+                    label: 'Tối đa 20 ảnh',
+                    color: AppColors.neutral700,
+                    backgroundColor: AppColors.surface,
+                  ),
+                ],
+              ),
             ],
+          );
+
+          if (isCompact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                icon,
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                heading,
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              icon,
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              Expanded(child: heading),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FeedbackFormCard extends StatelessWidget {
+  final TextEditingController functionController;
+  final TextEditingController descriptionController;
+  final List<File> images;
+  final int maxImages;
+  final bool isSubmitting;
+  final VoidCallback onAddImage;
+  final ValueChanged<int> onRemoveImage;
+  final VoidCallback onSubmit;
+
+  const _FeedbackFormCard({
+    required this.functionController,
+    required this.descriptionController,
+    required this.images,
+    required this.maxImages,
+    required this.isSubmitting,
+    required this.onAddImage,
+    required this.onRemoveImage,
+    required this.onSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      key: const Key('feedback-form-card'),
+      child: AppFormColumn(
+        spacing: AppLayoutTokens.formSectionGap,
+        children: [
+          AppFormTextInput(
+            key: const ValueKey('suggestion-function-field'),
+            controller: functionController,
+            enabled: !isSubmitting,
+            textInputAction: TextInputAction.next,
+            maxLength: 120,
+            label: 'Chức năng liên quan',
+            hintText: 'Ví dụ: FIFO, VietQR, Sao kê, Tiền vào, BH / SC...',
+            helperText: 'Cho biết khu vực bạn đang sử dụng.',
+            icon: Icons.category_outlined,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Vui lòng nhập chức năng liên quan';
+              }
+              return null;
+            },
           ),
-        ),
+          AppFormTextInput(
+            key: const ValueKey('suggestion-description-field'),
+            controller: descriptionController,
+            enabled: !isSubmitting,
+            minLines: 5,
+            maxLines: 8,
+            maxLength: 5000,
+            label: 'Nội dung góp ý',
+            hintText:
+                'Bạn mong muốn thay đổi điều gì? Nếu là lỗi, hãy mô tả '
+                'các bước đã thực hiện.',
+            alignLabelWithHint: true,
+            icon: Icons.edit_note_rounded,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Vui lòng nhập nội dung góp ý';
+              }
+              return null;
+            },
+          ),
+          _SuggestionImagesCard(
+            images: images,
+            maxImages: maxImages,
+            isSubmitting: isSubmitting,
+            onAdd: onAddImage,
+            onRemove: onRemoveImage,
+          ),
+          AppPrimaryButton(
+            key: const ValueKey('submit-suggestion-button'),
+            onPressed: onSubmit,
+            icon: Icons.send_rounded,
+            label: 'Gửi góp ý',
+            isLoading: isSubmitting,
+            loadingLabel: 'Đang gửi...',
+          ),
+        ],
       ),
     );
   }

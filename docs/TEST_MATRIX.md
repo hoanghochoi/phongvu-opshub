@@ -251,6 +251,17 @@ Recent focused evidence:
   Admin Feedback List desktop/tablet/mobile frames were synced to remove
   unsupported search/filter/export/add/status controls and visual QA confirmed
   no clipped feedback body text after metric-chip layout repair.
+- `UI-UX-001`/`FEEDBACK-001`, 2026-07-02: `/feedback` now renders as a
+  content-only staff suggestion form under `AppShell` instead of nesting a
+  `Scaffold`/`GradientHeader`. It keeps the existing feedback multipart submit
+  contract, `FEEDBACK` route guard, 120-character function field,
+  5000-character description field, and 20-image attachment limit while adding
+  a shared runtime header, form card, attachment card, and submit action.
+  Focused validation passed `flutter test --no-pub --reporter expanded
+  test\feedback_screen_test.dart` (1 test). Figma Staff Feedback Workspace
+  desktop/tablet/mobile frames `106:30`, `135:831`, and `135:345` were synced
+  to remove stale inbox/detail/ticket admin mock surfaces and visual QA
+  confirmed required runtime copy with no visible `FEEDBACK` code.
 - `UI-UX-001`/`FIFO-001`/`INVENTORY-IMPORT`, 2026-07-02:
   `/fifo/inventory-import` now renders as a content-only workspace under
   `AppShell` instead of nesting a `GradientHeader`. It keeps the existing

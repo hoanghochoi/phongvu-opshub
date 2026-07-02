@@ -9,7 +9,10 @@ triển cải thiện OpsHub.
 
 - Home hiển thị ô `Góp ý` khi user có feature `FEEDBACK`. Ô này luôn được append
   cuối danh sách chức năng Home và không còn nằm trong drawer.
-- Flutter submission UI lives under `lib/features/feedback/`.
+- Flutter submission UI lives under `lib/features/feedback/`. Route
+  `/feedback` renders content-only inside `AppShell` with a header card, form
+  card, image attachment card, and submit action; it must not add its own
+  `Scaffold` or `GradientHeader`.
 - Flutter administration UI hiển thị `Danh sách góp ý`, lives under
   `lib/features/admin/`, and is
   visible only to `SUPER_ADMIN`.
@@ -33,6 +36,7 @@ triển cải thiện OpsHub.
 ## Expected Proof
 
 - NestJS feedback service/controller tests.
-- Flutter Home ordering and suggestion form validation/UI tests.
+- Flutter Home ordering and suggestion form validation/UI tests, including the
+  content-only `AppShell` layout contract.
 - Flutter admin feedback parser tests when display parsing changes.
 - Manual smoke for successful and failed submissions when API behavior changes.
