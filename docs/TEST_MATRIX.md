@@ -216,6 +216,24 @@ Recent focused evidence:
   QA confirming the runtime header/edit/info/logout content, zero-size text
   count `0`, missing font count `0`, and a mobile screenshot where the header
   logout button is visible without overlap.
+- `UI-UX-001`/`TASKS-INDEX`, 2026-07-03: `/tasks` now renders as a
+  content-only workspace index under `AppShell` instead of nesting a
+  `Scaffold`/`GradientHeader`. It uses a shared header card, permission-aware
+  available/hidden chips, `AppFeatureSection` actions, shared empty state, and
+  the same `AppNavModel.visibleTaskDestinations(user)` contract as Home/sidebar
+  while logging visible/hidden counts through `AppLogger`. Focused validation:
+  `flutter test --no-pub --reporter expanded test\tasks_screen_redesign_test.dart`
+  (2 tests), focused Tasks + migration guard/router/nav
+  `flutter test --no-pub --reporter expanded
+  test\tasks_screen_redesign_test.dart test\design_system_migration_guard_test.dart
+  test\app_router_test.dart test\app_nav_model_test.dart` (10 tests),
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (280 tests), `flutter build web --no-pub`, and `git diff --check`. Figma
+  Tasks Workspace frames `482:2`, `482:75`, and `482:145` were created to show
+  the full super-admin desktop/tablet state and limited staff mobile state,
+  with text/structure QA confirming required missing `[]`, zero-size text `0`,
+  missing font `0`, and the final mobile screenshot showing no hidden-chip
+  overflow.
 - `UI-UX-001`/`AUTH-002`, 2026-07-02: auth pre-shell routes `/login`,
   `/register`, `/forgot-password`, and `/assignment-pending` now render through
   shared `AuthScreenShell`/`AuthCard` surfaces instead of the legacy

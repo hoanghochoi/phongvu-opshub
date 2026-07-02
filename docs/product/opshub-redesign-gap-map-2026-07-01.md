@@ -1,6 +1,6 @@
 # OpsHub Redesign System Gap Map
 
-Ngày cập nhật: 02/07/2026
+Ngày cập nhật: 03/07/2026
 
 ## Đã đưa vào repo trong Batch 1
 
@@ -8,7 +8,17 @@ Ngày cập nhật: 02/07/2026
   - desktop sidebar cố định;
   - tablet rail;
   - mobile app bar + bottom navigation `Trang chủ`, `Tác vụ`, `Tài khoản`.
-- `/tasks` là workspace index dùng chung permission model với Home/sidebar.
+- `/tasks` đã được migrate thành content-only workspace index trong `AppShell`:
+  header card `Tác vụ của bạn` hiển thị số tác vụ khả dụng/số tác vụ cần thêm
+  quyền, danh sách action dùng `AppFeatureSection`, empty state dùng
+  `AppStatePanel`, route visibility dùng chung
+  `AppNavModel.visibleTaskDestinations(user)` với Home/sidebar và log
+  visible/hidden counts qua `AppLogger`. Các frame
+  `Desktop v2 / Tasks Workspace` (`482:2`),
+  `Tablet v2 / Tasks Workspace` (`482:75`) và
+  `Mobile v2 / Tasks Workspace` (`482:145`) trong Figma đã được tạo theo
+  runtime: desktop/tablet mô tả full super-admin, mobile mô tả staff chỉ có
+  `Cài đặt`.
 - Navigation ẩn destination không có quyền và log visible/hidden counts qua
   `AppLogger`.
 - Theme có thêm token Figma cho primary hover/pressed/surface, status
@@ -425,6 +435,22 @@ class này không xuất hiện trong `app_router.dart`.
   test\app_router_test.dart test\app_nav_model_test.dart` (8 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
   (274 tests), và `flutter build web --no-pub`.
+- Tasks focused widget proof đã pass, xác nhận màn `/tasks` content-only không
+  còn `Scaffold`/`GradientHeader`, header key `tasks-header` render đúng
+  `Tác vụ của bạn`, staff user chỉ thấy `1 tác vụ khả dụng` và `9 tác vụ cần
+  thêm quyền`, còn Super Admin thấy `10 tác vụ khả dụng` và đủ workspace
+  action. Figma desktop/tablet/mobile frames `482:2`, `482:75`, `482:145` đã
+  được tạo theo runtime contract; QA xác nhận required text missing `[]`,
+  zero-size text `0`, missing font `0`, và screenshot mobile cuối không còn
+  chip bị tràn khỏi header. Validation sau batch Tasks đã pass
+  `dart format`, focused Tasks
+  `flutter test --no-pub --reporter expanded test\tasks_screen_redesign_test.dart`
+  (2 tests), focused Tasks + migration guard/router/nav
+  `flutter test --no-pub --reporter expanded
+  test\tasks_screen_redesign_test.dart test\design_system_migration_guard_test.dart
+  test\app_router_test.dart test\app_nav_model_test.dart` (10 tests),
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (280 tests), `flutter build web --no-pub`, và `git diff --check`.
 - Auth pre-shell focused proof đã pass, xác nhận `/login`, `/register`,
   `/forgot-password` và `/assignment-pending` đều dùng `AuthScreenShell`, không
   còn `GradientHeader`, vẫn render CTA runtime `Đăng nhập`, `Gửi mã xác thực

@@ -9,8 +9,10 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/app_cards.dart';
+import '../widgets/app_chips.dart';
 import '../widgets/app_feature_grid.dart';
 import '../widgets/app_layout.dart';
+import '../widgets/app_state_widgets.dart';
 import 'app_nav_model.dart';
 
 class TasksScreen extends StatefulWidget {
@@ -61,60 +63,21 @@ class _TasksScreenState extends State<TasksScreen> {
 
     return AppResponsiveScrollView(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppSurfaceCard(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySurfaceOf(context),
-                    borderRadius: BorderRadius.circular(
-                      AppLayoutTokens.cardRadius,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.apps_rounded,
-                    color: AppColors.primaryOf(context),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Tác vụ của bạn',
-                        style: AppTextStyles.headingS.copyWith(
-                          color: AppColors.textPrimaryOf(context),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        hiddenCount > 0
-                            ? 'Đang hiển thị ${destinations.length} tác vụ phù hợp với quyền truy cập của bạn.'
-                            : 'Chọn không gian làm việc cần xử lý.',
-                        style: AppTextStyles.bodyM.copyWith(
-                          color: AppColors.textSecondaryOf(context),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          _TasksHeader(
+            visibleCount: destinations.length,
+            hiddenCount: hiddenCount,
           ),
           const SizedBox(height: AppLayoutTokens.sectionGap),
           if (actions.isEmpty)
-            AppSurfaceCard(
-              child: Text(
-                'Chưa có tác vụ khả dụng. Vui lòng liên hệ quản lý để kiểm tra phân quyền.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.textSecondaryOf(context),
-                ),
+            const AppSurfaceCard(
+              key: Key('tasks-empty-state'),
+              child: AppStatePanel.empty(
+                icon: Icons.apps_outlined,
+                title: 'Chưa có tác vụ khả dụng',
+                message:
+                    'Vui lòng liên hệ quản lý để kiểm tra phân quyền truy cập.',
               ),
             )
           else
@@ -137,5 +100,80 @@ class _TasksScreenState extends State<TasksScreen> {
         ),
       );
     });
+  }
+}
+
+class _TasksHeader extends StatelessWidget {
+  final int visibleCount;
+  final int hiddenCount;
+
+  const _TasksHeader({required this.visibleCount, required this.hiddenCount});
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleText = visibleCount == 1
+        ? '1 tác vụ khả dụng'
+        : '$visibleCount tác vụ khả dụng';
+    return AppSurfaceCard(
+      key: const Key('tasks-header'),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.primarySurfaceOf(context),
+              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+            ),
+            child: Icon(
+              Icons.apps_rounded,
+              color: AppColors.primaryOf(context),
+            ),
+          ),
+          const SizedBox(width: AppLayoutTokens.formInlineGap),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Tác vụ của bạn',
+                  style: AppTextStyles.headingS.copyWith(
+                    color: AppColors.textPrimaryOf(context),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  hiddenCount > 0
+                      ? 'Đang hiển thị các không gian làm việc phù hợp với quyền truy cập của bạn.'
+                      : 'Chọn không gian làm việc cần xử lý.',
+                  style: AppTextStyles.bodyM.copyWith(
+                    color: AppColors.textSecondaryOf(context),
+                  ),
+                ),
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    AppInfoChip(
+                      Icons.checklist_rounded,
+                      visibleText,
+                      color: AppColors.primaryOf(context),
+                    ),
+                    if (hiddenCount > 0)
+                      AppInfoChip(
+                        Icons.lock_outline_rounded,
+                        '$hiddenCount tác vụ cần thêm quyền',
+                        color: AppColors.warning,
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
