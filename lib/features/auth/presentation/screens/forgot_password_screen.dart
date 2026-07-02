@@ -3,14 +3,13 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/utils/validators.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/auth_screen_shell.dart';
 
 enum _ResetStep { email, code, password }
 
@@ -196,110 +195,55 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: GradientHeader.getGradient(context),
-        ),
-        child: SafeArea(
-          child: Consumer<AuthProvider>(
-            builder: (context, authProvider, _) {
-              return AppResponsiveScrollView(
-                maxWidth: AppLayoutTokens.authMaxWidth,
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-                child: Center(
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(
-                        AppLayoutTokens.cardRadius,
-                      ),
-                      border: Border.all(
-                        color: AppColors.surface.withValues(alpha: 0.20),
-                      ),
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, _) {
+        return AuthScreenShell(
+          child: AuthCard(
+            icon: Icons.lock_reset_rounded,
+            title: _title,
+            subtitle: _subtitle,
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _emailField(authProvider),
+                  if (_step == _ResetStep.code) ...[
+                    const SizedBox(height: AppLayoutTokens.formFieldGap),
+                    _codeField(authProvider),
+                  ],
+                  if (_step == _ResetStep.password) ...[
+                    const SizedBox(height: AppLayoutTokens.formFieldGap),
+                    _passwordField(authProvider),
+                    const SizedBox(height: AppLayoutTokens.formFieldGap),
+                    _confirmPasswordField(authProvider),
+                  ],
+                  const SizedBox(height: AppLayoutTokens.formSectionGap),
+                  _primaryButton(context, authProvider),
+                  if (_step == _ResetStep.code) ...[
+                    const SizedBox(height: AppLayoutTokens.formInlineGap),
+                    AppDialogSecondaryButton(
+                      onPressed: authProvider.isLoading
+                          ? null
+                          : () => _sendCode(context),
+                      icon: Icons.refresh_rounded,
+                      label: 'Gửi lại mã',
                     ),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.lock_reset_rounded,
-                            color: AppColors.surface,
-                            size: 48,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _title,
-                            textAlign: TextAlign.center,
-                            style: AppTextStyles.headingL.copyWith(
-                              color: AppColors.surface,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _subtitle,
-                            textAlign: TextAlign.center,
-                            style: AppTextStyles.bodyS.copyWith(
-                              color: AppColors.surface.withValues(alpha: 0.72),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          _emailField(authProvider),
-                          if (_step == _ResetStep.code) ...[
-                            const SizedBox(
-                              height: AppLayoutTokens.formFieldGap,
-                            ),
-                            _codeField(authProvider),
-                          ],
-                          if (_step == _ResetStep.password) ...[
-                            const SizedBox(
-                              height: AppLayoutTokens.formFieldGap,
-                            ),
-                            _passwordField(authProvider),
-                            const SizedBox(
-                              height: AppLayoutTokens.formFieldGap,
-                            ),
-                            _confirmPasswordField(authProvider),
-                          ],
-                          const SizedBox(
-                            height: AppLayoutTokens.formSectionGap,
-                          ),
-                          _primaryButton(context, authProvider),
-                          if (_step == _ResetStep.code) ...[
-                            const SizedBox(
-                              height: AppLayoutTokens.formInlineGap,
-                            ),
-                            AppDialogSecondaryButton(
-                              onPressed: authProvider.isLoading
-                                  ? null
-                                  : () => _sendCode(context),
-                              icon: Icons.refresh_rounded,
-                              label: 'Gửi lại mã',
-                            ),
-                          ],
-                          const SizedBox(height: AppLayoutTokens.formInlineGap),
-                          AppDialogSecondaryButton(
-                            onPressed: authProvider.isLoading
-                                ? null
-                                : () => context.go('/login'),
-                            icon: Icons.arrow_back_rounded,
-                            label: 'Quay lại đăng nhập',
-                          ),
-                        ],
-                      ),
-                    ),
+                  ],
+                  const SizedBox(height: AppLayoutTokens.formInlineGap),
+                  AppDialogSecondaryButton(
+                    onPressed: authProvider.isLoading
+                        ? null
+                        : () => context.go('/login'),
+                    icon: Icons.arrow_back_rounded,
+                    label: 'Quay lại đăng nhập',
                   ),
-                ),
-              );
-            },
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

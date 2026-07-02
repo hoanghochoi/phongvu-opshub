@@ -2,16 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_radius.dart';
-import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
-import '../../../../app/widgets/app_logo.dart';
-import '../../../../app/widgets/gradient_header.dart';
-import '../../../../core/config/app_brand.dart';
 import '../../../../core/utils/validators.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/auth_screen_shell.dart';
 
 class EmailCheckScreen extends StatefulWidget {
   const EmailCheckScreen({super.key});
@@ -35,51 +31,29 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: GradientHeader.getGradient(context),
-        ),
-        child: SafeArea(
-          child: Consumer<AuthProvider>(
-            builder: (context, authProvider, _) {
-              return AppResponsiveScrollView(
-                maxWidth: AppLayoutTokens.authMaxWidth,
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _LogoHeader(),
-                    const SizedBox(height: 24),
-                    _LoginCard(
-                      formKey: _formKey,
-                      emailController: _emailController,
-                      passwordController: _passwordController,
-                      obscurePassword: _obscurePassword,
-                      isLoading: authProvider.isLoading,
-                      onTogglePassword: () {
-                        setState(() => _obscurePassword = !_obscurePassword);
-                      },
-                      onSubmit: () => _handleLogin(context),
-                      onForgotPassword: () => context.push('/forgot-password'),
-                      onRegister: () => context.push('/register'),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      '© 2025 ${AppBrand.title}',
-                      style: AppTextStyles.labelS.copyWith(
-                        color: AppColors.surface.withValues(alpha: 0.35),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, _) {
+        return AuthScreenShell(
+          child: AuthCard(
+            icon: Icons.login_rounded,
+            title: 'Đăng nhập',
+            subtitle: 'Dùng tài khoản nội bộ để tiếp tục.',
+            child: _LoginCard(
+              formKey: _formKey,
+              emailController: _emailController,
+              passwordController: _passwordController,
+              obscurePassword: _obscurePassword,
+              isLoading: authProvider.isLoading,
+              onTogglePassword: () {
+                setState(() => _obscurePassword = !_obscurePassword);
+              },
+              onSubmit: () => _handleLogin(context),
+              onForgotPassword: () => context.push('/forgot-password'),
+              onRegister: () => context.push('/register'),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -119,44 +93,6 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
   }
 }
 
-class _LogoHeader extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.xxl),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.surface.withValues(alpha: 0.15),
-                blurRadius: 30,
-                spreadRadius: 5,
-              ),
-            ],
-          ),
-          child: const AppLogo(size: 88, borderRadius: AppRadius.xxl),
-        ),
-        const SizedBox(height: 18),
-        Text(
-          AppBrand.title,
-          style: AppTextStyles.headingXL.copyWith(color: AppColors.surface),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 10),
-        Text(
-          'Kết nối con người. Đồng bộ vận hành.',
-          textAlign: TextAlign.center,
-          style: AppTextStyles.bodyM.copyWith(
-            color: AppColors.surface.withValues(alpha: 0.70),
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _LoginCard extends StatelessWidget {
   const _LoginCard({
     required this.formKey,
@@ -182,107 +118,72 @@ class _LoginCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        border: Border.all(
-          color: AppColors.surface.withValues(alpha: 0.20),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadow.withValues(alpha: 0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+    return Form(
+      key: formKey,
+      child: Column(
+        children: [
+          AppFormTextInput(
+            controller: emailController,
+            enabled: !isLoading,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            autocorrect: false,
+            autofillHints: const [AutofillHints.username, AutofillHints.email],
+            label: 'Email',
+            icon: Icons.alternate_email_rounded,
+            validator: (value) {
+              final email = value?.trim() ?? '';
+              if (!Validators.isValidEmail(email)) {
+                return 'Email không hợp lệ';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: AppLayoutTokens.formFieldGap),
+          AppFormTextInput(
+            controller: passwordController,
+            enabled: !isLoading,
+            obscureText: obscurePassword,
+            textInputAction: TextInputAction.done,
+            autofillHints: const [AutofillHints.password],
+            onFieldSubmitted: (_) => isLoading ? null : onSubmit(),
+            label: 'Mật khẩu',
+            icon: Icons.lock_rounded,
+            suffixIcon: IconButton(
+              onPressed: isLoading ? null : onTogglePassword,
+              icon: Icon(
+                obscurePassword
+                    ? Icons.visibility_rounded
+                    : Icons.visibility_off_rounded,
+              ),
+            ),
+            validator: (value) {
+              if ((value ?? '').isEmpty) {
+                return 'Vui lòng nhập mật khẩu';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: AppLayoutTokens.formSectionGap),
+          AppPrimaryButton(
+            onPressed: isLoading ? null : onSubmit,
+            icon: Icons.login_rounded,
+            label: 'Đăng nhập',
+            isLoading: isLoading,
+            loadingLabel: 'Đang đăng nhập...',
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          AppDialogSecondaryButton(
+            onPressed: isLoading ? null : onForgotPassword,
+            icon: Icons.lock_reset_rounded,
+            label: 'Quên mật khẩu',
+          ),
+          AppDialogSecondaryButton(
+            onPressed: isLoading ? null : onRegister,
+            icon: Icons.person_add_alt_1_rounded,
+            label: 'Đăng ký',
           ),
         ],
-      ),
-      child: Form(
-        key: formKey,
-        child: Column(
-          children: [
-            Text(
-              'Đăng nhập',
-              style: AppTextStyles.headingM.copyWith(color: AppColors.surface),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Dùng email được OpsHub chấp nhận và mật khẩu OpsHub',
-              textAlign: TextAlign.center,
-              style: AppTextStyles.bodyS.copyWith(
-                color: AppColors.surface.withValues(alpha: 0.65),
-              ),
-            ),
-            const SizedBox(height: 24),
-            AppFormTextInput(
-              controller: emailController,
-              enabled: !isLoading,
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
-              autocorrect: false,
-              autofillHints: const [
-                AutofillHints.username,
-                AutofillHints.email,
-              ],
-              label: 'Email',
-              icon: Icons.alternate_email_rounded,
-              validator: (value) {
-                final email = value?.trim() ?? '';
-                if (!Validators.isValidEmail(email)) {
-                  return 'Email không hợp lệ';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: AppLayoutTokens.formFieldGap),
-            AppFormTextInput(
-              controller: passwordController,
-              enabled: !isLoading,
-              obscureText: obscurePassword,
-              textInputAction: TextInputAction.done,
-              autofillHints: const [AutofillHints.password],
-              onFieldSubmitted: (_) => isLoading ? null : onSubmit(),
-              label: 'Mật khẩu',
-              icon: Icons.lock_rounded,
-              suffixIcon: IconButton(
-                onPressed: isLoading ? null : onTogglePassword,
-                icon: Icon(
-                  obscurePassword
-                      ? Icons.visibility_rounded
-                      : Icons.visibility_off_rounded,
-                ),
-              ),
-              validator: (value) {
-                if ((value ?? '').isEmpty) {
-                  return 'Vui lòng nhập mật khẩu';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: AppLayoutTokens.formSectionGap),
-            AppPrimaryButton(
-              onPressed: isLoading ? null : onSubmit,
-              icon: Icons.login_rounded,
-              label: 'Đăng nhập',
-              isLoading: isLoading,
-              loadingLabel: 'Đang đăng nhập...',
-            ),
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
-            AppDialogSecondaryButton(
-              onPressed: isLoading ? null : onForgotPassword,
-              icon: Icons.lock_reset_rounded,
-              label: 'Quên mật khẩu',
-            ),
-            AppDialogSecondaryButton(
-              onPressed: isLoading ? null : onRegister,
-              icon: Icons.person_add_alt_1_rounded,
-              label: 'Đăng ký',
-            ),
-          ],
-        ),
       ),
     );
   }

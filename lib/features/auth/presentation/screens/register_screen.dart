@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/utils/validators.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/auth_screen_shell.dart';
 
 class RegisterScreen extends StatefulWidget {
   final String? initialEmail;
@@ -51,221 +50,173 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: GradientHeader.getGradient(context),
-        ),
-        child: SafeArea(
-          child: Consumer<AuthProvider>(
-            builder: (context, authProvider, _) {
-              return AppResponsiveScrollView(
-                maxWidth: AppLayoutTokens.formMaxWidth,
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(
-                      AppLayoutTokens.cardRadius,
-                    ),
-                    border: Border.all(
-                      color: AppColors.surface.withValues(alpha: 0.2),
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.shadow.withValues(alpha: 0.15),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, _) {
+        return AuthScreenShell(
+          maxWidth: AppLayoutTokens.formMaxWidth,
+          child: AuthCard(
+            icon: Icons.person_add_alt_1_rounded,
+            title: 'Đăng ký tài khoản',
+            subtitle:
+                'Tạo tài khoản nội bộ, xác thực email và chờ gán cây tổ chức.',
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppFormTextInput(
+                    controller: _firstNameController,
+                    label: 'Tên hiển thị',
+                    icon: Icons.badge_outlined,
+                    enabled: !authProvider.isLoading,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.givenName],
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'Vui lòng nhập tên hiển thị';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: AppLayoutTokens.formFieldGap),
+                  AppFormTextInput(
+                    controller: _lastNameController,
+                    label: 'Họ hoặc bộ phận (không bắt buộc)',
+                    icon: Icons.account_circle_outlined,
+                    enabled: !authProvider.isLoading,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.familyName],
+                  ),
+                  const SizedBox(height: AppLayoutTokens.formFieldGap),
+                  AppFormTextInput(
+                    controller: _emailController,
+                    label: 'Email',
+                    icon: Icons.alternate_email_rounded,
+                    enabled: !authProvider.isLoading && !_isSendingCode,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    autocorrect: false,
+                    autofillHints: const [
+                      AutofillHints.username,
+                      AutofillHints.email,
                     ],
+                    validator: (value) {
+                      final email = value?.trim() ?? '';
+                      if (!Validators.isValidEmail(email)) {
+                        return 'Email không hợp lệ';
+                      }
+                      return null;
+                    },
                   ),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.person_add_alt_1_rounded,
-                          color: AppColors.surface,
-                          size: 48,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Đăng ký',
-                          style: AppTextStyles.headingL.copyWith(
-                            color: AppColors.surface,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Dùng email được OpsHub chấp nhận và mật khẩu OpsHub',
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.bodyS.copyWith(
-                            color: AppColors.surface.withValues(alpha: 0.65),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        AppFormTextInput(
-                          controller: _firstNameController,
-                          label: 'Tên hiển thị',
-                          icon: Icons.badge_outlined,
-                          enabled: !authProvider.isLoading,
-                          textInputAction: TextInputAction.next,
-                          autofillHints: const [AutofillHints.givenName],
-                          validator: (value) {
-                            if ((value ?? '').trim().isEmpty) {
-                              return 'Vui lòng nhập tên hiển thị';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: AppLayoutTokens.formFieldGap),
-                        AppFormTextInput(
-                          controller: _lastNameController,
-                          label: 'Họ hoặc bộ phận (không bắt buộc)',
-                          icon: Icons.account_circle_outlined,
-                          enabled: !authProvider.isLoading,
-                          textInputAction: TextInputAction.next,
-                          autofillHints: const [AutofillHints.familyName],
-                        ),
-                        const SizedBox(height: AppLayoutTokens.formFieldGap),
-                        AppFormTextInput(
-                          controller: _emailController,
-                          label: 'Email',
-                          icon: Icons.alternate_email_rounded,
-                          enabled: !authProvider.isLoading && !_isSendingCode,
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          autocorrect: false,
-                          autofillHints: const [
-                            AutofillHints.username,
-                            AutofillHints.email,
-                          ],
-                          validator: (value) {
-                            final email = value?.trim() ?? '';
-                            if (!Validators.isValidEmail(email)) {
-                              return 'Email không hợp lệ';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: AppLayoutTokens.formInlineGap),
-                        AppSecondaryButton(
-                          onPressed: authProvider.isLoading || _isSendingCode
-                              ? null
-                              : () => _handleSendVerificationCode(context),
-                          icon: Icons.mark_email_read_rounded,
-                          label: 'Gửi mã xác thực email',
-                          isLoading: _isSendingCode,
-                          loadingLabel: 'Đang gửi mã...',
-                        ),
-                        const SizedBox(height: AppLayoutTokens.formFieldGap),
-                        AppFormTextInput(
-                          controller: _verificationCodeController,
-                          label: 'Mã xác thực email',
-                          icon: Icons.verified_user_outlined,
-                          enabled: !authProvider.isLoading && !_isSendingCode,
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.next,
-                          maxLength: 6,
-                          counterText: '',
-                          validator: (value) {
-                            final code = value?.trim() ?? '';
-                            if (!RegExp(r'^[0-9]{6}$').hasMatch(code)) {
-                              return 'Vui lòng nhập mã xác thực gồm 6 số';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: AppLayoutTokens.formFieldGap),
-                        AppFormTextInput(
-                          controller: _passwordController,
-                          label: 'Mật khẩu',
-                          icon: Icons.lock_rounded,
-                          enabled: !authProvider.isLoading,
-                          obscureText: _obscurePassword,
-                          textInputAction: TextInputAction.next,
-                          autofillHints: const [AutofillHints.newPassword],
-                          suffixIcon: IconButton(
-                            onPressed: authProvider.isLoading
-                                ? null
-                                : () => setState(
-                                    () => _obscurePassword = !_obscurePassword,
-                                  ),
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_rounded
-                                  : Icons.visibility_off_rounded,
+                  const SizedBox(height: AppLayoutTokens.formInlineGap),
+                  AppSecondaryButton(
+                    onPressed: authProvider.isLoading || _isSendingCode
+                        ? null
+                        : () => _handleSendVerificationCode(context),
+                    icon: Icons.mark_email_read_rounded,
+                    label: 'Gửi mã xác thực email',
+                    isLoading: _isSendingCode,
+                    loadingLabel: 'Đang gửi mã...',
+                  ),
+                  const SizedBox(height: AppLayoutTokens.formFieldGap),
+                  AppFormTextInput(
+                    controller: _verificationCodeController,
+                    label: 'Mã xác thực email',
+                    icon: Icons.verified_user_outlined,
+                    enabled: !authProvider.isLoading && !_isSendingCode,
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.next,
+                    maxLength: 6,
+                    counterText: '',
+                    validator: (value) {
+                      final code = value?.trim() ?? '';
+                      if (!RegExp(r'^[0-9]{6}$').hasMatch(code)) {
+                        return 'Vui lòng nhập mã xác thực gồm 6 số';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: AppLayoutTokens.formFieldGap),
+                  AppFormTextInput(
+                    controller: _passwordController,
+                    label: 'Mật khẩu',
+                    icon: Icons.lock_rounded,
+                    enabled: !authProvider.isLoading,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.newPassword],
+                    suffixIcon: IconButton(
+                      onPressed: authProvider.isLoading
+                          ? null
+                          : () => setState(
+                              () => _obscurePassword = !_obscurePassword,
                             ),
-                          ),
-                          validator: (value) {
-                            return Validators.getPasswordError(value ?? '');
-                          },
-                        ),
-                        const SizedBox(height: AppLayoutTokens.formFieldGap),
-                        AppFormTextInput(
-                          controller: _confirmPasswordController,
-                          label: 'Nhập lại mật khẩu',
-                          icon: Icons.lock_reset_rounded,
-                          enabled: !authProvider.isLoading,
-                          obscureText: _obscureConfirmPassword,
-                          textInputAction: TextInputAction.done,
-                          autofillHints: const [AutofillHints.newPassword],
-                          onFieldSubmitted: (_) => authProvider.isLoading
-                              ? null
-                              : _handleRegister(context),
-                          suffixIcon: IconButton(
-                            onPressed: authProvider.isLoading
-                                ? null
-                                : () => setState(
-                                    () => _obscureConfirmPassword =
-                                        !_obscureConfirmPassword,
-                                  ),
-                            icon: Icon(
-                              _obscureConfirmPassword
-                                  ? Icons.visibility_rounded
-                                  : Icons.visibility_off_rounded,
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value != _passwordController.text) {
-                              return 'Mật khẩu nhập lại chưa khớp';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: AppLayoutTokens.formSectionGap),
-                        AppPrimaryButton(
-                          onPressed: authProvider.isLoading
-                              ? null
-                              : () => _handleRegister(context),
-                          icon: Icons.person_add_alt_1_rounded,
-                          label: 'Tạo tài khoản',
-                          isLoading: authProvider.isLoading,
-                          loadingLabel: 'Đang đăng ký...',
-                        ),
-                        const SizedBox(height: AppLayoutTokens.formInlineGap),
-                        AppDialogSecondaryButton(
-                          onPressed: authProvider.isLoading
-                              ? null
-                              : () => Navigator.of(context).pop(),
-                          icon: Icons.arrow_back_rounded,
-                          label: 'Quay lại đăng nhập',
-                        ),
-                      ],
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_rounded
+                            : Icons.visibility_off_rounded,
+                      ),
                     ),
+                    validator: (value) {
+                      return Validators.getPasswordError(value ?? '');
+                    },
                   ),
-                ),
-              );
-            },
+                  const SizedBox(height: AppLayoutTokens.formFieldGap),
+                  AppFormTextInput(
+                    controller: _confirmPasswordController,
+                    label: 'Nhập lại mật khẩu',
+                    icon: Icons.lock_reset_rounded,
+                    enabled: !authProvider.isLoading,
+                    obscureText: _obscureConfirmPassword,
+                    textInputAction: TextInputAction.done,
+                    autofillHints: const [AutofillHints.newPassword],
+                    onFieldSubmitted: (_) => authProvider.isLoading
+                        ? null
+                        : _handleRegister(context),
+                    suffixIcon: IconButton(
+                      onPressed: authProvider.isLoading
+                          ? null
+                          : () => setState(
+                              () => _obscureConfirmPassword =
+                                  !_obscureConfirmPassword,
+                            ),
+                      icon: Icon(
+                        _obscureConfirmPassword
+                            ? Icons.visibility_rounded
+                            : Icons.visibility_off_rounded,
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value != _passwordController.text) {
+                        return 'Mật khẩu nhập lại chưa khớp';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: AppLayoutTokens.formSectionGap),
+                  AppPrimaryButton(
+                    onPressed: authProvider.isLoading
+                        ? null
+                        : () => _handleRegister(context),
+                    icon: Icons.person_add_alt_1_rounded,
+                    label: 'Tạo tài khoản',
+                    isLoading: authProvider.isLoading,
+                    loadingLabel: 'Đang đăng ký...',
+                  ),
+                  const SizedBox(height: AppLayoutTokens.formInlineGap),
+                  AppDialogSecondaryButton(
+                    onPressed: authProvider.isLoading
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    icon: Icons.arrow_back_rounded,
+                    label: 'Quay lại đăng nhập',
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

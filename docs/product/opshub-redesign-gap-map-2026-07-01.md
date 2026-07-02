@@ -128,6 +128,18 @@ Ngày cập nhật: 02/07/2026
   `Mobile v2 / Profile` (`151:118`) trong Figma đã bỏ mock `Họ tên`, `Phạm vi`,
   `Toàn hệ thống`, `Lưu thay đổi` và thay bằng header/edit/info cards đúng
   runtime contract.
+- Auth pre-shell `/login`, `/register`, `/forgot-password` và
+  `/assignment-pending` đã bỏ nền `GradientHeader.getGradient` cũ, chuyển sang
+  `AuthScreenShell` dùng surface token của redesign V2: desktop có brand panel,
+  tablet/mobile có brand header + auth card gọn. Runtime contract vẫn giữ đăng
+  nhập, tự chuyển register khi tài khoản chưa tồn tại/chưa có mật khẩu, đăng ký
+  bằng mã xác thực email, quên mật khẩu 3 bước email/mã/mật khẩu mới, và màn
+  chờ gán tổ chức có `Tải lại trạng thái`/`Đăng xuất`. Figma đã sync các frame
+  Login `106:2`/`135:316`/`135:792`, Register
+  `152:1161`/`151:31`/`152:41`, Forgot Password
+  `152:1189`/`151:60`/`152:80`, Assignment Pending
+  `152:1217`/`151:89`/`152:119`, bỏ mock SSO/2FA, `Họ và tên`,
+  `Tạo tài khoản mới` và `Gửi mã xác minh` không khớp runtime.
 - Inventory Import `/fifo/inventory-import` đã được migrate khỏi
   `GradientHeader` riêng sang content-only workspace trong `AppShell`: header
   card thể hiện trạng thái file import, panel chọn file/cập nhật dùng shared
@@ -385,6 +397,20 @@ Batch 1. Không thêm route tạm nếu chưa có runtime contract rõ.
   test\app_router_test.dart test\app_nav_model_test.dart` (8 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
   (274 tests), và `flutter build web --no-pub`.
+- Auth pre-shell focused proof đã pass, xác nhận `/login`, `/register`,
+  `/forgot-password` và `/assignment-pending` đều dùng `AuthScreenShell`, không
+  còn `GradientHeader`, vẫn render CTA runtime `Đăng nhập`, `Gửi mã xác thực
+  email`, `Gửi mã đổi mật khẩu`, `Tải lại trạng thái` và `Đăng xuất`. Figma
+  text/structure QA sau khi sync 12 frame auth xác nhận required missing bằng
+  `[]`, không còn mock `Đăng nhập bằng SSO`, `Bảo mật: hỗ trợ 2FA`, `Họ và tên`,
+  `Tạo tài khoản mới`, `Gửi mã xác minh`, và zero-size text bằng `0`.
+  Validation sau batch Auth pre-shell đã pass `dart format`, focused Auth +
+  widget/forgot-password + guard `flutter test --no-pub --reporter expanded
+  test\auth_pre_shell_redesign_test.dart test\widget_test.dart
+  test\forgot_password_screen_test.dart test\design_system_migration_guard_test.dart`
+  (6 tests), `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter compact` (275 tests), và
+  `flutter build web --no-pub`.
 - Inventory Import focused widget proof đã pass, xác nhận màn
   `/fifo/inventory-import` content-only không còn `Scaffold`/`GradientHeader`,
   chọn file giả render đúng tên/định dạng, upload thành công render result

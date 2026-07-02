@@ -215,6 +215,24 @@ Recent focused evidence:
   `Họ tên`, `Phạm vi`, `Toàn hệ thống`, and `Lưu thay đổi` mock copy, with
   text/structure QA confirming the runtime header/edit/info/logout content and
   zero-size text count `0`.
+- `UI-UX-001`/`AUTH-002`, 2026-07-02: auth pre-shell routes `/login`,
+  `/register`, `/forgot-password`, and `/assignment-pending` now render through
+  shared `AuthScreenShell`/`AuthCard` surfaces instead of the legacy
+  `GradientHeader.getGradient` background. The slice preserves login routing,
+  missing-account registration handoff, registration email verification code,
+  forgot-password email/code/new-password steps, assignment-pending refresh,
+  and logout. Focused validation:
+  `flutter test --no-pub --reporter expanded
+  test\auth_pre_shell_redesign_test.dart test\widget_test.dart
+  test\forgot_password_screen_test.dart test\design_system_migration_guard_test.dart`
+  (6 tests), `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter compact` (275 tests), and
+  `flutter build web --no-pub`. Figma auth frames were synced for Login
+  `106:2`/`135:316`/`135:792`, Register `152:1161`/`151:31`/`152:41`,
+  Forgot Password `152:1189`/`151:60`/`152:80`, and Assignment Pending
+  `152:1217`/`151:89`/`152:119`; text/structure QA confirmed runtime copy,
+  zero-size text count `0`, and no unsupported SSO/2FA or simplified
+  register-copy mock remains.
 - `UI-UX-001`/`ADMIN-ROLES`, 2026-07-02: `/admin/roles` now renders as a
   content-only workspace under `AppShell` instead of nesting a
   `GradientHeader`. The read-only role catalog uses shared header/state/list

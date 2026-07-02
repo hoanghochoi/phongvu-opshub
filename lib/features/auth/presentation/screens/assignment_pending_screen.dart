@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/auth_screen_shell.dart';
 
 class AssignmentPendingScreen extends StatefulWidget {
   const AssignmentPendingScreen({super.key});
@@ -95,34 +96,58 @@ class _AssignmentPendingScreenState extends State<AssignmentPendingScreen> {
     final userEmail = context.select<AuthProvider, String?>(
       (auth) => auth.user?.email,
     );
-    return Scaffold(
-      appBar: const GradientHeader(title: 'Chờ gán tổ chức', showBack: false),
-      body: AppResponsiveContent(
-        maxWidth: AppLayoutTokens.formMaxWidth,
+    return AuthScreenShell(
+      child: AuthCard(
+        icon: Icons.account_tree_outlined,
+        title: 'Chờ gán tổ chức',
+        subtitle: 'Tài khoản đã tạo nhưng chưa có phạm vi sử dụng.',
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.account_tree_outlined, size: 56),
-            const SizedBox(height: AppLayoutTokens.formSectionGap),
-            Text(
-              _supportMessage,
-              textAlign: TextAlign.center,
-              style: AppTextStyles.headingS,
-            ),
-            if (userEmail?.isNotEmpty == true) ...[
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
-              Text(
-                userEmail!,
-                textAlign: TextAlign.center,
-                style: AppTextStyles.bodyM,
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.primarySurfaceOf(context),
+                borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+                border: Border.all(
+                  color: AppColors.primaryOf(context).withValues(alpha: 0.22),
+                ),
               ),
-            ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Việc cần làm', style: AppTextStyles.headingS),
+                        const SizedBox(height: AppLayoutTokens.formInlineGap),
+                        Text(
+                          _supportMessage,
+                          style: AppTextStyles.bodyM.copyWith(
+                            color: AppColors.textSecondaryOf(context),
+                          ),
+                        ),
+                        if (userEmail?.isNotEmpty == true) ...[
+                          const SizedBox(height: AppLayoutTokens.formInlineGap),
+                          Text(
+                            userEmail!,
+                            style: AppTextStyles.labelM.copyWith(
+                              color: AppColors.primaryOf(context),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: AppLayoutTokens.formSectionGap),
             AppPrimaryButton(
               onPressed: _refreshing ? null : _refresh,
               icon: Icons.refresh_rounded,
-              label: 'Tải lại tài khoản',
+              label: 'Tải lại trạng thái',
               isLoading: _refreshing,
               loadingLabel: 'Đang tải lại...',
             ),
