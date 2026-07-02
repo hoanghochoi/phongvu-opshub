@@ -1,10 +1,41 @@
-# Windows MSIX Store Packaging
+# Windows MSIX Packaging
 
 OpsHub keeps the current Windows runtime distribution unchanged: production and
 staging deploys still publish the Inno Setup `.exe`, portable `.zip`, checksum,
-`/download`, and `/app-version?platform=windows` metadata. The MSIX path is a
-separate Microsoft Store submission artifact and must not become the runtime
-update URL until the Store rollout has its own smoke proof.
+`/download`, and `/app-version?platform=windows` metadata. The MSIX path is
+artifact-only and must not become the runtime update URL until the selected
+MSIX channel has its own smoke proof.
+
+## Internal Sideload MSIX
+
+When Partner Center identity secrets are not ready, build an internal signed
+MSIX with the same Windows signing PFX used for the direct EXE installer. This
+is useful for controlled IT testing, but it is not a Store submission package
+and does not by itself bypass Microsoft Defender malware detections.
+
+Required secrets in the selected GitHub environment:
+
+- Production: `WINDOWS_SIGNING_PFX_BASE64` and `WINDOWS_SIGNING_PFX_PASSWORD`.
+- Staging: `WINDOWS_STAGING_SIGNING_PFX_BASE64` and
+  `WINDOWS_STAGING_SIGNING_PFX_PASSWORD`.
+
+Run the manual workflow:
+
+```powershell
+gh workflow run "Build Windows MSIX Package" `
+  --ref main `
+  -f environment=production `
+  -f package_kind=internal `
+  -f version_name=2026.07.01.102 `
+  -f version_code=100102 `
+  -f msix_version=2026.7.1.102
+```
+
+The workflow compiles the Windows app with the selected API base URL, creates a
+signed internal MSIX under `build/windows/msix`, scans it with Microsoft
+Defender, and uploads the `.msix` plus `.sha256` as a GitHub Actions artifact.
+It does not SSH to the VPS, does not update `/srv/opshub/downloads`, and does
+not change `APP_WINDOWS_APP_UPDATE_URL`.
 
 ## Required Store Identity
 
@@ -24,12 +55,13 @@ package after submission.
 
 ## Build Command
 
-Run the manual workflow:
+Run the manual workflow for Partner Center submission:
 
 ```powershell
-gh workflow run "Build Windows MSIX Store Package" `
-  --ref staging `
-  -f environment=production
+gh workflow run "Build Windows MSIX Package" `
+  --ref main `
+  -f environment=production `
+  -f package_kind=store
 ```
 
 Use the branch/ref that contains the workflow. While this change is being
@@ -39,10 +71,12 @@ submission.
 Optional version override for a Partner Center resubmission:
 
 ```powershell
-gh workflow run "Build Windows MSIX Store Package" `
-  --ref staging `
+gh workflow run "Build Windows MSIX Package" `
+  --ref main `
   -f environment=production `
+  -f package_kind=store `
   -f version_name=2026.06.27.1 `
+  -f version_code=100001 `
   -f msix_version=2026.6.27.1
 ```
 
@@ -77,7 +111,9 @@ of the following:
 
 - Existing production `.exe` update prompt still opens the Inno installer URL.
 - `/download` and `/downloads/latest.json` still expose EXE, ZIP, and checksum.
+- Internal MSIX has a Defender scan pass and the package signature is not
+  `NotSigned`.
 - Partner Center accepts the MSIX package identity, publisher, and version.
-- A clean Windows VM can install/update through Microsoft Store.
+- A clean Windows VM can install/update through the selected MSIX channel.
 - Windows startup toggle, app restart, payment audio, local logs, and app update
   prompt have separate MSIX smoke evidence.

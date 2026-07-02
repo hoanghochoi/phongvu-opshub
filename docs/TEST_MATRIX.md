@@ -16,12 +16,14 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Current Release Security Proof
 
-- `WINDOWS-DIST-001`, 2026-06-27: added a separate manual Microsoft Store MSIX
-  packaging workflow and build script. Runtime distribution remains unchanged:
-  production/staging deploys still publish the Inno EXE, ZIP, checksum,
-  `/download`, and Windows `/app-version` EXE update URL. Validation target:
-  workflow syntax, PowerShell parser, `flutter pub get`, `git diff --check`,
-  and a Store MSIX CI run with Partner Center identity secrets before upload.
+- `WINDOWS-DIST-001`, 2026-07-02: the manual MSIX workflow supports an
+  internal signed sideload artifact with the selected Windows signing PFX, plus
+  the existing Store artifact path with Partner Center identity secrets. Runtime
+  distribution remains unchanged: production/staging deploys still publish the
+  Inno EXE, ZIP, checksum, `/download`, and Windows `/app-version` EXE update
+  URL. Validation target: workflow syntax, PowerShell parser, `git diff
+  --check`, and an MSIX CI run that reaches Microsoft Defender scan plus
+  artifact upload.
 - `WINDOWS-DIST-001`, 2026-06-24: production setup `v2026.06.23.88+100088`
   was reproduced as `Trojan:Win32/Wacatac.B!ml` while its checksum-matched
   portable ZIP, extracted app, and previous setup `100087` scanned clean.

@@ -4,10 +4,10 @@
 
 - OpsHub direct Windows distribution is internal-only. The primary package is
   the Inno Setup installer EXE; the portable ZIP remains a manual fallback.
-- Microsoft Store/MSIX packaging is a separate submission track. The manual
-  `Build Windows MSIX Store Package` workflow may build a Store MSIX artifact,
-  but it must not publish to `/download`, change `/app-version`, or replace the
-  EXE update URL until Store rollout proof exists.
+- MSIX packaging is a separate artifact track. The manual `Build Windows MSIX
+  Package` workflow may build either an internal signed sideload MSIX or a Store
+  MSIX artifact, but it must not publish to `/download`, change `/app-version`,
+  or replace the EXE update URL until MSIX rollout proof exists.
 - The preferred free trust path is internal Authenticode signing: sign the app
   executable and installer with a self-signed or company-issued code-signing
   certificate, then deploy the public certificate to company PCs.
@@ -36,9 +36,12 @@
   and checksum links.
 - The download page links to the public `/help` page so staff can read setup
   and usage guidance before or after installing the app.
-- Store MSIX artifacts are uploaded only as GitHub Actions artifacts. They are
-  not copied to the VPS download directory and are not included in
+- MSIX artifacts are uploaded only as GitHub Actions artifacts. They are not
+  copied to the VPS download directory and are not included in
   `/downloads/latest.json`.
+- Internal MSIX builds use the selected environment's Windows signing PFX and
+  are intended for controlled sideload testing. Store MSIX builds use Partner
+  Center identity values and remain unsigned before Store submission.
 - Manual GitHub Actions dispatch with `skip_client_build=true` may update only
   the download landing page, help page, Caddy route, icon, and manifest from
   already live artifacts. This path must not create a new Windows package,
@@ -98,10 +101,14 @@ Import-Certificate -FilePath .\opshub-codesign.cer `
   `WINDOWS_MSIX_IDENTITY_NAME`, `WINDOWS_MSIX_PUBLISHER`,
   `WINDOWS_MSIX_PUBLISHER_DISPLAY_NAME`, and optionally
   `WINDOWS_MSIX_DISPLAY_NAME`.
+- For internal MSIX builds, confirm the selected environment has the matching
+  Windows signing PFX secrets and pass `version_code` when the artifact must
+  match an already published EXE build.
 - Confirm the `Scan final Windows artifacts with Microsoft Defender` workflow
   step passed after signing and before checksum generation.
-- Confirm the separate Store MSIX workflow passed its Microsoft Defender scan
-  before uploading the MSIX to Partner Center.
+- Confirm the separate MSIX workflow passed its Microsoft Defender scan before
+  using the internal MSIX for IT smoke or uploading a Store MSIX to Partner
+  Center.
 - Verify `Get-AuthenticodeSignature` on the final installer is not `NotSigned`.
   A self-signed certificate may report `UnknownError` on machines that have not
   trusted the public `.cer`; the target staff PCs must trust the certificate for
