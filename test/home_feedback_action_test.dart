@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phongvu_opshub/app/widgets/app_feature_grid.dart';
+import 'package:phongvu_opshub/app/widgets/app_state_widgets.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -122,6 +123,48 @@ void main() {
 
     expect(titles, contains('Báo cáo'));
     expect(titles, isNot(contains('Quản trị')));
+  });
+
+  testWidgets('Home uses shared empty state when no workspace is available', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+      appName: 'PhongVu OpsHub',
+      packageName: 'com.example.phongvu_opshub',
+      version: '1.1.1',
+      buildNumber: '2',
+      buildSignature: '',
+    );
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'staff-empty',
+        email: 'staff.empty@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+      ),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: const MaterialApp(
+          home: AppShell(location: '/home', child: HomeScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('home-empty-state')), findsOneWidget);
+    expect(find.byType(AppStatePanel), findsOneWidget);
+    expect(find.byType(AppFeatureTile), findsNothing);
+    expect(find.text('Trang chủ vận hành'), findsOneWidget);
+    expect(find.text('Chưa có chức năng khả dụng'), findsOneWidget);
+    expect(
+      find.text('Vui lòng liên hệ quản lý để kiểm tra phân quyền truy cập.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Home header shows all assigned SR codes', (tester) async {

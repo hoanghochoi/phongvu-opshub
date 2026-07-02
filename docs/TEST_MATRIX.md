@@ -136,8 +136,14 @@ Recent focused evidence:
   `flutter test --no-pub --reporter expanded
   test\home_feedback_action_test.dart test\home_avatar_test.dart
   test\design_system_migration_guard_test.dart test\app_router_test.dart
-  test\app_nav_model_test.dart`, `flutter analyze --no-pub`,
-  `flutter build web --no-pub`, and `git diff --check`.
+  test\app_nav_model_test.dart` (20 tests), `flutter analyze --no-pub`,
+  `flutter build web --no-pub`, and `git diff --check`. Empty-state follow-up:
+  Home now renders shared `AppStatePanel.empty` inside `home-empty-state` when
+  the current account has no workspace action, with widget proof that no
+  `AppFeatureTile` leaks into that state. Figma empty-state frames are desktop
+  `487:2`, tablet `487:91`, and mobile `487:170`; Figma QA confirmed required
+  missing `[]`, zero-size text `0`, missing font `0`, out-of-parent `[]`, and
+  the fixed mobile screenshot has no collapsed copy.
 - `UI-UX-001`/`VIETQR-001`, 2026-07-02: `/vietqr` now renders as a
   content-only workspace under `AppShell` instead of nesting a
   `Scaffold`/`GradientHeader`. The runtime header shows selected SR, QR state,

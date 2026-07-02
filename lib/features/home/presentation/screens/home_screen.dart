@@ -11,6 +11,7 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/platform/app_platform_capabilities.dart';
 import '../../../auth/domain/entities/user.dart';
@@ -48,12 +49,13 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: AppLayoutTokens.sectionGap),
           ],
           if (actions.isEmpty)
-            AppSurfaceCard(
-              child: Text(
-                'Chưa có chức năng khả dụng. Vui lòng liên hệ quản lý để kiểm tra phân quyền.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.textSecondaryOf(context),
-                ),
+            const AppSurfaceCard(
+              key: Key('home-empty-state'),
+              child: AppStatePanel.empty(
+                icon: Icons.apps_outlined,
+                title: 'Chưa có chức năng khả dụng',
+                message:
+                    'Vui lòng liên hệ quản lý để kiểm tra phân quyền truy cập.',
               ),
             )
           else

@@ -30,7 +30,9 @@ Ngày cập nhật: 03/07/2026
   `Tablet v2 / Home Workspace` (`485:86`) và
   `Mobile v2 / Home Workspace` (`485:160`): desktop/tablet mô tả Home nhiều
   quyền với 9 action, mobile mô tả staff có 5 action và bottom nav
-  `Trang chủ`/`Tác vụ`/`Tài khoản`.
+  `Trang chủ`/`Tác vụ`/`Tài khoản`. Khi tài khoản không có workspace khả dụng,
+  Home dùng shared `AppStatePanel.empty` trong surface `home-empty-state`; ba
+  frame Figma tương ứng là desktop `487:2`, tablet `487:91` và mobile `487:170`.
 - VietQR `/vietqr` đã được migrate khỏi `GradientHeader` riêng sang
   content-only workspace trong `AppShell`: header hiển thị SR đang chọn, trạng
   thái QR và số lịch sử; chọn SR, quét mã đơn, tạo QR, kiểm tra MAP, realtime
@@ -315,6 +317,12 @@ class này không xuất hiện trong `app_router.dart`.
   missing `[]`, zero-size text `0`, missing font `0`, out-of-parent `[]`, và
   screenshot desktop/tablet/mobile không còn account text overlap sau lượt fix
   topbar.
+- Home empty-state follow-up 03/07/2026 đã thay copy cục bộ bằng shared
+  `AppStatePanel.empty`, giữ nguyên nhánh phân quyền và thêm widget proof cho
+  tài khoản không có action khả dụng. Figma đã có đủ desktop/tablet/mobile
+  empty-state frames (`487:2`, `487:91`, `487:170`); QA xác nhận required text
+  missing `[]`, zero-size text `0`, missing font `0`, out-of-parent `[]`, và
+  screenshot mobile sau fix line-height không còn text collapse.
 - Web Chrome fullscreen smoke với seeded local session đã kiểm Home, FIFO menu,
   và route `/sort`; proof ảnh nằm trong `output/playwright/`.
 - Windows debug build đã pass ở `build/windows/x64/runner/Debug`.
