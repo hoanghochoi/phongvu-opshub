@@ -96,10 +96,11 @@ Ngày cập nhật: 03/07/2026
   `ADMIN_PERSONNEL`: screen content-only trong `AppShell`, header
   `Danh mục nhân sự`, action `Thêm phòng ban`/`Thêm chức danh`, tab
   `Phòng ban`/`Chức danh` và danh sách card giữ contract department/job-role
-  hiện có. Figma đã thêm `Desktop v2 / Personnel Catalog Admin` (`502:2`),
-  `Tablet v2 / Personnel Catalog Admin` (`502:67`) và
-  `Mobile v2 / Personnel Catalog Admin` (`502:127`), không thêm export/search
-  giả ngoài runtime.
+  hiện có. Loading skeleton không tạo nested scroll, lỗi tải dùng shared
+  `AppStatePanel.error` có action `Thử tải lại`. Figma đã thêm `Desktop v2 /
+  Personnel Catalog Admin` (`502:2`), `Tablet v2 / Personnel Catalog Admin`
+  (`502:67`) và `Mobile v2 / Personnel Catalog Admin` (`502:127`), không thêm
+  export/search giả ngoài runtime.
 - Organization Tree `/admin/organization` đã được migrate khỏi
   `GradientHeader` riêng sang content-only workspace trong `AppShell`: header
   card có trạng thái quyền, refresh/thêm node theo quyền, tree/detail được bọc
@@ -774,3 +775,14 @@ retired không được quay lại router/backlog tạm.
   text rỗng `[]`, zero-size text `[]`, font mismatch `[]` và status/action
   overlap `[]`; screenshot desktop/tablet/mobile đã kiểm lại sau khi sửa
   Personnel row action để không chồng `Đang bật` với action edit.
+- Personnel Catalog Admin focused proof 03/07/2026 xác nhận
+  `/admin/personnel` render content-only, không có `Scaffold`/`GradientHeader`
+  riêng, tab `Phòng ban`/`Chức danh` hiển thị đúng dữ liệu department/job-role,
+  loading skeleton không còn lỗi unbounded nested scroll và load error có
+  shared retry state. Validation pass focused Personnel + guard/router/nav/menu
+  `flutter test --no-pub --reporter expanded
+  test\personnel_catalog_admin_screen_test.dart
+  test\design_system_migration_guard_test.dart test\app_router_test.dart
+  test\app_nav_model_test.dart test\admin_menu_screen_test.dart` (22 tests),
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (296 tests), và `git diff --check`.

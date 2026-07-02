@@ -14,7 +14,9 @@ import '../../../auth/data/repositories/auth_repository.dart';
 import '../../domain/admin_personnel_definition.dart';
 
 class PersonnelCatalogAdminScreen extends StatefulWidget {
-  const PersonnelCatalogAdminScreen({super.key});
+  final AuthRepository? repository;
+
+  const PersonnelCatalogAdminScreen({super.key, this.repository});
 
   @override
   State<PersonnelCatalogAdminScreen> createState() =>
@@ -23,20 +25,25 @@ class PersonnelCatalogAdminScreen extends StatefulWidget {
 
 class _PersonnelCatalogAdminScreenState
     extends State<PersonnelCatalogAdminScreen> {
-  final _repository = AuthRepository(ApiClient());
+  late final AuthRepository _repository;
   List<AdminPersonnelDefinition> _departments = [];
   List<AdminPersonnelDefinition> _jobRoles = [];
   bool _loading = true;
   int _tabIndex = 0;
+  String? _loadError;
 
   @override
   void initState() {
     super.initState();
+    _repository = widget.repository ?? AuthRepository(ApiClient());
     _load();
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     final startedAt = DateTime.now();
     try {
       await AppLogger.instance.info('AdminPersonnel', 'Catalog load started');
@@ -48,6 +55,7 @@ class _PersonnelCatalogAdminScreenState
       setState(() {
         _departments = results[0];
         _jobRoles = results[1];
+        _loadError = null;
       });
       await AppLogger.instance.info(
         'AdminPersonnel',
@@ -67,6 +75,9 @@ class _PersonnelCatalogAdminScreenState
         upload: true,
       );
       if (mounted) {
+        setState(() {
+          _loadError = 'Chưa tải được danh mục nhân sự.';
+        });
         _showMessage('Chưa tải được danh mục nhân sự. Vui lòng thử lại.');
       }
     } finally {
@@ -179,6 +190,7 @@ class _PersonnelCatalogAdminScreenState
             ),
             const SizedBox(height: AppLayoutTokens.sectionGap),
             AppSurfaceCard(
+              key: const Key('personnel-catalog-tabs'),
               padding: EdgeInsets.zero,
               child: TabBar(
                 onTap: (index) => setState(() => _tabIndex = index),
@@ -194,7 +206,22 @@ class _PersonnelCatalogAdminScreenState
             ),
             const SizedBox(height: AppLayoutTokens.formSectionGap),
             if (_loading)
-              const AppListSkeleton(itemCount: 6, itemHeight: 72)
+              const AppListSkeleton(
+                itemCount: 6,
+                itemHeight: 72,
+                scrollable: false,
+              )
+            else if (_loadError != null)
+              AppSurfaceCard(
+                key: const Key('personnel-catalog-error-state'),
+                child: AppStatePanel.error(
+                  title: _loadError!,
+                  message: 'Kiểm tra kết nối rồi thử tải lại danh mục.',
+                  actionLabel: 'Thử tải lại',
+                  actionIcon: Icons.refresh_rounded,
+                  onAction: _load,
+                ),
+              )
             else if (_tabIndex == 0)
               _CatalogList(
                 emptyText: 'Chưa có phòng ban',

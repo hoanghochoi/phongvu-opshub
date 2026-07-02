@@ -132,7 +132,11 @@ Recent focused evidence:
   `501:91`) and `/admin/personnel` (`502:2`, `502:67`, `502:127`); Figma QA
   confirmed required text missing `[]`, empty text `[]`, zero-size text `[]`,
   font mismatch `[]`, and no Personnel status/action overlap after the edit
-  action was tightened to an icon glyph. The follow-up data-heavy
+  action was tightened to an icon glyph. Personnel focused proof then locked
+  the `/admin/personnel` screen itself: content-only rendering, department/job
+  role tabs, non-scrollable loading skeleton inside the responsive scroll view,
+  and retryable shared error state all pass without layout exceptions. The
+  follow-up data-heavy
   migration keeps the same `/admin/features` runtime contract but removes the
   nested feature `GradientHeader`; the screen now renders content-only under `AppShell`, with a
   shared surface header/action row and shared tab surface before the existing
@@ -927,6 +931,19 @@ Recent focused evidence:
 
 ## Recent Evidence
 
+- PROFILE-ADMIN-001/UI-UX-001, 2026-07-03: Personnel Catalog Admin now has a
+  focused screen proof for the `/admin/personnel` runtime contract. The screen
+  accepts an injected `AuthRepository` for tests while default runtime still
+  uses `AuthRepository(ApiClient())`, renders content-only department/job-role
+  tabs without `Scaffold`/`GradientHeader`, avoids the loading nested-scroll
+  layout failure, and shows shared retryable error state on load failure.
+  Validation: focused Personnel + design-system guard/router/nav/menu
+  `flutter test --no-pub --reporter expanded
+  test\personnel_catalog_admin_screen_test.dart
+  test\design_system_migration_guard_test.dart test\app_router_test.dart
+  test\app_nav_model_test.dart test\admin_menu_screen_test.dart` (22 tests),
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (296 tests), and `git diff --check`.
 - UI-UX-001, 2026-06-29: shared QR/barcode scanner now uses a smaller centered
   runtime `scanWindow` matching the visible frame, dims the outside area, keeps
   camera/manual/error copy Vietnamese, and logs scanner open/success/failure
