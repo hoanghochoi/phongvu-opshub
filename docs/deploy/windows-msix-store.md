@@ -13,11 +13,15 @@ MSIX with the same Windows signing PFX used for the direct EXE installer. This
 is useful for controlled IT testing, but it is not a Store submission package
 and does not by itself bypass Microsoft Defender malware detections.
 
-Required secrets in the selected GitHub environment:
+Required repository secrets:
 
-- Production: `WINDOWS_SIGNING_PFX_BASE64` and `WINDOWS_SIGNING_PFX_PASSWORD`.
-- Staging: `WINDOWS_STAGING_SIGNING_PFX_BASE64` and
-  `WINDOWS_STAGING_SIGNING_PFX_PASSWORD`.
+- `WINDOWS_SIGNING_PFX_BASE64`
+- `WINDOWS_SIGNING_PFX_PASSWORD`
+
+The internal MSIX job deliberately does not attach to a GitHub Environment, so
+feature branches can validate packaging without tripping deployment protection
+rules. The `environment` input still selects the API base URL and icon, but the
+package is signed with the repository-level Windows signing PFX.
 
 Run the manual workflow:
 
@@ -39,7 +43,7 @@ not change `APP_WINDOWS_APP_UPDATE_URL`.
 
 ## Required Store Identity
 
-Create these secrets in the GitHub environment that will build the package
+Create these secrets in the GitHub environment that will build the Store package
 (`production` first; `staging` only if a separate Store identity exists):
 
 - `WINDOWS_MSIX_IDENTITY_NAME`: Partner Center package identity name.

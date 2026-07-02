@@ -128,7 +128,82 @@ jobs:
           echo "windows_msix_name=${windows_msix_name}" >> "$GITHUB_OUTPUT"
           echo "windows_msix_version=${windows_msix_version}" >> "$GITHUB_OUTPUT"
 
-  build_msix:
+  build_internal_msix:
+    if: inputs.package_kind == 'internal'
+    runs-on: windows-latest
+    needs: prepare
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Apply Windows staging icon
+        if: inputs.environment == 'staging'
+        shell: pwsh
+        run: .\scripts\apply-staging-icons.ps1 -Platform windows
+
+      - name: Build Windows release
+        shell: pwsh
+        run: |
+          flutter pub get
+          flutter build windows --release `
+            --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
+            --build-number "${{ needs.prepare.outputs.version_code }}" `
+            --dart-define "API_BASE_URL=${{ needs.prepare.outputs.api_base_url }}"
+
+      - name: Configure internal MSIX signing certificate
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_BASE64)) {
+            throw 'Repository secret WINDOWS_SIGNING_PFX_BASE64 is required for internal MSIX packaging.'
+          }
+          $certPath = Join-Path $env:RUNNER_TEMP 'opshub-msix-signing.pfx'
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64))
+          "WINDOWS_MSIX_SIGNING_PFX_PATH=$certPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build internal signed MSIX
+        shell: pwsh
+        env:
+          WINDOWS_MSIX_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          $logoPath = if ('${{ inputs.environment }}' -eq 'staging') {
+            'assets\icon\staging\source\app_icon_padded.png'
+          } else {
+            'assets\icon\source\app_icon_padded.png'
+          }
+          .\scripts\build-windows-msix-internal.ps1 `
+            -MsixVersion "${{ needs.prepare.outputs.windows_msix_version }}" `
+            -OutputName "${{ needs.prepare.outputs.windows_msix_basename }}" `
+            -CertificatePath "$env:WINDOWS_MSIX_SIGNING_PFX_PATH" `
+            -CertificatePassword "$env:WINDOWS_MSIX_SIGNING_PFX_PASSWORD" `
+            -LogoPath $logoPath
+
+      - name: Scan MSIX with Microsoft Defender
+        shell: pwsh
+        run: |
+          .\scripts\scan-windows-artifact-defender.ps1 -Path @(
+            'build\windows\msix\${{ needs.prepare.outputs.windows_msix_name }}'
+          )
+
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ needs.prepare.outputs.windows_msix_basename }}
+          path: |
+            build/windows/msix/${{ needs.prepare.outputs.windows_msix_name }}
+            build/windows/msix/${{ needs.prepare.outputs.windows_msix_name }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  build_store_msix:
+    if: inputs.package_kind == 'store'
     runs-on: windows-latest
     needs: prepare
     environment: ${{ inputs.environment }}
@@ -157,7 +232,6 @@ jobs:
             --dart-define "API_BASE_URL=${{ needs.prepare.outputs.api_base_url }}"
 
       - name: Build Store MSIX
-        if: inputs.package_kind == 'store'
         shell: pwsh
         env:
           WINDOWS_MSIX_DISPLAY_NAME: ${{ secrets.WINDOWS_MSIX_DISPLAY_NAME }}
@@ -173,37 +247,6 @@ jobs:
           .\scripts\build-windows-msix-store.ps1 `
             -MsixVersion "${{ needs.prepare.outputs.windows_msix_version }}" `
             -OutputName "${{ needs.prepare.outputs.windows_msix_basename }}" `
-            -LogoPath $logoPath
-
-      - name: Configure internal MSIX signing certificate
-        if: inputs.package_kind == 'internal'
-        shell: pwsh
-        env:
-          WINDOWS_SIGNING_PFX_BASE64: ${{ inputs.environment == 'staging' && secrets.WINDOWS_STAGING_SIGNING_PFX_BASE64 || secrets.WINDOWS_SIGNING_PFX_BASE64 }}
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_BASE64)) {
-            throw 'Windows signing PFX secret is required for internal MSIX packaging.'
-          }
-          $certPath = Join-Path $env:RUNNER_TEMP 'opshub-msix-signing.pfx'
-          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64))
-          "WINDOWS_MSIX_SIGNING_PFX_PATH=$certPath" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Build internal signed MSIX
-        if: inputs.package_kind == 'internal'
-        shell: pwsh
-        env:
-          WINDOWS_MSIX_SIGNING_PFX_PASSWORD: ${{ inputs.environment == 'staging' && secrets.WINDOWS_STAGING_SIGNING_PFX_PASSWORD || secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
-        run: |
-          $logoPath = if ('${{ inputs.environment }}' -eq 'staging') {
-            'assets\icon\staging\source\app_icon_padded.png'
-          } else {
-            'assets\icon\source\app_icon_padded.png'
-          }
-          .\scripts\build-windows-msix-internal.ps1 `
-            -MsixVersion "${{ needs.prepare.outputs.windows_msix_version }}" `
-            -OutputName "${{ needs.prepare.outputs.windows_msix_basename }}" `
-            -CertificatePath "$env:WINDOWS_MSIX_SIGNING_PFX_PATH" `
-            -CertificatePassword "$env:WINDOWS_MSIX_SIGNING_PFX_PASSWORD" `
             -LogoPath $logoPath
 
       - name: Scan MSIX with Microsoft Defender
