@@ -227,10 +227,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             user: user,
             avatarUrl: avatarUrl,
             organizationNodeLabel: organizationNodeLabel,
-            isLoading: isLoading,
             onPickAvatar: _pickAvatar,
-            onLogout: _logout,
           ),
+          const SizedBox(height: AppLayoutTokens.sectionGap),
+          _ProfileSessionCard(isLoading: isLoading, onLogout: _logout),
           const SizedBox(height: AppLayoutTokens.sectionGap),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -285,17 +285,13 @@ class _ProfileHeader extends StatelessWidget {
   final User? user;
   final String? avatarUrl;
   final String? organizationNodeLabel;
-  final bool isLoading;
   final VoidCallback onPickAvatar;
-  final VoidCallback onLogout;
 
   const _ProfileHeader({
     required this.user,
     required this.avatarUrl,
     required this.organizationNodeLabel,
-    required this.isLoading,
     required this.onPickAvatar,
-    required this.onLogout,
   });
 
   @override
@@ -304,76 +300,110 @@ class _ProfileHeader extends StatelessWidget {
       key: const Key('profile-header'),
       backgroundColor: AppColors.primarySurfaceOf(context),
       borderColor: AppColors.primaryOf(context).withValues(alpha: 0.22),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              CircleAvatar(
+                radius: 44,
+                backgroundImage:
+                    avatarUrl != null && avatarUrl!.startsWith('http')
+                    ? NetworkImage(avatarUrl!)
+                    : null,
+                child: avatarUrl == null
+                    ? Text(
+                        _profileInitial(user),
+                        style: AppTextStyles.headingM.copyWith(
+                          color: AppColors.primaryOf(context),
+                        ),
+                      )
+                    : null,
+              ),
+              AppIconAction(
+                onPressed: onPickAvatar,
+                icon: Icons.camera_alt_outlined,
+                tooltip: 'Cập nhật avatar',
+                filled: true,
+              ),
+            ],
+          ),
+          const SizedBox(width: AppLayoutTokens.formInlineGap),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _profileDisplayName(user),
+                  style: AppTextStyles.headingM,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  user?.email ?? 'Chưa có email',
+                  style: AppTextStyles.bodyM.copyWith(
+                    color: AppColors.textSecondaryOf(context),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _ProfileStatusChip(
+                      icon: Icons.verified_user_outlined,
+                      label: User.roleDisplayName(user?.role),
+                    ),
+                    _ProfileStatusChip(
+                      icon: Icons.account_tree_outlined,
+                      label: organizationNodeLabel ?? 'Chưa gán cây tổ chức',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileSessionCard extends StatelessWidget {
+  final bool isLoading;
+  final VoidCallback onLogout;
+
+  const _ProfileSessionCard({required this.isLoading, required this.onLogout});
+
+  @override
+  Widget build(BuildContext context) {
+    final danger = AppColors.isDark(context)
+        ? AppColors.darkError
+        : AppColors.error;
+    final dangerSurface = AppColors.isDark(context)
+        ? AppColors.darkErrorSurface
+        : AppColors.errorSurface;
+    return AppSurfaceCard(
+      key: const Key('profile-session-card'),
+      backgroundColor: dangerSurface.withValues(alpha: 0.5),
+      borderColor: danger.withValues(alpha: 0.32),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isCompact =
               constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
-          final profileSummary = Row(
+          final copy = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  CircleAvatar(
-                    radius: 44,
-                    backgroundImage:
-                        avatarUrl != null && avatarUrl!.startsWith('http')
-                        ? NetworkImage(avatarUrl!)
-                        : null,
-                    child: avatarUrl == null
-                        ? Text(
-                            _profileInitial(user),
-                            style: AppTextStyles.headingM.copyWith(
-                              color: AppColors.primaryOf(context),
-                            ),
-                          )
-                        : null,
-                  ),
-                  AppIconAction(
-                    onPressed: onPickAvatar,
-                    icon: Icons.camera_alt_outlined,
-                    tooltip: 'Cập nhật avatar',
-                    filled: true,
-                  ),
-                ],
-              ),
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _profileDisplayName(user),
-                      style: AppTextStyles.headingM,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      user?.email ?? 'Chưa có email',
-                      style: AppTextStyles.bodyM.copyWith(
-                        color: AppColors.textSecondaryOf(context),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: AppLayoutTokens.formInlineGap),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _ProfileStatusChip(
-                          icon: Icons.verified_user_outlined,
-                          label: User.roleDisplayName(user?.role),
-                        ),
-                        _ProfileStatusChip(
-                          icon: Icons.account_tree_outlined,
-                          label:
-                              organizationNodeLabel ?? 'Chưa gán cây tổ chức',
-                        ),
-                      ],
-                    ),
-                  ],
+              Text('Phiên đăng nhập', style: AppTextStyles.headingS),
+              const SizedBox(height: 6),
+              Text(
+                'Đăng xuất khỏi tài khoản trên thiết bị này.',
+                style: AppTextStyles.bodyM.copyWith(
+                  color: AppColors.textSecondaryOf(context),
                 ),
               ),
             ],
@@ -387,7 +417,7 @@ class _ProfileHeader extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                profileSummary,
+                copy,
                 const SizedBox(height: AppLayoutTokens.formInlineGap),
                 logoutButton,
               ],
@@ -395,9 +425,9 @@ class _ProfileHeader extends StatelessWidget {
           }
 
           return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Expanded(child: profileSummary),
+              Expanded(child: copy),
               const SizedBox(width: AppLayoutTokens.formInlineGap),
               SizedBox(width: 172, child: logoutButton),
             ],
@@ -597,10 +627,15 @@ class _ProfileLogoutButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final danger = AppColors.isDark(context)
+        ? AppColors.darkError
+        : AppColors.error;
     return AppSecondaryButton(
       onPressed: onPressed,
       icon: Icons.logout_rounded,
       label: 'Đăng xuất',
+      foregroundColor: danger,
+      borderColor: danger,
     );
   }
 }

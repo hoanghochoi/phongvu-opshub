@@ -89,6 +89,8 @@ class AppSecondaryButton extends StatelessWidget {
   final String label;
   final bool isLoading;
   final String? loadingLabel;
+  final Color? foregroundColor;
+  final Color? borderColor;
 
   const AppSecondaryButton({
     super.key,
@@ -97,10 +99,14 @@ class AppSecondaryButton extends StatelessWidget {
     required this.label,
     this.isLoading = false,
     this.loadingLabel,
+    this.foregroundColor,
+    this.borderColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final effectiveForegroundColor = foregroundColor ?? AppColors.primary;
+    final effectiveBorderColor = borderColor ?? effectiveForegroundColor;
     return SizedBox(
       width: double.infinity,
       height: AppButtonMetrics.height,
@@ -120,8 +126,8 @@ class AppSecondaryButton extends StatelessWidget {
           softWrap: false,
         ),
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primary,
-          side: const BorderSide(color: AppColors.primary),
+          foregroundColor: effectiveForegroundColor,
+          side: BorderSide(color: effectiveBorderColor),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
           ),

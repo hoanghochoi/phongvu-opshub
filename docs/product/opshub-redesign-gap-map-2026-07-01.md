@@ -134,16 +134,17 @@ Ngày cập nhật: 03/07/2026
   card.
 - Profile `/profile` đã được migrate khỏi `GradientHeader` riêng sang
   content-only workspace trong `AppShell`: header card hiển thị avatar/tên/email
-  và chip vai trò/cây tổ chức, đồng thời đặt nút `Đăng xuất` rõ trên header;
-  card chỉnh sửa giữ luồng đổi mật khẩu/lưu tên, card thông tin tài khoản giữ
-  email, vai trò, cây tổ chức và SR được gán. Nút `Đăng xuất` dùng
-  `AuthProvider.logout()` rồi điều hướng về `/login`. Các log mở màn, lưu
-  profile, đổi mật khẩu và đăng xuất
+  và chip vai trò/cây tổ chức; card `Phiên đăng nhập` ngay dưới header đặt nút
+  `Đăng xuất` dễ thấy trước nhóm form chỉnh sửa/thông tin. Card chỉnh sửa giữ
+  luồng đổi mật khẩu/lưu tên, card thông tin tài khoản giữ email, vai trò, cây
+  tổ chức và SR được gán. Nút `Đăng xuất` dùng `AuthProvider.logout()` rồi điều
+  hướng về `/login`. Các log mở màn, lưu profile, đổi mật khẩu và đăng xuất
   thành công/thất bại được ghi qua `AppLogger`. Các frame `Desktop v2 /
   Profile` (`481:2`), `Tablet v2 / Profile` (`481:52`) và
   `Mobile v2 / Profile` (`481:99`) trong Figma đã bỏ mock `Họ tên`, `Phạm vi`,
   `Toàn hệ thống`, `Lưu thay đổi` và thay bằng header/edit/info cards đúng
-  runtime contract, gồm cả nút đăng xuất ở header theo code 03/07/2026.
+  runtime contract, gồm cả card đăng xuất `490:2`, `490:8`, `490:14` theo code
+  03/07/2026.
 - Auth pre-shell `/login`, `/register`, `/forgot-password` và
   `/assignment-pending` đã bỏ nền `GradientHeader.getGradient` cũ, chuyển sang
   `AuthScreenShell` dùng surface token của redesign V2: desktop có brand panel,
@@ -431,22 +432,28 @@ class này không xuất hiện trong `app_router.dart`.
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
   (274 tests), và `flutter build web --no-pub`.
 - Profile focused widget proof đã pass, xác nhận màn `/profile` content-only
-  không còn `Scaffold`/`GradientHeader`, header/edit/info cards render đúng cây
-  tổ chức, SR được gán và nút `Đăng xuất`; các field nhân sự legacy vẫn không
-  hiển thị. Figma text/structure QA sau khi sync lại Profile desktop/tablet/
-  mobile (`481:2`, `481:52`, `481:99`) xác nhận đủ text runtime chung
+  không còn `Scaffold`/`GradientHeader`, header/session/edit/info cards render
+  đúng cây tổ chức, SR được gán và nút `Đăng xuất`; các field nhân sự legacy vẫn
+  không hiển thị. Figma text/structure QA sau khi sync lại Profile desktop/
+  tablet/mobile (`481:2`, `481:52`, `481:99`) xác nhận đủ text runtime chung
   `Nguyễn Hoàng`, `hoang.nv1@phongvu-mna.vn`, `Thông tin hiển thị`,
+  `Phiên đăng nhập`, `Đăng xuất khỏi tài khoản trên thiết bị này.`,
   `Thông tin tài khoản`, `Tên`, `Họ`, `Đổi mật khẩu`, `Lưu`, `Email`,
   `Vai trò`, `Cây tổ chức`, `SR được gán`, `Đăng xuất`; không còn `Họ tên`,
   `Phạm vi`, `Toàn hệ thống`, `Lưu thay đổi`, zero-size text bằng `0`,
-  missing font bằng `0`, và screenshot mobile xác nhận nút đăng xuất ở header
-  không bị collapse/overlap.
+  missing font bằng `0`, và screenshot mobile xác nhận nút đăng xuất nằm ngay
+  dưới header, không bị collapse/overlap.
   Validation sau batch Profile đã pass `dart format`, focused Profile + guard +
   router/nav `flutter test --no-pub --reporter expanded
   test\profile_screen_test.dart test\design_system_migration_guard_test.dart
   test\app_router_test.dart test\app_nav_model_test.dart` (8 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
   (274 tests), và `flutter build web --no-pub`.
+  Follow-up 03/07/2026 cho card `Phiên đăng nhập` đã pass focused Profile +
+  guard/router/nav `flutter test --no-pub --reporter expanded
+  test\profile_screen_test.dart test\design_system_migration_guard_test.dart
+  test\app_router_test.dart test\app_nav_model_test.dart` (9 tests),
+  `flutter analyze --no-pub`, và `git diff --check`.
 - Tasks focused widget proof đã pass, xác nhận màn `/tasks` content-only không
   còn `Scaffold`/`GradientHeader`, header key `tasks-header` render đúng
   `Tác vụ của bạn`, staff user chỉ thấy `1 tác vụ khả dụng` và `9 tác vụ cần

@@ -60,11 +60,20 @@ void main() {
       expect(find.byType(Scaffold), findsNothing);
       expect(find.byType(GradientHeader), findsNothing);
       expect(find.byKey(const Key('profile-header')), findsOneWidget);
+      expect(find.byKey(const Key('profile-session-card')), findsOneWidget);
       expect(find.byKey(const Key('profile-logout-button')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('profile-session-card')),
+          matching: find.byKey(const Key('profile-logout-button')),
+        ),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('profile-edit-card')), findsOneWidget);
       expect(find.byKey(const Key('profile-info-card')), findsOneWidget);
       expect(find.text('Thông tin hiển thị'), findsOneWidget);
       expect(find.text('Thông tin tài khoản'), findsOneWidget);
+      expect(find.text('Phiên đăng nhập'), findsOneWidget);
       expect(find.text('Đăng xuất'), findsOneWidget);
       expect(find.text('Quản lý Cửa hàng'), findsWidgets);
       expect(find.text('Cây tổ chức'), findsOneWidget);

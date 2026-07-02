@@ -218,20 +218,23 @@ Recent focused evidence:
   `Scaffold`/`GradientHeader`. It uses shared header/edit/info cards, preserves
   avatar update, change-password, profile-name save, organization-node and
   assigned-SR display, keeps legacy personnel fields hidden, and has a visible
-  header-level `Đăng xuất` action that calls `AuthProvider.logout()` before
-  routing back to `/login`. The changed flow logs screen open, save, password
-  change, and logout success/failure through `AppLogger`. Focused validation:
+  `Phiên đăng nhập` card directly under the header with a `Đăng xuất` action
+  that calls `AuthProvider.logout()` before routing back to `/login`. The
+  changed flow logs screen open, save, password change, and logout
+  success/failure through `AppLogger`. Focused validation for the latest
+  session-card follow-up:
   `dart format --output=none --set-exit-if-changed` on changed Dart/test files,
   `flutter test --no-pub --reporter expanded
   test\profile_screen_test.dart test\design_system_migration_guard_test.dart
-  test\app_router_test.dart test\app_nav_model_test.dart` (8 tests),
-  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
-  (274 tests), and `flutter build web --no-pub`. Figma Profile frames
+  test\app_router_test.dart test\app_nav_model_test.dart` (9 tests),
+  `flutter analyze --no-pub`, and `git diff --check`. The earlier Profile
+  migration batch also passed full `flutter test --no-pub --reporter compact`
+  (274 tests) and `flutter build web --no-pub`. Figma Profile frames
   `481:2`, `481:52`, and `481:99` were synced to remove unsupported `Họ tên`,
   `Phạm vi`, `Toàn hệ thống`, and `Lưu thay đổi` mock copy, with text/structure
-  QA confirming the runtime header/edit/info/logout content, zero-size text
-  count `0`, missing font count `0`, and a mobile screenshot where the header
-  logout button is visible without overlap.
+  QA confirming the runtime header/session/edit/info/logout content, zero-size
+  text count `0`, missing font count `0`, and a mobile screenshot where the
+  session-card logout button is visible without overlap.
 - `UI-UX-001`/`TASKS-INDEX`, 2026-07-03: `/tasks` now renders as a
   content-only workspace index under `AppShell` instead of nesting a
   `Scaffold`/`GradientHeader`. It uses a shared header card, permission-aware
