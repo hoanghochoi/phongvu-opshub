@@ -75,4 +75,43 @@ void main() {
 
     expect(hits, isEmpty, reason: hits.join('\n'));
   });
+
+  test('exposed feature screens do not use legacy GradientHeader shells', () {
+    final allowedNonRoutedLegacyFiles = {
+      'lib/features/admin/presentation/screens/personnel_catalog_admin_screen.dart',
+      'lib/features/fifo_check/presentation/screens/fifo_check_conversation_screen.dart',
+    };
+    final legacyHeaderPattern = RegExp(
+      r"gradient_header\.dart|(?:\bGradientHeader\s*\()",
+    );
+    final hits = <String>[];
+    final files = Directory('lib/features')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+
+    for (final file in files) {
+      final normalizedPath = file.path.replaceAll(r'\', '/');
+      if (allowedNonRoutedLegacyFiles.contains(normalizedPath)) continue;
+
+      final lines = file.readAsLinesSync();
+      for (var index = 0; index < lines.length; index += 1) {
+        if (legacyHeaderPattern.hasMatch(lines[index])) {
+          hits.add('$normalizedPath:${index + 1}');
+        }
+      }
+    }
+
+    final routerSource = File(
+      [
+        'lib',
+        'app',
+        'navigation',
+        'app_router.dart',
+      ].join(Platform.pathSeparator),
+    ).readAsStringSync();
+    expect(routerSource.contains('PersonnelCatalogAdminScreen'), isFalse);
+    expect(routerSource.contains('FifoCheckConversationScreen'), isFalse);
+    expect(hits, isEmpty, reason: hits.join('\n'));
+  });
 }

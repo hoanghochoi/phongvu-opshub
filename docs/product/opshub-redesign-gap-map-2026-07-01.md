@@ -255,6 +255,13 @@ Ngày cập nhật: 02/07/2026
 Các frame sau có trong Figma nhưng chưa implement hoặc chưa expose route trong
 Batch 1. Không thêm route tạm nếu chưa có runtime contract rõ.
 
+Audit 02/07/2026: các route nằm trong `AppShell` hiện không còn dùng
+`GradientHeader` riêng. Guard `design_system_migration_guard_test.dart` khóa
+việc tái dùng `GradientHeader` trong feature screens, chỉ cho phép hai ngoại lệ
+đã ghi nợ là `PersonnelCatalogAdminScreen` legacy-hidden và
+`FifoCheckConversationScreen` chưa expose route/menu; test cũng xác nhận hai
+class này không xuất hiện trong `app_router.dart`.
+
 | Figma frame | Trạng thái code hiện tại | Hướng xử lý |
 | --- | --- | --- |
 | Data Workspace | Chưa có route/runtime screen tương ứng | Tạo story/contract trước khi implement |
@@ -580,12 +587,25 @@ Batch 1. Không thêm route tạm nếu chưa có runtime contract rõ.
   test\app_router_test.dart test\app_nav_model_test.dart` (22 tests), full
   `flutter test --no-pub --reporter compact` (271 tests), và
   `flutter build web --no-pub`.
+- Route migration guard proof đã pass, xác nhận toàn bộ feature screens đang
+  expose không dùng lại `GradientHeader` shell cũ. Guard chỉ cho phép hai file
+  đã ghi nợ kỹ thuật `personnel_catalog_admin_screen.dart` và
+  `fifo_check_conversation_screen.dart`, đồng thời xác nhận
+  `PersonnelCatalogAdminScreen` và `FifoCheckConversationScreen` không nằm
+  trong `app_router.dart`. Validation sau slice guard đã pass `dart format`,
+  focused `flutter test --no-pub --reporter expanded
+  test\design_system_migration_guard_test.dart` (3 tests),
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (276 tests), và `flutter build web --no-pub`.
 - Lượt hợp nhất Batch 1-4 trên `staging` đã pass format cho 42 Dart files,
   `flutter analyze --no-pub`, 69 focused tests trên 18 test files, full
   `flutter test --no-pub --reporter compact` (262 tests), và
   `flutter build web --no-pub` kèm wasm dry-run.
 - Chưa có Web smoke đăng nhập/API thật do localhost Web bị production CORS nếu
   chưa deploy hoặc proxy.
-- Các hub/form/data-heavy screens còn lại vẫn cần migrate theo batch sau; Batch
-  1 khóa nền shell, route `/tasks`, token, permission model và screen
-  `/admin/features` plus `/sales-reports` đã có runtime contract.
+- Audit route 02/07/2026 không còn phát hiện hub/form/data-heavy runtime route
+  nào dùng `GradientHeader` riêng. Phần còn lại của plan nằm ở nhóm
+  route/frame gap phía trên: Data Workspace và Generic Report cần quyết định
+  contract trước, Personnel Catalog đang legacy-hidden, FIFO Conversation chưa
+  expose route/menu, còn dialog/loading/empty/error state sẽ migrate dần theo
+  shared shell/dialog/state pattern.

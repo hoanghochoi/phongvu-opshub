@@ -471,6 +471,20 @@ Recent focused evidence:
   test\payment_monitor_unsupported_screen_test.dart` (34 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
   (275 tests), and `flutter build web --no-pub`.
+- `UI-UX-001`, 2026-07-02: added a route migration guard that prevents exposed
+  feature screens from reusing the legacy `GradientHeader` shell after the
+  Redesign V2 migration. The guard allows only the documented non-routed
+  technical-debt exceptions
+  `lib/features/admin/presentation/screens/personnel_catalog_admin_screen.dart`
+  and
+  `lib/features/fifo_check/presentation/screens/fifo_check_conversation_screen.dart`,
+  and verifies `PersonnelCatalogAdminScreen` plus
+  `FifoCheckConversationScreen` are not referenced by `app_router.dart`.
+  Validation passed `dart format`, focused
+  `flutter test --no-pub --reporter expanded
+  test\design_system_migration_guard_test.dart` (3 tests),
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (276 tests), and `flutter build web --no-pub`.
 - `UI-UX-001`/`OFFSET-ADJUSTMENT-001`, 2026-07-02:
   `/offset-adjustments` now renders as a content-only workspace under
   `AppShell` instead of nesting a `GradientHeader`. It keeps the existing
