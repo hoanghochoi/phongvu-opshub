@@ -122,7 +122,12 @@ Recent focused evidence:
   (240 tests), and `git diff --check`. Route-gap decision follow-up opens
   Generic Report Workspace as `/reports`, exposes Personnel Catalog Admin as
   `/admin/personnel` behind `ADMIN_PERSONNEL`, and retires Data Workspace plus
-  FIFO Conversation Check from the current plan. The follow-up data-heavy
+  FIFO Conversation Check from the current plan. Figma sync follow-up added
+  desktop/tablet/mobile runtime frames for `/reports` (`501:2`, `501:49`,
+  `501:91`) and `/admin/personnel` (`502:2`, `502:67`, `502:127`); Figma QA
+  confirmed required text missing `[]`, empty text `[]`, zero-size text `[]`,
+  font mismatch `[]`, and no Personnel status/action overlap after the edit
+  action was tightened to an icon glyph. The follow-up data-heavy
   migration keeps the same `/admin/features` runtime contract but removes the
   nested feature `GradientHeader`; the screen now renders content-only under `AppShell`, with a
   shared surface header/action row and shared tab surface before the existing

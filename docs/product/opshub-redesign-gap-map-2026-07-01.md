@@ -70,6 +70,13 @@ Ngày cập nhật: 03/07/2026
   trên desktop, tablet và mobile để thể hiện compact toolbar/export menu, gồm
   desktop `152:3577`/`152:2179`, tablet `152:938`/`152:470`, và mobile
   `151:698`/`151:350` cho hub/admin.
+- Generic Report Workspace `/reports` đã được mở theo runtime contract: hub
+  content-only trong `AppShell`, header `Báo cáo`, chip số báo cáo khả dụng,
+  action `Báo cáo sale` và `Danh sách báo cáo sale` hiển thị theo quyền
+  `SALES_REPORT`/`ADMIN_SALES_REPORTS`. Figma đã thêm đủ frame runtime
+  `Desktop v2 / Report Workspace` (`501:2`), `Tablet v2 / Report Workspace`
+  (`501:49`) và `Mobile v2 / Report Workspace` (`501:91`), bỏ mọi report
+  placeholder không có route thật.
 - Admin Users `/admin/users` đã được migrate khỏi `GradientHeader` riêng sang
   content-only workspace trong `AppShell`: header/action card chỉ hiện
   import/thêm mới cho Super Admin, search và 5 bộ lọc dùng shared controls,
@@ -85,6 +92,14 @@ Ngày cập nhật: 03/07/2026
   `Mobile v2 / Admin Roles` trong Figma đã bỏ search/filter/export/detail giả
   không có runtime contract, thay bằng header/read-only role cards đúng màn
   đang chạy.
+- Personnel Catalog Admin `/admin/personnel` đã được mở lại bằng
+  `ADMIN_PERSONNEL`: screen content-only trong `AppShell`, header
+  `Danh mục nhân sự`, action `Thêm phòng ban`/`Thêm chức danh`, tab
+  `Phòng ban`/`Chức danh` và danh sách card giữ contract department/job-role
+  hiện có. Figma đã thêm `Desktop v2 / Personnel Catalog Admin` (`502:2`),
+  `Tablet v2 / Personnel Catalog Admin` (`502:67`) và
+  `Mobile v2 / Personnel Catalog Admin` (`502:127`), không thêm export/search
+  giả ngoài runtime.
 - Organization Tree `/admin/organization` đã được migrate khỏi
   `GradientHeader` riêng sang content-only workspace trong `AppShell`: header
   card có trạng thái quyền, refresh/thêm node theo quyền, tree/detail được bọc
@@ -742,3 +757,9 @@ retired không được quay lại router/backlog tạm.
   screen layer là nhãn giao dịch compact khi chiều cao dưới 130px. Validation
   pass focused migration guard (5 tests), `flutter analyze --no-pub` và
   `git diff --check`.
+- Figma route-gap sync 03/07/2026 đã thêm desktop/tablet/mobile frames cho
+  `/reports` (`501:2`, `501:49`, `501:91`) và `/admin/personnel` (`502:2`,
+  `502:67`, `502:127`). QA bằng Figma tool xác nhận required text missing `[]`,
+  text rỗng `[]`, zero-size text `[]`, font mismatch `[]` và status/action
+  overlap `[]`; screenshot desktop/tablet/mobile đã kiểm lại sau khi sửa
+  Personnel row action để không chồng `Đang bật` với action edit.
