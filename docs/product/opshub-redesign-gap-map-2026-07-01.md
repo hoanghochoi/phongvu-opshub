@@ -297,7 +297,7 @@ class này không xuất hiện trong `app_router.dart`.
 | Generic Report Workspace | Repo đang dùng Sales Report hub/form/admin; hub `/sales-reports` đã migrate content-only | Quyết định có cần report hub generic riêng hay Figma frame sẽ nhập vào Sales Report |
 | Personnel Catalog Admin | Có screen code nhưng `ADMIN_PERSONNEL` đang là legacy hidden theo tree-first contract | Chỉ expose nếu product mở lại contract nhân sự ngoài cây tổ chức |
 | FIFO Conversation Check | Có screen code nhưng chưa expose route/menu | Xác nhận flow còn dùng hay retire trước khi expose |
-| Dialog/loading/empty/error state inventory | Nhiều dialog/state vẫn feature-local | Migrate theo batch sau qua shared shell/dialog/state pattern |
+| Dialog/loading/empty/error state inventory | Đã audit các route expose: full loading/empty/error dùng shared state; dialog action dùng shared button | Guard khóa raw indicator vào đúng ngữ cảnh inline đã review; audit lại khi thêm runtime state mới |
 
 ## Proof còn thiếu trước khi gọi là visual parity
 
@@ -698,5 +698,11 @@ class này không xuất hiện trong `app_router.dart`.
   nào dùng `GradientHeader` riêng. Phần còn lại của plan nằm ở nhóm
   route/frame gap phía trên: Data Workspace và Generic Report cần quyết định
   contract trước, Personnel Catalog đang legacy-hidden, FIFO Conversation chưa
-  expose route/menu, còn dialog/loading/empty/error state sẽ migrate dần theo
-  shared shell/dialog/state pattern.
+  expose route/menu. State inventory 03/07/2026 xác nhận full
+  loading/empty/error state của route expose đã dùng shared pattern; raw
+  progress indicator còn lại chỉ phục vụ inline action, image loader, refresh,
+  load-more hoặc waiting status và được khóa count/rationale trong
+  `design_system_migration_guard_test.dart`. `Center` fallback duy nhất ở
+  screen layer là nhãn giao dịch compact khi chiều cao dưới 130px. Validation
+  pass focused migration guard (5 tests), `flutter analyze --no-pub` và
+  `git diff --check`.

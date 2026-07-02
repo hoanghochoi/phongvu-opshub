@@ -339,6 +339,18 @@ Recent focused evidence:
   design-system guard (18 tests), `flutter analyze --no-pub`,
   `flutter build web --no-pub` with successful wasm dry-run, and
   `git diff --check`.
+- `UI-UX-001`/`STATE-INVENTORY`, 2026-07-03: audited all exposed feature
+  loading/empty/error states and raw progress indicators. Full states remain on
+  shared `AppStatePanel`; all feature dialog actions remain covered by the raw
+  button design-system guard. The remaining progress indicators are reviewed
+  inline contexts only: submit/log actions, image loaders, refresh bars,
+  load-more, metric chips, and payment-waiting status. Their file/count and
+  rationale are locked in `design_system_migration_guard_test.dart`, together
+  with the single screen-level `Center` fallback used for the payment list when
+  available height is below 130px. Validation: focused migration guard
+  (5 tests), `flutter analyze --no-pub`, and `git diff --check`. No Figma frame
+  changed because this slice only records and locks the already-rendered state
+  inventory.
 - `UI-UX-001`/`ADMIN-POLICIES`, 2026-07-02: `/admin/policies` now renders as a
   content-only workspace under `AppShell` instead of nesting a
   `GradientHeader`. It keeps the existing policy/rule/settings repository/API

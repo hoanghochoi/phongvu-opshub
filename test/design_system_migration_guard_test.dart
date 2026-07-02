@@ -114,4 +114,96 @@ void main() {
     expect(routerSource.contains('FifoCheckConversationScreen'), isFalse);
     expect(hits, isEmpty, reason: hits.join('\n'));
   });
+
+  test('feature progress indicators stay limited to reviewed inline states', () {
+    const reviewedInlineIndicators = <String, ({int count, String reason})>{
+      'lib/features/admin/presentation/screens/feedback_admin_screen.dart': (
+        count: 2,
+        reason: 'submit action and image viewer',
+      ),
+      'lib/features/warranty/presentation/screens/warranty_details_screen.dart':
+          (count: 1, reason: 'cached image placeholder'),
+      'lib/features/offset_adjustment/presentation/screens/offset_adjustment_screen.dart':
+          (count: 1, reason: 'inline refresh progress'),
+      'lib/features/settings/presentation/screens/settings_screen.dart': (
+        count: 1,
+        reason: 'log action progress',
+      ),
+      'lib/features/fifo/presentation/screens/fifo_history_screen.dart': (
+        count: 1,
+        reason: 'load-more row',
+      ),
+      'lib/features/fifo/presentation/screens/fifo_check_screen.dart': (
+        count: 1,
+        reason: 'result action progress',
+      ),
+      'lib/features/payment_monitor/presentation/widgets/payment_delivery_metrics_chip.dart':
+          (count: 2, reason: 'compact metric chips'),
+      'lib/features/payment_monitor/presentation/screens/payment_monitor_screen.dart':
+          (count: 1, reason: 'inline refresh progress'),
+      'lib/features/bank_statement/presentation/screens/bank_statement_screen.dart':
+          (count: 1, reason: 'inline refresh progress'),
+      'lib/features/vietqr/presentation/widgets/payment_waiting_card.dart': (
+        count: 1,
+        reason: 'payment waiting status',
+      ),
+      'lib/features/sales_report/presentation/screens/sales_report_screen.dart':
+          (count: 1, reason: 'form submit action'),
+    };
+    final actual = <String, int>{};
+    final indicatorPattern = RegExp(
+      r'\b(?:Circular|Linear)ProgressIndicator\s*\(',
+    );
+    final files = Directory('lib/features')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+
+    for (final file in files) {
+      final count = indicatorPattern.allMatches(file.readAsStringSync()).length;
+      if (count == 0) continue;
+      actual[file.path.replaceAll(r'\', '/')] = count;
+    }
+
+    final expected = {
+      for (final entry in reviewedInlineIndicators.entries)
+        entry.key: entry.value.count,
+    };
+    expect(
+      actual,
+      equals(expected),
+      reason:
+          'Full loading/empty/error states must use AppStatePanel. '
+          'Review any new inline indicator and document why it cannot use the shared state.',
+    );
+  });
+
+  test('screen Center fallback stays limited to compact payment rows', () {
+    final hits = <String>[];
+    final centerReturnPattern = RegExp(r'return\s+(?:const\s+)?Center\s*\(');
+    final files = Directory('lib/features')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('_screen.dart'));
+
+    for (final file in files) {
+      final normalizedPath = file.path.replaceAll(r'\', '/');
+      final count = centerReturnPattern
+          .allMatches(file.readAsStringSync())
+          .length;
+      for (var index = 0; index < count; index += 1) {
+        hits.add(normalizedPath);
+      }
+    }
+
+    expect(
+      hits,
+      equals([
+        'lib/features/payment_monitor/presentation/screens/payment_monitor_screen.dart',
+      ]),
+      reason:
+          'The only screen-level Center fallback is the compact transaction '
+          'label below 130px height; normal states use AppStatePanel.',
+    );
+  });
 }
