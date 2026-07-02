@@ -281,22 +281,26 @@ Ngày cập nhật: 03/07/2026
 
 ## Route/frame gap được ghi nợ kỹ thuật
 
-Các frame sau có trong Figma nhưng chưa implement hoặc chưa expose route trong
-Batch 1. Không thêm route tạm nếu chưa có runtime contract rõ.
+Các frame sau từng có trong Figma nhưng cần quyết định theo runtime contract,
+không thêm route tạm nếu chưa có nghiệp vụ thật.
 
 Audit 02/07/2026: các route nằm trong `AppShell` hiện không còn dùng
 `GradientHeader` riêng. Guard `design_system_migration_guard_test.dart` khóa
-việc tái dùng `GradientHeader` trong feature screens, chỉ cho phép hai ngoại lệ
-đã ghi nợ là `PersonnelCatalogAdminScreen` legacy-hidden và
-`FifoCheckConversationScreen` chưa expose route/menu; test cũng xác nhận hai
-class này không xuất hiện trong `app_router.dart`.
+việc tái dùng `GradientHeader` trong feature screens.
+
+Decision follow-up 03/07/2026: `Generic Report Workspace` và
+`Personnel Catalog Admin` được mở contract. `Data Workspace` và
+`FIFO Conversation Check` bị retire khỏi plan hiện tại. Guard
+`design_system_migration_guard_test.dart` khóa `Generic Report Workspace` và
+`Personnel Catalog Admin` phải có route thật, đồng thời khóa Data/FIFO
+retired không được quay lại router/backlog tạm.
 
 | Figma frame | Trạng thái code hiện tại | Hướng xử lý |
 | --- | --- | --- |
-| Data Workspace | Chưa có route/runtime screen tương ứng | Tạo story/contract trước khi implement |
-| Generic Report Workspace | Repo đang dùng Sales Report hub/form/admin; hub `/sales-reports` đã migrate content-only | Quyết định có cần report hub generic riêng hay Figma frame sẽ nhập vào Sales Report |
-| Personnel Catalog Admin | Có screen code nhưng `ADMIN_PERSONNEL` đang là legacy hidden theo tree-first contract | Chỉ expose nếu product mở lại contract nhân sự ngoài cây tổ chức |
-| FIFO Conversation Check | Có screen code nhưng chưa expose route/menu | Xác nhận flow còn dùng hay retire trước khi expose |
+| Data Workspace | Retired | Bỏ khỏi plan hiện tại; không có route/runtime screen |
+| Generic Report Workspace | Approved / implemented | Route `/reports` là hub báo cáo chung, gom các report runtime hiện có theo quyền rồi điều hướng vào Sales Report hub/admin |
+| Personnel Catalog Admin | Approved / implemented | Route `/admin/personnel` dùng `ADMIN_PERSONNEL`, screen content-only trong `AppShell`, feature picker bật lại `Danh mục nhân sự` |
+| FIFO Conversation Check | Retired | Screen conversation legacy chưa expose đã được gỡ; giữ lại barcode scanner/entities vì các runtime screen khác đang dùng |
 | Dialog/loading/empty/error state inventory | Đã audit các route expose: full loading/empty/error dùng shared state; dialog action dùng shared button | Guard khóa raw indicator vào đúng ngữ cảnh inline đã review; audit lại khi thêm runtime state mới |
 
 ## Proof còn thiếu trước khi gọi là visual parity
@@ -727,10 +731,10 @@ class này không xuất hiện trong `app_router.dart`.
   error trên `/admin/sales-reports`; route admin sales cũng được map về
   workspace `Báo cáo` thay vì hiển thị topbar/sidebar `Quản trị`.
 - Audit route 02/07/2026 không còn phát hiện hub/form/data-heavy runtime route
-  nào dùng `GradientHeader` riêng. Phần còn lại của plan nằm ở nhóm
-  route/frame gap phía trên: Data Workspace và Generic Report cần quyết định
-  contract trước, Personnel Catalog đang legacy-hidden, FIFO Conversation chưa
-  expose route/menu. State inventory 03/07/2026 xác nhận full
+  nào dùng `GradientHeader` riêng. Decision follow-up 03/07/2026 đã mở
+  `/reports` cho Generic Report Workspace và `/admin/personnel` cho Personnel
+  Catalog Admin, đồng thời retire Data Workspace và FIFO Conversation Check khỏi
+  plan hiện tại. State inventory 03/07/2026 xác nhận full
   loading/empty/error state của route expose đã dùng shared pattern; raw
   progress indicator còn lại chỉ phục vụ inline action, image loader, refresh,
   load-more hoặc waiting status và được khóa count/rationale trong

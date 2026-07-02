@@ -72,6 +72,32 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('Admin menu shows personnel catalog by feature access', (
+    tester,
+  ) async {
+    const user = User(
+      email: 'personnel-admin@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-admin',
+      featureAccess: {'ADMIN_PERSONNEL': true},
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(user),
+        child: const MaterialApp(home: AdminMenuScreen()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(Scaffold), findsNothing);
+    expect(find.byType(GradientHeader), findsNothing);
+    expect(find.text('1 chức năng khả dụng'), findsOneWidget);
+    expect(find.text('Danh mục nhân sự'), findsOneWidget);
+    expect(find.text('Phòng ban và chức danh'), findsOneWidget);
+    expect(find.text('Quản lý tính năng'), findsNothing);
+  });
 }
 
 class _FakeAuthProvider extends AuthProvider {

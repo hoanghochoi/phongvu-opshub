@@ -236,6 +236,27 @@ describe('FeatureService', () => {
     ).resolves.toBe(false);
   });
 
+  it('seeds personnel catalog as a visible admin feature', async () => {
+    await service.seedDefaultFeatures();
+
+    expect(prisma.featureDefinition.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: 'ADMIN_PERSONNEL' },
+        update: expect.objectContaining({
+          displayName: 'Danh mục nhân sự',
+          visibleInUserPicker: true,
+          sortOrder: 75,
+        }),
+        create: expect.objectContaining({
+          code: 'ADMIN_PERSONNEL',
+          displayName: 'Danh mục nhân sự',
+          visibleInUserPicker: true,
+          sortOrder: 75,
+        }),
+      }),
+    );
+  });
+
   it('denies child node assignments when an organization parent is missing the feature', async () => {
     setNodeAssignment('FIFO', true, 'LV2_REGION', 'MIEN_NAM');
     setNodeAssignment('FIFO', true, 'LV4_STORE', 'CP62');

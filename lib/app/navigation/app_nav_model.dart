@@ -130,7 +130,7 @@ class AppNavModel {
       id: 'sales',
       label: 'Báo cáo',
       description: 'Theo dõi và gửi báo cáo sale',
-      route: '/sales-reports',
+      route: '/reports',
       icon: Icons.assignment_outlined,
       color: AppColors.info,
       group: AppNavGroup.workspace,
@@ -216,7 +216,8 @@ class AppNavModel {
             location == '/sort',
       'warranty' => location == '/warranty' || location == '/check-warranty',
       'sales' =>
-        location.startsWith('/sales-reports') ||
+        location == '/reports' ||
+            location.startsWith('/sales-reports') ||
             location == '/admin/sales-reports',
       _ => false,
     };
@@ -251,6 +252,8 @@ class AppNavModel {
         user?.canUseFeature('ADMIN_ROLES') == true ||
         user?.canUseFeature('ADMIN_ORG_TREE') == true ||
         user?.canUseFeature('ADMIN_POLICIES') == true ||
+        user?.canUseFeature('ADMIN_FEATURES') == true ||
+        user?.canUseFeature('ADMIN_PERSONNEL') == true ||
         user?.canUseFeature('ADMIN_FEEDBACK') == true;
   }
 }

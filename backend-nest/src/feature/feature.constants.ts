@@ -68,11 +68,10 @@ export const DEFAULT_FEATURE_DEFINITIONS = [
   },
   {
     code: FEATURE_KEYS.ADMIN_PERSONNEL,
-    displayName: 'Legacy nhân sự',
-    description: 'Legacy: phòng ban/chức danh được quản lý qua cây tổ chức',
+    displayName: 'Danh mục nhân sự',
+    description: 'Quản lý phòng ban và chức danh',
     parentCode: FEATURE_KEYS.ADMIN,
-    sortOrder: 902,
-    visibleInUserPicker: false,
+    sortOrder: 75,
   },
   {
     code: FEATURE_KEYS.ADMIN_FEATURES,

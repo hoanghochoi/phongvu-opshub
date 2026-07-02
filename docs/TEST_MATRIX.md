@@ -119,11 +119,12 @@ Recent focused evidence:
   test\admin_menu_screen_test.dart test\app_nav_model_test.dart` (6 tests),
   `dart format --output=none --set-exit-if-changed` on changed Dart files,
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter expanded`
-  (240 tests), and `git diff --check`. Personnel Catalog Admin remains
-  intentionally hidden because `ADMIN_PERSONNEL` is legacy under the tree-first
-  organization contract. The follow-up data-heavy migration keeps the same
-  `/admin/features` runtime contract but removes the nested feature
-  `GradientHeader`; the screen now renders content-only under `AppShell`, with a
+  (240 tests), and `git diff --check`. Route-gap decision follow-up opens
+  Generic Report Workspace as `/reports`, exposes Personnel Catalog Admin as
+  `/admin/personnel` behind `ADMIN_PERSONNEL`, and retires Data Workspace plus
+  FIFO Conversation Check from the current plan. The follow-up data-heavy
+  migration keeps the same `/admin/features` runtime contract but removes the
+  nested feature `GradientHeader`; the screen now renders content-only under `AppShell`, with a
   shared surface header/action row and shared tab surface before the existing
   feature/node/rule lists. Validation rerun: `dart format
   --output=none --set-exit-if-changed`, focused route/menu/nav tests,
@@ -1421,8 +1422,9 @@ Recent focused evidence:
   direct department/job-role rows and replaces the old node dropdown with a
   searchable, filtered, breadcrumb-based organization picker. Feature taxonomy
   adds `ADMIN_ORG_TREE`, moves org-tree route/menu guards to it, hides legacy
-  `ADMIN_STORES`, `ADMIN_REGIONS`, and `ADMIN_PERSONNEL` from the picker, and
-  backfills assignments/rules from `ADMIN_REGIONS`. Validation: `npx prisma
+  `ADMIN_STORES` and `ADMIN_REGIONS` from the picker, and backfills
+  assignments/rules from `ADMIN_REGIONS`. `ADMIN_PERSONNEL` was re-exposed in
+  the 2026-07-03 redesign follow-up as `Danh mục nhân sự`. Validation: `npx prisma
   validate`, `npx prisma generate`, backend `npm run build`, full backend `npm
   test -- --runInBand` (35 suites, 256 tests), `flutter analyze --no-pub`, full
   Flutter `flutter test --no-pub --reporter expanded` (87 tests), and `git diff

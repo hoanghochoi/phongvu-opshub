@@ -33,8 +33,9 @@ organization tree and fixed system-role rollout.
   message.
 - [ ] `POST /users/me/select-store` returns `410 Gone` with a clear retired
   self-selection message.
-- [ ] `/admin/features/tree` shows `Cơ cấu tổ chức`/`ADMIN_ORG_TREE` and does
-  not show legacy `ADMIN_STORES`, `ADMIN_REGIONS`, or `ADMIN_PERSONNEL`.
+- [ ] `/admin/features/tree` shows `Cơ cấu tổ chức`/`ADMIN_ORG_TREE` and
+  `Danh mục nhân sự`/`ADMIN_PERSONNEL`, and does not show legacy
+  `ADMIN_STORES` or `ADMIN_REGIONS`.
 - [ ] `GET /admin/features/node-assignments` returns node-group assignments
   with impacted user counts.
 - [ ] `POST /admin/features/node-assignments/batch` saves a selected node plus

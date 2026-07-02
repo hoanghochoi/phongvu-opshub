@@ -85,8 +85,11 @@ and basic administration for privileged roles.
   fields, MAP credentials, FIFO, and VietQR remain compatible.
 - Organization tree administration is gated by feature/policy code
   `ADMIN_ORG_TREE` and appears as `Cơ cấu tổ chức`. Legacy feature codes
-  `ADMIN_STORES`, `ADMIN_REGIONS`, and `ADMIN_PERSONNEL` remain in the database
-  only for history/backfill and are hidden from the user feature picker.
+  `ADMIN_STORES` and `ADMIN_REGIONS` remain in the database only for
+  history/backfill and are hidden from the user feature picker.
+  `ADMIN_PERSONNEL` is exposed again as `Danh mục nhân sự` for maintaining
+  department and job-role catalogs used by permissions, reports, and
+  compatibility fields.
 - Organization management lets `SUPER_ADMIN` maintain the source-of-truth tree:
   `LV0_DOMAIN`, `LV1_BLOCK`, `LV2_DEPARTMENT`, `LV2_REGION`, `LV3_AREA`,
   `LV3_UNIT`, `LV4_STORE`, and `LV5_POSITION`. Lv0 is the highest level and

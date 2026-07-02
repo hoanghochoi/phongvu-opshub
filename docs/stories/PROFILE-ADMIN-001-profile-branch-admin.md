@@ -30,8 +30,10 @@ account import from CSV, and administration for privileged roles.
   return `410 Gone`. Runtime `/stores`, `Store`, payment/MAP fields, FIFO,
   and VietQR remain compatible.
 - Organization tree administration uses feature/policy code `ADMIN_ORG_TREE`.
-  Legacy `ADMIN_STORES`, `ADMIN_REGIONS`, and `ADMIN_PERSONNEL` are preserved
-  only for history/backfill and are hidden from the feature picker.
+  Legacy `ADMIN_STORES` and `ADMIN_REGIONS` are preserved only for
+  history/backfill and are hidden from the feature picker. `ADMIN_PERSONNEL`
+  is exposed as `Danh mục nhân sự` for maintaining department and job-role
+  catalogs.
 - Lv4 store nodes in the organization tree are the admin surface for SR/store
   metadata. Tree saves sync the related `Store` row without overwriting existing
   SR identity, payment, transfer, or MAP fields unless those fields are

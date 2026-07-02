@@ -23,6 +23,11 @@ void main() {
     expect(sidebarLabels, contains('Báo cáo'));
     expect(taskLabels, isNot(contains('Quản trị')));
     expect(sidebarLabels, isNot(contains('Quản trị')));
+
+    final salesDestination = AppNavModel.visibleTaskDestinations(
+      user,
+    ).singleWhere((destination) => destination.id == 'sales');
+    expect(salesDestination.route, '/reports');
   });
 
   test('scoped staff only sees allowed workspaces', () {
@@ -59,5 +64,32 @@ void main() {
 
     expect(destination?.id, 'sales');
     expect(destination?.label, 'Báo cáo');
+  });
+
+  test('generic report route selects Báo cáo workspace', () {
+    final destination = AppNavModel.destinationForLocation('/reports');
+
+    expect(destination?.id, 'sales');
+    expect(destination?.label, 'Báo cáo');
+  });
+
+  test('personnel catalog access makes Admin workspace visible', () {
+    const user = User(
+      id: 'personnel-admin',
+      email: 'personnel-admin@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-admin',
+      featureAccess: {'ADMIN_PERSONNEL': true},
+    );
+
+    final taskLabels = AppNavModel.visibleTaskDestinations(
+      user,
+    ).map((destination) => destination.label);
+    final sidebarLabels = AppNavModel.visibleSidebarDestinations(
+      user,
+    ).map((destination) => destination.label);
+
+    expect(taskLabels, contains('Quản trị'));
+    expect(sidebarLabels, contains('Quản trị'));
   });
 }

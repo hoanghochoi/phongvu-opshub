@@ -77,10 +77,6 @@ void main() {
   });
 
   test('exposed feature screens do not use legacy GradientHeader shells', () {
-    final allowedNonRoutedLegacyFiles = {
-      'lib/features/admin/presentation/screens/personnel_catalog_admin_screen.dart',
-      'lib/features/fifo_check/presentation/screens/fifo_check_conversation_screen.dart',
-    };
     final legacyHeaderPattern = RegExp(
       r"gradient_header\.dart|(?:\bGradientHeader\s*\()",
     );
@@ -92,8 +88,6 @@ void main() {
 
     for (final file in files) {
       final normalizedPath = file.path.replaceAll(r'\', '/');
-      if (allowedNonRoutedLegacyFiles.contains(normalizedPath)) continue;
-
       final lines = file.readAsLinesSync();
       for (var index = 0; index < lines.length; index += 1) {
         if (legacyHeaderPattern.hasMatch(lines[index])) {
@@ -110,9 +104,91 @@ void main() {
         'app_router.dart',
       ].join(Platform.pathSeparator),
     ).readAsStringSync();
-    expect(routerSource.contains('PersonnelCatalogAdminScreen'), isFalse);
     expect(routerSource.contains('FifoCheckConversationScreen'), isFalse);
     expect(hits, isEmpty, reason: hits.join('\n'));
+  });
+
+  test('approved Figma route gaps are routed through runtime screens', () {
+    final routerSource = File(
+      [
+        'lib',
+        'app',
+        'navigation',
+        'app_router.dart',
+      ].join(Platform.pathSeparator),
+    ).readAsStringSync();
+
+    const requiredRouteMarkers = <String>[
+      'ReportWorkspaceScreen',
+      "path: '/reports'",
+      'PersonnelCatalogAdminScreen',
+      "path: '/admin/personnel'",
+      "'/reports' => 'SALES_REPORT_HUB'",
+      "'/admin/personnel' => 'ADMIN_PERSONNEL'",
+    ];
+    for (final marker in requiredRouteMarkers) {
+      expect(routerSource, contains(marker));
+    }
+  });
+
+  test('retired Figma route gaps stay documented and non-routed', () {
+    final gapMap = File(
+      [
+        'docs',
+        'product',
+        'opshub-redesign-gap-map-2026-07-01.md',
+      ].join(Platform.pathSeparator),
+    ).readAsStringSync();
+    final backlog = File(
+      ['docs', 'stories', 'backlog.md'].join(Platform.pathSeparator),
+    ).readAsStringSync();
+    final routerSource = File(
+      [
+        'lib',
+        'app',
+        'navigation',
+        'app_router.dart',
+      ].join(Platform.pathSeparator),
+    ).readAsStringSync();
+
+    expect(gapMap, contains('| Data Workspace | Retired |'));
+    expect(gapMap, contains('| FIFO Conversation Check | Retired |'));
+    expect(backlog, isNot(contains('Resolve Figma Data Workspace route gap')));
+    expect(
+      backlog,
+      isNot(contains('Decide FIFO Conversation Check route fate')),
+    );
+    expect(
+      File(
+        [
+          'lib',
+          'features',
+          'fifo_check',
+          'presentation',
+          'screens',
+          'fifo_check_conversation_screen.dart',
+        ].join(Platform.pathSeparator),
+      ).existsSync(),
+      isFalse,
+    );
+
+    const forbiddenRouteMarkers = <String>[
+      'DataWorkspaceScreen',
+      'FifoCheckConversationScreen',
+      "path: '/data'",
+      "path: '/data-workspace'",
+      "path: '/report-workspace'",
+      "path: '/fifo-conversation'",
+      "path: '/fifo/check-conversation'",
+    ];
+    for (final marker in forbiddenRouteMarkers) {
+      expect(
+        routerSource.contains(marker),
+        isFalse,
+        reason:
+            '$marker must stay non-routed until the product contract is approved.',
+      );
+    }
   });
 
   test('feature progress indicators stay limited to reviewed inline states', () {

@@ -61,6 +61,14 @@ class AdminMenuScreen extends StatelessWidget {
           color: AppColors.violet600,
           onTap: () => context.push('/admin/features'),
         ),
+      if (canUse('ADMIN_PERSONNEL'))
+        AppFeatureAction(
+          icon: Icons.badge_outlined,
+          title: 'Danh mục nhân sự',
+          description: 'Phòng ban và chức danh',
+          color: AppColors.info,
+          onTap: () => context.push('/admin/personnel'),
+        ),
       if (isSuperAdmin)
         AppFeatureAction(
           icon: Icons.lightbulb_outline_rounded,

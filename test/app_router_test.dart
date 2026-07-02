@@ -38,6 +38,53 @@ void main() {
     expect(AppRouter.canUseRouteForTesting(staff, '/admin/features'), isFalse);
   });
 
+  test('personnel catalog route requires ADMIN_PERSONNEL access', () {
+    const personnelAdmin = User(
+      email: 'personnel-admin@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-admin',
+      featureAccess: {'ADMIN_PERSONNEL': true},
+    );
+    const staff = User(
+      email: 'staff@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-store',
+      featureAccess: {'FIFO': true},
+    );
+
+    expect(AppRouter.canUseRouteForTesting(personnelAdmin, '/admin'), isTrue);
+    expect(
+      AppRouter.canUseRouteForTesting(personnelAdmin, '/admin/personnel'),
+      isTrue,
+    );
+    expect(AppRouter.canUseRouteForTesting(staff, '/admin/personnel'), isFalse);
+  });
+
+  test('generic report workspace accepts sales report permissions', () {
+    const salesUser = User(
+      email: 'sales@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-store',
+      featureAccess: {'SALES_REPORT': true},
+    );
+    const salesAdmin = User(
+      email: 'sales-admin@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-admin',
+      featureAccess: {'ADMIN_SALES_REPORTS': true},
+    );
+    const staff = User(
+      email: 'staff@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-store',
+      featureAccess: {'FIFO': true},
+    );
+
+    expect(AppRouter.canUseRouteForTesting(salesUser, '/reports'), isTrue);
+    expect(AppRouter.canUseRouteForTesting(salesAdmin, '/reports'), isTrue);
+    expect(AppRouter.canUseRouteForTesting(staff, '/reports'), isFalse);
+  });
+
   testWidgets('payment monitor route renders list screen on web', (
     tester,
   ) async {

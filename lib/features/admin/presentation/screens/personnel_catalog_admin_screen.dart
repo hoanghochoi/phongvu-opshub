@@ -8,7 +8,6 @@ import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
-import '../../../../app/widgets/gradient_header.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
@@ -28,6 +27,7 @@ class _PersonnelCatalogAdminScreenState
   List<AdminPersonnelDefinition> _departments = [];
   List<AdminPersonnelDefinition> _jobRoles = [];
   bool _loading = true;
+  int _tabIndex = 0;
 
   @override
   void initState() {
@@ -165,79 +165,78 @@ class _PersonnelCatalogAdminScreenState
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
-      child: Scaffold(
-        appBar: GradientHeader(
-          title: 'Phòng ban & Chức danh',
-          showBack: true,
-          bottom: TabBar(
-            labelColor: AppColors.surface,
-            unselectedLabelColor: AppColors.surface.withValues(alpha: 0.70),
-            indicatorColor: AppColors.surface,
-            dividerColor: AppColors.transparent,
-            tabs: const [
-              Tab(text: 'Phòng ban'),
-              Tab(text: 'Chức danh'),
-            ],
-          ),
-          actions: [
-            IconButton(
-              onPressed: _loading ? null : () => _openDepartmentEditor(),
-              icon: const Icon(Icons.apartment_outlined),
-              tooltip: 'Thêm phòng ban',
+      initialIndex: _tabIndex,
+      child: AppResponsiveScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _PersonnelCatalogHeader(
+              departmentCount: _departments.length,
+              jobRoleCount: _jobRoles.length,
+              loading: _loading,
+              onAddDepartment: () => _openDepartmentEditor(),
+              onAddJobRole: () => _openJobRoleEditor(),
             ),
-            IconButton(
-              onPressed: _loading ? null : () => _openJobRoleEditor(),
-              icon: const Icon(Icons.badge_outlined),
-              tooltip: 'Thêm chức danh',
-            ),
-          ],
-        ),
-        body: _loading
-            ? const AppResponsiveContent(
-                child: AppListSkeleton(itemCount: 6, itemHeight: 72),
-              )
-            : TabBarView(
-                children: [
-                  _CatalogList(
-                    emptyText: 'Chưa có phòng ban',
-                    itemCount: _departments.length,
-                    itemBuilder: (context, index) {
-                      final item = _departments[index];
-                      return _PersonnelCard(
-                        item: item,
-                        icon: Icons.apartment_outlined,
-                        color: AppColors.info,
-                        metadata: '${item.userCount} người dùng',
-                        onEdit: () => _openDepartmentEditor(item),
-                        onDelete: item.isSystem
-                            ? null
-                            : () => _deleteItem(item, _CatalogType.department),
-                      );
-                    },
-                  ),
-                  _CatalogList(
-                    emptyText: 'Chưa có chức danh',
-                    itemCount: _jobRoles.length,
-                    itemBuilder: (context, index) {
-                      final item = _jobRoles[index];
-                      final department = _departmentTitle(item.departmentCode);
-                      return _PersonnelCard(
-                        item: item,
-                        icon: Icons.badge_outlined,
-                        color: AppColors.accent,
-                        metadata: [
-                          department,
-                          '${item.userCount} người dùng',
-                        ].where((value) => value.isNotEmpty).join(' • '),
-                        onEdit: () => _openJobRoleEditor(item),
-                        onDelete: item.isSystem
-                            ? null
-                            : () => _deleteItem(item, _CatalogType.jobRole),
-                      );
-                    },
-                  ),
+            const SizedBox(height: AppLayoutTokens.sectionGap),
+            AppSurfaceCard(
+              padding: EdgeInsets.zero,
+              child: TabBar(
+                onTap: (index) => setState(() => _tabIndex = index),
+                labelColor: AppColors.primaryOf(context),
+                unselectedLabelColor: AppColors.textMutedOf(context),
+                indicatorColor: AppColors.primaryOf(context),
+                dividerColor: AppColors.borderOf(context),
+                tabs: const [
+                  Tab(text: 'Phòng ban'),
+                  Tab(text: 'Chức danh'),
                 ],
               ),
+            ),
+            const SizedBox(height: AppLayoutTokens.formSectionGap),
+            if (_loading)
+              const AppListSkeleton(itemCount: 6, itemHeight: 72)
+            else if (_tabIndex == 0)
+              _CatalogList(
+                emptyText: 'Chưa có phòng ban',
+                itemCount: _departments.length,
+                itemBuilder: (context, index) {
+                  final item = _departments[index];
+                  return _PersonnelCard(
+                    item: item,
+                    icon: Icons.apartment_outlined,
+                    color: AppColors.info,
+                    metadata: '${item.userCount} người dùng',
+                    onEdit: () => _openDepartmentEditor(item),
+                    onDelete: item.isSystem
+                        ? null
+                        : () => _deleteItem(item, _CatalogType.department),
+                  );
+                },
+              )
+            else
+              _CatalogList(
+                emptyText: 'Chưa có chức danh',
+                itemCount: _jobRoles.length,
+                itemBuilder: (context, index) {
+                  final item = _jobRoles[index];
+                  final department = _departmentTitle(item.departmentCode);
+                  return _PersonnelCard(
+                    item: item,
+                    icon: Icons.badge_outlined,
+                    color: AppColors.accent,
+                    metadata: [
+                      department,
+                      '${item.userCount} người dùng',
+                    ].where((value) => value.isNotEmpty).join(' • '),
+                    onEdit: () => _openJobRoleEditor(item),
+                    onDelete: item.isSystem
+                        ? null
+                        : () => _deleteItem(item, _CatalogType.jobRole),
+                  );
+                },
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -248,6 +247,96 @@ class _PersonnelCatalogAdminScreenState
       if (department.code == code) return department.title;
     }
     return code;
+  }
+}
+
+class _PersonnelCatalogHeader extends StatelessWidget {
+  final int departmentCount;
+  final int jobRoleCount;
+  final bool loading;
+  final VoidCallback onAddDepartment;
+  final VoidCallback onAddJobRole;
+
+  const _PersonnelCatalogHeader({
+    required this.departmentCount,
+    required this.jobRoleCount,
+    required this.loading,
+    required this.onAddDepartment,
+    required this.onAddJobRole,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      key: const Key('personnel-catalog-header'),
+      backgroundColor: AppColors.primarySurfaceOf(context),
+      borderColor: AppColors.primaryOf(context).withValues(alpha: 0.20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryOf(context).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(
+                    AppLayoutTokens.cardRadius,
+                  ),
+                ),
+                child: Icon(
+                  Icons.badge_outlined,
+                  color: AppColors.primaryOf(context),
+                ),
+              ),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Danh mục nhân sự', style: AppTextStyles.headingM),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Quản lý phòng ban và chức danh dùng cho quyền, báo cáo và dữ liệu tương thích.',
+                      style: AppTextStyles.bodyM.copyWith(
+                        color: AppColors.textSecondaryOf(context),
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: AppLayoutTokens.formInlineGap),
+                    Text(
+                      loading
+                          ? 'Đang tải danh mục'
+                          : '$departmentCount phòng ban • $jobRoleCount chức danh',
+                      style: AppTextStyles.labelS.copyWith(
+                        color: AppColors.textMutedOf(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppLayoutTokens.formSectionGap),
+          AppActionRow(
+            children: [
+              AppSecondaryButton(
+                onPressed: loading ? null : onAddDepartment,
+                icon: Icons.apartment_outlined,
+                label: 'Thêm phòng ban',
+              ),
+              AppSecondaryButton(
+                onPressed: loading ? null : onAddJobRole,
+                icon: Icons.badge_outlined,
+                label: 'Thêm chức danh',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -265,22 +354,21 @@ class _CatalogList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (itemCount == 0) {
-      return AppStatePanel.empty(
-        title: emptyText,
-        message: 'Bấm nút thêm trên thanh tiêu đề để tạo dữ liệu.',
-        icon: Icons.badge_outlined,
+      return AppSurfaceCard(
+        child: AppStatePanel.empty(
+          title: emptyText,
+          message: 'Dùng nút thêm ở đầu màn hình để tạo dữ liệu.',
+          icon: Icons.badge_outlined,
+        ),
       );
     }
-    return AppResponsiveContent(
-      padding: EdgeInsets.zero,
-      child: ListView.separated(
-        padding: AppLayoutTokens.pagePaddingFor(
-          MediaQuery.sizeOf(context).width,
-        ),
-        itemCount: itemCount,
-        separatorBuilder: (context, index) => const SizedBox(height: 10),
-        itemBuilder: itemBuilder,
-      ),
+    return Column(
+      children: [
+        for (var index = 0; index < itemCount; index += 1) ...[
+          if (index > 0) const SizedBox(height: 10),
+          itemBuilder(context, index),
+        ],
+      ],
     );
   }
 }
