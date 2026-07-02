@@ -1,9 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
-import '../../../../app/widgets/gradient_header.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/repositories/fifo_log_repository.dart';
@@ -12,7 +18,9 @@ import '../widgets/fifo_search_bar.dart';
 import '../widgets/fifo_tab_bar.dart';
 
 class FifoHistoryScreen extends StatefulWidget {
-  const FifoHistoryScreen({super.key});
+  final FifoLogRepository? repository;
+
+  const FifoHistoryScreen({super.key, this.repository});
 
   @override
   State<FifoHistoryScreen> createState() => _FifoHistoryScreenState();
@@ -34,6 +42,8 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
   int _sortPage = 1;
   bool _checkLoading = false;
   bool _sortLoading = false;
+  String? _checkError;
+  String? _sortError;
   String? _searchQuery;
   String? _filterUser;
   final int _limit = 20;
@@ -43,15 +53,16 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _fifoLogRepo = FifoLogRepository(ApiClient());
+    _fifoLogRepo = widget.repository ?? FifoLogRepository(ApiClient());
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
+        if (mounted) setState(() {});
         if (_tabController.index == 0 && _checkLogs.isEmpty && !_checkLoading) {
-          _loadCheckLogs();
+          unawaited(_loadCheckLogs());
         } else if (_tabController.index == 1 &&
             _sortLogs.isEmpty &&
             !_sortLoading) {
-          _loadSortLogs();
+          unawaited(_loadSortLogs());
         }
       }
     });
@@ -92,10 +103,21 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
       _searchQuery = q.isEmpty ? null : q;
       _filterUser = u.isEmpty ? null : u;
     });
+    unawaited(
+      AppLogger.instance.info(
+        'FifoHistory',
+        'FIFO history filters applied',
+        context: {
+          'tab': _activeType,
+          'searchLength': q.length,
+          'hasUserFilter': u.isNotEmpty,
+        },
+      ),
+    );
     if (_tabController.index == 0) {
-      _loadCheckLogs();
+      unawaited(_loadCheckLogs());
     } else {
-      _loadSortLogs();
+      unawaited(_loadSortLogs());
     }
   }
 
@@ -106,109 +128,189 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
       _searchQuery = null;
       _filterUser = null;
     });
+    unawaited(
+      AppLogger.instance.info(
+        'FifoHistory',
+        'FIFO history filters cleared',
+        context: {'tab': _activeType},
+      ),
+    );
     if (_tabController.index == 0) {
-      _loadCheckLogs();
+      unawaited(_loadCheckLogs());
     } else {
-      _loadSortLogs();
+      unawaited(_loadSortLogs());
     }
   }
 
   Future<void> _loadCheckLogs({bool loadMore = false}) async {
-    if (_checkLoading) return;
-    setState(() => _checkLoading = true);
-
-    final page = loadMore ? _checkPage + 1 : 1;
-    final result = await _fifoLogRepo.getAdminLogs(
-      type: 'FIFO_CHECK',
-      page: page,
-      limit: _limit,
-      search: _searchQuery,
-      filterUserEmail: _filterUser,
-    );
-
-    setState(() {
-      if (loadMore) {
-        _checkLogs.addAll(result['data'] as List<FifoLogItem>);
-      } else {
-        _checkLogs.clear();
-        _checkLogs.addAll(result['data'] as List<FifoLogItem>);
-      }
-      _checkTotal = result['total'] as int;
-      _checkPage = page;
-      _checkLoading = false;
-    });
+    await _loadLogs(type: 'FIFO_CHECK', loadMore: loadMore);
   }
 
   Future<void> _loadSortLogs({bool loadMore = false}) async {
-    if (_sortLoading) return;
-    setState(() => _sortLoading = true);
+    await _loadLogs(type: 'FIFO_SORT', loadMore: loadMore);
+  }
 
-    final page = loadMore ? _sortPage + 1 : 1;
-    final result = await _fifoLogRepo.getAdminLogs(
-      type: 'FIFO_SORT',
-      page: page,
-      limit: _limit,
-      search: _searchQuery,
-      filterUserEmail: _filterUser,
+  String get _activeType =>
+      _tabController.index == 0 ? 'FIFO_CHECK' : 'FIFO_SORT';
+
+  Future<void> _loadLogs({required String type, required bool loadMore}) async {
+    final isCheck = type == 'FIFO_CHECK';
+    if (isCheck ? _checkLoading : _sortLoading) return;
+    final page = loadMore ? (isCheck ? _checkPage : _sortPage) + 1 : 1;
+    final startedAt = DateTime.now();
+    setState(() {
+      if (isCheck) {
+        _checkLoading = true;
+        _checkError = null;
+      } else {
+        _sortLoading = true;
+        _sortError = null;
+      }
+    });
+    await AppLogger.instance.info(
+      'FifoHistory',
+      'FIFO history load started',
+      context: {
+        'type': type,
+        'page': page,
+        'loadMore': loadMore,
+        'hasSearch': _searchQuery?.isNotEmpty == true,
+        'hasUserFilter': _filterUser?.isNotEmpty == true,
+      },
     );
 
-    setState(() {
-      if (loadMore) {
-        _sortLogs.addAll(result['data'] as List<FifoLogItem>);
-      } else {
-        _sortLogs.clear();
-        _sortLogs.addAll(result['data'] as List<FifoLogItem>);
+    try {
+      final result = await _fifoLogRepo.getAdminLogs(
+        type: type,
+        page: page,
+        limit: _limit,
+        search: _searchQuery,
+        filterUserEmail: _filterUser,
+      );
+      final items = List<FifoLogItem>.from(result['data'] as List<FifoLogItem>);
+      final total = result['total'] as int;
+      if (!mounted) return;
+      setState(() {
+        final target = isCheck ? _checkLogs : _sortLogs;
+        if (!loadMore) target.clear();
+        target.addAll(items);
+        if (isCheck) {
+          _checkTotal = total;
+          _checkPage = page;
+          _checkError = null;
+        } else {
+          _sortTotal = total;
+          _sortPage = page;
+          _sortError = null;
+        }
+      });
+      await AppLogger.instance.info(
+        'FifoHistory',
+        'FIFO history load succeeded',
+        context: {
+          'type': type,
+          'page': page,
+          'loadMore': loadMore,
+          'count': items.length,
+          'total': total,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'FifoHistory',
+        'FIFO history load failed',
+        error: error,
+        stackTrace: stackTrace,
+        upload: true,
+        context: {
+          'type': type,
+          'page': page,
+          'loadMore': loadMore,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      if (mounted) {
+        setState(() {
+          if (isCheck) {
+            _checkError = 'Chưa tải được lịch sử kiểm tra FIFO.';
+          } else {
+            _sortError = 'Chưa tải được lịch sử sắp xếp FIFO.';
+          }
+        });
       }
-      _sortTotal = result['total'] as int;
-      _sortPage = page;
-      _sortLoading = false;
-    });
+    } finally {
+      if (mounted) {
+        setState(() {
+          if (isCheck) {
+            _checkLoading = false;
+          } else {
+            _sortLoading = false;
+          }
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const GradientHeader(title: 'Lịch sử FIFO', showBack: true),
-      body: AppResponsiveContent(
-        padding: EdgeInsets.zero,
-        child: Column(
-          children: [
-            FifoHistorySearchBar(
-              searchController: _searchController,
-              userFilterController: _userFilterController,
-              onSearch: _onSearch,
-              onClearFilter: _clearSearch,
-              totalCount: _tabController.index == 0 ? _checkTotal : _sortTotal,
-              searchQuery: _searchQuery,
-              filterUser: _filterUser,
+    final activeLoading = _tabController.index == 0
+        ? _checkLoading
+        : _sortLoading;
+    return AppResponsiveContent(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _FifoHistoryHeader(
+            key: const Key('fifo-history-header'),
+            checkTotal: _checkTotal,
+            sortTotal: _sortTotal,
+            loading: activeLoading,
+            onReload: () =>
+                _tabController.index == 0 ? _loadCheckLogs() : _loadSortLogs(),
+          ),
+          const SizedBox(height: AppLayoutTokens.cardGap),
+          FifoHistorySearchBar(
+            key: const Key('fifo-history-filter-card'),
+            searchController: _searchController,
+            userFilterController: _userFilterController,
+            onSearch: _onSearch,
+            onClearFilter: _clearSearch,
+            totalCount: _tabController.index == 0 ? _checkTotal : _sortTotal,
+            searchQuery: _searchQuery,
+            filterUser: _filterUser,
+          ),
+          const SizedBox(height: AppLayoutTokens.cardGap),
+          FifoHistoryTabBar(
+            key: const Key('fifo-history-tabs'),
+            controller: _tabController,
+          ),
+          const SizedBox(height: AppLayoutTokens.cardGap),
+          Expanded(
+            key: const Key('fifo-history-tab-view'),
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildLogList(
+                  _checkLogs,
+                  _checkLoading,
+                  _checkError,
+                  _checkLogs.length < _checkTotal,
+                  () => _loadCheckLogs(loadMore: true),
+                  () => _loadCheckLogs(),
+                ),
+                _buildLogList(
+                  _sortLogs,
+                  _sortLoading,
+                  _sortError,
+                  _sortLogs.length < _sortTotal,
+                  () => _loadSortLogs(loadMore: true),
+                  () => _loadSortLogs(),
+                ),
+              ],
             ),
-            FifoHistoryTabBar(controller: _tabController),
-            const SizedBox(height: 8),
-
-            // Tab content
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildLogList(
-                    _checkLogs,
-                    _checkLoading,
-                    _checkLogs.length < _checkTotal,
-                    () => _loadCheckLogs(loadMore: true),
-                    () => _loadCheckLogs(),
-                  ),
-                  _buildLogList(
-                    _sortLogs,
-                    _sortLoading,
-                    _sortLogs.length < _sortTotal,
-                    () => _loadSortLogs(loadMore: true),
-                    () => _loadSortLogs(),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -216,12 +318,25 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
   Widget _buildLogList(
     List<FifoLogItem> logs,
     bool loading,
+    String? error,
     bool hasMore,
     VoidCallback onLoadMore,
     VoidCallback onRefresh,
   ) {
     if (loading && logs.isEmpty) {
       return const AppStatePanel.loading(title: 'Đang tải lịch sử FIFO');
+    }
+
+    if (error != null && logs.isEmpty) {
+      return AppStatePanel.error(
+        key: const Key('fifo-history-error'),
+        title: error,
+        message: 'Kiểm tra kết nối rồi thử tải lại.',
+        actionLabel: 'Thử tải lại',
+        actionIcon: Icons.refresh_outlined,
+        onAction: onRefresh,
+        compact: true,
+      );
     }
 
     if (logs.isEmpty) {
@@ -232,6 +347,7 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
         icon: Icons.inbox_rounded,
         actionLabel: 'Tải lại',
         onAction: onRefresh,
+        compact: true,
       );
     }
 
@@ -258,6 +374,7 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
 
           final log = logs[index];
           return FifoItemCard(
+            key: ValueKey('fifo-history-item-${log.id}'),
             log: log,
             isExpanded: _expandedIds.contains(log.id),
             onTap: () {
@@ -269,6 +386,98 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
                 }
               });
             },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FifoHistoryHeader extends StatelessWidget {
+  final int checkTotal;
+  final int sortTotal;
+  final bool loading;
+  final Future<void> Function() onReload;
+
+  const _FifoHistoryHeader({
+    super.key,
+    required this.checkTotal,
+    required this.sortTotal,
+    required this.loading,
+    required this.onReload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 620;
+          final title = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Lịch sử FIFO', style: AppTextStyles.headingM),
+              const SizedBox(height: 6),
+              Text(
+                'Tra cứu lịch sử kiểm tra và sắp xếp FIFO theo người dùng.',
+                style: AppTextStyles.bodyM.copyWith(
+                  color: AppColors.neutral600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  AppStatusChip(
+                    label: 'Kiểm tra $checkTotal',
+                    color: AppColors.info,
+                  ),
+                  AppStatusChip(
+                    label: 'Sắp xếp $sortTotal',
+                    color: AppColors.indigo600,
+                  ),
+                ],
+              ),
+            ],
+          );
+          final action = AppIconAction(
+            onPressed: loading ? null : () => unawaited(onReload()),
+            icon: Icons.refresh_outlined,
+            tooltip: 'Tải lại lịch sử',
+          );
+          final icon = DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.all(12),
+              child: Icon(Icons.history_rounded, color: AppColors.primary),
+            ),
+          );
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [icon, const Spacer(), action],
+                ),
+                const SizedBox(height: 12),
+                title,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              icon,
+              const SizedBox(width: 16),
+              Expanded(child: title),
+              const SizedBox(width: 12),
+              action,
+            ],
           );
         },
       ),

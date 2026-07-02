@@ -125,7 +125,7 @@ class FifoItemCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppRadius.xs),
                     ),
                     child: Text(
-                      'Query',
+                      'Truy vấn',
                       style: AppTextStyles.caption.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
@@ -153,7 +153,7 @@ class FifoItemCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(AppRadius.xs),
                       ),
                       child: Text(
-                        'items',
+                        '${items.length} sản phẩm',
                         style: AppTextStyles.captionBold.copyWith(
                           color: AppColors.info,
                         ),
@@ -291,7 +291,7 @@ class FifoItemCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(AppRadius.xs),
                   ),
                   child: Text(
-                    'FIFO ✓',
+                    'Đúng FIFO',
                     style: AppTextStyles.captionBold.copyWith(
                       color: AppColors.success,
                     ),

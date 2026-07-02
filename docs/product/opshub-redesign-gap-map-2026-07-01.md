@@ -117,6 +117,17 @@ Ngày cập nhật: 02/07/2026
   `Tablet v2 / FIFO Check` và `Mobile v2 / FIFO Check` trong Figma đã bỏ mock
   SKU/BIN/copy không còn đúng contract, thay bằng header/input/toggle/result
   card theo dữ liệu serial runtime và vẫn đặt active nav dưới FIFO.
+- FIFO History `/fifo-history` đã được migrate khỏi `GradientHeader` riêng
+  sang content-only workspace trong `AppShell`: header card có tổng kiểm
+  tra/sắp xếp và refresh, filter truy vấn/người dùng dùng shared surface, tab
+  `Kiểm tra FIFO`/`Sắp xếp FIFO`, trạng thái loading/empty/error/retry và
+  danh sách log vẫn giữ runtime contract `FifoLogRepository.getAdminLogs` với
+  `FIFO_CHECK`/`FIFO_SORT`, phân trang, search, user filter và expand item.
+  Các frame `Desktop v2 / FIFO History` (`152:2601`),
+  `Tablet v2 / FIFO History` (`152:587`) và
+  `Mobile v2 / FIFO History` (`151:437`) trong Figma đã bỏ nút thêm mới/mock
+  SKU cũ không có runtime contract, thay bằng header/filter/tabs/cards theo
+  dữ liệu log runtime và active nav nằm dưới FIFO.
 - Sao kê `/bank-statement` đã được migrate khỏi `GradientHeader` riêng sang
   content-only workspace trong `AppShell`: header card có chips scope/số giao
   dịch/đã chọn/yêu cầu chờ Kế toán/trạng thái filter, bộ lọc tìm kiếm,
@@ -296,6 +307,22 @@ Batch 1. Không thêm route tạm nếu chưa có runtime contract rõ.
   `flutter test --no-pub --reporter expanded` (257 tests), Windows debug build
   `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`, và
   `git diff --check` pass với cảnh báo CRLF trên Windows.
+- FIFO History focused widget proof đã pass, xác nhận màn `/fifo-history`
+  content-only không còn `GradientHeader`, render header/filter/tabs đúng
+  runtime, chuyển tab gọi `FIFO_SORT`, mobile loaded/error/retry không phát
+  sinh layout exception, và `AppLogger` có log start/success/failure cho flow
+  tải lịch sử. Figma desktop/tablet/mobile screenshots đã được kiểm lại sau
+  khi sync FIFO History; ba frame không còn placeholder, text rỗng, copy cũ
+  như `Thêm mới`, `SKU check`, `Quét SKU`, `Query`, `items`, không còn overflow
+  trong clipped frames, và đều dùng text style/font `Inter` của design system.
+  Lưu ý parity: runtime Flutter vẫn dùng `SF Pro Display`, còn file Figma V2
+  đang chuẩn hóa theo `Inter` để tránh lỗi render chữ trắng trong screenshot
+  tool. Focused validation đã pass `flutter test --no-pub --reporter expanded
+  test\fifo_history_redesign_test.dart test\app_router_test.dart
+  test\app_nav_model_test.dart` (8 tests). Validation sau batch FIFO History
+  đã pass `dart format --output=none --set-exit-if-changed`, `flutter analyze
+  --no-pub`, full `flutter test --no-pub --reporter compact` (265 tests), và
+  web build `flutter build web --no-pub`.
 - Sao kê focused widget proof đã pass, xác nhận màn `/bank-statement`
   content-only không còn `Scaffold`/`GradientHeader`, vẫn render header/toolbar,
   pending transfer bell trong `AppShell`, dialog thông báo Kế toán và history

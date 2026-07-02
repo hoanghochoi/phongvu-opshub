@@ -90,6 +90,18 @@ class FifoLogRepository {
     String? filterUserEmail,
     String? search,
   }) async {
+    final startedAt = DateTime.now();
+    await AppLogger.instance.info(
+      'FIFO',
+      'Admin FIFO logs load started',
+      context: {
+        'type': type,
+        'page': page,
+        'limit': limit,
+        'hasUserFilter': filterUserEmail?.isNotEmpty == true,
+        'hasSearch': search?.isNotEmpty == true,
+      },
+    );
     try {
       final params = <String>[];
       if (type != null) params.add('type=$type');
@@ -116,6 +128,7 @@ class FifoLogRepository {
           'limit': limit,
           'count': data.length,
           'total': json['total'] ?? 0,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
 
@@ -125,14 +138,23 @@ class FifoLogRepository {
         'page': json['page'] ?? 1,
         'limit': json['limit'] ?? 20,
       };
-    } catch (error) {
+    } catch (error, stackTrace) {
       await AppLogger.instance.error(
         'FIFO',
         'Admin FIFO logs load failed',
         error: error,
-        context: {'type': type, 'page': page, 'limit': limit},
+        stackTrace: stackTrace,
+        upload: true,
+        context: {
+          'type': type,
+          'page': page,
+          'limit': limit,
+          'hasUserFilter': filterUserEmail?.isNotEmpty == true,
+          'hasSearch': search?.isNotEmpty == true,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
       );
-      return {'data': <FifoLogItem>[], 'total': 0, 'page': 1, 'limit': 20};
+      rethrow;
     }
   }
 }

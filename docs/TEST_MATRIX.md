@@ -310,6 +310,26 @@ Recent focused evidence:
   `flutter test --no-pub --reporter expanded` (257 tests),
   `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`, and
   `git diff --check` with CRLF warnings only.
+- `UI-UX-001`/`FIFO-001`/`FIFO-HISTORY`, 2026-07-02: `/fifo-history` now
+  renders as a content-only workspace under `AppShell` instead of nesting a
+  `GradientHeader`. It keeps the existing admin log runtime contract through
+  `FifoLogRepository.getAdminLogs`, `FIFO_CHECK`/`FIFO_SORT`, search, user
+  filter, pagination/load-more, expand item behavior, and adds `AppLogger`
+  start/success/failure logs for the changed history flow. Focused validation
+  passed `flutter test --no-pub --reporter expanded
+  test\fifo_history_redesign_test.dart test\app_router_test.dart
+  test\app_nav_model_test.dart` (8 tests), including desktop runtime
+  filters/tabs, mobile loaded-state, and mobile retry after load failure.
+  Figma FIFO History desktop/tablet/mobile frames (`152:2601`, `152:587`,
+  `151:437`) were synced to remove stale add/mock/SKU copy and unsupported
+  controls, with visual QA confirming no placeholder, no zero/blank text, no
+  stale copy such as `Thêm mới`, `SKU check`, `Quét SKU`, `Query`, or `items`,
+  and no clipped overflow. Parity note: the Figma file uses the current
+  design-system `Inter` text styles while runtime Flutter remains on
+  `SF Pro Display`. Follow-up broad validation also passed `dart format
+  --output=none --set-exit-if-changed`, `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter compact` (265 tests), and
+  `flutter build web --no-pub`.
 - `UI-UX-001`/`PAYMENT-STATEMENT-001`, 2026-07-02: `/bank-statement` now
   renders as a content-only workspace under `AppShell` instead of nesting a
   `GradientHeader`. It keeps the existing `BankStatementProvider`,
