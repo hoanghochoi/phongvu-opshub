@@ -119,15 +119,16 @@ Ngày cập nhật: 02/07/2026
   card.
 - Profile `/profile` đã được migrate khỏi `GradientHeader` riêng sang
   content-only workspace trong `AppShell`: header card hiển thị avatar/tên/email
-  và chip vai trò/cây tổ chức, card chỉnh sửa giữ luồng đổi mật khẩu/lưu tên,
-  card thông tin tài khoản giữ email, vai trò, cây tổ chức và SR được gán, đồng
-  thời bổ sung nút `Đăng xuất` dùng `AuthProvider.logout()` rồi điều hướng về
-  `/login`. Các log mở màn, lưu profile, đổi mật khẩu và đăng xuất
+  và chip vai trò/cây tổ chức, đồng thời đặt nút `Đăng xuất` rõ trên header;
+  card chỉnh sửa giữ luồng đổi mật khẩu/lưu tên, card thông tin tài khoản giữ
+  email, vai trò, cây tổ chức và SR được gán. Nút `Đăng xuất` dùng
+  `AuthProvider.logout()` rồi điều hướng về `/login`. Các log mở màn, lưu
+  profile, đổi mật khẩu và đăng xuất
   thành công/thất bại được ghi qua `AppLogger`. Các frame `Desktop v2 /
-  Profile` (`152:1245`), `Tablet v2 / Profile` (`152:158`) và
-  `Mobile v2 / Profile` (`151:118`) trong Figma đã bỏ mock `Họ tên`, `Phạm vi`,
+  Profile` (`481:2`), `Tablet v2 / Profile` (`481:52`) và
+  `Mobile v2 / Profile` (`481:99`) trong Figma đã bỏ mock `Họ tên`, `Phạm vi`,
   `Toàn hệ thống`, `Lưu thay đổi` và thay bằng header/edit/info cards đúng
-  runtime contract.
+  runtime contract, gồm cả nút đăng xuất ở header theo code 03/07/2026.
 - Auth pre-shell `/login`, `/register`, `/forgot-password` và
   `/assignment-pending` đã bỏ nền `GradientHeader.getGradient` cũ, chuyển sang
   `AuthScreenShell` dùng surface token của redesign V2: desktop có brand panel,
@@ -410,11 +411,14 @@ class này không xuất hiện trong `app_router.dart`.
 - Profile focused widget proof đã pass, xác nhận màn `/profile` content-only
   không còn `Scaffold`/`GradientHeader`, header/edit/info cards render đúng cây
   tổ chức, SR được gán và nút `Đăng xuất`; các field nhân sự legacy vẫn không
-  hiển thị. Figma text/structure QA sau khi sync Profile desktop/tablet/mobile
-  xác nhận đủ text runtime `Thông tin cá nhân`, `Thông tin hiển thị`,
+  hiển thị. Figma text/structure QA sau khi sync lại Profile desktop/tablet/
+  mobile (`481:2`, `481:52`, `481:99`) xác nhận đủ text runtime chung
+  `Nguyễn Hoàng`, `hoang.nv1@phongvu-mna.vn`, `Thông tin hiển thị`,
   `Thông tin tài khoản`, `Tên`, `Họ`, `Đổi mật khẩu`, `Lưu`, `Email`,
   `Vai trò`, `Cây tổ chức`, `SR được gán`, `Đăng xuất`; không còn `Họ tên`,
-  `Phạm vi`, `Toàn hệ thống`, `Lưu thay đổi`, và zero-size text bằng `0`.
+  `Phạm vi`, `Toàn hệ thống`, `Lưu thay đổi`, zero-size text bằng `0`,
+  missing font bằng `0`, và screenshot mobile xác nhận nút đăng xuất ở header
+  không bị collapse/overlap.
   Validation sau batch Profile đã pass `dart format`, focused Profile + guard +
   router/nav `flutter test --no-pub --reporter expanded
   test\profile_screen_test.dart test\design_system_migration_guard_test.dart

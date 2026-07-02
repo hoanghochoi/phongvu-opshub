@@ -201,8 +201,8 @@ Recent focused evidence:
   content-only workspace under `AppShell` instead of nesting a
   `Scaffold`/`GradientHeader`. It uses shared header/edit/info cards, preserves
   avatar update, change-password, profile-name save, organization-node and
-  assigned-SR display, keeps legacy personnel fields hidden, and adds a
-  profile-level `Đăng xuất` action that calls `AuthProvider.logout()` before
+  assigned-SR display, keeps legacy personnel fields hidden, and has a visible
+  header-level `Đăng xuất` action that calls `AuthProvider.logout()` before
   routing back to `/login`. The changed flow logs screen open, save, password
   change, and logout success/failure through `AppLogger`. Focused validation:
   `dart format --output=none --set-exit-if-changed` on changed Dart/test files,
@@ -211,10 +211,11 @@ Recent focused evidence:
   test\app_router_test.dart test\app_nav_model_test.dart` (8 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
   (274 tests), and `flutter build web --no-pub`. Figma Profile frames
-  `152:1245`, `152:158`, and `151:118` were synced to remove unsupported
-  `Họ tên`, `Phạm vi`, `Toàn hệ thống`, and `Lưu thay đổi` mock copy, with
-  text/structure QA confirming the runtime header/edit/info/logout content and
-  zero-size text count `0`.
+  `481:2`, `481:52`, and `481:99` were synced to remove unsupported `Họ tên`,
+  `Phạm vi`, `Toàn hệ thống`, and `Lưu thay đổi` mock copy, with text/structure
+  QA confirming the runtime header/edit/info/logout content, zero-size text
+  count `0`, missing font count `0`, and a mobile screenshot where the header
+  logout button is visible without overlap.
 - `UI-UX-001`/`AUTH-002`, 2026-07-02: auth pre-shell routes `/login`,
   `/register`, `/forgot-password`, and `/assignment-pending` now render through
   shared `AuthScreenShell`/`AuthCard` surfaces instead of the legacy
