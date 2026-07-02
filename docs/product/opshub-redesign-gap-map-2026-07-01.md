@@ -161,6 +161,18 @@ Ngày cập nhật: 02/07/2026
   `Mobile v2 / Offset Workspace` (`135:432`) trong Figma đã bỏ kanban/drawer,
   CTA/search/empty mock cũ không có runtime contract, thay bằng header/action,
   filter, toolbar và result card theo dữ liệu runtime.
+- BH/SC hub `/warranty-main` và form upload `/warranty` đã được migrate khỏi
+  `GradientHeader` riêng sang content-only screens trong `AppShell`: hub dùng
+  header card và `AppFeatureSection` cho hai tác vụ `Lưu hình ảnh`/`Xem lại
+  hình ảnh`; form upload dùng header card có chip số biên nhận + số ảnh,
+  form card nhập hoặc quét số biên nhận, thêm tối đa 20 ảnh và nút lưu, trong
+  khi `WarrantyProvider`, `WarrantyRepository`, scanner route, image picker,
+  upload API và route guard `WARRANTY` vẫn giữ runtime contract hiện có. Các
+  frame Figma đã được sync cho hub `Desktop v2 / BH-SC Workspace` (`101:2`),
+  `Tablet v2 / BH-SC Workspace` (`135:675`), `Mobile v2 / BH-SC Workspace`
+  (`135:229`) và form upload `Desktop v2 / Warranty Intake` (`152:2943`),
+  `Tablet v2 / Warranty Intake` (`152:704`), `Mobile v2 / Warranty Intake`
+  (`151:524`), bỏ gallery/detail/search/upload mock cũ không thuộc slice này.
 
 ## Route/frame gap được ghi nợ kỹ thuật
 
@@ -385,6 +397,17 @@ Batch 1. Không thêm route tạm nếu chưa có runtime contract rõ.
   test\app_nav_model_test.dart` (13 tests), full `flutter test --no-pub
   --reporter compact` (267 tests), `flutter build web --no-pub`, và
   `git diff --check` pass với cảnh báo CRLF trên Windows.
+- BH/SC focused widget proof đã pass, xác nhận hub `/warranty-main` và form
+  upload `/warranty` content-only không còn `Scaffold`/`GradientHeader`, mobile
+  upload render header/form/chip số ảnh compact và validation rỗng vẫn trả
+  `Vui lòng nhập số biên nhận`. Figma desktop/tablet/mobile screenshots đã
+  được kiểm lại sau khi sync 6 frame hub/intake; các frame không còn copy cũ
+  kiểu `BH/SC Workspace`, `Upload ảnh`, `Gallery biên nhận gần đây`, text
+  zero-size hoặc chip bị wrap. Focused validation đã pass
+  `flutter test --no-pub --reporter expanded test\warranty_redesign_test.dart`
+  (2 tests), regression BH/SC + route/nav/upload contract (20 tests), full
+  `flutter test --no-pub --reporter compact` (269 tests), và
+  `flutter build web --no-pub`.
 - Lượt hợp nhất Batch 1-4 trên `staging` đã pass format cho 42 Dart files,
   `flutter analyze --no-pub`, 69 focused tests trên 18 test files, full
   `flutter test --no-pub --reporter compact` (262 tests), và

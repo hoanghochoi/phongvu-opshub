@@ -393,6 +393,23 @@ Recent focused evidence:
   test\app_nav_model_test.dart` (13 tests), full `flutter test --no-pub
   --reporter compact` (267 tests), `flutter build web --no-pub`, and
   `git diff --check` with CRLF warnings only.
+- `UI-UX-001`/`WARRANTY-001`, 2026-07-02: BH/SC hub `/warranty-main` and
+  upload form `/warranty` now render as content-only screens under `AppShell`
+  instead of nesting `Scaffold`/`GradientHeader`. The hub uses the shared
+  header card plus `AppFeatureSection` for `Lưu hình ảnh` and `Xem lại hình
+  ảnh`; the upload form uses a header card with receipt/image-count chips and
+  a shared form card while preserving `WarrantyProvider`, `WarrantyRepository`,
+  scanner route, image picker, upload API, and `WARRANTY` route guard behavior.
+  Figma was synced for BH/SC hub frames `101:2`, `135:675`, `135:229` and
+  Warranty Intake frames `152:2943`, `152:704`, `151:524`; visual QA confirmed
+  no stale mock copy, zero-size text, or wrapped chips after screenshot fixes.
+  Focused validation passed `flutter test --no-pub --reporter expanded
+  test\warranty_redesign_test.dart` (2 tests), focused BH/SC + route/nav/upload
+  regression (20 tests), `dart format --output=none --set-exit-if-changed`,
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (269 tests), and `flutter build web --no-pub`. Gap: `/check-warranty`,
+  warranty detail/image viewer, physical camera upload, and WebSocket status
+  smoke remain follow-up work.
 - `SALES-REPORT-001`, 2026-07-01: `Báo cáo` now opens a 2-column order
   cockpit for same-day ERP orders: left unreported, right reported, 20
   orders/page/column with DB-backed totals and independent pagination. Backend
