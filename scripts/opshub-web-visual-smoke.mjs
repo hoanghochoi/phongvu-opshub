@@ -36,6 +36,10 @@ const publicRoutes = parseRoutes(
   process.env.OPSHUB_VISUAL_SMOKE_PUBLIC_ROUTES ||
     ['/login', '/register', '/forgot-password'].join(','),
 );
+const pendingRoutes = parseRoutes(
+  process.env.OPSHUB_VISUAL_SMOKE_PENDING_ROUTES ||
+    ['/assignment-pending'].join(','),
+);
 const authenticatedRoutes = parseRoutes(
   process.env.OPSHUB_VISUAL_SMOKE_ROUTES ||
     [
@@ -92,11 +96,14 @@ const summary = {
   apiBaseUrl,
   storageEnvironment,
   startedAt: startedAt.toISOString(),
-  routeCount: publicRoutes.length + authenticatedRoutes.length,
+  routeCount:
+    publicRoutes.length + pendingRoutes.length + authenticatedRoutes.length,
   publicRouteCount: publicRoutes.length,
+  pendingRouteCount: pendingRoutes.length,
   authenticatedRouteCount: authenticatedRoutes.length,
   viewportCount: viewports.length,
   publicRoutes,
+  pendingRoutes,
   authenticatedRoutes,
   viewports,
   results: [],
@@ -109,6 +116,16 @@ try {
       viewport,
       phase: 'public',
       routes: publicRoutes,
+    });
+
+    await runViewportRoutes({
+      viewport,
+      phase: 'pending',
+      routes: pendingRoutes,
+      pendingSession: {
+        email: 'codex.pending.assignment@example.test',
+        name: 'Tài khoản chờ gán',
+      },
     });
 
     await runViewportRoutes({
@@ -134,6 +151,7 @@ process.stdout.write(
       ok: summary.ok,
       checked: summary.results.length,
       publicRoutes: summary.publicRouteCount,
+      pendingRoutes: summary.pendingRouteCount,
       authenticatedRoutes: summary.authenticatedRouteCount,
       failures: summary.failures.map(({ phase, viewport, route, reason }) => ({
         phase,
@@ -150,7 +168,14 @@ process.stdout.write(
 
 if (!summary.ok) process.exit(1);
 
-async function runViewportRoutes({ viewport, phase, routes, session, initialRoute }) {
+async function runViewportRoutes({
+  viewport,
+  phase,
+  routes,
+  session,
+  pendingSession,
+  initialRoute,
+}) {
   if (routes.length === 0) return;
 
   const context = await browser.newContext({
@@ -160,6 +185,12 @@ async function runViewportRoutes({ viewport, phase, routes, session, initialRout
   if (session) {
     await context.addInitScript(seedSessionStorage, {
       session,
+      storageEnvironment,
+    });
+  }
+  if (pendingSession) {
+    await context.addInitScript(seedPendingAssignmentStorage, {
+      pendingSession,
       storageEnvironment,
     });
   }
@@ -574,6 +605,32 @@ function seedSessionStorage({ session, storageEnvironment }) {
   setPref('user_personnelCode', user.personnelCode);
   setPref('user_assignmentPending', user.assignmentPending === true);
   setPref('user_jwt_token', session.token);
+}
+
+function seedPendingAssignmentStorage({ pendingSession, storageEnvironment }) {
+  const prefix = `flutter.opshub.${storageEnvironment}.`;
+  const storagePrefix = `opshub.${storageEnvironment}.`;
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith(prefix) || key.startsWith(storagePrefix)) {
+      localStorage.removeItem(key);
+    }
+  }
+
+  const setPref = (key, value) => {
+    if (value === undefined || value === null) return;
+    localStorage.setItem(`${prefix}${key}`, JSON.stringify(value));
+  };
+
+  setPref('user_email', pendingSession.email);
+  setPref('user_name', pendingSession.name);
+  setPref('user_role', 'USER');
+  setPref('user_status', 'ACTIVE');
+  setPref('user_organizationNodeIds', JSON.stringify([]));
+  setPref('user_organizationAssignments', JSON.stringify([]));
+  setPref('user_assignedStores', JSON.stringify([]));
+  setPref('user_organizationAccessCodes', JSON.stringify([]));
+  setPref('user_featureCodes', JSON.stringify([]));
+  setPref('user_assignmentPending', true);
 }
 
 function slugRoute(route) {

@@ -676,16 +676,17 @@ Recent focused evidence:
   credentials, seeds the web session without committing secrets, captures
   ignored screenshots, and checks route hash, console/page errors, rendered
   Flutter viewport size, and visible horizontal overflow while ignoring Flutter
-  semantics-only overflow nodes. The default live staging smoke now runs 68
+  semantics-only overflow nodes. The default live staging smoke now runs 70
   checks across desktop `1440x900` and mobile `390x844`: 3 public routes
-  (`/login`, `/register`, `/forgot-password`) plus all 31 authenticated shell
-  routes in `AppRouter`, including Admin, FIFO, BH/SC, VietQR, Payment Monitor
-  web fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report, Profile, Tasks,
-  Home, and Settings. Follow-up guard coverage in
+  (`/login`, `/register`, `/forgot-password`), 1 pending auth route
+  (`/assignment-pending`) rendered from a tokenless cached pending session, plus
+  all 31 authenticated shell routes in `AppRouter`, including Admin, FIFO,
+  BH/SC, VietQR, Payment Monitor web fallback, Sao kê, Cấn trừ, Góp ý,
+  Report/Sales Report, Profile, Tasks, Home, and Settings. Follow-up guard coverage in
   `test\design_system_migration_guard_test.dart` now parses the smoke script
   and `AppRouter` so the default authenticated route list must stay aligned
-  with every ShellRoute, while public auth smoke remains limited to the three
-  unauthenticated auth routes until a live assignment-pending fixture exists.
+  with every ShellRoute, while public and pending auth route lists are locked
+  to their expected pre-shell coverage.
   Follow-up pixel sanity checks parse each PNG screenshot, verify viewport-size
   dimensions, and fail flat/blank captures through sampled-color and luminance
   range thresholds before marking a route pass.

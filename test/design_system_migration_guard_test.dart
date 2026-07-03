@@ -361,6 +361,11 @@ void main() {
     final publicSmokeRoutes = _extractRouteLiteralsBetween(
       smokeSource,
       startMarker: 'const publicRoutes',
+      endMarker: 'const pendingRoutes',
+    );
+    final pendingSmokeRoutes = _extractRouteLiteralsBetween(
+      smokeSource,
+      startMarker: 'const pendingRoutes',
       endMarker: 'const authenticatedRoutes',
     );
     final authenticatedSmokeRoutes = _extractRouteLiteralsBetween(
@@ -377,6 +382,13 @@ void main() {
           'fixture exists; public smoke should cover only unauthenticated auth.',
     );
     expect(
+      pendingSmokeRoutes,
+      equals(['/assignment-pending']),
+      reason:
+          'Assignment-pending should render from a tokenless cached pending '
+          'session so the auth pre-shell route gets live visual smoke coverage.',
+    );
+    expect(
       authenticatedSmokeRoutes,
       equals(shellRoutes),
       reason:
@@ -384,15 +396,18 @@ void main() {
           'web visual smoke route set.',
     );
     expect(
-      (publicSmokeRoutes.length + authenticatedSmokeRoutes.length) * 2,
-      68,
-      reason: 'Default smoke should stay at 34 routes across 2 viewports.',
+      (publicSmokeRoutes.length +
+              pendingSmokeRoutes.length +
+              authenticatedSmokeRoutes.length) *
+          2,
+      70,
+      reason: 'Default smoke should stay at 35 routes across 2 viewports.',
     );
     expect(smokeSource, contains('readPngVisualStats'));
     expect(smokeSource, contains('uniqueSampledColors < 16'));
     expect(smokeSource, contains('lumaRange < 12'));
-    expect(gapMap, contains('tổng 68 route/viewport checks'));
-    expect(testMatrix, contains('default live staging smoke now runs 68'));
+    expect(gapMap, contains('tổng 70 route/viewport checks'));
+    expect(testMatrix, contains('default live staging smoke now runs 70'));
   });
 }
 
