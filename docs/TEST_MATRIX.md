@@ -670,6 +670,16 @@ Recent focused evidence:
   after archiving superseded duplicate desktop VietQR (`96:2`) and Sao kê
   (`107:2`) frames as hidden `Archived / ...` nodes. Duplicate groups and
   visible retired desktop frames both verify as empty.
+- `UI-UX-001`, 2026-07-03: added repeatable web visual smoke automation in
+  `scripts/opshub-web-visual-smoke.mjs`. The script logs in through the live
+  API using env-provided credentials, seeds the web session without committing
+  secrets, captures ignored screenshots, and checks route hash, console/page
+  errors, rendered Flutter viewport size, and visible horizontal overflow while
+  ignoring Flutter semantics-only overflow nodes. Live staging
+  `2026.07.03.90+200090` passed 24 checks across desktop `1440x900` and mobile
+  `390x844` for `/home`, `/tasks`, `/fifo-menu`, `/sort`, `/warranty-main`,
+  `/check-warranty`, `/vietqr`, `/bank-statement`, `/reports`,
+  `/admin/organization`, `/admin/sales-reports`, and `/profile`.
 - `UI-UX-001`/`WARRANTY-001`, 2026-07-03: route switching across shell
   workspaces now paints each route inside a full-size keyed `RepaintBoundary`
   and clipped canvas-colored viewport, and all authenticated shell routes use

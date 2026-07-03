@@ -380,6 +380,18 @@ test\design_system_migration_guard_test.dart` (7 tests),
   Lưu ý completion: visual parity toàn bộ vẫn cần thêm screenshot/runtime smoke
   theo từng route dữ liệu thật, nhưng screen-page inventory không còn thiếu
   active frames cần rehydrate.
+- Web visual smoke automation 03/07/2026 đã thêm
+  `scripts/opshub-web-visual-smoke.mjs` để login staging qua API bằng biến môi
+  trường, seed session web an toàn, rồi chụp screenshot ignored cho desktop
+  `1440x900` và mobile `390x844`. Smoke live trên staging
+  `2026.07.03.90+200090` đã kiểm 12 route runtime (`/home`, `/tasks`,
+  `/fifo-menu`, `/sort`, `/warranty-main`, `/check-warranty`, `/vietqr`,
+  `/bank-statement`, `/reports`, `/admin/organization`,
+  `/admin/sales-reports`, `/profile`) với tổng 24 route/viewport checks:
+  không redirect sai route, không console/page error, không visible horizontal
+  overflow. Script bỏ qua các node semantics nội bộ của Flutter như
+  `flt-announcement-*` và paragraph accessibility khổng lồ vì chúng không tạo
+  lỗi layout nhìn thấy.
 - Web Chrome fullscreen smoke với seeded local session đã kiểm Home, FIFO menu,
   và route `/sort`; proof ảnh nằm trong `output/playwright/`.
 - Windows debug build đã pass ở `build/windows/x64/runner/Debug`.
