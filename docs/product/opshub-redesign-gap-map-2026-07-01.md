@@ -416,6 +416,14 @@ test\design_system_migration_guard_test.dart` (7 tests),
   Follow-up redaction 03/07/2026 bắt mọi console/page/fatal error đi qua
   sanitizer để failure output không lộ `access_token`, JWT hoặc bearer token
   khi staging/realtime trả lỗi.
+  Follow-up live staging 03/07/2026 sau deploy `2026.07.03.98+200098` sửa
+  route động BH/SC detail trong smoke: default inventory vẫn giữ pattern
+  `/check-warranty/details/:receiptNumber` để guard khớp `AppRouter`, nhưng
+  script runtime sẽ resolve sang biên nhận thật từ `GET /warranties`; nếu
+  staging account không có biên nhận đọc được thì ghi `skippedRoutes` thay vì
+  mở literal `:receiptNumber` và fail giả 404. Run live mới pass 70/70 checks
+  với zero console/page/overflow failure; route detail BH/SC còn cần fixture
+  hoặc dữ liệu thật để smoke visual detail.
 - Scanner follow-up 03/07/2026 sửa shared `BarcodeScannerScreen` để web/mobile
   browser không còn bị chặn trước camera. Web/iOS Safari đi qua
   `MobileScanner`, torch chỉ hiện trên native Android/iOS, manual entry nằm

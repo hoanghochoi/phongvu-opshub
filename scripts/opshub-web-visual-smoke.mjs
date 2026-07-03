@@ -40,7 +40,7 @@ const pendingRoutes = parseRoutes(
   process.env.OPSHUB_VISUAL_SMOKE_PENDING_ROUTES ||
     ['/assignment-pending'].join(','),
 );
-const authenticatedRoutes = parseRoutes(
+const defaultAuthenticatedRoutes = parseRoutes(
   process.env.OPSHUB_VISUAL_SMOKE_ROUTES ||
     [
       '/home',
@@ -90,6 +90,11 @@ const { chromium } = await loadPlaywright();
 fs.mkdirSync(outputDir, { recursive: true });
 
 const session = await loginViaApi();
+const authenticatedRouteResolution = await resolveAuthenticatedRoutes(
+  session,
+  defaultAuthenticatedRoutes,
+);
+const authenticatedRoutes = authenticatedRouteResolution.routes;
 const browser = await launchBrowser(chromium);
 const startedAt = new Date();
 const summary = {
@@ -106,6 +111,9 @@ const summary = {
   publicRoutes,
   pendingRoutes,
   authenticatedRoutes,
+  requestedAuthenticatedRoutes: defaultAuthenticatedRoutes,
+  dynamicRoutes: authenticatedRouteResolution.dynamicRoutes,
+  skippedRoutes: authenticatedRouteResolution.skippedRoutes,
   viewports,
   results: [],
   failures: [],
@@ -154,6 +162,8 @@ process.stdout.write(
       publicRoutes: summary.publicRouteCount,
       pendingRoutes: summary.pendingRouteCount,
       authenticatedRoutes: summary.authenticatedRouteCount,
+      skippedRoutes: summary.skippedRoutes,
+      dynamicRoutes: summary.dynamicRoutes,
       failures: summary.failures.map(({ phase, viewport, route, reason }) => ({
         phase,
         viewport,
@@ -565,6 +575,57 @@ async function loginViaApi() {
   const token = data.access_token?.toString();
   if (!token) fail('API login did not return access_token.');
   return { token, user: data };
+}
+
+async function resolveAuthenticatedRoutes(session, routes) {
+  const resolvedRoutes = [];
+  const dynamicRoutes = [];
+  const skippedRoutes = [];
+
+  for (const route of routes) {
+    if (route !== '/check-warranty/details/:receiptNumber') {
+      resolvedRoutes.push(route);
+      continue;
+    }
+
+    const warrantyDetailRoute = await resolveWarrantyDetailRoute(session);
+    if (warrantyDetailRoute) {
+      resolvedRoutes.push(warrantyDetailRoute);
+      dynamicRoutes.push({
+        pattern: route,
+        route: warrantyDetailRoute,
+        source: 'GET /warranties',
+      });
+      continue;
+    }
+
+    skippedRoutes.push({
+      route,
+      reason: 'No readable warranty receipt returned by GET /warranties.',
+    });
+  }
+
+  return { routes: resolvedRoutes, dynamicRoutes, skippedRoutes };
+}
+
+async function resolveWarrantyDetailRoute(session) {
+  const response = await fetch(`${apiBaseUrl}/warranties`, {
+    headers: {
+      authorization: `Bearer ${session.token}`,
+      accept: 'application/json',
+    },
+  });
+  if (!response.ok) {
+    fail(`Dynamic warranty detail route failed to resolve: HTTP ${response.status}.`);
+  }
+
+  const data = await response.json();
+  const rows = Array.isArray(data) ? data : data && typeof data === 'object' ? [data] : [];
+  const receipt = rows
+    .map((row) => row?.receipt?.toString().trim())
+    .find((value) => value && value.length > 0);
+  if (!receipt) return null;
+  return `/check-warranty/details/${encodeURIComponent(receipt)}`;
 }
 
 function seedSessionStorage({ session, storageEnvironment }) {

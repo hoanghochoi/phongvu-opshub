@@ -510,11 +510,11 @@ void main() {
     final pendingSmokeRoutes = _extractRouteLiteralsBetween(
       smokeSource,
       startMarker: 'const pendingRoutes',
-      endMarker: 'const authenticatedRoutes',
+      endMarker: 'const defaultAuthenticatedRoutes',
     );
     final authenticatedSmokeRoutes = _extractRouteLiteralsBetween(
       smokeSource,
-      startMarker: 'const authenticatedRoutes',
+      startMarker: 'const defaultAuthenticatedRoutes',
       endMarker: 'if (!email',
     );
 
@@ -552,6 +552,15 @@ void main() {
     expect(smokeSource, contains('lumaRange < 12'));
     expect(smokeSource, contains('sanitizeSensitiveText'));
     expect(smokeSource, contains('[REDACTED_JWT]'));
+    expect(smokeSource, contains('resolveAuthenticatedRoutes'));
+    expect(
+      smokeSource,
+      contains(
+        'const authenticatedRoutes = authenticatedRouteResolution.routes',
+      ),
+    );
+    expect(smokeSource, contains('GET /warranties'));
+    expect(smokeSource, contains('skippedRoutes'));
     expect(gapMap, contains('tổng 72 route/viewport checks'));
     expect(gapMap, contains('32\n  authenticated shell routes'));
     expect(testMatrix, contains('default live staging smoke now runs 72'));
