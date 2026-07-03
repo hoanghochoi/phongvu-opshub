@@ -384,11 +384,11 @@ test\design_system_migration_guard_test.dart` (7 tests),
   `scripts/opshub-web-visual-smoke.mjs` để login staging qua API bằng biến môi
   trường, seed session web an toàn, rồi chụp screenshot ignored cho desktop
   `1440x900` và mobile `390x844`. Smoke live trên staging
-  `2026.07.03.90+200090` đã kiểm 12 route runtime (`/home`, `/tasks`,
-  `/fifo-menu`, `/sort`, `/warranty-main`, `/check-warranty`, `/vietqr`,
-  `/bank-statement`, `/reports`, `/admin/organization`,
-  `/admin/sales-reports`, `/profile`) với tổng 24 route/viewport checks:
-  không redirect sai route, không console/page error, không visible horizontal
+  `2026.07.03.91+200091` đã mở rộng mặc định theo 31 authenticated shell routes
+  trong `AppRouter` (`/home`, `/tasks`, `/profile`, các admin workspaces,
+  FIFO, BH/SC, VietQR, Payment Monitor web fallback, Sao kê, Cấn trừ, Góp ý,
+  Report/Sales Report và Settings), tổng 62 route/viewport checks: không
+  redirect sai route, không console/page error, không visible horizontal
   overflow. Script bỏ qua các node semantics nội bộ của Flutter như
   `flt-announcement-*` và paragraph accessibility khổng lồ vì chúng không tạo
   lỗi layout nhìn thấy.

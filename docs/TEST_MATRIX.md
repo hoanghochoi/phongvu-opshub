@@ -676,10 +676,11 @@ Recent focused evidence:
   secrets, captures ignored screenshots, and checks route hash, console/page
   errors, rendered Flutter viewport size, and visible horizontal overflow while
   ignoring Flutter semantics-only overflow nodes. Live staging
-  `2026.07.03.90+200090` passed 24 checks across desktop `1440x900` and mobile
-  `390x844` for `/home`, `/tasks`, `/fifo-menu`, `/sort`, `/warranty-main`,
-  `/check-warranty`, `/vietqr`, `/bank-statement`, `/reports`,
-  `/admin/organization`, `/admin/sales-reports`, and `/profile`.
+  `2026.07.03.91+200091` passed 62 checks across desktop `1440x900` and mobile
+  `390x844` after expanding the default route set to all 31 authenticated
+  shell routes in `AppRouter`, including Admin, FIFO, BH/SC, VietQR, Payment
+  Monitor web fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report, Profile,
+  Tasks, Home, and Settings.
 - `UI-UX-001`/`WARRANTY-001`, 2026-07-03: route switching across shell
   workspaces now paints each route inside a full-size keyed `RepaintBoundary`
   and clipped canvas-colored viewport, and all authenticated shell routes use
