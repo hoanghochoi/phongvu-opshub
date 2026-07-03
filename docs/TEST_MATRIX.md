@@ -1032,8 +1032,13 @@ Recent focused evidence:
   native manual fallback. All scan callers keep using the same
   `BarcodeScannerScreen`. Validation: focused scanner tests,
   `flutter analyze --no-pub`, `flutter test --no-pub --reporter compact` (304
-  tests), web smoke build with `APP_ENV=smoke`, and `git diff --check`. Gap:
-  physical iOS/Android camera smoke with real QR/barcode remains manual.
+  tests), web smoke build with `APP_ENV=smoke`, and `git diff --check`. Android
+  staging smoke on device `21081111RG` (Android 14) with build
+  `2026.07.03.97+200097` verified the runtime permission prompt, camera grant,
+  live preview/scan window, camera ID `0` owned by the staging package, and
+  camera release after leaving the scanner. Gap: the camera did not see the QR
+  test target, so physical decode/callback remains unverified; iOS camera smoke
+  also remains manual.
 - UI-UX-001, 2026-06-29: shared QR/barcode scanner now uses a smaller centered
   runtime `scanWindow` matching the visible frame, dims the outside area, keeps
   camera/manual/error copy Vietnamese, and logs scanner open/success/failure

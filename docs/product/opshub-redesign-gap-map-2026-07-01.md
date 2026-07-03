@@ -380,6 +380,10 @@ test\design_system_migration_guard_test.dart` (7 tests),
   Lưu ý completion: visual parity toàn bộ vẫn cần thêm screenshot/runtime smoke
   theo từng route dữ liệu thật, nhưng screen-page inventory không còn thiếu
   active frames cần rehydrate.
+  Live re-audit 03/07/2026 sau scanner deploy tiếp tục xác nhận cả ba page có
+  đúng 40 runtime frame active, không có frame zero-size, duplicate group hoặc
+  retired/archive frame đang visible. Desktop hiện có 128 top-level nodes do
+  giữ thêm archive/helper nodes, nhưng tập handoff active vẫn đúng 40 group.
 - Web visual smoke automation 03/07/2026 đã thêm
   `scripts/opshub-web-visual-smoke.mjs` để kiểm cả public auth routes trước
   đăng nhập và authenticated shell routes sau khi login staging qua API bằng
@@ -413,8 +417,12 @@ test\design_system_migration_guard_test.dart` (7 tests),
   tất cả dùng chung scanner. Validation: focused scanner tests,
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
   (304 tests), `flutter build web --no-pub --dart-define=APP_ENV=smoke` và
-  `git diff --check`. Gap còn lại: smoke iPhone/Android bằng camera thật sau
-  deploy.
+  `git diff --check`. Android staging smoke trên thiết bị `21081111RG`, Android
+  14, với APK `2026.07.03.97+200097` đã xác nhận luồng xin quyền camera từ
+  `granted=false` sang `granted=true`, preview render đúng khung quét và camera
+  ID `0` được mở bởi `com.example.phongvu_opshub.staging`; camera được giải
+  phóng khi thoát scanner. Gap còn lại: camera chưa nhìn thấy QR thử nên chưa
+  chứng minh được nhánh decode/callback về form; smoke iPhone vẫn chưa chạy.
 - Web Chrome fullscreen smoke với seeded local session đã kiểm Home, FIFO menu,
   và route `/sort`; proof ảnh nằm trong `output/playwright/`.
 - Windows debug build đã pass ở `build/windows/x64/runner/Debug`.
