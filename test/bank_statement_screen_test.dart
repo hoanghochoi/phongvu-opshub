@@ -75,7 +75,7 @@ void main() {
     expect(find.byKey(const Key('bank-statement-toolbar')), findsOneWidget);
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.text('Sao kê'), findsOneWidget);
+    expect(find.text('Giao dịch cần rà soát'), findsOneWidget);
     expect(find.textContaining('Tra cứu giao dịch VietinBank'), findsNothing);
     expect(find.text('Chờ Kế toán xác nhận'), findsOneWidget);
     expect(find.text('Đã cấn trừ'), findsOneWidget);

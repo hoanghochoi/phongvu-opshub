@@ -14,7 +14,7 @@ void main() {
     expect(find.byKey(const Key('feedback-form-card')), findsOneWidget);
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.text('Góp ý'), findsOneWidget);
+    expect(find.text('Chia sẻ phản hồi'), findsOneWidget);
     expect(find.text('Sẵn sàng gửi'), findsOneWidget);
     expect(find.text('0/20 ảnh'), findsOneWidget);
     expect(find.text('Chức năng liên quan'), findsOneWidget);

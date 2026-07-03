@@ -259,7 +259,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
         children: [
           SalesReportWorkspaceHeader(
             key: const Key('sales-report-workspace-header'),
-            title: 'Báo cáo',
+            title: 'Đơn cần báo cáo',
             subtitle:
                 'Theo dõi đơn trong ngày, gửi báo cáo thiếu và xuất file theo bộ lọc đang xem.',
             icon: Icons.analytics_outlined,

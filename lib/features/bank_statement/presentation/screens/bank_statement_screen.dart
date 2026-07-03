@@ -236,7 +236,7 @@ class _StatementHeader extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Sao kê', style: AppTextStyles.headingS),
+                  Text('Giao dịch cần rà soát', style: AppTextStyles.headingS),
                   const SizedBox(height: AppLayoutTokens.cardGap),
                   Wrap(
                     spacing: 8,

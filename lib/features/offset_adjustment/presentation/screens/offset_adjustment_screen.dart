@@ -345,7 +345,7 @@ class _OffsetHeader extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Cấn trừ', style: AppTextStyles.headingS),
+                  Text('Yêu cầu xử lý', style: AppTextStyles.headingS),
                   const SizedBox(height: AppLayoutTokens.cardGap),
                   Wrap(
                     spacing: 8,

@@ -141,7 +141,7 @@ class _ReportWorkspaceHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Báo cáo', style: AppTextStyles.headingM),
+                Text('Lối vào báo cáo', style: AppTextStyles.headingM),
                 const SizedBox(height: 6),
                 Text(
                   'Tổng hợp các báo cáo vận hành theo quyền tài khoản.',

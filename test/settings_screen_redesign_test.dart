@@ -40,7 +40,7 @@ void main() {
     expect(find.byKey(const Key('settings-header')), findsOneWidget);
     expect(find.byKey(const Key('settings-theme-card')), findsOneWidget);
     expect(find.byKey(const Key('settings-startup-card')), findsOneWidget);
-    expect(find.text('Cài đặt'), findsOneWidget);
+    expect(find.text('Tùy chọn thiết bị'), findsOneWidget);
     expect(find.text('Giao diện'), findsOneWidget);
     expect(find.text('Windows'), findsOneWidget);
     expect(find.text('Giao diện: Hệ thống'), findsOneWidget);

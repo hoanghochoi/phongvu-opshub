@@ -45,6 +45,19 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`AUDIT-DUPLICATE-TITLES`, 2026-07-04: completed the
+  TopBar/content duplicate-title acceptance item from
+  `docs/UI_UX_AUDIT_PLAN.md`. The shell top bar remains the owner of
+  destination labels, while feature content now uses task/status-specific
+  headings such as `Công cụ theo quyền`, `Giao dịch cần rà soát`, `Yêu cầu xử
+  lý`, `Chia sẻ phản hồi`, `Tùy chọn thiết bị`, `Lối vào báo cáo`, and `Đơn cần
+  báo cáo`. `design_system_migration_guard_test.dart` now prevents feature
+  screens from reusing an exact shell destination label as a heading/card title.
+  Validation: changed-file `dart format`,
+  `dart format --output=none --set-exit-if-changed`, focused
+  `flutter test --no-pub --reporter expanded test\admin_menu_screen_test.dart test\bank_statement_screen_test.dart test\feedback_screen_test.dart test\offset_adjustment_screen_redesign_test.dart test\settings_screen_redesign_test.dart test\report_workspace_screen_test.dart test\sales_report_hub_test.dart test\design_system_migration_guard_test.dart`
+  (44 tests), `git diff --check`, `flutter analyze --no-pub`, and full
+  `flutter test --no-pub --reporter compact`.
 - `UI-UX-001`/`AUDIT-DESKTOP-CONTENT-WIDTH`, 2026-07-03: completed the
   desktop child-screen layout acceptance item from
   `docs/UI_UX_AUDIT_PLAN.md`. `AppResponsiveContent` and

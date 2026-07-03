@@ -130,7 +130,7 @@ class _AdminMenuHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Quản trị', style: AppTextStyles.headingM),
+                Text('Công cụ theo quyền', style: AppTextStyles.headingM),
                 const SizedBox(height: 6),
                 Text(
                   'Truy cập các công cụ quản trị theo quyền tài khoản của bạn.',

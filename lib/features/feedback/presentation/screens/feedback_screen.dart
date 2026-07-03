@@ -369,7 +369,7 @@ class _FeedbackHeader extends StatelessWidget {
           final heading = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Góp ý', style: AppTextStyles.headingM),
+              Text('Chia sẻ phản hồi', style: AppTextStyles.headingM),
               const SizedBox(height: 6),
               Text(
                 'Chia sẻ đề xuất, điểm chưa thuận tiện hoặc lỗi bạn gặp '

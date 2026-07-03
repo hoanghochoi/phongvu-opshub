@@ -37,7 +37,7 @@ void main() {
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.byKey(const Key('admin-menu-header')), findsOneWidget);
-    expect(find.text('Quản trị'), findsOneWidget);
+    expect(find.text('Công cụ theo quyền'), findsOneWidget);
     expect(find.text('1 chức năng khả dụng'), findsOneWidget);
     expect(find.text('Chức năng quản trị'), findsOneWidget);
     expect(find.text('Quản lý tính năng'), findsOneWidget);

@@ -227,6 +227,60 @@ void main() {
     );
   });
 
+  test('feature content does not repeat shell destination labels as headers', () {
+    const shellDestinationLabels = <String>[
+      'Trang chủ',
+      'Quản trị',
+      'FIFO',
+      'BH / SC',
+      'VietQR',
+      'Tiền vào',
+      'Sao kê',
+      'Cấn trừ',
+      'Báo cáo',
+      'Góp ý',
+      'Cài đặt',
+      'Tài khoản',
+    ];
+    final hits = <String>[];
+    final files = Directory('lib/features')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) {
+          final normalizedPath = file.path.replaceAll(r'\', '/');
+          return file.path.endsWith('.dart') &&
+              normalizedPath.contains('/presentation/screens/');
+        });
+
+    for (final file in files) {
+      final normalizedPath = file.path.replaceAll(r'\', '/');
+      final lines = file.readAsLinesSync();
+      for (var index = 0; index < lines.length; index += 1) {
+        final line = lines[index];
+        for (final label in shellDestinationLabels) {
+          final escapedLabel = RegExp.escape(label);
+          final repeatsHeading = RegExp(
+            "Text\\(\\s*'$escapedLabel'\\s*,\\s*style:\\s*AppTextStyles\\.heading",
+          ).hasMatch(line);
+          final repeatsHeaderTitle = RegExp(
+            "title:\\s*'$escapedLabel'\\s*,",
+          ).hasMatch(line);
+          if (repeatsHeading || repeatsHeaderTitle) {
+            hits.add('$normalizedPath:${index + 1}: $label');
+          }
+        }
+      }
+    }
+
+    expect(
+      hits,
+      isEmpty,
+      reason:
+          'The shell top bar owns destination titles; feature content should '
+          'use task/status-specific headings instead of repeating them.',
+    );
+  });
+
   test('feature route pushes stay limited to reviewed modal surfaces', () {
     const allowedRoutePushFiles = <String, String>{
       'lib/features/fifo_check/presentation/widgets/barcode_scanner_screen.dart':

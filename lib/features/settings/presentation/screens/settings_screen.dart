@@ -416,7 +416,7 @@ class _SettingsHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Cài đặt', style: AppTextStyles.headingM),
+                Text('Tùy chọn thiết bị', style: AppTextStyles.headingM),
                 const SizedBox(height: 6),
                 Text(
                   'Điều chỉnh giao diện và tuỳ chọn ứng dụng trên thiết bị này.',

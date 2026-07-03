@@ -51,6 +51,9 @@ visual systems that make the app feel assembled from unrelated screens.
   support plus the notification bell on the right. Account/profile entry
   belongs to the bottom `Tài khoản` destination; do not duplicate the account
   avatar in the app bar when the screen content already shows user identity.
+  The shell top bar owns destination titles; feature content should use
+  task/status-specific headings instead of repeating the same destination label
+  in a header card.
 - Desktop sidebar destinations must be grouped with visible section labels:
   `Tổng quan`, `Nghiệp vụ`, and `Cấu hình`. The sidebar remains flat navigation;
   do not add row chevrons unless a real nested menu is introduced.
