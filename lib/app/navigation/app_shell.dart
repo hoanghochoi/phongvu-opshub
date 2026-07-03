@@ -468,7 +468,9 @@ class _WideShell extends StatelessWidget {
                   onLogout: onLogout,
                   onAppInfo: onAppInfo,
                 ),
-                Expanded(child: child),
+                Expanded(
+                  child: _RouteViewport(location: location, child: child),
+                ),
               ],
             ),
           ),
@@ -522,7 +524,7 @@ class _MobileShell extends StatelessWidget {
           const SizedBox(width: 4),
         ],
       ),
-      body: child,
+      body: _RouteViewport(location: location, child: child),
       bottomNavigationBar: NavigationBar(
         height: AppLayoutTokens.mobileBottomNavHeight,
         selectedIndex: selectedIndex,
@@ -548,6 +550,28 @@ class _MobileShell extends StatelessWidget {
       (destination) => destination.id == 'tasks',
     );
     return tasksIndex >= 0 ? tasksIndex : 0;
+  }
+}
+
+class _RouteViewport extends StatelessWidget {
+  final String location;
+  final Widget child;
+
+  const _RouteViewport({required this.location, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.expand(
+      child: ColoredBox(
+        color: AppColors.canvasOf(context),
+        child: ClipRect(
+          child: RepaintBoundary(
+            key: ValueKey('route-$location'),
+            child: child,
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -13,9 +16,21 @@ import 'package:phongvu_opshub/features/warranty/presentation/screens/warranty_d
 import 'package:phongvu_opshub/features/warranty/presentation/screens/warranty_main_screen.dart';
 import 'package:phongvu_opshub/features/warranty/presentation/screens/warranty_screen.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+      appName: 'PhongVu OpsHub',
+      packageName: 'com.example.phongvu_opshub',
+      version: '2026.07.03.86',
+      buildNumber: '200086',
+      buildSignature: '',
+    );
     AppLogger.instance.setUploadsEnabledForTesting(false);
   });
 
@@ -39,6 +54,40 @@ void main() {
     expect(find.text('Tác vụ BH / SC'), findsOneWidget);
     expect(find.text('Lưu hình ảnh'), findsOneWidget);
     expect(find.text('Xem lại hình ảnh'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Warranty hub keeps the header readable inside AppShell', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1919, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(_warrantyUser),
+        child: MaterialApp(
+          home: AppShell(
+            location: '/warranty-main',
+            child: SelectionArea(
+              child: WarrantyMainScreen(onBackToHome: () {}),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final titleFinder = find.text('Bảo hành / Sửa chữa');
+    final headerFinder = find.byKey(const Key('warranty-main-header'));
+
+    expect(titleFinder, findsOneWidget);
+    expect(headerFinder, findsOneWidget);
+    expect(tester.getSize(titleFinder).width, greaterThan(180));
+    expect(tester.getSize(titleFinder).height, lessThan(40));
+    expect(tester.getSize(headerFinder).height, lessThan(180));
     expect(tester.takeException(), isNull);
   });
 

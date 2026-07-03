@@ -91,6 +91,7 @@ class AppSecondaryButton extends StatelessWidget {
   final String? loadingLabel;
   final Color? foregroundColor;
   final Color? borderColor;
+  final bool expand;
 
   const AppSecondaryButton({
     super.key,
@@ -101,6 +102,7 @@ class AppSecondaryButton extends StatelessWidget {
     this.loadingLabel,
     this.foregroundColor,
     this.borderColor,
+    this.expand = true,
   });
 
   @override
@@ -108,7 +110,7 @@ class AppSecondaryButton extends StatelessWidget {
     final effectiveForegroundColor = foregroundColor ?? AppColors.primary;
     final effectiveBorderColor = borderColor ?? effectiveForegroundColor;
     return SizedBox(
-      width: double.infinity,
+      width: expand ? double.infinity : null,
       height: AppButtonMetrics.height,
       child: OutlinedButton.icon(
         onPressed: isLoading ? null : onPressed,

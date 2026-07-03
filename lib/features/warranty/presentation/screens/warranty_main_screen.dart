@@ -32,7 +32,7 @@ class WarrantyMainScreen extends StatelessWidget {
       ),
     ];
 
-    return AppResponsiveContent(
+    return AppResponsiveScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -92,6 +92,7 @@ class _WarrantyMainHeader extends StatelessWidget {
                   onPressed: onBackToHome,
                   icon: Icons.home_outlined,
                   label: 'Về trang chủ',
+                  expand: false,
                 );
 
           if (compact) {
@@ -115,7 +116,9 @@ class _WarrantyMainHeader extends StatelessWidget {
             children: [
               icon,
               const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Expanded(child: title),
+              Expanded(
+                child: SizedBox(width: double.infinity, child: title),
+              ),
               if (backButton != null) ...[
                 const SizedBox(width: AppLayoutTokens.formInlineGap),
                 backButton,

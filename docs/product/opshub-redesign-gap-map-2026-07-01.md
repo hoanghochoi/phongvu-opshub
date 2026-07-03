@@ -707,6 +707,16 @@ test\design_system_migration_guard_test.dart` (7 tests),
   test\app_router_test.dart test\app_nav_model_test.dart` (22 tests), full
   `flutter test --no-pub --reporter compact` (271 tests), và
   `flutter build web --no-pub`.
+- Shell route repaint proof 03/07/2026 đã pass sau khi phát hiện web, Windows
+  và Android đều có thể giữ lại frame của trang trước khi chuyển route:
+  `AppShell` nay bọc body bằng full-size canvas viewport, `ClipRect` và keyed
+  `RepaintBoundary` theo route; BH/SC hub đổi về `AppResponsiveScrollView` và
+  nút phụ trong header dùng kích thước theo nội dung để tránh ép text thành cột
+  một ký tự. Validation đã pass focused warranty/router/Home regressions,
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (297 tests), `flutter build windows --debug --no-pub`,
+  `flutter build web --release --no-pub --dart-define=API_BASE_URL=https://opshub-staging.hoanghochoi.com/api --dart-define=APP_ENV=staging`,
+  và `git diff --check` pass với cảnh báo CRLF trên Windows.
 - Route migration guard proof đã pass, xác nhận toàn bộ feature screens đang
   expose không dùng lại `GradientHeader` shell cũ. Guard chỉ cho phép hai file
   đã ghi nợ kỹ thuật `personnel_catalog_admin_screen.dart` và
