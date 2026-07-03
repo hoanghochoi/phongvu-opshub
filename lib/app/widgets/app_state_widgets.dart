@@ -340,7 +340,7 @@ class _AppSkeletonCard extends StatelessWidget {
   }
 }
 
-class _SkeletonBlock extends StatelessWidget {
+class _SkeletonBlock extends StatefulWidget {
   final double? width;
   final double? widthFactor;
   final double height;
@@ -356,18 +356,57 @@ class _SkeletonBlock extends StatelessWidget {
   });
 
   @override
+  State<_SkeletonBlock> createState() => _SkeletonBlockState();
+}
+
+class _SkeletonBlockState extends State<_SkeletonBlock>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final block = DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [baseColor, highlightColor, baseColor],
-          stops: const [0, 0.5, 1],
-        ),
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-      ),
-      child: SizedBox(width: width, height: height),
+    final animationsDisabled =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final block = AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final progress = animationsDisabled ? 0.5 : _controller.value;
+        final offset = (progress * 2.4) - 1.2;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment(-1 + offset, 0),
+              end: Alignment(1 + offset, 0),
+              colors: [
+                widget.baseColor,
+                widget.highlightColor,
+                widget.baseColor,
+              ],
+              stops: const [0, 0.5, 1],
+            ),
+            borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+          ),
+          child: child,
+        );
+      },
+      child: SizedBox(width: widget.width, height: widget.height),
     );
-    if (widthFactor == null) return block;
-    return FractionallySizedBox(widthFactor: widthFactor, child: block);
+    if (widget.widthFactor == null) return block;
+    return FractionallySizedBox(widthFactor: widget.widthFactor, child: block);
   }
 }

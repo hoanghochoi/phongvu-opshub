@@ -298,9 +298,13 @@ grid
 ### Phase 4: Component Polish & Accessibility (Thời gian: 5 ngày)
 *   **Mục tiêu:** Cải thiện chất lượng chuyển động và trải nghiệm người dùng đặc biệt.
 *   **Công việc:**
-    1.  Viết thêm animation chạy sáng (shimmer) cho widget `_SkeletonBlock` khi đang tải dữ liệu.
+    1.  [x] Viết thêm animation chạy sáng (shimmer) cho widget `_SkeletonBlock` khi đang tải dữ liệu.
     2.  Thiết kế lại selected highlight của Desktop Sidebar bằng thanh chỉ thị cạnh trái (left border indicator).
     3.  Tích hợp lưu trữ local cache để lưu 5 từ khóa tra cứu gần nhất trong màn hình FIFO Check.
+*   **Trạng thái:** Batch 3A hoàn thành ngày 03/07/2026 cho shared
+    `AppListSkeleton`: shimmer gradient chạy theo animation và tôn trọng
+    `MediaQuery.disableAnimations`. Validation: focused shared-widget test
+    (6 tests), `flutter analyze --no-pub`, và full Flutter suite (317 tests).
 *   **Rủi ro:** Thấp. Cần đảm bảo hiệu năng mượt mà của shimmer effect trên các dòng máy Android đời cũ.
 
 ---

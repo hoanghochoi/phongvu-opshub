@@ -45,6 +45,15 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`AUDIT-SKELETON-SHIMMER`, 2026-07-03: completed Phase 4A
+  component polish from `docs/UI_UX_AUDIT_PLAN.md`. Shared `AppListSkeleton`
+  blocks now animate a moving shimmer gradient while respecting
+  `MediaQuery.disableAnimations`; existing loading-state consumers keep using
+  the same component. Validation: changed-file
+  `dart format --output=none --set-exit-if-changed`, `git diff --check`,
+  `flutter analyze --no-pub`, focused
+  `flutter test --no-pub --reporter expanded test\app_form_controls_test.dart`
+  (6 tests), and full `flutter test --no-pub --reporter compact` (317 tests).
 - `UI-UX-001`/`AUDIT-FINANCE-STRIPS`, 2026-07-03: completed Phase 3C header
   cleanup for the finance workspaces listed in `docs/UI_UX_AUDIT_PLAN.md`.
   `PaymentMonitorScreen`, `OffsetAdjustmentScreen`, and `BankStatementScreen`

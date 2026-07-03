@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/widgets/app_cards.dart';
 import 'package:phongvu_opshub/app/widgets/app_inputs.dart';
+import 'package:phongvu_opshub/app/widgets/app_state_widgets.dart';
 
 void main() {
   testWidgets('AppTextInput renders tokenized label, icon, and input text', (
@@ -134,4 +135,31 @@ void main() {
     await tester.tap(find.text('Nội dung thẻ'));
     expect(tapped, isTrue);
   });
+
+  testWidgets('AppListSkeleton animates shimmer gradient', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: AppListSkeleton(itemCount: 1, scrollable: false)),
+      ),
+    );
+
+    final firstGradient = _firstSkeletonGradient(tester);
+    await tester.pump(const Duration(milliseconds: 500));
+    final nextGradient = _firstSkeletonGradient(tester);
+
+    expect(nextGradient.begin, isNot(firstGradient.begin));
+    expect(nextGradient.end, isNot(firstGradient.end));
+  });
+}
+
+LinearGradient _firstSkeletonGradient(WidgetTester tester) {
+  for (final box in tester.widgetList<DecoratedBox>(
+    find.byType(DecoratedBox),
+  )) {
+    final decoration = box.decoration;
+    if (decoration is BoxDecoration && decoration.gradient is LinearGradient) {
+      return decoration.gradient! as LinearGradient;
+    }
+  }
+  throw StateError('Không tìm thấy skeleton gradient');
 }
