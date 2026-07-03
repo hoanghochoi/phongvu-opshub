@@ -139,89 +139,99 @@ class _HomeCommandPanel extends StatelessWidget {
         : '?';
     final isCompact =
         MediaQuery.sizeOf(context).width < AppLayoutTokens.compactBreakpoint;
-    final avatarSize = isCompact ? 104.0 : 52.0;
+    final avatarSize = isCompact ? 48.0 : 42.0;
 
-    return AppSurfaceCard(
-      padding: const EdgeInsets.all(18),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: avatarSize,
-            height: avatarSize,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.primarySurfaceOf(context),
-              borderRadius: isCompact ? AppRadius.allXl : AppRadius.allLg,
-              border: Border.all(color: AppColors.borderOf(context)),
+    return DecoratedBox(
+      key: const Key('home-welcome-strip'),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.subtleBorderOf(context)),
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.only(
+          top: isCompact ? 2 : 0,
+          bottom: isCompact ? 12 : 10,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: avatarSize,
+              height: avatarSize,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.primarySurfaceOf(context),
+                borderRadius: AppRadius.allLg,
+                border: Border.all(color: AppColors.borderOf(context)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: hasRemoteAvatar
+                  ? Image.network(
+                      avatarUrl,
+                      key: ValueKey(avatarUrl),
+                      width: avatarSize,
+                      height: avatarSize,
+                      fit: BoxFit.cover,
+                      frameBuilder: (context, child, frame, _) {
+                        if (frame == null) {
+                          return _AvatarInitials(initials);
+                        }
+                        return child;
+                      },
+                      errorBuilder: (_, _, _) => _AvatarInitials(initials),
+                    )
+                  : _AvatarInitials(initials),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: hasRemoteAvatar
-                ? Image.network(
-                    avatarUrl,
-                    key: ValueKey(avatarUrl),
-                    width: avatarSize,
-                    height: avatarSize,
-                    fit: BoxFit.cover,
-                    frameBuilder: (context, child, frame, _) {
-                      if (frame == null) {
-                        return _AvatarInitials(initials, large: isCompact);
-                      }
-                      return child;
-                    },
-                    errorBuilder: (_, _, _) =>
-                        _AvatarInitials(initials, large: isCompact),
-                  )
-                : _AvatarInitials(initials, large: isCompact),
-          ),
-          SizedBox(width: isCompact ? 18 : 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Trang chủ vận hành',
-                  maxLines: isCompact ? 2 : 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.headingS.copyWith(
-                    color: AppColors.textPrimaryOf(context),
-                  ),
-                ),
-                SizedBox(height: isCompact ? 10 : 6),
-                Text(
-                  userName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelM.copyWith(
-                    color: AppColors.textPrimaryOf(context),
-                  ),
-                ),
-                SizedBox(height: isCompact ? 8 : 4),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.store_outlined,
-                      color: AppColors.textMutedOf(context),
-                      size: 16,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Trang chủ vận hành',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.headingS.copyWith(
+                      color: AppColors.textPrimaryOf(context),
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        storeInfo,
-                        maxLines: isCompact ? 1 : 2,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: false,
-                        style: AppTextStyles.bodyS.copyWith(
-                          color: AppColors.textMutedOf(context),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    userName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.labelM.copyWith(
+                      color: AppColors.textPrimaryOf(context),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.store_outlined,
+                        color: AppColors.textMutedOf(context),
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          storeInfo,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
+                          style: AppTextStyles.bodyS.copyWith(
+                            color: AppColors.textMutedOf(context),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -229,16 +239,16 @@ class _HomeCommandPanel extends StatelessWidget {
 
 class _AvatarInitials extends StatelessWidget {
   final String initials;
-  final bool large;
 
-  const _AvatarInitials(this.initials, {this.large = false});
+  const _AvatarInitials(this.initials);
 
   @override
   Widget build(BuildContext context) {
     return Text(
       initials,
-      style: (large ? AppTextStyles.headingXL : AppTextStyles.headingS)
-          .copyWith(color: AppColors.primaryOf(context)),
+      style: AppTextStyles.headingS.copyWith(
+        color: AppColors.primaryOf(context),
+      ),
     );
   }
 }

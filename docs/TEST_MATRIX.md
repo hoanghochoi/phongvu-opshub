@@ -45,6 +45,16 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`AUDIT-HOME-WELCOME`, 2026-07-03: completed a small Phase 3B
+  Home header batch from `docs/UI_UX_AUDIT_PLAN.md`. Home now renders the user
+  greeting as a compact `home-welcome-strip` instead of a large surface card,
+  keeping the avatar, staff name, assigned showroom summary, and existing
+  `Home command center resolved` `AppLogger` proof. Validation: changed-file
+  `dart format --output=none --set-exit-if-changed`, `git diff --check`,
+  `flutter analyze --no-pub`, focused
+  `flutter test --no-pub --reporter expanded test\home_feedback_action_test.dart test\home_avatar_test.dart test\app_shell_route_viewport_test.dart`
+  (14 tests), and full `flutter test --no-pub --reporter compact` (316 tests).
+  Remaining header cleanup: finance/report sub-screen intro cards.
 - `UI-UX-001`/`AUDIT-HEADER-CLEAN`, 2026-07-03: completed a small Phase 3A
   header-clean batch from `docs/UI_UX_AUDIT_PLAN.md`. `/fifo-menu` now renders
   the FIFO action grid or permission empty state directly under `AppShell`

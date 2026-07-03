@@ -168,6 +168,10 @@ void main() {
   });
 
   testWidgets('Home header shows all assigned SR codes', (tester) async {
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
     PackageInfo.setMockInitialValues(
@@ -199,6 +203,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    final welcomeStrip = find.byKey(const Key('home-welcome-strip'));
+    expect(welcomeStrip, findsOneWidget);
+    expect(tester.getSize(welcomeStrip).height, lessThan(90));
     expect(find.text('2 SR: CP75, CP62'), findsOneWidget);
   });
 

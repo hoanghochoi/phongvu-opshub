@@ -279,14 +279,17 @@ grid
 *   **Công việc:**
     1.  [x] Gỡ bỏ `_FifoMenuHeader` khỏi `fifo_menu_screen.dart`.
     2.  [x] Gỡ bỏ `_WarrantyMainHeader` khỏi `warranty_main_screen.dart`.
-    3.  Thu gọn `_HomeCommandPanel` trên Trang chủ thành dạng dải chào hỏi (Welcome Strip) nằm sát TopBar.
+    3.  [x] Thu gọn `_HomeCommandPanel` trên Trang chủ thành dạng dải chào hỏi (Welcome Strip) nằm sát TopBar.
     4.  Rà soát và tinh gọn các thẻ card giới thiệu ở các màn hình con khác như: Tiền vào, Cấn trừ, Sao kê.
 *   **Trạng thái:** Batch 2A hoàn thành ngày 03/07/2026 cho FIFO hub và BH/SC
     hub. Validation: `dart format --output=none --set-exit-if-changed`,
     `git diff --check`, `flutter analyze --no-pub`, focused widget/router
     tests route viewport + FIFO hub + BH/SC hub (9 tests), và full
-    `flutter test --no-pub --reporter compact` (316 tests). Các header ở Home,
-    Tiền vào, Cấn trừ, Sao kê vẫn nằm trong scope batch sau.
+    `flutter test --no-pub --reporter compact` (316 tests). Batch 2B hoàn
+    thành cùng ngày cho Home welcome strip, giữ avatar/tên/showroom và log
+    `Home command center resolved`. Validation: focused Home/AppShell tests
+    (14 tests), `flutter analyze --no-pub`, và full Flutter suite (316 tests).
+    Các header ở Tiền vào, Cấn trừ, Sao kê vẫn nằm trong scope batch sau.
 *   **Rủi ro:** Thấp. Cần kiểm duyệt thiết kế visual để đảm bảo sau khi xóa card, bố cục trang con vẫn cân đối.
 
 ### Phase 4: Component Polish & Accessibility (Thời gian: 5 ngày)
