@@ -31,9 +31,9 @@ void main() {
     expect(find.byKey(const Key('fifo-check-command-card')), findsOneWidget);
     expect(find.byKey(const Key('fifo-check-results')), findsOneWidget);
     expect(find.text('Kiểm tra FIFO'), findsOneWidget);
-    expect(find.text('Chưa kiểm tra'), findsOneWidget);
-    expect(find.text('0 sản phẩm'), findsOneWidget);
-    expect(find.text('Chỉ còn tồn'), findsOneWidget);
+    expect(find.text('Chưa kiểm tra'), findsNothing);
+    expect(find.text('0 sản phẩm'), findsNothing);
+    expect(find.text('Chỉ còn tồn'), findsNothing);
     expect(find.text('Hiển thị đã xuất kho'), findsOneWidget);
     expect(find.text('Nhập SKU hoặc serial để kiểm tra FIFO'), findsOneWidget);
     expect(find.byTooltip('Quét mã'), findsOneWidget);

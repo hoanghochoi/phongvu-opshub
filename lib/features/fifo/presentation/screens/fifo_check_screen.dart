@@ -174,35 +174,35 @@ class _FifoHeader extends StatelessWidget {
                   height: 1.35,
                 ),
               ),
-              const SizedBox(height: AppLayoutTokens.cardGap),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  AppStatusChip(
-                    label: modeLabel,
-                    color: result == null ? AppColors.warning : AppColors.info,
-                    backgroundColor: result == null
-                        ? AppColors.warningSurface
-                        : AppColors.infoSurface,
-                  ),
-                  AppStatusChip(
-                    label: '$resultCount sản phẩm',
-                    color: AppColors.neutral700,
-                    backgroundColor: AppColors.neutral100,
-                  ),
-                  AppStatusChip(
-                    label: statusLabel,
-                    color: statusColor,
-                    backgroundColor: statusBackground,
-                  ),
-                  const AppStatusChip(
-                    label: 'SKU/Serial',
-                    color: AppColors.primary,
-                    backgroundColor: AppColors.primarySurface,
-                  ),
-                ],
-              ),
+              if (result != null) ...[
+                const SizedBox(height: AppLayoutTokens.cardGap),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    AppStatusChip(
+                      label: modeLabel,
+                      color: AppColors.info,
+                      backgroundColor: AppColors.infoSurface,
+                    ),
+                    AppStatusChip(
+                      label: '$resultCount sản phẩm',
+                      color: AppColors.neutral700,
+                      backgroundColor: AppColors.neutral100,
+                    ),
+                    AppStatusChip(
+                      label: statusLabel,
+                      color: statusColor,
+                      backgroundColor: statusBackground,
+                    ),
+                    const AppStatusChip(
+                      label: 'SKU/Serial',
+                      color: AppColors.primary,
+                      backgroundColor: AppColors.primarySurface,
+                    ),
+                  ],
+                ),
+              ],
             ],
           );
 

@@ -233,7 +233,7 @@ class _AppShellState extends State<AppShell> {
                         return const Padding(
                           padding: EdgeInsets.all(24),
                           child: Text(
-                            'Không tải được QR. Vui lòng dùng link bên dưới.',
+                            'Không tải được QR. Vui lòng dùng nút mở group bên dưới.',
                             textAlign: TextAlign.center,
                           ),
                         );
@@ -243,19 +243,10 @@ class _AppShellState extends State<AppShell> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Quét QR bằng Seatalk hoặc mở link group hỗ trợ.',
+                  'Quét QR bằng Seatalk hoặc dùng nút bên dưới để mở hoặc sao chép liên kết group hỗ trợ.',
                   textAlign: TextAlign.center,
                   style: AppTextStyles.labelM.copyWith(
                     color: AppColors.textSecondaryOf(context),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SelectableText(
-                  _supportGroupInviteUrl,
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.labelS.copyWith(
-                    color: AppColors.primaryOf(context),
-                    height: 1.35,
                   ),
                 ),
               ],
@@ -266,6 +257,11 @@ class _AppShellState extends State<AppShell> {
           AppDialogCancelButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
             label: 'Đóng',
+          ),
+          AppDialogSecondaryButton(
+            onPressed: () => _copySupportGroupLink(dialogContext),
+            icon: Icons.copy_rounded,
+            label: 'Sao chép liên kết',
           ),
           AppDialogConfirmButton(
             onPressed: () => _openSupportGroupLink(dialogContext),
@@ -280,6 +276,43 @@ class _AppShellState extends State<AppShell> {
       'Support dialog closed',
       context: logContext,
     );
+  }
+
+  Future<void> _copySupportGroupLink(BuildContext context) async {
+    final inviteUri = Uri.parse(_supportGroupInviteUrl);
+    final logContext = {'urlHost': inviteUri.host, 'urlPath': inviteUri.path};
+    await AppLogger.instance.info(
+      'AppShellSupport',
+      'Support link copy requested',
+      context: logContext,
+    );
+    try {
+      await Clipboard.setData(
+        const ClipboardData(text: _supportGroupInviteUrl),
+      );
+      await AppLogger.instance.info(
+        'AppShellSupport',
+        'Support link copied',
+        context: logContext,
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(content: Text('Đã sao chép liên kết group hỗ trợ.')),
+      );
+    } catch (error) {
+      await AppLogger.instance.error(
+        'AppShellSupport',
+        'Support link copy failed',
+        error: error,
+        context: logContext,
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(
+          content: Text('Chưa sao chép được liên kết. Vui lòng thử lại.'),
+        ),
+      );
+    }
   }
 
   Future<void> _openSupportGroupLink(BuildContext context) async {
@@ -739,9 +772,6 @@ class _SidebarItem extends StatelessWidget {
     final foreground = selected
         ? AppColors.primaryOf(context)
         : AppColors.sidebarTextOf(context);
-    final muted = selected
-        ? AppColors.primaryOf(context)
-        : AppColors.sidebarMutedOf(context);
     return Material(
       color: selected
           ? AppColors.sidebarSelectedOf(context)
@@ -764,7 +794,6 @@ class _SidebarItem extends StatelessWidget {
                   style: AppTextStyles.labelM.copyWith(color: foreground),
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: muted, size: 18),
             ],
           ),
         ),

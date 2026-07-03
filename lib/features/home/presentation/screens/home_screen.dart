@@ -126,7 +126,7 @@ class _HomeCommandPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final userName = user?.name ?? user?.email ?? 'Nhân viên OpsHub';
-    final storeInfo = user?.assignedStoreHeaderInfo ?? 'Chưa có SR được gán';
+    final storeInfo = user?.assignedStoreHeaderInfo ?? 'Chưa được gán Showroom';
     final avatarUrl = user?.avatarUrl?.trim();
     final hasRemoteAvatar =
         avatarUrl != null &&

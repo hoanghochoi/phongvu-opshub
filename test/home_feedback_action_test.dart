@@ -398,7 +398,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Hỗ trợ OpsHub'), findsOneWidget);
-    expect(find.textContaining('link.seatalk.io/group/open'), findsOneWidget);
+    expect(find.textContaining('link.seatalk.io/group/open'), findsNothing);
+    expect(find.text('Sao chép liên kết'), findsOneWidget);
+    expect(find.text('Mở group'), findsOneWidget);
     expect(
       find.byWidgetPredicate(
         (widget) =>

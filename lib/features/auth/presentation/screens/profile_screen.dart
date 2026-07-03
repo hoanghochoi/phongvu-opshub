@@ -531,7 +531,7 @@ class _ProfileInfoCard extends StatelessWidget {
             label: 'SR được gán',
             value: storeDetails?.isNotEmpty == true
                 ? storeDetails!
-                : 'Chưa có SR được gán',
+                : 'Chưa được gán Showroom',
           ),
         ],
       ),

@@ -45,6 +45,19 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`AUDIT-QUICK-WINS`, 2026-07-03: completed Phase 1 from
+  `docs/UI_UX_AUDIT_PLAN.md`. AppShell support keeps the Seatalk QR/open-link
+  flow but no longer renders the raw invite URL, adds a copy-link action with
+  sanitized `AppLogger` start/success/failure logs, and keeps the URL token out
+  of log context. Desktop sidebar flat navigation no longer shows a chevron on
+  each row. Home, Profile, and Offset Adjustment fallbacks now say
+  `Chưa được gán Showroom` instead of `Chưa có SR được gán`. FIFO Check keeps
+  its command card and result panel but hides the pre-search status chips until
+  a result exists. Validation: changed-file
+  `dart format --output=none --set-exit-if-changed`, `git diff --check`,
+  `flutter analyze --no-pub`, focused
+  `flutter test --no-pub --reporter expanded test\home_feedback_action_test.dart test\fifo_check_redesign_test.dart test\profile_screen_test.dart test\offset_adjustment_screen_redesign_test.dart`
+  (13 tests), and full `flutter test --no-pub --reporter compact` (316 tests).
 - `UI-UX-001`, 2026-07-01: started the OpsHub Redesign System 2026 repo import
   with Batch 1 foundation work. Authenticated routes now render inside a shared
   responsive `AppShell`: desktop persistent sidebar, tablet rail, mobile app bar

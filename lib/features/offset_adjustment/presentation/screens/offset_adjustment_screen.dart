@@ -615,7 +615,7 @@ class _FilterPanelState extends State<_FilterPanel> {
         ),
         child: Text(
           widget.provider.stores.isEmpty
-              ? 'Chưa có SR được gán'
+              ? 'Chưa được gán Showroom'
               : widget.provider.stores.first.storeId,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
