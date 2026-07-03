@@ -311,12 +311,21 @@ Decision follow-up 03/07/2026: `Generic Report Workspace` và
 `Personnel Catalog Admin` phải có route thật, đồng thời khóa Data/FIFO
 retired không được quay lại router/backlog tạm.
 
+Figma retire sync 03/07/2026: các frame active page của `Data Workspace` và
+`FIFO Conversation Check` đã được xử lý non-destructive bằng cách rename
+`Retired / ...` và đặt `visible=false`, không xóa node để còn rollback. Verify
+bằng `figma-use` trả `activeRetired: []` cho ba page active
+`05 Mobile Screens`, `06 Tablet Screens`, `07 Desktop Screens`. Validation:
+focused `flutter test --no-pub --reporter expanded
+test\design_system_migration_guard_test.dart` (7 tests),
+`flutter analyze --no-pub`, và `git diff --check`.
+
 | Figma frame | Trạng thái code hiện tại | Hướng xử lý |
 | --- | --- | --- |
-| Data Workspace | Retired | Bỏ khỏi plan hiện tại; không có route/runtime screen |
+| Data Workspace | Retired / hidden in Figma | Bỏ khỏi plan hiện tại; không có route/runtime screen. Figma nodes `Retired / Desktop v2 / Data Workspace` (`97:2`), `Retired / Tablet v2 / Data Workspace` (`135:597`), `Retired / Mobile v2 / Data Workspace` (`135:171`) đều `visible=false` |
 | Generic Report Workspace | Approved / implemented | Route `/reports` là hub báo cáo chung, gom các report runtime hiện có theo quyền rồi điều hướng vào Sales Report hub/admin |
 | Personnel Catalog Admin | Approved / implemented | Route `/admin/personnel` dùng `ADMIN_PERSONNEL`, screen content-only trong `AppShell`, feature picker bật lại `Danh mục nhân sự` |
-| FIFO Conversation Check | Retired | Screen conversation legacy chưa expose đã được gỡ; giữ lại barcode scanner/entities vì các runtime screen khác đang dùng |
+| FIFO Conversation Check | Retired / hidden in Figma | Screen conversation legacy chưa expose đã được gỡ; giữ lại barcode scanner/entities vì các runtime screen khác đang dùng. Figma nodes `Retired / Desktop v2 / FIFO Conversation Check` (`152:2715`), `Retired / Tablet v2 / FIFO Conversation Check` (`152:626`), `Retired / Mobile v2 / FIFO Conversation Check` (`151:466`) đều `visible=false` |
 | Dialog/loading/empty/error state inventory | Đã audit các route expose: full loading/empty/error dùng shared state; dialog action dùng shared button | Guard khóa raw indicator vào đúng ngữ cảnh inline đã review; audit lại khi thêm runtime state mới |
 
 ## Proof còn thiếu trước khi gọi là visual parity

@@ -151,8 +151,16 @@ void main() {
       ].join(Platform.pathSeparator),
     ).readAsStringSync();
 
-    expect(gapMap, contains('| Data Workspace | Retired |'));
-    expect(gapMap, contains('| FIFO Conversation Check | Retired |'));
+    expect(gapMap, contains('| Data Workspace | Retired / hidden in Figma |'));
+    expect(
+      gapMap,
+      contains('| FIFO Conversation Check | Retired / hidden in Figma |'),
+    );
+    expect(gapMap, contains('Figma retire sync 03/07/2026'));
+    expect(gapMap, contains('Retired / Desktop v2 / Data Workspace'));
+    expect(gapMap, contains('Retired / Desktop v2 / FIFO Conversation Check'));
+    expect(gapMap, contains('visible=false'));
+    expect(gapMap, contains('activeRetired: []'));
     expect(backlog, isNot(contains('Resolve Figma Data Workspace route gap')));
     expect(
       backlog,

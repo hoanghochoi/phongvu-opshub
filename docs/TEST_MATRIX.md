@@ -931,6 +931,18 @@ Recent focused evidence:
 
 ## Recent Evidence
 
+- UI-UX-001, 2026-07-03: Figma route-gap retire sync now matches the code
+  decision for frames without runtime contracts. `figma-use` renamed the active
+  screen-page copies of `Data Workspace` and `FIFO Conversation Check` to
+  `Retired / ...` and set `visible=false` for desktop/tablet/mobile nodes
+  (`97:2`, `135:597`, `135:171`, `152:2715`, `152:626`, `151:466`), then
+  verified `activeRetired: []` across `05 Mobile Screens`, `06 Tablet Screens`,
+  and `07 Desktop Screens`. `design_system_migration_guard_test.dart` now locks
+  that retire evidence in the gap map while still proving those routes stay
+  absent from `app_router.dart`. Validation: focused
+  `flutter test --no-pub --reporter expanded
+  test\design_system_migration_guard_test.dart` (7 tests),
+  `flutter analyze --no-pub`, and `git diff --check`.
 - PROFILE-ADMIN-001/UI-UX-001, 2026-07-03: Personnel Catalog Admin now has a
   focused screen proof for the `/admin/personnel` runtime contract. The screen
   accepts an injected `AuthRepository` for tests while default runtime still
