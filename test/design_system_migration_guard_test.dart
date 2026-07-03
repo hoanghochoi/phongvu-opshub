@@ -129,6 +129,38 @@ void main() {
     for (final marker in requiredRouteMarkers) {
       expect(routerSource, contains(marker));
     }
+
+    final gapMap = File(
+      [
+        'docs',
+        'product',
+        'opshub-redesign-gap-map-2026-07-01.md',
+      ].join(Platform.pathSeparator),
+    ).readAsStringSync();
+    final testMatrix = File(
+      ['docs', 'TEST_MATRIX.md'].join(Platform.pathSeparator),
+    ).readAsStringSync();
+
+    expect(
+      gapMap,
+      isNot(
+        contains(
+          '`PersonnelCatalogAdminScreen` và `FifoCheckConversationScreen` không nằm',
+        ),
+      ),
+    );
+    expect(
+      gapMap,
+      contains(
+        '`PersonnelCatalogAdminScreen` đã được mở route thật `/admin/personnel`',
+      ),
+    );
+    expect(
+      testMatrix,
+      contains(
+        '`PersonnelCatalogAdminScreen` is now an approved runtime route',
+      ),
+    );
   });
 
   test('retired Figma route gaps stay documented and non-routed', () {
@@ -409,7 +441,9 @@ void main() {
     expect(smokeSource, contains('sanitizeSensitiveText'));
     expect(smokeSource, contains('[REDACTED_JWT]'));
     expect(gapMap, contains('tổng 72 route/viewport checks'));
+    expect(gapMap, contains('32\n  authenticated shell routes'));
     expect(testMatrix, contains('default live staging smoke now runs 72'));
+    expect(testMatrix, contains('all 32 authenticated shell routes'));
   });
 }
 

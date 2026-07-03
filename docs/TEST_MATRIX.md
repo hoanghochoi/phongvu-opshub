@@ -597,13 +597,10 @@ Recent focused evidence:
   (275 tests), and `flutter build web --no-pub`.
 - `UI-UX-001`, 2026-07-02: added a route migration guard that prevents exposed
   feature screens from reusing the legacy `GradientHeader` shell after the
-  Redesign V2 migration. The guard allows only the documented non-routed
-  technical-debt exceptions
-  `lib/features/admin/presentation/screens/personnel_catalog_admin_screen.dart`
-  and
-  `lib/features/fifo_check/presentation/screens/fifo_check_conversation_screen.dart`,
-  and verifies `PersonnelCatalogAdminScreen` plus
-  `FifoCheckConversationScreen` are not referenced by `app_router.dart`.
+  Redesign V2 migration. The guard keeps the retired
+  `FifoCheckConversationScreen` out of `app_router.dart`, while
+  `PersonnelCatalogAdminScreen` is now an approved runtime route at
+  `/admin/personnel` guarded by `ADMIN_PERSONNEL`.
   Validation passed `dart format`, focused
   `flutter test --no-pub --reporter expanded
   test\design_system_migration_guard_test.dart` (3 tests),
@@ -688,7 +685,7 @@ Recent focused evidence:
   checks across desktop `1440x900` and mobile `390x844`: 3 public routes
   (`/login`, `/register`, `/forgot-password`), 1 pending auth route
   (`/assignment-pending`) rendered from a tokenless cached pending session, plus
-  all 31 authenticated shell routes in `AppRouter`, including Admin, FIFO,
+  all 32 authenticated shell routes in `AppRouter`, including Admin, FIFO,
   BH/SC, VietQR, Payment Monitor web fallback, Sao kê, Cấn trừ, Góp ý,
   Report/Sales Report, Profile, Tasks, Home, and Settings. Follow-up guard coverage in
   `test\design_system_migration_guard_test.dart` now parses the smoke script

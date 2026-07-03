@@ -392,7 +392,7 @@ test\design_system_migration_guard_test.dart` (7 tests),
   biến môi trường. Script seed session web an toàn, rồi chụp screenshot ignored
   cho desktop `1440x900` và mobile `390x844`. Smoke live mặc định kiểm 3
   public routes (`/login`, `/register`, `/forgot-password`), 1 pending auth
-  route bằng tokenless cached session (`/assignment-pending`) và 31
+  route bằng tokenless cached session (`/assignment-pending`) và 32
   authenticated shell routes trong `AppRouter`
   (`/home`, `/tasks`, `/profile`, các admin workspaces, FIFO, BH/SC, VietQR,
   Payment Monitor web fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report và
@@ -798,11 +798,11 @@ test\design_system_migration_guard_test.dart` (7 tests),
   subtree Home ngay frame đầu sau `go('/warranty-main')`, và Chrome click burst
   local ghi nhận `afterHashHomeCount=0` cho Home -> BH/SC.
 - Route migration guard proof đã pass, xác nhận toàn bộ feature screens đang
-  expose không dùng lại `GradientHeader` shell cũ. Guard chỉ cho phép hai file
-  đã ghi nợ kỹ thuật `personnel_catalog_admin_screen.dart` và
-  `fifo_check_conversation_screen.dart`, đồng thời xác nhận
-  `PersonnelCatalogAdminScreen` và `FifoCheckConversationScreen` không nằm
-  trong `app_router.dart`. Validation sau slice guard đã pass `dart format`,
+  expose không dùng lại `GradientHeader` shell cũ. Guard xác nhận
+  `FifoCheckConversationScreen` không nằm trong `app_router.dart`; riêng
+  `PersonnelCatalogAdminScreen` đã được mở route thật `/admin/personnel` và
+  khóa bằng guard route `/admin/personnel` + feature `ADMIN_PERSONNEL`.
+  Validation sau slice guard đã pass `dart format`,
   focused `flutter test --no-pub --reporter expanded
   test\design_system_migration_guard_test.dart` (3 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
