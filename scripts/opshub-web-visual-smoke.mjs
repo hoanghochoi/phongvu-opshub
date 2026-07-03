@@ -31,7 +31,11 @@ const waitMs = Number(process.env.OPSHUB_VISUAL_SMOKE_WAIT_MS || 1200);
 const viewports = parseViewports(
   process.env.OPSHUB_VISUAL_SMOKE_VIEWPORTS || 'desktop=1440x900,mobile=390x844',
 );
-const routes = parseRoutes(
+const publicRoutes = parseRoutes(
+  process.env.OPSHUB_VISUAL_SMOKE_PUBLIC_ROUTES ||
+    ['/login', '/register', '/forgot-password'].join(','),
+);
+const authenticatedRoutes = parseRoutes(
   process.env.OPSHUB_VISUAL_SMOKE_ROUTES ||
     [
       '/home',
@@ -87,9 +91,12 @@ const summary = {
   apiBaseUrl,
   storageEnvironment,
   startedAt: startedAt.toISOString(),
-  routeCount: routes.length,
+  routeCount: publicRoutes.length + authenticatedRoutes.length,
+  publicRouteCount: publicRoutes.length,
+  authenticatedRouteCount: authenticatedRoutes.length,
   viewportCount: viewports.length,
-  routes,
+  publicRoutes,
+  authenticatedRoutes,
   viewports,
   results: [],
   failures: [],
@@ -97,14 +104,66 @@ const summary = {
 
 try {
   for (const viewport of viewports) {
-    const context = await browser.newContext({
-      viewport: { width: viewport.width, height: viewport.height },
-      deviceScaleFactor: 1,
+    await runViewportRoutes({
+      viewport,
+      phase: 'public',
+      routes: publicRoutes,
     });
+
+    await runViewportRoutes({
+      viewport,
+      phase: 'auth',
+      routes: authenticatedRoutes,
+      session,
+      initialRoute: '/home',
+    });
+  }
+} finally {
+  await browser.close();
+}
+
+summary.completedAt = new Date().toISOString();
+summary.ok = summary.failures.length === 0;
+const summaryPath = path.join(outputDir, 'summary.json');
+fs.writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
+
+process.stdout.write(
+  JSON.stringify(
+    {
+      ok: summary.ok,
+      checked: summary.results.length,
+      publicRoutes: summary.publicRouteCount,
+      authenticatedRoutes: summary.authenticatedRouteCount,
+      failures: summary.failures.map(({ phase, viewport, route, reason }) => ({
+        phase,
+        viewport,
+        route,
+        reason,
+      })),
+      summary: path.relative(workspace, summaryPath).replaceAll(path.sep, '/'),
+    },
+    null,
+    2,
+  ) + '\n',
+);
+
+if (!summary.ok) process.exit(1);
+
+async function runViewportRoutes({ viewport, phase, routes, session, initialRoute }) {
+  if (routes.length === 0) return;
+
+  const context = await browser.newContext({
+    viewport: { width: viewport.width, height: viewport.height },
+    deviceScaleFactor: 1,
+  });
+  if (session) {
     await context.addInitScript(seedSessionStorage, {
       session,
       storageEnvironment,
     });
+  }
+
+  try {
     const page = await context.newPage();
     const runtimeErrors = [];
     page.on('console', (message) => {
@@ -116,23 +175,13 @@ try {
       runtimeErrors.push(`pageerror: ${error.message}`);
     });
 
-    await page.goto(`${baseUrl}/#/home`, {
-      waitUntil: 'domcontentloaded',
-      timeout: 45000,
-    });
-    await waitForFlutter(page);
-    await waitForNetworkQuiet(page);
-    await dismissOptionalUpdate(page);
-    await page.waitForTimeout(waitMs);
+    if (initialRoute) {
+      await settleRoute(page, initialRoute);
+    }
 
     for (const route of routes) {
       const errorsBefore = runtimeErrors.length;
-      const url = `${baseUrl}/#${route}`;
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-      await waitForFlutter(page);
-      await waitForNetworkQuiet(page);
-      await dismissOptionalUpdate(page);
-      await page.waitForTimeout(waitMs);
+      await settleRoute(page, route);
 
       const metrics = await page.evaluate(() => {
         const flutterView = document.querySelector('flutter-view');
@@ -182,7 +231,7 @@ try {
         };
       });
       const actualRoute = metrics.hash.replace(/^#/, '') || '/';
-      const screenshotName = `${viewport.name}-${slugRoute(route)}.png`;
+      const screenshotName = `${phase}-${viewport.name}-${slugRoute(route)}.png`;
       const screenshotPath = path.join(outputDir, screenshotName);
       await page.screenshot({ path: screenshotPath, fullPage: false });
       const screenshotBytes = fs.statSync(screenshotPath).size;
@@ -192,6 +241,7 @@ try {
         metrics.flutterViewWidth > metrics.innerWidth + 2 ||
         metrics.overflowElements.length > 0;
       const result = {
+        phase,
         viewport: viewport.name,
         route,
         actualRoute,
@@ -225,36 +275,18 @@ try {
       if (!result.ok) summary.failures.push(result);
       summary.results.push(result);
     }
-
+  } finally {
     await context.close();
   }
-} finally {
-  await browser.close();
 }
 
-summary.completedAt = new Date().toISOString();
-summary.ok = summary.failures.length === 0;
-const summaryPath = path.join(outputDir, 'summary.json');
-fs.writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
-
-process.stdout.write(
-  JSON.stringify(
-    {
-      ok: summary.ok,
-      checked: summary.results.length,
-      failures: summary.failures.map(({ viewport, route, reason }) => ({
-        viewport,
-        route,
-        reason,
-      })),
-      summary: path.relative(workspace, summaryPath).replaceAll(path.sep, '/'),
-    },
-    null,
-    2,
-  ) + '\n',
-);
-
-if (!summary.ok) process.exit(1);
+async function settleRoute(page, route) {
+  await page.goto(`${baseUrl}/#${route}`, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await waitForFlutter(page);
+  await waitForNetworkQuiet(page);
+  await dismissOptionalUpdate(page);
+  await page.waitForTimeout(waitMs);
+}
 
 async function dismissOptionalUpdate(page) {
   const skipButton = page.getByText('Để sau', { exact: true });
