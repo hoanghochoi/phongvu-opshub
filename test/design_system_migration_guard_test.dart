@@ -377,7 +377,8 @@ void main() {
           'Archived / Desktop v2 / Statement Workspace (superseded by 388:2)',
         ),
       );
-      expect(gapMap, contains('screen-page inventory không còn thiếu'));
+      expect(gapMap, contains('physical acceptance 03/07/2026'));
+      expect(testMatrix, contains('OPSHUB_VISUAL_SMOKE_WARRANTY_RECEIPT'));
       expect(testMatrix, contains('the cover page is only a curated subset'));
       expect(
         testMatrix,

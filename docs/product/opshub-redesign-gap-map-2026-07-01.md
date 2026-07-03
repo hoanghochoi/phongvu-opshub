@@ -384,9 +384,10 @@ test\design_system_migration_guard_test.dart` (7 tests),
   `Archived / Desktop v2 / Statement Workspace (superseded by 388:2)`, đều
   `visible=false`, giữ lại node để rollback, còn bản handoff runtime tiếp tục
   là VietQR `398:14` và Sao kê `388:2`.
-  Lưu ý completion: visual parity toàn bộ vẫn cần thêm screenshot/runtime smoke
-  theo từng route dữ liệu thật, nhưng screen-page inventory không còn thiếu
-  active frames cần rehydrate.
+  Lưu ý completion cũ: screen-page inventory riêng chưa đủ để gọi toàn bộ
+  visual parity hoàn tất. Sau các lượt web visual smoke, staging deploy và
+  physical acceptance 03/07/2026, phần còn lại chỉ là mở rộng automation fixture
+  theo dữ liệu thật khi có nhu cầu regression sâu hơn.
   Live re-audit 03/07/2026 sau scanner deploy tiếp tục xác nhận cả ba page có
   đúng 40 runtime frame active, không có frame zero-size, duplicate group hoặc
   retired/archive frame đang visible. Desktop hiện có 128 top-level nodes do

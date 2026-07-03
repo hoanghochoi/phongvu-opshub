@@ -707,9 +707,9 @@ Recent focused evidence:
   `skippedRoutes` when the staging account has no readable receipt.
   Validation: `node --check scripts\opshub-web-visual-smoke.mjs`, live staging
   visual smoke pass 70/70 checked route/viewport captures with zero failure and
-  one documented BH/SC detail skip, plus focused design-system guard. Gap:
-  BH/SC detail visual smoke still needs a stable staging receipt fixture or
-  real data.
+  one documented BH/SC detail skip, plus focused design-system guard. Automation
+  follow-up: pass `OPSHUB_VISUAL_SMOKE_WARRANTY_RECEIPT` when a stable staging
+  receipt should be included in future recurring visual smoke.
   Physical acceptance on staging build `2026.07.03.98+200098` then passed on
   real devices: Android route-switch ghost-frame regression, iOS Safari/PWA
   camera preview and scan, QR/Code 128/Data Matrix scanning across FIFO, Sort,
