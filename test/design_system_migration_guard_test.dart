@@ -400,16 +400,16 @@ void main() {
               pendingSmokeRoutes.length +
               authenticatedSmokeRoutes.length) *
           2,
-      70,
-      reason: 'Default smoke should stay at 35 routes across 2 viewports.',
+      72,
+      reason: 'Default smoke should stay at 36 routes across 2 viewports.',
     );
     expect(smokeSource, contains('readPngVisualStats'));
     expect(smokeSource, contains('uniqueSampledColors < 16'));
     expect(smokeSource, contains('lumaRange < 12'));
     expect(smokeSource, contains('sanitizeSensitiveText'));
     expect(smokeSource, contains('[REDACTED_JWT]'));
-    expect(gapMap, contains('tổng 70 route/viewport checks'));
-    expect(testMatrix, contains('default live staging smoke now runs 70'));
+    expect(gapMap, contains('tổng 72 route/viewport checks'));
+    expect(testMatrix, contains('default live staging smoke now runs 72'));
   });
 }
 
@@ -440,6 +440,6 @@ List<String> _extractRouteLiteralsBetween(
   }
   final section = source.substring(start, end);
   return RegExp(
-    r"'(/[a-z0-9/-]+)'",
+    r"'(/[A-Za-z0-9/:-]+)'",
   ).allMatches(section).map((match) => match.group(1)!).toList();
 }

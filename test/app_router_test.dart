@@ -85,6 +85,36 @@ void main() {
     expect(AppRouter.canUseRouteForTesting(staff, '/reports'), isFalse);
   });
 
+  test('warranty detail route requires WARRANTY access', () {
+    const warrantyUser = User(
+      email: 'warranty@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-store',
+      featureAccess: {'WARRANTY': true},
+    );
+    const staff = User(
+      email: 'staff@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-store',
+      featureAccess: {'FIFO': true},
+    );
+
+    expect(
+      AppRouter.canUseRouteForTesting(
+        warrantyUser,
+        '/check-warranty/details/CP01-J12345678',
+      ),
+      isTrue,
+    );
+    expect(
+      AppRouter.canUseRouteForTesting(
+        staff,
+        '/check-warranty/details/CP01-J12345678',
+      ),
+      isFalse,
+    );
+  });
+
   testWidgets('payment monitor route renders list screen on web', (
     tester,
   ) async {

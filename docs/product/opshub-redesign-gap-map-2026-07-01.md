@@ -280,11 +280,13 @@ Ngày cập nhật: 03/07/2026
   (`135:229`) và form upload `Desktop v2 / Warranty Intake` (`152:2943`),
   `Tablet v2 / Warranty Intake` (`152:704`), `Mobile v2 / Warranty Intake`
   (`151:524`), bỏ gallery/detail/search/upload mock cũ không thuộc slice này.
-- BH/SC lookup `/check-warranty`, detail biên nhận và image viewer đã được
+- BH/SC lookup `/check-warranty`, detail route
+  `/check-warranty/details/:receiptNumber` và image viewer đã được
   migrate khỏi `GradientHeader`: lookup là content-only dưới `AppShell` với
   header/action card, search card có scanner action và danh sách biên nhận;
-  detail dùng page surface tokenized với header/back action, info card, gallery
-  `Hình ảnh (2)` và viewer ảnh nền tối vẫn giữ zoom/pan/download contract.
+  detail là ShellRoute content-only với page surface tokenized, header/back
+  action, info card, gallery `Hình ảnh (2)` và viewer ảnh nền tối không dùng
+  `Scaffold` cục bộ nhưng vẫn giữ zoom/pan/download contract.
   `WarrantyProvider.showAllWarranty`, `searchWarranty`, barcode scanner,
   route guard `WARRANTY`, chi tiết ảnh base64/remote URL và download ảnh vẫn
   giữ runtime contract hiện có. Figma đã sync các frame lookup/detail
@@ -394,7 +396,7 @@ test\design_system_migration_guard_test.dart` (7 tests),
   authenticated shell routes trong `AppRouter`
   (`/home`, `/tasks`, `/profile`, các admin workspaces, FIFO, BH/SC, VietQR,
   Payment Monitor web fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report và
-  Settings), tổng 70 route/viewport checks: không redirect sai route, không
+  Settings), tổng 72 route/viewport checks: không redirect sai route, không
   console/page error, không visible horizontal overflow. Script bỏ qua các node
   semantics nội bộ của Flutter như `flt-announcement-*` và paragraph
   accessibility khổng lồ vì chúng không tạo lỗi layout nhìn thấy.
@@ -402,7 +404,7 @@ test\design_system_migration_guard_test.dart` (7 tests),
   `design_system_migration_guard_test.dart`: public auth routes phải là
   `/login`, `/register`, `/forgot-password`, pending auth route phải là
   `/assignment-pending`, còn authenticated route list phải khớp toàn bộ
-  `ShellRoute` trong `AppRouter`, tổng 70 checks cho 2 viewport.
+  `ShellRoute` trong `AppRouter`, tổng 72 checks cho 2 viewport.
   Follow-up pixel sanity 03/07/2026 bổ sung PNG parser trong smoke script để
   xác nhận screenshot đúng kích thước viewport và không phải ảnh phẳng/trắng
   bằng ngưỡng sampled-color/luma trước khi coi route là pass.
@@ -761,9 +763,11 @@ test\design_system_migration_guard_test.dart` (7 tests),
   `flutter build web --no-pub`.
 - BH/SC lookup/detail focused widget proof đã pass, xác nhận
   `/check-warranty` content-only không còn `Scaffold`/`GradientHeader`, search
-  + scanner action + receipt list giữ provider contract, detail render header
+  + scanner action + receipt list giữ provider contract. Follow-up route
+  detail đã chuyển sang `/check-warranty/details/:receiptNumber`, vẫn guard
+  bằng `WARRANTY`, active nav dưới `BH / SC`, detail render header
   `Chi tiết biên nhận`, `Thông tin biên nhận`, `Hình ảnh (2)` và mở image
-  viewer không còn `GradientHeader`. Figma desktop/tablet/mobile screenshots
+  viewer không còn `Scaffold`/`GradientHeader`. Figma desktop/tablet/mobile screenshots
   đã được kiểm lại sau khi sync 6 frame lookup/detail; các frame không còn
   master-detail mock, `26 kết quả`, `CP75`, `4 ảnh`, `Tải thêm hình ảnh`,
   text bị chồng hoặc content auto-stack sai cột. Focused validation đã pass

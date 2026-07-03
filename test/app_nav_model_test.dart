@@ -73,6 +73,15 @@ void main() {
     expect(destination?.label, 'Báo cáo');
   });
 
+  test('warranty detail route stays inside BH SC workspace', () {
+    final destination = AppNavModel.destinationForLocation(
+      '/check-warranty/details/CP01-J12345678',
+    );
+
+    expect(destination?.id, 'warranty');
+    expect(destination?.label, 'BH / SC');
+  });
+
   test('personnel catalog access makes Admin workspace visible', () {
     const user = User(
       id: 'personnel-admin',

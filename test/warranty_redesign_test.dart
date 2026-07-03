@@ -160,6 +160,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('warranty-detail-header')), findsOneWidget);
+    expect(find.byType(Scaffold), findsNothing);
     expect(find.byType(GradientHeader), findsNothing);
     expect(find.text('Chi tiết biên nhận'), findsOneWidget);
     expect(find.text('Thông tin biên nhận'), findsOneWidget);
@@ -171,6 +172,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('CP01-J12345678 - Ảnh 1'), findsOneWidget);
+    expect(find.byType(Scaffold), findsNothing);
     expect(find.byType(GradientHeader), findsNothing);
     expect(tester.takeException(), isNull);
   });

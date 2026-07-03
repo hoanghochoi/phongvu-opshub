@@ -64,6 +64,7 @@ const authenticatedRoutes = parseRoutes(
       '/warranty-main',
       '/warranty',
       '/check-warranty',
+      '/check-warranty/details/:receiptNumber',
       '/vietqr',
       '/payment-monitor',
       '/bank-statement',

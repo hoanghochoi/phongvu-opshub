@@ -644,7 +644,10 @@ Recent focused evidence:
   search/list surfaces and removes `GradientHeader` from receipt detail/image
   viewer while preserving `WarrantyProvider.showAllWarranty`, search,
   barcode scanner, base64/remote image rendering, zoom/pan viewer and download
-  behavior. Figma was also synced for Warranty Lookup frames `152:3051`,
+  behavior. Follow-up route hardening promotes receipt detail to ShellRoute
+  `/check-warranty/details/:receiptNumber`, keeps it guarded by `WARRANTY`,
+  keeps BH/SC nav selected, and removes the remaining local `Scaffold` from
+  detail and image viewer surfaces. Figma was also synced for Warranty Lookup frames `152:3051`,
   `152:743`, `151:553` and Warranty Detail frames `152:3159`, `152:782`,
   `151:582`; visual QA confirmed no stale mock copy (`26 kết quả`, `CP75`,
   `4 ảnh`, `Tải thêm hình ảnh`), no text overlap and no auto-stacked desktop
@@ -676,7 +679,7 @@ Recent focused evidence:
   credentials, seeds the web session without committing secrets, captures
   ignored screenshots, and checks route hash, console/page errors, rendered
   Flutter viewport size, and visible horizontal overflow while ignoring Flutter
-  semantics-only overflow nodes. The default live staging smoke now runs 70
+  semantics-only overflow nodes. The default live staging smoke now runs 72
   checks across desktop `1440x900` and mobile `390x844`: 3 public routes
   (`/login`, `/register`, `/forgot-password`), 1 pending auth route
   (`/assignment-pending`) rendered from a tokenless cached pending session, plus
@@ -990,7 +993,7 @@ Recent focused evidence:
 - UI-UX-001, 2026-07-03: Redesign audit baseline now has a status addendum so
   the 30/06/2026 score is not mistaken for the current migration state. The
   addendum points acceptance tracking to the gap map and this matrix, records
-  the current 70 route/viewport web visual smoke scope, and keeps remaining
+  the current 72 route/viewport web visual smoke scope, and keeps remaining
   native camera/QR, Windows hardware, and screen-reader checks explicit before
   calling full visual parity. Validation: `git diff --check`.
 - UI-UX-001, 2026-07-03: Web visual smoke failure output now redacts

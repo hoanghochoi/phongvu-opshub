@@ -214,7 +214,8 @@ class AppNavModel {
             location == '/fifo-history' ||
             location == '/fifo/inventory-import' ||
             location == '/sort',
-      'warranty' => location == '/warranty' || location == '/check-warranty',
+      'warranty' =>
+        location == '/warranty' || location.startsWith('/check-warranty'),
       'sales' =>
         location == '/reports' ||
             location.startsWith('/sales-reports') ||

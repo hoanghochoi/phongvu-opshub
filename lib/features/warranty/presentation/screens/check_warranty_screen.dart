@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../../../core/utils/date_formatter.dart';
 import '../providers/warranty_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import 'warranty_details_screen.dart';
 import '../../../fifo_check/presentation/widgets/barcode_scanner_screen.dart'
     show BarcodeScannerScreen;
 import '../../../../app/theme/app_colors.dart';
@@ -118,12 +117,8 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
     final receiptNumber = receipt['receipt']?.toString() ?? '';
     if (receiptNumber.isEmpty) return;
 
-    // Navigate to details screen
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) =>
-            WarrantyDetailsScreen(receiptNumber: receiptNumber),
-      ),
+    await context.push(
+      '/check-warranty/details/${Uri.encodeComponent(receiptNumber)}',
     );
 
     // Refresh list when returning from details screen

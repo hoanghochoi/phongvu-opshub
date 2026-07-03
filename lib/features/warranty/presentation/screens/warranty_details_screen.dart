@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -327,6 +328,15 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
     );
   }
 
+  void _returnToLookup() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.maybePop();
+      return;
+    }
+    context.go('/check-warranty');
+  }
+
   List<String> _extractImages(Map<String, dynamic> details) {
     final images = <String>[];
     final listValue = details['images'];
@@ -349,88 +359,84 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.canvasOf(context),
-      body: SafeArea(
-        child: Consumer<WarrantyProvider>(
-          builder: (context, warrantyProvider, _) {
-            final details = warrantyProvider.currentDetails;
-            final images = details == null
-                ? <String>[]
-                : _extractImages(details);
-            final imageCount = details == null ? null : images.length;
+    return ColoredBox(
+      color: AppColors.canvasOf(context),
+      child: Consumer<WarrantyProvider>(
+        builder: (context, warrantyProvider, _) {
+          final details = warrantyProvider.currentDetails;
+          final images = details == null ? <String>[] : _extractImages(details);
+          final imageCount = details == null ? null : images.length;
 
-            if (warrantyProvider.isLoading) {
-              return AppResponsiveScrollView(
-                child: _WarrantyDetailLayout(
-                  receiptNumber: widget.receiptNumber,
-                  imageCount: imageCount,
-                  onBack: () => Navigator.of(context).maybePop(),
-                  child: const AppSurfaceCard(
-                    child: AppStatePanel.loading(
-                      title: 'Đang tải chi tiết biên nhận',
-                    ),
-                  ),
-                ),
-              );
-            }
-
-            if (warrantyProvider.errorMessage != null) {
-              return AppResponsiveScrollView(
-                child: _WarrantyDetailLayout(
-                  receiptNumber: widget.receiptNumber,
-                  imageCount: imageCount,
-                  onBack: () => Navigator.of(context).maybePop(),
-                  child: AppSurfaceCard(
-                    child: AppStatePanel.error(
-                      title: 'Chưa tải được chi tiết biên nhận',
-                      message: warrantyProvider.errorMessage!,
-                      actionLabel: 'Thử lại',
-                      actionIcon: Icons.refresh_rounded,
-                      onAction: _loadDetails,
-                    ),
-                  ),
-                ),
-              );
-            }
-
-            if (details == null) {
-              return AppResponsiveScrollView(
-                child: _WarrantyDetailLayout(
-                  receiptNumber: widget.receiptNumber,
-                  imageCount: imageCount,
-                  onBack: () => Navigator.of(context).maybePop(),
-                  child: const AppSurfaceCard(
-                    child: AppStatePanel.empty(
-                      title: 'Không có dữ liệu biên nhận',
-                      icon: Icons.receipt_long_outlined,
-                    ),
-                  ),
-                ),
-              );
-            }
-
+          if (warrantyProvider.isLoading) {
             return AppResponsiveScrollView(
               child: _WarrantyDetailLayout(
                 receiptNumber: widget.receiptNumber,
                 imageCount: imageCount,
-                onBack: () => Navigator.of(context).maybePop(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _ReceiptInfoCard(details: details, formatDate: _formatDate),
-                    const SizedBox(height: AppLayoutTokens.formSectionGap),
-                    _ImageSection(
-                      images: images,
-                      onView: _viewImage,
-                      onDownload: _downloadImage,
-                    ),
-                  ],
+                onBack: _returnToLookup,
+                child: const AppSurfaceCard(
+                  child: AppStatePanel.loading(
+                    title: 'Đang tải chi tiết biên nhận',
+                  ),
                 ),
               ),
             );
-          },
-        ),
+          }
+
+          if (warrantyProvider.errorMessage != null) {
+            return AppResponsiveScrollView(
+              child: _WarrantyDetailLayout(
+                receiptNumber: widget.receiptNumber,
+                imageCount: imageCount,
+                onBack: _returnToLookup,
+                child: AppSurfaceCard(
+                  child: AppStatePanel.error(
+                    title: 'Chưa tải được chi tiết biên nhận',
+                    message: warrantyProvider.errorMessage!,
+                    actionLabel: 'Thử lại',
+                    actionIcon: Icons.refresh_rounded,
+                    onAction: _loadDetails,
+                  ),
+                ),
+              ),
+            );
+          }
+
+          if (details == null) {
+            return AppResponsiveScrollView(
+              child: _WarrantyDetailLayout(
+                receiptNumber: widget.receiptNumber,
+                imageCount: imageCount,
+                onBack: _returnToLookup,
+                child: const AppSurfaceCard(
+                  child: AppStatePanel.empty(
+                    title: 'Không có dữ liệu biên nhận',
+                    icon: Icons.receipt_long_outlined,
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return AppResponsiveScrollView(
+            child: _WarrantyDetailLayout(
+              receiptNumber: widget.receiptNumber,
+              imageCount: imageCount,
+              onBack: _returnToLookup,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _ReceiptInfoCard(details: details, formatDate: _formatDate),
+                  const SizedBox(height: AppLayoutTokens.formSectionGap),
+                  _ImageSection(
+                    images: images,
+                    onView: _viewImage,
+                    onDownload: _downloadImage,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -959,26 +965,85 @@ class _ImageViewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.neutral900,
-      appBar: AppBar(
-        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-        backgroundColor: AppColors.neutral900,
-        foregroundColor: AppColors.surface,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.download_rounded),
-            onPressed: onDownload,
-            tooltip: 'Tải về',
-          ),
-        ],
+    return ColoredBox(
+      color: AppColors.neutral900,
+      child: SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: Center(child: _ImageContent(imageSource: imageSource)),
+              ),
+            ),
+            Positioned(
+              left: 12,
+              top: 12,
+              right: 12,
+              child: _ImageViewerToolbar(
+                title: title,
+                onBack: () => Navigator.of(context).maybePop(),
+                onDownload: onDownload,
+              ),
+            ),
+          ],
+        ),
       ),
-      body: ColoredBox(
-        color: AppColors.neutral900,
-        child: InteractiveViewer(
-          minScale: 0.5,
-          maxScale: 4.0,
-          child: Center(child: _ImageContent(imageSource: imageSource)),
+    );
+  }
+}
+
+class _ImageViewerToolbar extends StatelessWidget {
+  final String title;
+  final VoidCallback onBack;
+  final VoidCallback onDownload;
+
+  const _ImageViewerToolbar({
+    required this.title,
+    required this.onBack,
+    required this.onDownload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final border = BorderSide(color: AppColors.surface.withValues(alpha: 0.18));
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.neutral900.withValues(alpha: 0.84),
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+        border: Border.fromBorderSide(border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_back_rounded),
+              tooltip: 'Quay lại',
+              color: AppColors.surface,
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.surface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              onPressed: onDownload,
+              icon: const Icon(Icons.download_rounded),
+              tooltip: 'Tải về',
+              color: AppColors.surface,
+            ),
+          ],
         ),
       ),
     );

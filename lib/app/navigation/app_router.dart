@@ -33,6 +33,7 @@ import '../../features/admin/presentation/screens/user_admin_screen.dart';
 import '../../features/warranty/presentation/screens/warranty_screen.dart';
 import '../../features/warranty/presentation/screens/warranty_main_screen.dart';
 import '../../features/warranty/presentation/screens/check_warranty_screen.dart';
+import '../../features/warranty/presentation/screens/warranty_details_screen.dart';
 import '../../features/feedback/presentation/screens/feedback_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/payment_monitor/presentation/screens/payment_monitor_screen.dart';
@@ -252,6 +253,17 @@ class AppRouter {
                   _noTransitionPage(state, const CheckWarrantyScreen()),
             ),
             GoRoute(
+              path: '/check-warranty/details/:receiptNumber',
+              pageBuilder: (context, state) {
+                final receiptNumber =
+                    state.pathParameters['receiptNumber'] ?? '';
+                return _noTransitionPage(
+                  state,
+                  WarrantyDetailsScreen(receiptNumber: receiptNumber),
+                );
+              },
+            ),
+            GoRoute(
               path: '/vietqr',
               pageBuilder: (context, state) =>
                   _noTransitionPage(state, const VietQrScreen()),
@@ -334,6 +346,8 @@ class AppRouter {
   }
 
   static String? _featureForRoute(String location) {
+    if (location.startsWith('/check-warranty')) return 'WARRANTY';
+
     return switch (location) {
       '/admin' => 'ADMIN',
       '/admin/users' => 'ADMIN_USERS',
@@ -352,7 +366,6 @@ class AppRouter {
       '/sort' => 'FIFO',
       '/warranty-main' => 'WARRANTY',
       '/warranty' => 'WARRANTY',
-      '/check-warranty' => 'WARRANTY',
       '/vietqr' => 'VIETQR',
       '/bank-statement' => 'BANK_STATEMENTS',
       '/offset-adjustments' => 'OFFSET_ADJUSTMENTS',
