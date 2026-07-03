@@ -45,6 +45,17 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`AUDIT-FINANCE-STRIPS`, 2026-07-03: completed Phase 3C header
+  cleanup for the finance workspaces listed in `docs/UI_UX_AUDIT_PLAN.md`.
+  `PaymentMonitorScreen`, `OffsetAdjustmentScreen`, and `BankStatementScreen`
+  now use compact title/status strips instead of large intro cards; existing
+  store/sync/review/filter status chips and the offset refresh action remain.
+  Existing `AppLogger` coverage in the three providers remains the runtime
+  proof source. Validation: changed-file
+  `dart format --output=none --set-exit-if-changed`, `git diff --check`,
+  `flutter analyze --no-pub`, focused
+  `flutter test --no-pub --reporter expanded test\payment_monitor_screen_redesign_test.dart test\offset_adjustment_screen_redesign_test.dart test\bank_statement_screen_test.dart`
+  (6 tests), and full `flutter test --no-pub --reporter compact` (316 tests).
 - `UI-UX-001`/`AUDIT-HOME-WELCOME`, 2026-07-03: completed a small Phase 3B
   Home header batch from `docs/UI_UX_AUDIT_PLAN.md`. Home now renders the user
   greeting as a compact `home-welcome-strip` instead of a large surface card,

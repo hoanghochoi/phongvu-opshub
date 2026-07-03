@@ -317,103 +317,82 @@ class _OffsetHeader extends StatelessWidget {
         ? 'Tất cả trạng thái'
         : OffsetAdjustmentStatus.label(provider.status);
 
-    return AppSurfaceCard(
-      backgroundColor: AppColors.selected,
-      borderColor: AppColors.teal600.withValues(alpha: 0.24),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact =
-              constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
-          final icon = Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.teal600.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-            ),
-            child: const Icon(
-              Icons.swap_horiz_rounded,
-              color: AppColors.teal600,
-            ),
-          );
-          final refresh = IconButton.filledTonal(
-            tooltip: 'Tải lại',
-            onPressed: onRefresh,
-            icon: const Icon(Icons.refresh_rounded),
-          );
-          final textBlock = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Cấn trừ', style: AppTextStyles.headingM),
-              const SizedBox(height: 6),
-              Text(
-                'Tạo và theo dõi hồ sơ cấn trừ; Kế toán xác nhận hoặc từ chối để nhân viên sửa lại khi cần.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.neutral600,
-                  height: 1.35,
-                ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.subtleBorderOf(context)),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.selected,
+                borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
               ),
-              const SizedBox(height: AppLayoutTokens.cardGap),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              child: const Icon(
+                Icons.swap_horiz_rounded,
+                color: AppColors.teal600,
+              ),
+            ),
+            const SizedBox(width: AppLayoutTokens.formInlineGap),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AppStatusChip(
-                    label: scopeLabel,
-                    color: AppColors.teal600,
-                    backgroundColor: AppColors.selected,
-                  ),
-                  AppStatusChip(
-                    label: statusLabel,
-                    color: AppColors.neutral700,
-                    backgroundColor: AppColors.neutral100,
-                  ),
-                  AppStatusChip(
-                    label: pendingLabel,
-                    color: provider.canReview && provider.pendingTotal > 0
-                        ? AppColors.warning
-                        : AppColors.primary,
-                    backgroundColor:
-                        provider.canReview && provider.pendingTotal > 0
-                        ? AppColors.warningSurface
-                        : AppColors.primarySurface,
-                  ),
-                  AppStatusChip(
-                    label: filterStatusLabel,
-                    color: provider.status == OffsetAdjustmentStatus.pending
-                        ? AppColors.warning
-                        : AppColors.neutral700,
-                    backgroundColor: provider.status == 'ALL'
-                        ? AppColors.neutral100
-                        : AppColors.warningSurface,
+                  Text('Cấn trừ', style: AppTextStyles.headingS),
+                  const SizedBox(height: AppLayoutTokens.cardGap),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      AppStatusChip(
+                        label: scopeLabel,
+                        color: AppColors.teal600,
+                        backgroundColor: AppColors.selected,
+                      ),
+                      AppStatusChip(
+                        label: statusLabel,
+                        color: AppColors.neutral700,
+                        backgroundColor: AppColors.neutral100,
+                      ),
+                      AppStatusChip(
+                        label: pendingLabel,
+                        color: provider.canReview && provider.pendingTotal > 0
+                            ? AppColors.warning
+                            : AppColors.primary,
+                        backgroundColor:
+                            provider.canReview && provider.pendingTotal > 0
+                            ? AppColors.warningSurface
+                            : AppColors.primarySurface,
+                      ),
+                      AppStatusChip(
+                        label: filterStatusLabel,
+                        color: provider.status == OffsetAdjustmentStatus.pending
+                            ? AppColors.warning
+                            : AppColors.neutral700,
+                        backgroundColor: provider.status == 'ALL'
+                            ? AppColors.neutral100
+                            : AppColors.warningSurface,
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          );
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [icon, const Spacer(), refresh]),
-                const SizedBox(height: 14),
-                textBlock,
-              ],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              icon,
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Expanded(child: textBlock),
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              refresh,
-            ],
-          );
-        },
+            ),
+            const SizedBox(width: AppLayoutTokens.formInlineGap),
+            IconButton.filledTonal(
+              tooltip: 'Tải lại',
+              onPressed: onRefresh,
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+          ],
+        ),
       ),
     );
   }

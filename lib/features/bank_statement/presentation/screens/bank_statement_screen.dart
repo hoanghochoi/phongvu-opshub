@@ -207,99 +207,83 @@ class _StatementHeader extends StatelessWidget {
         : 'Chọn 1 filter chính';
     final pendingCount = provider.pendingOrderTransferUnreadCount;
 
-    return AppSurfaceCard(
+    return DecoratedBox(
       key: const Key('bank-statement-header'),
-      backgroundColor: AppColors.infoSurface,
-      borderColor: AppColors.info.withValues(alpha: 0.24),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact =
-              constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
-          final icon = Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.info.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-            ),
-            child: const Icon(
-              Icons.receipt_long_rounded,
-              color: AppColors.info,
-            ),
-          );
-          final textBlock = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Sao kê', style: AppTextStyles.headingM),
-              const SizedBox(height: 6),
-              Text(
-                'Tra cứu giao dịch VietinBank theo SR, mã sao kê, đơn hàng, số tiền hoặc nội dung chuyển khoản.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.neutral600,
-                  height: 1.35,
-                ),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.subtleBorderOf(context)),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.infoSurface,
+                borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
               ),
-              const SizedBox(height: AppLayoutTokens.cardGap),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              child: const Icon(
+                Icons.receipt_long_rounded,
+                color: AppColors.info,
+              ),
+            ),
+            const SizedBox(width: AppLayoutTokens.formInlineGap),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AppStatusChip(
-                    label: scopeLabel,
-                    color: AppColors.info,
-                    backgroundColor: AppColors.infoSurface,
-                  ),
-                  AppStatusChip(
-                    label: '${provider.total} giao dịch',
-                    color: AppColors.neutral700,
-                    backgroundColor: AppColors.neutral100,
-                  ),
-                  AppStatusChip(
-                    label: '${provider.selectedIds.length} đã chọn',
-                    color: AppColors.success,
-                    backgroundColor: AppColors.successSurface,
-                  ),
-                  AppStatusChip(
-                    label: pendingCount > 0
-                        ? '$pendingCount chờ Kế toán'
-                        : 'Không có yêu cầu mới',
-                    color: pendingCount > 0
-                        ? AppColors.warning
-                        : AppColors.neutral700,
-                    backgroundColor: pendingCount > 0
-                        ? AppColors.warningSurface
-                        : AppColors.neutral100,
-                  ),
-                  AppStatusChip(
-                    label: filterLabel,
-                    color: provider.canSearch
-                        ? AppColors.primary
-                        : AppColors.warning,
-                    backgroundColor: provider.canSearch
-                        ? AppColors.primarySurface
-                        : AppColors.warningSurface,
+                  Text('Sao kê', style: AppTextStyles.headingS),
+                  const SizedBox(height: AppLayoutTokens.cardGap),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      AppStatusChip(
+                        label: scopeLabel,
+                        color: AppColors.info,
+                        backgroundColor: AppColors.infoSurface,
+                      ),
+                      AppStatusChip(
+                        label: '${provider.total} giao dịch',
+                        color: AppColors.neutral700,
+                        backgroundColor: AppColors.neutral100,
+                      ),
+                      AppStatusChip(
+                        label: '${provider.selectedIds.length} đã chọn',
+                        color: AppColors.success,
+                        backgroundColor: AppColors.successSurface,
+                      ),
+                      AppStatusChip(
+                        label: pendingCount > 0
+                            ? '$pendingCount chờ Kế toán'
+                            : 'Không có yêu cầu mới',
+                        color: pendingCount > 0
+                            ? AppColors.warning
+                            : AppColors.neutral700,
+                        backgroundColor: pendingCount > 0
+                            ? AppColors.warningSurface
+                            : AppColors.neutral100,
+                      ),
+                      AppStatusChip(
+                        label: filterLabel,
+                        color: provider.canSearch
+                            ? AppColors.primary
+                            : AppColors.warning,
+                        backgroundColor: provider.canSearch
+                            ? AppColors.primarySurface
+                            : AppColors.warningSurface,
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          );
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [icon, const SizedBox(height: 14), textBlock],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              icon,
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Expanded(child: textBlock),
-            ],
-          );
-        },
+            ),
+          ],
+        ),
       ),
     );
   }

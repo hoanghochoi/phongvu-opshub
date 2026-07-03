@@ -286,89 +286,76 @@ class _PaymentMonitorHeader extends StatelessWidget {
               : 'Loa đang tắt'
         : 'Chỉ xem danh sách';
 
-    return AppSurfaceCard(
+    return DecoratedBox(
       key: const Key('payment-monitor-header'),
-      backgroundColor: AppColors.successSurface,
-      borderColor: AppColors.success.withValues(alpha: 0.24),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact =
-              constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
-          final icon = Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-            ),
-            child: const Icon(Icons.payments_rounded, color: AppColors.success),
-          );
-          final textBlock = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Theo dõi tiền vào', style: AppTextStyles.headingM),
-              const SizedBox(height: 6),
-              Text(
-                'Theo dõi giao dịch MAP theo SR, ngày và số dòng; loa đọc tiền vào chỉ bật khi thiết bị và quyền phù hợp.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.neutral600,
-                  height: 1.35,
-                ),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.subtleBorderOf(context)),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.successSurface,
+                borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
               ),
-              const SizedBox(height: AppLayoutTokens.cardGap),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              child: const Icon(
+                Icons.payments_rounded,
+                color: AppColors.success,
+              ),
+            ),
+            const SizedBox(width: AppLayoutTokens.formInlineGap),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AppStatusChip(
-                    label: storeLabel,
-                    color: AppColors.success,
-                    backgroundColor: AppColors.successSurface,
-                  ),
-                  AppStatusChip(
-                    label: syncLabel,
-                    color: monitor.isActive
-                        ? AppColors.success
-                        : AppColors.neutral700,
-                    backgroundColor: monitor.isActive
-                        ? AppColors.successSurface
-                        : AppColors.neutral100,
-                  ),
-                  AppStatusChip(
-                    label: speakerLabel,
-                    color: monitor.canUsePaymentSpeaker
-                        ? AppColors.primary
-                        : AppColors.neutral700,
-                    backgroundColor: monitor.canUsePaymentSpeaker
-                        ? AppColors.primarySurface
-                        : AppColors.neutral100,
-                  ),
-                  AppStatusChip(
-                    label: '${monitor.totalTransactions} giao dịch',
-                    color: AppColors.neutral700,
-                    backgroundColor: AppColors.neutral100,
+                  Text('Theo dõi tiền vào', style: AppTextStyles.headingS),
+                  const SizedBox(height: AppLayoutTokens.cardGap),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      AppStatusChip(
+                        label: storeLabel,
+                        color: AppColors.success,
+                        backgroundColor: AppColors.successSurface,
+                      ),
+                      AppStatusChip(
+                        label: syncLabel,
+                        color: monitor.isActive
+                            ? AppColors.success
+                            : AppColors.neutral700,
+                        backgroundColor: monitor.isActive
+                            ? AppColors.successSurface
+                            : AppColors.neutral100,
+                      ),
+                      AppStatusChip(
+                        label: speakerLabel,
+                        color: monitor.canUsePaymentSpeaker
+                            ? AppColors.primary
+                            : AppColors.neutral700,
+                        backgroundColor: monitor.canUsePaymentSpeaker
+                            ? AppColors.primarySurface
+                            : AppColors.neutral100,
+                      ),
+                      AppStatusChip(
+                        label: '${monitor.totalTransactions} giao dịch',
+                        color: AppColors.neutral700,
+                        backgroundColor: AppColors.neutral100,
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          );
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [icon, const SizedBox(height: 14), textBlock],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              icon,
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Expanded(child: textBlock),
-            ],
-          );
-        },
+            ),
+          ],
+        ),
       ),
     );
   }

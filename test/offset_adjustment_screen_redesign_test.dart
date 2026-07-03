@@ -34,7 +34,9 @@ void main() {
     await tester.pumpWidget(_buildApp(repository));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('offset-adjustment-header')), findsOneWidget);
+    final header = find.byKey(const Key('offset-adjustment-header'));
+    expect(header, findsOneWidget);
+    expect(tester.getSize(header).height, lessThan(120));
     expect(
       find.byKey(const Key('offset-adjustment-filter-card')),
       findsOneWidget,

@@ -69,12 +69,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('bank-statement-header')), findsOneWidget);
+    final header = find.byKey(const Key('bank-statement-header'));
+    expect(header, findsOneWidget);
+    expect(tester.getSize(header).height, lessThan(120));
     expect(find.byKey(const Key('bank-statement-toolbar')), findsOneWidget);
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Sao kê'), findsOneWidget);
-    expect(find.textContaining('Tra cứu giao dịch VietinBank'), findsOneWidget);
+    expect(find.textContaining('Tra cứu giao dịch VietinBank'), findsNothing);
     expect(find.text('Chờ Kế toán xác nhận'), findsOneWidget);
     expect(find.text('Đã cấn trừ'), findsOneWidget);
     expect(find.byTooltip('Giao dịch đang chờ Kế toán xác nhận'), findsWidgets);

@@ -62,7 +62,9 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.byKey(const Key('payment-monitor-header')), findsOneWidget);
+    final header = find.byKey(const Key('payment-monitor-header'));
+    expect(header, findsOneWidget);
+    expect(tester.getSize(header).height, lessThan(120));
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Theo dõi tiền vào'), findsOneWidget);
