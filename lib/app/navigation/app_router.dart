@@ -237,10 +237,8 @@ class AppRouter {
             ),
             GoRoute(
               path: '/warranty-main',
-              pageBuilder: (context, state) => _noTransitionPage(
-                state,
-                WarrantyMainScreen(onBackToHome: () => context.go('/home')),
-              ),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const WarrantyMainScreen()),
             ),
             GoRoute(
               path: '/warranty',

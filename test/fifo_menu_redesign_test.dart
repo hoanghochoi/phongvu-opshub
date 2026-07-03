@@ -31,9 +31,9 @@ void main() {
 
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.byKey(const Key('fifo-menu-header')), findsOneWidget);
-    expect(find.text('FIFO'), findsOneWidget);
-    expect(find.text('4 tác vụ khả dụng'), findsOneWidget);
+    expect(find.byKey(const Key('fifo-menu-header')), findsNothing);
+    expect(find.text('FIFO'), findsNothing);
+    expect(find.text('4 tác vụ khả dụng'), findsNothing);
     expect(find.text('Chức năng FIFO'), findsOneWidget);
     expect(find.text('Kiểm tra FIFO'), findsOneWidget);
     expect(find.text('Sắp xếp FIFO'), findsOneWidget);
@@ -55,10 +55,10 @@ void main() {
 
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.byKey(const Key('fifo-menu-header')), findsOneWidget);
+    expect(find.byKey(const Key('fifo-menu-header')), findsNothing);
     expect(find.byKey(const Key('fifo-menu-empty-state')), findsOneWidget);
-    expect(find.text('0 tác vụ khả dụng'), findsOneWidget);
-    expect(find.text('4 tác vụ cần thêm quyền'), findsOneWidget);
+    expect(find.text('0 tác vụ khả dụng'), findsNothing);
+    expect(find.text('4 tác vụ cần thêm quyền'), findsNothing);
     expect(find.text('Chưa có tính năng FIFO'), findsOneWidget);
     expect(
       find.textContaining('cấp quyền kiểm tra, sắp xếp hoặc import'),

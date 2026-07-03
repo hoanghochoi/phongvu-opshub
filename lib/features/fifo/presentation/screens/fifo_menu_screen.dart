@@ -5,9 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_cards.dart';
-import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -99,11 +97,6 @@ class _FifoMenuScreenState extends State<FifoMenuScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _FifoMenuHeader(
-            visibleCount: actions.length,
-            hiddenCount: hiddenCount,
-          ),
-          const SizedBox(height: AppLayoutTokens.sectionGap),
           if (actions.isEmpty)
             const AppSurfaceCard(
               key: Key('fifo-menu-empty-state'),
@@ -167,77 +160,5 @@ class _FifoMenuScreenState extends State<FifoMenuScreen> {
         ),
       );
     });
-  }
-}
-
-class _FifoMenuHeader extends StatelessWidget {
-  final int visibleCount;
-  final int hiddenCount;
-
-  const _FifoMenuHeader({
-    required this.visibleCount,
-    required this.hiddenCount,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final actionText = visibleCount == 1
-        ? '1 tác vụ khả dụng'
-        : '$visibleCount tác vụ khả dụng';
-    return AppSurfaceCard(
-      key: const Key('fifo-menu-header'),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: AppColors.primarySurfaceOf(context),
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Icon(
-                Icons.inventory_2_outlined,
-                color: AppColors.primaryOf(context),
-              ),
-            ),
-          ),
-          const SizedBox(width: AppLayoutTokens.formInlineGap),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('FIFO', style: AppTextStyles.headingM),
-                const SizedBox(height: 6),
-                Text(
-                  'Kiểm tra thứ tự xuất kho, sắp xếp BIN và cập nhật tồn kho FIFO theo quyền được cấp.',
-                  style: AppTextStyles.bodyM.copyWith(
-                    color: AppColors.textSecondaryOf(context),
-                  ),
-                ),
-                const SizedBox(height: AppLayoutTokens.formInlineGap),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    AppInfoChip(
-                      Icons.checklist_rounded,
-                      actionText,
-                      color: AppColors.primaryOf(context),
-                    ),
-                    if (hiddenCount > 0)
-                      AppInfoChip(
-                        Icons.lock_outline_rounded,
-                        '$hiddenCount tác vụ cần thêm quyền',
-                        color: AppColors.warning,
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

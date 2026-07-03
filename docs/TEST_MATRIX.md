@@ -45,6 +45,19 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`AUDIT-HEADER-CLEAN`, 2026-07-03: completed a small Phase 3A
+  header-clean batch from `docs/UI_UX_AUDIT_PLAN.md`. `/fifo-menu` now renders
+  the FIFO action grid or permission empty state directly under `AppShell`
+  without `_FifoMenuHeader`, while keeping the existing permission resolution
+  and `AppLogger` visible/hidden-count logs. `/warranty-main` now renders the
+  BH/SC action grid directly and removes `_WarrantyMainHeader` plus its
+  now-dead `onBackToHome` route plumbing. Validation: changed-file
+  `dart format --output=none --set-exit-if-changed`, `git diff --check`,
+  `flutter analyze --no-pub`, focused
+  `flutter test --no-pub --reporter expanded test\app_shell_route_viewport_test.dart test\fifo_menu_redesign_test.dart test\warranty_redesign_test.dart`
+  (9 tests), and full `flutter test --no-pub --reporter compact` (316 tests).
+  Remaining header cleanup: Home command panel and other finance or report
+  sub-screen intro cards.
 - `UI-UX-001`/`AUDIT-QUICK-WINS`, 2026-07-03: completed Phase 1 from
   `docs/UI_UX_AUDIT_PLAN.md`. AppShell support keeps the Seatalk QR/open-link
   flow but no longer renders the raw invite URL, adds a copy-link action with

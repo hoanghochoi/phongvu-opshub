@@ -47,17 +47,17 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: WarrantyMainScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('warranty-main-header')), findsOneWidget);
+    expect(find.byKey(const Key('warranty-main-header')), findsNothing);
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.text('Bảo hành / Sửa chữa'), findsOneWidget);
+    expect(find.text('Bảo hành / Sửa chữa'), findsNothing);
     expect(find.text('Tác vụ BH / SC'), findsOneWidget);
     expect(find.text('Lưu hình ảnh'), findsOneWidget);
     expect(find.text('Xem lại hình ảnh'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Warranty hub keeps the header readable inside AppShell', (
+  testWidgets('Warranty hub renders actions directly inside AppShell', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1919, 1080);
@@ -71,23 +71,17 @@ void main() {
         child: MaterialApp(
           home: AppShell(
             location: '/warranty-main',
-            child: SelectionArea(
-              child: WarrantyMainScreen(onBackToHome: () {}),
-            ),
+            child: const SelectionArea(child: WarrantyMainScreen()),
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    final titleFinder = find.text('Bảo hành / Sửa chữa');
-    final headerFinder = find.byKey(const Key('warranty-main-header'));
-
-    expect(titleFinder, findsOneWidget);
-    expect(headerFinder, findsOneWidget);
-    expect(tester.getSize(titleFinder).width, greaterThan(180));
-    expect(tester.getSize(titleFinder).height, lessThan(40));
-    expect(tester.getSize(headerFinder).height, lessThan(180));
+    expect(find.byKey(const Key('warranty-main-header')), findsNothing);
+    expect(find.text('Tác vụ BH / SC'), findsOneWidget);
+    expect(find.text('Lưu hình ảnh'), findsOneWidget);
+    expect(find.text('Xem lại hình ảnh'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
