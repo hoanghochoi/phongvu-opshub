@@ -686,6 +686,9 @@ Recent focused evidence:
   and `AppRouter` so the default authenticated route list must stay aligned
   with every ShellRoute, while public auth smoke remains limited to the three
   unauthenticated auth routes until a live assignment-pending fixture exists.
+  Follow-up pixel sanity checks parse each PNG screenshot, verify viewport-size
+  dimensions, and fail flat/blank captures through sampled-color and luminance
+  range thresholds before marking a route pass.
 - `UI-UX-001`/`WARRANTY-001`, 2026-07-03: route switching across shell
   workspaces now paints each route inside a full-size keyed `RepaintBoundary`
   and clipped canvas-colored viewport, and all authenticated shell routes use

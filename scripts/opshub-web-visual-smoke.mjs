@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import zlib from 'node:zlib';
 
 // Usage:
 //   $env:OPSHUB_SMOKE_EMAIL='admin@example.com'
@@ -235,6 +236,7 @@ async function runViewportRoutes({ viewport, phase, routes, session, initialRout
       const screenshotPath = path.join(outputDir, screenshotName);
       await page.screenshot({ path: screenshotPath, fullPage: false });
       const screenshotBytes = fs.statSync(screenshotPath).size;
+      const screenshotStats = readPngVisualStats(screenshotPath);
       const routeErrors = runtimeErrors.slice(errorsBefore);
       const horizontalOverflow =
         metrics.rootScrollWidth > metrics.innerWidth + 2 ||
@@ -248,6 +250,7 @@ async function runViewportRoutes({ viewport, phase, routes, session, initialRout
         ok: true,
         screenshot: path.relative(workspace, screenshotPath).replaceAll(path.sep, '/'),
         screenshotBytes,
+        screenshotStats,
         metrics,
         errors: routeErrors,
       };
@@ -270,6 +273,22 @@ async function runViewportRoutes({ viewport, phase, routes, session, initialRout
       } else if (screenshotBytes < 20000) {
         result.ok = false;
         result.reason = `Screenshot too small: ${screenshotBytes} bytes.`;
+      } else if (
+        screenshotStats.width !== viewport.width ||
+        screenshotStats.height !== viewport.height
+      ) {
+        result.ok = false;
+        result.reason =
+          `Screenshot dimensions ${screenshotStats.width}x${screenshotStats.height} ` +
+          `do not match viewport ${viewport.width}x${viewport.height}.`;
+      } else if (
+        screenshotStats.uniqueSampledColors < 16 ||
+        screenshotStats.lumaRange < 12
+      ) {
+        result.ok = false;
+        result.reason =
+          `Screenshot appears visually flat: ${screenshotStats.uniqueSampledColors} colors, ` +
+          `luma range ${screenshotStats.lumaRange}.`;
       }
 
       if (!result.ok) summary.failures.push(result);
@@ -340,6 +359,129 @@ function parseViewports(value) {
       }
       return { name, width, height };
     });
+}
+
+function readPngVisualStats(filePath) {
+  const buffer = fs.readFileSync(filePath);
+  const signature = buffer.subarray(0, 8).toString('hex');
+  if (signature !== '89504e470d0a1a0a') {
+    fail(`Screenshot is not a PNG: ${filePath}`);
+  }
+
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let bitDepth = 0;
+  let colorType = 0;
+  const idatChunks = [];
+
+  while (offset < buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.subarray(offset + 4, offset + 8).toString('ascii');
+    const data = buffer.subarray(offset + 8, offset + 8 + length);
+    offset += 12 + length;
+
+    if (type === 'IHDR') {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      bitDepth = data.readUInt8(8);
+      colorType = data.readUInt8(9);
+    } else if (type === 'IDAT') {
+      idatChunks.push(data);
+    } else if (type === 'IEND') {
+      break;
+    }
+  }
+
+  if (bitDepth !== 8 || ![2, 6].includes(colorType)) {
+    fail(
+      `Unsupported PNG format for screenshot stats: bitDepth=${bitDepth}, ` +
+        `colorType=${colorType}.`,
+    );
+  }
+
+  const bytesPerPixel = colorType === 6 ? 4 : 3;
+  const rowBytes = width * bytesPerPixel;
+  const inflated = zlib.inflateSync(Buffer.concat(idatChunks));
+  const pixels = Buffer.alloc(width * height * bytesPerPixel);
+  const previous = Buffer.alloc(rowBytes);
+  let sourceOffset = 0;
+  let targetOffset = 0;
+
+  for (let y = 0; y < height; y += 1) {
+    const filter = inflated[sourceOffset];
+    sourceOffset += 1;
+    const row = Buffer.from(
+      inflated.subarray(sourceOffset, sourceOffset + rowBytes),
+    );
+    sourceOffset += rowBytes;
+
+    for (let x = 0; x < rowBytes; x += 1) {
+      const left = x >= bytesPerPixel ? row[x - bytesPerPixel] : 0;
+      const up = previous[x];
+      const upLeft = x >= bytesPerPixel ? previous[x - bytesPerPixel] : 0;
+      row[x] = (row[x] + pngFilterValue(filter, left, up, upLeft)) & 0xff;
+    }
+
+    row.copy(pixels, targetOffset);
+    row.copy(previous);
+    targetOffset += rowBytes;
+  }
+
+  const totalPixels = width * height;
+  const step = Math.max(1, Math.floor(totalPixels / 20000));
+  const colors = new Set();
+  let minLuma = 255;
+  let maxLuma = 0;
+  let sampledPixels = 0;
+
+  for (let pixel = 0; pixel < totalPixels; pixel += step) {
+    const index = pixel * bytesPerPixel;
+    const red = pixels[index];
+    const green = pixels[index + 1];
+    const blue = pixels[index + 2];
+    const alpha = colorType === 6 ? pixels[index + 3] : 255;
+    const luma = Math.round(red * 0.2126 + green * 0.7152 + blue * 0.0722);
+    minLuma = Math.min(minLuma, luma);
+    maxLuma = Math.max(maxLuma, luma);
+    sampledPixels += 1;
+    if (colors.size < 10000) colors.add(`${red},${green},${blue},${alpha}`);
+  }
+
+  return {
+    width,
+    height,
+    sampledPixels,
+    uniqueSampledColors: colors.size,
+    lumaRange: maxLuma - minLuma,
+  };
+}
+
+function pngFilterValue(filter, left, up, upLeft) {
+  switch (filter) {
+    case 0:
+      return 0;
+    case 1:
+      return left;
+    case 2:
+      return up;
+    case 3:
+      return Math.floor((left + up) / 2);
+    case 4:
+      return pngPaeth(left, up, upLeft);
+    default:
+      fail(`Unsupported PNG filter: ${filter}.`);
+  }
+}
+
+function pngPaeth(left, up, upLeft) {
+  const estimate = left + up - upLeft;
+  const leftDistance = Math.abs(estimate - left);
+  const upDistance = Math.abs(estimate - up);
+  const upLeftDistance = Math.abs(estimate - upLeft);
+  if (leftDistance <= upDistance && leftDistance <= upLeftDistance) return left;
+  if (upDistance <= upLeftDistance) return up;
+  return upLeft;
 }
 
 function normalizeBaseUrl(value) {

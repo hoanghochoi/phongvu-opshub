@@ -397,6 +397,9 @@ test\design_system_migration_guard_test.dart` (7 tests),
   `design_system_migration_guard_test.dart`: public auth routes phải là
   `/login`, `/register`, `/forgot-password`, còn authenticated route list phải
   khớp toàn bộ `ShellRoute` trong `AppRouter`, tổng 68 checks cho 2 viewport.
+  Follow-up pixel sanity 03/07/2026 bổ sung PNG parser trong smoke script để
+  xác nhận screenshot đúng kích thước viewport và không phải ảnh phẳng/trắng
+  bằng ngưỡng sampled-color/luma trước khi coi route là pass.
 - Web Chrome fullscreen smoke với seeded local session đã kiểm Home, FIFO menu,
   và route `/sort`; proof ảnh nằm trong `output/playwright/`.
 - Windows debug build đã pass ở `build/windows/x64/runner/Debug`.

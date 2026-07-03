@@ -388,6 +388,9 @@ void main() {
       68,
       reason: 'Default smoke should stay at 34 routes across 2 viewports.',
     );
+    expect(smokeSource, contains('readPngVisualStats'));
+    expect(smokeSource, contains('uniqueSampledColors < 16'));
+    expect(smokeSource, contains('lumaRange < 12'));
     expect(gapMap, contains('tổng 68 route/viewport checks'));
     expect(testMatrix, contains('default live staging smoke now runs 68'));
   });
