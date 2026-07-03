@@ -45,6 +45,20 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`AUDIT-TASKS-RETIRE`, 2026-07-03: completed the active Phase 2
+  Tasks-retirement slice from `docs/UI_UX_AUDIT_PLAN.md`. The duplicated
+  `TasksScreen` and `tasks_screen_redesign_test.dart` were removed,
+  `AppNavModel` no longer carries `showInTasks`, Home now resolves the
+  permission-aware workspace catalog through
+  `visibleWorkspaceDestinations(user)`, mobile bottom nav removes `Tác vụ`, and
+  legacy `/tasks` deep links redirect to `/home`. The default authenticated web
+  visual-smoke inventory now has 31 shell routes, or 70 route/viewport checks
+  across desktop and mobile. Validation: changed-file `dart format`,
+  `dart format --output=none --set-exit-if-changed`,
+  `node --check scripts\opshub-web-visual-smoke.mjs`, `git diff --check`,
+  `flutter analyze --no-pub`, focused
+  `flutter test --no-pub --reporter expanded test\app_nav_model_test.dart test\app_shell_route_viewport_test.dart test\design_system_migration_guard_test.dart test\home_feedback_action_test.dart`
+  (32 tests), and full `flutter test --no-pub --reporter compact` (319 tests).
 - `UI-UX-001`/`AUDIT-FIFO-RECENTS`, 2026-07-03: completed Phase 4C recent
   search cache from `docs/UI_UX_AUDIT_PLAN.md`. FIFO Check now loads and saves
   up to five normalized SKU/serial keywords in environment-namespaced local
@@ -124,8 +138,10 @@ Recent focused evidence:
   with Batch 1 foundation work. Authenticated routes now render inside a shared
   responsive `AppShell`: desktop persistent sidebar, tablet rail, mobile app bar
   plus bottom navigation for `Trang chủ`, `Tác vụ`, and `Tài khoản`. Added the
-  `/tasks` workspace index, a shared permission-aware nav model that hides
-  unavailable destinations and logs visible/hidden counts through `AppLogger`,
+  `/tasks` workspace index, later retired by the 2026-07-03 UI audit because
+  Home became the canonical workspace catalog, and added a shared
+  permission-aware nav model that hides unavailable destinations and logs
+  visible/hidden counts through `AppLogger`,
   and Figma variable parity tokens for sidebar/status/primary surface plus
   contextual light/dark surface/text/border helpers. Home is now content-only
   inside the shell and keeps its command-center cards, SR header info, feedback
@@ -242,7 +258,8 @@ Recent focused evidence:
   `Mobile v2 / Home Workspace` (`485:160`) matching the runtime Home contract:
   command card, shell topbar/mobile app bar, 9-action high-permission Home
   state without standalone `Sắp xếp`, feedback last, and a limited staff
-  mobile state with bottom nav `Trang chủ`/`Tác vụ`/`Tài khoản`. Figma QA
+  mobile state that originally still showed `Tác vụ`; the later UI audit
+  retired that tab so runtime bottom nav is `Trang chủ`/`Tài khoản`. Figma QA
   confirmed required missing `[]`, zero-size text `0`, missing font `0`,
   out-of-parent `[]`, and screenshots were checked after fixing desktop/tablet
   account text overlap. Runtime validation for this docs/Figma slice:
@@ -354,24 +371,13 @@ Recent focused evidence:
   QA confirming the runtime header/session/edit/info/logout content, zero-size
   text count `0`, missing font count `0`, and a mobile screenshot where the
   session-card logout button is visible without overlap.
-- `UI-UX-001`/`TASKS-INDEX`, 2026-07-03: `/tasks` now renders as a
-  content-only workspace index under `AppShell` instead of nesting a
-  `Scaffold`/`GradientHeader`. It uses a shared header card, permission-aware
-  available/hidden chips, `AppFeatureSection` actions, shared empty state, and
-  the same `AppNavModel.visibleTaskDestinations(user)` contract as Home/sidebar
-  while logging visible/hidden counts through `AppLogger`. Focused validation:
-  `flutter test --no-pub --reporter expanded test\tasks_screen_redesign_test.dart`
-  (2 tests), focused Tasks + migration guard/router/nav
-  `flutter test --no-pub --reporter expanded
-  test\tasks_screen_redesign_test.dart test\design_system_migration_guard_test.dart
-  test\app_router_test.dart test\app_nav_model_test.dart` (10 tests),
-  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
-  (280 tests), `flutter build web --no-pub`, and `git diff --check`. Figma
-  Tasks Workspace frames `482:2`, `482:75`, and `482:145` were created to show
-  the full super-admin desktop/tablet state and limited staff mobile state,
-  with text/structure QA confirming required missing `[]`, zero-size text `0`,
-  missing font `0`, and the final mobile screenshot showing no hidden-chip
-  overflow.
+- `UI-UX-001`/`TASKS-INDEX`, 2026-07-03: `/tasks` was retired from the active
+  runtime contract after the UI audit found it duplicated Home. `TasksScreen`,
+  `tasks_screen_redesign_test.dart`, and `showInTasks` were removed; Home now
+  uses `AppNavModel.visibleWorkspaceDestinations(user)`, mobile bottom nav
+  removes `Tác vụ`, and legacy `/tasks` deep links redirect to `/home`.
+  Historical Figma Tasks Workspace frames `482:2`, `482:75`, and `482:145`
+  remain as retired rollback references, not active runtime frames.
 - `UI-UX-001`/`AUTH-002`, 2026-07-02: auth pre-shell routes `/login`,
   `/register`, `/forgot-password`, and `/assignment-pending` now render through
   shared `AuthScreenShell`/`AuthCard` surfaces instead of the legacy
@@ -749,8 +755,9 @@ Recent focused evidence:
   screenshots render at 390x844 after the fix. Follow-up screen-page inventory
   QA confirmed the cover page is only a curated subset; the handoff pages
   `05 Mobile Screens`, `06 Tablet Screens`, and `07 Desktop Screens` retain the
-  runtime inventory. Mobile/tablet each expose 40 active runtime frames plus 2
-  hidden retired frames; desktop now exposes 40 unique active runtime groups
+  runtime inventory. The later 2026-07-03 UI audit retired the `Tác vụ` bottom
+  tab in favor of Home as the workspace catalog. Mobile/tablet each expose 40
+  active runtime frames plus 2 hidden retired frames; desktop now exposes 40 unique active runtime groups
   after archiving superseded duplicate desktop VietQR (`96:2`) and Sao kê
   (`107:2`) frames as hidden `Archived / ...` nodes. Duplicate groups and
   visible retired desktop frames both verify as empty.
@@ -760,13 +767,13 @@ Recent focused evidence:
   credentials, seeds the web session without committing secrets, captures
   ignored screenshots, and checks route hash, console/page errors, rendered
   Flutter viewport size, and visible horizontal overflow while ignoring Flutter
-  semantics-only overflow nodes. The default live staging smoke now runs 72
+  semantics-only overflow nodes. The default live staging smoke now runs 70
   checks across desktop `1440x900` and mobile `390x844`: 3 public routes
   (`/login`, `/register`, `/forgot-password`), 1 pending auth route
   (`/assignment-pending`) rendered from a tokenless cached pending session, plus
-  all 32 authenticated shell routes in `AppRouter`, including Admin, FIFO,
+  all 31 authenticated shell routes in `AppRouter`, including Admin, FIFO,
   BH/SC, VietQR, Payment Monitor web fallback, Sao kê, Cấn trừ, Góp ý,
-  Report/Sales Report, Profile, Tasks, Home, and Settings. Follow-up guard coverage in
+  Report/Sales Report, Profile, Home, and Settings. Follow-up guard coverage in
   `test\design_system_migration_guard_test.dart` now parses the smoke script
   and `AppRouter` so the default authenticated route list must stay aligned
   with every ShellRoute, while public and pending auth route lists are locked
@@ -1093,7 +1100,7 @@ Recent focused evidence:
 - UI-UX-001, 2026-07-03: Redesign audit baseline now has a status addendum so
   the 30/06/2026 score is not mistaken for the current migration state. The
   addendum points acceptance tracking to the gap map and this matrix, records
-  the current 72 route/viewport web visual smoke scope, and keeps remaining
+  the current 70 route/viewport web visual smoke scope, and keeps remaining
   native camera/QR, Windows hardware, and screen-reader checks explicit before
   calling full visual parity. Validation: `git diff --check`.
 - UI-UX-001, 2026-07-03: Web visual smoke failure output now redacts

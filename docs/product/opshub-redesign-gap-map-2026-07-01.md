@@ -7,18 +7,15 @@ Ngày cập nhật: 03/07/2026
 - Authenticated app dùng `AppShell` responsive:
   - desktop sidebar cố định;
   - tablet rail;
-  - mobile app bar + bottom navigation `Trang chủ`, `Tác vụ`, `Tài khoản`.
-- `/tasks` đã được migrate thành content-only workspace index trong `AppShell`:
-  header card `Tác vụ của bạn` hiển thị số tác vụ khả dụng/số tác vụ cần thêm
-  quyền, danh sách action dùng `AppFeatureSection`, empty state dùng
-  `AppStatePanel`, route visibility dùng chung
-  `AppNavModel.visibleTaskDestinations(user)` với Home/sidebar và log
-  visible/hidden counts qua `AppLogger`. Các frame
-  `Desktop v2 / Tasks Workspace` (`482:2`),
-  `Tablet v2 / Tasks Workspace` (`482:75`) và
-  `Mobile v2 / Tasks Workspace` (`482:145`) trong Figma đã được tạo theo
-  runtime: desktop/tablet mô tả full super-admin, mobile mô tả staff chỉ có
-  `Cài đặt`.
+  - mobile app bar + bottom navigation `Trang chủ`, `Tài khoản`; thông báo nằm
+    trong global bell/menu của AppBar.
+- `/tasks` từng được migrate thành content-only workspace index trong
+  `AppShell`, nhưng UI audit 03/07/2026 đã retire màn này vì trùng catalog với
+  Home. Runtime hiện xóa `TasksScreen`, xóa `showInTasks`, dùng
+  `AppNavModel.visibleWorkspaceDestinations(user)` cho Home, và redirect deep
+  link cũ `/tasks` về `/home`. Các frame `Desktop/Tablet/Mobile v2 / Tasks
+  Workspace` (`482:2`, `482:75`, `482:145`) chỉ còn là mốc lịch sử/retired,
+  không phải route active.
 - Navigation ẩn destination không có quyền và log visible/hidden counts qua
   `AppLogger`.
 - Theme có thêm token Figma cho primary hover/pressed/surface, status
@@ -30,7 +27,7 @@ Ngày cập nhật: 03/07/2026
   `Tablet v2 / Home Workspace` (`485:86`) và
   `Mobile v2 / Home Workspace` (`485:160`): desktop/tablet mô tả Home nhiều
   quyền với 9 action, mobile mô tả staff có 5 action và bottom nav
-  `Trang chủ`/`Tác vụ`/`Tài khoản`. Khi tài khoản không có workspace khả dụng,
+  `Trang chủ`/`Tài khoản`. Khi tài khoản không có workspace khả dụng,
   Home dùng shared `AppStatePanel.empty` trong surface `home-empty-state`; ba
   frame Figma tương ứng là desktop `487:2`, tablet `487:91` và mobile `487:170`.
 - VietQR `/vietqr` đã được migrate khỏi `GradientHeader` riêng sang
@@ -367,8 +364,9 @@ test\design_system_migration_guard_test.dart` (7 tests),
   (`FIFO Menu`, `Home Workspace`, `Home Empty State`, `Tasks Workspace`,
   `Profile`, `Report Workspace`, `Personnel Catalog Admin`), không có duplicate
   group.
-  Lượt fix Figma đã thêm `Mobile bottom nav` cho `Mobile v2 / FIFO Menu`
-  (`476:92`) active `Tác vụ`, thêm `Mobile bottom nav` cho
+  Lượt fix Figma khi đó đã thêm `Mobile bottom nav` cho `Mobile v2 / FIFO Menu`
+  (`476:92`) active `Tác vụ`; audit sau đó retire tab này. Cùng lượt đó thêm
+  `Mobile bottom nav` cho
   `Mobile v2 / Profile` (`481:99`) active `Tài khoản`, và set
   `Mobile v2 / Tasks Workspace` (`482:145`) cùng content frame sang
   `clipsContent=true`. QA bằng Figma tool xác nhận tất cả active mobile frames
@@ -398,11 +396,11 @@ test\design_system_migration_guard_test.dart` (7 tests),
   biến môi trường. Script seed session web an toàn, rồi chụp screenshot ignored
   cho desktop `1440x900` và mobile `390x844`. Smoke live mặc định kiểm 3
   public routes (`/login`, `/register`, `/forgot-password`), 1 pending auth
-  route bằng tokenless cached session (`/assignment-pending`) và 32
+  route bằng tokenless cached session (`/assignment-pending`) và 31
   authenticated shell routes trong `AppRouter`
-  (`/home`, `/tasks`, `/profile`, các admin workspaces, FIFO, BH/SC, VietQR,
+  (`/home`, `/profile`, các admin workspaces, FIFO, BH/SC, VietQR,
   Payment Monitor web fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report và
-  Settings), tổng 72 route/viewport checks: không redirect sai route, không
+  Settings), tổng 70 route/viewport checks: không redirect sai route, không
   console/page error, không visible horizontal overflow. Script bỏ qua các node
   semantics nội bộ của Flutter như `flt-announcement-*` và paragraph
   accessibility khổng lồ vì chúng không tạo lỗi layout nhìn thấy.
@@ -410,7 +408,7 @@ test\design_system_migration_guard_test.dart` (7 tests),
   `design_system_migration_guard_test.dart`: public auth routes phải là
   `/login`, `/register`, `/forgot-password`, pending auth route phải là
   `/assignment-pending`, còn authenticated route list phải khớp toàn bộ
-  `ShellRoute` trong `AppRouter`, tổng 72 checks cho 2 viewport.
+  `ShellRoute` trong `AppRouter`, tổng 70 checks cho 2 viewport.
   Follow-up pixel sanity 03/07/2026 bổ sung PNG parser trong smoke script để
   xác nhận screenshot đúng kích thước viewport và không phải ảnh phẳng/trắng
   bằng ngưỡng sampled-color/luma trước khi coi route là pass.
@@ -607,22 +605,13 @@ test\design_system_migration_guard_test.dart` (7 tests),
   test\profile_screen_test.dart test\design_system_migration_guard_test.dart
   test\app_router_test.dart test\app_nav_model_test.dart` (9 tests),
   `flutter analyze --no-pub`, và `git diff --check`.
-- Tasks focused widget proof đã pass, xác nhận màn `/tasks` content-only không
-  còn `Scaffold`/`GradientHeader`, header key `tasks-header` render đúng
-  `Tác vụ của bạn`, staff user chỉ thấy `1 tác vụ khả dụng` và `9 tác vụ cần
-  thêm quyền`, còn Super Admin thấy `10 tác vụ khả dụng` và đủ workspace
-  action. Figma desktop/tablet/mobile frames `482:2`, `482:75`, `482:145` đã
-  được tạo theo runtime contract; QA xác nhận required text missing `[]`,
-  zero-size text `0`, missing font `0`, và screenshot mobile cuối không còn
-  chip bị tràn khỏi header. Validation sau batch Tasks đã pass
-  `dart format`, focused Tasks
-  `flutter test --no-pub --reporter expanded test\tasks_screen_redesign_test.dart`
-  (2 tests), focused Tasks + migration guard/router/nav
-  `flutter test --no-pub --reporter expanded
-  test\tasks_screen_redesign_test.dart test\design_system_migration_guard_test.dart
-  test\app_router_test.dart test\app_nav_model_test.dart` (10 tests),
-  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
-  (280 tests), `flutter build web --no-pub`, và `git diff --check`.
+- Tasks retirement proof 03/07/2026 thay thế focused widget proof cũ của
+  `/tasks`: `TasksScreen` và `tasks_screen_redesign_test.dart` đã bị xóa,
+  `showInTasks` bị gỡ khỏi `AppNavModel`, Home dùng
+  `visibleWorkspaceDestinations(user)`, mobile bottom nav không còn `Tác vụ`,
+  và deep link cũ `/tasks` redirect về `/home`. Các frame Tasks Workspace trong
+  Figma giữ lại như mốc lịch sử/retired cho rollback, không còn là contract
+  runtime active.
 - Auth pre-shell focused proof đã pass, xác nhận `/login`, `/register`,
   `/forgot-password` và `/assignment-pending` đều dùng `AuthScreenShell`, không
   còn `GradientHeader`, vẫn render CTA runtime `Đăng nhập`, `Gửi mã xác thực

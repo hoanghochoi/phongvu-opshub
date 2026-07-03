@@ -545,8 +545,8 @@ void main() {
               pendingSmokeRoutes.length +
               authenticatedSmokeRoutes.length) *
           2,
-      72,
-      reason: 'Default smoke should stay at 36 routes across 2 viewports.',
+      70,
+      reason: 'Default smoke should stay at 35 routes across 2 viewports.',
     );
     expect(smokeSource, contains('readPngVisualStats'));
     expect(smokeSource, contains('uniqueSampledColors < 16'));
@@ -563,10 +563,10 @@ void main() {
     expect(smokeSource, contains('OPSHUB_VISUAL_SMOKE_WARRANTY_RECEIPT'));
     expect(smokeSource, contains('GET /warranties'));
     expect(smokeSource, contains('skippedRoutes'));
-    expect(gapMap, contains('tổng 72 route/viewport checks'));
-    expect(gapMap, contains('32\n  authenticated shell routes'));
-    expect(testMatrix, contains('default live staging smoke now runs 72'));
-    expect(testMatrix, contains('all 32 authenticated shell routes'));
+    expect(gapMap, contains('tổng 70 route/viewport checks'));
+    expect(gapMap, contains('31\n  authenticated shell routes'));
+    expect(testMatrix, contains('default live staging smoke now runs 70'));
+    expect(testMatrix, contains('all 31 authenticated shell routes'));
   });
 }
 

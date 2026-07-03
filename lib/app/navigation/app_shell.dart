@@ -579,10 +579,7 @@ class _MobileShell extends StatelessWidget {
       (destination) => AppNavModel.isSelected(destination, location),
     );
     if (directIndex >= 0) return directIndex;
-    final tasksIndex = destinations.indexWhere(
-      (destination) => destination.id == 'tasks',
-    );
-    return tasksIndex >= 0 ? tasksIndex : 0;
+    return 0;
   }
 }
 

@@ -12,19 +12,19 @@ void main() {
       featureAccess: {'ADMIN_SALES_REPORTS': true},
     );
 
-    final taskLabels = AppNavModel.visibleTaskDestinations(
+    final workspaceLabels = AppNavModel.visibleWorkspaceDestinations(
       user,
     ).map((destination) => destination.label);
     final sidebarLabels = AppNavModel.visibleSidebarDestinations(
       user,
     ).map((destination) => destination.label);
 
-    expect(taskLabels, contains('Báo cáo'));
+    expect(workspaceLabels, contains('Báo cáo'));
     expect(sidebarLabels, contains('Báo cáo'));
-    expect(taskLabels, isNot(contains('Quản trị')));
+    expect(workspaceLabels, isNot(contains('Quản trị')));
     expect(sidebarLabels, isNot(contains('Quản trị')));
 
-    final salesDestination = AppNavModel.visibleTaskDestinations(
+    final salesDestination = AppNavModel.visibleWorkspaceDestinations(
       user,
     ).singleWhere((destination) => destination.id == 'sales');
     expect(salesDestination.route, '/reports');
@@ -39,15 +39,32 @@ void main() {
       featureAccess: {'FIFO': true, 'WARRANTY': true, 'FEEDBACK': true},
     );
 
-    final taskLabels = AppNavModel.visibleTaskDestinations(
+    final workspaceLabels = AppNavModel.visibleWorkspaceDestinations(
       user,
     ).map((destination) => destination.label).toList(growable: false);
 
-    expect(taskLabels, containsAll(['FIFO', 'BH / SC', 'Góp ý']));
-    expect(taskLabels, isNot(contains('Sắp xếp')));
-    expect(taskLabels, isNot(contains('VietQR')));
-    expect(taskLabels, isNot(contains('Tiền vào')));
-    expect(taskLabels, isNot(contains('Sao kê')));
+    expect(workspaceLabels, containsAll(['FIFO', 'BH / SC', 'Góp ý']));
+    expect(workspaceLabels, isNot(contains('Sắp xếp')));
+    expect(workspaceLabels, isNot(contains('VietQR')));
+    expect(workspaceLabels, isNot(contains('Tiền vào')));
+    expect(workspaceLabels, isNot(contains('Sao kê')));
+  });
+
+  test('mobile navigation stays limited to Home and account entry points', () {
+    const user = User(
+      id: 'staff-1',
+      email: 'staff@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-store-cp01',
+      featureAccess: {'FIFO': true, 'WARRANTY': true, 'FEEDBACK': true},
+    );
+
+    final mobileLabels = AppNavModel.visibleMobileDestinations(
+      user,
+    ).map((destination) => destination.label).toList(growable: false);
+
+    expect(mobileLabels, ['Trang chủ', 'Tài khoản']);
+    expect(mobileLabels, isNot(contains('Tác vụ')));
   });
 
   test('sort route stays inside the FIFO workspace', () {
@@ -91,14 +108,14 @@ void main() {
       featureAccess: {'ADMIN_PERSONNEL': true},
     );
 
-    final taskLabels = AppNavModel.visibleTaskDestinations(
+    final workspaceLabels = AppNavModel.visibleWorkspaceDestinations(
       user,
     ).map((destination) => destination.label);
     final sidebarLabels = AppNavModel.visibleSidebarDestinations(
       user,
     ).map((destination) => destination.label);
 
-    expect(taskLabels, contains('Quản trị'));
+    expect(workspaceLabels, contains('Quản trị'));
     expect(sidebarLabels, contains('Quản trị'));
   });
 }

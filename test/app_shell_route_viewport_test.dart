@@ -80,6 +80,33 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('legacy tasks route redirects to home', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_shellUser);
+    final router = AppRouter.createRouter(authProvider);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    router.go('/tasks');
+    await tester.pumpAndSettle();
+
+    expect(router.routeInformationProvider.value.uri.path, '/home');
+    expect(find.byKey(const ValueKey('route-/home')), findsOneWidget);
+    expect(find.text('Trang chủ vận hành'), findsOneWidget);
+    expect(find.text('Tác vụ của bạn'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('shell routes do not keep the previous page for a transition', (
     tester,
   ) async {
@@ -145,7 +172,7 @@ void main() {
       find.byKey(const ValueKey('sidebar-item-home')),
     );
     final selectedIndicator = _sidebarIndicator(tester, 'home');
-    final unselectedIndicator = _sidebarIndicator(tester, 'tasks');
+    final unselectedIndicator = _sidebarIndicator(tester, 'fifo');
 
     expect(selectedItem.color, AppColors.transparent);
     expect(tester.getSize(selectedIndicatorFinder), const Size(4, 28));

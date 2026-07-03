@@ -67,9 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<AppFeatureAction> _buildHomeActions(BuildContext context, User? user) {
-    final destinations = AppNavModel.visibleTaskDestinations(user)
-        .where((destination) => destination.id != 'settings')
-        .toList(growable: false);
+    final destinations = AppNavModel.visibleWorkspaceDestinations(user);
     return [
       for (final destination in destinations)
         AppFeatureAction(
@@ -93,13 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _logHomeResolved(int visibleCount, User? user) {
-    final hiddenCount = AppNavModel.destinations
-        .where((destination) => destination.showInTasks)
-        .where((destination) => destination.id != 'settings')
-        .where(
-          (destination) => !AppNavModel.canUseDestination(user, destination),
-        )
-        .length;
+    final hiddenCount = AppNavModel.hiddenWorkspaceCount(user);
     final key = '$visibleCount|$hiddenCount';
     if (_lastLogKey == key) return;
     _lastLogKey = key;

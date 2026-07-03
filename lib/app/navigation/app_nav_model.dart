@@ -15,7 +15,6 @@ class AppNavDestination {
   final Color color;
   final AppNavGroup group;
   final bool showInSidebar;
-  final bool showInTasks;
   final bool showInMobileNav;
 
   const AppNavDestination({
@@ -27,7 +26,6 @@ class AppNavDestination {
     required this.color,
     required this.group,
     this.showInSidebar = true,
-    this.showInTasks = false,
     this.showInMobileNav = false,
   });
 }
@@ -47,16 +45,6 @@ class AppNavModel {
       showInMobileNav: true,
     ),
     AppNavDestination(
-      id: 'tasks',
-      label: 'Tác vụ',
-      description: 'Mở nhanh các không gian làm việc',
-      route: '/tasks',
-      icon: Icons.apps_rounded,
-      color: AppColors.secondary,
-      group: AppNavGroup.root,
-      showInMobileNav: true,
-    ),
-    AppNavDestination(
       id: 'admin',
       label: 'Quản trị',
       description: 'Tài khoản, vai trò và cấu hình',
@@ -64,7 +52,6 @@ class AppNavModel {
       icon: Icons.admin_panel_settings_outlined,
       color: AppColors.neutral600,
       group: AppNavGroup.workspace,
-      showInTasks: true,
     ),
     AppNavDestination(
       id: 'fifo',
@@ -74,7 +61,6 @@ class AppNavModel {
       icon: Icons.qr_code_scanner_rounded,
       color: AppColors.info,
       group: AppNavGroup.workspace,
-      showInTasks: true,
     ),
     AppNavDestination(
       id: 'warranty',
@@ -84,7 +70,6 @@ class AppNavModel {
       icon: Icons.camera_alt_rounded,
       color: AppColors.success,
       group: AppNavGroup.workspace,
-      showInTasks: true,
     ),
     AppNavDestination(
       id: 'vietqr',
@@ -94,7 +79,6 @@ class AppNavModel {
       icon: Icons.qr_code_2_rounded,
       color: AppColors.teal600,
       group: AppNavGroup.workspace,
-      showInTasks: true,
     ),
     AppNavDestination(
       id: 'payment',
@@ -104,7 +88,6 @@ class AppNavModel {
       icon: Icons.payments_outlined,
       color: AppColors.violet600,
       group: AppNavGroup.workspace,
-      showInTasks: true,
     ),
     AppNavDestination(
       id: 'statement',
@@ -114,7 +97,6 @@ class AppNavModel {
       icon: Icons.fact_check_outlined,
       color: AppColors.info,
       group: AppNavGroup.workspace,
-      showInTasks: true,
     ),
     AppNavDestination(
       id: 'offset',
@@ -124,7 +106,6 @@ class AppNavModel {
       icon: Icons.swap_horiz_rounded,
       color: AppColors.teal600,
       group: AppNavGroup.workspace,
-      showInTasks: true,
     ),
     AppNavDestination(
       id: 'sales',
@@ -134,7 +115,6 @@ class AppNavModel {
       icon: Icons.assignment_outlined,
       color: AppColors.info,
       group: AppNavGroup.workspace,
-      showInTasks: true,
     ),
     AppNavDestination(
       id: 'feedback',
@@ -144,7 +124,6 @@ class AppNavModel {
       icon: Icons.lightbulb_outline_rounded,
       color: AppColors.amber500,
       group: AppNavGroup.workspace,
-      showInTasks: true,
     ),
     AppNavDestination(
       id: 'settings',
@@ -154,7 +133,6 @@ class AppNavModel {
       icon: Icons.settings_outlined,
       color: AppColors.neutral600,
       group: AppNavGroup.account,
-      showInTasks: true,
     ),
     AppNavDestination(
       id: 'profile',
@@ -176,11 +154,18 @@ class AppNavModel {
         .toList(growable: false);
   }
 
-  static List<AppNavDestination> visibleTaskDestinations(User? user) {
+  static List<AppNavDestination> visibleWorkspaceDestinations(User? user) {
     return destinations
-        .where((destination) => destination.showInTasks)
+        .where((destination) => destination.group == AppNavGroup.workspace)
         .where((destination) => canUseDestination(user, destination))
         .toList(growable: false);
+  }
+
+  static int hiddenWorkspaceCount(User? user) {
+    return destinations
+        .where((destination) => destination.group == AppNavGroup.workspace)
+        .where((destination) => !canUseDestination(user, destination))
+        .length;
   }
 
   static List<AppNavDestination> visibleMobileDestinations(User? user) {
@@ -226,7 +211,7 @@ class AppNavModel {
 
   static bool canUseDestination(User? user, AppNavDestination destination) {
     return switch (destination.id) {
-      'home' || 'tasks' || 'profile' || 'settings' => true,
+      'home' || 'profile' || 'settings' => true,
       'admin' => _canUseAdmin(user),
       'fifo' =>
         user?.canUseFeature('FIFO') == true ||

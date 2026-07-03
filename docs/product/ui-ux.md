@@ -44,7 +44,7 @@ visual systems that make the app feel assembled from unrelated screens.
 - Authenticated pages use the shared `AppShell` instead of feature-local
   navigation chrome. Desktop uses a persistent sidebar and top bar, tablet uses
   a compact rail, and mobile uses an app bar with bottom navigation for
-  `Trang chủ`, `Tác vụ`, and `Tài khoản`. Feature screens should provide page
+  `Trang chủ` and `Tài khoản`. Feature screens should provide page
   content only and let the shell own global notification, support, account, and
   route navigation entry points. On mobile, the app bar places the delivery
   metrics pill on the left, the active destination title in the center, and
@@ -104,9 +104,11 @@ visual systems that make the app feel assembled from unrelated screens.
   Dropdown, State, Card, Table, Scanner, and Notification patterns before
   migrating Home, Admin, Tiền vào, Sao kê, Cấn trừ, and Báo cáo screens.
   Batch 1 of the OpsHub Redesign System 2026 import established the shared
-  shell, `/tasks` workspace index, sidebar/bottom-nav permission model, and
-  light/dark navigation tokens; later batches must migrate individual hub,
-  form, dialog, loading, empty, error, and permission states into that shell.
+  shell, sidebar/bottom-nav permission model, and light/dark navigation tokens.
+  The later UI audit retired the duplicated `/tasks` workspace index, so Home is
+  the canonical staff workspace catalog while legacy `/tasks` deep links return
+  to `/home`. Later batches must migrate individual hub, form, dialog, loading,
+  empty, error, and permission states into that shell.
 - The feature-layer baseline for the 2026 migration is guarded by
   `test/design_system_migration_guard_test.dart`. New feature UI must use shared
   tokens/components instead of raw local `Colors.*`, `Color(0x...)`,

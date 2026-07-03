@@ -47,7 +47,6 @@ const defaultAuthenticatedRoutes = parseRoutes(
   process.env.OPSHUB_VISUAL_SMOKE_ROUTES ||
     [
       '/home',
-      '/tasks',
       '/profile',
       '/admin',
       '/admin/users',

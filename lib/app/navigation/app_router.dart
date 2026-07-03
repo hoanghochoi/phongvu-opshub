@@ -46,7 +46,6 @@ import '../../features/fifo/presentation/screens/fifo_history_screen.dart';
 import '../../features/sort/presentation/screens/sort_screen.dart';
 import '../../core/platform/app_platform_capabilities.dart';
 import 'app_shell.dart';
-import 'tasks_screen.dart';
 
 class AppRouter {
   AppRouter._();
@@ -62,6 +61,8 @@ class AppRouter {
       debugLogDiagnostics: true,
       redirect: (context, state) {
         final location = state.matchedLocation;
+        if (location == '/tasks') return '/home';
+
         if (!authProvider.isInitialized) {
           return location == '/loading' ? null : '/loading';
         }
@@ -143,11 +144,6 @@ class AppRouter {
               path: '/home',
               pageBuilder: (context, state) =>
                   _noTransitionPage(state, const HomeScreen()),
-            ),
-            GoRoute(
-              path: '/tasks',
-              pageBuilder: (context, state) =>
-                  _noTransitionPage(state, const TasksScreen()),
             ),
             GoRoute(
               path: '/profile',
@@ -357,7 +353,6 @@ class AppRouter {
       '/admin/inventory-import' => 'FIFO_IMPORT',
       '/admin/feedback' => 'ADMIN_FEEDBACK',
       '/admin/sales-reports' => 'ADMIN_SALES_REPORTS',
-      '/tasks' => null,
       '/fifo-check' => 'FIFO',
       '/fifo-history' => 'FIFO',
       '/fifo/inventory-import' => 'FIFO_IMPORT',
