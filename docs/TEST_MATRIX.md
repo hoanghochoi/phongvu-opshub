@@ -987,6 +987,12 @@ Recent focused evidence:
 
 ## Recent Evidence
 
+- UI-UX-001, 2026-07-03: Redesign audit baseline now has a status addendum so
+  the 30/06/2026 score is not mistaken for the current migration state. The
+  addendum points acceptance tracking to the gap map and this matrix, records
+  the current 70 route/viewport web visual smoke scope, and keeps remaining
+  native camera/QR, Windows hardware, and screen-reader checks explicit before
+  calling full visual parity. Validation: `git diff --check`.
 - UI-UX-001, 2026-07-03: Figma route-gap retire sync now matches the code
   decision for frames without runtime contracts. `figma-use` renamed the active
   screen-page copies of `Data Workspace` and `FIFO Conversation Check` to

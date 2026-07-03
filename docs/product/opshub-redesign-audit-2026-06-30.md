@@ -5,6 +5,34 @@ Môi trường: staging web `https://opshub-staging.hoanghochoi.com/#/home`
 Checkpoint repo: branch `staging`, HEAD `8ddeb0f`, worktree sạch
 Phạm vi: audit read-only, không bấm Lưu/Tạo/Xuất/Gửi, không thay đổi dữ liệu
 
+## Cập nhật trạng thái Redesign V2 - 03/07/2026
+
+Audit này là baseline read-only của ngày 30/06/2026, không còn là trạng thái
+implementation hiện tại. Trạng thái migration/acceptance mới được theo dõi ở
+`docs/product/opshub-redesign-gap-map-2026-07-01.md` và `docs/TEST_MATRIX.md`.
+
+Bằng chứng repo/Figma đã được bổ sung sau baseline:
+
+- App đã có `AppShell` responsive cho desktop/tablet/mobile, thay các
+  `GradientHeader` riêng ở các authenticated feature screens.
+- Các hub/form/data-heavy runtime screen đã được migrate theo contract hiện có:
+  Home, Tasks, Admin, FIFO, BH/SC, VietQR, Sao kê, Cấn trừ, Báo cáo, Sales
+  Report, Góp ý, Profile, Settings, Auth pre-shell và các admin workspaces.
+- Figma handoff inventory đã được dọn theo runtime: mỗi page mobile/tablet/
+  desktop giữ 40 runtime frames active; `Data Workspace` và
+  `FIFO Conversation Check` được retire/hidden; `Generic Report Workspace` và
+  `Personnel Catalog Admin` đã có route thật.
+- Web visual smoke mặc định kiểm 3 public auth routes, 1 pending auth route và
+  31 authenticated shell routes trên desktop/mobile, tổng 70 route/viewport
+  checks; guard test khóa route inventory và smoke script có PNG pixel sanity
+  để bắt screenshot trắng/phẳng hoặc sai kích thước viewport.
+
+Không dùng điểm `62/100` bên dưới làm điểm hiện tại; điểm đó là baseline trước
+đợt migration. Tiến độ plan implementation đang ở khoảng 98%, còn lại phần
+verify batch cuối và các smoke thủ công trên thiết bị/nền tảng thật như
+camera/QR, Windows hardware và screen reader trước khi gọi là full visual
+parity.
+
 ## Nguồn chuẩn tham chiếu
 
 - Nielsen Norman Group: [10 Usability Heuristics](https://www.nngroup.com/articles/ten-usability-heuristics/)
