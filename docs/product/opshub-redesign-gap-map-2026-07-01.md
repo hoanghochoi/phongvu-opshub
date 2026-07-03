@@ -405,6 +405,16 @@ test\design_system_migration_guard_test.dart` (7 tests),
   Follow-up redaction 03/07/2026 bắt mọi console/page/fatal error đi qua
   sanitizer để failure output không lộ `access_token`, JWT hoặc bearer token
   khi staging/realtime trả lỗi.
+- Scanner follow-up 03/07/2026 sửa shared `BarcodeScannerScreen` để web/mobile
+  browser không còn bị chặn trước camera. Web/iOS Safari đi qua
+  `MobileScanner`, torch chỉ hiện trên native Android/iOS, manual entry nằm
+  ngay trong camera screen khi camera bị chặn, còn Windows/Linux native giữ
+  fallback nhập tay. Scope bao phủ FIFO, Sort, BH/SC, VietQR và Sales Report vì
+  tất cả dùng chung scanner. Validation: focused scanner tests,
+  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
+  (304 tests), `flutter build web --no-pub --dart-define=APP_ENV=smoke` và
+  `git diff --check`. Gap còn lại: smoke iPhone/Android bằng camera thật sau
+  deploy.
 - Web Chrome fullscreen smoke với seeded local session đã kiểm Home, FIFO menu,
   và route `/sort`; proof ảnh nằm trong `output/playwright/`.
 - Windows debug build đã pass ở `build/windows/x64/runner/Debug`.

@@ -1024,6 +1024,16 @@ Recent focused evidence:
   test\app_nav_model_test.dart test\admin_menu_screen_test.dart` (22 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
   (296 tests), and `git diff --check`.
+- UI-UX-001/FIFO-001/VIETQR-001/SALES-REPORT-001/WARRANTY-001, 2026-07-03:
+  shared QR/barcode scanner no longer blocks web camera use. The scanner now
+  treats web/mobile browsers as camera-capable through `mobile_scanner`, hides
+  torch on web/unsupported desktop targets, keeps manual entry inside the
+  camera screen for permission/no-camera fallback, and preserves Windows/Linux
+  native manual fallback. All scan callers keep using the same
+  `BarcodeScannerScreen`. Validation: focused scanner tests,
+  `flutter analyze --no-pub`, `flutter test --no-pub --reporter compact` (304
+  tests), web smoke build with `APP_ENV=smoke`, and `git diff --check`. Gap:
+  physical iOS/Android camera smoke with real QR/barcode remains manual.
 - UI-UX-001, 2026-06-29: shared QR/barcode scanner now uses a smaller centered
   runtime `scanWindow` matching the visible frame, dims the outside area, keeps
   camera/manual/error copy Vietnamese, and logs scanner open/success/failure

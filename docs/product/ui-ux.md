@@ -77,9 +77,12 @@ visual systems that make the app feel assembled from unrelated screens.
 - Metadata and status tags use `AppInfoChip`, `AppStatusChip`, or
   `AppStatusPill`.
 - Shared QR/barcode scanning uses a visible centered scan frame backed by the
-  scanner runtime scan window, not only a decorative overlay. Codes outside the
-  frame should not be accepted, and scanner open/success/failure branches must
-  log through `AppLogger` without storing raw scanned values.
+  scanner runtime scan window on native platforms, not only a decorative
+  overlay. Web/mobile browser scanning must still open the camera when browser
+  support is available; because the current web scanner library does not enforce
+  `scanWindow`, the frame is a positioning guide there. Scanner
+  open/success/failure branches must log through `AppLogger` without storing raw
+  scanned values.
 - Feature entry screens use `AppFeatureSection` and `AppFeatureGrid` so mobile
   and desktop tiles stay consistent.
 - User-facing notification entry points must use the shared global

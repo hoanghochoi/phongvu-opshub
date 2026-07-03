@@ -26,6 +26,24 @@ Rect barcodeScanWindowForSize(Size size) {
   return Rect.fromCenter(center: center, width: scanWidth, height: scanHeight);
 }
 
+bool barcodeCameraScannerSupported({
+  required bool isWeb,
+  required TargetPlatform platform,
+}) {
+  return isWeb ||
+      platform == TargetPlatform.android ||
+      platform == TargetPlatform.iOS ||
+      platform == TargetPlatform.macOS;
+}
+
+bool barcodeTorchSupported({
+  required bool isWeb,
+  required TargetPlatform platform,
+}) {
+  return !isWeb &&
+      (platform == TargetPlatform.android || platform == TargetPlatform.iOS);
+}
+
 class BarcodeScannerScreen extends StatefulWidget {
   final String title;
   final String instruction;
@@ -50,10 +68,12 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   bool _isTorchOn = false;
   bool _hasResolved = false;
   String? _lastScannerErrorText;
-  bool get _supportsCameraScanner =>
-      !kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.android ||
-          defaultTargetPlatform == TargetPlatform.iOS);
+  bool get _supportsCameraScanner => barcodeCameraScannerSupported(
+    isWeb: kIsWeb,
+    platform: defaultTargetPlatform,
+  );
+  bool get _supportsTorch =>
+      barcodeTorchSupported(isWeb: kIsWeb, platform: defaultTargetPlatform);
 
   @override
   void initState() {
@@ -230,7 +250,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            'Chưa mở được camera. Vui lòng kiểm tra quyền camera rồi thử lại.',
+            'Chưa mở được camera. Vui lòng kiểm tra quyền camera hoặc nhập mã thủ công bên dưới.',
             style: AppTextStyles.bodyL.copyWith(color: AppColors.surface),
             textAlign: TextAlign.center,
           ),
@@ -239,38 +259,62 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     );
   }
 
-  Widget _buildBottomHint(BuildContext context) {
+  List<Widget> _manualEntryFields({bool autofocus = false}) {
+    return [
+      AppTextInput(
+        controller: _manualController,
+        label: 'Mã',
+        autofocus: autofocus,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => unawaited(_submitManualCode()),
+      ),
+      AppPrimaryButton(
+        onPressed: () => unawaited(_submitManualCode()),
+        icon: Icons.check_rounded,
+        label: 'Dùng mã',
+      ),
+    ];
+  }
+
+  Widget _buildBottomPanel(BuildContext context) {
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 20 + bottomPadding),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: AppColors.shadow.withValues(alpha: 0.68),
-            borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottomPadding),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppLayoutTokens.formMaxWidth,
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  widget.instruction,
-                  style: AppTextStyles.bodyL.copyWith(color: AppColors.surface),
-                  textAlign: TextAlign.center,
-                ),
-                if (widget.helperText.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+          child: Material(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+            elevation: 8,
+            shadowColor: AppColors.shadow.withValues(alpha: 0.20),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: AppFormColumn(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: 12,
+                children: [
                   Text(
-                    widget.helperText,
-                    style: AppTextStyles.bodyS.copyWith(
-                      color: AppColors.surface.withValues(alpha: 0.70),
+                    widget.instruction,
+                    style: AppTextStyles.bodyL.copyWith(
+                      color: AppColors.neutral900,
                     ),
                     textAlign: TextAlign.center,
                   ),
+                  if (widget.helperText.isNotEmpty)
+                    Text(
+                      widget.helperText,
+                      style: AppTextStyles.bodyS.copyWith(
+                        color: AppColors.neutral600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ..._manualEntryFields(),
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -306,18 +350,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                 'Thiết bị này chưa hỗ trợ quét bằng camera. Vui lòng nhập mã thủ công.',
                 textAlign: TextAlign.center,
               ),
-              AppTextInput(
-                controller: _manualController,
-                label: 'Mã',
-                autofocus: true,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => unawaited(_submitManualCode()),
-              ),
-              AppPrimaryButton(
-                onPressed: () => unawaited(_submitManualCode()),
-                icon: Icons.check_rounded,
-                label: 'Dùng mã',
-              ),
+              ..._manualEntryFields(autofocus: true),
             ],
           ),
         ),
@@ -338,11 +371,12 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
       appBar: AppBar(
         title: Text(widget.title),
         actions: [
-          IconButton(
-            tooltip: 'Bật/tắt đèn flash',
-            icon: Icon(_isTorchOn ? Icons.flash_on : Icons.flash_off),
-            onPressed: () => unawaited(_toggleTorch()),
-          ),
+          if (_supportsTorch)
+            IconButton(
+              tooltip: 'Bật/tắt đèn flash',
+              icon: Icon(_isTorchOn ? Icons.flash_on : Icons.flash_off),
+              onPressed: () => unawaited(_toggleTorch()),
+            ),
           IconButton(
             tooltip: 'Đổi camera',
             icon: const Icon(Icons.flip_camera_ios),
@@ -374,7 +408,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                   child: const SizedBox.expand(),
                 ),
               ),
-              _buildBottomHint(context),
+              _buildBottomPanel(context),
             ],
           );
         },

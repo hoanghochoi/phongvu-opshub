@@ -28,6 +28,86 @@ void main() {
     });
   });
 
+  group('barcode scanner platform support', () {
+    test('allows camera scanner on web browsers', () {
+      expect(
+        barcodeCameraScannerSupported(
+          isWeb: true,
+          platform: TargetPlatform.iOS,
+        ),
+        isTrue,
+      );
+      expect(
+        barcodeCameraScannerSupported(
+          isWeb: true,
+          platform: TargetPlatform.windows,
+        ),
+        isTrue,
+      );
+    });
+
+    test('allows camera scanner on supported native targets only', () {
+      expect(
+        barcodeCameraScannerSupported(
+          isWeb: false,
+          platform: TargetPlatform.android,
+        ),
+        isTrue,
+      );
+      expect(
+        barcodeCameraScannerSupported(
+          isWeb: false,
+          platform: TargetPlatform.iOS,
+        ),
+        isTrue,
+      );
+      expect(
+        barcodeCameraScannerSupported(
+          isWeb: false,
+          platform: TargetPlatform.macOS,
+        ),
+        isTrue,
+      );
+      expect(
+        barcodeCameraScannerSupported(
+          isWeb: false,
+          platform: TargetPlatform.windows,
+        ),
+        isFalse,
+      );
+      expect(
+        barcodeCameraScannerSupported(
+          isWeb: false,
+          platform: TargetPlatform.linux,
+        ),
+        isFalse,
+      );
+    });
+
+    test('keeps torch off web and desktop targets', () {
+      expect(
+        barcodeTorchSupported(isWeb: true, platform: TargetPlatform.iOS),
+        isFalse,
+      );
+      expect(
+        barcodeTorchSupported(isWeb: false, platform: TargetPlatform.android),
+        isTrue,
+      );
+      expect(
+        barcodeTorchSupported(isWeb: false, platform: TargetPlatform.iOS),
+        isTrue,
+      );
+      expect(
+        barcodeTorchSupported(isWeb: false, platform: TargetPlatform.macOS),
+        isFalse,
+      );
+      expect(
+        barcodeTorchSupported(isWeb: false, platform: TargetPlatform.windows),
+        isFalse,
+      );
+    });
+  });
+
   testWidgets('manual scanner fallback returns parsed PhongVu SKU', (
     tester,
   ) async {
