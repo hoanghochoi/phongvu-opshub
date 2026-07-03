@@ -96,6 +96,9 @@ visual systems that make the app feel assembled from unrelated screens.
   the rows currently shown in the menu as read through backend read receipts,
   while local read state is only a fallback until the next API refresh and new
   realtime rows light the badge again.
+- User-facing logout actions must ask for confirmation before revoking the
+  current session. The cancel branch keeps the user in place, while the confirm
+  branch performs the existing logout flow and routes to Login.
 - Header tabs on colored or gradient app bars must set explicit selected,
   inactive, indicator, and divider colors from `AppColors`. Selected and
   inactive labels must remain readable on both Android and Windows; do not rely

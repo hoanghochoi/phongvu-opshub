@@ -45,6 +45,18 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`AUDIT-LOGOUT-CONFIRM`, 2026-07-03: completed the logout
+  confirmation acceptance item from `docs/UI_UX_AUDIT_PLAN.md`. AppShell account
+  menu and Profile session-card logout now open the shared
+  `Xác nhận đăng xuất` dialog before revoking the current session; choosing
+  `Ở lại` keeps the session untouched, while confirming continues through the
+  existing `AuthProvider.logout()` flow and `/login` navigation. AppLogger now
+  records requested/cancelled/confirmed branches in addition to existing
+  start/success/failure logout logs. Validation: changed-file `dart format`,
+  `dart format --output=none --set-exit-if-changed`, `git diff --check`,
+  `flutter analyze --no-pub`, focused
+  `flutter test --no-pub --reporter expanded test\app_shell_route_viewport_test.dart test\profile_screen_test.dart test\app_buttons_test.dart`
+  (9 tests), and full `flutter test --no-pub --reporter compact` (321 tests).
 - `UI-UX-001`/`AUDIT-TASKS-RETIRE`, 2026-07-03: completed the active Phase 2
   Tasks-retirement slice from `docs/UI_UX_AUDIT_PLAN.md`. The duplicated
   `TasksScreen` and `tasks_screen_redesign_test.dart` were removed,

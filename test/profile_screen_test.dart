@@ -86,4 +86,45 @@ void main() {
       expect(find.text('STORE_MANAGER_CP62_HCM1_HCM_BD'), findsNothing);
     },
   );
+
+  testWidgets('Profile asks before logging out', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({
+      AppStorageKeys.shared('user_email'): 'hoang.nv1@phongvu-mna.vn',
+      AppStorageKeys.shared('user_name'): 'Hoàng',
+      AppStorageKeys.shared('user_role'): 'USER',
+      AppStorageKeys.shared('user_workScopeType'): 'STORE',
+      AppStorageKeys.shared('user_organizationNodeId'):
+          'org-store-cp62-pos-manager',
+      AppStorageKeys.shared('user_organizationNodeName'): 'Quản lý Cửa hàng',
+      AppStorageKeys.shared('user_storeId'): 'CP62',
+      AppStorageKeys.shared('user_storeName'): 'Phan Đăng Lưu',
+    });
+    FlutterSecureStorage.setMockInitialValues({});
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>(
+        create: (_) => AuthProvider(AuthRepository(ApiClient())),
+        child: const MaterialApp(home: ProfileScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('profile-logout-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Xác nhận đăng xuất'), findsOneWidget);
+    expect(
+      find.text(
+        'Bạn có chắc chắn muốn đăng xuất khỏi OpsHub? Bạn sẽ cần đăng nhập lại để tiếp tục làm việc trên thiết bị này.',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Ở lại'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Xác nhận đăng xuất'), findsNothing);
+    expect(find.byKey(const Key('profile-session-card')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

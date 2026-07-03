@@ -11,6 +11,7 @@ import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_logout_confirmation_dialog.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/utils/validators.dart';
 import '../../domain/entities/user.dart';
@@ -190,6 +191,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _logout() async {
+    await AppLogger.instance.info(
+      _logSource,
+      'Profile logout confirmation requested',
+    );
+    if (!mounted) return;
+    final confirmed = await showLogoutConfirmationDialog(context);
+    if (!mounted) return;
+    if (!confirmed) {
+      await AppLogger.instance.info(_logSource, 'Profile logout cancelled');
+      return;
+    }
+    await AppLogger.instance.info(_logSource, 'Profile logout confirmed');
+    if (!mounted) return;
     final authProvider = context.read<AuthProvider>();
     await AppLogger.instance.info(_logSource, 'Profile logout started');
     try {

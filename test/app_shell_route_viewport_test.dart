@@ -107,6 +107,49 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('account logout waits for confirmation', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_shellUser);
+    final router = AppRouter.createRouter(authProvider);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Tài khoản'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Đăng xuất'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Xác nhận đăng xuất'), findsOneWidget);
+    expect(authProvider.logoutCalls, 0);
+
+    await tester.tap(find.text('Ở lại'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Xác nhận đăng xuất'), findsNothing);
+    expect(authProvider.logoutCalls, 0);
+
+    await tester.tap(find.byTooltip('Tài khoản'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Đăng xuất'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Đăng xuất'));
+    await tester.pumpAndSettle();
+
+    expect(authProvider.logoutCalls, 1);
+    expect(router.routeInformationProvider.value.uri.path, '/login');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('shell routes do not keep the previous page for a transition', (
     tester,
   ) async {
@@ -222,15 +265,24 @@ const _shellUser = User(
 
 class _FakeAuthProvider extends AuthProvider {
   final User currentUser;
+  int logoutCalls = 0;
+  bool _loggedOut = false;
 
   _FakeAuthProvider(this.currentUser) : super(AuthRepository(ApiClient()));
 
   @override
-  User? get user => currentUser;
+  User? get user => _loggedOut ? null : currentUser;
 
   @override
   bool get isInitialized => true;
 
   @override
-  bool get isAuthenticated => true;
+  bool get isAuthenticated => !_loggedOut;
+
+  @override
+  Future<void> logout() async {
+    logoutCalls += 1;
+    _loggedOut = true;
+    notifyListeners();
+  }
 }

@@ -20,6 +20,7 @@ import '../theme/app_radius.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/app_buttons.dart';
 import '../widgets/app_layout.dart';
+import '../widgets/app_logout_confirmation_dialog.dart';
 import '../widgets/app_logo.dart';
 import 'app_nav_model.dart';
 
@@ -167,6 +168,16 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _logout(BuildContext context) async {
+    await AppLogger.instance.info('AppShell', 'Logout confirmation requested');
+    if (!context.mounted) return;
+    final confirmed = await showLogoutConfirmationDialog(context);
+    if (!context.mounted) return;
+    if (!confirmed) {
+      await AppLogger.instance.info('AppShell', 'Logout cancelled');
+      return;
+    }
+    await AppLogger.instance.info('AppShell', 'Logout confirmed');
+    if (!context.mounted) return;
     final authProvider = context.read<AuthProvider>();
     try {
       await AppLogger.instance.info('AppShell', 'Logout started');

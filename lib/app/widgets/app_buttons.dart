@@ -291,6 +291,8 @@ class AppDialogConfirmButton extends StatelessWidget {
   final IconData? icon;
   final String label;
   final bool isLoading;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
 
   const AppDialogConfirmButton({
     super.key,
@@ -298,6 +300,8 @@ class AppDialogConfirmButton extends StatelessWidget {
     this.icon,
     required this.label,
     this.isLoading = false,
+    this.backgroundColor,
+    this.foregroundColor,
   });
 
   @override
@@ -314,11 +318,13 @@ class AppDialogConfirmButton extends StatelessWidget {
         : icon == null
         ? null
         : Icon(icon);
+    final effectiveBackgroundColor = backgroundColor ?? AppColors.primary;
+    final effectiveForegroundColor = foregroundColor ?? AppColors.surface;
     final style = FilledButton.styleFrom(
-      backgroundColor: AppColors.primary,
-      foregroundColor: AppColors.surface,
-      disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.45),
-      disabledForegroundColor: AppColors.surface,
+      backgroundColor: effectiveBackgroundColor,
+      foregroundColor: effectiveForegroundColor,
+      disabledBackgroundColor: effectiveBackgroundColor.withValues(alpha: 0.45),
+      disabledForegroundColor: effectiveForegroundColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
       ),
