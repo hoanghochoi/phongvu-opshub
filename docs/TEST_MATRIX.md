@@ -45,6 +45,15 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`AUDIT-SIDEBAR-INDICATOR`, 2026-07-03: completed Phase 4B
+  sidebar selected-state polish from `docs/UI_UX_AUDIT_PLAN.md`. Desktop
+  sidebar items now keep the menu block transparent and show selection with a
+  left 4x28 indicator, selected semantics, and high-contrast foreground; the
+  existing AppShell navigation logging remains unchanged. Validation:
+  changed-file `dart format --output=none --set-exit-if-changed`,
+  `git diff --check`, `flutter analyze --no-pub`, focused
+  `flutter test --no-pub --reporter expanded test\app_shell_route_viewport_test.dart`
+  (3 tests), and full `flutter test --no-pub --reporter compact` (318 tests).
 - `UI-UX-001`/`AUDIT-SKELETON-SHIMMER`, 2026-07-03: completed Phase 4A
   component polish from `docs/UI_UX_AUDIT_PLAN.md`. Shared `AppListSkeleton`
   blocks now animate a moving shimmer gradient while respecting

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
+import 'package:phongvu_opshub/app/theme/app_colors.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -113,6 +114,44 @@ void main() {
     expect(find.text('Xem lại hình ảnh'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('desktop sidebar uses a left indicator for selected route', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_shellUser);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: const MaterialApp(
+          home: AppShell(
+            location: '/home',
+            child: _RouteMarker(label: 'home-route-marker'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final selectedIndicatorFinder = find.byKey(
+      const ValueKey('sidebar-selected-indicator-home'),
+    );
+    final selectedItem = tester.widget<Material>(
+      find.byKey(const ValueKey('sidebar-item-home')),
+    );
+    final selectedIndicator = _sidebarIndicator(tester, 'home');
+    final unselectedIndicator = _sidebarIndicator(tester, 'tasks');
+
+    expect(selectedItem.color, AppColors.transparent);
+    expect(tester.getSize(selectedIndicatorFinder), const Size(4, 28));
+    expect(_indicatorColor(selectedIndicator), isNot(AppColors.transparent));
+    expect(_indicatorColor(unselectedIndicator), AppColors.transparent);
+  });
 }
 
 class _RouteMarker extends StatelessWidget {
@@ -127,6 +166,17 @@ class _RouteMarker extends StatelessWidget {
       child: Center(child: Text(label)),
     );
   }
+}
+
+Container _sidebarIndicator(WidgetTester tester, String id) {
+  return tester.widget<Container>(
+    find.byKey(ValueKey('sidebar-selected-indicator-$id')),
+  );
+}
+
+Color? _indicatorColor(Container indicator) {
+  final decoration = indicator.decoration;
+  return decoration is BoxDecoration ? decoration.color : null;
 }
 
 const _shellUser = User(

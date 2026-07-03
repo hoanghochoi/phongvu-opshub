@@ -769,32 +769,53 @@ class _SidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = selected
+    final selectedForeground = AppColors.isDark(context)
         ? AppColors.primaryOf(context)
+        : AppColors.sidebarSelectedOf(context);
+    final foreground = selected
+        ? selectedForeground
         : AppColors.sidebarTextOf(context);
-    return Material(
-      color: selected
-          ? AppColors.sidebarSelectedOf(context)
-          : AppColors.transparent,
-      borderRadius: AppRadius.allMd,
-      child: InkWell(
-        onTap: onTap,
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        key: ValueKey('sidebar-item-${destination.id}'),
+        color: AppColors.transparent,
         borderRadius: AppRadius.allMd,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-          child: Row(
-            children: [
-              Icon(destination.icon, color: foreground, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  destination.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelM.copyWith(color: foreground),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadius.allMd,
+          hoverColor: selectedForeground.withValues(alpha: 0.08),
+          focusColor: selectedForeground.withValues(alpha: 0.12),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
+            child: Row(
+              children: [
+                Container(
+                  key: ValueKey('sidebar-selected-indicator-${destination.id}'),
+                  width: 4,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? selectedForeground
+                        : AppColors.transparent,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Icon(destination.icon, color: foreground, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    destination.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.labelM.copyWith(color: foreground),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
