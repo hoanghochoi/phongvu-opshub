@@ -59,7 +59,10 @@ visual systems that make the app feel assembled from unrelated screens.
   through `AppLogger` so permission issues can be debugged without exposing
   raw feature codes to staff.
 - Pages and forms must use `AppResponsiveContent` or `AppResponsiveScrollView`.
-  Form-heavy screens should prefer `AppFormColumn` and `formMaxWidth`.
+  The shared responsive wrappers cap desktop content at
+  `AppLayoutTokens.contentMaxWidth` so feature pages do not stretch across the
+  full window. Form-heavy screens should prefer `AppFormColumn` and
+  `formMaxWidth`.
 - Primary actions use `AppPrimaryButton`; secondary actions use
   `AppSecondaryButton`; icon-only actions should use a stable square touch
   target and a tooltip.

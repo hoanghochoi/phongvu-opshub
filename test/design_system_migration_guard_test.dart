@@ -187,6 +187,46 @@ void main() {
     );
   });
 
+  test('feature screens stay bounded by shared responsive wrappers', () {
+    const shellBoundedScreens = <String, String>{
+      'lib/features/auth/presentation/screens/assignment_pending_screen.dart':
+          'public auth flow is bounded by AuthScreenShell',
+      'lib/features/auth/presentation/screens/email_check_screen.dart':
+          'public auth flow is bounded by AuthScreenShell',
+      'lib/features/auth/presentation/screens/forgot_password_screen.dart':
+          'public auth flow is bounded by AuthScreenShell',
+      'lib/features/auth/presentation/screens/register_screen.dart':
+          'public auth flow is bounded by AuthScreenShell',
+      'lib/features/fifo_check/presentation/widgets/barcode_scanner_screen.dart':
+          'fullscreen scanner modal owns its own shell',
+    };
+    final responsiveWrapperPattern = RegExp(
+      r'\bAppResponsive(?:Content|ScrollView)\s*\(',
+    );
+    final hits = <String>[];
+    final files = Directory('lib/features')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('_screen.dart'));
+
+    for (final file in files) {
+      final normalizedPath = file.path.replaceAll(r'\', '/');
+      if (shellBoundedScreens.containsKey(normalizedPath)) continue;
+      if (responsiveWrapperPattern.hasMatch(file.readAsStringSync())) {
+        continue;
+      }
+      hits.add('$normalizedPath: missing shared responsive wrapper');
+    }
+
+    expect(
+      hits,
+      isEmpty,
+      reason:
+          'Authenticated feature screens must use AppResponsiveContent or '
+          'AppResponsiveScrollView so desktop pages stay width-bounded.',
+    );
+  });
+
   test('feature route pushes stay limited to reviewed modal surfaces', () {
     const allowedRoutePushFiles = <String, String>{
       'lib/features/fifo_check/presentation/widgets/barcode_scanner_screen.dart':

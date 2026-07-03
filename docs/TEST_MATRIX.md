@@ -45,6 +45,18 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`AUDIT-DESKTOP-CONTENT-WIDTH`, 2026-07-03: completed the
+  desktop child-screen layout acceptance item from
+  `docs/UI_UX_AUDIT_PLAN.md`. `AppResponsiveContent` and
+  `AppResponsiveScrollView` now default to the explicit
+  `AppLayoutTokens.contentMaxWidth` cap, feature screens are guarded against
+  bypassing the shared responsive wrappers, and widget tests measure the
+  desktop constraints so pages do not stretch across the full window.
+  Validation: changed-file `dart format`,
+  `dart format --output=none --set-exit-if-changed`, focused
+  `flutter test --no-pub --reporter expanded test\app_layout_test.dart test\design_system_migration_guard_test.dart`,
+  `git diff --check`, `flutter analyze --no-pub`, and full
+  `flutter test --no-pub --reporter compact`.
 - `UI-UX-001`/`AUDIT-SIDEBAR-GROUPS`, 2026-07-03: completed the sidebar
   grouping acceptance item from `docs/UI_UX_AUDIT_PLAN.md`. Desktop AppShell
   sidebar now renders visible sections `Tổng quan`, `Nghiệp vụ`, and `Cấu hình`

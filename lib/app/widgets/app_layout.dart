@@ -11,7 +11,8 @@ class AppLayoutTokens {
   static const double tabletBreakpoint = 900;
   static const double desktopBreakpoint = 1200;
   static const double legacyDesktopBreakpoint = tabletBreakpoint;
-  static const double pageMaxWidth = 1180;
+  static const double contentMaxWidth = 1180;
+  static const double pageMaxWidth = contentMaxWidth;
   static const double sidebarWidth = 250;
   static const double tabletRailWidth = 88;
   static const double shellTopBarHeight = 72;
@@ -47,7 +48,7 @@ class AppResponsiveContent extends StatelessWidget {
   const AppResponsiveContent({
     super.key,
     required this.child,
-    this.maxWidth = AppLayoutTokens.pageMaxWidth,
+    this.maxWidth = AppLayoutTokens.contentMaxWidth,
     this.padding,
     this.alignment = Alignment.topCenter,
   });
@@ -89,7 +90,7 @@ class AppResponsiveScrollView extends StatelessWidget {
   const AppResponsiveScrollView({
     super.key,
     required this.child,
-    this.maxWidth = AppLayoutTokens.pageMaxWidth,
+    this.maxWidth = AppLayoutTokens.contentMaxWidth,
     this.padding,
     this.controller,
     this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
