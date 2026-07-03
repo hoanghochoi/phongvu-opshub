@@ -233,10 +233,7 @@ void main() {
           'Archived / Desktop v2 / Statement Workspace (superseded by 388:2)',
         ),
       );
-      expect(
-        gapMap,
-        contains('screen-page inventory không còn thiếu'),
-      );
+      expect(gapMap, contains('screen-page inventory không còn thiếu'));
       expect(testMatrix, contains('the cover page is only a curated subset'));
       expect(
         testMatrix,
@@ -336,4 +333,93 @@ void main() {
           'label below 130px height; normal states use AppStatePanel.',
     );
   });
+
+  test('web visual smoke routes stay aligned with AppRouter', () {
+    final routerSource = File(
+      [
+        'lib',
+        'app',
+        'navigation',
+        'app_router.dart',
+      ].join(Platform.pathSeparator),
+    ).readAsStringSync();
+    final smokeSource = File(
+      ['scripts', 'opshub-web-visual-smoke.mjs'].join(Platform.pathSeparator),
+    ).readAsStringSync();
+    final gapMap = File(
+      [
+        'docs',
+        'product',
+        'opshub-redesign-gap-map-2026-07-01.md',
+      ].join(Platform.pathSeparator),
+    ).readAsStringSync();
+    final testMatrix = File(
+      ['docs', 'TEST_MATRIX.md'].join(Platform.pathSeparator),
+    ).readAsStringSync();
+
+    final shellRoutes = _extractShellRoutePaths(routerSource);
+    final publicSmokeRoutes = _extractRouteLiteralsBetween(
+      smokeSource,
+      startMarker: 'const publicRoutes',
+      endMarker: 'const authenticatedRoutes',
+    );
+    final authenticatedSmokeRoutes = _extractRouteLiteralsBetween(
+      smokeSource,
+      startMarker: 'const authenticatedRoutes',
+      endMarker: 'if (!email',
+    );
+
+    expect(
+      publicSmokeRoutes,
+      equals(['/login', '/register', '/forgot-password']),
+      reason:
+          'Assignment-pending stays widget/Figma-covered until a live pending '
+          'fixture exists; public smoke should cover only unauthenticated auth.',
+    );
+    expect(
+      authenticatedSmokeRoutes,
+      equals(shellRoutes),
+      reason:
+          'Every authenticated ShellRoute in AppRouter must stay in the default '
+          'web visual smoke route set.',
+    );
+    expect(
+      (publicSmokeRoutes.length + authenticatedSmokeRoutes.length) * 2,
+      68,
+      reason: 'Default smoke should stay at 34 routes across 2 viewports.',
+    );
+    expect(gapMap, contains('tổng 68 route/viewport checks'));
+    expect(testMatrix, contains('default live staging smoke now runs 68'));
+  });
+}
+
+List<String> _extractShellRoutePaths(String routerSource) {
+  final shellStart = routerSource.indexOf('ShellRoute(');
+  final featureMapStart = routerSource.indexOf(
+    'static String? _featureForRoute',
+    shellStart,
+  );
+  if (shellStart < 0 || featureMapStart < 0) {
+    throw StateError('Could not locate ShellRoute section in AppRouter.');
+  }
+  final shellSection = routerSource.substring(shellStart, featureMapStart);
+  return RegExp(
+    r"path:\s*'([^']+)'",
+  ).allMatches(shellSection).map((match) => match.group(1)!).toList();
+}
+
+List<String> _extractRouteLiteralsBetween(
+  String source, {
+  required String startMarker,
+  required String endMarker,
+}) {
+  final start = source.indexOf(startMarker);
+  final end = source.indexOf(endMarker, start + startMarker.length);
+  if (start < 0 || end < 0) {
+    throw StateError('Could not locate route list between script markers.');
+  }
+  final section = source.substring(start, end);
+  return RegExp(
+    r"'(/[a-z0-9/-]+)'",
+  ).allMatches(section).map((match) => match.group(1)!).toList();
 }

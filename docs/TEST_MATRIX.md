@@ -681,7 +681,11 @@ Recent focused evidence:
   (`/login`, `/register`, `/forgot-password`) plus all 31 authenticated shell
   routes in `AppRouter`, including Admin, FIFO, BH/SC, VietQR, Payment Monitor
   web fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report, Profile, Tasks,
-  Home, and Settings.
+  Home, and Settings. Follow-up guard coverage in
+  `test\design_system_migration_guard_test.dart` now parses the smoke script
+  and `AppRouter` so the default authenticated route list must stay aligned
+  with every ShellRoute, while public auth smoke remains limited to the three
+  unauthenticated auth routes until a live assignment-pending fixture exists.
 - `UI-UX-001`/`WARRANTY-001`, 2026-07-03: route switching across shell
   workspaces now paints each route inside a full-size keyed `RepaintBoundary`
   and clipped canvas-colored viewport, and all authenticated shell routes use
