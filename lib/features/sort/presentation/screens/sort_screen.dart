@@ -34,9 +34,7 @@ class _SortScreenState extends State<SortScreen> {
 
   Future<void> _scanBarcode() async {
     try {
-      final result = await Navigator.of(context).push<String>(
-        MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
-      );
+      final result = await showBarcodeScanner(context);
 
       if (result != null && mounted) {
         _controller.text = result;

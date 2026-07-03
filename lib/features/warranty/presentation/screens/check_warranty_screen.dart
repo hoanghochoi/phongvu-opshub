@@ -5,7 +5,7 @@ import '../../../../core/utils/date_formatter.dart';
 import '../providers/warranty_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../fifo_check/presentation/widgets/barcode_scanner_screen.dart'
-    show BarcodeScannerScreen;
+    show showBarcodeScanner;
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
@@ -77,9 +77,7 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
 
   Future<void> _scanBarcode() async {
     try {
-      final result = await Navigator.of(context).push<String>(
-        MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
-      );
+      final result = await showBarcodeScanner(context);
 
       if (result != null && mounted) {
         _searchController.text = result;

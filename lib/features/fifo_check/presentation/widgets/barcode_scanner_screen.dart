@@ -77,6 +77,29 @@ Size? barcodeCameraResolutionForPlatform({
   );
 }
 
+Future<String?> showBarcodeScanner(
+  BuildContext context, {
+  String title = 'Quét QR/Barcode',
+  String instruction = 'Hướng camera vào QR hoặc barcode serial',
+  String helperText = 'Đưa trọn mã vào giữa khung để quét nhanh hơn',
+  bool parsePhongVuSku = true,
+  bool rootNavigator = false,
+  BarcodeScannerService scannerService = defaultBarcodeScannerService,
+}) {
+  return Navigator.of(context, rootNavigator: rootNavigator).push<String>(
+    MaterialPageRoute(
+      settings: const RouteSettings(name: '/barcode-scanner'),
+      builder: (_) => BarcodeScannerScreen(
+        title: title,
+        instruction: instruction,
+        helperText: helperText,
+        parsePhongVuSku: parsePhongVuSku,
+        scannerService: scannerService,
+      ),
+    ),
+  );
+}
+
 class BarcodeScannerScreen extends StatefulWidget {
   final String title;
   final String instruction;

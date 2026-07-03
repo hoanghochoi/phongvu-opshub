@@ -122,6 +122,38 @@ void main() {
     expect(hits, isEmpty, reason: hits.join('\n'));
   });
 
+  test('scan callers use the shared barcode scanner navigation helper', () {
+    final directScannerPattern = RegExp(r'\bBarcodeScannerScreen\s*\(');
+    final hits = <String>[];
+    final files = Directory('lib/features')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) {
+          final normalizedPath = file.path.replaceAll(r'\', '/');
+          return file.path.endsWith('.dart') &&
+              !normalizedPath.endsWith(
+                'fifo_check/presentation/widgets/barcode_scanner_screen.dart',
+              );
+        });
+
+    for (final file in files) {
+      final normalizedPath = file.path.replaceAll(r'\', '/');
+      final lines = file.readAsLinesSync();
+      for (var index = 0; index < lines.length; index += 1) {
+        if (directScannerPattern.hasMatch(lines[index])) {
+          hits.add('$normalizedPath:${index + 1}');
+        }
+      }
+    }
+
+    expect(
+      hits,
+      isEmpty,
+      reason:
+          'Use showBarcodeScanner so scanner UI/service swaps stay central.',
+    );
+  });
+
   test('approved Figma route gaps are routed through runtime screens', () {
     final routerSource = File(
       [

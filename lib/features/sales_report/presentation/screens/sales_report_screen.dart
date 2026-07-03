@@ -848,15 +848,12 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
         context: {'userId': user?.id, 'storeId': user?.storeId},
       );
       if (!mounted) return;
-      final result = await Navigator.of(context).push<String>(
-        MaterialPageRoute(
-          builder: (context) => const BarcodeScannerScreen(
-            title: 'Quét mã đơn hàng',
-            instruction: 'Hướng camera vào QR hoặc barcode mã đơn hàng',
-            helperText: 'Có thể nhập tay nếu camera chưa sẵn sàng',
-            parsePhongVuSku: false,
-          ),
-        ),
+      final result = await showBarcodeScanner(
+        context,
+        title: 'Quét mã đơn hàng',
+        instruction: 'Hướng camera vào QR hoặc barcode mã đơn hàng',
+        helperText: 'Có thể nhập tay nếu camera chưa sẵn sàng',
+        parsePhongVuSku: false,
       );
       if (!mounted) return;
       final orderCode = _normalizeOrderCode(result ?? '');

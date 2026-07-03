@@ -1059,10 +1059,16 @@ Recent focused evidence:
   treats web/mobile browsers as camera-capable through `mobile_scanner`, hides
   torch on web/unsupported desktop targets, keeps manual entry inside the
   camera screen for permission/no-camera fallback, and preserves Windows/Linux
-  native manual fallback. All scan callers keep using the same
-  `BarcodeScannerScreen`. Validation: focused scanner tests,
-  `flutter analyze --no-pub`, `flutter test --no-pub --reporter compact` (304
-  tests), web smoke build with `APP_ENV=smoke`, and `git diff --check`. Android
+  native manual fallback. All scan callers now go through the shared
+  `showBarcodeScanner` navigation helper, preserving raw order-code mode with
+  `parsePhongVuSku: false` for VietQR and Sales Report, and the migration guard
+  blocks production callers from constructing `BarcodeScannerScreen` directly.
+  Validation: focused scanner + guard
+  `flutter test --no-pub --reporter expanded
+  test\barcode_scanner_screen_test.dart test\design_system_migration_guard_test.dart`
+  (23 tests), `flutter analyze --no-pub`,
+  `flutter test --no-pub --reporter compact` (314 tests), and
+  `git diff --check`. Android
   staging smoke on device `21081111RG` (Android 14) with build
   `2026.07.03.97+200097` verified the runtime permission prompt, camera grant,
   live preview/scan window, camera ID `0` owned by the staging package, and

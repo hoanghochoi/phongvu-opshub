@@ -38,12 +38,7 @@ class _FifoCheckInputState extends State<FifoCheckInput> {
 
   Future<void> _scanBarcode() async {
     try {
-      final result = await Navigator.of(context, rootNavigator: false)
-          .push<String>(
-            MaterialPageRoute(
-              builder: (context) => const BarcodeScannerScreen(),
-            ),
-          );
+      final result = await showBarcodeScanner(context);
 
       if (result != null && mounted) {
         // Auto-send scanned SKU/Serial immediately

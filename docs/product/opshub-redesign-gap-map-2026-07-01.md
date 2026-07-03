@@ -416,10 +416,15 @@ test\design_system_migration_guard_test.dart` (7 tests),
   browser không còn bị chặn trước camera. Web/iOS Safari đi qua
   `MobileScanner`, torch chỉ hiện trên native Android/iOS, manual entry nằm
   ngay trong camera screen khi camera bị chặn, còn Windows/Linux native giữ
-  fallback nhập tay. Scope bao phủ FIFO, Sort, BH/SC, VietQR và Sales Report vì
-  tất cả dùng chung scanner. Validation: focused scanner tests,
-  `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
-  (304 tests), `flutter build web --no-pub --dart-define=APP_ENV=smoke` và
+  fallback nhập tay. Scanner navigation follow-up gom FIFO, Sort, BH/SC, VietQR
+  và Sales Report qua helper `showBarcodeScanner`, giữ `parsePhongVuSku: false`
+  cho các luồng quét mã đơn. Guard khóa caller production không dựng
+  `BarcodeScannerScreen` trực tiếp nữa để sau này đổi scanner ở một nơi.
+  Validation mới nhất: focused scanner + guard
+  `flutter test --no-pub --reporter expanded
+  test\barcode_scanner_screen_test.dart test\design_system_migration_guard_test.dart`
+  (23 tests), `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter compact` (314 tests), và
   `git diff --check`. Android staging smoke trên thiết bị `21081111RG`, Android
   14, với APK `2026.07.03.97+200097` đã xác nhận luồng xin quyền camera từ
   `granted=false` sang `granted=true`, preview render đúng khung quét và camera

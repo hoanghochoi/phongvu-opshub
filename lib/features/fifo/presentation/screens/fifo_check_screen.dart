@@ -14,7 +14,7 @@ import '../../domain/entities/fifo_check_result.dart';
 import '../../domain/entities/fifo_inventory_item.dart';
 import '../providers/fifo_provider.dart';
 import '../../../fifo_check/presentation/widgets/barcode_scanner_screen.dart'
-    show BarcodeScannerScreen;
+    show showBarcodeScanner;
 
 class FifoCheckScreen extends StatefulWidget {
   const FifoCheckScreen({super.key});
@@ -35,9 +35,7 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
   }
 
   Future<void> _scan() async {
-    final result = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
-    );
+    final result = await showBarcodeScanner(context);
     if (result == null || !mounted) return;
     _controller.text = result.trim().toUpperCase();
     await _search();

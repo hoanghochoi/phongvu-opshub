@@ -189,11 +189,7 @@ void main() {
                 body: Center(
                   child: ElevatedButton(
                     onPressed: () async {
-                      scannedCode = await Navigator.of(context).push<String>(
-                        MaterialPageRoute(
-                          builder: (_) => const BarcodeScannerScreen(),
-                        ),
-                      );
+                      scannedCode = await showBarcodeScanner(context);
                     },
                     child: const Text('Mở scanner'),
                   ),
@@ -222,6 +218,50 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(scannedCode, '200601320');
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('scanner navigation can return raw order codes', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    try {
+      String? scannedCode;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              return Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      scannedCode = await showBarcodeScanner(
+                        context,
+                        parsePhongVuSku: false,
+                      );
+                    },
+                    child: const Text('Mở scanner'),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Mở scanner'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextField),
+        'https://phongvu.vn/esl-s200601320.html?pv_source=esl',
+      );
+      await tester.tap(find.text('Dùng mã'));
+      await tester.pumpAndSettle();
+
+      expect(
+        scannedCode,
+        'https://phongvu.vn/esl-s200601320.html?pv_source=esl',
+      );
     } finally {
       debugDefaultTargetPlatformOverride = null;
     }

@@ -1391,15 +1391,12 @@ class _VietQrScreenState extends State<VietQrScreen> {
   Future<void> _scanOrderCode() async {
     FocusScope.of(context).unfocus();
     try {
-      final result = await Navigator.of(context).push<String>(
-        MaterialPageRoute(
-          builder: (context) => const BarcodeScannerScreen(
-            title: 'Quét mã đơn',
-            instruction: 'Đưa barcode mã đơn vào khung hình để quét',
-            helperText: 'Kết quả quét sẽ điền vào ô mã đơn',
-            parsePhongVuSku: false,
-          ),
-        ),
+      final result = await showBarcodeScanner(
+        context,
+        title: 'Quét mã đơn',
+        instruction: 'Đưa barcode mã đơn vào khung hình để quét',
+        helperText: 'Kết quả quét sẽ điền vào ô mã đơn',
+        parsePhongVuSku: false,
       );
       if (result == null || !mounted) return;
 
