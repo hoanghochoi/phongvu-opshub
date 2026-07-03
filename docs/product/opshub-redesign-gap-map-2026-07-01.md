@@ -442,8 +442,20 @@ test\design_system_migration_guard_test.dart` (7 tests),
   14, với APK `2026.07.03.97+200097` đã xác nhận luồng xin quyền camera từ
   `granted=false` sang `granted=true`, preview render đúng khung quét và camera
   ID `0` được mở bởi `com.example.phongvu_opshub.staging`; camera được giải
-  phóng khi thoát scanner. Gap còn lại: camera chưa nhìn thấy QR thử nên chưa
-  chứng minh được nhánh decode/callback về form; smoke iPhone vẫn chưa chạy.
+  phóng khi thoát scanner. Follow-up physical acceptance trên staging build
+  `2026.07.03.98+200098` đã xác nhận iOS Safari/PWA camera preview và scanner
+  decode/callback thật với QR, Code 128 và Data Matrix nhỏ trên các caller.
+- Physical acceptance 03/07/2026 trên staging build
+  `2026.07.03.98+200098` đã đóng các gap thiết bị thật cho redesign handoff:
+  Android APK update/login và chuyển nhanh Home/FIFO/BH-SC/Báo cáo/Profile/Admin
+  không còn ghost frame; iOS Safari/PWA scanner xin quyền camera, hiện preview
+  và quét được; scanner thật pass QR thường, Code 128 và Data Matrix nhỏ trên
+  FIFO, Sắp xếp, BH/SC, VietQR và Sales Report; VietQR/Sales Report giữ raw
+  code; BH/SC upload pass 1 ảnh, 2-5 ảnh gốc, ảnh gần 10 MB, ảnh >10 MB bị
+  chặn bằng message, detail xem/tải ảnh được; Sales Report/Admin filter gọn,
+  export dropdown và file mở được trong Excel; Organization Tree search theo
+  mã nghiệp vụ/viết tắt/tên node pass; Windows staging update/install, chuyển
+  trang nhanh và smoke Tiền vào/đọc loa pass.
 - Web Chrome fullscreen smoke với seeded local session đã kiểm Home, FIFO menu,
   và route `/sort`; proof ảnh nằm trong `output/playwright/`.
 - Windows debug build đã pass ở `build/windows/x64/runner/Debug`.

@@ -710,6 +710,14 @@ Recent focused evidence:
   one documented BH/SC detail skip, plus focused design-system guard. Gap:
   BH/SC detail visual smoke still needs a stable staging receipt fixture or
   real data.
+  Physical acceptance on staging build `2026.07.03.98+200098` then passed on
+  real devices: Android route-switch ghost-frame regression, iOS Safari/PWA
+  camera preview and scan, QR/Code 128/Data Matrix scanning across FIFO, Sort,
+  BH/SC, VietQR, and Sales Report, BH/SC original multi-image upload including
+  near-limit and over-limit images, Sales Report/Admin compact filters and
+  export dropdown with Excel open, Organization Tree search by business code,
+  abbreviation, and node name, plus Windows staging update/install,
+  route-switch, and Tiền vào speaker smoke.
 - `UI-UX-001`/`WARRANTY-001`, 2026-07-03: route switching across shell
   workspaces now paints each route inside a full-size keyed `RepaintBoundary`
   and clipped canvas-colored viewport, and all authenticated shell routes use
@@ -1065,8 +1073,10 @@ Recent focused evidence:
   and `flutter build apk --release --flavor production --verbose` with the
   production API/env dart-defines built
   `build\app\outputs\flutter-apk\app-production-release.apk` (92.2 MB).
-  Gap: physical callback proof is still required for the supplied Code 128 and
-  small Data Matrix labels, plus iOS/web camera smoke.
+  Follow-up physical acceptance on staging build `2026.07.03.98+200098`
+  verified iOS Safari/PWA camera permission, live preview, and successful scan,
+  plus QR, Code 128, and small Data Matrix callbacks across FIFO, Sort, BH/SC,
+  VietQR, and Sales Report; VietQR/Sales Report preserved raw-code mode.
 - UI-UX-001/FIFO-001/VIETQR-001/SALES-REPORT-001/WARRANTY-001, 2026-07-03:
   shared QR/barcode scanner no longer blocks web camera use. The scanner now
   treats web/mobile browsers as camera-capable through `mobile_scanner`, hides
@@ -1085,16 +1095,17 @@ Recent focused evidence:
   staging smoke on device `21081111RG` (Android 14) with build
   `2026.07.03.97+200097` verified the runtime permission prompt, camera grant,
   live preview/scan window, camera ID `0` owned by the staging package, and
-  camera release after leaving the scanner. Gap: the camera did not see the QR
-  test target, so physical decode/callback remains unverified; iOS camera smoke
-  also remains manual.
+  camera release after leaving the scanner. Follow-up physical acceptance on
+  staging build `2026.07.03.98+200098` verified scanner decode/callback on
+  real QR, Code 128, and small Data Matrix targets, including iOS Safari/PWA
+  camera preview and scan.
 - UI-UX-001, 2026-06-29: shared QR/barcode scanner now uses a smaller centered
   runtime `scanWindow` matching the visible frame, dims the outside area, keeps
   camera/manual/error copy Vietnamese, and logs scanner open/success/failure
   branches with sanitized context. Validation: focused scanner window unit test,
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter expanded`,
-  and `git diff --check`. Gap: physical Android camera smoke with real QR/barcode
-  remains manual.
+  and `git diff --check`. Follow-up physical scanner proof is covered by the
+  staging build `2026.07.03.98+200098` acceptance above.
 - PAYMENT-MONITOR-001, 2026-06-28: restored the Super Admin Home display for
   the speaker-speed/history pill by mounting the existing
   `PaymentDeliveryMetricsChip` in Home's custom header while keeping it hidden
@@ -1563,8 +1574,10 @@ Recent focused evidence:
   `npm test -- --runInBand src/upload/image-upload.options.spec.ts src/upload/upload.controller.spec.ts src/feedback/feedback.controller.spec.ts`,
   backend `npm run build`, focused Flutter
   `flutter test --no-pub test\feedback_screen_test.dart test\warranty_upload_contract_test.dart --reporter expanded`,
-  `flutter analyze --no-pub`, and `git diff --check`. Gap: live device
-  picker/upload smoke remains manual.
+  `flutter analyze --no-pub`, and `git diff --check`. Follow-up physical
+  acceptance on staging build `2026.07.03.98+200098` verified BH/SC picker and
+  original-image upload for 1 image, 2-5 images, near-10 MB images, and
+  over-10 MB client rejection copy.
 - WARRANTY-001, 2026-06-13: fixed warranty image upload failing with
   `property user should not exist` by aligning the Flutter multipart payload
   with the Nest `UploadWarrantyImagesDto`; the client now sends only `receipt`,
@@ -1577,7 +1590,9 @@ Recent focused evidence:
   backend `npm run build`, full backend `npm test -- --runInBand` (36 suites,
   261 tests), `flutter analyze --no-pub`, full Flutter
   `flutter test --no-pub --reporter expanded` (96 tests), and `git diff
-  --check`. Gap: live authenticated upload smoke remains pending.
+  --check`. Follow-up physical acceptance on staging build
+  `2026.07.03.98+200098` verified authenticated BH/SC upload and detail
+  image view/download.
 - AUTH-001, 2026-06-15: removed Flutter-side bundled-domain gating from login,
   registration-code, registration, and forgot-password email validation so
   `AUTH_ALLOWED_EMAIL_DOMAINS` remains the backend source of truth. Login also
