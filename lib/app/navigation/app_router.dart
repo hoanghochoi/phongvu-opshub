@@ -140,149 +140,192 @@ class AppRouter {
           routes: [
             GoRoute(
               path: '/home',
-              builder: (context, state) => const HomeScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const HomeScreen()),
             ),
             GoRoute(
               path: '/tasks',
-              builder: (context, state) => const TasksScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const TasksScreen()),
             ),
             GoRoute(
               path: '/profile',
-              builder: (context, state) => const ProfileScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const ProfileScreen()),
             ),
             GoRoute(
               path: '/admin',
-              builder: (context, state) => const AdminMenuScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const AdminMenuScreen()),
             ),
             GoRoute(
               path: '/admin/users',
-              builder: (context, state) => const UserAdminScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const UserAdminScreen()),
             ),
             GoRoute(
               path: '/admin/roles',
-              builder: (context, state) => const RoleAdminScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const RoleAdminScreen()),
             ),
             GoRoute(
               path: '/admin/organization',
-              builder: (context, state) => const OrganizationTreeAdminScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const OrganizationTreeAdminScreen()),
             ),
             GoRoute(
               path: '/admin/policies',
-              builder: (context, state) => const PolicyAdminScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const PolicyAdminScreen()),
             ),
             GoRoute(
               path: '/admin/features',
-              builder: (context, state) => const FeatureAdminScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const FeatureAdminScreen()),
             ),
             GoRoute(
               path: '/admin/personnel',
-              builder: (context, state) => const PersonnelCatalogAdminScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const PersonnelCatalogAdminScreen()),
             ),
             GoRoute(
               path: '/admin/inventory-import',
-              builder: (context, state) => const InventoryImportScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const InventoryImportScreen()),
             ),
             GoRoute(
               path: '/admin/feedback',
-              builder: (context, state) => const FeedbackAdminScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const FeedbackAdminScreen()),
             ),
             GoRoute(
               path: '/admin/sales-reports',
-              builder: (context, state) => ChangeNotifierProvider(
-                create: (_) =>
-                    SalesReportProvider(SalesReportRepository(ApiClient())),
-                child: const SalesReportAdminScreen(),
+              pageBuilder: (context, state) => _noTransitionPage(
+                state,
+                ChangeNotifierProvider(
+                  create: (_) =>
+                      SalesReportProvider(SalesReportRepository(ApiClient())),
+                  child: const SalesReportAdminScreen(),
+                ),
               ),
             ),
             GoRoute(
               path: '/fifo-menu',
-              builder: (context, state) => const FifoMenuScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const FifoMenuScreen()),
             ),
             GoRoute(
               path: '/fifo-check',
-              builder: (context, state) => const FifoCheckScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const FifoCheckScreen()),
             ),
             GoRoute(
               path: '/fifo-history',
-              builder: (context, state) => const FifoHistoryScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const FifoHistoryScreen()),
             ),
             GoRoute(
               path: '/fifo/inventory-import',
-              builder: (context, state) => const InventoryImportScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const InventoryImportScreen()),
             ),
             GoRoute(
               path: '/sort',
-              builder: (context, state) => const SortScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const SortScreen()),
             ),
             GoRoute(
               path: '/warranty-main',
-              builder: (context, state) =>
-                  WarrantyMainScreen(onBackToHome: () => context.go('/home')),
+              pageBuilder: (context, state) => _noTransitionPage(
+                state,
+                WarrantyMainScreen(onBackToHome: () => context.go('/home')),
+              ),
             ),
             GoRoute(
               path: '/warranty',
-              builder: (context, state) => const WarrantyScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const WarrantyScreen()),
             ),
             GoRoute(
               path: '/check-warranty',
-              builder: (context, state) => const CheckWarrantyScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const CheckWarrantyScreen()),
             ),
             GoRoute(
               path: '/vietqr',
-              builder: (context, state) => const VietQrScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const VietQrScreen()),
             ),
             GoRoute(
               path: '/payment-monitor',
-              builder: (context, state) => buildPaymentMonitorRoute(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, buildPaymentMonitorRoute()),
             ),
             GoRoute(
               path: '/bank-statement',
-              builder: (context, state) => ChangeNotifierProvider(
-                create: (_) =>
-                    BankStatementProvider(BankStatementRepository(ApiClient())),
-                child: const BankStatementScreen(),
+              pageBuilder: (context, state) => _noTransitionPage(
+                state,
+                ChangeNotifierProvider(
+                  create: (_) => BankStatementProvider(
+                    BankStatementRepository(ApiClient()),
+                  ),
+                  child: const BankStatementScreen(),
+                ),
               ),
             ),
             GoRoute(
               path: '/offset-adjustments',
-              builder: (context, state) => ChangeNotifierProvider(
-                create: (_) => OffsetAdjustmentProvider(
-                  OffsetAdjustmentRepository(ApiClient()),
+              pageBuilder: (context, state) => _noTransitionPage(
+                state,
+                ChangeNotifierProvider(
+                  create: (_) => OffsetAdjustmentProvider(
+                    OffsetAdjustmentRepository(ApiClient()),
+                  ),
+                  child: const OffsetAdjustmentScreen(),
                 ),
-                child: const OffsetAdjustmentScreen(),
               ),
             ),
             GoRoute(
               path: '/feedback',
-              builder: (context, state) => const FeedbackScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const FeedbackScreen()),
             ),
             GoRoute(
               path: '/reports',
-              builder: (context, state) => const ReportWorkspaceScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const ReportWorkspaceScreen()),
             ),
             GoRoute(
               path: '/sales-reports',
-              builder: (context, state) => buildSalesReportHubRoute(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, buildSalesReportHubRoute()),
             ),
             GoRoute(
               path: '/sales-reports/purchased',
-              builder: (context, state) => ChangeNotifierProvider(
-                create: (_) =>
-                    SalesReportProvider(SalesReportRepository(ApiClient())),
-                child: const SalesReportFormScreen.purchased(),
+              pageBuilder: (context, state) => _noTransitionPage(
+                state,
+                ChangeNotifierProvider(
+                  create: (_) =>
+                      SalesReportProvider(SalesReportRepository(ApiClient())),
+                  child: const SalesReportFormScreen.purchased(),
+                ),
               ),
             ),
             GoRoute(
               path: '/sales-reports/not-purchased',
-              builder: (context, state) => ChangeNotifierProvider(
-                create: (_) =>
-                    SalesReportProvider(SalesReportRepository(ApiClient())),
-                child: const SalesReportFormScreen.notPurchased(),
+              pageBuilder: (context, state) => _noTransitionPage(
+                state,
+                ChangeNotifierProvider(
+                  create: (_) =>
+                      SalesReportProvider(SalesReportRepository(ApiClient())),
+                  child: const SalesReportFormScreen.notPurchased(),
+                ),
               ),
             ),
             GoRoute(
               path: '/settings',
-              builder: (context, state) => const SettingsScreen(),
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const SettingsScreen()),
             ),
           ],
         ),
@@ -377,6 +420,9 @@ class AppRouter {
           : const PaymentMonitorUnsupportedScreen(),
     );
   }
+
+  static Page<void> _noTransitionPage(GoRouterState state, Widget child) =>
+      NoTransitionPage<void>(key: state.pageKey, child: child);
 
   static Widget _selectable(Widget child) => SelectionArea(child: child);
 }

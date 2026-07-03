@@ -657,17 +657,25 @@ Recent focused evidence:
   status smoke remain follow-up work.
 - `UI-UX-001`/`WARRANTY-001`, 2026-07-03: route switching across shell
   workspaces now paints each route inside a full-size keyed `RepaintBoundary`
-  and clipped canvas-colored viewport, preventing stale previous-screen frames
-  from lingering on web, Windows, and Android. BH/SC `/warranty-main` also now
-  uses the same `AppResponsiveScrollView` contract as other hubs and keeps the
+  and clipped canvas-colored viewport, and all authenticated shell routes use
+  `NoTransitionPage` so Navigator does not retain the previous page during a
+  short platform transition. This prevents stale previous-screen frames from
+  flashing on web, Windows, and Android. BH/SC `/warranty-main` also now uses
+  the same `AppResponsiveScrollView` contract as other hubs and keeps the
   optional "Về trang chủ" secondary button content-sized so desktop/tablet text
   cannot collapse into one-character columns. Validation passed focused
-  warranty/router/Home regressions, `flutter analyze --no-pub`, full
-  `flutter test --no-pub --reporter compact` (297 tests),
-  `flutter build windows --debug --no-pub`, `flutter build web --release
+  warranty/router/Home regressions (19 tests), `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter compact` (299 tests),
+  `flutter build windows --debug --no-pub`,
+  `flutter build apk --debug --no-pub`, `flutter build web --release
   --no-pub --dart-define=API_BASE_URL=https://opshub-staging.hoanghochoi.com/api
   --dart-define=APP_ENV=staging`, and `git diff --check` with CRLF warnings
-  only.
+  only. Follow-up route viewport regression
+  `test\app_shell_route_viewport_test.dart` locks that changing `AppShell`
+  `location` replaces the keyed route viewport and that a real
+  `AppRouter.go('/warranty-main')` frame removes the Home subtree immediately.
+  Local Chrome click burst after the no-transition change recorded
+  `afterHashHomeCount=0` for Home -> BH/SC.
 - `SALES-REPORT-001`, 2026-07-01: `Báo cáo` now opens a 2-column order
   cockpit for same-day ERP orders: left unreported, right reported, 20
   orders/page/column with DB-backed totals and independent pagination. Backend
