@@ -279,7 +279,7 @@ grid
 *   **Công việc:**
     1.  [x] Xóa file `tasks_screen.dart` và gỡ bỏ màn hình `/tasks` khỏi `app_router.dart`.
     2.  [x] Cấu hình lại `AppNavModel` để xóa bỏ hoàn toàn thuộc tính `showInTasks`.
-    3.  [ ] Cập nhật lại thanh điều hướng dưới của Mobile (Bottom Navigation Bar) để chỉ chứa các tab thiết yếu: Home, Thông báo, Tài khoản. Batch hiện tại đã gỡ tab `Tác vụ`; `Thông báo` vẫn dùng bell/menu toàn cục trong AppBar cho đến khi có inbox route thật.
+    3.  [x] Cập nhật lại thanh điều hướng dưới của Mobile (Bottom Navigation Bar) để chỉ chứa các tab thiết yếu: Home, Thông báo, Tài khoản. Batch 4G thêm tab `Thông báo` mobile-only và tái dùng panel thông báo toàn cục; chưa tạo inbox route riêng khi chưa có yêu cầu sản phẩm cho màn hộp thư độc lập.
 *   **Trạng thái:** Batch 4A hoàn thành ngày 03/07/2026 cho phần retire
     màn Tasks dư thừa: xóa `TasksScreen`, xóa `showInTasks`, chuyển Home sang
     danh sách workspace permission-aware, gỡ `Tác vụ` khỏi bottom nav, và
@@ -294,6 +294,10 @@ grid
     check `dart format --output=none --set-exit-if-changed`, `git diff --check`,
     `flutter analyze --no-pub`, focused AppShell test (5 tests), và full
     `flutter test --no-pub --reporter compact` (321 tests).
+    Batch 4G hoàn thành ngày 04/07/2026 cho Mobile Bottom Nav: thanh dưới còn
+    đúng `Trang chủ`, `Thông báo`, `Tài khoản`; tab `Thông báo` mở lại panel
+    thông báo toàn cục dạng bottom sheet, có log start/success/failure/skip
+    qua `AppLogger`, không thêm route inbox giả.
 *   **Rủi ro:** Trung bình. Cần kiểm tra kỹ các liên kết sâu (deep link) từ thông báo đẩy để hướng người dùng về trang chủ thay vì trang tác vụ cũ.
 
 ### Phase 3: Layout Simplification & Header Clean (Thời gian: 6 ngày)

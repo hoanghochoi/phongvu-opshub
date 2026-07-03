@@ -135,7 +135,7 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
     expect(find.byTooltip('Thông báo'), findsOneWidget);
     expect(find.byTooltip('1 thông báo mới'), findsNothing);
-    expect(find.text('Thông báo'), findsOneWidget);
+    expect(find.text('Thông báo'), findsWidgets);
     expect(find.text('Yêu cầu phê duyệt đổi mã đơn'), findsOneWidget);
     expect(find.text('Người gửi: staff@example.com'), findsOneWidget);
 

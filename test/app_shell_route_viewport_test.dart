@@ -10,6 +10,11 @@ import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provider.dart';
+import 'package:phongvu_opshub/features/bank_statement/data/bank_statement_repository.dart';
+import 'package:phongvu_opshub/features/bank_statement/domain/bank_statement_transaction.dart';
+import 'package:phongvu_opshub/features/notifications/presentation/providers/app_notifications_provider.dart';
+import 'package:phongvu_opshub/features/offset_adjustment/data/offset_adjustment_repository.dart';
+import 'package:phongvu_opshub/features/offset_adjustment/domain/offset_adjustment.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -185,6 +190,46 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('mobile notifications tab opens the notifications panel', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_shellUser);
+    final notificationsProvider = _FakeAppNotificationsProvider();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<AppNotificationsProvider>.value(
+            value: notificationsProvider,
+          ),
+        ],
+        child: const MaterialApp(
+          home: AppShell(
+            location: '/home',
+            child: _RouteMarker(label: 'home-route-marker'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Thông báo'), findsOneWidget);
+
+    await tester.tap(find.text('Thông báo'));
+    await tester.pumpAndSettle();
+
+    expect(notificationsProvider.loadCalls, 1);
+    expect(notificationsProvider.markReadCalls, 1);
+    expect(find.text('Chưa có thông báo.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('desktop sidebar uses a left indicator for selected route', (
     tester,
   ) async {
@@ -300,5 +345,48 @@ class _FakeAuthProvider extends AuthProvider {
     logoutCalls += 1;
     _loggedOut = true;
     notifyListeners();
+  }
+}
+
+class _FakeAppNotificationsProvider extends AppNotificationsProvider {
+  int loadCalls = 0;
+  int markReadCalls = 0;
+
+  _FakeAppNotificationsProvider()
+    : super(
+        BankStatementRepository(ApiClient()),
+        offsetAdjustmentRepository: OffsetAdjustmentRepository(ApiClient()),
+      );
+
+  @override
+  bool get isEnabled => true;
+
+  @override
+  bool get isLoading => false;
+
+  @override
+  int get count => 0;
+
+  @override
+  int get totalCount => 0;
+
+  @override
+  bool get canReviewStatementOrderTransfers => false;
+
+  @override
+  List<BankStatementOrderTransferRequest> get statementOrderRequests =>
+      const [];
+
+  @override
+  List<OffsetAdjustment> get offsetAdjustmentRequests => const [];
+
+  @override
+  Future<void> load({bool silent = false}) async {
+    loadCalls += 1;
+  }
+
+  @override
+  Future<void> markVisibleNotificationsRead() async {
+    markReadCalls += 1;
   }
 }

@@ -44,7 +44,7 @@ visual systems that make the app feel assembled from unrelated screens.
 - Authenticated pages use the shared `AppShell` instead of feature-local
   navigation chrome. Desktop uses a persistent sidebar and top bar, tablet uses
   a compact rail, and mobile uses an app bar with bottom navigation for
-  `Trang chủ` and `Tài khoản`. Feature screens should provide page
+  `Trang chủ`, `Thông báo`, and `Tài khoản`. Feature screens should provide page
   content only and let the shell own global notification, support, account, and
   route navigation entry points. On mobile, the app bar places the delivery
   metrics pill on the left, the active destination title in the center, and
@@ -53,7 +53,9 @@ visual systems that make the app feel assembled from unrelated screens.
   avatar in the app bar when the screen content already shows user identity.
   The shell top bar owns destination titles; feature content should use
   task/status-specific headings instead of repeating the same destination label
-  in a header card.
+  in a header card. The mobile `Thông báo` destination opens the shared
+  notification panel; it should reuse the global notification provider instead
+  of introducing a feature-local inbox until a dedicated inbox route is accepted.
 - Desktop sidebar destinations must be grouped with visible section labels:
   `Tổng quan`, `Nghiệp vụ`, and `Cấu hình`. The sidebar remains flat navigation;
   do not add row chevrons unless a real nested menu is introduced.
@@ -96,15 +98,16 @@ visual systems that make the app feel assembled from unrelated screens.
 - Feature entry screens use `AppFeatureSection` and `AppFeatureGrid` so mobile
   and desktop tiles stay consistent.
 - User-facing notification entry points must use the shared global
-  `AppNotificationsBell` in the app header. New features that need in-app
+  `AppNotificationsBell` in the app header and the shell-owned mobile
+  `Thông báo` bottom-nav destination. New features that need in-app
   notifications should register their count, realtime refresh, and menu rows in
   the global bell provider/menu instead of adding a separate bell icon on their
   own feature screen. Existing feature-local bells must be removed when the
   global bell can represent the same work. Badge counts represent unread rows
-  for the signed-in user across devices: opening or refreshing the bell marks
-  the rows currently shown in the menu as read through backend read receipts,
-  while local read state is only a fallback until the next API refresh and new
-  realtime rows light the badge again.
+  for the signed-in user across devices: opening or refreshing the bell or
+  mobile notification tab marks the rows currently shown in the menu as read
+  through backend read receipts, while local read state is only a fallback until
+  the next API refresh and new realtime rows light the badge again.
 - User-facing logout actions must ask for confirmation before revoking the
   current session. The cancel branch keeps the user in place, while the confirm
   branch performs the existing logout flow and routes to Login.

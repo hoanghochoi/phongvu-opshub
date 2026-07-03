@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -16,6 +18,52 @@ import '../providers/app_notifications_provider.dart';
 
 class AppNotificationsBell extends StatelessWidget {
   const AppNotificationsBell({super.key});
+
+  static Future<bool> showPanel(BuildContext context) async {
+    late final AppNotificationsProvider notifications;
+    try {
+      notifications = context.read<AppNotificationsProvider>();
+    } on ProviderNotFoundException {
+      return false;
+    }
+    if (!notifications.isEnabled) return false;
+
+    await notifications.load();
+    await notifications.markVisibleNotificationsRead();
+    if (!context.mounted) return true;
+
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        useSafeArea: true,
+        builder: (sheetContext) {
+          final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.86;
+          return ChangeNotifierProvider<AppNotificationsProvider>.value(
+            value: notifications,
+            child: Consumer<AppNotificationsProvider>(
+              builder: (context, provider, child) {
+                return Padding(
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.viewInsetsOf(context).bottom,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: maxHeight),
+                    child: _NotificationsMenu(
+                      provider: provider,
+                      onClose: () => Navigator.of(sheetContext).pop(),
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,8 +102,9 @@ class AppNotificationsBell extends StatelessWidget {
 
 class _NotificationsMenu extends StatelessWidget {
   final AppNotificationsProvider provider;
+  final VoidCallback? onClose;
 
-  const _NotificationsMenu({required this.provider});
+  const _NotificationsMenu({required this.provider, this.onClose});
 
   @override
   Widget build(BuildContext context) {
@@ -184,9 +233,12 @@ class _NotificationsMenu extends StatelessWidget {
   }
 
   void _openOffsetAdjustments(BuildContext context) {
+    final router = GoRouter.of(context);
+    final path = GoRouterState.of(context).uri.path;
     MenuController.maybeOf(context)?.close();
-    if (GoRouterState.of(context).uri.path == '/offset-adjustments') return;
-    context.push('/offset-adjustments');
+    onClose?.call();
+    if (path == '/offset-adjustments') return;
+    router.push('/offset-adjustments');
   }
 
   Future<void> _handleReview(

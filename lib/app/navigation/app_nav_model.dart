@@ -45,6 +45,17 @@ class AppNavModel {
       showInMobileNav: true,
     ),
     AppNavDestination(
+      id: 'notifications',
+      label: 'Thông báo',
+      description: 'Hộp thư thông báo',
+      route: '/notifications',
+      icon: Icons.notifications_none_rounded,
+      color: AppColors.warning,
+      group: AppNavGroup.root,
+      showInSidebar: false,
+      showInMobileNav: true,
+    ),
+    AppNavDestination(
       id: 'admin',
       label: 'Quản trị',
       description: 'Tài khoản, vai trò và cấu hình',
@@ -211,7 +222,7 @@ class AppNavModel {
 
   static bool canUseDestination(User? user, AppNavDestination destination) {
     return switch (destination.id) {
-      'home' || 'profile' || 'settings' => true,
+      'home' || 'notifications' || 'profile' || 'settings' => true,
       'admin' => _canUseAdmin(user),
       'fifo' =>
         user?.canUseFeature('FIFO') == true ||

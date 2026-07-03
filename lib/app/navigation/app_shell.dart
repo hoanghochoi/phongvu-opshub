@@ -126,6 +126,8 @@ class _AppShellState extends State<AppShell> {
               destinations: mobileDestinations,
               activeDestination: activeDestination,
               onNavigate: _navigate,
+              onNotifications: () =>
+                  unawaited(_showMobileNotifications(context)),
               onSupport: () => _showSupportDialog(context),
               child: widget.child,
             ),
@@ -141,6 +143,59 @@ class _AppShellState extends State<AppShell> {
       ),
     );
     context.go(destination.route);
+  }
+
+  Future<void> _showMobileNotifications(BuildContext context) async {
+    final route = widget.location;
+    unawaited(
+      AppLogger.instance.info(
+        'AppShell',
+        'Mobile notifications tab selected',
+        context: {'route': route},
+      ),
+    );
+    try {
+      final opened = await AppNotificationsBell.showPanel(context);
+      if (!context.mounted) return;
+      if (!opened) {
+        unawaited(
+          AppLogger.instance.warn(
+            'AppShell',
+            'Mobile notifications panel skipped',
+            context: {'route': route, 'reason': 'unavailable'},
+          ),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Thông báo chưa sẵn sàng. Vui lòng thử lại sau.'),
+          ),
+        );
+        return;
+      }
+      unawaited(
+        AppLogger.instance.info(
+          'AppShell',
+          'Mobile notifications panel opened',
+          context: {'route': route},
+        ),
+      );
+    } catch (error, stackTrace) {
+      unawaited(
+        AppLogger.instance.error(
+          'AppShell',
+          'Mobile notifications panel failed',
+          error: error,
+          stackTrace: stackTrace,
+          context: {'route': route},
+        ),
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chưa mở được thông báo. Vui lòng thử lại.'),
+        ),
+      );
+    }
   }
 
   void _logNavigationModel({
@@ -529,6 +584,7 @@ class _MobileShell extends StatelessWidget {
   final List<AppNavDestination> destinations;
   final AppNavDestination activeDestination;
   final ValueChanged<AppNavDestination> onNavigate;
+  final VoidCallback onNotifications;
   final VoidCallback onSupport;
   final Widget child;
 
@@ -537,6 +593,7 @@ class _MobileShell extends StatelessWidget {
     required this.destinations,
     required this.activeDestination,
     required this.onNavigate,
+    required this.onNotifications,
     required this.onSupport,
     required this.child,
   });
@@ -580,7 +637,14 @@ class _MobileShell extends StatelessWidget {
               tooltip: destination.description,
             ),
         ],
-        onDestinationSelected: (index) => onNavigate(destinations[index]),
+        onDestinationSelected: (index) {
+          final destination = destinations[index];
+          if (destination.id == 'notifications') {
+            onNotifications();
+            return;
+          }
+          onNavigate(destination);
+        },
       ),
     );
   }

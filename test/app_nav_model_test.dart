@@ -50,22 +50,25 @@ void main() {
     expect(workspaceLabels, isNot(contains('Sao kê')));
   });
 
-  test('mobile navigation stays limited to Home and account entry points', () {
-    const user = User(
-      id: 'staff-1',
-      email: 'staff@phongvu.vn',
-      role: 'USER',
-      organizationNodeId: 'org-store-cp01',
-      featureAccess: {'FIFO': true, 'WARRANTY': true, 'FEEDBACK': true},
-    );
+  test(
+    'mobile navigation stays limited to Home, notifications and account',
+    () {
+      const user = User(
+        id: 'staff-1',
+        email: 'staff@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+        featureAccess: {'FIFO': true, 'WARRANTY': true, 'FEEDBACK': true},
+      );
 
-    final mobileLabels = AppNavModel.visibleMobileDestinations(
-      user,
-    ).map((destination) => destination.label).toList(growable: false);
+      final mobileLabels = AppNavModel.visibleMobileDestinations(
+        user,
+      ).map((destination) => destination.label).toList(growable: false);
 
-    expect(mobileLabels, ['Trang chủ', 'Tài khoản']);
-    expect(mobileLabels, isNot(contains('Tác vụ')));
-  });
+      expect(mobileLabels, ['Trang chủ', 'Thông báo', 'Tài khoản']);
+      expect(mobileLabels, isNot(contains('Tác vụ')));
+    },
+  );
 
   test('sort route stays inside the FIFO workspace', () {
     final destination = AppNavModel.destinationForLocation('/sort');
