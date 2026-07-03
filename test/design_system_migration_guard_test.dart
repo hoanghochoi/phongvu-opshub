@@ -187,6 +187,39 @@ void main() {
     );
   });
 
+  test('feature route pushes stay limited to reviewed modal surfaces', () {
+    const allowedRoutePushFiles = <String, String>{
+      'lib/features/fifo_check/presentation/widgets/barcode_scanner_screen.dart':
+          'shared fullscreen scanner modal',
+      'lib/features/warranty/presentation/screens/warranty_details_screen.dart':
+          'receipt image viewer modal',
+    };
+    final materialRoutePattern = RegExp(r'\bMaterialPageRoute\s*\(');
+    final hits = <String>[];
+    final files = Directory('lib/features')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+
+    for (final file in files) {
+      final normalizedPath = file.path.replaceAll(r'\', '/');
+      final allowedReason = allowedRoutePushFiles[normalizedPath];
+      final lines = file.readAsLinesSync();
+      for (var index = 0; index < lines.length; index += 1) {
+        if (!materialRoutePattern.hasMatch(lines[index])) continue;
+        if (allowedReason != null) continue;
+        hits.add('$normalizedPath:${index + 1}');
+      }
+    }
+
+    expect(
+      hits,
+      isEmpty,
+      reason:
+          'Feature navigation should stay in AppRouter; add exceptions only for reviewed modals.',
+    );
+  });
+
   test('approved Figma route gaps are routed through runtime screens', () {
     final routerSource = File(
       [

@@ -599,15 +599,17 @@ Recent focused evidence:
   `lib/app/widgets/gradient_header.dart` artifact after the AppShell migration.
   The route migration guard now scans production `lib/` for any recreated
   `GradientHeader` file/import/constructor instead of only checking exposed
-  feature screens. The guard keeps the retired
+  feature screens, blocks nested feature `Scaffold` shells outside public auth
+  and scanner modal, and limits ad-hoc `MaterialPageRoute` usage to the reviewed
+  scanner/image-viewer modals. The guard keeps the retired
   `FifoCheckConversationScreen` out of `app_router.dart`, while
   `PersonnelCatalogAdminScreen` is now an approved runtime route at
   `/admin/personnel` guarded by `ADMIN_PERSONNEL`.
   Validation passed `dart format`, focused
   `flutter test --no-pub --reporter expanded
-  test\design_system_migration_guard_test.dart` (11 tests),
+  test\design_system_migration_guard_test.dart` (12 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
-  (315 tests), and `git diff --check`.
+  (316 tests), and `git diff --check`.
 - `UI-UX-001`/`OFFSET-ADJUSTMENT-001`, 2026-07-02:
   `/offset-adjustments` now renders as a content-only workspace under
   `AppShell` instead of nesting a `GradientHeader`. It keeps the existing
@@ -1066,8 +1068,8 @@ Recent focused evidence:
   Validation: focused scanner + guard
   `flutter test --no-pub --reporter expanded
   test\barcode_scanner_screen_test.dart test\design_system_migration_guard_test.dart`
-  (24 tests), `flutter analyze --no-pub`,
-  `flutter test --no-pub --reporter compact` (315 tests), and
+  (25 tests), `flutter analyze --no-pub`,
+  `flutter test --no-pub --reporter compact` (316 tests), and
   `git diff --check`. Android
   staging smoke on device `21081111RG` (Android 14) with build
   `2026.07.03.97+200097` verified the runtime permission prompt, camera grant,
