@@ -57,7 +57,7 @@ class AdminMenuScreen extends StatelessWidget {
         AppFeatureAction(
           icon: Icons.tune_outlined,
           title: 'Quản lý tính năng',
-          description: 'Feature và luật cấp quyền',
+          description: 'Tính năng và quyền truy cập',
           color: AppColors.violet600,
           onTap: () => context.push('/admin/features'),
         ),

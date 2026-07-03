@@ -469,10 +469,10 @@ class _ResultPanel extends StatelessWidget {
           const SizedBox(height: AppLayoutTokens.formFieldGap),
           _ResultMetrics(result: result),
           const SizedBox(height: AppLayoutTokens.formFieldGap),
-          Text('SR trong file', style: AppTextStyles.labelM),
+          Text('Showroom trong file', style: AppTextStyles.labelM),
           const SizedBox(height: 8),
           if (result.srCodes.isEmpty)
-            const AppInfoChip(Icons.storefront_outlined, 'Chưa có SR')
+            const AppInfoChip(Icons.storefront_outlined, 'Chưa có showroom')
           else
             Wrap(
               spacing: 8,

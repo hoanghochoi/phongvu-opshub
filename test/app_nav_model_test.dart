@@ -43,7 +43,7 @@ void main() {
       user,
     ).map((destination) => destination.label).toList(growable: false);
 
-    expect(workspaceLabels, containsAll(['FIFO', 'BH / SC', 'Góp ý']));
+    expect(workspaceLabels, containsAll(['FIFO', 'Bảo hành', 'Góp ý']));
     expect(workspaceLabels, isNot(contains('Sắp xếp')));
     expect(workspaceLabels, isNot(contains('VietQR')));
     expect(workspaceLabels, isNot(contains('Tiền vào')));
@@ -96,7 +96,7 @@ void main() {
     );
 
     expect(destination?.id, 'warranty');
-    expect(destination?.label, 'BH / SC');
+    expect(destination?.label, 'Bảo hành');
   });
 
   test('personnel catalog access makes Admin workspace visible', () {

@@ -924,6 +924,16 @@ Recent focused evidence:
   with `API_BASE_URL=https://opshub-staging.hoanghochoi.com/api` and
   `APP_ENV=staging`, built-bundle grep for `PhongVu OpsHub Staging` plus the
   staging logo asset, and `git diff --check` (CRLF warnings only).
+- `UI-UX-001`, 2026-07-04: completed the internal-copy cleanup batch for the
+  UI/UX audit plan. Visible Flutter UI now uses `Bảo hành` or
+  `bảo hành/sửa chữa` instead of `BH/SC`, `showroom` instead of `SR` in labels,
+  chips, filters, notifications, and speaker notices, plain order wording
+  instead of `ERP` in sales-report copy, and Vietnamese admin labels for
+  policy/rule/node/internal/key/configuration-value surfaces. The design-system
+  guard now checks likely-visible UI copy in feature presentation screens and
+  widgets so these internal terms do not reappear accidentally. Validation:
+  focused UI/widget tests plus design-system guard, formatter check,
+  `git diff --check`, `flutter analyze --no-pub`, and full Flutter suite.
 - `UI-UX-001`, 2026-06-29: completed the Flutter feature-layer baseline for
   the Figma Design System 2026 migration. Auth/register/profile, Settings,
   Notifications, AppUpdate, Payment Monitor, FIFO/FIFO-check, Warranty/BH-SC,

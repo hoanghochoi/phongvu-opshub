@@ -46,7 +46,7 @@ void main() {
 
     expect(repository.historyFetchCount, 1);
     expect(find.text('Lịch sử đọc loa'), findsOneWidget);
-    expect(find.text('SR CP01'), findsOneWidget);
+    expect(find.text('Showroom CP01'), findsOneWidget);
     expect(find.text('Bắt đầu đọc: 08:00:07 27/06/2026'), findsOneWidget);
     expect(find.text('Độ trễ bắt đầu đọc: 7.2s'), findsOneWidget);
     expect(find.textContaining('Trạng thái lỗi: Lỗi tạm thời'), findsOneWidget);

@@ -179,7 +179,7 @@ void main() {
     expect(find.text('Trang chủ vận hành'), findsNothing);
     expect(find.byKey(const ValueKey('route-/warranty-main')), findsOneWidget);
     expect(find.byKey(const Key('warranty-main-header')), findsNothing);
-    expect(find.text('Tác vụ BH / SC'), findsOneWidget);
+    expect(find.text('Tác vụ bảo hành'), findsOneWidget);
     expect(find.text('Lưu hình ảnh'), findsOneWidget);
     expect(find.text('Xem lại hình ảnh'), findsOneWidget);
     expect(tester.takeException(), isNull);

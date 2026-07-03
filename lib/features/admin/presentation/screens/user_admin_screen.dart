@@ -1411,11 +1411,11 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   List<AdminOrganizationNode> _scopeNodes() =>
       widget.orgNodes.where((node) => node.isActive).toList();
 
-  String _scopeNodeLabel() => 'Node tổ chức';
+  String _scopeNodeLabel() => 'Đơn vị tổ chức';
 
   String _scopeNodeHint() {
     if (_allowsGlobalNationalScope) return 'Toàn hệ thống';
-    return 'Chọn Lv0-Lv5';
+    return 'Chọn đơn vị trong cây';
   }
 
   String _selectedOrganizationNodeText() {
@@ -1426,7 +1426,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       final primary = _selectedOrganizationNode();
       final primaryText = primary == null ? null : _nodeCompactLabel(primary);
       return [
-        '${_organizationNodeIds.length} node đã chọn',
+        '${_organizationNodeIds.length} đơn vị đã chọn',
         if (primaryText != null) 'chính: $primaryText',
       ].join(' • ');
     }
@@ -1526,7 +1526,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
           builder: (context, setDialogState) {
             final nodes = _filteredScopeNodes(query, type);
             return AlertDialog(
-              title: const Text('Chọn node tổ chức'),
+              title: const Text('Chọn đơn vị tổ chức'),
               content: SizedBox(
                 width: 560,
                 height: 520,
@@ -1534,7 +1534,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                   children: [
                     AppTextInput(
                       controller: searchController,
-                      label: 'Tìm node, mã SR, domain',
+                      label: 'Tìm đơn vị, mã showroom, tên miền',
                       icon: Icons.search_rounded,
                       autofocus: true,
                       onChanged: (value) => setDialogState(() => query = value),
@@ -1542,7 +1542,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                     const SizedBox(height: AppLayoutTokens.formInlineGap),
                     AppSelectField<String?>(
                       value: type,
-                      label: 'Loại node',
+                      label: 'Loại đơn vị',
                       items: [
                         const DropdownMenuItem(
                           value: null,

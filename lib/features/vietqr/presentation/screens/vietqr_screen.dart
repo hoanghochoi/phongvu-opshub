@@ -80,14 +80,14 @@ class _VietQrWorkspaceHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final selectedStore = selectedStoreCode.trim().toUpperCase();
     final storeLabel = hasStoreError
-        ? 'Cần tải lại SR'
+        ? 'Cần tải lại showroom'
         : isStoreLoading
-        ? 'Đang tải SR'
+        ? 'Đang tải showroom'
         : selectedStore.isNotEmpty
         ? selectedStore
         : storeCount > 0
-        ? '$storeCount SR'
-        : 'Chưa có SR';
+        ? '$storeCount showroom'
+        : 'Chưa có showroom';
     final stateLabel = isConfirmed
         ? 'Đã nhận tiền'
         : isExpired
@@ -129,7 +129,7 @@ class _VietQrWorkspaceHeader extends StatelessWidget {
               Text('Tạo VietQR', style: AppTextStyles.headingM),
               const SizedBox(height: 6),
               Text(
-                'Tạo QR chuyển khoản theo SR, kiểm tra thanh toán MAP và mở lại mã còn hạn từ lịch sử.',
+                'Tạo QR chuyển khoản theo showroom, kiểm tra thanh toán MAP và mở lại mã còn hạn từ lịch sử.',
                 style: AppTextStyles.bodyM.copyWith(
                   color: AppColors.neutral600,
                   height: 1.35,
@@ -422,7 +422,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
         _accessibleStoreOptions = fallbackStores;
         _isStoreOptionsLoading = false;
         _storeOptionsErrorMessage = fallbackStores.isEmpty
-            ? 'Chưa tải được danh sách SR. Vui lòng thử lại.'
+            ? 'Chưa tải được danh sách showroom. Vui lòng thử lại.'
             : null;
       });
       _syncStoreSelection(user);
@@ -1526,15 +1526,15 @@ class _VietQrScreenState extends State<VietQrScreen> {
         user?.isSuperAdmin == true &&
         storeOptions.isEmpty) {
       return const AppStatePanel.loading(
-        title: 'Đang tải danh sách SR',
-        message: 'Đang lấy toàn bộ SR để chọn showroom tạo QR.',
+        title: 'Đang tải danh sách showroom',
+        message: 'Đang lấy danh sách showroom để chọn nơi tạo QR.',
         compact: true,
       );
     }
 
     if (_storeOptionsErrorMessage != null && storeOptions.isEmpty) {
       return AppStatePanel.error(
-        title: 'Chưa tải được danh sách SR',
+        title: 'Chưa tải được danh sách showroom',
         message: _storeOptionsErrorMessage!,
         actionLabel: 'Thử lại',
         actionIcon: Icons.refresh_rounded,
@@ -1545,7 +1545,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
 
     if (storeOptions.isEmpty) {
       return const AppStatePanel.empty(
-        title: 'Chưa có SR khả dụng',
+        title: 'Chưa có showroom khả dụng',
         message: 'Tài khoản này chưa được gán showroom để tạo QR.',
         compact: true,
       );
@@ -1556,9 +1556,9 @@ class _VietQrScreenState extends State<VietQrScreen> {
         key: ValueKey(
           'vietqr-store-${allowedStoreIds.join(',')}-$selectedStoreCode',
         ),
-        label: 'Mã SR',
+        label: 'Mã showroom',
         value: selectedStoreCode,
-        hintText: 'Chọn SR tạo QR',
+        hintText: 'Chọn showroom tạo QR',
         icon: Icons.store_outlined,
         items: storeOptions
             .map(
@@ -1574,7 +1574,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
         onChanged: _isLoading ? null : _selectStoreCode,
         validator: (value) {
           if (value == null || value.trim().isEmpty) {
-            return 'Vui lòng chọn SR để tạo QR';
+            return 'Vui lòng chọn showroom để tạo QR';
           }
           return null;
         },
@@ -1583,12 +1583,12 @@ class _VietQrScreenState extends State<VietQrScreen> {
 
     return AppFormTextInput(
       controller: _storeCodeController,
-      label: 'Mã SR',
+      label: 'Mã showroom',
       icon: Icons.store_outlined,
       readOnly: true,
       validator: (value) {
         if (value == null || value.trim().isEmpty) {
-          return 'Tài khoản chưa có SR để tạo QR';
+          return 'Tài khoản chưa có showroom để tạo QR';
         }
         return null;
       },
@@ -1932,7 +1932,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
     final statusIcon = _historyStatusIcon(entry, now);
     final title = entry.storeCode.isEmpty
         ? 'Mã ${entry.paymentId}'
-        : 'SR ${entry.storeCode}';
+        : 'Showroom ${entry.storeCode}';
     final createdLabel = DateFormat(
       'HH:mm dd/MM',
     ).format(entry.createdAt.toLocal());

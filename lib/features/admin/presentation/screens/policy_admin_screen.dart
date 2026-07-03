@@ -403,14 +403,14 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
     final parts = <String>[
       rule.allowed ? 'Cho phép' : 'Chặn',
       if (rule.emailDomain?.isNotEmpty == true)
-        'Domain email: ${rule.emailDomain}',
+        'Tên miền email: ${rule.emailDomain}',
       if (rule.systemRole?.isNotEmpty == true)
         'Vai trò: ${AdminRoles.displayTitle(rule.systemRole)}',
       if (rule.organizationNodeName?.isNotEmpty == true)
-        'Node tổ chức: ${rule.organizationNodeName}',
+        'Đơn vị tổ chức: ${rule.organizationNodeName}',
       if (rule.organizationNodeId?.isNotEmpty == true &&
           rule.organizationNodeName == null)
-        'Node tổ chức: Đã chọn node',
+        'Đơn vị tổ chức: Đã chọn đơn vị',
       if (_legacyRuleSummary(rule) != null) 'Điều kiện cũ: Đã cấu hình',
     ];
     return parts.join(' • ');
@@ -426,7 +426,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
         'Phạm vi: ${rule.workScopeType}',
       if (rule.regionCode?.isNotEmpty == true) 'Miền: ${rule.regionCode}',
       if (rule.areaCode?.isNotEmpty == true) 'Vùng: ${rule.areaCode}',
-      if (rule.storeCode?.isNotEmpty == true) 'SR: ${rule.storeCode}',
+      if (rule.storeCode?.isNotEmpty == true) 'Showroom: ${rule.storeCode}',
       if (rule.userId?.isNotEmpty == true) 'Người dùng: ${rule.userId}',
       if (rule.scopeContains?.isNotEmpty == true)
         'Có chứa: ${rule.scopeContains}',
@@ -721,7 +721,7 @@ class _PolicyRuleCard extends StatelessWidget {
                     ),
                     if (rule.organizationNodeId?.isNotEmpty == true)
                       const AppStatusChip(
-                        label: 'Có node tổ chức',
+                        label: 'Có đơn vị tổ chức',
                         color: AppColors.info,
                       ),
                     if (rule.note?.isNotEmpty == true)
@@ -953,9 +953,9 @@ class _PolicyEditorDialogState extends State<_PolicyEditorDialog> {
         context: {'policyCode': policy.code},
       );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Chưa lưu được policy.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chưa lưu được chính sách.')),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -965,18 +965,18 @@ class _PolicyEditorDialogState extends State<_PolicyEditorDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.policy == null ? 'Thêm policy' : 'Sửa policy'),
+      title: Text(widget.policy == null ? 'Thêm chính sách' : 'Sửa chính sách'),
       content: SingleChildScrollView(
         child: AppFormColumn(
           children: [
-            AppTextInput(controller: _code, label: 'Mã policy'),
+            AppTextInput(controller: _code, label: 'Mã chính sách'),
             AppTextInput(controller: _title, label: 'Tên hiển thị'),
             AppTextInput(controller: _description, label: 'Mô tả'),
             AppTextInput(controller: _category, label: 'Nhóm'),
             SwitchListTile(
               value: _defaultAllowed,
               onChanged: (value) => setState(() => _defaultAllowed = value),
-              title: const Text('Mặc định bật khi không có rule'),
+              title: const Text('Mặc định bật khi không có quy tắc'),
             ),
             SwitchListTile(
               value: _isActive,
@@ -1072,7 +1072,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chọn node tổ chức cho rule.')),
+          const SnackBar(content: Text('Chọn đơn vị tổ chức cho quy tắc.')),
         );
         setState(() => _saving = false);
       }
@@ -1142,7 +1142,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Chưa lưu được rule.')));
+        ).showSnackBar(const SnackBar(content: Text('Chưa lưu được quy tắc.')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -1152,18 +1152,18 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.rule == null ? 'Thêm policy rule' : 'Sửa policy rule'),
+      title: Text(widget.rule == null ? 'Thêm quy tắc' : 'Sửa quy tắc'),
       content: SingleChildScrollView(
         child: AppFormColumn(
           children: [
             AppSelectField<String>(
               value: _policyCode,
-              label: 'Policy',
+              label: 'Chính sách',
               items: widget.policies
                   .map(
                     (policy) => DropdownMenuItem(
                       value: policy.code,
-                      child: Text('${policy.title} (${policy.code})'),
+                      child: Text(policy.title),
                     ),
                   )
                   .toList(),
@@ -1175,7 +1175,7 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
               onChanged: (value) => setState(() => _allowed = value),
               title: Text(_allowed ? 'Cho phép' : 'Chặn'),
             ),
-            _csvField(_emailDomains, 'Domain email'),
+            _csvField(_emailDomains, 'Tên miền email'),
             _csvField(_systemRoles, 'Vai trò hệ thống'),
             _organizationNodePicker(),
             AppTextInput(controller: _note, label: 'Ghi chú'),
@@ -1231,9 +1231,11 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
             },
       borderRadius: BorderRadius.circular(AppRadius.xs),
       child: InputDecorator(
-        decoration: appInputDecoration(label: 'Node tổ chức'),
+        decoration: appInputDecoration(label: 'Đơn vị tổ chức'),
         child: Text(
-          selectedLabels.isEmpty ? 'Chưa chọn node' : selectedLabels.join(', '),
+          selectedLabels.isEmpty
+              ? 'Chưa chọn đơn vị'
+              : selectedLabels.join(', '),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
@@ -1314,7 +1316,7 @@ class _PolicyNodeSelectDialogState extends State<_PolicyNodeSelectDialog> {
               )
               .toList();
     return AlertDialog(
-      title: const Text('Node tổ chức'),
+      title: const Text('Đơn vị tổ chức'),
       content: SizedBox(
         width: 560,
         height: 560,
@@ -1322,7 +1324,7 @@ class _PolicyNodeSelectDialogState extends State<_PolicyNodeSelectDialog> {
           children: [
             AppTextInput(
               controller: _searchController,
-              label: 'Tìm node',
+              label: 'Tìm đơn vị',
               icon: Icons.search,
               onChanged: (_) => setState(() {}),
             ),
@@ -1330,7 +1332,7 @@ class _PolicyNodeSelectDialogState extends State<_PolicyNodeSelectDialog> {
             Expanded(
               child: filteredItems.isEmpty
                   ? const AppStatePanel.empty(
-                      title: 'Không tìm thấy node',
+                      title: 'Không tìm thấy đơn vị',
                       message: 'Thử đổi từ khóa tìm kiếm.',
                       icon: Icons.search_off_rounded,
                       compact: true,
@@ -1428,7 +1430,7 @@ class _SettingEditorDialogState extends State<_SettingEditorDialog> {
       decoded = jsonDecode(_value.text);
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Giá trị phải là JSON hợp lệ.')),
+        const SnackBar(content: Text('Giá trị cấu hình không đúng định dạng.')),
       );
       return;
     }
@@ -1488,7 +1490,7 @@ class _SettingEditorDialogState extends State<_SettingEditorDialog> {
       content: SingleChildScrollView(
         child: AppFormColumn(
           children: [
-            AppTextInput(controller: _key, label: 'Key'),
+            AppTextInput(controller: _key, label: 'Mã cấu hình'),
             AppTextInput(controller: _title, label: 'Tên hiển thị'),
             AppTextInput(controller: _description, label: 'Mô tả'),
             AppTextInput(controller: _category, label: 'Nhóm'),
@@ -1496,7 +1498,7 @@ class _SettingEditorDialogState extends State<_SettingEditorDialog> {
               controller: _value,
               minLines: 6,
               maxLines: 12,
-              label: 'Giá trị JSON',
+              label: 'Giá trị cấu hình',
             ),
           ],
         ),

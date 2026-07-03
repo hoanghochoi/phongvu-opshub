@@ -231,7 +231,7 @@ class _OrganizationTreeAdminScreenState
         upload: true,
         context: {'nodeId': node.id, 'type': node.type},
       );
-      if (mounted) _showMessage('Chưa mở được panel tính năng của node.');
+      if (mounted) _showMessage('Chưa mở được bảng tính năng của đơn vị.');
     }
   }
 
@@ -241,8 +241,8 @@ class _OrganizationTreeAdminScreenState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Xóa node tổ chức'),
-        content: Text('Xóa hoặc tắt node ${node.title}?'),
+        title: const Text('Xóa đơn vị tổ chức'),
+        content: Text('Xóa hoặc tắt đơn vị ${node.title}?'),
         actions: [
           AppDialogCancelButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -281,7 +281,7 @@ class _OrganizationTreeAdminScreenState
       if (mounted) {
         final message = error is ApiException
             ? error.message
-            : 'Chưa xóa được node tổ chức.';
+            : 'Chưa xóa được đơn vị tổ chức.';
         _showMessage(message);
       }
     }
@@ -451,7 +451,7 @@ class _OrganizationTreeHeader extends StatelessWidget {
               Text('Cơ cấu tổ chức', style: AppTextStyles.headingM),
               const SizedBox(height: 6),
               Text(
-                'Quản lý cây tổ chức và quyền theo node.',
+                'Quản lý cây tổ chức và quyền theo đơn vị.',
                 style: AppTextStyles.bodyM.copyWith(
                   color: AppColors.neutral600,
                 ),
@@ -490,7 +490,7 @@ class _OrganizationTreeHeader extends StatelessWidget {
                 AppIconAction(
                   onPressed: loading ? null : onAdd,
                   icon: Icons.add_outlined,
-                  tooltip: 'Thêm node',
+                  tooltip: 'Thêm đơn vị',
                 ),
               ],
             ],
@@ -558,8 +558,8 @@ class _OrganizationTreePanel extends StatelessWidget {
           AppTextInput(
             key: const Key('organization-tree-search-field'),
             controller: searchController,
-            label: 'Tìm node',
-            hintText: 'Mã nghiệp vụ, viết tắt hoặc tên node',
+            label: 'Tìm đơn vị',
+            hintText: 'Mã nghiệp vụ, viết tắt hoặc tên đơn vị',
             icon: Icons.search,
             textInputAction: TextInputAction.search,
             onChanged: onSearchChanged,
@@ -604,8 +604,8 @@ class _OrganizationTreeList extends StatelessWidget {
     if (nodes.isEmpty) {
       final hasSearch = searchQuery.trim().isNotEmpty;
       return AppStatePanel.empty(
-        title: hasSearch ? 'Không tìm thấy node' : 'Chưa có node tổ chức',
-        message: hasSearch ? null : 'Bấm nút thêm để tạo node đầu tiên.',
+        title: hasSearch ? 'Không tìm thấy đơn vị' : 'Chưa có đơn vị tổ chức',
+        message: hasSearch ? null : 'Bấm nút thêm để tạo đơn vị đầu tiên.',
         icon: Icons.account_tree_outlined,
       );
     }
@@ -626,7 +626,7 @@ class _OrganizationTreeList extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: Text(
-              'Đang hiển thị ${nodes.length}/$totalCount node',
+              'Đang hiển thị ${nodes.length}/$totalCount đơn vị',
               style: AppTextStyles.caption.copyWith(
                 color: AppColors.neutral600,
               ),
@@ -743,8 +743,8 @@ class _OrganizationNodeDetail extends StatelessWidget {
       return const AppStatePanel.empty(
         key: Key('organization-tree-detail-empty-state'),
         icon: Icons.account_tree_outlined,
-        title: 'Chưa chọn node',
-        message: 'Chọn node để xem chi tiết.',
+        title: 'Chưa chọn đơn vị',
+        message: 'Chọn đơn vị để xem chi tiết.',
       );
     }
     AdminOrganizationNode? parent;
@@ -792,13 +792,13 @@ class _OrganizationNodeDetail extends StatelessWidget {
               value: node.storeName ?? node.title,
             ),
             _DetailRow(
-              label: 'MAP username',
+              label: 'Tài khoản MAP',
               value: node.mapVietinUsername?.isNotEmpty == true
                   ? node.mapVietinUsername!
                   : 'Chưa cấu hình',
             ),
             _DetailRow(
-              label: 'MAP password',
+              label: 'Mật khẩu MAP',
               value: node.hasMapVietinPassword
                   ? 'Đã cấu hình'
                   : 'Chưa cấu hình',
@@ -818,18 +818,18 @@ class _OrganizationNodeDetail extends StatelessWidget {
             _DetailRow(label: 'Viết tắt', value: node.abbreviation!),
           if (node.description?.isNotEmpty == true)
             _DetailRow(label: 'Mô tả', value: node.description!),
-          _DetailRow(label: 'Node cha', value: parent?.title ?? 'Không có'),
+          _DetailRow(label: 'Đơn vị cha', value: parent?.title ?? 'Không có'),
           _DetailRow(
-            label: 'Loại node',
+            label: 'Loại đơn vị',
             value: AdminOrganizationNodeTypes.titleOf(node.type),
           ),
           _DetailRow(
             label: 'Trạng thái',
             value: node.isActive ? 'Đang hoạt động' : 'Đã tắt',
           ),
-          _DetailRow(label: 'Node con', value: '${node.childCount}'),
-          _DetailRow(label: 'User', value: '${node.userCount}'),
-          _DetailRow(label: 'SR', value: '${node.storeCount}'),
+          _DetailRow(label: 'Đơn vị con', value: '${node.childCount}'),
+          _DetailRow(label: 'Người dùng', value: '${node.userCount}'),
+          _DetailRow(label: 'Showroom', value: '${node.storeCount}'),
           _DetailRow(
             label: 'Danh mục liên kết',
             value: '${node.referenceCount}',
@@ -1052,7 +1052,7 @@ class _OrganizationNodeEditorDialogState
       if (mounted) {
         final message = error is ApiException
             ? error.message
-            : 'Chưa lưu được node tổ chức.';
+            : 'Chưa lưu được đơn vị tổ chức.';
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(message)));
@@ -1071,7 +1071,7 @@ class _OrganizationNodeEditorDialogState
     final parentOptions = _parentOptions();
     final parentValue = _validParentId(parentOptions);
     return AlertDialog(
-      title: Text(widget.node == null ? 'Thêm node' : 'Sửa node'),
+      title: Text(widget.node == null ? 'Thêm đơn vị' : 'Sửa đơn vị'),
       content: SizedBox(
         width: 460,
         child: SingleChildScrollView(
@@ -1085,12 +1085,12 @@ class _OrganizationNodeEditorDialogState
               ),
               AppTextInput(
                 controller: _codeController,
-                label: 'Mã internal',
+                label: 'Mã nội bộ',
                 enabled: canEditStructure,
               ),
               AppTextInput(
                 controller: _businessCodeController,
-                label: isShowroom ? 'Mã SR' : 'Mã nghiệp vụ',
+                label: isShowroom ? 'Mã showroom' : 'Mã nghiệp vụ',
                 enabled: canEditStructure,
               ),
               if (_type == 'LV2_REGION' || _type == 'LV3_AREA')
@@ -1107,7 +1107,7 @@ class _OrganizationNodeEditorDialogState
                 ),
               AppSelectField<String>(
                 value: _type,
-                label: 'Loại node',
+                label: 'Loại đơn vị',
                 items: AdminOrganizationNodeTypes.definitions
                     .map(
                       (definition) => DropdownMenuItem(
@@ -1123,7 +1123,7 @@ class _OrganizationNodeEditorDialogState
               AppSelectField<String?>(
                 key: ValueKey('parent-$_type-${parentValue ?? 'none'}'),
                 value: parentValue,
-                label: 'Node cha',
+                label: 'Đơn vị cha',
                 items: [
                   if (_allowsEmptyParent(_type))
                     const DropdownMenuItem<String?>(
@@ -1144,20 +1144,20 @@ class _OrganizationNodeEditorDialogState
               if (isDomain)
                 AppTextInput(
                   controller: _emailDomainController,
-                  label: 'Email domain',
+                  label: 'Tên miền email',
                   enabled: canEditStructure,
                 ),
               if (isShowroom) ...[
                 AppTextInput(
                   controller: _mapVietinUsernameController,
-                  label: 'MAP username',
+                  label: 'Tài khoản MAP',
                   enabled: canEditMap,
                 ),
                 AppTextInput(
                   controller: _mapVietinPasswordController,
                   label: widget.node?.hasMapVietinPassword == true
-                      ? 'MAP password mới'
-                      : 'MAP password',
+                      ? 'Mật khẩu MAP mới'
+                      : 'Mật khẩu MAP',
                   obscureText: true,
                   enabled: canEditMap,
                 ),

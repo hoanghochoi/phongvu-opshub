@@ -359,7 +359,7 @@ class _SalesReportCockpit extends StatelessWidget {
                     SizedBox(
                       width: 220,
                       child: AppFilterDropdown<String>(
-                        label: 'SR',
+                        label: 'Showroom',
                         value: provider.ordersStoreCode,
                         allLabel: 'Tất cả',
                         icon: Icons.store_outlined,
@@ -1138,8 +1138,8 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
               key: const Key('sales-report-form-header'),
               title: title,
               subtitle: _isPurchased
-                  ? 'Quét hoặc nhập mã đơn, kiểm tra ERP rồi hoàn tất thông tin khách hàng.'
-                  : 'Ghi nhận khách chưa mua, ngành hàng quan tâm và các bước tư vấn tại SR.',
+                  ? 'Quét hoặc nhập mã đơn, đối chiếu đơn hàng rồi hoàn tất thông tin khách hàng.'
+                  : 'Ghi nhận khách chưa mua, ngành hàng quan tâm và các bước tư vấn tại showroom.',
               icon: _isPurchased
                   ? Icons.receipt_long_outlined
                   : Icons.person_search_outlined,
@@ -1396,7 +1396,7 @@ class _OrderSummaryCard extends StatelessWidget {
           if (text('paymentStatus').isNotEmpty)
             Text('Thanh toán: ${text('paymentStatus')}'),
           if (text('terminalName').isNotEmpty)
-            Text('Showroom ERP: ${text('terminalName')}'),
+            Text('Showroom trên đơn hàng: ${text('terminalName')}'),
           if (check.items.isNotEmpty)
             Text('Số dòng hàng: ${check.items.length}'),
         ],

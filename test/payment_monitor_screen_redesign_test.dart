@@ -70,7 +70,7 @@ void main() {
     expect(find.text('Theo dõi tiền vào'), findsOneWidget);
     expect(find.text('Giao dịch tiền vào'), findsOneWidget);
     expect(find.text('Chỉ xem danh sách'), findsOneWidget);
-    expect(find.text('1 SR'), findsOneWidget);
+    expect(find.text('1 showroom'), findsOneWidget);
     expect(find.textContaining('1.250.000'), findsWidgets);
     expect(repository.requestedStoreIds.last, 'CP01');
   });

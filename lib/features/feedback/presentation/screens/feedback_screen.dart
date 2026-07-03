@@ -466,7 +466,7 @@ class _FeedbackFormCard extends StatelessWidget {
             textInputAction: TextInputAction.next,
             maxLength: 120,
             label: 'Chức năng liên quan',
-            hintText: 'Ví dụ: FIFO, VietQR, Sao kê, Tiền vào, BH / SC...',
+            hintText: 'Ví dụ: FIFO, VietQR, Sao kê, Tiền vào, Bảo hành...',
             helperText: 'Cho biết khu vực bạn đang sử dụng.',
             icon: Icons.category_outlined,
             validator: (value) {

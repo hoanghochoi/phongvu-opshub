@@ -64,8 +64,8 @@ class AppNavModel {
     ),
     AppNavDestination(
       id: 'warranty',
-      label: 'BH / SC',
-      description: 'Tiếp nhận và tra cứu bảo hành',
+      label: 'Bảo hành',
+      description: 'Tiếp nhận và tra cứu bảo hành/sửa chữa',
       route: '/warranty-main',
       icon: Icons.camera_alt_rounded,
       color: AppColors.success,

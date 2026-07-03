@@ -198,13 +198,13 @@ class _StatementHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scopeLabel = provider.allStores
-        ? 'Tất cả SR'
+        ? 'Tất cả showroom'
         : provider.selectedStoreIds.isNotEmpty
-        ? '${provider.selectedStoreIds.length} SR'
-        : 'SR được gán';
+        ? '${provider.selectedStoreIds.length} showroom'
+        : 'Showroom được gán';
     final filterLabel = provider.canSearch
         ? 'Sẵn sàng tìm'
-        : 'Chọn 1 filter chính';
+        : 'Chọn 1 bộ lọc chính';
     final pendingCount = provider.pendingOrderTransferUnreadCount;
 
     return DecoratedBox(
@@ -545,7 +545,7 @@ class _StoreFilterButton extends StatelessWidget {
       if (provider.canUseAllStores)
         const AppFilterOption<String>(
           value: _allStoresValue,
-          label: 'Tất cả SR',
+          label: 'Tất cả showroom',
         ),
       ...provider.stores.map(
         (store) => AppFilterOption<String>(
@@ -558,10 +558,10 @@ class _StoreFilterButton extends StatelessWidget {
         ? {_allStoresValue}
         : provider.selectedStoreIds;
     return AppMultiSelectFilterDropdown<String>(
-      label: 'SR',
+      label: 'Showroom',
       values: values,
       options: options,
-      emptyLabel: 'SR được gán',
+      emptyLabel: 'Showroom được gán',
       icon: Icons.store_outlined,
       onChanged: (selected) {
         if (selected.contains(_allStoresValue)) {
@@ -1182,7 +1182,7 @@ class _StatementCardState extends State<_StatementCard> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _reviewLine('SR', transaction.storeId),
+                        _reviewLine('Showroom', transaction.storeId),
                         _reviewLine('Mã sao kê', transaction.statementNumber),
                         _reviewLine(
                           'Số tiền',

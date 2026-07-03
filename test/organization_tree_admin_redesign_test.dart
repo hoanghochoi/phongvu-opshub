@@ -58,13 +58,13 @@ void main() {
     );
     expect(find.text('Cơ cấu tổ chức'), findsOneWidget);
     expect(
-      find.text('Quản lý cây tổ chức và quyền theo node.'),
+      find.text('Quản lý cây tổ chức và quyền theo đơn vị.'),
       findsOneWidget,
     );
     expect(find.textContaining('Lv0-Lv5'), findsNothing);
     expect(find.text('Phong Vũ Quận 3'), findsWidgets);
     expect(find.text('Mã cửa hàng'), findsOneWidget);
-    expect(find.byTooltip('Thêm node'), findsOneWidget);
+    expect(find.byTooltip('Thêm đơn vị'), findsOneWidget);
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.byType(Scaffold), findsOneWidget);
 
@@ -139,7 +139,7 @@ void main() {
       await tester.enterText(search, 'CP62');
       await tester.pumpAndSettle();
 
-      expect(find.text('Đang hiển thị 2/3 node'), findsOneWidget);
+      expect(find.text('Đang hiển thị 2/3 đơn vị'), findsOneWidget);
       expect(find.text('Phong Vũ Quận 3'), findsWidgets);
       expect(find.text('Phong Vũ Gò Vấp'), findsNothing);
       expect(find.text('Mã cửa hàng'), findsOneWidget);
@@ -147,27 +147,27 @@ void main() {
       await tester.enterText(search, 'PVQ3');
       await tester.pumpAndSettle();
 
-      expect(find.text('Đang hiển thị 2/3 node'), findsOneWidget);
+      expect(find.text('Đang hiển thị 2/3 đơn vị'), findsOneWidget);
       expect(find.text('Phong Vũ Quận 3'), findsWidgets);
 
       await tester.enterText(search, 'quan 3');
       await tester.pumpAndSettle();
 
-      expect(find.text('Đang hiển thị 2/3 node'), findsOneWidget);
+      expect(find.text('Đang hiển thị 2/3 đơn vị'), findsOneWidget);
       expect(find.text('Phong Vũ Quận 3'), findsWidgets);
 
       await tester.enterText(search, 'khong-co-node');
       await tester.pumpAndSettle();
 
-      expect(find.text('Không tìm thấy node'), findsOneWidget);
+      expect(find.text('Không tìm thấy đơn vị'), findsOneWidget);
       expect(
         find.byKey(const Key('organization-tree-detail-empty-state')),
         findsOneWidget,
       );
-      expect(find.text('Chưa chọn node'), findsOneWidget);
-      expect(find.text('Chọn node để xem chi tiết.'), findsOneWidget);
+      expect(find.text('Chưa chọn đơn vị'), findsOneWidget);
+      expect(find.text('Chọn đơn vị để xem chi tiết.'), findsOneWidget);
       expect(
-        find.text('Thử mã nghiệp vụ, viết tắt hoặc tên node khác.'),
+        find.text('Thử mã nghiệp vụ, viết tắt hoặc tên đơn vị khác.'),
         findsNothing,
       );
       expect(find.text('Phong Vũ Quận 3'), findsNothing);
@@ -175,7 +175,7 @@ void main() {
       await tester.tap(find.byTooltip('Xóa tìm kiếm'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Không tìm thấy node'), findsNothing);
+      expect(find.text('Không tìm thấy đơn vị'), findsNothing);
       expect(
         find.byKey(const Key('organization-tree-detail-empty-state')),
         findsNothing,

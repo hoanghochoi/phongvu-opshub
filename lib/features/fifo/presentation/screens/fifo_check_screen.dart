@@ -632,7 +632,7 @@ class _SkuResultList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (result.items.isEmpty) {
       return const AppStatePanel.empty(
-        title: 'Không tìm thấy SKU trong SR của bạn',
+        title: 'Không tìm thấy SKU trong showroom của bạn',
         message: 'Kiểm tra lại SKU hoặc bật tùy chọn hiển thị đã xuất kho.',
         icon: Icons.inventory_2_outlined,
       );

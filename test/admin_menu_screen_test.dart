@@ -41,7 +41,7 @@ void main() {
     expect(find.text('1 chức năng khả dụng'), findsOneWidget);
     expect(find.text('Chức năng quản trị'), findsOneWidget);
     expect(find.text('Quản lý tính năng'), findsOneWidget);
-    expect(find.text('Feature và luật cấp quyền'), findsOneWidget);
+    expect(find.text('Tính năng và quyền truy cập'), findsOneWidget);
     expect(find.text('Quản lý người dùng'), findsNothing);
   });
 

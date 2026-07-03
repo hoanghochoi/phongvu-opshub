@@ -496,7 +496,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Đang hiển thị 4/5 node'), findsOneWidget);
+      expect(find.text('Đang hiển thị 4/5 đơn vị'), findsOneWidget);
       expect(find.text('PV Nguyễn Kiệm'), findsWidgets);
       expect(find.text('Mã cửa hàng'), findsOneWidget);
       expect(find.text('Miền Bắc'), findsNothing);

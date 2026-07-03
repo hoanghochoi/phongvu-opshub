@@ -151,17 +151,17 @@ class AdminWorkScopes {
   AdminWorkScopes._();
 
   static const definitions = [
-    AdminWorkScopeDefinition(value: 'NATIONAL', title: 'Toan quoc'),
-    AdminWorkScopeDefinition(value: 'REGION', title: 'Theo Mien'),
-    AdminWorkScopeDefinition(value: 'AREA', title: 'Theo Vung'),
-    AdminWorkScopeDefinition(value: 'STORE', title: 'Theo SR'),
+    AdminWorkScopeDefinition(value: 'NATIONAL', title: 'Toàn quốc'),
+    AdminWorkScopeDefinition(value: 'REGION', title: 'Theo miền'),
+    AdminWorkScopeDefinition(value: 'AREA', title: 'Theo vùng'),
+    AdminWorkScopeDefinition(value: 'STORE', title: 'Theo showroom'),
   ];
 
   static String titleOf(String? value) {
     for (final scope in definitions) {
       if (scope.value == value) return scope.title;
     }
-    return value?.isNotEmpty == true ? value! : 'Chua gan';
+    return value?.isNotEmpty == true ? value! : 'Chưa gán';
   }
 }
 

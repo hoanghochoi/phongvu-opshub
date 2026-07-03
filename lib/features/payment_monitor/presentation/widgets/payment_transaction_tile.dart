@@ -122,7 +122,7 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
                   if (transaction.storeId.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     AppStatusChip(
-                      label: 'SR ${transaction.storeId}',
+                      label: 'Showroom ${transaction.storeId}',
                       color: AppColors.info,
                       maxWidth: 180,
                     ),

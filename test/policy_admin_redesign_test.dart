@@ -53,7 +53,7 @@ void main() {
 
     expect(find.byKey(const Key('policy-admin-rule-list')), findsOneWidget);
     expect(
-      find.textContaining('Node tổ chức: Phong Vũ Quận 3'),
+      find.textContaining('Đơn vị tổ chức: Phong Vũ Quận 3'),
       findsOneWidget,
     );
 

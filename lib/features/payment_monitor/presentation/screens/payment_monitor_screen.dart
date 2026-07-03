@@ -269,17 +269,17 @@ class _PaymentMonitorHeader extends StatelessWidget {
     final selectedStores = monitor.selectedStoreIds.length;
     final assignedStores = user?.assignedStoreIds.length ?? 0;
     final storeLabel = selectedStores > 0
-        ? '$selectedStores SR'
+        ? '$selectedStores showroom'
         : assignedStores > 0
-        ? '$assignedStores SR'
+        ? '$assignedStores showroom'
         : user?.isSuperAdmin == true
-        ? 'Chọn SR'
-        : 'Chưa có SR';
+        ? 'Chọn showroom'
+        : 'Chưa có showroom';
     final syncLabel = monitor.isActive
         ? 'Đang đồng bộ'
         : monitor.hasMonitorScope
         ? 'Sẵn sàng đồng bộ'
-        : 'Chưa chọn SR';
+        : 'Chưa chọn showroom';
     final speakerLabel = monitor.canUsePaymentSpeaker
         ? monitor.isSpeakerEnabled
               ? 'Loa đang bật'
@@ -413,10 +413,10 @@ class _TransactionFilters extends StatelessWidget {
               children: [
                 if (_storeOptions.isNotEmpty) ...[
                   AppMultiSelectFilterDropdown<String>(
-                    label: 'SR',
+                    label: 'Showroom',
                     values: monitor.selectedStoreIds,
                     options: _storeOptions,
-                    emptyLabel: 'SR được gán',
+                    emptyLabel: 'Showroom được gán',
                     onChanged: context
                         .read<PaymentMonitorProvider>()
                         .setSelectedStoreIds,
@@ -503,10 +503,10 @@ class _TransactionFilters extends StatelessWidget {
                   if (_storeOptions.isNotEmpty) ...[
                     Expanded(
                       child: AppMultiSelectFilterDropdown<String>(
-                        label: 'SR',
+                        label: 'Showroom',
                         values: monitor.selectedStoreIds,
                         options: _storeOptions,
-                        emptyLabel: 'SR được gán',
+                        emptyLabel: 'Showroom được gán',
                         onChanged: context
                             .read<PaymentMonitorProvider>()
                             .setSelectedStoreIds,

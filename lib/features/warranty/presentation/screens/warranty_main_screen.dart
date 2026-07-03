@@ -14,7 +14,7 @@ class WarrantyMainScreen extends StatelessWidget {
       AppFeatureAction(
         icon: Icons.add_photo_alternate_rounded,
         title: 'Lưu hình ảnh',
-        description: 'Ghi nhận BH/SC',
+        description: 'Ghi nhận bảo hành/sửa chữa',
         color: AppColors.success,
         onTap: () => context.push('/warranty'),
       ),
@@ -31,7 +31,7 @@ class WarrantyMainScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppFeatureSection(title: 'Tác vụ BH / SC', actions: actions),
+          AppFeatureSection(title: 'Tác vụ bảo hành', actions: actions),
         ],
       ),
     );

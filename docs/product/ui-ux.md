@@ -159,7 +159,7 @@ visual systems that make the app feel assembled from unrelated screens.
 - User-facing text is Vietnamese-first, action-oriented, and written for staff
   doing the task, not for developers reading an implementation detail. Keep
   English only for stable product or file-format terms that staff already use,
-  such as `FIFO`, `VietQR`, `SR`, `CSV`, and `Windows`.
+  such as `FIFO`, `VietQR`, `CSV`, and `Windows`.
 - Do not put personal address terms such as `Đại Ca`, internal jokes, or
   one-person support wording in product UI. Staff-facing copy must work for any
   signed-in employee.
@@ -182,11 +182,11 @@ visual systems that make the app feel assembled from unrelated screens.
   staff-facing status, blocker, snackbar, dialog, and error copy must stay
   user-facing.
 - Use one product vocabulary consistently:
-  - `showroom` or `SR`, not `store`, `branch`, or `shop` in visible UI.
+  - `showroom`, not `SR`, `store`, `branch`, or `shop` in visible UI.
   - `biên nhận` for warranty/repair receipts.
   - `đơn hàng` for order identifiers.
   - `giao dịch`, `tiền vào`, and `sao kê` for payment statement flows.
-  - `bảo hành / sửa chữa` or `BH / SC` only when space is tight.
+  - `bảo hành/sửa chữa`, not `BH / SC`, for warranty/repair flows.
 - Success messages must confirm the concrete result: `Đã lưu ảnh biên nhận`,
   `Đã xuất file`, `Đã cập nhật mã đơn hàng`, or `Đã sao chép serial`.
 - Error messages must avoid blame and include recovery: `Chưa tải được ảnh. Vui

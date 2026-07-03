@@ -25,13 +25,13 @@ class AuthScreenShell extends StatelessWidget {
       ),
       AuthShellHighlight(
         icon: Icons.inventory_2_outlined,
-        title: 'FIFO và BH/SC',
+        title: 'FIFO và bảo hành',
         description: 'Tác vụ vận hành gọn trong một workspace.',
       ),
       AuthShellHighlight(
         icon: Icons.admin_panel_settings_outlined,
         title: 'Phân quyền rõ',
-        description: 'Truy cập theo cây tổ chức và feature được gán.',
+        description: 'Truy cập theo cây tổ chức và tính năng được gán.',
       ),
     ],
   });
@@ -202,7 +202,7 @@ class AuthBrandPanel extends StatelessWidget {
             const AuthBrandHeader(),
             const Spacer(),
             Text(
-              'Một tài khoản cho FIFO, BH/SC, VietQR, sao kê, cấn trừ và báo cáo sale.',
+              'Một tài khoản cho FIFO, bảo hành, VietQR, sao kê, cấn trừ và báo cáo bán hàng.',
               style: AppTextStyles.headingS.copyWith(
                 color: AppColors.sidebarTextOf(context),
               ),

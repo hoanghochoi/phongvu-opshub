@@ -135,7 +135,6 @@ void main() {
                 'fifo_check/presentation/widgets/barcode_scanner_screen.dart',
               );
         });
-
     for (final file in files) {
       final normalizedPath = file.path.replaceAll(r'\', '/');
       final lines = file.readAsLinesSync();
@@ -232,7 +231,7 @@ void main() {
       'Trang chủ',
       'Quản trị',
       'FIFO',
-      'BH / SC',
+      'Bảo hành',
       'VietQR',
       'Tiền vào',
       'Sao kê',
@@ -278,6 +277,78 @@ void main() {
       reason:
           'The shell top bar owns destination titles; feature content should '
           'use task/status-specific headings instead of repeating them.',
+    );
+  });
+
+  test('feature UI copy does not expose internal abbreviations', () {
+    final blockedPatterns = <(RegExp, String)>[
+      (RegExp(r'\bBH\s*/\s*SC\b'), 'BH/SC'),
+      (RegExp(r'\bERP\b'), 'ERP'),
+      (RegExp(r'\bSR\b'), 'SR'),
+      (RegExp(r'\bpolicy\b', caseSensitive: false), 'policy'),
+      (RegExp(r'\brule\b', caseSensitive: false), 'rule'),
+      (RegExp(r'\bnode\b', caseSensitive: false), 'node'),
+      (RegExp(r'\binternal\b', caseSensitive: false), 'internal'),
+      (RegExp(r'\bJSON\b'), 'JSON'),
+      (RegExp(r'\bKey\b'), 'Key'),
+    ];
+    const visibleMarkers = <String>[
+      'Text(',
+      'SelectableText(',
+      'title:',
+      'message:',
+      'label:',
+      'hintText:',
+      'helperText:',
+      'tooltip:',
+      'emptyLabel:',
+      'allLabel:',
+      'actionLabel:',
+      'loadingLabel:',
+      'content: Text(',
+    ];
+    final stringLiteralPattern = RegExp(r"'([^'\\]*(?:\\.[^'\\]*)*)'");
+    final hits = <String>[];
+    final files = Directory('lib/features')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) {
+          final normalizedPath = file.path.replaceAll(r'\', '/');
+          return file.path.endsWith('.dart') &&
+              (normalizedPath.contains('/presentation/screens/') ||
+                  normalizedPath.contains('/presentation/widgets/'));
+        });
+
+    for (final file in files) {
+      final normalizedPath = file.path.replaceAll(r'\', '/');
+      final lines = file.readAsLinesSync();
+      for (var index = 0; index < lines.length; index += 1) {
+        final line = lines[index];
+        final previousLine = index == 0 ? '' : lines[index - 1];
+        final isLikelyVisibleCopy =
+            visibleMarkers.any(line.contains) ||
+            visibleMarkers.any(previousLine.contains);
+        if (!isLikelyVisibleCopy) continue;
+
+        for (final literalMatch in stringLiteralPattern.allMatches(line)) {
+          final literal = literalMatch.group(1)!;
+          if (literal.contains(r'${') && !literal.contains('}')) continue;
+          final visibleText = literal.replaceAll(RegExp(r'\$\{[^}]*\}'), '{}');
+          for (final (pattern, label) in blockedPatterns) {
+            if (pattern.hasMatch(visibleText)) {
+              hits.add('$normalizedPath:${index + 1}: $label -> $visibleText');
+            }
+          }
+        }
+      }
+    }
+
+    expect(
+      hits,
+      isEmpty,
+      reason:
+          'Visible UI copy should use Vietnamese-first business labels instead '
+          'of internal abbreviations or programming terms.',
     );
   });
 

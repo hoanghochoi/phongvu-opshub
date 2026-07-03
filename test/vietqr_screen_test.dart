@@ -148,7 +148,7 @@ void main() {
 
     expect(find.text('Còn hạn'), findsOneWidget);
 
-    await tester.tap(find.text('SR CP62').last);
+    await tester.tap(find.text('Showroom CP62').last);
     await tester.pumpAndSettle();
 
     expect(find.text('Kiểm tra ngay'), findsOneWidget);

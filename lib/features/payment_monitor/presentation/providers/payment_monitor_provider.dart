@@ -181,10 +181,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
     final storeIds = _effectiveListStoreIds;
     if (storeIds.length > 1) {
-      return 'Loa chỉ đọc khi chọn đúng 1 SR. Bạn đang xem ${storeIds.length} SR nên danh sách vẫn cập nhật, còn loa tạm dừng.';
+      return 'Loa chỉ đọc khi chọn đúng 1 showroom. Bạn đang xem ${storeIds.length} showroom nên danh sách vẫn cập nhật, còn loa tạm dừng.';
     }
     if (storeIds.isEmpty) {
-      return 'Chọn 1 SR để bật đọc loa tiền vào.';
+      return 'Chọn 1 showroom để bật đọc loa tiền vào.';
     }
     return null;
   }

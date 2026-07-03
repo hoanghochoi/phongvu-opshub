@@ -51,7 +51,7 @@ void main() {
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Bảo hành / Sửa chữa'), findsNothing);
-    expect(find.text('Tác vụ BH / SC'), findsOneWidget);
+    expect(find.text('Tác vụ bảo hành'), findsOneWidget);
     expect(find.text('Lưu hình ảnh'), findsOneWidget);
     expect(find.text('Xem lại hình ảnh'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -79,7 +79,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('warranty-main-header')), findsNothing);
-    expect(find.text('Tác vụ BH / SC'), findsOneWidget);
+    expect(find.text('Tác vụ bảo hành'), findsOneWidget);
     expect(find.text('Lưu hình ảnh'), findsOneWidget);
     expect(find.text('Xem lại hình ảnh'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -101,7 +101,7 @@ void main() {
     expect(find.byKey(const Key('warranty-image-count-chip')), findsOneWidget);
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.text('Lưu hình ảnh BH / SC'), findsOneWidget);
+    expect(find.text('Lưu hình ảnh bảo hành'), findsOneWidget);
     expect(find.text('Số biên nhận / mã sửa chữa'), findsOneWidget);
     expect(find.text('Thêm hình ảnh'), findsOneWidget);
     expect(find.text('Lưu'), findsOneWidget);

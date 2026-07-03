@@ -450,7 +450,7 @@ class _HistoryItemTile extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: SelectableText(
-                    'SR ${item.storeCode.isEmpty ? '--' : item.storeCode}',
+                    'Showroom ${item.storeCode.isEmpty ? '--' : item.storeCode}',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),

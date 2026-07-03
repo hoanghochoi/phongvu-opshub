@@ -130,7 +130,7 @@ void main() {
     expect(find.text('Chưa báo cáo'), findsOneWidget);
   });
 
-  testWidgets('manager cockpit filters orders by date, SR and user', (
+  testWidgets('manager cockpit filters orders by date, showroom and user', (
     tester,
   ) async {
     final authProvider = _FakeAuthProvider(
@@ -161,10 +161,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Ngày: 01/07/2026'), findsOneWidget);
-    expect(find.text('SR: Tất cả'), findsOneWidget);
+    expect(find.text('Showroom: Tất cả'), findsOneWidget);
     expect(find.text('User: Tất cả'), findsOneWidget);
 
-    await tester.tap(find.text('SR: Tất cả'));
+    await tester.tap(find.text('Showroom: Tất cả'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('CP01 - Phong Vu CP01'));
     await tester.pumpAndSettle();

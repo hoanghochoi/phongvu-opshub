@@ -180,7 +180,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
         context: {'featureCode': feature.code},
       );
       if (mounted) {
-        _showMessage('Chưa xóa được tính năng. Có thể đang có rule.');
+        _showMessage('Chưa xóa được tính năng. Có thể đang có quy tắc.');
       }
     }
   }
@@ -226,7 +226,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
           'enabled': enabled,
         },
       );
-      if (mounted) _showMessage('Chưa cập nhật được quyền node.');
+      if (mounted) _showMessage('Chưa cập nhật được quyền đơn vị.');
     }
   }
 
@@ -234,8 +234,8 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
     AdminNodeFeatureAssignment assignment,
   ) async {
     final confirmed = await _confirm(
-      title: 'Xóa quyền node',
-      message: 'Xóa quyền ${assignment.featureName} khỏi nhóm node này?',
+      title: 'Xóa quyền đơn vị',
+      message: 'Xóa quyền ${assignment.featureName} khỏi nhóm đơn vị này?',
     );
     if (!confirmed) return;
     try {
@@ -271,7 +271,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
           'featureCode': assignment.featureCode,
         },
       );
-      if (mounted) _showMessage('Chưa xóa được quyền node.');
+      if (mounted) _showMessage('Chưa xóa được quyền đơn vị.');
     }
   }
 
@@ -279,8 +279,8 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
     final ruleId = rule.id;
     if (ruleId == null || ruleId.isEmpty) return;
     final confirmed = await _confirm(
-      title: 'Xóa rule',
-      message: 'Xóa rule của ${rule.featureCode}?',
+      title: 'Xóa quy tắc',
+      message: 'Xóa quy tắc của ${_featureTitle(rule.featureCode)}?',
     );
     if (!confirmed) return;
     try {
@@ -305,7 +305,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
         upload: true,
         context: {'ruleId': ruleId, 'featureCode': rule.featureCode},
       );
-      if (mounted) _showMessage('Chưa xóa được rule. Vui lòng thử lại.');
+      if (mounted) _showMessage('Chưa xóa được quy tắc. Vui lòng thử lại.');
     }
   }
 
@@ -385,7 +385,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Quản lý feature, gán quyền theo node và theo dõi rule cũ.',
+                    'Quản lý tính năng, gán quyền theo đơn vị tổ chức và theo dõi quy tắc cũ.',
                     style: AppTextStyles.bodyM.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -405,12 +405,12 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
                             ? null
                             : () => _openNodeAssignmentEditor(),
                         icon: Icons.account_tree_outlined,
-                        label: 'Gán node',
+                        label: 'Gán đơn vị',
                       ),
                       AppSecondaryButton(
                         onPressed: _loading ? null : () => _openRuleEditor(),
                         icon: Icons.rule_folder_outlined,
-                        label: 'Thêm rule cũ',
+                        label: 'Thêm quy tắc cũ',
                       ),
                     ],
                   ),
@@ -430,7 +430,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
                 dividerColor: Theme.of(context).dividerColor,
                 tabs: const [
                   Tab(text: 'Tính năng'),
-                  Tab(text: 'Theo node'),
+                  Tab(text: 'Theo đơn vị'),
                   Tab(text: 'Quy tắc cũ'),
                 ],
               ),
@@ -569,7 +569,7 @@ class _FeatureCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${feature.code} • ${feature.nodeAssignmentCount} node • ${feature.ruleCount} rule cũ${feature.description.isEmpty ? '' : ' • ${feature.description}'}',
+                  '${feature.nodeAssignmentCount} đơn vị • ${feature.ruleCount} quy tắc cũ${feature.description.isEmpty ? '' : ' • ${feature.description}'}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodyS.copyWith(
@@ -652,7 +652,7 @@ class _NodeAssignmentList extends StatelessWidget {
                       ...features.map(
                         (feature) => DropdownMenuItem<String?>(
                           value: feature.code,
-                          child: Text('${feature.code} - ${feature.title}'),
+                          child: Text(feature.title),
                         ),
                       ),
                     ],
@@ -665,7 +665,7 @@ class _NodeAssignmentList extends StatelessWidget {
                   child: AppSecondaryButton(
                     onPressed: onAdd,
                     icon: Icons.account_tree_outlined,
-                    label: 'Gán node',
+                    label: 'Gán đơn vị',
                   ),
                 ),
               ],
@@ -675,8 +675,8 @@ class _NodeAssignmentList extends StatelessWidget {
           Expanded(
             child: assignments.isEmpty
                 ? const AppStatePanel.empty(
-                    title: 'Chưa có quyền theo node',
-                    message: 'Bấm Gán node để thiết lập phạm vi sử dụng.',
+                    title: 'Chưa có quyền theo đơn vị',
+                    message: 'Bấm Gán đơn vị để thiết lập phạm vi sử dụng.',
                     icon: Icons.account_tree_outlined,
                   )
                 : ListView.separated(
@@ -740,7 +740,7 @@ class _NodeAssignmentCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${assignment.featureName} (${assignment.featureCode})',
+                  assignment.featureName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodyL.copyWith(
@@ -774,13 +774,13 @@ class _NodeAssignmentCard extends StatelessWidget {
           AppIconAction(
             onPressed: onEdit,
             icon: Icons.edit_outlined,
-            tooltip: 'Sửa nhóm node',
+            tooltip: 'Sửa nhóm đơn vị',
           ),
           const SizedBox(width: 8),
           AppIconAction(
             onPressed: onDelete,
             icon: Icons.delete_outline,
-            tooltip: 'Xóa quyền node',
+            tooltip: 'Xóa quyền đơn vị',
           ),
         ],
       ),
@@ -828,7 +828,7 @@ class _RuleList extends StatelessWidget {
                 ...features.map(
                   (feature) => DropdownMenuItem<String?>(
                     value: feature.code,
-                    child: Text('${feature.code} - ${feature.title}'),
+                    child: Text(feature.title),
                   ),
                 ),
               ],
@@ -937,13 +937,13 @@ class _RuleCard extends StatelessWidget {
           AppIconAction(
             onPressed: onEdit,
             icon: Icons.edit_outlined,
-            tooltip: 'Sửa rule',
+            tooltip: 'Sửa quy tắc',
           ),
           const SizedBox(width: 8),
           AppIconAction(
             onPressed: onDelete,
             icon: Icons.delete_outline,
-            tooltip: 'Xóa rule',
+            tooltip: 'Xóa quy tắc',
           ),
         ],
       ),
@@ -952,23 +952,26 @@ class _RuleCard extends StatelessWidget {
 
   String _ruleScopeText(AdminFeatureRule rule) {
     final parts = [
-      if (rule.emailDomain?.isNotEmpty == true) 'Domain @${rule.emailDomain}',
-      if (rule.userEmail?.isNotEmpty == true) 'User ${rule.userEmail}',
+      if (rule.emailDomain?.isNotEmpty == true)
+        'Tên miền email @${rule.emailDomain}',
+      if (rule.userEmail?.isNotEmpty == true) 'Người dùng ${rule.userEmail}',
       if (rule.userId?.isNotEmpty == true && rule.userEmail == null)
-        'User ${rule.userId}',
+        'Người dùng ${rule.userId}',
       if (rule.organizationNodeName?.isNotEmpty == true)
-        'Node ${rule.organizationNodeName}',
+        'Đơn vị ${rule.organizationNodeName}',
       if (rule.organizationNodeId?.isNotEmpty == true &&
           rule.organizationNodeName == null)
-        'Node ${rule.organizationNodeId}',
-      if (rule.storeCode?.isNotEmpty == true) 'SR ${rule.storeCode}',
+        'Đơn vị ${rule.organizationNodeId}',
+      if (rule.storeCode?.isNotEmpty == true) 'Showroom ${rule.storeCode}',
       if (rule.areaCode?.isNotEmpty == true) 'Vùng ${rule.areaCode}',
       if (rule.regionCode?.isNotEmpty == true) 'Miền ${rule.regionCode}',
-      if (rule.workScopeType?.isNotEmpty == true) 'Scope ${rule.workScopeType}',
+      if (rule.workScopeType?.isNotEmpty == true)
+        'Phạm vi ${rule.workScopeType}',
       if (rule.jobRoleCode?.isNotEmpty == true) 'Chức danh ${rule.jobRoleCode}',
       if (rule.departmentCode?.isNotEmpty == true)
         'Phòng ban ${rule.departmentCode}',
-      if (rule.systemRole?.isNotEmpty == true) 'Role ${rule.systemRole}',
+      if (rule.systemRole?.isNotEmpty == true)
+        'Vai trò ${User.roleDisplayName(rule.systemRole)}',
     ];
     return parts.isEmpty
         ? 'Áp dụng toàn hệ thống trong phạm vi quyền cũ'
@@ -1287,7 +1290,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Chưa lưu được rule. Vui lòng thử lại.'),
+            content: Text('Chưa lưu được quy tắc. Vui lòng thử lại.'),
           ),
         );
       }
@@ -1316,7 +1319,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
   Widget build(BuildContext context) {
     final isEditing = widget.rule != null;
     return AlertDialog(
-      title: Text(widget.rule == null ? 'Thêm rule' : 'Sửa rule'),
+      title: Text(widget.rule == null ? 'Thêm quy tắc' : 'Sửa quy tắc'),
       content: SizedBox(
         width: 520,
         child: SingleChildScrollView(
@@ -1329,7 +1332,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
                     .map(
                       (feature) => DropdownMenuItem(
                         value: feature.code,
-                        child: Text('${feature.code} - ${feature.title}'),
+                        child: Text(feature.title),
                       ),
                     )
                     .toList(),
@@ -1344,7 +1347,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
               ),
               AppTextInput(
                 controller: _emailDomainsController,
-                label: 'Domain email',
+                label: 'Tên miền email',
                 hintText: isEditing ? 'acare.vn' : 'acare.vn, phongvu.vn',
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: isEditing
@@ -1442,7 +1445,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
                 ),
               if (isEditing)
                 _optionalDropdown(
-                  label: 'Node tổ chức',
+                  label: 'Đơn vị tổ chức',
                   value: _organizationNodeId,
                   items: _organizationNodeItems(),
                   onChanged: (value) =>
@@ -1450,7 +1453,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
                 )
               else
                 _multiSelectField(
-                  label: 'Node tổ chức',
+                  label: 'Đơn vị tổ chức',
                   selectedValues: _organizationNodeIds,
                   items: _organizationNodeItems(),
                   onChanged: (values) => setState(() {
@@ -1461,7 +1464,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
                 ),
               if (isEditing)
                 _optionalDropdown(
-                  label: 'User override',
+                  label: 'Người dùng riêng',
                   value: _userId,
                   items: widget.users
                       .where((user) => user.id?.isNotEmpty == true)
@@ -1471,7 +1474,7 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
                 )
               else
                 _multiSelectField(
-                  label: 'User override',
+                  label: 'Người dùng riêng',
                   selectedValues: _userIds,
                   items: widget.users
                       .where((user) => user.id?.isNotEmpty == true)

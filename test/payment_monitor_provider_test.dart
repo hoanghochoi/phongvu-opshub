@@ -130,7 +130,7 @@ void main() {
       expect(provider.isActive, isTrue);
       expect(provider.canUsePaymentSpeaker, isFalse);
       expect(provider.isViewingMultipleStores, isTrue);
-      expect(provider.speakerSelectionNotice, contains('chọn đúng 1 SR'));
+      expect(provider.speakerSelectionNotice, contains('chọn đúng 1 showroom'));
       expect(repository.readyFetchCount, 0);
       expect(repository.requestedStoreIds.last, 'CP62,CP75');
 

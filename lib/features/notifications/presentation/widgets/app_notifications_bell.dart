@@ -302,7 +302,7 @@ class _OffsetAdjustmentNotificationTile extends StatelessWidget {
         children: [
           SelectableText(
             [
-              if (request.storeCode.isNotEmpty) 'SR ${request.storeCode}',
+              if (request.storeCode.isNotEmpty) 'Showroom ${request.storeCode}',
               OffsetAdjustmentType.label(request.type),
               '${money.format(request.amount)} VND',
               if (_submittedTimeText.isNotEmpty) _submittedTimeText,
@@ -367,7 +367,8 @@ class _StatementOrderNotificationTile extends StatelessWidget {
           children: [
             SelectableText(
               [
-                if (request.storeCode.isNotEmpty) 'SR ${request.storeCode}',
+                if (request.storeCode.isNotEmpty)
+                  'Showroom ${request.storeCode}',
                 if (request.statementNumber.isNotEmpty)
                   'Mã sao kê ${request.statementNumber}',
                 '${money.format(request.amount)} VND',

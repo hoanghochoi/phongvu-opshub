@@ -34,9 +34,8 @@ const _relatedPolicyHints = <String, RelatedFeaturePolicyHint>{
     policyCode: 'BANK_STATEMENT_ALL_SCOPE',
     policyName: 'Xem sao kê toàn hệ thống',
     message:
-        'Feature Sao kê chỉ mở quyền xem theo phạm vi node/showroom. '
-        'Muốn xem tất cả showroom hoặc chọn nhiều showroom thì thêm policy '
-        'BANK_STATEMENT_ALL_SCOPE trong Quản lý policy.',
+        'Tính năng Sao kê chỉ mở quyền xem theo phạm vi đơn vị/showroom. '
+        'Muốn xem tất cả showroom hoặc chọn nhiều showroom thì bật quyền xem sao kê toàn hệ thống trong Quản lý chính sách.',
   ),
 };
 
@@ -271,7 +270,7 @@ class _NodeFeatureAssignmentDialogState
 
   String _featureLabel(String code) {
     final feature = _featureByCode(code);
-    return feature == null ? code : '${feature.title} ($code)';
+    return feature == null ? 'Tính năng chưa đặt tên' : feature.title;
   }
 
   String _nodeShortLabel(AdminOrganizationNode node) {
@@ -348,7 +347,7 @@ class _NodeFeatureAssignmentDialogState
     final node = _selectedNode();
     if (node == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn node tổ chức.')),
+        const SnackBar(content: Text('Vui lòng chọn đơn vị tổ chức.')),
       );
       return;
     }
@@ -407,7 +406,9 @@ class _NodeFeatureAssignmentDialogState
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chưa lưu được quyền tính năng node.')),
+          const SnackBar(
+            content: Text('Chưa lưu được quyền tính năng cho đơn vị.'),
+          ),
         );
       }
     } finally {
@@ -435,7 +436,7 @@ class _NodeFeatureAssignmentDialogState
       _selectedCodes,
     );
     return AlertDialog(
-      title: const Text('Tính năng theo node'),
+      title: const Text('Tính năng theo đơn vị'),
       content: SizedBox(
         width: 620,
         child: SingleChildScrollView(
@@ -444,7 +445,7 @@ class _NodeFeatureAssignmentDialogState
             children: [
               AppSelectField<String>(
                 value: _selectedNodeId,
-                label: 'Node áp dụng',
+                label: 'Đơn vị áp dụng',
                 items: nodes
                     .map(
                       (node) => DropdownMenuItem(
@@ -538,7 +539,7 @@ class _RelatedPolicyReminder extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Policy liên quan',
+                    'Chính sách liên quan',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onPrimaryContainer,
                       fontWeight: FontWeight.w700,
@@ -552,7 +553,7 @@ class _RelatedPolicyReminder extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  '${hint.policyName} (${hint.policyCode}): ${hint.message}',
+                  '${hint.policyName}: ${hint.message}',
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -609,7 +610,7 @@ class _ParentFeatureVetoWarning extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Một số tính năng sẽ chưa có hiệu lực vì node cha chưa được tick cùng tính năng.',
+                    'Một số tính năng sẽ chưa có hiệu lực vì đơn vị cha chưa được chọn cùng tính năng.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onErrorContainer,
                       fontWeight: FontWeight.w600,
@@ -635,7 +636,7 @@ class _ParentFeatureVetoWarning extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  'Còn $extraCount tính năng khác đang bị chặn bởi node cha.',
+                  'Còn $extraCount tính năng khác đang bị chặn bởi đơn vị cha.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onErrorContainer,
                   ),
@@ -719,6 +720,8 @@ class _NodeFeatureCheckboxTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final children = byParent[feature.code] ?? const <AdminFeatureDefinition>[];
     final isDisabled = !feature.isActive;
+    final description = feature.description.trim();
+    final subtitle = description.isEmpty ? 'Chưa có mô tả' : description;
     return Column(
       children: [
         CheckboxListTile(
@@ -731,7 +734,7 @@ class _NodeFeatureCheckboxTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           subtitle: Text(
-            isDisabled ? '${feature.code} • đang tắt' : feature.code,
+            isDisabled ? '$subtitle • đang tắt' : subtitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

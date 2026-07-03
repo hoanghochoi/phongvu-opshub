@@ -79,7 +79,7 @@ void main() {
       expect(find.text('Cây tổ chức'), findsOneWidget);
       expect(find.textContaining('CP62 - Phan Đăng Lưu'), findsOneWidget);
       expect(find.textContaining('CP75 - Phan Đăng Lưu 2'), findsOneWidget);
-      expect(find.text('SR được gán'), findsOneWidget);
+      expect(find.text('Showroom được gán'), findsOneWidget);
       expect(find.textContaining('Phòng ban'), findsNothing);
       expect(find.textContaining('Chức danh'), findsNothing);
       expect(find.textContaining('Phạm vi'), findsNothing);

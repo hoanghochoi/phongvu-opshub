@@ -302,11 +302,11 @@ class _OffsetHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final scopeLabel = provider.canReview
         ? provider.selectedStoreIds.isEmpty
-              ? 'Tất cả SR'
-              : '${provider.selectedStoreIds.length} SR'
+              ? 'Tất cả showroom'
+              : '${provider.selectedStoreIds.length} showroom'
         : provider.stores.length <= 1
-        ? 'SR được gán'
-        : '${provider.stores.length} SR được gán';
+        ? 'Showroom được gán'
+        : '${provider.stores.length} showroom được gán';
     final statusLabel = provider.hasSearched
         ? '${provider.items.length}/${provider.total} hồ sơ'
         : 'Chưa tải dữ liệu';
@@ -589,7 +589,7 @@ class _FilterPanelState extends State<_FilterPanel> {
     if (!widget.provider.canReview && widget.provider.stores.length <= 1) {
       return InputDecorator(
         decoration: appInputDecoration(
-          label: 'SR',
+          label: 'Showroom',
           icon: Icons.storefront_outlined,
         ),
         child: Text(
@@ -602,12 +602,12 @@ class _FilterPanelState extends State<_FilterPanel> {
       );
     }
     return AppMultiSelectFilterDropdown<String>(
-      label: 'SR',
+      label: 'Showroom',
       icon: Icons.storefront_outlined,
       values: widget.provider.selectedStoreIds,
       emptyLabel: widget.provider.canReview
-          ? 'Tất cả SR'
-          : 'Tất cả SR được gán',
+          ? 'Tất cả showroom'
+          : 'Tất cả showroom được gán',
       forceSearch: true,
       options: widget.provider.stores
           .map(
@@ -943,7 +943,7 @@ class _OffsetDetailDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _detail('Trạng thái', OffsetAdjustmentStatus.label(item.status)),
-              _detail('SR', item.storeCode),
+              _detail('Showroom', item.storeCode),
               if (item.isSingleOrder) ...[
                 _detail('Đơn hàng cũ', item.oldOrderCode),
                 _detail('Đơn hàng mới', item.newOrderCode),

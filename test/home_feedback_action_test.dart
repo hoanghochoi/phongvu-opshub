@@ -78,7 +78,7 @@ void main() {
 
     expect(
       titles,
-      containsAll(<String>['FIFO', 'BH / SC', 'VietQR', 'Sao kê']),
+      containsAll(<String>['FIFO', 'Bảo hành', 'VietQR', 'Sao kê']),
     );
     expect(titles.last, 'Góp ý');
     expect(titles.where((title) => title == 'Góp ý'), hasLength(1));
@@ -206,7 +206,7 @@ void main() {
     final welcomeStrip = find.byKey(const Key('home-welcome-strip'));
     expect(welcomeStrip, findsOneWidget);
     expect(tester.getSize(welcomeStrip).height, lessThan(90));
-    expect(find.text('2 SR: CP75, CP62'), findsOneWidget);
+    expect(find.text('2 showroom: CP75, CP62'), findsOneWidget);
   });
 
   testWidgets('Windows Home shows speaker paused for multiple assigned SRs', (
@@ -240,7 +240,7 @@ void main() {
       isSpeakerEnabled: true,
       canUsePaymentSpeaker: false,
       speakerSelectionNotice:
-          'Loa chỉ đọc khi chọn đúng 1 SR. Bạn đang xem 2 SR nên danh sách vẫn cập nhật, còn loa tạm dừng.',
+          'Loa chỉ đọc khi chọn đúng 1 showroom. Bạn đang xem 2 showroom nên danh sách vẫn cập nhật, còn loa tạm dừng.',
     );
     addTearDown(paymentProvider.dispose);
 
@@ -259,7 +259,7 @@ void main() {
 
     expect(find.text('Đọc loa tiền vào'), findsOneWidget);
     expect(
-      find.textContaining('Loa chỉ đọc khi chọn đúng 1 SR'),
+      find.textContaining('Loa chỉ đọc khi chọn đúng 1 showroom'),
       findsOneWidget,
     );
 
@@ -367,7 +367,7 @@ void main() {
 
     expect(metricsRepository.deliveryHistoryFetchCount, 1);
     expect(find.text('Lịch sử đọc loa'), findsOneWidget);
-    expect(find.text('SR CP01'), findsOneWidget);
+    expect(find.text('Showroom CP01'), findsOneWidget);
   });
 
   testWidgets('Home support icon opens QR and group link dialog', (

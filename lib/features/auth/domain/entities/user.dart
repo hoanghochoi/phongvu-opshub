@@ -251,7 +251,7 @@ class User {
   String get assignedStoreHeaderInfo {
     final storeIds = assignedStoreIds;
     if (storeIds.length > 1) {
-      return '${storeIds.length} SR: ${storeIds.join(', ')}';
+      return '${storeIds.length} showroom: ${storeIds.join(', ')}';
     }
     final displayNames = assignedStoreDisplayNames;
     if (displayNames.isNotEmpty) return displayNames.first;
