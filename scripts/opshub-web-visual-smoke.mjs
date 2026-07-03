@@ -26,6 +26,9 @@ const storageEnvironment =
   process.env.OPSHUB_VISUAL_SMOKE_STORAGE_ENV || environmentForBaseUrl(apiBaseUrl);
 const email = process.env.OPSHUB_SMOKE_EMAIL;
 const password = process.env.OPSHUB_SMOKE_PASSWORD;
+const warrantyDetailReceipt = process.env.OPSHUB_VISUAL_SMOKE_WARRANTY_RECEIPT
+  ?.toString()
+  .trim();
 const headless = process.env.OPSHUB_VISUAL_SMOKE_HEADLESS !== 'false';
 const preferredBrowserChannel = process.env.OPSHUB_VISUAL_SMOKE_BROWSER_CHANNEL;
 const waitMs = Number(process.env.OPSHUB_VISUAL_SMOKE_WAIT_MS || 1200);
@@ -588,13 +591,13 @@ async function resolveAuthenticatedRoutes(session, routes) {
       continue;
     }
 
-    const warrantyDetailRoute = await resolveWarrantyDetailRoute(session);
-    if (warrantyDetailRoute) {
-      resolvedRoutes.push(warrantyDetailRoute);
+    const warrantyDetail = await resolveWarrantyDetailRoute(session);
+    if (warrantyDetail) {
+      resolvedRoutes.push(warrantyDetail.route);
       dynamicRoutes.push({
         pattern: route,
-        route: warrantyDetailRoute,
-        source: 'GET /warranties',
+        route: warrantyDetail.route,
+        source: warrantyDetail.source,
       });
       continue;
     }
@@ -609,6 +612,13 @@ async function resolveAuthenticatedRoutes(session, routes) {
 }
 
 async function resolveWarrantyDetailRoute(session) {
+  if (warrantyDetailReceipt) {
+    return {
+      route: `/check-warranty/details/${encodeURIComponent(warrantyDetailReceipt)}`,
+      source: 'OPSHUB_VISUAL_SMOKE_WARRANTY_RECEIPT',
+    };
+  }
+
   const response = await fetch(`${apiBaseUrl}/warranties`, {
     headers: {
       authorization: `Bearer ${session.token}`,
@@ -625,7 +635,10 @@ async function resolveWarrantyDetailRoute(session) {
     .map((row) => row?.receipt?.toString().trim())
     .find((value) => value && value.length > 0);
   if (!receipt) return null;
-  return `/check-warranty/details/${encodeURIComponent(receipt)}`;
+  return {
+    route: `/check-warranty/details/${encodeURIComponent(receipt)}`,
+    source: 'GET /warranties',
+  };
 }
 
 function seedSessionStorage({ session, storageEnvironment }) {

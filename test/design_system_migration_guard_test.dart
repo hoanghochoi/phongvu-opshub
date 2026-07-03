@@ -559,6 +559,7 @@ void main() {
         'const authenticatedRoutes = authenticatedRouteResolution.routes',
       ),
     );
+    expect(smokeSource, contains('OPSHUB_VISUAL_SMOKE_WARRANTY_RECEIPT'));
     expect(smokeSource, contains('GET /warranties'));
     expect(smokeSource, contains('skippedRoutes'));
     expect(gapMap, contains('tổng 72 route/viewport checks'));

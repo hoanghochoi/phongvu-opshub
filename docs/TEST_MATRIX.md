@@ -702,8 +702,9 @@ Recent focused evidence:
   2026-07-03 staging rerun after deploy `2026.07.03.98+200098` fixed dynamic
   BH/SC detail route handling in the smoke script. The default inventory still
   carries `/check-warranty/details/:receiptNumber` so it stays aligned with
-  `AppRouter`, but runtime smoke now resolves that route from `GET /warranties`
-  and records `skippedRoutes` when the staging account has no readable receipt.
+  `AppRouter`, but runtime smoke now resolves that route from
+  `OPSHUB_VISUAL_SMOKE_WARRANTY_RECEIPT` or `GET /warranties`, and records
+  `skippedRoutes` when the staging account has no readable receipt.
   Validation: `node --check scripts\opshub-web-visual-smoke.mjs`, live staging
   visual smoke pass 70/70 checked route/viewport captures with zero failure and
   one documented BH/SC detail skip, plus focused design-system guard. Gap:
