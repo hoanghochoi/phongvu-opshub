@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
@@ -12,7 +11,15 @@ import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
+import '../../../../core/barcode_scanning/barcode_scanner_service.dart';
+import '../../../../core/barcode_scanning/mobile_scanner_barcode_scanner_service.dart';
 import '../../../../core/logging/app_logger.dart';
+
+const BarcodeScannerService defaultBarcodeScannerService =
+    MobileScannerBarcodeScannerService();
+
+List<String> get opsHubBarcodeFormatLabels =>
+    defaultBarcodeScannerService.enabledFormatLabels;
 
 Rect barcodeScanWindowForSize(Size size) {
   final availableWidth = math.max(0.0, size.width - 48);
@@ -26,22 +33,48 @@ Rect barcodeScanWindowForSize(Size size) {
   return Rect.fromCenter(center: center, width: scanWidth, height: scanHeight);
 }
 
+Rect? barcodeDetectionWindowForSize(Size size) {
+  return defaultBarcodeScannerService.detectionWindowForSize(size);
+}
+
 bool barcodeCameraScannerSupported({
   required bool isWeb,
   required TargetPlatform platform,
 }) {
-  return isWeb ||
-      platform == TargetPlatform.android ||
-      platform == TargetPlatform.iOS ||
-      platform == TargetPlatform.macOS;
+  return defaultBarcodeScannerService.cameraScannerSupported(
+    isWeb: isWeb,
+    platform: platform,
+  );
 }
 
 bool barcodeTorchSupported({
   required bool isWeb,
   required TargetPlatform platform,
 }) {
-  return !isWeb &&
-      (platform == TargetPlatform.android || platform == TargetPlatform.iOS);
+  return defaultBarcodeScannerService.torchSupported(
+    isWeb: isWeb,
+    platform: platform,
+  );
+}
+
+bool barcodeTapToFocusSupported({
+  required bool isWeb,
+  required TargetPlatform platform,
+}) {
+  return defaultBarcodeScannerService.tapToFocusSupported(
+    isWeb: isWeb,
+    platform: platform,
+  );
+}
+
+Size? barcodeCameraResolutionForPlatform({
+  required bool isWeb,
+  required TargetPlatform platform,
+}) {
+  return defaultBarcodeScannerService.cameraResolutionForPlatform(
+    isWeb: isWeb,
+    platform: platform,
+  );
 }
 
 class BarcodeScannerScreen extends StatefulWidget {
@@ -49,13 +82,15 @@ class BarcodeScannerScreen extends StatefulWidget {
   final String instruction;
   final String helperText;
   final bool parsePhongVuSku;
+  final BarcodeScannerService scannerService;
 
   const BarcodeScannerScreen({
     super.key,
     this.title = 'Quét QR/Barcode',
     this.instruction = 'Hướng camera vào QR hoặc barcode serial',
-    this.helperText = 'Chỉ nhận mã nằm trong khung quét',
+    this.helperText = 'Đưa trọn mã vào giữa khung để quét nhanh hơn',
     this.parsePhongVuSku = true,
+    this.scannerService = defaultBarcodeScannerService,
   });
 
   @override
@@ -63,17 +98,26 @@ class BarcodeScannerScreen extends StatefulWidget {
 }
 
 class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
-  MobileScannerController? _controller;
+  BarcodeScannerControllerHandle? _controller;
   final _manualController = TextEditingController();
   bool _isTorchOn = false;
   bool _hasResolved = false;
   String? _lastScannerErrorText;
-  bool get _supportsCameraScanner => barcodeCameraScannerSupported(
+  bool get _supportsCameraScanner => widget.scannerService
+      .cameraScannerSupported(isWeb: kIsWeb, platform: defaultTargetPlatform);
+  bool get _supportsTorch => widget.scannerService.torchSupported(
     isWeb: kIsWeb,
     platform: defaultTargetPlatform,
   );
-  bool get _supportsTorch =>
-      barcodeTorchSupported(isWeb: kIsWeb, platform: defaultTargetPlatform);
+
+  String get _requestedCameraResolutionLabel {
+    final resolution = widget.scannerService.cameraResolutionForPlatform(
+      isWeb: kIsWeb,
+      platform: defaultTargetPlatform,
+    );
+    if (resolution == null) return 'platform_default';
+    return '${resolution.width.toInt()}x${resolution.height.toInt()}';
+  }
 
   @override
   void initState() {
@@ -84,14 +128,19 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
         'Scanner screen opened',
         context: {
           'cameraScannerSupported': _supportsCameraScanner,
+          'scannerBackend': widget.scannerService.backendName,
+          'detectionRegion': 'full_preview',
+          'formats': widget.scannerService.enabledFormatLabels.join(','),
+          'requestedCameraResolution': _requestedCameraResolutionLabel,
           'parsePhongVuSku': widget.parsePhongVuSku,
           'title': widget.title,
         },
       ),
     );
     if (_supportsCameraScanner) {
-      _controller = MobileScannerController(
-        detectionSpeed: DetectionSpeed.noDuplicates,
+      _controller = widget.scannerService.createController(
+        isWeb: kIsWeb,
+        platform: defaultTargetPlatform,
       );
     }
   }
@@ -119,20 +168,21 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     return rawCode;
   }
 
-  void _onDetect(BarcodeCapture capture) {
+  void _onDetect(BarcodeScanCapture capture) {
     if (_hasResolved) return;
-    final List<Barcode> barcodes = capture.barcodes;
+    final barcodes = capture.values;
     if (barcodes.isEmpty || !mounted) return;
 
-    String? code;
+    BarcodeScanValue? selectedBarcode;
     for (final barcode in barcodes) {
       final rawValue = barcode.rawValue;
-      if (rawValue != null && rawValue.isNotEmpty) {
-        code = rawValue;
+      if (rawValue.isNotEmpty) {
+        selectedBarcode = barcode;
         break;
       }
     }
 
+    final code = selectedBarcode?.rawValue;
     if (code == null) {
       unawaited(
         AppLogger.instance.warn(
@@ -167,8 +217,11 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
         'Barcode scan succeeded',
         context: {
           'barcodeCount': barcodes.length,
+          'barcodeFormat': selectedBarcode!.formatName,
           'rawCodeLength': code.length,
           'resultLength': sku.length,
+          'detectionRegion': 'full_preview',
+          'scannerBackend': widget.scannerService.backendName,
           'parsePhongVuSku': widget.parsePhongVuSku,
         },
       ),
@@ -322,7 +375,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     );
   }
 
-  void _logScannerError(MobileScannerException error) {
+  void _logScannerError(Object error) {
     final errorText = error.toString();
     if (_lastScannerErrorText == errorText) return;
     _lastScannerErrorText = errorText;
@@ -392,12 +445,13 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
           return Stack(
             fit: StackFit.expand,
             children: [
-              MobileScanner(
+              widget.scannerService.buildScannerView(
                 controller: controller,
+                layoutSize: layoutSize,
+                isWeb: kIsWeb,
+                platform: defaultTargetPlatform,
                 onDetect: _onDetect,
-                scanWindow: scanWindow,
-                scanWindowUpdateThreshold: 8,
-                errorBuilder: (context, error, child) {
+                errorBuilder: (context, error) {
                   _logScannerError(error);
                   return _buildScannerError(context);
                 },

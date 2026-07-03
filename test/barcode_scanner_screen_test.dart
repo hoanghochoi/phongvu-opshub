@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/core/barcode_scanning/barcode_scanner_service.dart';
 import 'package:phongvu_opshub/features/fifo_check/presentation/widgets/barcode_scanner_screen.dart';
 
 void main() {
@@ -26,6 +27,23 @@ void main() {
       expect(window.left, 240);
       expect(window.right, 660);
     });
+
+    test('uses the frame as guidance while detecting across the preview', () {
+      const size = Size(400, 800);
+
+      expect(barcodeDetectionWindowForSize(size), isNull);
+      expect(barcodeScanWindowForSize(size), isNotNull);
+    });
+  });
+
+  test('uses action-oriented non-restrictive scan guidance', () {
+    const scanner = BarcodeScannerScreen();
+
+    expect(scanner.helperText, 'Đưa trọn mã vào giữa khung để quét nhanh hơn');
+  });
+
+  test('keeps all scanner formats enabled through the service contract', () {
+    expect(opsHubBarcodeFormatLabels, <String>['all']);
   });
 
   group('barcode scanner platform support', () {
@@ -106,6 +124,55 @@ void main() {
         isFalse,
       );
     });
+
+    test('enables tap to focus only on native mobile targets', () {
+      expect(
+        barcodeTapToFocusSupported(
+          isWeb: false,
+          platform: TargetPlatform.android,
+        ),
+        isTrue,
+      );
+      expect(
+        barcodeTapToFocusSupported(isWeb: false, platform: TargetPlatform.iOS),
+        isTrue,
+      );
+      expect(
+        barcodeTapToFocusSupported(isWeb: true, platform: TargetPlatform.iOS),
+        isFalse,
+      );
+      expect(
+        barcodeTapToFocusSupported(
+          isWeb: false,
+          platform: TargetPlatform.windows,
+        ),
+        isFalse,
+      );
+    });
+
+    test('requests a sharper analyzer stream only on Android', () {
+      expect(
+        barcodeCameraResolutionForPlatform(
+          isWeb: false,
+          platform: TargetPlatform.android,
+        ),
+        const Size(1280, 720),
+      );
+      expect(
+        barcodeCameraResolutionForPlatform(
+          isWeb: false,
+          platform: TargetPlatform.iOS,
+        ),
+        isNull,
+      );
+      expect(
+        barcodeCameraResolutionForPlatform(
+          isWeb: true,
+          platform: TargetPlatform.android,
+        ),
+        isNull,
+      );
+    });
   });
 
   testWidgets('manual scanner fallback returns parsed PhongVu SKU', (
@@ -159,4 +226,83 @@ void main() {
       debugDefaultTargetPlatformOverride = null;
     }
   });
+
+  testWidgets('scanner screen accepts an injected scanner service', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BarcodeScannerScreen(scannerService: MockBarcodeScannerService()),
+      ),
+    );
+
+    expect(
+      find.text(
+        'Thiết bị này chưa hỗ trợ quét bằng camera. Vui lòng nhập mã thủ công.',
+      ),
+      findsOneWidget,
+    );
+  });
+}
+
+class MockBarcodeScannerService implements BarcodeScannerService {
+  const MockBarcodeScannerService();
+
+  @override
+  String get backendName => 'mock';
+
+  @override
+  List<String> get enabledFormatLabels => const <String>['all'];
+
+  @override
+  bool cameraScannerSupported({
+    required bool isWeb,
+    required TargetPlatform platform,
+  }) {
+    return false;
+  }
+
+  @override
+  bool torchSupported({required bool isWeb, required TargetPlatform platform}) {
+    return false;
+  }
+
+  @override
+  bool tapToFocusSupported({
+    required bool isWeb,
+    required TargetPlatform platform,
+  }) {
+    return false;
+  }
+
+  @override
+  Size? cameraResolutionForPlatform({
+    required bool isWeb,
+    required TargetPlatform platform,
+  }) {
+    return null;
+  }
+
+  @override
+  Rect? detectionWindowForSize(Size size) => null;
+
+  @override
+  BarcodeScannerControllerHandle createController({
+    required bool isWeb,
+    required TargetPlatform platform,
+  }) {
+    throw UnimplementedError('Mock scanner does not create controllers.');
+  }
+
+  @override
+  Widget buildScannerView({
+    required BarcodeScannerControllerHandle controller,
+    required Size layoutSize,
+    required bool isWeb,
+    required TargetPlatform platform,
+    required ValueChanged<BarcodeScanCapture> onDetect,
+    required BarcodeScannerErrorBuilder errorBuilder,
+  }) {
+    throw UnimplementedError('Mock scanner does not build camera views.');
+  }
 }

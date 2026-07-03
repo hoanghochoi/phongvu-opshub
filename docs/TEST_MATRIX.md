@@ -1025,6 +1025,29 @@ Recent focused evidence:
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
   (296 tests), and `git diff --check`.
 - UI-UX-001/FIFO-001/VIETQR-001/SALES-REPORT-001/WARRANTY-001, 2026-07-03:
+  upgraded the shared scanner from `mobile_scanner` 5.2.3 to 7.2.0 and verified
+  that its runtime format contract includes Code 128 and Data Matrix. The
+  visible frame is now guidance while detection covers the full preview;
+  Android requests `1280x720` analysis plus auto-zoom, Android/iOS support
+  tap-to-focus, and logs record the detected format without raw values. The
+  scanner UI now depends on `BarcodeScannerService`, with the `mobile_scanner`
+  package isolated behind `MobileScannerBarcodeScannerService`. Android
+  release build config was verified with minSdk 24, compile/target SDK 36,
+  AGP 8.11.1, Gradle 8.14, Kotlin 2.2.20, JVM target 17, explicit CAMERA
+  permission, and dependency graph alignment for Kotlin stdlib 2.2.20, ML Kit
+  barcode scanning 17.3.0, Play Services ML Kit barcode scanning 18.3.1, and
+  CameraX 1.5.3. Scanner guidance was synced and visually checked in Figma for
+  Mobile (`151:611`), Tablet (`152:821`), and Desktop (`152:3267`).
+  Validation: `flutter clean`, `flutter pub get`,
+  `flutter pub outdated --no-transitive`, `flutter analyze`,
+  `flutter test --reporter compact` (310 tests),
+  `.\gradlew.bat :app:dependencies --configuration productionReleaseRuntimeClasspath`,
+  and `flutter build apk --release --flavor production --verbose` with the
+  production API/env dart-defines built
+  `build\app\outputs\flutter-apk\app-production-release.apk` (92.2 MB).
+  Gap: physical callback proof is still required for the supplied Code 128 and
+  small Data Matrix labels, plus iOS/web camera smoke.
+- UI-UX-001/FIFO-001/VIETQR-001/SALES-REPORT-001/WARRANTY-001, 2026-07-03:
   shared QR/barcode scanner no longer blocks web camera use. The scanner now
   treats web/mobile browsers as camera-capable through `mobile_scanner`, hides
   torch on web/unsupported desktop targets, keeps manual entry inside the

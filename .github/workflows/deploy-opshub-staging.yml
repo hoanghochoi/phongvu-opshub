@@ -74,6 +74,17 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Prepare Android SDK and JDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="${JAVA_HOME_17_X64:-$JAVA_HOME}"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          java -version
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-36" \
+            "build-tools;36.1.0" >/dev/null
+
       - name: Configure Android staging signing
         shell: bash
         env:
