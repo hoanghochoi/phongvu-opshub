@@ -45,6 +45,15 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`AUDIT-SIDEBAR-GROUPS`, 2026-07-03: completed the sidebar
+  grouping acceptance item from `docs/UI_UX_AUDIT_PLAN.md`. Desktop AppShell
+  sidebar now renders visible sections `Tổng quan`, `Nghiệp vụ`, and `Cấu hình`
+  while keeping flat navigation, no row chevrons, and the left selected
+  indicator from the earlier sidebar polish batch. Validation: changed-file
+  `dart format`, `dart format --output=none --set-exit-if-changed`,
+  `git diff --check`, `flutter analyze --no-pub`, focused
+  `flutter test --no-pub --reporter expanded test\app_shell_route_viewport_test.dart`
+  (5 tests), and full `flutter test --no-pub --reporter compact` (321 tests).
 - `UI-UX-001`/`AUDIT-LOGOUT-CONFIRM`, 2026-07-03: completed the logout
   confirmation acceptance item from `docs/UI_UX_AUDIT_PLAN.md`. AppShell account
   menu and Profile session-card logout now open the shared

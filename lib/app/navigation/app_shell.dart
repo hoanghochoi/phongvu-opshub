@@ -631,6 +631,7 @@ class _DesktopSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sections = _SidebarSection.fromDestinations(destinations);
     return Container(
       width: AppLayoutTokens.sidebarWidth,
       color: AppColors.sidebarSurfaceOf(context),
@@ -667,18 +668,22 @@ class _DesktopSidebar extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: destinations.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 4),
-                itemBuilder: (context, index) {
-                  final destination = destinations[index];
-                  return _SidebarItem(
-                    destination: destination,
-                    selected: AppNavModel.isSelected(destination, location),
-                    onTap: () => onNavigate(destination),
-                  );
-                },
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                children: [
+                  for (final section in sections) ...[
+                    _SidebarSectionHeader(section: section),
+                    for (final destination in section.destinations) ...[
+                      _SidebarItem(
+                        destination: destination,
+                        selected: AppNavModel.isSelected(destination, location),
+                        onTap: () => onNavigate(destination),
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                    const SizedBox(height: 12),
+                  ],
+                ],
               ),
             ),
             if (version.isNotEmpty)
@@ -692,6 +697,60 @@ class _DesktopSidebar extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarSection {
+  final AppNavGroup group;
+  final String label;
+  final List<AppNavDestination> destinations;
+
+  const _SidebarSection({
+    required this.group,
+    required this.label,
+    required this.destinations,
+  });
+
+  static List<_SidebarSection> fromDestinations(
+    List<AppNavDestination> destinations,
+  ) {
+    return [
+      for (final group in AppNavGroup.values)
+        if (destinations.any((destination) => destination.group == group))
+          _SidebarSection(
+            group: group,
+            label: switch (group) {
+              AppNavGroup.root => 'Tổng quan',
+              AppNavGroup.workspace => 'Nghiệp vụ',
+              AppNavGroup.account => 'Cấu hình',
+            },
+            destinations: destinations
+                .where((destination) => destination.group == group)
+                .toList(growable: false),
+          ),
+    ];
+  }
+}
+
+class _SidebarSectionHeader extends StatelessWidget {
+  final _SidebarSection section;
+
+  const _SidebarSectionHeader({required this.section});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      key: ValueKey('sidebar-group-${section.group.name}'),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+      child: Text(
+        section.label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTextStyles.labelS.copyWith(
+          color: AppColors.sidebarMutedOf(context),
         ),
       ),
     );

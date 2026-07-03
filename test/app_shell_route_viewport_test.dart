@@ -216,7 +216,23 @@ void main() {
     );
     final selectedIndicator = _sidebarIndicator(tester, 'home');
     final unselectedIndicator = _sidebarIndicator(tester, 'fifo');
+    final rootGroup = find.byKey(const ValueKey('sidebar-group-root'));
+    final workspaceGroup = find.byKey(
+      const ValueKey('sidebar-group-workspace'),
+    );
+    final accountGroup = find.byKey(const ValueKey('sidebar-group-account'));
 
+    expect(find.text('Tổng quan'), findsOneWidget);
+    expect(find.text('Nghiệp vụ'), findsOneWidget);
+    expect(find.text('Cấu hình'), findsOneWidget);
+    expect(
+      tester.getTopLeft(rootGroup).dy,
+      lessThan(tester.getTopLeft(workspaceGroup).dy),
+    );
+    expect(
+      tester.getTopLeft(workspaceGroup).dy,
+      lessThan(tester.getTopLeft(accountGroup).dy),
+    );
     expect(selectedItem.color, AppColors.transparent);
     expect(tester.getSize(selectedIndicatorFinder), const Size(4, 28));
     expect(_indicatorColor(selectedIndicator), isNot(AppColors.transparent));
