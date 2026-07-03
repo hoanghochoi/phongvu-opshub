@@ -355,20 +355,31 @@ test\design_system_migration_guard_test.dart` (7 tests),
   missing `[]`, zero-size text `0`, missing font `0`, out-of-parent `[]`, và
   screenshot mobile sau fix line-height không còn text collapse.
 - Figma mobile shell parity follow-up 03/07/2026 đã audit live file
-  `OpsHub Redesign System - 2026-06-30`: hiện có 21 active top-level frames,
-  gom thành 7 nhóm screen đủ desktop/tablet/mobile (`FIFO Menu`,
-  `Home Workspace`, `Home Empty State`, `Tasks Workspace`, `Profile`,
-  `Report Workspace`, `Personnel Catalog Admin`), không có duplicate group.
+  `OpsHub Redesign System - 2026-06-30`: cover page hiện là curated subset với
+  21 active top-level frames, gom thành 7 nhóm screen đủ desktop/tablet/mobile
+  (`FIFO Menu`, `Home Workspace`, `Home Empty State`, `Tasks Workspace`,
+  `Profile`, `Report Workspace`, `Personnel Catalog Admin`), không có duplicate
+  group.
   Lượt fix Figma đã thêm `Mobile bottom nav` cho `Mobile v2 / FIFO Menu`
   (`476:92`) active `Tác vụ`, thêm `Mobile bottom nav` cho
   `Mobile v2 / Profile` (`481:99`) active `Tài khoản`, và set
   `Mobile v2 / Tasks Workspace` (`482:145`) cùng content frame sang
   `clipsContent=true`. QA bằng Figma tool xác nhận tất cả active mobile frames
   có content y=`72`, height=`696`, bottom nav y=`768`, height=`76`; screenshot
-  Profile/FIFO sau fix đều render đúng 390x844. Lưu ý completion: nhiều frame
-  runtime từng được ghi trong docs không còn xuất hiện như active top-level
-  frames trong live Figma audit này, nên visual parity toàn bộ vẫn cần audit/
-  rehydrate tiếp trước khi gọi là hoàn tất.
+  Profile/FIFO sau fix đều render đúng 390x844.
+- Figma screen-page inventory follow-up 03/07/2026 đã audit các page handoff
+  `05 Mobile Screens`, `06 Tablet Screens`, `07 Desktop Screens`: mobile và
+  tablet mỗi page có 40 runtime frames active và 2 frame retired hidden; desktop
+  sau cleanup có 40 unique runtime groups active, `duplicateGroups: []`,
+  `retiredVisible: []`. Hai frame desktop cũ `Desktop v2 / VietQR Workspace`
+  (`96:2`) và `Desktop v2 / Statement Workspace` (`107:2`) đã được đổi thành
+  `Archived / Desktop v2 / VietQR Workspace (superseded by 398:14)` và
+  `Archived / Desktop v2 / Statement Workspace (superseded by 388:2)`, đều
+  `visible=false`, giữ lại node để rollback, còn bản handoff runtime tiếp tục
+  là VietQR `398:14` và Sao kê `388:2`.
+  Lưu ý completion: visual parity toàn bộ vẫn cần thêm screenshot/runtime smoke
+  theo từng route dữ liệu thật, nhưng screen-page inventory không còn thiếu
+  active frames cần rehydrate.
 - Web Chrome fullscreen smoke với seeded local session đã kiểm Home, FIFO menu,
   và route `/sort`; proof ảnh nằm trong `output/playwright/`.
 - Windows debug build đã pass ở `build/windows/x64/runner/Debug`.

@@ -199,6 +199,52 @@ void main() {
     }
   });
 
+  test(
+    'Figma handoff inventory keeps screen pages separate from cover subset',
+    () {
+      final gapMap = File(
+        [
+          'docs',
+          'product',
+          'opshub-redesign-gap-map-2026-07-01.md',
+        ].join(Platform.pathSeparator),
+      ).readAsStringSync();
+      final testMatrix = File(
+        ['docs', 'TEST_MATRIX.md'].join(Platform.pathSeparator),
+      ).readAsStringSync();
+
+      expect(gapMap, contains('cover page hiện là curated subset'));
+      expect(
+        gapMap,
+        contains('Figma screen-page inventory follow-up 03/07/2026'),
+      );
+      expect(gapMap, contains('40 unique runtime groups active'));
+      expect(gapMap, contains('duplicateGroups: []'));
+      expect(gapMap, contains('retiredVisible: []'));
+      expect(
+        gapMap,
+        contains(
+          'Archived / Desktop v2 / VietQR Workspace (superseded by 398:14)',
+        ),
+      );
+      expect(
+        gapMap,
+        contains(
+          'Archived / Desktop v2 / Statement Workspace (superseded by 388:2)',
+        ),
+      );
+      expect(
+        gapMap,
+        contains('screen-page inventory không còn thiếu'),
+      );
+      expect(testMatrix, contains('the cover page is only a curated subset'));
+      expect(
+        testMatrix,
+        contains('desktop now exposes 40 unique active runtime groups'),
+      );
+    },
+  );
+
   test('feature progress indicators stay limited to reviewed inline states', () {
     const reviewedInlineIndicators = <String, ({int count, String reason})>{
       'lib/features/admin/presentation/screens/feedback_admin_screen.dart': (

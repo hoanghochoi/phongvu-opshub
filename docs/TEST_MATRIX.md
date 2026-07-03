@@ -662,11 +662,14 @@ Recent focused evidence:
   bottom nav active on `Tài khoản`, and `Mobile v2 / Tasks Workspace` clips
   its content frame. Figma QA confirmed all active mobile frames have content
   y=`72`, height=`696`, bottom nav y=`768`, height=`76`; Profile/FIFO
-  screenshots render at 390x844 after the fix. Audit scope note: live Figma
-  currently exposes 21 active top-level frames across 7 complete
-  desktop/tablet/mobile screen groups, so broader visual parity remains
-  incomplete until the older documented runtime screens are rehydrated or
-  reverified in the file.
+  screenshots render at 390x844 after the fix. Follow-up screen-page inventory
+  QA confirmed the cover page is only a curated subset; the handoff pages
+  `05 Mobile Screens`, `06 Tablet Screens`, and `07 Desktop Screens` retain the
+  runtime inventory. Mobile/tablet each expose 40 active runtime frames plus 2
+  hidden retired frames; desktop now exposes 40 unique active runtime groups
+  after archiving superseded duplicate desktop VietQR (`96:2`) and Sao kê
+  (`107:2`) frames as hidden `Archived / ...` nodes. Duplicate groups and
+  visible retired desktop frames both verify as empty.
 - `UI-UX-001`/`WARRANTY-001`, 2026-07-03: route switching across shell
   workspaces now paints each route inside a full-size keyed `RepaintBoundary`
   and clipped canvas-colored viewport, and all authenticated shell routes use
