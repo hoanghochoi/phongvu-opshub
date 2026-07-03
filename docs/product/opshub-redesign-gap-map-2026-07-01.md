@@ -402,6 +402,9 @@ test\design_system_migration_guard_test.dart` (7 tests),
   Follow-up pixel sanity 03/07/2026 bổ sung PNG parser trong smoke script để
   xác nhận screenshot đúng kích thước viewport và không phải ảnh phẳng/trắng
   bằng ngưỡng sampled-color/luma trước khi coi route là pass.
+  Follow-up redaction 03/07/2026 bắt mọi console/page/fatal error đi qua
+  sanitizer để failure output không lộ `access_token`, JWT hoặc bearer token
+  khi staging/realtime trả lỗi.
 - Web Chrome fullscreen smoke với seeded local session đã kiểm Home, FIFO menu,
   và route `/sort`; proof ảnh nằm trong `output/playwright/`.
 - Windows debug build đã pass ở `build/windows/x64/runner/Debug`.

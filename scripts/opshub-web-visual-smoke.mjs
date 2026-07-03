@@ -200,11 +200,11 @@ async function runViewportRoutes({
     const runtimeErrors = [];
     page.on('console', (message) => {
       if (message.type() === 'error') {
-        runtimeErrors.push(`console: ${message.text()}`);
+        runtimeErrors.push(sanitizeSensitiveText(`console: ${message.text()}`));
       }
     });
     page.on('pageerror', (error) => {
-      runtimeErrors.push(`pageerror: ${error.message}`);
+      runtimeErrors.push(sanitizeSensitiveText(`pageerror: ${error.message}`));
     });
 
     if (initialRoute) {
@@ -519,6 +519,13 @@ function normalizeBaseUrl(value) {
   return value.replace(/\/+$/, '');
 }
 
+function sanitizeSensitiveText(value) {
+  return String(value)
+    .replace(/([?&]access_token=)[^&\s'")]+/gi, '$1[REDACTED]')
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[REDACTED_JWT]')
+    .replace(/(authorization:\s*bearer\s+)[A-Za-z0-9._-]+/gi, '$1[REDACTED]');
+}
+
 function environmentForBaseUrl(value) {
   const url = new URL(value);
   const host = url.host.toLowerCase();
@@ -638,8 +645,12 @@ function slugRoute(route) {
 }
 
 function fail(message, error) {
-  process.stderr.write(`${message}\n`);
-  if (error) process.stderr.write(`${error.stack || error.message || error}\n`);
+  process.stderr.write(`${sanitizeSensitiveText(message)}\n`);
+  if (error) {
+    process.stderr.write(
+      `${sanitizeSensitiveText(error.stack || error.message || error)}\n`,
+    );
+  }
   process.exit(1);
 }
 

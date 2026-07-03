@@ -406,6 +406,8 @@ void main() {
     expect(smokeSource, contains('readPngVisualStats'));
     expect(smokeSource, contains('uniqueSampledColors < 16'));
     expect(smokeSource, contains('lumaRange < 12'));
+    expect(smokeSource, contains('sanitizeSensitiveText'));
+    expect(smokeSource, contains('[REDACTED_JWT]'));
     expect(gapMap, contains('tổng 70 route/viewport checks'));
     expect(testMatrix, contains('default live staging smoke now runs 70'));
   });
