@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
+import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/features/admin/presentation/screens/feedback_admin_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -64,7 +64,7 @@ void main() {
     expect(find.text('4/5 điểm'), findsOneWidget);
     expect(find.text('minh.anh@phongvu.vn'), findsOneWidget);
     expect(find.byTooltip('Tải lại danh sách góp ý'), findsOneWidget);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.byType(Scaffold), findsNothing);
     expect(tester.takeException(), isNull);
   });

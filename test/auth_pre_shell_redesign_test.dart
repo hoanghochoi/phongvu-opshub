@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
+import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -32,7 +32,7 @@ void main() {
   ) async {
     await _pumpAuthScreen(tester, const EmailCheckScreen());
     expect(find.byType(AuthScreenShell), findsOneWidget);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Đăng nhập'), findsWidgets);
     expect(find.text('Dùng tài khoản nội bộ để tiếp tục.'), findsOneWidget);
 
@@ -41,19 +41,19 @@ void main() {
       const RegisterScreen(initialEmail: 'new.user@phongvu.vn'),
     );
     expect(find.byType(AuthScreenShell), findsOneWidget);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Đăng ký tài khoản'), findsOneWidget);
     expect(find.text('Gửi mã xác thực email'), findsOneWidget);
 
     await _pumpAuthScreen(tester, const ForgotPasswordScreen());
     expect(find.byType(AuthScreenShell), findsOneWidget);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Quên mật khẩu'), findsOneWidget);
     expect(find.text('Gửi mã đổi mật khẩu'), findsOneWidget);
 
     await _pumpAuthScreen(tester, const AssignmentPendingScreen());
     expect(find.byType(AuthScreenShell), findsOneWidget);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Chờ gán tổ chức'), findsOneWidget);
     expect(find.text('Tải lại trạng thái'), findsOneWidget);
     expect(find.text('Đăng xuất'), findsOneWidget);

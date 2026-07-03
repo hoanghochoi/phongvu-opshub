@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
+import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -37,7 +37,7 @@ void main() {
     expect(find.text('Chưa có kết quả sắp xếp'), findsOneWidget);
     expect(find.byTooltip('Quét mã'), findsOneWidget);
     expect(find.byTooltip('Gửi yêu cầu sắp xếp'), findsOneWidget);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.byType(Scaffold), findsNothing);
     expect(tester.takeException(), isNull);
   });

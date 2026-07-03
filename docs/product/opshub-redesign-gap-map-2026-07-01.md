@@ -302,9 +302,10 @@ Ngày cập nhật: 03/07/2026
 Các frame sau từng có trong Figma nhưng cần quyết định theo runtime contract,
 không thêm route tạm nếu chưa có nghiệp vụ thật.
 
-Audit 02/07/2026: các route nằm trong `AppShell` hiện không còn dùng
-`GradientHeader` riêng. Guard `design_system_migration_guard_test.dart` khóa
-việc tái dùng `GradientHeader` trong feature screens.
+Audit 03/07/2026: các route nằm trong `AppShell` hiện không còn dùng
+`GradientHeader` riêng. Widget legacy `lib/app/widgets/gradient_header.dart`
+đã được gỡ khỏi production code; guard `design_system_migration_guard_test.dart`
+khóa cả việc tái tạo file/import/constructor `GradientHeader` trong `lib/`.
 
 Decision follow-up 03/07/2026: `Generic Report Workspace` và
 `Personnel Catalog Admin` được mở contract. `Data Workspace` và
@@ -797,16 +798,16 @@ test\design_system_migration_guard_test.dart` (7 tests),
   `location` phải thay keyed route viewport, route thật qua `AppRouter` phải gỡ
   subtree Home ngay frame đầu sau `go('/warranty-main')`, và Chrome click burst
   local ghi nhận `afterHashHomeCount=0` cho Home -> BH/SC.
-- Route migration guard proof đã pass, xác nhận toàn bộ feature screens đang
-  expose không dùng lại `GradientHeader` shell cũ. Guard xác nhận
+- Route migration guard proof đã pass, xác nhận toàn bộ production UI không còn
+  giữ file/import/constructor `GradientHeader` shell cũ. Guard xác nhận
   `FifoCheckConversationScreen` không nằm trong `app_router.dart`; riêng
   `PersonnelCatalogAdminScreen` đã được mở route thật `/admin/personnel` và
   khóa bằng guard route `/admin/personnel` + feature `ADMIN_PERSONNEL`.
   Validation sau slice guard đã pass `dart format`,
   focused `flutter test --no-pub --reporter expanded
-  test\design_system_migration_guard_test.dart` (3 tests),
+  test\design_system_migration_guard_test.dart` (9 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
-  (276 tests), và `flutter build web --no-pub`.
+  (312 tests), và `git diff --check`.
 - Lượt hợp nhất Batch 1-4 trên `staging` đã pass format cho 42 Dart files,
   `flutter analyze --no-pub`, 69 focused tests trên 18 test files, full
   `flutter test --no-pub --reporter compact` (262 tests), và

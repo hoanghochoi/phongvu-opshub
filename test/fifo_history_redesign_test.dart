@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
+import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -32,7 +32,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(Scaffold), findsOneWidget);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.byKey(const Key('fifo-history-header')), findsOneWidget);
     expect(find.byKey(const Key('fifo-history-filter-card')), findsOneWidget);
     expect(find.byKey(const Key('fifo-history-tabs')), findsOneWidget);

@@ -3,7 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
-import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
+import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -49,7 +49,7 @@ void main() {
 
     expect(find.byKey(const Key('warranty-main-header')), findsOneWidget);
     expect(find.byType(Scaffold), findsNothing);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Bảo hành / Sửa chữa'), findsOneWidget);
     expect(find.text('Tác vụ BH / SC'), findsOneWidget);
     expect(find.text('Lưu hình ảnh'), findsOneWidget);
@@ -106,7 +106,7 @@ void main() {
     expect(find.byKey(const Key('warranty-upload-form-card')), findsOneWidget);
     expect(find.byKey(const Key('warranty-image-count-chip')), findsOneWidget);
     expect(find.byType(Scaffold), findsNothing);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Lưu hình ảnh BH / SC'), findsOneWidget);
     expect(find.text('Số biên nhận / mã sửa chữa'), findsOneWidget);
     expect(find.text('Thêm hình ảnh'), findsOneWidget);
@@ -138,7 +138,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(Scaffold), findsNothing);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Xem lại biên nhận'), findsOneWidget);
     expect(find.text('CP01-J12345678'), findsOneWidget);
     expect(find.text('1 kết quả'), findsOneWidget);
@@ -161,7 +161,7 @@ void main() {
 
     expect(find.byKey(const Key('warranty-detail-header')), findsOneWidget);
     expect(find.byType(Scaffold), findsNothing);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Chi tiết biên nhận'), findsOneWidget);
     expect(find.text('Thông tin biên nhận'), findsOneWidget);
     expect(find.text('Hình ảnh (2)'), findsOneWidget);
@@ -173,7 +173,7 @@ void main() {
 
     expect(find.text('CP01-J12345678 - Ảnh 1'), findsOneWidget);
     expect(find.byType(Scaffold), findsNothing);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

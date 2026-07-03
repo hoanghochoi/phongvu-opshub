@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
-import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
+import 'helpers/legacy_widget_finders.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -256,7 +256,7 @@ void main() {
       find.byKey(const Key('sales-report-workspace-header')),
       findsOneWidget,
     );
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Báo cáo chưa mua'), findsNothing);
     expect(find.text('Xuất file'), findsOneWidget);
     expect(find.text('Danh sách'), findsOneWidget);
@@ -539,7 +539,7 @@ void main() {
       find.byKey(const Key('sales-report-admin-workspace-header')),
       findsOneWidget,
     );
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Ngày: Tất cả ngày'), findsOneWidget);
     expect(find.text('Loại: Tất cả'), findsOneWidget);
     expect(find.text('Xuất file'), findsOneWidget);

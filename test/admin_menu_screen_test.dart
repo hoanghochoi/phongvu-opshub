@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
-import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
+import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/features/admin/presentation/screens/admin_menu_screen.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
@@ -35,7 +35,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(Scaffold), findsNothing);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.byKey(const Key('admin-menu-header')), findsOneWidget);
     expect(find.text('Quản trị'), findsOneWidget);
     expect(find.text('1 chức năng khả dụng'), findsOneWidget);
@@ -63,7 +63,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(Scaffold), findsNothing);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.byKey(const Key('admin-menu-header')), findsOneWidget);
     expect(find.text('Chưa có chức năng khả dụng'), findsOneWidget);
     expect(find.text('Chưa có tính năng quản trị'), findsOneWidget);
@@ -92,7 +92,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(Scaffold), findsNothing);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('1 chức năng khả dụng'), findsOneWidget);
     expect(find.text('Danh mục nhân sự'), findsOneWidget);
     expect(find.text('Phòng ban và chức danh'), findsOneWidget);

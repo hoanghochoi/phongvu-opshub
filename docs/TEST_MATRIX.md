@@ -595,17 +595,19 @@ Recent focused evidence:
   test\payment_monitor_unsupported_screen_test.dart` (34 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
   (275 tests), and `flutter build web --no-pub`.
-- `UI-UX-001`, 2026-07-02: added a route migration guard that prevents exposed
-  feature screens from reusing the legacy `GradientHeader` shell after the
-  Redesign V2 migration. The guard keeps the retired
+- `UI-UX-001`, 2026-07-03: retired the legacy
+  `lib/app/widgets/gradient_header.dart` artifact after the AppShell migration.
+  The route migration guard now scans production `lib/` for any recreated
+  `GradientHeader` file/import/constructor instead of only checking exposed
+  feature screens. The guard keeps the retired
   `FifoCheckConversationScreen` out of `app_router.dart`, while
   `PersonnelCatalogAdminScreen` is now an approved runtime route at
   `/admin/personnel` guarded by `ADMIN_PERSONNEL`.
   Validation passed `dart format`, focused
   `flutter test --no-pub --reporter expanded
-  test\design_system_migration_guard_test.dart` (3 tests),
+  test\design_system_migration_guard_test.dart` (9 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
-  (276 tests), and `flutter build web --no-pub`.
+  (312 tests), and `git diff --check`.
 - `UI-UX-001`/`OFFSET-ADJUSTMENT-001`, 2026-07-02:
   `/offset-adjustments` now renders as a content-only workspace under
   `AppShell` instead of nesting a `GradientHeader`. It keeps the existing

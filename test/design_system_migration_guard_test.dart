@@ -76,16 +76,30 @@ void main() {
     expect(hits, isEmpty, reason: hits.join('\n'));
   });
 
-  test('exposed feature screens do not use legacy GradientHeader shells', () {
+  test('production UI does not keep legacy GradientHeader shells', () {
     final legacyHeaderPattern = RegExp(
       r"gradient_header\.dart|(?:\bGradientHeader\s*\()",
     );
     final hits = <String>[];
-    final files = Directory('lib/features')
+    final legacyHeaderFile = File(
+      [
+        'lib',
+        'app',
+        'widgets',
+        'gradient_header.dart',
+      ].join(Platform.pathSeparator),
+    );
+    final files = Directory('lib')
         .listSync(recursive: true)
         .whereType<File>()
         .where((file) => file.path.endsWith('.dart'));
 
+    expect(
+      legacyHeaderFile.existsSync(),
+      isFalse,
+      reason:
+          'GradientHeader should stay retired after the AppShell migration.',
+    );
     for (final file in files) {
       final normalizedPath = file.path.replaceAll(r'\', '/');
       final lines = file.readAsLinesSync();

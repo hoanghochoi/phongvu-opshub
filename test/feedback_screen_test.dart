@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
+import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/features/feedback/presentation/screens/feedback_screen.dart';
 
 void main() {
@@ -13,7 +13,7 @@ void main() {
     expect(find.byKey(const Key('feedback-header')), findsOneWidget);
     expect(find.byKey(const Key('feedback-form-card')), findsOneWidget);
     expect(find.byType(Scaffold), findsNothing);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Góp ý'), findsOneWidget);
     expect(find.text('Sẵn sàng gửi'), findsOneWidget);
     expect(find.text('0/20 ảnh'), findsOneWidget);

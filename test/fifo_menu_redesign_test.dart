@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
+import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
@@ -30,7 +30,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(Scaffold), findsNothing);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.byKey(const Key('fifo-menu-header')), findsOneWidget);
     expect(find.text('FIFO'), findsOneWidget);
     expect(find.text('4 tác vụ khả dụng'), findsOneWidget);
@@ -54,7 +54,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(Scaffold), findsNothing);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.byKey(const Key('fifo-menu-header')), findsOneWidget);
     expect(find.byKey(const Key('fifo-menu-empty-state')), findsOneWidget);
     expect(find.text('0 tác vụ khả dụng'), findsOneWidget);

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/theme/theme_provider.dart';
-import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
+import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/features/settings/data/startup_settings_service.dart';
 import 'package:phongvu_opshub/features/settings/presentation/screens/settings_screen.dart';
@@ -36,7 +36,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(Scaffold), findsNothing);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.byKey(const Key('settings-header')), findsOneWidget);
     expect(find.byKey(const Key('settings-theme-card')), findsOneWidget);
     expect(find.byKey(const Key('settings-startup-card')), findsOneWidget);

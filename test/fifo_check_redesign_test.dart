@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
+import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/fifo/data/repositories/fifo_repository.dart';
@@ -38,7 +38,7 @@ void main() {
     expect(find.text('Nhập SKU hoặc serial để kiểm tra FIFO'), findsOneWidget);
     expect(find.byTooltip('Quét mã'), findsOneWidget);
     expect(find.byTooltip('Tìm FIFO'), findsOneWidget);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.byType(Scaffold), findsNothing);
     expect(tester.takeException(), isNull);
   });

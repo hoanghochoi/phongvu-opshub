@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phongvu_opshub/app/widgets/gradient_header.dart';
+import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -64,7 +64,7 @@ void main() {
 
     expect(find.byKey(const Key('payment-monitor-header')), findsOneWidget);
     expect(find.byType(Scaffold), findsNothing);
-    expect(find.byType(GradientHeader), findsNothing);
+    expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Theo dõi tiền vào'), findsOneWidget);
     expect(find.text('Giao dịch tiền vào'), findsOneWidget);
     expect(find.text('Chỉ xem danh sách'), findsOneWidget);
