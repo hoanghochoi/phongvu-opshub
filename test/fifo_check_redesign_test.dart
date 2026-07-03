@@ -3,15 +3,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/storage/app_storage_keys.dart';
 import 'package:phongvu_opshub/features/fifo/data/repositories/fifo_repository.dart';
 import 'package:phongvu_opshub/features/fifo/domain/entities/fifo_check_result.dart';
 import 'package:phongvu_opshub/features/fifo/domain/entities/fifo_inventory_item.dart';
 import 'package:phongvu_opshub/features/fifo/presentation/providers/fifo_provider.dart';
 import 'package:phongvu_opshub/features/fifo/presentation/screens/fifo_check_screen.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     AppLogger.instance.setUploadsEnabledForTesting(false);
   });
 
@@ -74,6 +77,67 @@ void main() {
     expect(find.text('Đánh dấu xuất kho'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'FIFO check shows and reorders recent searches from local cache',
+    (tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      SharedPreferences.setMockInitialValues({
+        _recentSearchStorageKey: [
+          'sn-old',
+          '250403171',
+          'SN001',
+          'SN002',
+          'SN003',
+          'SN004',
+        ],
+      });
+      final repository = _FakeFifoRepository();
+
+      await tester.pumpWidget(_wrapFifoCheck(repository));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('fifo-check-recent-searches')), findsNothing);
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('fifo-check-recent-searches')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('fifo-check-recent-SN-OLD')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('fifo-check-recent-SN004')),
+        findsNothing,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('fifo-check-recent-250403171')),
+      );
+      await tester.pumpAndSettle();
+
+      final prefs = await SharedPreferences.getInstance();
+
+      expect(repository.lastText, '250403171');
+      expect(prefs.getStringList(_recentSearchStorageKey), [
+        '250403171',
+        'SN-OLD',
+        'SN001',
+        'SN002',
+        'SN003',
+      ]);
+      expect(find.text('Đúng FIFO. Lấy sản phẩm này.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 Widget _wrapFifoCheck(_FakeFifoRepository repository) {
@@ -142,4 +206,8 @@ const _fifoItem = FifoInventoryItem(
   count: 1,
   exported: false,
   isFifo: true,
+);
+
+final _recentSearchStorageKey = AppStorageKeys.shared(
+  'fifo_check_recent_searches',
 );

@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/logging/app_logger.dart';
+import '../../../../core/storage/app_storage_keys.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -24,14 +29,58 @@ class FifoCheckScreen extends StatefulWidget {
 }
 
 class _FifoCheckScreenState extends State<FifoCheckScreen> {
+  static const _recentSearchStorageKey = 'fifo_check_recent_searches';
+  static const _maxRecentSearches = 5;
+
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
+  List<String> _recentSearches = const [];
+  bool _showRecentSearches = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_handleFocusChange);
+    unawaited(_loadRecentSearches());
+  }
 
   @override
   void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _handleFocusChange() {
+    if (!mounted) return;
+    setState(() => _showRecentSearches = _focusNode.hasFocus);
+  }
+
+  Future<void> _loadRecentSearches() async {
+    await AppLogger.instance.info('FIFO', 'FIFO recent searches load started');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored =
+          prefs.getStringList(AppStorageKeys.shared(_recentSearchStorageKey)) ??
+          const [];
+      final recentSearches = _normalizeRecentSearches(stored);
+      if (mounted) {
+        setState(() => _recentSearches = recentSearches);
+      }
+      await AppLogger.instance.info(
+        'FIFO',
+        'FIFO recent searches load succeeded',
+        context: {'count': recentSearches.length},
+      );
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'FIFO',
+        'FIFO recent searches load failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   Future<void> _scan() async {
@@ -45,8 +94,72 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
     final query = _controller.text.trim();
     if (query.isEmpty) return;
     _focusNode.unfocus();
-    await context.read<FifoProvider>().check(query);
+    final provider = context.read<FifoProvider>();
+    await provider.check(query);
+    final hasError = provider.error != null;
     _showErrorIfNeeded();
+    if (!hasError) await _rememberRecentSearch(query);
+  }
+
+  Future<void> _selectRecentSearch(String query) async {
+    _controller.text = query;
+    _controller.selection = TextSelection.collapsed(offset: query.length);
+    await AppLogger.instance.info(
+      'FIFO',
+      'FIFO recent search selected',
+      context: {'queryLength': query.length},
+    );
+    await _search();
+  }
+
+  Future<void> _rememberRecentSearch(String rawQuery) async {
+    final query = _normalizeRecentSearch(rawQuery);
+    if (query.isEmpty) return;
+    final updated = _normalizeRecentSearches([query, ..._recentSearches]);
+    if (mounted) {
+      setState(() => _recentSearches = updated);
+    }
+    await AppLogger.instance.info(
+      'FIFO',
+      'FIFO recent searches save started',
+      context: {'count': updated.length, 'queryLength': query.length},
+    );
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        AppStorageKeys.shared(_recentSearchStorageKey),
+        updated,
+      );
+      await AppLogger.instance.info(
+        'FIFO',
+        'FIFO recent searches save succeeded',
+        context: {'count': updated.length},
+      );
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'FIFO',
+        'FIFO recent searches save failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {'count': updated.length},
+      );
+    }
+  }
+
+  List<String> _normalizeRecentSearches(Iterable<String> values) {
+    final seen = <String>{};
+    final normalized = <String>[];
+    for (final value in values) {
+      final query = _normalizeRecentSearch(value);
+      if (query.isEmpty || !seen.add(query)) continue;
+      normalized.add(query);
+      if (normalized.length == _maxRecentSearches) break;
+    }
+    return normalized;
+  }
+
+  String _normalizeRecentSearch(String value) {
+    return value.trim().toUpperCase();
   }
 
   void _showErrorIfNeeded() {
@@ -78,6 +191,9 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
                 onIncludeExportedChanged: provider.setIncludeExported,
                 onScan: _scan,
                 onSearch: _search,
+                recentSearches: _recentSearches,
+                showRecentSearches: _showRecentSearches,
+                onRecentSearchSelected: _selectRecentSearch,
               ),
               const SizedBox(height: AppLayoutTokens.sectionGap),
               Expanded(
@@ -235,6 +351,9 @@ class _FifoCommandCard extends StatelessWidget {
   final ValueChanged<bool> onIncludeExportedChanged;
   final VoidCallback onScan;
   final VoidCallback onSearch;
+  final List<String> recentSearches;
+  final bool showRecentSearches;
+  final ValueChanged<String> onRecentSearchSelected;
 
   const _FifoCommandCard({
     required this.controller,
@@ -244,6 +363,9 @@ class _FifoCommandCard extends StatelessWidget {
     required this.onIncludeExportedChanged,
     required this.onScan,
     required this.onSearch,
+    required this.recentSearches,
+    required this.showRecentSearches,
+    required this.onRecentSearchSelected,
   });
 
   @override
@@ -318,12 +440,24 @@ class _FifoCommandCard extends StatelessWidget {
               ),
             ],
           );
+          final recentSearchBar =
+              showRecentSearches && recentSearches.isNotEmpty
+              ? _RecentSearchChips(
+                  searches: recentSearches,
+                  enabled: !isLoading,
+                  onSelected: onRecentSearchSelected,
+                )
+              : const SizedBox.shrink();
 
           if (compact) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 input,
+                if (showRecentSearches && recentSearches.isNotEmpty) ...[
+                  const SizedBox(height: AppLayoutTokens.formFieldGap),
+                  recentSearchBar,
+                ],
                 const SizedBox(height: AppLayoutTokens.formFieldGap),
                 includeExportedToggle,
                 const SizedBox(height: AppLayoutTokens.formFieldGap),
@@ -343,6 +477,10 @@ class _FifoCommandCard extends StatelessWidget {
                   actions,
                 ],
               ),
+              if (showRecentSearches && recentSearches.isNotEmpty) ...[
+                const SizedBox(height: AppLayoutTokens.cardGap),
+                recentSearchBar,
+              ],
               const SizedBox(height: AppLayoutTokens.cardGap),
               Align(
                 alignment: Alignment.centerLeft,
@@ -351,6 +489,56 @@ class _FifoCommandCard extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _RecentSearchChips extends StatelessWidget {
+  final List<String> searches;
+  final bool enabled;
+  final ValueChanged<String> onSelected;
+
+  const _RecentSearchChips({
+    required this.searches,
+    required this.enabled,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      label: 'Tra cứu gần đây',
+      child: Wrap(
+        key: const Key('fifo-check-recent-searches'),
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            'Tra cứu gần đây',
+            style: AppTextStyles.labelS.copyWith(
+              color: AppColors.neutral600,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          for (final search in searches)
+            ActionChip(
+              key: ValueKey('fifo-check-recent-$search'),
+              avatar: const Icon(Icons.history_rounded, size: 16),
+              label: Text(search),
+              onPressed: enabled ? () => onSelected(search) : null,
+              backgroundColor: AppColors.primarySurface,
+              labelStyle: AppTextStyles.labelS.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w700,
+              ),
+              side: BorderSide(
+                color: AppColors.primary.withValues(alpha: 0.20),
+              ),
+            ),
+        ],
       ),
     );
   }

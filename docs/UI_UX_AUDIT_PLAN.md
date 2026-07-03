@@ -300,7 +300,7 @@ grid
 *   **Công việc:**
     1.  [x] Viết thêm animation chạy sáng (shimmer) cho widget `_SkeletonBlock` khi đang tải dữ liệu.
     2.  [x] Thiết kế lại selected highlight của Desktop Sidebar bằng thanh chỉ thị cạnh trái (left border indicator).
-    3.  Tích hợp lưu trữ local cache để lưu 5 từ khóa tra cứu gần nhất trong màn hình FIFO Check.
+    3.  [x] Tích hợp lưu trữ local cache để lưu 5 từ khóa tra cứu gần nhất trong màn hình FIFO Check.
 *   **Trạng thái:** Batch 3A hoàn thành ngày 03/07/2026 cho shared
     `AppListSkeleton`: shimmer gradient chạy theo animation và tôn trọng
     `MediaQuery.disableAnimations`. Validation: focused shared-widget test
@@ -309,6 +309,11 @@ grid
     indicator cạnh trái 4x28, giữ block menu trong suốt và thêm semantic
     selected. Validation: focused AppShell route test (3 tests),
     `flutter analyze --no-pub`, và full Flutter suite (318 tests).
+    Batch 3C hoàn thành cùng ngày cho FIFO Check: lưu tối đa 5 SKU/serial gần
+    nhất bằng local cache theo môi trường, chỉ hiện chip khi focus input và log
+    cache bằng count/queryLength đã sanitize. Validation: focused FIFO Check
+    test (3 tests), `flutter analyze --no-pub`, và full Flutter suite
+    (319 tests).
 *   **Rủi ro:** Thấp. Cần đảm bảo hiệu năng mượt mà của shimmer effect trên các dòng máy Android đời cũ.
 
 ---

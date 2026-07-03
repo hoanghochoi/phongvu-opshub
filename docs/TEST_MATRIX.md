@@ -45,6 +45,16 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`AUDIT-FIFO-RECENTS`, 2026-07-03: completed Phase 4C recent
+  search cache from `docs/UI_UX_AUDIT_PLAN.md`. FIFO Check now loads and saves
+  up to five normalized SKU/serial keywords in environment-namespaced local
+  storage, shows recent-search chips only while the input is focused, and
+  selecting a chip fills the field and runs the check. Cache load/save/selection
+  logs use counts and query lengths, not raw SKU/serial values. Validation:
+  changed-file `dart format --output=none --set-exit-if-changed`,
+  `git diff --check`, `flutter analyze --no-pub`, focused
+  `flutter test --no-pub --reporter expanded test\fifo_check_redesign_test.dart`
+  (3 tests), and full `flutter test --no-pub --reporter compact` (319 tests).
 - `UI-UX-001`/`AUDIT-SIDEBAR-INDICATOR`, 2026-07-03: completed Phase 4B
   sidebar selected-state polish from `docs/UI_UX_AUDIT_PLAN.md`. Desktop
   sidebar items now keep the menu block transparent and show selection with a
