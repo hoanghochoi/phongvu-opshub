@@ -37,6 +37,10 @@ receive status updates.
   supplied user/email field.
 - Warranty image uploads accept up to 20 image files per request. The Flutter
   picker caps the selected list to the same limit before submitting.
+- BH/SC uploads keep original selected/captured image files; the app must not
+  compress or resize these images before upload. The client pre-checks unreadable
+  or over-10MiB files and uses an adaptive upload timeout based on total selected
+  bytes so multi-image batches are not treated like a single-image request.
 - Changes to file paths, image URL construction, file size/type validation, or
   status event payloads require explicit proof.
 - `UPLOAD_BASE_DIR` must point to persistent storage in production.

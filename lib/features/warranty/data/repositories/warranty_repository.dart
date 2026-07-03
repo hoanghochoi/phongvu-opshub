@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -7,6 +8,10 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
+
+const int warrantyUploadMaxImageBytes = 10 * 1024 * 1024;
+const Duration warrantyUploadMinTimeout = Duration(seconds: 60);
+const Duration warrantyUploadMaxTimeout = Duration(minutes: 8);
 
 class WarrantyRepository {
   final ApiClient _apiClient;
@@ -21,6 +26,8 @@ class WarrantyRepository {
     required String receiptNumber,
     required List<File> images,
   }) async {
+    var totalBytes = 0;
+    var uploadTimeout = ApiConstants.uploadTimeout;
     try {
       await AppLogger.instance.info(
         'WarrantyUpload',
@@ -33,6 +40,22 @@ class WarrantyRepository {
       final List<http.MultipartFile> multipartFiles = [];
       for (int i = 0; i < images.length; i++) {
         final file = images[i];
+        final fileSize = await _warrantyImageSize(file, index: i);
+        totalBytes += fileSize;
+        if (fileSize > warrantyUploadMaxImageBytes) {
+          await AppLogger.instance.warn(
+            'WarrantyUpload',
+            'Warranty upload rejected oversized image',
+            context: {
+              'index': i,
+              'fileSize': fileSize,
+              'maxImageBytes': warrantyUploadMaxImageBytes,
+            },
+          );
+          throw ApiException(
+            'Có ảnh lớn hơn 10 MB. Vui lòng chọn lại ảnh nhỏ hơn.',
+          );
+        }
         final fileName = _lastPathSegment(file.path);
         final mimeType = warrantyMimeTypeFor(
           fileName: fileName,
@@ -54,12 +77,25 @@ class WarrantyRepository {
         );
         multipartFiles.add(multipartFile);
       }
+      uploadTimeout = warrantyUploadTimeoutFor(
+        totalBytes: totalBytes,
+        imageCount: images.length,
+      );
+      await AppLogger.instance.info(
+        'WarrantyUpload',
+        'Warranty upload request prepared',
+        context: {
+          'imageCount': images.length,
+          'imageTotalBytes': totalBytes,
+          'timeoutSeconds': uploadTimeout.inSeconds,
+        },
+      );
 
       final response = await _apiClient.postMultipart(
         ApiConstants.saveWarrantyEndpoint,
         fields: buildWarrantyMultipartFields(receiptNumber: receiptNumber),
         files: multipartFiles,
-        timeout: ApiConstants.uploadTimeout,
+        timeout: uploadTimeout,
       );
 
       if (kDebugMode) {
@@ -82,14 +118,23 @@ class WarrantyRepository {
       await AppLogger.instance.info(
         'WarrantyUpload',
         'Warranty upload succeeded',
-        context: {'imageCount': images.length},
+        context: {
+          'imageCount': images.length,
+          'imageTotalBytes': totalBytes,
+          'timeoutSeconds': uploadTimeout.inSeconds,
+        },
       );
       return responseData;
     } on ApiException catch (e) {
       await AppLogger.instance.warn(
         'WarrantyUpload',
         'Warranty upload rejected',
-        context: {'message': e.message, 'imageCount': images.length},
+        context: {
+          'message': e.message,
+          'imageCount': images.length,
+          'imageTotalBytes': totalBytes,
+          'timeoutSeconds': uploadTimeout.inSeconds,
+        },
       );
       rethrow;
     } catch (e) {
@@ -98,7 +143,11 @@ class WarrantyRepository {
         'Warranty upload failed',
         error: e,
         upload: true,
-        context: {'imageCount': images.length},
+        context: {
+          'imageCount': images.length,
+          'imageTotalBytes': totalBytes,
+          'timeoutSeconds': uploadTimeout.inSeconds,
+        },
       );
       throw ApiException('Chưa lưu được biên nhận. Vui lòng thử lại.');
     }
@@ -109,6 +158,26 @@ class WarrantyRepository {
     required String receiptNumber,
   }) {
     return {'receipt': receiptNumber.trim()};
+  }
+
+  @visibleForTesting
+  static Duration warrantyUploadTimeoutFor({
+    required int totalBytes,
+    required int imageCount,
+  }) {
+    const bytesPerSecondFloor = 512 * 1024;
+    final transferSeconds = (totalBytes / bytesPerSecondFloor).ceil();
+    final effectiveImageCount = math.max(imageCount, 1).toInt();
+    final overheadSeconds = 30 + (effectiveImageCount * 3);
+    final seconds = math
+        .max(
+          warrantyUploadMinTimeout.inSeconds,
+          transferSeconds + overheadSeconds,
+        )
+        .toInt();
+    return Duration(
+      seconds: math.min(seconds, warrantyUploadMaxTimeout.inSeconds).toInt(),
+    );
   }
 
   static String? warrantyMimeTypeFor({required String fileName, String? path}) {
@@ -123,6 +192,21 @@ class WarrantyRepository {
       'heif' => 'image/heif',
       _ => null,
     };
+  }
+
+  static Future<int> _warrantyImageSize(File file, {required int index}) async {
+    try {
+      return await file.length();
+    } on FileSystemException {
+      await AppLogger.instance.warn(
+        'WarrantyUpload',
+        'Warranty upload rejected unreadable image',
+        context: {'index': index},
+      );
+      throw ApiException(
+        'Có ảnh không còn mở được. Vui lòng xóa ảnh đó rồi chọn lại.',
+      );
+    }
   }
 
   static String _safeUploadFileName(

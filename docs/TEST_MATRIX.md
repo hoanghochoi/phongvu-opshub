@@ -658,6 +658,11 @@ Recent focused evidence:
   `flutter test --no-pub --reporter compact` (271 tests), and
   `flutter build web --no-pub`. Gap: physical camera upload and WebSocket
   status smoke remain follow-up work.
+- `WARRANTY-001`, 2026-07-03: BH/SC multi-image upload keeps original files
+  without compression, rejects unreadable/over-10MiB images before sending, and
+  scales the multipart timeout from 60s up to 8 minutes based on total selected
+  bytes. Upload controller/service tests now lock multi-file `images` handling,
+  same-receipt file writes, and semicolon-joined links.
 - `UI-UX-001`, 2026-07-03: Figma mobile shell parity follow-up audited the
   live `OpsHub Redesign System - 2026-06-30` file and fixed active mobile
   shell frames so they match the runtime `AppShell` viewport: `Mobile v2 /

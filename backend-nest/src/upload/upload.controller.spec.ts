@@ -18,11 +18,17 @@ describe('UploadController', () => {
   });
 
   it('saves uploaded warranty images and upserts the warranty record', async () => {
-    const files = [{ originalname: 'receipt.jpg' }] as Express.Multer.File[];
-    const links = ['https://img.example.com/receipt/0.jpg'];
+    const files = [
+      { originalname: 'receipt-1.jpg' },
+      { originalname: 'receipt-2.png' },
+    ] as Express.Multer.File[];
+    const links = [
+      'https://img.example.com/receipt/0.jpg',
+      'https://img.example.com/receipt/1.png',
+    ];
     uploadService.saveWarrantyImages.mockResolvedValue(links);
     uploadService.upsertWarrantyRecord.mockResolvedValue({ id: 'warranty-1' });
-    uploadService.getLinksString.mockReturnValue(links[0]);
+    uploadService.getLinksString.mockReturnValue(links.join(';'));
 
     await expect(
       controller.uploadWarrantyImages(
@@ -34,7 +40,7 @@ describe('UploadController', () => {
       status: 'success',
       receipt: 'CP01-J12345678',
       links,
-      links_str: links[0],
+      links_str: links.join(';'),
     });
     expect(uploadService.saveWarrantyImages).toHaveBeenCalledWith(
       'CP01-J12345678',
