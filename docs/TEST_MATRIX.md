@@ -655,6 +655,18 @@ Recent focused evidence:
   `flutter test --no-pub --reporter compact` (271 tests), and
   `flutter build web --no-pub`. Gap: physical camera upload and WebSocket
   status smoke remain follow-up work.
+- `UI-UX-001`, 2026-07-03: Figma mobile shell parity follow-up audited the
+  live `OpsHub Redesign System - 2026-06-30` file and fixed active mobile
+  shell frames so they match the runtime `AppShell` viewport: `Mobile v2 /
+  FIFO Menu` now has bottom nav active on `Tác vụ`, `Mobile v2 / Profile` has
+  bottom nav active on `Tài khoản`, and `Mobile v2 / Tasks Workspace` clips
+  its content frame. Figma QA confirmed all active mobile frames have content
+  y=`72`, height=`696`, bottom nav y=`768`, height=`76`; Profile/FIFO
+  screenshots render at 390x844 after the fix. Audit scope note: live Figma
+  currently exposes 21 active top-level frames across 7 complete
+  desktop/tablet/mobile screen groups, so broader visual parity remains
+  incomplete until the older documented runtime screens are rehydrated or
+  reverified in the file.
 - `UI-UX-001`/`WARRANTY-001`, 2026-07-03: route switching across shell
   workspaces now paints each route inside a full-size keyed `RepaintBoundary`
   and clipped canvas-colored viewport, and all authenticated shell routes use
