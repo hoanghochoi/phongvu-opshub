@@ -306,6 +306,9 @@ Audit 03/07/2026: các route nằm trong `AppShell` hiện không còn dùng
 `GradientHeader` riêng. Widget legacy `lib/app/widgets/gradient_header.dart`
 đã được gỡ khỏi production code; guard `design_system_migration_guard_test.dart`
 khóa cả việc tái tạo file/import/constructor `GradientHeader` trong `lib/`.
+Guard này cũng khóa `Scaffold` cục bộ trong `lib/features`, chỉ cho phép
+`AuthScreenShell` cho public auth routes và `BarcodeScannerScreen` cho scanner
+modal fullscreen.
 
 Decision follow-up 03/07/2026: `Generic Report Workspace` và
 `Personnel Catalog Admin` được mở contract. `Data Workspace` và
@@ -423,8 +426,8 @@ test\design_system_migration_guard_test.dart` (7 tests),
   Validation mới nhất: focused scanner + guard
   `flutter test --no-pub --reporter expanded
   test\barcode_scanner_screen_test.dart test\design_system_migration_guard_test.dart`
-  (23 tests), `flutter analyze --no-pub`, full
-  `flutter test --no-pub --reporter compact` (314 tests), và
+  (24 tests), `flutter analyze --no-pub`, full
+  `flutter test --no-pub --reporter compact` (315 tests), và
   `git diff --check`. Android staging smoke trên thiết bị `21081111RG`, Android
   14, với APK `2026.07.03.97+200097` đã xác nhận luồng xin quyền camera từ
   `granted=false` sang `granted=true`, preview render đúng khung quét và camera
@@ -807,12 +810,14 @@ test\design_system_migration_guard_test.dart` (7 tests),
   giữ file/import/constructor `GradientHeader` shell cũ. Guard xác nhận
   `FifoCheckConversationScreen` không nằm trong `app_router.dart`; riêng
   `PersonnelCatalogAdminScreen` đã được mở route thật `/admin/personnel` và
-  khóa bằng guard route `/admin/personnel` + feature `ADMIN_PERSONNEL`.
+  khóa bằng guard route `/admin/personnel` + feature `ADMIN_PERSONNEL`. Guard
+  cũng khóa feature routes không được lồng `Scaffold` cục bộ ngoài public auth
+  shell và scanner modal.
   Validation sau slice guard đã pass `dart format`,
   focused `flutter test --no-pub --reporter expanded
-  test\design_system_migration_guard_test.dart` (9 tests),
+  test\design_system_migration_guard_test.dart` (11 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
-  (312 tests), và `git diff --check`.
+  (315 tests), và `git diff --check`.
 - Lượt hợp nhất Batch 1-4 trên `staging` đã pass format cho 42 Dart files,
   `flutter analyze --no-pub`, 69 focused tests trên 18 test files, full
   `flutter test --no-pub --reporter compact` (262 tests), và

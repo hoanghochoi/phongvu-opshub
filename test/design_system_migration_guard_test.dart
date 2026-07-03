@@ -154,6 +154,39 @@ void main() {
     );
   });
 
+  test('feature routes do not nest local Scaffold shells', () {
+    const allowedScaffoldFiles = <String, String>{
+      'lib/features/auth/presentation/widgets/auth_screen_shell.dart':
+          'public auth shell outside AppShell',
+      'lib/features/fifo_check/presentation/widgets/barcode_scanner_screen.dart':
+          'fullscreen scanner modal outside AppShell',
+    };
+    final scaffoldPattern = RegExp(r'\bScaffold\s*\(');
+    final hits = <String>[];
+    final files = Directory('lib/features')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+
+    for (final file in files) {
+      final normalizedPath = file.path.replaceAll(r'\', '/');
+      final allowedReason = allowedScaffoldFiles[normalizedPath];
+      final lines = file.readAsLinesSync();
+      for (var index = 0; index < lines.length; index += 1) {
+        if (!scaffoldPattern.hasMatch(lines[index])) continue;
+        if (allowedReason != null) continue;
+        hits.add('$normalizedPath:${index + 1}');
+      }
+    }
+
+    expect(
+      hits,
+      isEmpty,
+      reason:
+          'Authenticated feature routes should render content-only under AppShell.',
+    );
+  });
+
   test('approved Figma route gaps are routed through runtime screens', () {
     final routerSource = File(
       [

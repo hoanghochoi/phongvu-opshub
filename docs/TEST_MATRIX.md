@@ -605,9 +605,9 @@ Recent focused evidence:
   `/admin/personnel` guarded by `ADMIN_PERSONNEL`.
   Validation passed `dart format`, focused
   `flutter test --no-pub --reporter expanded
-  test\design_system_migration_guard_test.dart` (9 tests),
+  test\design_system_migration_guard_test.dart` (11 tests),
   `flutter analyze --no-pub`, full `flutter test --no-pub --reporter compact`
-  (312 tests), and `git diff --check`.
+  (315 tests), and `git diff --check`.
 - `UI-UX-001`/`OFFSET-ADJUSTMENT-001`, 2026-07-02:
   `/offset-adjustments` now renders as a content-only workspace under
   `AppShell` instead of nesting a `GradientHeader`. It keeps the existing
@@ -1066,8 +1066,8 @@ Recent focused evidence:
   Validation: focused scanner + guard
   `flutter test --no-pub --reporter expanded
   test\barcode_scanner_screen_test.dart test\design_system_migration_guard_test.dart`
-  (23 tests), `flutter analyze --no-pub`,
-  `flutter test --no-pub --reporter compact` (314 tests), and
+  (24 tests), `flutter analyze --no-pub`,
+  `flutter test --no-pub --reporter compact` (315 tests), and
   `git diff --check`. Android
   staging smoke on device `21081111RG` (Android 14) with build
   `2026.07.03.97+200097` verified the runtime permission prompt, camera grant,
