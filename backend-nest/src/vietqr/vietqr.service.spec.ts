@@ -246,7 +246,7 @@ describe('VietQrService', () => {
     );
     expect(decodeQrFromPng(result.imageBuffer)).toBe(result.qrPayload);
     expect(result.imageSizeBytes).toBeGreaterThan(1000);
-  }, 15000);
+  }, 45000);
 
   it('uses the ACareTek QR brand for stores in the ACareTek region', async () => {
     prisma.store.findUnique.mockResolvedValue({

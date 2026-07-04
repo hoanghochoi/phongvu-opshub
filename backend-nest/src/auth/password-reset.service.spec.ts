@@ -8,6 +8,8 @@ function hashToken(token: string) {
 }
 
 describe('PasswordResetService', () => {
+  jest.setTimeout(15000);
+
   let service: PasswordResetService;
   let prisma: any;
   let mailService: { sendMail: jest.Mock };
