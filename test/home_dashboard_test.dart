@@ -65,10 +65,13 @@ void main() {
 
       expect(find.byKey(const Key('home-summary-page')), findsOneWidget);
       expect(find.byKey(const Key('home-summary-header')), findsOneWidget);
-      expect(find.byKey(const Key('home-summary-toolbar')), findsOneWidget);
+      expect(find.byKey(const Key('home-summary-toolbar')), findsNothing);
       expect(find.byKey(const Key('home-summary-grid')), findsOneWidget);
-      expect(find.byType(HomeSummaryDatePicker), findsOneWidget);
-      expect(find.byType(HomeSummaryRefreshButton), findsOneWidget);
+      expect(find.byKey(const Key('home-summary-date-picker')), findsOneWidget);
+      expect(
+        find.byKey(const Key('home-summary-refresh-button')),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const Key('home-summary-progress-panel')),
         findsOneWidget,
@@ -107,9 +110,8 @@ void main() {
           .where((child) => child is! SizedBox)
           .toList();
       expect(structuredChildren[0], isA<HomeSummaryHeader>());
-      expect(structuredChildren[1], isA<HomeSummaryToolbar>());
-      expect(structuredChildren[2], isA<SummaryCardGrid>());
-      expect(structuredChildren[3], isA<ReportProgressPanel>());
+      expect(structuredChildren[1], isA<SummaryCardGrid>());
+      expect(structuredChildren[2], isA<ReportProgressPanel>());
       expect(find.text('Trang chủ vận hành'), findsOneWidget);
       expect(find.text('Doanh số trong ngày'), findsOneWidget);
       expect(find.text('125.000.000 VND'), findsOneWidget);

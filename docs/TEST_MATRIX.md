@@ -45,6 +45,17 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`HEADER-ACTION-CONSOLIDATION`, 2026-07-04: Home no longer renders
+  a separate `HomeSummaryToolbar`; the scope selector, date picker, refresh
+  status, stale-data banner, and speaker status now live inside
+  `HomeSummaryHeader`. Sales Report admin also moves report type, date range,
+  reload, and export controls into the shared workspace header instead of a
+  standalone action card. Bank Statement and Offset Adjustment move their
+  list-level select/count/page controls into the page header while keeping
+  actual filter forms as separate work areas. Validation:
+  `flutter test --no-pub --reporter expanded test\home_dashboard_test.dart test\home_feedback_action_test.dart test\sales_report_hub_test.dart test\report_workspace_screen_test.dart`,
+  `flutter test --no-pub --reporter expanded test\bank_statement_screen_test.dart test\offset_adjustment_screen_redesign_test.dart`,
+  `flutter analyze --no-pub`, and `git diff --check`.
 - `HOME-DASHBOARD-001`/`SCOPE-DROPDOWN-SPEAKER-STATUS`, 2026-07-04: Home
   scope pill now opens a real selector, switches between `ALL` and `OWN`, and
   reloads `/home/summary` with the selected `scope`. Home no longer renders the

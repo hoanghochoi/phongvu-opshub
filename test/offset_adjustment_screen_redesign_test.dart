@@ -41,7 +41,7 @@ void main() {
       find.byKey(const Key('offset-adjustment-filter-card')),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('offset-adjustment-toolbar')), findsOneWidget);
+    expect(find.byKey(const Key('offset-adjustment-toolbar')), findsNothing);
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Yêu cầu xử lý'), findsOneWidget);
@@ -72,7 +72,7 @@ void main() {
       find.byKey(const Key('offset-adjustment-filter-card')),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('offset-adjustment-toolbar')), findsOneWidget);
+    expect(find.byKey(const Key('offset-adjustment-toolbar')), findsNothing);
     expect(find.text('Bộ lọc cấn trừ'), findsOneWidget);
     expect(find.text('Mã đơn'), findsNothing);
     expect(find.text('2607020001 -> 2607020002'), findsOneWidget);

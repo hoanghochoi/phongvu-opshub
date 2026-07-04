@@ -7,9 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
-import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
-import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/formatting/money_formatters.dart';
@@ -33,11 +31,6 @@ class HomeSummaryPage extends StatelessWidget {
       children: [
         HomeSummaryHeader(
           summary: summary,
-          selectedDate: provider.selectedDate,
-          action: headerAction,
-        ),
-        const SizedBox(height: AppLayoutTokens.cardGap),
-        HomeSummaryToolbar(
           selectedScope: provider.selectedScope,
           selectedScopeLabel: provider.selectedScopeLabel,
           scopeOptions: provider.scopeOptions,
@@ -53,9 +46,10 @@ class HomeSummaryPage extends StatelessWidget {
           warningMessage: provider.errorMessage != null && summary != null
               ? provider.errorMessage
               : null,
+          action: headerAction,
         ),
         const SizedBox(height: AppLayoutTokens.cardGap),
-        // Keep the metrics dashboard tree stable: header, toolbar, grid, progress.
+        // Keep the metrics dashboard tree stable: header, grid, progress.
         ...content,
       ],
     );
@@ -158,12 +152,28 @@ class HomeSummaryHeader extends StatelessWidget {
   const HomeSummaryHeader({
     super.key,
     required this.summary,
+    required this.selectedScope,
+    required this.selectedScopeLabel,
+    required this.scopeOptions,
     required this.selectedDate,
+    required this.isRefreshing,
+    required this.onScopeChanged,
+    required this.onPickDate,
+    required this.onRefresh,
+    required this.warningMessage,
     this.action,
   });
 
   final HomeSummary? summary;
+  final String selectedScope;
+  final String selectedScopeLabel;
+  final List<HomeSummaryScopeOption> scopeOptions;
   final DateTime selectedDate;
+  final bool isRefreshing;
+  final ValueChanged<String>? onScopeChanged;
+  final VoidCallback onPickDate;
+  final VoidCallback? onRefresh;
+  final String? warningMessage;
   final Widget? action;
 
   @override
@@ -193,108 +203,60 @@ class HomeSummaryHeader extends StatelessWidget {
               ),
             ],
           );
-          final chips = Wrap(
+          final controls = Wrap(
             spacing: 8,
             runSpacing: 8,
             alignment: compact ? WrapAlignment.start : WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              AppStatusChip(label: scopeLabel, color: scopeColor),
-              AppInfoChip(
-                Icons.calendar_today_outlined,
-                _dateLabel(selectedDate),
-                color: AppColors.neutral700,
+              _ScopeSelectorPill(
+                label: selectedScopeLabel.isEmpty
+                    ? scopeLabel
+                    : selectedScopeLabel,
+                selectedScope: selectedScope,
+                options: scopeOptions,
+                compact: false,
+                dense: true,
+                color: scopeColor,
+                onSelected: onScopeChanged,
               ),
-              AppInfoChip(
-                Icons.schedule_outlined,
-                updatedLabel,
-                color: AppColors.neutral700,
+              _HeaderActionPill(
+                key: const Key('home-summary-date-picker'),
+                icon: Icons.calendar_today_outlined,
+                label: _dateLabel(selectedDate),
+                tooltip: 'Chọn ngày xem dashboard',
+                onTap: onPickDate,
+              ),
+              _HeaderActionPill(
+                key: const Key('home-summary-refresh-button'),
+                icon: Icons.schedule_outlined,
+                label: updatedLabel,
+                tooltip: 'Làm mới dashboard',
+                isLoading: isRefreshing,
+                onTap: onRefresh,
               ),
               if (action != null) action!,
             ],
           );
 
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [titleBlock, const SizedBox(height: 12), chips],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(child: titleBlock),
-              const SizedBox(width: 20),
-              Flexible(child: chips),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class HomeSummaryToolbar extends StatelessWidget {
-  const HomeSummaryToolbar({
-    super.key,
-    required this.selectedScope,
-    required this.selectedScopeLabel,
-    required this.scopeOptions,
-    required this.selectedDate,
-    required this.isRefreshing,
-    required this.onScopeChanged,
-    required this.onPickDate,
-    required this.onRefresh,
-    required this.warningMessage,
-  });
-
-  final String selectedScope;
-  final String selectedScopeLabel;
-  final List<HomeSummaryScopeOption> scopeOptions;
-  final DateTime selectedDate;
-  final bool isRefreshing;
-  final ValueChanged<String>? onScopeChanged;
-  final VoidCallback onPickDate;
-  final VoidCallback? onRefresh;
-  final String? warningMessage;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      key: const Key('home-summary-toolbar'),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 700;
-          final buttons = [
-            _ScopeSelectorPill(
-              label: selectedScopeLabel,
-              selectedScope: selectedScope,
-              options: scopeOptions,
-              compact: compact,
-              onSelected: onScopeChanged,
-            ),
-            HomeSummaryDatePicker(
-              selectedDate: selectedDate,
-              compact: compact,
-              onPressed: onPickDate,
-            ),
-            HomeSummaryRefreshButton(
-              compact: compact,
-              isRefreshing: isRefreshing,
-              onPressed: onRefresh,
-            ),
-          ];
+          final headerRow = compact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [titleBlock, const SizedBox(height: 12), controls],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: titleBlock),
+                    const SizedBox(width: 20),
+                    Flexible(child: controls),
+                  ],
+                );
 
           return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              compact
-                  ? AppActionRow(
-                      desktopAlignment: MainAxisAlignment.start,
-                      children: buttons,
-                    )
-                  : Wrap(spacing: 12, runSpacing: 12, children: buttons),
+              headerRow,
               if (warningMessage != null) ...[
                 const SizedBox(height: 12),
                 AppStatusBanner(
@@ -318,6 +280,8 @@ class _ScopeSelectorPill extends StatelessWidget {
     required this.selectedScope,
     required this.options,
     required this.compact,
+    this.dense = false,
+    this.color,
     required this.onSelected,
   });
 
@@ -325,48 +289,73 @@ class _ScopeSelectorPill extends StatelessWidget {
   final String selectedScope;
   final List<HomeSummaryScopeOption> options;
   final bool compact;
+  final bool dense;
+  final Color? color;
   final ValueChanged<String>? onSelected;
 
   @override
   Widget build(BuildContext context) {
     final canSelect = options.length > 1 && onSelected != null;
+    final effectiveColor = color ?? AppColors.primaryOf(context);
     final content = Container(
       key: const Key('home-summary-scope-pill'),
       constraints: BoxConstraints(
-        minHeight: 40,
-        maxWidth: compact ? double.infinity : 220,
+        minHeight: dense ? 30 : 40,
+        maxWidth: compact
+            ? double.infinity
+            : dense
+            ? 180
+            : 220,
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? 9 : 14,
+        vertical: dense ? 5 : 9,
+      ),
       decoration: BoxDecoration(
-        color: AppColors.primarySurfaceOf(context),
+        color: effectiveColor.withValues(alpha: 0.08),
         borderRadius: AppRadius.allSm,
-        border: Border.all(color: AppColors.borderOf(context)),
+        border: dense ? null : Border.all(color: AppColors.borderOf(context)),
       ),
       child: Row(
         mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
         children: [
           Icon(
             Icons.public_rounded,
-            size: 18,
-            color: AppColors.primaryOf(context),
+            size: dense ? 14 : 18,
+            color: effectiveColor,
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.labelS.copyWith(
-                color: AppColors.primaryOf(context),
+          SizedBox(width: dense ? 5 : 8),
+          if (compact)
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.labelS.copyWith(
+                  color: effectiveColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            )
+          else
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: dense ? 112 : 160),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.labelS.copyWith(
+                  color: effectiveColor,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-          ),
           if (canSelect) ...[
-            const SizedBox(width: 8),
+            SizedBox(width: dense ? 5 : 8),
             Icon(
               Icons.keyboard_arrow_down_rounded,
-              size: 18,
-              color: AppColors.primaryOf(context),
+              size: dense ? 16 : 18,
+              color: effectiveColor,
             ),
           ],
         ],
@@ -405,56 +394,81 @@ class _ScopeSelectorPill extends StatelessWidget {
         : content;
 
     if (compact) return child;
+    if (dense) {
+      return ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 180),
+        child: child,
+      );
+    }
     return SizedBox(width: 220, child: child);
   }
 }
 
-class HomeSummaryDatePicker extends StatelessWidget {
-  const HomeSummaryDatePicker({
+class _HeaderActionPill extends StatelessWidget {
+  const _HeaderActionPill({
     super.key,
-    required this.selectedDate,
-    required this.compact,
-    required this.onPressed,
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    required this.onTap,
+    this.isLoading = false,
   });
 
-  final DateTime selectedDate;
-  final bool compact;
-  final VoidCallback onPressed;
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
-    return AppSecondaryButton(
-      key: const Key('home-summary-date-picker'),
-      onPressed: onPressed,
-      icon: Icons.calendar_month_rounded,
-      label: _dateLabel(selectedDate),
-      expand: compact,
-    );
-  }
-}
-
-class HomeSummaryRefreshButton extends StatelessWidget {
-  const HomeSummaryRefreshButton({
-    super.key,
-    required this.compact,
-    required this.isRefreshing,
-    required this.onPressed,
-  });
-
-  final bool compact;
-  final bool isRefreshing;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSecondaryButton(
-      key: const Key('home-summary-refresh-button'),
-      onPressed: onPressed,
-      icon: Icons.refresh_rounded,
-      label: 'Làm mới',
-      isLoading: isRefreshing,
-      loadingLabel: 'Đang tải',
-      expand: compact,
+    final enabled = onTap != null && !isLoading;
+    final color = enabled
+        ? AppColors.neutral700
+        : AppColors.textMutedOf(context);
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: AppColors.transparent,
+        borderRadius: AppRadius.allSm,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: AppRadius.allSm,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 30),
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppColors.chipBackground,
+              borderRadius: AppRadius.allSm,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox.square(
+                  dimension: 14,
+                  child: isLoading
+                      ? CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primaryOf(context),
+                        )
+                      : Icon(icon, size: 14, color: color),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  isLoading ? 'Đang tải' : label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: AppTextStyles.labelS.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

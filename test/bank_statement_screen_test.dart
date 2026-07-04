@@ -72,8 +72,8 @@ void main() {
 
     final header = find.byKey(const Key('bank-statement-header'));
     expect(header, findsOneWidget);
-    expect(tester.getSize(header).height, lessThan(120));
-    expect(find.byKey(const Key('bank-statement-toolbar')), findsOneWidget);
+    expect(tester.getSize(header).height, lessThan(170));
+    expect(find.byKey(const Key('bank-statement-toolbar')), findsNothing);
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Giao dịch cần rà soát'), findsOneWidget);

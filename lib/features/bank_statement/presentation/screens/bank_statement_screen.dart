@@ -114,12 +114,6 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
                 tone: AppStateTone.info,
               ),
             ],
-            const SizedBox(height: 12),
-            AppSurfaceCard(
-              key: const Key('bank-statement-toolbar'),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: _StatementToolbar(provider: provider),
-            ),
             if (provider.isLoading && provider.transactions.isNotEmpty) ...[
               const SizedBox(height: 10),
               const LinearProgressIndicator(),
@@ -206,6 +200,52 @@ class _StatementHeader extends StatelessWidget {
         ? 'Sẵn sàng tìm'
         : 'Chọn 1 bộ lọc chính';
     final pendingCount = provider.pendingOrderTransferUnreadCount;
+    final titleBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Giao dịch cần rà soát', style: AppTextStyles.headingS),
+        const SizedBox(height: AppLayoutTokens.cardGap),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            AppStatusChip(
+              label: scopeLabel,
+              color: AppColors.info,
+              backgroundColor: AppColors.infoSurface,
+            ),
+            AppStatusChip(
+              label: '${provider.total} giao dịch',
+              color: AppColors.neutral700,
+              backgroundColor: AppColors.neutral100,
+            ),
+            AppStatusChip(
+              label: '${provider.selectedIds.length} đã chọn',
+              color: AppColors.success,
+              backgroundColor: AppColors.successSurface,
+            ),
+            AppStatusChip(
+              label: pendingCount > 0
+                  ? '$pendingCount chờ Kế toán'
+                  : 'Không có yêu cầu mới',
+              color: pendingCount > 0
+                  ? AppColors.warning
+                  : AppColors.neutral700,
+              backgroundColor: pendingCount > 0
+                  ? AppColors.warningSurface
+                  : AppColors.neutral100,
+            ),
+            AppStatusChip(
+              label: filterLabel,
+              color: provider.canSearch ? AppColors.primary : AppColors.warning,
+              backgroundColor: provider.canSearch
+                  ? AppColors.primarySurface
+                  : AppColors.warningSurface,
+            ),
+          ],
+        ),
+      ],
+    );
 
     return DecoratedBox(
       key: const Key('bank-statement-header'),
@@ -214,77 +254,132 @@ class _StatementHeader extends StatelessWidget {
           bottom: BorderSide(color: AppColors.subtleBorderOf(context)),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.infoSurface,
-                borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 900;
+          final leading = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.infoSurface,
+                  borderRadius: BorderRadius.circular(
+                    AppLayoutTokens.cardRadius,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.receipt_long_rounded,
+                  color: AppColors.info,
+                ),
               ),
-              child: const Icon(
-                Icons.receipt_long_rounded,
-                color: AppColors.info,
-              ),
-            ),
-            const SizedBox(width: AppLayoutTokens.formInlineGap),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Giao dịch cần rà soát', style: AppTextStyles.headingS),
-                  const SizedBox(height: AppLayoutTokens.cardGap),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              Expanded(child: titleBlock),
+            ],
+          );
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: compact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      AppStatusChip(
-                        label: scopeLabel,
-                        color: AppColors.info,
-                        backgroundColor: AppColors.infoSurface,
+                      leading,
+                      const SizedBox(height: 10),
+                      _StatementHeaderControls(
+                        provider: provider,
+                        compact: true,
                       ),
-                      AppStatusChip(
-                        label: '${provider.total} giao dịch',
-                        color: AppColors.neutral700,
-                        backgroundColor: AppColors.neutral100,
-                      ),
-                      AppStatusChip(
-                        label: '${provider.selectedIds.length} đã chọn',
-                        color: AppColors.success,
-                        backgroundColor: AppColors.successSurface,
-                      ),
-                      AppStatusChip(
-                        label: pendingCount > 0
-                            ? '$pendingCount chờ Kế toán'
-                            : 'Không có yêu cầu mới',
-                        color: pendingCount > 0
-                            ? AppColors.warning
-                            : AppColors.neutral700,
-                        backgroundColor: pendingCount > 0
-                            ? AppColors.warningSurface
-                            : AppColors.neutral100,
-                      ),
-                      AppStatusChip(
-                        label: filterLabel,
-                        color: provider.canSearch
-                            ? AppColors.primary
-                            : AppColors.warning,
-                        backgroundColor: provider.canSearch
-                            ? AppColors.primarySurface
-                            : AppColors.warningSurface,
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: leading),
+                      const SizedBox(width: AppLayoutTokens.formInlineGap),
+                      _StatementHeaderControls(
+                        provider: provider,
+                        compact: false,
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
+    );
+  }
+}
+
+class _StatementHeaderControls extends StatelessWidget {
+  final BankStatementProvider provider;
+  final bool compact;
+
+  const _StatementHeaderControls({
+    required this.provider,
+    required this.compact,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selectControl = Row(
+      mainAxisSize: MainAxisSize.max,
+      children: [
+        Checkbox(
+          value: provider.allVisibleSelected,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          onChanged: provider.transactions.isEmpty
+              ? null
+              : (value) => provider.toggleAllVisible(value == true),
+        ),
+        Expanded(
+          child: Text(
+            '${provider.selectedIds.length} chọn / ${provider.total} giao dịch',
+            style: AppTextStyles.labelM,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+    final pageControl = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Trang trước',
+          visualDensity: VisualDensity.compact,
+          onPressed: provider.canGoPrevious ? provider.previousPage : null,
+          icon: const Icon(Icons.chevron_left_rounded),
+        ),
+        Text('Trang ${provider.page + 1}'),
+        IconButton(
+          tooltip: 'Trang sau',
+          visualDensity: VisualDensity.compact,
+          onPressed: provider.canGoNext ? provider.nextPage : null,
+          icon: const Icon(Icons.chevron_right_rounded),
+        ),
+      ],
+    );
+
+    return Material(
+      color: AppColors.transparent,
+      child: compact
+          ? Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(width: 220, child: selectControl),
+                pageControl,
+              ],
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(width: 220, child: selectControl),
+                const SizedBox(width: 8),
+                pageControl,
+              ],
+            ),
     );
   }
 }
@@ -640,93 +735,6 @@ class _FilterActionButtons extends StatelessWidget {
         const SizedBox(width: _filterGap),
         Expanded(child: _ExportButton(provider: provider)),
       ],
-    );
-  }
-}
-
-class _StatementToolbar extends StatelessWidget {
-  final BankStatementProvider provider;
-
-  const _StatementToolbar({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < _localBreakpoint;
-
-        if (isMobile) {
-          return Column(
-            children: [
-              Row(
-                children: [
-                  Checkbox(
-                    value: provider.allVisibleSelected,
-                    onChanged: provider.transactions.isEmpty
-                        ? null
-                        : (value) => provider.toggleAllVisible(value == true),
-                  ),
-                  Expanded(
-                    child: Text(
-                      '${provider.selectedIds.length} chọn / ${provider.total} giao dịch',
-                      style: AppTextStyles.labelM,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    tooltip: 'Trang trước',
-                    onPressed: provider.canGoPrevious
-                        ? provider.previousPage
-                        : null,
-                    icon: const Icon(Icons.chevron_left_rounded),
-                  ),
-                  const SizedBox(width: 8),
-                  Text('Trang ${provider.page + 1}'),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: 'Trang sau',
-                    onPressed: provider.canGoNext ? provider.nextPage : null,
-                    icon: const Icon(Icons.chevron_right_rounded),
-                  ),
-                ],
-              ),
-            ],
-          );
-        }
-
-        return Row(
-          children: [
-            Checkbox(
-              value: provider.allVisibleSelected,
-              onChanged: provider.transactions.isEmpty
-                  ? null
-                  : (value) => provider.toggleAllVisible(value == true),
-            ),
-            Text(
-              '${provider.selectedIds.length} chọn / ${provider.total} giao dịch',
-              style: AppTextStyles.labelM,
-            ),
-            const Spacer(),
-            IconButton(
-              tooltip: 'Trang trước',
-              onPressed: provider.canGoPrevious ? provider.previousPage : null,
-              icon: const Icon(Icons.chevron_left_rounded),
-            ),
-            Text('Trang ${provider.page + 1}'),
-            IconButton(
-              tooltip: 'Trang sau',
-              onPressed: provider.canGoNext ? provider.nextPage : null,
-              icon: const Icon(Icons.chevron_right_rounded),
-            ),
-          ],
-        );
-      },
     );
   }
 }

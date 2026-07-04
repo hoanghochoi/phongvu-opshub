@@ -11,6 +11,7 @@ class SalesReportWorkspaceHeader extends StatelessWidget {
   final String subtitle;
   final IconData icon;
   final List<Widget> chips;
+  final List<Widget> actions;
 
   const SalesReportWorkspaceHeader({
     super.key,
@@ -18,6 +19,7 @@ class SalesReportWorkspaceHeader extends StatelessWidget {
     required this.subtitle,
     required this.icon,
     this.chips = const [],
+    this.actions = const [],
   });
 
   @override
@@ -73,11 +75,28 @@ class SalesReportWorkspaceHeader extends StatelessWidget {
               ],
             ],
           );
+          final actionBlock = actions.isEmpty
+              ? null
+              : Wrap(
+                  spacing: AppLayoutTokens.formInlineGap,
+                  runSpacing: AppLayoutTokens.formInlineGap,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  alignment: compact ? WrapAlignment.start : WrapAlignment.end,
+                  children: actions,
+                );
 
           if (compact) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [leading, const SizedBox(height: 12), titleBlock],
+              children: [
+                leading,
+                const SizedBox(height: 12),
+                titleBlock,
+                if (actionBlock != null) ...[
+                  const SizedBox(height: 12),
+                  actionBlock,
+                ],
+              ],
             );
           }
 
@@ -87,6 +106,10 @@ class SalesReportWorkspaceHeader extends StatelessWidget {
               leading,
               const SizedBox(width: 16),
               Expanded(child: titleBlock),
+              if (actionBlock != null) ...[
+                const SizedBox(width: 16),
+                Flexible(child: actionBlock),
+              ],
             ],
           );
         },

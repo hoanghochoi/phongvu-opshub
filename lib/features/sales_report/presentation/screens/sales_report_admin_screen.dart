@@ -102,64 +102,44 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
                 color: AppColors.success,
               ),
             ],
-          ),
-          const SizedBox(height: AppLayoutTokens.cardGap),
-          AppSurfaceCard(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                const gap = AppLayoutTokens.formInlineGap;
-                final columns = constraints.maxWidth >= 920
-                    ? 4
-                    : constraints.maxWidth >= 680
-                    ? 2
-                    : 1;
-                final fieldWidth =
-                    (constraints.maxWidth - (gap * (columns - 1))) / columns;
-                return Wrap(
-                  spacing: gap,
-                  runSpacing: gap,
-                  crossAxisAlignment: WrapCrossAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: fieldWidth,
-                      child: _ReportTypeFilter(
-                        value: _reportType,
-                        enabled: !provider.isLoadingAdminList,
-                        onChanged: (value) {
-                          setState(() => _reportType = value);
-                          unawaited(_reload());
-                        },
-                      ),
-                    ),
-                    SizedBox(
-                      width: fieldWidth,
-                      child: AppDateRangeDropdown(
-                        label: 'Ngày',
-                        start: _startDate,
-                        end: _endDate,
-                        onChanged: _setDateRange,
-                      ),
-                    ),
-                    SizedBox(
-                      width: fieldWidth,
-                      child: AppSecondaryButton(
-                        onPressed: provider.isLoadingAdminList ? null : _reload,
-                        icon: Icons.refresh_rounded,
-                        label: 'Tải lại',
-                        isLoading: provider.isLoadingAdminList,
-                      ),
-                    ),
-                    SizedBox(
-                      width: fieldWidth,
-                      child: SalesReportExportMenuButton(
-                        isExporting: provider.isExporting,
-                        onExport: _export,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
+            actions: [
+              SizedBox(
+                width: 168,
+                child: _ReportTypeFilter(
+                  value: _reportType,
+                  enabled: !provider.isLoadingAdminList,
+                  onChanged: (value) {
+                    setState(() => _reportType = value);
+                    unawaited(_reload());
+                  },
+                ),
+              ),
+              SizedBox(
+                width: 220,
+                child: AppDateRangeDropdown(
+                  label: 'Ngày',
+                  start: _startDate,
+                  end: _endDate,
+                  onChanged: _setDateRange,
+                ),
+              ),
+              SizedBox(
+                width: 120,
+                child: AppSecondaryButton(
+                  onPressed: provider.isLoadingAdminList ? null : _reload,
+                  icon: Icons.refresh_rounded,
+                  label: 'Tải lại',
+                  isLoading: provider.isLoadingAdminList,
+                ),
+              ),
+              SizedBox(
+                width: 132,
+                child: SalesReportExportMenuButton(
+                  isExporting: provider.isExporting,
+                  onExport: _export,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppLayoutTokens.cardGap),
           if (provider.errorMessage != null)

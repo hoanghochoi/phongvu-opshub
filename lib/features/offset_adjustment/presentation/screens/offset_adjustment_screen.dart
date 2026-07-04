@@ -102,12 +102,6 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
             tone: AppStateTone.success,
           ),
         ],
-        const SizedBox(height: 10),
-        AppSurfaceCard(
-          key: const Key('offset-adjustment-toolbar'),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: _ListToolbar(provider: provider),
-        ),
         if (provider.isLoading && provider.items.isNotEmpty) ...[
           const SizedBox(height: 10),
           const LinearProgressIndicator(),
@@ -323,77 +317,131 @@ class _OffsetHeader extends StatelessWidget {
           bottom: BorderSide(color: AppColors.subtleBorderOf(context)),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.selected,
-                borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-              ),
-              child: const Icon(
-                Icons.swap_horiz_rounded,
-                color: AppColors.teal600,
-              ),
-            ),
-            const SizedBox(width: AppLayoutTokens.formInlineGap),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 680;
+          final titleBlock = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Yêu cầu xử lý', style: AppTextStyles.headingS),
+              const SizedBox(height: AppLayoutTokens.cardGap),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Text('Yêu cầu xử lý', style: AppTextStyles.headingS),
-                  const SizedBox(height: AppLayoutTokens.cardGap),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      AppStatusChip(
-                        label: scopeLabel,
-                        color: AppColors.teal600,
-                        backgroundColor: AppColors.selected,
-                      ),
-                      AppStatusChip(
-                        label: statusLabel,
-                        color: AppColors.neutral700,
-                        backgroundColor: AppColors.neutral100,
-                      ),
-                      AppStatusChip(
-                        label: pendingLabel,
-                        color: provider.canReview && provider.pendingTotal > 0
-                            ? AppColors.warning
-                            : AppColors.primary,
-                        backgroundColor:
-                            provider.canReview && provider.pendingTotal > 0
-                            ? AppColors.warningSurface
-                            : AppColors.primarySurface,
-                      ),
-                      AppStatusChip(
-                        label: filterStatusLabel,
-                        color: provider.status == OffsetAdjustmentStatus.pending
-                            ? AppColors.warning
-                            : AppColors.neutral700,
-                        backgroundColor: provider.status == 'ALL'
-                            ? AppColors.neutral100
-                            : AppColors.warningSurface,
-                      ),
-                    ],
+                  AppStatusChip(
+                    label: scopeLabel,
+                    color: AppColors.teal600,
+                    backgroundColor: AppColors.selected,
+                  ),
+                  AppStatusChip(
+                    label: statusLabel,
+                    color: AppColors.neutral700,
+                    backgroundColor: AppColors.neutral100,
+                  ),
+                  AppStatusChip(
+                    label: pendingLabel,
+                    color: provider.canReview && provider.pendingTotal > 0
+                        ? AppColors.warning
+                        : AppColors.primary,
+                    backgroundColor:
+                        provider.canReview && provider.pendingTotal > 0
+                        ? AppColors.warningSurface
+                        : AppColors.primarySurface,
+                  ),
+                  AppStatusChip(
+                    label: filterStatusLabel,
+                    color: provider.status == OffsetAdjustmentStatus.pending
+                        ? AppColors.warning
+                        : AppColors.neutral700,
+                    backgroundColor: provider.status == 'ALL'
+                        ? AppColors.neutral100
+                        : AppColors.warningSurface,
                   ),
                 ],
               ),
-            ),
-            const SizedBox(width: AppLayoutTokens.formInlineGap),
-            IconButton.filledTonal(
-              tooltip: 'Tải lại',
-              onPressed: onRefresh,
-              icon: const Icon(Icons.refresh_rounded),
-            ),
-          ],
-        ),
+            ],
+          );
+          final titleRow = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.selected,
+                  borderRadius: BorderRadius.circular(
+                    AppLayoutTokens.cardRadius,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.swap_horiz_rounded,
+                  color: AppColors.teal600,
+                ),
+              ),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              Expanded(child: titleBlock),
+            ],
+          );
+          final controls = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            alignment: compact ? WrapAlignment.start : WrapAlignment.end,
+            children: [
+              IconButton.filledTonal(
+                tooltip: 'Tải lại',
+                onPressed: onRefresh,
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+              _OffsetHeaderPagination(provider: provider),
+            ],
+          );
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: compact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [titleRow, const SizedBox(height: 10), controls],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: titleRow),
+                      const SizedBox(width: AppLayoutTokens.formInlineGap),
+                      Flexible(child: controls),
+                    ],
+                  ),
+          );
+        },
       ),
+    );
+  }
+}
+
+class _OffsetHeaderPagination extends StatelessWidget {
+  final OffsetAdjustmentProvider provider;
+
+  const _OffsetHeaderPagination({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Trang trước',
+          onPressed: provider.canGoPrevious ? provider.previousPage : null,
+          icon: const Icon(Icons.chevron_left_rounded),
+        ),
+        Text('${provider.page + 1}'),
+        IconButton(
+          tooltip: 'Trang sau',
+          onPressed: provider.canGoNext ? provider.nextPage : null,
+          icon: const Icon(Icons.chevron_right_rounded),
+        ),
+      ],
     );
   }
 }
@@ -717,47 +765,6 @@ class _FilterActions extends StatelessWidget {
         ),
         const SizedBox(width: AppLayoutTokens.formInlineGap),
         Expanded(child: _ExportMenuButton(provider: provider)),
-      ],
-    );
-  }
-}
-
-class _ListToolbar extends StatelessWidget {
-  final OffsetAdjustmentProvider provider;
-
-  const _ListToolbar({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      alignment: WrapAlignment.spaceBetween,
-      children: [
-        SizedBox(
-          width: 220,
-          child: Text(
-            '${provider.items.length} / ${provider.total} hồ sơ',
-            style: AppTextStyles.labelM,
-          ),
-        ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              tooltip: 'Trang trước',
-              onPressed: provider.canGoPrevious ? provider.previousPage : null,
-              icon: const Icon(Icons.chevron_left_rounded),
-            ),
-            Text('${provider.page + 1}'),
-            IconButton(
-              tooltip: 'Trang sau',
-              onPressed: provider.canGoNext ? provider.nextPage : null,
-              icon: const Icon(Icons.chevron_right_rounded),
-            ),
-          ],
-        ),
       ],
     );
   }
