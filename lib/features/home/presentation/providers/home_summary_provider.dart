@@ -21,8 +21,35 @@ class HomeSummaryScopeFilters {
 class HomeSummaryScopeOption {
   final String value;
   final String label;
+  final String requestScope;
+  final String? organizationNodeId;
+  final String? organizationNodeType;
+  final int? storeCount;
+  final bool isDefault;
 
-  const HomeSummaryScopeOption({required this.value, required this.label});
+  const HomeSummaryScopeOption({
+    required this.value,
+    required this.label,
+    this.requestScope = HomeSummaryScopeFilters.auto,
+    this.organizationNodeId,
+    this.organizationNodeType,
+    this.storeCount,
+    this.isDefault = false,
+  });
+
+  bool get isNodeScope => organizationNodeId?.trim().isNotEmpty == true;
+
+  factory HomeSummaryScopeOption.fromDto(HomeSummaryScopeOptionDto dto) {
+    return HomeSummaryScopeOption(
+      value: dto.value,
+      label: dto.label,
+      requestScope: dto.scope,
+      organizationNodeId: dto.organizationNodeId,
+      organizationNodeType: dto.organizationNodeType,
+      storeCount: dto.storeCount,
+      isDefault: dto.isDefault,
+    );
+  }
 }
 
 class HomeSummaryProvider extends ChangeNotifier {
@@ -36,6 +63,7 @@ class HomeSummaryProvider extends ChangeNotifier {
   HomeSummary? _summary;
   DateTime _selectedDate = _normalizeDate(DateTime.now());
   String _selectedScope = HomeSummaryScopeFilters.auto;
+  List<HomeSummaryScopeOption> _scopeOptions = const [];
   bool _isLoading = false;
   bool _isRefreshing = false;
   String? _errorMessage;
@@ -51,7 +79,14 @@ class HomeSummaryProvider extends ChangeNotifier {
   bool get canRefresh => !_isLoading && !_isRefreshing && _user != null;
   String? get errorMessage => _errorMessage;
   List<HomeSummaryScopeOption> get scopeOptions {
-    final user = _user;
+    if (_scopeOptions.isNotEmpty) return _scopeOptions;
+    return _fallbackScopeOptions(_user, _summary);
+  }
+
+  static List<HomeSummaryScopeOption> _fallbackScopeOptions(
+    User? user,
+    HomeSummary? summary,
+  ) {
     final options = <HomeSummaryScopeOption>[];
 
     if (user?.isSuperAdmin == true) {
@@ -59,6 +94,7 @@ class HomeSummaryProvider extends ChangeNotifier {
         const HomeSummaryScopeOption(
           value: HomeSummaryScopeFilters.all,
           label: 'Toàn hệ thống',
+          requestScope: HomeSummaryScopeFilters.all,
         ),
       );
     } else if (user?.canUseFeature('ADMIN_SALES_REPORTS') == true) {
@@ -66,25 +102,28 @@ class HomeSummaryProvider extends ChangeNotifier {
         const HomeSummaryScopeOption(
           value: HomeSummaryScopeFilters.managed,
           label: 'Showroom được gán',
+          requestScope: HomeSummaryScopeFilters.managed,
         ),
       );
     }
 
     if (user?.canUseFeature('SALES_REPORT') == true ||
-        _summary?.scope == HomeSummaryScopeFilters.own) {
+        summary?.scope == HomeSummaryScopeFilters.own) {
       options.add(
         const HomeSummaryScopeOption(
           value: HomeSummaryScopeFilters.own,
           label: 'Phạm vi cá nhân',
+          requestScope: HomeSummaryScopeFilters.own,
         ),
       );
     }
 
-    if (options.isEmpty && _summary != null) {
+    if (options.isEmpty && summary != null) {
       options.add(
         HomeSummaryScopeOption(
-          value: _summary!.scope,
-          label: _summary!.resolvedScopeLabel,
+          value: summary.scope,
+          label: summary.resolvedScopeLabel,
+          requestScope: summary.scope,
         ),
       );
     }
@@ -117,10 +156,12 @@ class HomeSummaryProvider extends ChangeNotifier {
 
     if (!isInitialized || user == null) {
       if (_summary != null ||
+          _scopeOptions.isNotEmpty ||
           _errorMessage != null ||
           _isLoading ||
           _isRefreshing) {
         _summary = null;
+        _scopeOptions = const [];
         _errorMessage = null;
         _isLoading = false;
         _isRefreshing = false;
@@ -131,13 +172,78 @@ class HomeSummaryProvider extends ChangeNotifier {
 
     if (sessionChanged) {
       _selectedDate = _normalizeDate(DateTime.now());
-      _selectedScope = _defaultScopeFor(user);
+      _scopeOptions = const [];
+      _selectedScope = _defaultScopeFor(user, const []);
       _summary = null;
       _errorMessage = null;
       _isLoading = true;
       _isRefreshing = false;
       notifyListeners();
-      unawaited(loadSummary(reason: 'auth_sync'));
+      unawaited(_bootstrapSessionSummary(user));
+    }
+  }
+
+  Future<void> _bootstrapSessionSummary(User user) async {
+    await _loadScopeOptions(user, reason: 'auth_sync');
+    await loadSummary(reason: 'auth_sync');
+  }
+
+  Future<void> _loadScopeOptions(User user, {required String reason}) async {
+    await AppLogger.instance.info(
+      'HomeSummary',
+      'Home summary scope options load started',
+      context: {'userId': user.id, 'role': user.role, 'reason': reason},
+    );
+    try {
+      final options = (await _repository.fetchScopeOptions())
+          .map(HomeSummaryScopeOption.fromDto)
+          .toList(growable: false);
+      final fallbackOptions = _fallbackScopeOptions(user, _summary);
+      _scopeOptions = options.isNotEmpty ? options : fallbackOptions;
+      _selectedScope = _defaultScopeFor(user, _scopeOptions);
+      notifyListeners();
+      await AppLogger.instance.info(
+        'HomeSummary',
+        'Home summary scope options load succeeded',
+        context: {
+          'userId': user.id,
+          'count': _scopeOptions.length,
+          'nodeCount': _scopeOptions
+              .where((option) => option.isNodeScope)
+              .length,
+          'selectedScope': _selectedScope,
+        },
+      );
+    } on ApiException catch (error) {
+      _scopeOptions = _fallbackScopeOptions(user, _summary);
+      _selectedScope = _defaultScopeFor(user, _scopeOptions);
+      notifyListeners();
+      await AppLogger.instance.warn(
+        'HomeSummary',
+        'Home summary scope options load failed',
+        context: {
+          'userId': user.id,
+          'reason': reason,
+          'message': error.message,
+          'fallbackCount': _scopeOptions.length,
+        },
+      );
+    } catch (error, stackTrace) {
+      _scopeOptions = _fallbackScopeOptions(user, _summary);
+      _selectedScope = _defaultScopeFor(user, _scopeOptions);
+      notifyListeners();
+      await AppLogger.instance.error(
+        'HomeSummary',
+        'Home summary scope options load failed unexpectedly',
+        error: error,
+        stackTrace: stackTrace,
+        context: {
+          'userId': user.id,
+          'reason': reason,
+          'fallbackCount': _scopeOptions.length,
+        },
+        upload: true,
+      );
     }
   }
 
@@ -180,6 +286,7 @@ class HomeSummaryProvider extends ChangeNotifier {
     final previousScope = _selectedScope;
     _selectedScope = nextScope;
     notifyListeners();
+    final selectedOption = _scopeOptionFor(nextScope);
 
     await AppLogger.instance.info(
       'HomeSummary',
@@ -188,6 +295,8 @@ class HomeSummaryProvider extends ChangeNotifier {
         'userId': _user?.id,
         'previousScope': previousScope,
         'nextScope': _selectedScope,
+        'requestScope': selectedOption?.requestScope,
+        'organizationNodeId': selectedOption?.organizationNodeId,
         'date': formattedSelectedDate,
       },
     );
@@ -214,6 +323,8 @@ class HomeSummaryProvider extends ChangeNotifier {
         'scopeStoreCount': user.assignedStores.length,
         'date': formattedSelectedDate,
         'scopeFilter': _selectedScope,
+        'requestScope': _requestScopeForSelectedScope,
+        'organizationNodeId': _organizationNodeIdForSelectedScope,
         'reason': reason,
         'cached': hadCachedSummary,
       },
@@ -222,7 +333,8 @@ class HomeSummaryProvider extends ChangeNotifier {
     try {
       final summary = await _repository.fetchSummary(
         date: formattedSelectedDate,
-        scope: _selectedScope,
+        scope: _requestScopeForSelectedScope,
+        organizationNodeId: _organizationNodeIdForSelectedScope,
       );
       if (requestToken != _requestToken) return;
 
@@ -235,6 +347,8 @@ class HomeSummaryProvider extends ChangeNotifier {
           'userId': user.id,
           'date': summary.date,
           'scopeFilter': _selectedScope,
+          'requestScope': _requestScopeForSelectedScope,
+          'organizationNodeId': _organizationNodeIdForSelectedScope,
           'available': summary.available,
           'scope': summary.scope,
           'totalRevenue': summary.totalRevenue,
@@ -255,6 +369,8 @@ class HomeSummaryProvider extends ChangeNotifier {
           'userId': user.id,
           'date': formattedSelectedDate,
           'scopeFilter': _selectedScope,
+          'requestScope': _requestScopeForSelectedScope,
+          'organizationNodeId': _organizationNodeIdForSelectedScope,
           'reason': reason,
           'message': error.message,
         },
@@ -271,6 +387,8 @@ class HomeSummaryProvider extends ChangeNotifier {
           'userId': user.id,
           'date': formattedSelectedDate,
           'scopeFilter': _selectedScope,
+          'requestScope': _requestScopeForSelectedScope,
+          'organizationNodeId': _organizationNodeIdForSelectedScope,
           'reason': reason,
         },
         upload: true,
@@ -286,11 +404,43 @@ class HomeSummaryProvider extends ChangeNotifier {
 
   String get formattedSelectedDate => _queryDateFormat.format(_selectedDate);
 
+  HomeSummaryScopeOption? _scopeOptionFor(String value) {
+    final normalized = _normalizeScope(value);
+    for (final option in scopeOptions) {
+      if (_normalizeScope(option.value) == normalized) return option;
+    }
+    return null;
+  }
+
+  String? get _requestScopeForSelectedScope {
+    final option = _scopeOptionFor(_selectedScope);
+    final requestScope = option?.requestScope.trim().toUpperCase();
+    if (requestScope != null && requestScope.isNotEmpty) return requestScope;
+    final normalized = _normalizeScope(_selectedScope);
+    if (normalized.startsWith('NODE:')) return HomeSummaryScopeFilters.managed;
+    return normalized == HomeSummaryScopeFilters.auto ? null : normalized;
+  }
+
+  String? get _organizationNodeIdForSelectedScope {
+    final option = _scopeOptionFor(_selectedScope);
+    final optionNodeId = option?.organizationNodeId?.trim();
+    if (optionNodeId != null && optionNodeId.isNotEmpty) return optionNodeId;
+    final normalized = _normalizeScope(_selectedScope);
+    if (!normalized.startsWith('NODE:')) return null;
+    final nodeId = normalized.substring(5).trim();
+    return nodeId.isEmpty ? null : nodeId;
+  }
+
   static DateTime _normalizeDate(DateTime value) =>
       DateTime(value.year, value.month, value.day);
 
   static String _normalizeScope(String value) {
-    final normalized = value.trim().toUpperCase();
+    final trimmed = value.trim();
+    final upper = trimmed.toUpperCase();
+    if (upper.startsWith('NODE:') && trimmed.length > 5) {
+      return 'NODE:${trimmed.substring(trimmed.indexOf(':') + 1).trim()}';
+    }
+    final normalized = upper;
     if (normalized == HomeSummaryScopeFilters.all ||
         normalized == HomeSummaryScopeFilters.managed ||
         normalized == HomeSummaryScopeFilters.own) {
@@ -299,7 +449,27 @@ class HomeSummaryProvider extends ChangeNotifier {
     return HomeSummaryScopeFilters.auto;
   }
 
-  static String _defaultScopeFor(User user) {
+  static String _defaultScopeFor(
+    User user,
+    List<HomeSummaryScopeOption> options,
+  ) {
+    if (options.isNotEmpty) {
+      final defaultOption = options
+          .where((option) => option.isDefault)
+          .firstOrNull;
+      if (defaultOption != null) return defaultOption.value;
+      if (user.isSuperAdmin) {
+        final allOption = options
+            .where((option) => option.value == HomeSummaryScopeFilters.all)
+            .firstOrNull;
+        if (allOption != null) return allOption.value;
+      }
+      final nodeOption = options
+          .where((option) => option.isNodeScope)
+          .firstOrNull;
+      if (nodeOption != null) return nodeOption.value;
+      return options.first.value;
+    }
     if (user.isSuperAdmin) return HomeSummaryScopeFilters.all;
     if (user.canUseFeature('ADMIN_SALES_REPORTS')) {
       return HomeSummaryScopeFilters.managed;
@@ -308,5 +478,13 @@ class HomeSummaryProvider extends ChangeNotifier {
   }
 
   static String _sessionKey(User user) =>
-      '${user.id ?? user.email}|${user.role ?? ''}|${user.organizationNodeId ?? ''}';
+      '${user.id ?? user.email}|${user.role ?? ''}|${user.organizationNodeId ?? ''}|${user.organizationNodeIds.join(',')}';
+}
+
+extension _FirstOrNullExtension<T> on Iterable<T> {
+  T? get firstOrNull {
+    final iterator = this.iterator;
+    if (!iterator.moveNext()) return null;
+    return iterator.current;
+  }
 }

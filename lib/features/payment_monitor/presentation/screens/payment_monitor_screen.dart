@@ -45,11 +45,9 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _PaymentMonitorHeader(monitor: monitor, user: user),
           if (canUsePaymentSpeaker ||
               speakerSelectionNotice != null ||
               requiresStoreInput) ...[
-            const SizedBox(height: AppLayoutTokens.sectionGap),
             AppSurfaceCard(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -247,109 +245,6 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
   void _applyStoreOverride(BuildContext context) {
     context.read<PaymentMonitorProvider>().setStoreOverride(
       _storeController.text,
-    );
-  }
-}
-
-class _PaymentMonitorHeader extends StatelessWidget {
-  final PaymentMonitorProvider monitor;
-  final User? user;
-
-  const _PaymentMonitorHeader({required this.monitor, required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    final selectedStores = monitor.selectedStoreIds.length;
-    final assignedStores = user?.assignedStoreIds.length ?? 0;
-    final storeLabel = selectedStores > 0
-        ? '$selectedStores showroom'
-        : assignedStores > 0
-        ? '$assignedStores showroom'
-        : user?.isSuperAdmin == true
-        ? 'Chọn showroom'
-        : 'Chưa có showroom';
-    final syncLabel = monitor.isActive
-        ? 'Đang đồng bộ'
-        : monitor.hasMonitorScope
-        ? 'Sẵn sàng đồng bộ'
-        : 'Chưa chọn showroom';
-    final speakerLabel = monitor.canUsePaymentSpeaker
-        ? monitor.isSpeakerEnabled
-              ? 'Loa đang bật'
-              : 'Loa đang tắt'
-        : 'Chỉ xem danh sách';
-
-    return DecoratedBox(
-      key: const Key('payment-monitor-header'),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: AppColors.subtleBorderOf(context)),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.successSurface,
-                borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-              ),
-              child: const Icon(
-                Icons.payments_rounded,
-                color: AppColors.success,
-              ),
-            ),
-            const SizedBox(width: AppLayoutTokens.formInlineGap),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Theo dõi tiền vào', style: AppTextStyles.headingS),
-                  const SizedBox(height: AppLayoutTokens.cardGap),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      AppStatusChip(
-                        label: storeLabel,
-                        color: AppColors.success,
-                        backgroundColor: AppColors.successSurface,
-                      ),
-                      AppStatusChip(
-                        label: syncLabel,
-                        color: monitor.isActive
-                            ? AppColors.success
-                            : AppColors.neutral700,
-                        backgroundColor: monitor.isActive
-                            ? AppColors.successSurface
-                            : AppColors.neutral100,
-                      ),
-                      AppStatusChip(
-                        label: speakerLabel,
-                        color: monitor.canUsePaymentSpeaker
-                            ? AppColors.primary
-                            : AppColors.neutral700,
-                        backgroundColor: monitor.canUsePaymentSpeaker
-                            ? AppColors.primarySurface
-                            : AppColors.neutral100,
-                      ),
-                      AppStatusChip(
-                        label: '${monitor.totalTransactions} giao dịch',
-                        color: AppColors.neutral700,
-                        backgroundColor: AppColors.neutral100,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

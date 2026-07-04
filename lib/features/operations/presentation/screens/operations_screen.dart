@@ -42,9 +42,8 @@ class _OperationsScreenState extends State<OperationsScreen> {
                   'Vui lòng liên hệ quản lý để kiểm tra phân quyền truy cập.',
             )
           else
-            AppFeatureSection(
+            AppFeatureGrid(
               key: const Key('operations-feature-section'),
-              title: 'Công cụ theo quyền',
               actions: actions,
             ),
           const SizedBox(height: 20),

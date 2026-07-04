@@ -332,6 +332,7 @@ class AppDateRangeDropdown extends StatefulWidget {
   final void Function(DateTime? start, DateTime? end) onChanged;
   final bool allowEmptyRange;
   final String? emptyRangeHelperText;
+  final bool showEmptyRangeHelperText;
 
   const AppDateRangeDropdown({
     super.key,
@@ -341,6 +342,7 @@ class AppDateRangeDropdown extends StatefulWidget {
     required this.onChanged,
     this.allowEmptyRange = true,
     this.emptyRangeHelperText,
+    this.showEmptyRangeHelperText = true,
   });
 
   @override
@@ -541,6 +543,7 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
   }
 
   String? _emptyRangeHelperText() {
+    if (!widget.showEmptyRangeHelperText) return null;
     if (!widget.allowEmptyRange || widget.start != null || widget.end != null) {
       return null;
     }

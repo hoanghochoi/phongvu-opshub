@@ -162,7 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
       action(
         id: 'operations',
         title: 'Vận hành',
-        description: 'Xử lý đơn và theo dõi tiến độ vận hành',
+        description: 'Xử lý đơn và theo dõi tiến độ',
         icon: Icons.apps_outlined,
         color: AppColors.accent,
         route: '/operations',

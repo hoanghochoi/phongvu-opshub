@@ -36,9 +36,8 @@ void main() {
 
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.byKey(const Key('admin-menu-header')), findsOneWidget);
-    expect(find.text('Công cụ theo quyền'), findsOneWidget);
-    expect(find.text('1 chức năng khả dụng'), findsOneWidget);
+    expect(find.byKey(const Key('admin-menu-header')), findsNothing);
+    expect(find.text('Công cụ theo quyền'), findsNothing);
     expect(find.text('Chức năng quản trị'), findsOneWidget);
     expect(find.text('Quản lý tính năng'), findsOneWidget);
     expect(find.text('Tính năng và quyền truy cập'), findsOneWidget);
@@ -64,8 +63,7 @@ void main() {
 
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.byKey(const Key('admin-menu-header')), findsOneWidget);
-    expect(find.text('Chưa có chức năng khả dụng'), findsOneWidget);
+    expect(find.byKey(const Key('admin-menu-header')), findsNothing);
     expect(find.text('Chưa có tính năng quản trị'), findsOneWidget);
     expect(
       find.text('Liên hệ quản trị viên để được cấp quyền phù hợp.'),
@@ -93,7 +91,7 @@ void main() {
 
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.text('1 chức năng khả dụng'), findsOneWidget);
+    expect(find.text('1 chức năng khả dụng'), findsNothing);
     expect(find.text('Danh mục nhân sự'), findsOneWidget);
     expect(find.text('Phòng ban và chức danh'), findsOneWidget);
     expect(find.text('Quản lý tính năng'), findsNothing);

@@ -142,7 +142,6 @@ void main() {
     await tester.pump();
 
     expect(find.byType(PaymentMonitorScreen), findsOneWidget);
-    expect(find.text('Theo dõi tiền vào'), findsOneWidget);
     expect(find.text('Giao dịch tiền vào'), findsOneWidget);
     expect(find.text('Chưa hỗ trợ trên web'), findsNothing);
   });

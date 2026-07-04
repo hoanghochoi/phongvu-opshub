@@ -149,45 +149,46 @@ class AppRouter {
               _selectable(const ForgotPasswordScreen()),
         ),
         GoRoute(
-          path: '/help',
-          pageBuilder: (context, state) {
-            final publicHelp =
-                helpScreen ??
-                HelpScreen(
-                  onBack: () {
-                    final navigator = navigatorKey.currentState;
-                    if (navigator?.canPop() ?? false) {
-                      navigator!.pop();
-                      return;
-                    }
-                    context.go(
-                      authProvider.isAuthenticated ? '/home' : '/login',
-                    );
-                  },
-                );
-            if (!authProvider.isAuthenticated) {
-              return _noTransitionPage(state, publicHelp);
-            }
-            final shellHelpChild =
-                helpScreen ?? const HelpScreen(embeddedInShell: true);
-            return _noTransitionPage(
-              state,
-              AppShell(
-                location: state.uri.path,
-                child: _selectable(shellHelpChild),
-              ),
-            );
-          },
-        ),
-        GoRoute(
           path: '/assignment-pending',
           builder: (context, state) =>
               _selectable(const AssignmentPendingScreen()),
         ),
         ShellRoute(
-          builder: (context, state, child) =>
-              AppShell(location: state.uri.path, child: _selectable(child)),
+          builder: (context, state, child) {
+            if (state.uri.path == '/help' && !authProvider.isAuthenticated) {
+              return _selectable(child);
+            }
+            return AppShell(
+              location: state.uri.path,
+              child: _selectable(child),
+            );
+          },
           routes: [
+            GoRoute(
+              path: '/help',
+              pageBuilder: (context, state) {
+                final publicHelp =
+                    helpScreen ??
+                    HelpScreen(
+                      onBack: () {
+                        final navigator = navigatorKey.currentState;
+                        if (navigator?.canPop() ?? false) {
+                          navigator!.pop();
+                          return;
+                        }
+                        context.go(
+                          authProvider.isAuthenticated ? '/home' : '/login',
+                        );
+                      },
+                    );
+                final shellHelpChild =
+                    helpScreen ?? const HelpScreen(embeddedInShell: true);
+                return _noTransitionPage(
+                  state,
+                  authProvider.isAuthenticated ? shellHelpChild : publicHelp,
+                );
+              },
+            ),
             GoRoute(
               path: '/home',
               pageBuilder: (context, state) =>

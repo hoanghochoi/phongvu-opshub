@@ -16,13 +16,12 @@ void main() {
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(
       find.byKey(const Key('payment-monitor-unsupported-header')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.byKey(const Key('payment-monitor-unsupported-card')),
       findsOneWidget,
     );
-    expect(find.text('Theo dõi tiền vào'), findsOneWidget);
     expect(find.text('Chưa hỗ trợ trên web'), findsOneWidget);
     expect(
       find.textContaining('đọc loa thanh toán chỉ chạy trên Windows'),

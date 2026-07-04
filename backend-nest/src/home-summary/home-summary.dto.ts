@@ -10,4 +10,9 @@ export class GetHomeSummaryQueryDto {
   @IsString()
   @MaxLength(20)
   scope?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  organizationNodeId?: string;
 }

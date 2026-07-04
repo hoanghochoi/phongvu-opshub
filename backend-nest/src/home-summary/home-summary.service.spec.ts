@@ -89,10 +89,7 @@ describe('HomeSummaryService', () => {
       homeSummaryOrderFact: {
         upsert: jest.fn().mockResolvedValue({}),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-        count: jest
-          .fn()
-          .mockResolvedValueOnce(2)
-          .mockResolvedValueOnce(1),
+        count: jest.fn().mockResolvedValueOnce(2).mockResolvedValueOnce(1),
       },
       $transaction: jest.fn(async (input: any) => {
         if (Array.isArray(input)) {
@@ -139,6 +136,7 @@ describe('HomeSummaryService', () => {
     expect(salesReports.describeHomeSummaryScope).toHaveBeenCalledWith(
       { id: 'user-1', email: 'staff@phongvu.vn' },
       'AUTO',
+      null,
     );
     expect(prisma.homeSummaryReportFact.upsert).toHaveBeenCalledTimes(2);
     expect(prisma.homeSummaryOrderFact.upsert).toHaveBeenCalledTimes(2);
@@ -155,6 +153,26 @@ describe('HomeSummaryService', () => {
     expect(salesReports.describeHomeSummaryScope).toHaveBeenCalledWith(
       { id: 'super-1', email: 'super@phongvu.vn' },
       'OWN',
+      null,
+    );
+  });
+
+  it('passes selected organization node to dashboard scope resolution', async () => {
+    const { service, salesReports } = createHarness();
+
+    await service.getSummary(
+      { id: 'manager-1', email: 'manager@phongvu.vn' },
+      {
+        date: '2026-07-04',
+        scope: 'MANAGED_SCOPE',
+        organizationNodeId: 'org-area-hcm',
+      },
+    );
+
+    expect(salesReports.describeHomeSummaryScope).toHaveBeenCalledWith(
+      { id: 'manager-1', email: 'manager@phongvu.vn' },
+      'MANAGED_SCOPE',
+      'org-area-hcm',
     );
   });
 
@@ -172,15 +190,15 @@ describe('HomeSummaryService', () => {
       allowedStoreCodes: [],
     });
 
-    await expect(service.getSummary({ id: 'user-2' }, {})).resolves.toMatchObject(
-      {
-        available: false,
-        scope: 'UNAVAILABLE',
-        totalOrders: 0,
-        totalReports: 0,
-        unavailableMessage: 'Không có quyền xem tổng quan.',
-      },
-    );
+    await expect(
+      service.getSummary({ id: 'user-2' }, {}),
+    ).resolves.toMatchObject({
+      available: false,
+      scope: 'UNAVAILABLE',
+      totalOrders: 0,
+      totalReports: 0,
+      unavailableMessage: 'Không có quyền xem tổng quan.',
+    });
     expect(prisma.salesReport.findMany).not.toHaveBeenCalled();
   });
 });

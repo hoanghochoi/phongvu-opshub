@@ -209,7 +209,11 @@ void main() {
 
       expect(router.routeInformationProvider.value.uri.path, '/operations');
       expect(find.byKey(const ValueKey('route-/operations')), findsOneWidget);
-      expect(find.text('Công cụ theo quyền'), findsOneWidget);
+      expect(
+        find.byKey(const Key('operations-feature-section')),
+        findsOneWidget,
+      );
+      expect(find.text('Công cụ theo quyền'), findsNothing);
 
       await tester.tap(find.text('Thông báo'));
       await tester.pumpAndSettle();

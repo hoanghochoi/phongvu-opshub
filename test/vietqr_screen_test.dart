@@ -63,7 +63,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('vietqr-workspace-header')), findsOneWidget);
+      expect(find.byKey(const Key('vietqr-workspace-header')), findsNothing);
       expect(find.byType(Scaffold), findsNothing);
       expect(findsLegacyGradientHeader(), findsNothing);
       expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);

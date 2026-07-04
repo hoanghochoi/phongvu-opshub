@@ -434,8 +434,14 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
   Future<HomeSummary> fetchSummary({
     required String date,
     String? scope,
+    String? organizationNodeId,
   }) async {
     return summary;
+  }
+
+  @override
+  Future<List<HomeSummaryScopeOptionDto>> fetchScopeOptions() async {
+    return const [];
   }
 }
 

@@ -20,11 +20,17 @@ type HomeSummaryResponse = SalesReportOperatingSummary & {
   unavailableMessage: string | null;
 };
 
-type HomeSummaryScopeRequest =
-  | 'AUTO'
-  | 'ALL'
-  | 'MANAGED_SCOPE'
-  | 'OWN';
+type HomeSummaryScopeRequest = 'AUTO' | 'ALL' | 'MANAGED_SCOPE' | 'OWN';
+
+type HomeSummaryScopeOptionResponse = {
+  value: string;
+  label: string;
+  scope: HomeSummaryScopeRequest;
+  organizationNodeId: string | null;
+  organizationNodeType: string | null;
+  storeCount: number | null;
+  isDefault: boolean;
+};
 
 @Injectable()
 export class HomeSummaryService {
@@ -57,6 +63,7 @@ export class HomeSummaryService {
     const scope = await this.salesReports.describeHomeSummaryScope(
       user,
       requestedScope,
+      this.optionalText(query.organizationNodeId, 80),
     );
     if (!scope.available) {
       const response = this.emptySummary(
@@ -136,6 +143,13 @@ export class HomeSummaryService {
       `Home summary load succeeded: user=${this.safeUserLabel(user)} date=${date} scopeFilter=${requestedScope} scope=${scope.scope} totalOrders=${totalOrders} totalReports=${totalReports} reportedOrders=${reportedOrders} durationMs=${Date.now() - startedAt}`,
     );
     return response;
+  }
+
+  async listScopeOptions(user: any): Promise<HomeSummaryScopeOptionResponse[]> {
+    this.logger.log(
+      `Home summary scope options requested: user=${this.safeUserLabel(user)}`,
+    );
+    return this.salesReports.listHomeSummaryScopeOptions(user);
   }
 
   private parseScopeParam(value?: string | null): HomeSummaryScopeRequest {
@@ -491,10 +505,7 @@ export class HomeSummaryService {
     if (scope.scope === 'ALL') return base;
     if (scope.scope === 'MANAGED_SCOPE') {
       return {
-        AND: [
-          base,
-          { storeCode: { in: scope.allowedStoreCodes } },
-        ],
+        AND: [base, { storeCode: { in: scope.allowedStoreCodes } }],
       };
     }
     const or: Record<string, unknown>[] = [];
@@ -523,10 +534,7 @@ export class HomeSummaryService {
     if (scope.scope === 'ALL') return base;
     if (scope.scope === 'MANAGED_SCOPE') {
       return {
-        AND: [
-          base,
-          { storeCode: { in: scope.allowedStoreCodes } },
-        ],
+        AND: [base, { storeCode: { in: scope.allowedStoreCodes } }],
       };
     }
     const or: Record<string, unknown>[] = [];
@@ -656,12 +664,16 @@ export class HomeSummaryService {
   }
 
   private normalizeStoreCode(value: unknown) {
-    const text = String(value || '').trim().toUpperCase();
+    const text = String(value || '')
+      .trim()
+      .toUpperCase();
     return text || null;
   }
 
   private normalizeEmail(value: unknown) {
-    const text = String(value || '').trim().toLowerCase();
+    const text = String(value || '')
+      .trim()
+      .toLowerCase();
     return text || null;
   }
 
@@ -672,6 +684,10 @@ export class HomeSummaryService {
   }
 
   private safeUserLabel(user: any) {
-    return this.normalizeEmail(user?.email) || this.optionalText(user?.id, 80) || 'missing';
+    return (
+      this.normalizeEmail(user?.email) ||
+      this.optionalText(user?.id, 80) ||
+      'missing'
+    );
   }
 }

@@ -12,4 +12,9 @@ export class HomeSummaryController {
   summary(@Request() req: any, @Query() query: GetHomeSummaryQueryDto) {
     return this.service.getSummary(req.user, query);
   }
+
+  @Get('summary/scopes')
+  scopeOptions(@Request() req: any) {
+    return this.service.listScopeOptions(req.user);
+  }
 }

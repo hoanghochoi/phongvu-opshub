@@ -62,15 +62,10 @@ void main() {
     );
     await tester.pump();
 
-    final header = find.byKey(const Key('payment-monitor-header'));
-    expect(header, findsOneWidget);
-    expect(tester.getSize(header).height, lessThan(120));
+    expect(find.byKey(const Key('payment-monitor-header')), findsNothing);
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.text('Theo dõi tiền vào'), findsOneWidget);
     expect(find.text('Giao dịch tiền vào'), findsOneWidget);
-    expect(find.text('Chỉ xem danh sách'), findsOneWidget);
-    expect(find.text('1 showroom'), findsOneWidget);
     expect(find.textContaining('1.250.000'), findsWidgets);
     expect(repository.requestedStoreIds.last, 'CP01');
   });

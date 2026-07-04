@@ -252,6 +252,93 @@ void main() {
     expect(find.text('Phạm vi cá nhân'), findsWidgets);
     expect(find.text('5.000.000 VND'), findsOneWidget);
   });
+
+  testWidgets('Home dashboard scope dropdown selects assigned child node', (
+    tester,
+  ) async {
+    final authProvider = _FakeAuthProvider(_managerUser());
+    final repository = _FakeHomeSummaryRepository(
+      summary: HomeSummary(
+        date: '2026-07-04',
+        available: true,
+        scope: 'MANAGED_SCOPE',
+        scopeLabel: 'Vùng: Hồ Chí Minh',
+        scopeDetail: '2 showroom được gán',
+        coverageLabel: 'Tỷ lệ phủ báo cáo',
+        totalRevenue: 125000000,
+        totalOrders: 42,
+        totalReports: 38,
+        reportedOrders: 35,
+        unreportedOrders: 7,
+        coverageRate: 83.33,
+        refreshedAt: DateTime.parse('2026-07-04T03:15:00.000Z'),
+      ),
+      scopeOptions: const [
+        HomeSummaryScopeOptionDto(
+          value: 'NODE:org-area-hcm',
+          label: 'Vùng: Hồ Chí Minh',
+          scope: 'MANAGED_SCOPE',
+          organizationNodeId: 'org-area-hcm',
+          organizationNodeType: 'LV3_AREA',
+          storeCount: 2,
+          isDefault: true,
+        ),
+        HomeSummaryScopeOptionDto(
+          value: 'NODE:org-store-cp75',
+          label: 'Showroom: CP75',
+          scope: 'MANAGED_SCOPE',
+          organizationNodeId: 'org-store-cp75',
+          organizationNodeType: 'LV4_STORE',
+          storeCount: 1,
+        ),
+      ],
+      nodeSummaries: {
+        'org-store-cp75': HomeSummary(
+          date: '2026-07-04',
+          available: true,
+          scope: 'MANAGED_SCOPE',
+          scopeLabel: 'Showroom: CP75',
+          scopeDetail: 'CP75',
+          coverageLabel: 'Tỷ lệ phủ báo cáo',
+          totalRevenue: 9000000,
+          totalOrders: 3,
+          totalReports: 2,
+          reportedOrders: 2,
+          unreportedOrders: 1,
+          coverageRate: 66.67,
+          refreshedAt: DateTime.parse('2026-07-04T03:20:00.000Z'),
+        ),
+      },
+    );
+    final summaryProvider = HomeSummaryProvider(repository);
+    addTearDown(summaryProvider.dispose);
+    summaryProvider.syncAuth(authProvider.user, isInitialized: true);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<HomeSummaryProvider>.value(
+            value: summaryProvider,
+          ),
+        ],
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.requestedNodeIds, contains('org-area-hcm'));
+
+    await tester.tap(find.byKey(const Key('home-summary-scope-pill')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Showroom: CP75').last);
+    await tester.pumpAndSettle();
+
+    expect(summaryProvider.selectedScope, 'NODE:org-store-cp75');
+    expect(repository.requestedScopes, contains('MANAGED_SCOPE'));
+    expect(repository.requestedNodeIds, contains('org-store-cp75'));
+    expect(find.text('9.000.000 VND'), findsOneWidget);
+  });
 }
 
 class _FakeAuthProvider extends AuthProvider {
@@ -266,20 +353,36 @@ class _FakeAuthProvider extends AuthProvider {
 class _FakeHomeSummaryRepository extends HomeSummaryRepository {
   final HomeSummary summary;
   final Map<String, HomeSummary> scopedSummaries;
+  final Map<String, HomeSummary> nodeSummaries;
+  final List<HomeSummaryScopeOptionDto> scopeOptions;
   final List<String?> requestedScopes = [];
+  final List<String?> requestedNodeIds = [];
 
   _FakeHomeSummaryRepository({
     required this.summary,
     this.scopedSummaries = const {},
+    this.nodeSummaries = const {},
+    this.scopeOptions = const [],
   }) : super(ApiClient());
 
   @override
   Future<HomeSummary> fetchSummary({
     required String date,
     String? scope,
+    String? organizationNodeId,
   }) async {
     requestedScopes.add(scope);
+    requestedNodeIds.add(organizationNodeId);
+    if (organizationNodeId != null &&
+        nodeSummaries.containsKey(organizationNodeId)) {
+      return nodeSummaries[organizationNodeId]!;
+    }
     return scopedSummaries[scope] ?? summary;
+  }
+
+  @override
+  Future<List<HomeSummaryScopeOptionDto>> fetchScopeOptions() async {
+    return scopeOptions;
   }
 }
 
@@ -310,5 +413,21 @@ User _superAdminUser() {
       StoreBranch(id: 'store-62', storeId: 'CP62', storeName: 'CP62'),
     ],
     featureAccess: {'SALES_REPORT': true, 'ADMIN_SALES_REPORTS': true},
+  );
+}
+
+User _managerUser() {
+  return const User(
+    id: 'manager-1',
+    email: 'manager@phongvu.vn',
+    name: 'Area Manager',
+    role: 'USER',
+    organizationNodeId: 'org-area-hcm',
+    organizationNodeIds: ['org-area-hcm'],
+    assignedStores: [
+      StoreBranch(id: 'store-75', storeId: 'CP75', storeName: 'CP75'),
+      StoreBranch(id: 'store-62', storeId: 'CP62', storeName: 'CP62'),
+    ],
+    featureAccess: {'ADMIN_SALES_REPORTS': true},
   );
 }

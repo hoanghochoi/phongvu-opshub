@@ -588,6 +588,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                     start: widget.provider.startDate,
                     end: widget.provider.endDate,
                     onChanged: widget.provider.setDateRange,
+                    showEmptyRangeHelperText: false,
                   ),
                 ],
               ],
@@ -620,6 +621,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                   start: widget.provider.startDate,
                   end: widget.provider.endDate,
                   onChanged: widget.provider.setDateRange,
+                  showEmptyRangeHelperText: false,
                 ),
               ),
               SizedBox(

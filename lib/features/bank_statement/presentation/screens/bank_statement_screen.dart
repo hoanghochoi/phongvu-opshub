@@ -687,6 +687,7 @@ class _DateRangeButton extends StatelessWidget {
       start: startDate,
       end: endDate,
       onChanged: onChanged,
+      showEmptyRangeHelperText: false,
     );
   }
 }

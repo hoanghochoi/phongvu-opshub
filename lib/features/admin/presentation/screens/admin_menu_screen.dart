@@ -3,8 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_text_styles.dart';
-import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -91,8 +89,6 @@ class AdminMenuScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _AdminMenuHeader(actionCount: actions.length),
-          const SizedBox(height: AppLayoutTokens.sectionGap),
           if (actions.isEmpty)
             const AppStatePanel.empty(
               title: 'Chưa có tính năng quản trị',
@@ -101,56 +97,6 @@ class AdminMenuScreen extends StatelessWidget {
             )
           else
             AppFeatureSection(title: 'Chức năng quản trị', actions: actions),
-        ],
-      ),
-    );
-  }
-}
-
-class _AdminMenuHeader extends StatelessWidget {
-  final int actionCount;
-
-  const _AdminMenuHeader({required this.actionCount});
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      key: const Key('admin-menu-header'),
-      backgroundColor: AppColors.primarySurfaceOf(context),
-      borderColor: AppColors.primaryOf(context).withValues(alpha: 0.22),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.primaryOf(context).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-            ),
-            child: Icon(
-              Icons.admin_panel_settings_outlined,
-              color: AppColors.primaryOf(context),
-            ),
-          ),
-          const SizedBox(width: AppLayoutTokens.formInlineGap),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Công cụ theo quyền', style: AppTextStyles.headingM),
-                const SizedBox(height: AppLayoutTokens.formInlineGap),
-                Text(
-                  actionCount > 0
-                      ? '$actionCount chức năng khả dụng'
-                      : 'Chưa có chức năng khả dụng',
-                  style: AppTextStyles.labelS.copyWith(
-                    color: AppColors.textMutedOf(context),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );

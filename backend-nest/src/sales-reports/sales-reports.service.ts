@@ -129,11 +129,17 @@ export type SalesReportSummaryScopeDescriptor = {
   allowedStoreCodes: string[];
 };
 
-export type HomeSummaryScopeRequest =
-  | 'AUTO'
-  | 'ALL'
-  | 'MANAGED_SCOPE'
-  | 'OWN';
+export type HomeSummaryScopeRequest = 'AUTO' | 'ALL' | 'MANAGED_SCOPE' | 'OWN';
+
+export type HomeSummaryScopeOption = {
+  value: string;
+  label: string;
+  scope: HomeSummaryScopeRequest;
+  organizationNodeId: string | null;
+  organizationNodeType: string | null;
+  storeCount: number | null;
+  isDefault: boolean;
+};
 
 const ANSWER_LABELS: Record<string, string> = {
   YES: 'Có',
@@ -224,12 +230,26 @@ export class SalesReportsService implements OnApplicationBootstrap {
   async describeHomeSummaryScope(
     user: any,
     requestedScope: HomeSummaryScopeRequest = 'AUTO',
+    organizationNodeId?: string | null,
   ): Promise<SalesReportSummaryScopeDescriptor> {
     const context = await this.resolveUserSnapshot(user);
     const adminView = await this.canViewAdminSalesReports(user);
 
     if (requestedScope === 'OWN') {
       return this.describeOwnHomeSummaryScope(user, context);
+    }
+
+    const requestedNodeId = this.optionalText(organizationNodeId, 80);
+    if (requestedNodeId) {
+      if (!adminView) {
+        return this.unavailableHomeSummaryScope(
+          'Tài khoản hiện chưa có quyền xem tổng quan theo đơn vị.',
+        );
+      }
+      return this.describeOrganizationNodeHomeSummaryScope(
+        user,
+        requestedNodeId,
+      );
     }
 
     if (requestedScope === 'ALL' && !adminView) {
@@ -244,7 +264,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
           available: true,
           scope: 'ALL',
           scopeLabel: 'Toàn hệ thống',
-          scopeDetail: 'Tổng hợp doanh số và báo cáo hợp lệ trên toàn hệ thống.',
+          scopeDetail:
+            'Tổng hợp doanh số và báo cáo hợp lệ trên toàn hệ thống.',
           unavailableMessage: null,
           ownUserId: null,
           ownEmail: null,
@@ -307,7 +328,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
       );
     }
 
-    const ownUserId = this.optionalText(context.createdByUserId ?? user?.id, 80);
+    const ownUserId = this.optionalText(
+      context.createdByUserId ?? user?.id,
+      80,
+    );
     const ownEmail = this.normalizeEmail(context.createdByEmail ?? user?.email);
     const ownPersonnelCode = this.optionalText(
       context.createdByPersonnelCode,
@@ -331,6 +355,93 @@ export class SalesReportsService implements OnApplicationBootstrap {
       ownEmail,
       ownPersonnelCode,
       allowedStoreCodes: [],
+    };
+  }
+
+  async listHomeSummaryScopeOptions(
+    user: any,
+  ): Promise<HomeSummaryScopeOption[]> {
+    const options: HomeSummaryScopeOption[] = [];
+    const seen = new Set<string>();
+    const pushOption = (option: HomeSummaryScopeOption) => {
+      if (seen.has(option.value)) return;
+      seen.add(option.value);
+      options.push(option);
+    };
+
+    if (isSuperAdminRole(user?.role)) {
+      pushOption({
+        value: 'ALL',
+        label: 'Toàn hệ thống',
+        scope: 'ALL',
+        organizationNodeId: null,
+        organizationNodeType: null,
+        storeCount: null,
+        isDefault: true,
+      });
+    }
+
+    const adminView = await this.canViewAdminSalesReports(user);
+    if (adminView && !isSuperAdminRole(user?.role)) {
+      const assignments = await this.resolveHomeSummaryAssignments(user);
+      assignments.forEach((assignment: any, assignmentIndex: number) => {
+        for (const option of this.homeSummaryNodeOptions(
+          assignment?.organizationNode,
+          assignment?.isPrimary === true || assignmentIndex === 0,
+        )) {
+          pushOption(option);
+        }
+      });
+    }
+
+    if (await this.canUseSalesReport(user)) {
+      pushOption({
+        value: 'OWN',
+        label: 'Phạm vi cá nhân',
+        scope: 'OWN',
+        organizationNodeId: null,
+        organizationNodeType: null,
+        storeCount: null,
+        isDefault: options.length === 0,
+      });
+    }
+
+    return options;
+  }
+
+  private async describeOrganizationNodeHomeSummaryScope(
+    user: any,
+    organizationNodeId: string,
+  ): Promise<SalesReportSummaryScopeDescriptor> {
+    const selectedNode = isSuperAdminRole(user?.role)
+      ? await this.findHomeSummaryNodeById(organizationNodeId)
+      : await this.findAllowedHomeSummaryNode(user, organizationNodeId);
+    if (!selectedNode) {
+      return this.unavailableHomeSummaryScope(
+        'Bạn chỉ được xem dashboard trong phạm vi cây được gán.',
+      );
+    }
+
+    const stores = storesForOrganizationNodeTree(selectedNode);
+    const allowedStoreCodes = stores
+      .map((store) => this.normalizeStoreCode(store?.storeId))
+      .filter((value): value is string => Boolean(value));
+    if (allowedStoreCodes.length === 0) {
+      return this.unavailableHomeSummaryScope(
+        'Đơn vị được chọn chưa có showroom để tổng hợp dashboard.',
+      );
+    }
+
+    return {
+      available: true,
+      scope: 'MANAGED_SCOPE',
+      scopeLabel: this.homeSummaryNodeLabel(selectedNode),
+      scopeDetail: this.describeStoreScope(stores),
+      unavailableMessage: null,
+      ownUserId: null,
+      ownEmail: null,
+      ownPersonnelCode: null,
+      allowedStoreCodes,
     };
   }
 
@@ -1945,7 +2056,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
       return await this.erp.lookupOrder(orderCode, context.storeCode);
     } catch (error) {
       if (error instanceof SalesReportErpCanceledOrderException) {
-        await this.persistCanceledOrderExclusion(user, context, error.cacheItem);
+        await this.persistCanceledOrderExclusion(
+          user,
+          context,
+          error.cacheItem,
+        );
       }
       throw error;
     }
@@ -2123,6 +2238,177 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return stores;
   }
 
+  private async resolveHomeSummaryAssignments(user: any) {
+    if (!user?.id || !(this.prisma as any).user?.findUnique) return [];
+    const savedUser = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      include: {
+        organizationNode: {
+          include: organizationNodeStoreTreeInclude(),
+        },
+        organizationAssignments: {
+          where: { isActive: true },
+          orderBy: [
+            { isPrimary: Prisma.SortOrder.desc },
+            { createdAt: Prisma.SortOrder.asc },
+          ],
+          include: {
+            organizationNode: {
+              include: organizationNodeStoreTreeInclude(),
+            },
+          },
+        },
+      },
+    });
+    const assignments: any[] = Array.isArray(savedUser?.organizationAssignments)
+      ? [...(savedUser.organizationAssignments as any[])]
+      : [];
+    if (assignments.length === 0 && savedUser?.organizationNode) {
+      assignments.push({
+        organizationNodeId: savedUser.organizationNode.id,
+        organizationNode: savedUser.organizationNode,
+        isPrimary: true,
+      });
+    }
+    return assignments;
+  }
+
+  private homeSummaryNodeOptions(
+    root: any,
+    primaryAssignment: boolean,
+  ): HomeSummaryScopeOption[] {
+    const options: HomeSummaryScopeOption[] = [];
+    const visited = new Set<string>();
+    const visit = (node: any, depth: number) => {
+      if (!node || depth > 20) return;
+      const nodeId = this.optionalText(node.id, 80);
+      if (!nodeId || visited.has(nodeId)) return;
+      visited.add(nodeId);
+
+      if (this.isBelowHomeSummaryStoreNode(node) && node?.parent) {
+        visit(node.parent, depth + 1);
+        return;
+      }
+
+      const stores = storesForOrganizationNodeTree(node);
+      if (stores.length > 0) {
+        options.push({
+          value: `NODE:${nodeId}`,
+          label: this.homeSummaryNodeLabel(node),
+          scope: 'MANAGED_SCOPE',
+          organizationNodeId: nodeId,
+          organizationNodeType: this.homeSummaryNodeType(node),
+          storeCount: stores.length,
+          isDefault: primaryAssignment && options.length === 0,
+        });
+      }
+
+      if (this.isHomeSummaryStoreNode(node)) return;
+      const children = Array.isArray(node.children) ? node.children : [];
+      children.forEach((child: any) => visit(child, depth + 1));
+    };
+    visit(root, 0);
+    return options;
+  }
+
+  private async findHomeSummaryNodeById(organizationNodeId: string) {
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findUnique) return null;
+    return organizationNode.findUnique({
+      where: { id: organizationNodeId },
+      include: organizationNodeStoreTreeInclude(),
+    });
+  }
+
+  private async findAllowedHomeSummaryNode(
+    user: any,
+    organizationNodeId: string,
+  ) {
+    const assignments = await this.resolveHomeSummaryAssignments(user);
+    for (const assignment of assignments) {
+      const assignedNode = assignment?.organizationNode;
+      const match = this.findNodeInHomeSummaryTree(
+        assignedNode,
+        organizationNodeId,
+      );
+      if (match) return match;
+
+      if (
+        this.isBelowHomeSummaryStoreNode(assignedNode) &&
+        assignedNode?.parent
+      ) {
+        const parentMatch = this.findNodeInHomeSummaryTree(
+          assignedNode.parent,
+          organizationNodeId,
+        );
+        if (parentMatch) return parentMatch;
+      }
+    }
+    return null;
+  }
+
+  private findNodeInHomeSummaryTree(root: any, organizationNodeId: string) {
+    const visited = new Set<string>();
+    const visit = (node: any, depth: number): any => {
+      if (!node || depth > 20) return null;
+      const nodeId = this.optionalText(node.id, 80);
+      if (!nodeId || visited.has(nodeId)) return null;
+      visited.add(nodeId);
+      if (nodeId === organizationNodeId) return node;
+      if (this.isHomeSummaryStoreNode(node)) return null;
+      const children = Array.isArray(node.children) ? node.children : [];
+      for (const child of children) {
+        const match = visit(child, depth + 1);
+        if (match) return match;
+      }
+      return null;
+    };
+    return visit(root, 0);
+  }
+
+  private isBelowHomeSummaryStoreNode(node: any) {
+    const type = this.homeSummaryNodeType(node);
+    return (
+      type === 'LV5_POSITION' || type === 'POSITION' || type === 'JOB_ROLE'
+    );
+  }
+
+  private isHomeSummaryStoreNode(node: any) {
+    const type = this.homeSummaryNodeType(node);
+    const directStores = Array.isArray(node?.stores) ? node.stores : [];
+    return (
+      type === 'LV4_STORE' || type === 'SHOWROOM' || directStores.length > 0
+    );
+  }
+
+  private homeSummaryNodeLabel(node: any) {
+    const type = this.homeSummaryNodeType(node);
+    const rawLabel =
+      this.optionalText(node?.displayName, 120) ||
+      this.optionalText(node?.name, 120) ||
+      this.optionalText(node?.businessCode, 80) ||
+      this.optionalText(node?.storeId, 80) ||
+      this.optionalText(node?.code, 80) ||
+      'Đơn vị được gán';
+    const storeCode =
+      this.optionalText(node?.businessCode, 80) ||
+      this.optionalText(node?.storeId, 80) ||
+      this.optionalText(node?.code, 80);
+    if (type === 'LV0_DOMAIN') return 'Cả nước';
+    if (type === 'LV2_REGION' || type === 'REGION') return `Miền: ${rawLabel}`;
+    if (type === 'LV3_AREA' || type === 'AREA') return `Vùng: ${rawLabel}`;
+    if (type === 'LV4_STORE' || type === 'SHOWROOM') {
+      return `Showroom: ${storeCode || rawLabel}`;
+    }
+    return rawLabel;
+  }
+
+  private homeSummaryNodeType(node: any) {
+    return String(node?.type || '')
+      .trim()
+      .toUpperCase();
+  }
+
   private unavailableHomeSummaryScope(
     unavailableMessage: string,
   ): SalesReportSummaryScopeDescriptor {
@@ -2141,7 +2427,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
 
   private describeStoreScope(stores: any[]) {
     const names = stores
-      .map((store) => this.optionalText(store?.storeName || store?.storeId, 120))
+      .map((store) =>
+        this.optionalText(store?.storeName || store?.storeId, 120),
+      )
       .filter((value): value is string => Boolean(value));
     if (names.length === 0) return 'Tổng hợp theo showroom được gán.';
     if (names.length === 1) return names[0];

@@ -1015,6 +1015,7 @@ class HomeOperationsShortcutCard extends StatelessWidget {
                   for (final action in actions)
                     SizedBox(
                       width: itemWidth,
+                      height: 96,
                       child: _HomeQuickToolTile(action: action),
                     ),
                 ],
@@ -1060,6 +1061,7 @@ class _HomeQuickToolTile extends StatelessWidget {
         onTap: action.onTap,
         borderRadius: AppRadius.allSm,
         child: Container(
+          height: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: AppRadius.allSm,

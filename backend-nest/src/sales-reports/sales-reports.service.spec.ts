@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { FEATURE_KEYS } from '../feature/feature.constants';
 import { SalesReportErpCanceledOrderException } from './sales-report-erp.service';
 import { SalesReportsService } from './sales-reports.service';
 
@@ -1064,6 +1065,68 @@ describe('SalesReportsService', () => {
     expect(lines.join('\n')).not.toContain('2606290888');
     expect(lines[1]).not.toContain('"');
   });
+
+  it('keeps home dashboard scope options at showroom level for assigned position nodes', async () => {
+    const { service, prisma } = createHarness();
+    const { storeNode, positionNode } = organizationNodeFixture();
+    prisma.user.findUnique.mockResolvedValueOnce({
+      organizationNode: positionNode,
+      organizationAssignments: [
+        {
+          organizationNodeId: positionNode.id,
+          organizationNode: positionNode,
+          isPrimary: true,
+        },
+      ],
+    });
+
+    const options = await service.listHomeSummaryScopeOptions(adminSalesUser());
+
+    expect(options).toEqual([
+      expect.objectContaining({
+        value: `NODE:${storeNode.id}`,
+        label: 'Showroom: CP75',
+        organizationNodeId: storeNode.id,
+        organizationNodeType: 'LV4_STORE',
+        storeCount: 1,
+      }),
+    ]);
+    expect(options.map((option) => option.organizationNodeId)).not.toContain(
+      positionNode.id,
+    );
+  });
+
+  it('allows home dashboard scope requests for the parent showroom of an assigned position node', async () => {
+    const { service, prisma } = createHarness();
+    const { storeNode, positionNode } = organizationNodeFixture();
+    const savedUser = {
+      ...adminSalesUser(),
+      organizationNode: positionNode,
+      organizationAssignments: [
+        {
+          organizationNodeId: positionNode.id,
+          organizationNode: positionNode,
+          isPrimary: true,
+        },
+      ],
+    };
+    prisma.user.findUnique
+      .mockResolvedValueOnce(savedUser)
+      .mockResolvedValueOnce(savedUser);
+
+    await expect(
+      service.describeHomeSummaryScope(
+        adminSalesUser(),
+        'MANAGED_SCOPE',
+        storeNode.id,
+      ),
+    ).resolves.toMatchObject({
+      available: true,
+      scope: 'MANAGED_SCOPE',
+      scopeLabel: 'Showroom: CP75',
+      allowedStoreCodes: ['CP75'],
+    });
+  });
 });
 
 function baseInput() {
@@ -1109,6 +1172,38 @@ function userFixture() {
     organizationNode: { id: 'node-cp62', displayName: 'CP62' },
     organizationAssignments: [],
   };
+}
+
+function adminSalesUser() {
+  return {
+    ...userFixture(),
+    id: 'admin-sales-1',
+    featureAccess: {
+      [FEATURE_KEYS.ADMIN_SALES_REPORTS]: true,
+    },
+  };
+}
+
+function organizationNodeFixture() {
+  const storeNode: any = {
+    id: 'node-cp75',
+    type: 'LV4_STORE',
+    displayName: 'CP75',
+    businessCode: 'CP75',
+    stores: [{ storeId: 'CP75', storeName: 'CP75' }],
+    parent: null,
+    children: [],
+  };
+  const positionNode = {
+    id: 'node-cp75-sa',
+    type: 'LV5_POSITION',
+    displayName: 'SA CP75',
+    stores: [],
+    parent: storeNode,
+    children: [],
+  };
+  storeNode.children = [positionNode];
+  return { storeNode, positionNode };
 }
 
 function storeManagerFixture(storeCode: string) {
