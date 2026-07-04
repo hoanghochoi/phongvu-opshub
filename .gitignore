@@ -94,6 +94,7 @@ uploads/
 app_images/
 exports/
 tmp/
+.screenshot/
 
 # Harness durable layer
 docs/CONTEXT_RULES.md
