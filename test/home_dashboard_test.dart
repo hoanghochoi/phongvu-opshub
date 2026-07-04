@@ -10,6 +10,7 @@ import 'package:phongvu_opshub/features/home/data/repositories/home_summary_repo
 import 'package:phongvu_opshub/features/home/domain/home_summary.dart';
 import 'package:phongvu_opshub/features/home/presentation/providers/home_summary_provider.dart';
 import 'package:phongvu_opshub/features/home/presentation/screens/home_screen.dart';
+import 'package:phongvu_opshub/features/home/presentation/widgets/home_summary_page.dart';
 import 'package:provider/provider.dart';
 
 void main() {
@@ -66,6 +67,8 @@ void main() {
       expect(find.byKey(const Key('home-summary-header')), findsOneWidget);
       expect(find.byKey(const Key('home-summary-toolbar')), findsOneWidget);
       expect(find.byKey(const Key('home-summary-grid')), findsOneWidget);
+      expect(find.byType(HomeSummaryDatePicker), findsOneWidget);
+      expect(find.byType(HomeSummaryRefreshButton), findsOneWidget);
       expect(
         find.byKey(const Key('home-summary-progress-panel')),
         findsOneWidget,

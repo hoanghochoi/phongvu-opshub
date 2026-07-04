@@ -200,38 +200,16 @@ class HomeSummaryToolbar extends StatelessWidget {
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 720;
           final buttons = [
-            compact
-                ? AppSecondaryButton(
-                    key: const Key('home-summary-date-picker'),
-                    onPressed: onPickDate,
-                    icon: Icons.calendar_month_rounded,
-                    label: _dateLabel(selectedDate),
-                  )
-                : AppSecondaryButton(
-                    key: const Key('home-summary-date-picker'),
-                    onPressed: onPickDate,
-                    icon: Icons.calendar_month_rounded,
-                    label: 'Ngày ${_dateLabel(selectedDate)}',
-                    expand: false,
-                  ),
-            compact
-                ? AppSecondaryButton(
-                    key: const Key('home-summary-refresh-button'),
-                    onPressed: onRefresh,
-                    icon: Icons.refresh_rounded,
-                    label: 'Làm mới',
-                    isLoading: isRefreshing,
-                    loadingLabel: 'Đang tải',
-                  )
-                : AppSecondaryButton(
-                    key: const Key('home-summary-refresh-button'),
-                    onPressed: onRefresh,
-                    icon: Icons.refresh_rounded,
-                    label: 'Làm mới',
-                    isLoading: isRefreshing,
-                    loadingLabel: 'Đang tải',
-                    expand: false,
-                  ),
+            HomeSummaryDatePicker(
+              selectedDate: selectedDate,
+              compact: compact,
+              onPressed: onPickDate,
+            ),
+            HomeSummaryRefreshButton(
+              compact: compact,
+              isRefreshing: isRefreshing,
+              onPressed: onRefresh,
+            ),
           ];
 
           return Column(
@@ -261,6 +239,60 @@ class HomeSummaryToolbar extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class HomeSummaryDatePicker extends StatelessWidget {
+  const HomeSummaryDatePicker({
+    super.key,
+    required this.selectedDate,
+    required this.compact,
+    required this.onPressed,
+  });
+
+  final DateTime selectedDate;
+  final bool compact;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = compact
+        ? _dateLabel(selectedDate)
+        : 'Ngày ${_dateLabel(selectedDate)}';
+
+    return AppSecondaryButton(
+      key: const Key('home-summary-date-picker'),
+      onPressed: onPressed,
+      icon: Icons.calendar_month_rounded,
+      label: label,
+      expand: compact,
+    );
+  }
+}
+
+class HomeSummaryRefreshButton extends StatelessWidget {
+  const HomeSummaryRefreshButton({
+    super.key,
+    required this.compact,
+    required this.isRefreshing,
+    required this.onPressed,
+  });
+
+  final bool compact;
+  final bool isRefreshing;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSecondaryButton(
+      key: const Key('home-summary-refresh-button'),
+      onPressed: onPressed,
+      icon: Icons.refresh_rounded,
+      label: 'Làm mới',
+      isLoading: isRefreshing,
+      loadingLabel: 'Đang tải',
+      expand: compact,
     );
   }
 }
