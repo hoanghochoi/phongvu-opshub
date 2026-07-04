@@ -78,10 +78,26 @@ void main() {
         findsOneWidget,
       );
       expect(
+        find.byKey(const Key('home-summary-card-totalOrders')),
+        findsOneWidget,
+      );
+      expect(
         find.descendant(
           of: find.byKey(const Key('home-summary-card-conversionRate')),
           matching: find.text('83.3%'),
         ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('home-summary-card-totalReports')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('home-summary-card-reportedOrders')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('home-summary-card-unreportedOrders')),
         findsOneWidget,
       );
       expect(find.text('Dashboard theo phạm vi'), findsOneWidget);
