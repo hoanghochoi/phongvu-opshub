@@ -87,6 +87,21 @@ export type SalesReportErpOrderListItem = {
   fetchedAt: Date;
 };
 
+export function isSalesReportErpOrderCanceledStatuses(input: {
+  confirmationStatus?: string | null;
+  fulfillmentStatus?: string | null;
+}) {
+  return [input.confirmationStatus, input.fulfillmentStatus].some(
+    (status) => status?.trim().toLowerCase() === 'cancelled',
+  );
+}
+
+export class SalesReportErpCanceledOrderException extends BadRequestException {
+  constructor(public readonly cacheItem: SalesReportErpOrderListItem) {
+    super('Đơn đã bị hủy.');
+  }
+}
+
 type CachedToken = {
   accessToken: string;
   expiresAt: number;
@@ -112,7 +127,7 @@ export class SalesReportErpService {
     try {
       const accessToken = await this.getAccessToken();
       const order = await this.fetchOrder(orderCode, accessToken);
-      this.assertOrderIsNotCanceled(order, orderCode);
+      this.assertOrderIsNotCanceled(order, orderCode, storeCode ?? null);
       const items = await this.normalizeItems(
         order,
         accessToken,
@@ -501,17 +516,97 @@ export class SalesReportErpService {
     return order;
   }
 
-  private assertOrderIsNotCanceled(order: any, orderCode: string) {
+  private assertOrderIsNotCanceled(
+    order: any,
+    orderCode: string,
+    storeCode: string | null,
+  ) {
     const confirmationStatus = this.optionalText(order?.confirmationStatus);
     const fulfillmentStatus = this.optionalText(order?.fulfillmentStatus);
-    const canceled = [confirmationStatus, fulfillmentStatus].some(
-      (status) => status?.toLowerCase() === 'cancelled',
-    );
-    if (!canceled) return;
+    if (
+      !isSalesReportErpOrderCanceledStatuses({
+        confirmationStatus,
+        fulfillmentStatus,
+      })
+    ) {
+      return;
+    }
     this.logger.warn(
       `Sales report ERP canceled order blocked: orderLength=${orderCode.length} confirmationStatus=${confirmationStatus || 'none'} fulfillmentStatus=${fulfillmentStatus || 'none'}`,
     );
-    throw new BadRequestException('Đơn đã bị hủy.');
+    throw new SalesReportErpCanceledOrderException(
+      this.canceledOrderCacheItem(order, orderCode, storeCode),
+    );
+  }
+
+  private canceledOrderCacheItem(
+    order: any,
+    orderCode: string,
+    fallbackStoreCode: string | null,
+  ): SalesReportErpOrderListItem {
+    const fetchedAt = new Date();
+    const normalized =
+      this.normalizeOrderListItem(order, fallbackStoreCode, fetchedAt) ?? null;
+    if (normalized) {
+      return {
+        ...normalized,
+        orderCode,
+        fetchedAt,
+        sanitizedSnapshot: {
+          ...normalized.sanitizedSnapshot,
+          exclusionCandidate: true,
+        },
+      };
+    }
+    return {
+      orderCode,
+      erpOrderId: this.firstText(order?.orderId, order?.id, orderCode),
+      erpExternalOrderRef: this.optionalText(order?.externalOrderRef),
+      orderCreatedAt: this.parseDate(order?.createdAt),
+      paymentStatus: this.optionalText(order?.paymentStatus),
+      confirmationStatus: this.optionalText(order?.confirmationStatus),
+      fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
+      terminalName: this.firstText(
+        order?.terminalName,
+        order?.storeName,
+        fallbackStoreCode,
+      ),
+      grandTotal: this.toInt(order?.grandTotal ?? order?.totalAmount),
+      customerName: this.firstText(
+        order?.customerName,
+        order?.customer?.name,
+        order?.customerInfo?.name,
+      ),
+      customerPhone: this.firstText(
+        order?.customerPhone,
+        order?.customer?.phone,
+        order?.customerInfo?.phone,
+      ),
+      customerType: this.detectCustomerType(
+        this.billingCustomerType(order),
+        this.billingTaxCode(order),
+      ),
+      paymentMethods: this.cleanPaymentMethods(
+        order?.paymentMethods ?? order?.payments ?? order?.paymentMethod,
+      ),
+      platformId: this.toInt(order?.platformId),
+      consultantCustomId: this.firstText(order?.consultantCustomId),
+      consultantName: this.firstText(order?.consultantName),
+      consultantEmail: this.firstText(order?.consultantEmail),
+      sellerId: this.firstText(order?.sellerId),
+      sellerName: this.firstText(order?.sellerName),
+      sellerEmail: this.firstText(order?.sellerEmail),
+      storeCode: this.normalizeStoreCode(fallbackStoreCode),
+      storeName: this.firstText(order?.storeName),
+      sanitizedSnapshot: {
+        orderCode,
+        paymentStatus: this.optionalText(order?.paymentStatus),
+        confirmationStatus: this.optionalText(order?.confirmationStatus),
+        fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
+        exclusionCandidate: true,
+      },
+      fetchedAt,
+    };
   }
 
   private async normalizeItems(

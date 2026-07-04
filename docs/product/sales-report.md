@@ -50,7 +50,11 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   thật qua server, rồi submit vẫn re-check ERP trước khi lưu.
 - Nếu ERP trả `confirmationStatus` hoặc `fulfillmentStatus` là `cancelled`
   không phân biệt hoa/thường, app báo `Đơn đã bị hủy.` và không load thông tin
-  đơn hàng về form.
+  đơn hàng về form. Backend đồng thời persist trạng thái loại trừ bền vững cho
+  `orderCode` đó trong cache ERP và đánh dấu mọi report mua hàng cùng mã đơn là
+  không còn hợp lệ để các flow sau fail-closed: cockpit không trả lại ở cột
+  chưa/đã báo cáo, admin list/export không tính tiếp, và các lần
+  `Kiểm tra đơn hàng` hoặc submit sau đó bị chặn ngay cả khi chưa gọi lại ERP.
 - ERP/Listing chỉ được tự điền ngành hàng khi map được về nhóm ngành OpsHub:
   chỉ lấy `result.products[].categories[]` có `level = 1` và dùng đúng `code`
   khớp `Cat group ID` trong `data/categories.csv`. Không dùng category level
@@ -152,10 +156,13 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   `[CH1001] ...`,
   `creator.email` từ `data.orders.creator.email`, người tư vấn/người bán nếu
   ERP trả về, tổng tiền, phương thức thanh toán, metadata lần sync nền và
-  snapshot đã sanitize. API
-  cockpit đếm total chưa báo cáo trực tiếp trên cache
-  DB, loại trừ các `orderCode` đã có báo cáo mua hàng trong cùng ngày/scope, rồi
-  trả từng trang 20 đơn cho client. Backend publish sự kiện
+  snapshot đã sanitize. Nếu ERP xác nhận order hủy, cache row được gắn
+  `excludedAt`/`exclusionReason = ERP_ORDER_CANCELLED`; mọi report mua hàng cùng
+  `orderCode` cũng được gắn `erpExcludedAt`/`erpExclusionReason` để loại khỏi
+  các query báo cáo phía sau mà không cần suy luận lại từ ERP theo từng màn.
+  API cockpit đếm total chưa báo cáo trực tiếp trên cache DB, loại trừ các
+  `orderCode` đã có báo cáo mua hàng trong cùng ngày/scope và các row đã bị
+  exclude bền vững, rồi trả từng trang 20 đơn cho client. Backend publish sự kiện
   `SALES_REPORT_ORDERS_UPDATED` qua Redis/WebSocket sau sync khi có đơn mới
   hoặc cache cũ vừa được backfill user/showroom/node; payload chỉ chứa ngày,
   số lượng, user/SR liên quan để client tự lọc và gọi lại API scoped, không đẩy
@@ -170,8 +177,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 
 - Backend: Prisma validate/generate, Nest build, tests cho category sync,
   duplicate `orderCode`, purchased re-check ERP, not-purchased no ERP call,
-  scheduled ERP cache sync, order cockpit cache-only list, feature guard và
-  export CSV.
+  scheduled ERP cache sync, durable canceled-order exclusion trên cache/report
+  rows, order cockpit cache-only list, feature guard và export CSV.
 - Flutter: Home/Report hub entry theo feature, route guard, order check before
   submit, cockpit 2 cột chưa/đã báo cáo, lọc ngày/SR/user, phân trang 20
   đơn/cột, realtime WebSocket refresh từ cache DB, QR/barcode scan mã

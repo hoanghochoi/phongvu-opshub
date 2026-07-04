@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { SalesReportErpCanceledOrderException } from './sales-report-erp.service';
 import { SalesReportsService } from './sales-reports.service';
 
 describe('SalesReportsService', () => {
@@ -10,6 +11,7 @@ describe('SalesReportsService', () => {
       },
       salesReport: {
         findUnique: jest.fn().mockResolvedValue(null),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         create: jest.fn().mockImplementation(({ data }: any) =>
           Promise.resolve({
             id: 'report-1',
@@ -25,6 +27,7 @@ describe('SalesReportsService', () => {
         findMany: jest.fn(),
       },
       salesReportErpOrderCache: {
+        findUnique: jest.fn().mockResolvedValue(null),
         count: jest.fn(),
         findMany: jest.fn(),
         upsert: jest.fn().mockResolvedValue({}),
@@ -101,6 +104,24 @@ describe('SalesReportsService', () => {
     expect(erp.lookupOrder).not.toHaveBeenCalled();
   });
 
+  it('blocks cached canceled orders before ERP lookup', async () => {
+    const { service, prisma, erp } = createHarness();
+    prisma.salesReportErpOrderCache.findUnique.mockResolvedValueOnce({
+      excludedAt: new Date('2026-07-04T01:00:00Z'),
+      exclusionReason: 'ERP_ORDER_CANCELLED',
+    });
+
+    await expect(
+      service.create(userFixture(), {
+        ...baseInput(),
+        reportType: 'PURCHASED',
+        orderCode: '2606290002',
+      }),
+    ).rejects.toThrow('Đơn đã bị hủy.');
+
+    expect(erp.lookupOrder).not.toHaveBeenCalled();
+  });
+
   it('requires customer need and explicit behavior answers before lookup', async () => {
     const { service, categories, erp } = createHarness();
 
@@ -156,6 +177,37 @@ describe('SalesReportsService', () => {
     );
   });
 
+  it('persists canceled exclusions when ERP lookup confirms the order was canceled', async () => {
+    const { service, prisma, erp } = createHarness();
+    erp.lookupOrder.mockRejectedValueOnce(
+      new SalesReportErpCanceledOrderException(
+        canceledErpOrderCacheItemFixture('2606290002'),
+      ),
+    );
+
+    await expect(
+      service.checkOrder(userFixture(), '2606290002'),
+    ).rejects.toThrow('Đơn đã bị hủy.');
+
+    expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { orderCode: '2606290002' },
+        create: expect.objectContaining({
+          orderCode: '2606290002',
+          exclusionReason: 'ERP_ORDER_CANCELLED',
+          excludedAt: expect.any(Date),
+        }),
+      }),
+    );
+    expect(prisma.salesReport.updateMany).toHaveBeenCalledWith({
+      where: { orderCode: '2606290002' },
+      data: {
+        erpExcludedAt: expect.any(Date),
+        erpExclusionReason: 'ERP_ORDER_CANCELLED',
+      },
+    });
+  });
+
   it('reads cached ERP orders and splits reported from unreported orders', async () => {
     const { service, prisma, erp } = createHarness();
     prisma.salesReport.count.mockResolvedValueOnce(1);
@@ -207,9 +259,13 @@ describe('SalesReportsService', () => {
         take: 20,
       }),
     );
+    expect(JSON.stringify(cacheFindArgs.where)).toContain('"excludedAt":null');
     expect(JSON.stringify(cacheFindArgs.where)).toContain(
       '"notIn":["2607010001"]',
     );
+    expect(
+      JSON.stringify(prisma.salesReport.findMany.mock.calls[1][0].where),
+    ).toContain('"erpExcludedAt":null');
   });
 
   it('lets super admin see all cached unreported orders without store scope', async () => {
@@ -381,6 +437,56 @@ describe('SalesReportsService', () => {
         }),
       );
       expect(result).toMatchObject({ skipped: false, count: 1 });
+    } finally {
+      if (oldEnabled === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_ENABLED = oldEnabled;
+      }
+      if (oldLookback === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = oldLookback;
+      }
+    }
+  });
+
+  it('scheduled sync marks canceled ERP orders as excluded and hides related purchased reports', async () => {
+    const { service, prisma, erp } = createHarness();
+    const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+    delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = '1';
+    erp.listRecentOrders.mockResolvedValueOnce([
+      {
+        ...erpListOrderFixture(),
+        orderCode: '2607010999',
+        erpOrderId: '2607010999',
+        confirmationStatus: 'CANCELLED',
+        fulfillmentStatus: 'PROCESSING',
+      },
+    ]);
+
+    try {
+      await service.syncScheduledErpOrderCache('test');
+
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '2607010999' },
+          create: expect.objectContaining({
+            orderCode: '2607010999',
+            exclusionReason: 'ERP_ORDER_CANCELLED',
+            excludedAt: expect.any(Date),
+          }),
+        }),
+      );
+      expect(prisma.salesReport.updateMany).toHaveBeenCalledWith({
+        where: { orderCode: '2607010999' },
+        data: {
+          erpExcludedAt: expect.any(Date),
+          erpExclusionReason: 'ERP_ORDER_CANCELLED',
+        },
+      });
     } finally {
       if (oldEnabled === undefined) {
         delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
@@ -927,9 +1033,14 @@ describe('SalesReportsService', () => {
 
     expect(prisma.salesReport.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { installmentNeed: true },
+        where: expect.any(Object),
       }),
     );
+    const exportWhere = JSON.stringify(
+      prisma.salesReport.findMany.mock.calls[0][0].where,
+    );
+    expect(exportWhere).toContain('"installmentNeed":true');
+    expect(exportWhere).toContain('"erpExcludedAt":null');
     expect(lines[0]).toBe(
       [
         'Ngày báo cáo',
@@ -1146,6 +1257,22 @@ function erpOrderCacheFixture(orderCode: string) {
     fetchedAt: new Date('2026-07-01T01:03:00Z'),
     createdAt: new Date('2026-07-01T01:03:00Z'),
     updatedAt: new Date('2026-07-01T01:03:00Z'),
+  };
+}
+
+function canceledErpOrderCacheItemFixture(orderCode: string) {
+  return {
+    ...erpListOrderFixture(),
+    orderCode,
+    erpOrderId: orderCode,
+    confirmationStatus: 'CANCELLED',
+    fulfillmentStatus: 'PROCESSING',
+    sanitizedSnapshot: {
+      orderCode,
+      confirmationStatus: 'CANCELLED',
+      fulfillmentStatus: 'PROCESSING',
+    },
+    fetchedAt: new Date('2026-07-04T01:03:00Z'),
   };
 }
 

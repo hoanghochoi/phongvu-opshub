@@ -5,6 +5,7 @@ import {
   Logger,
   OnApplicationBootstrap,
   Optional,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Interval } from '@nestjs/schedule';
@@ -20,8 +21,10 @@ import { RedisService } from '../redis/redis.service';
 import { SalesReportCategoriesService } from './sales-report-categories.service';
 import {
   SalesReportErpOrder,
+  SalesReportErpCanceledOrderException,
   SalesReportErpOrderListItem,
   SalesReportErpService,
+  isSalesReportErpOrderCanceledStatuses,
 } from './sales-report-erp.service';
 import {
   APP_DOWNLOAD_REASON_CODES,
@@ -55,6 +58,7 @@ const SALES_REPORT_ORDERS_UPDATED_CHANNEL = 'SALES_REPORT_ORDERS_UPDATED';
 const MAX_ORDER_CACHE_SYNC_LOOKBACK_DAYS = 7;
 const INSTALLMENT_SUCCESS = 'SUCCESS';
 const INSTALLMENT_FAILED = 'FAILED';
+const ERP_ORDER_CANCELED_EXCLUSION_REASON = 'ERP_ORDER_CANCELLED';
 const MANAGED_SALES_REPORT_JOB_ROLE_CODES = new Set([
   'STORE_MANAGER',
   'AREA_MANAGER',
@@ -281,6 +285,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     );
     const reportedWhere = this.andWhere(
       reportScopeWhere,
+      this.visibleSalesReportWhere(),
       this.reportedOrderDateWhere(filters.dateRange),
       {
         reportType: REPORT_TYPE_PURCHASED,
@@ -289,10 +294,12 @@ export class SalesReportsService implements OnApplicationBootstrap {
     );
     const cacheDateScopeWhere = this.andOrderCacheWhere(
       orderScopeWhere,
+      this.visibleOrderCacheWhere(),
       this.orderCacheDateWhere(filters.dateRange),
     );
     const baseReportedWhere = this.andWhere(
       baseReportScopeWhere,
+      this.visibleSalesReportWhere(),
       this.reportedOrderDateWhere(filters.dateRange),
       {
         reportType: REPORT_TYPE_PURCHASED,
@@ -301,6 +308,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     );
     const baseCacheDateWhere = this.andOrderCacheWhere(
       baseOrderScopeWhere,
+      this.visibleOrderCacheWhere(),
       this.orderCacheDateWhere(filters.dateRange),
     );
     const reportedCodeRows = await this.prisma.salesReport.findMany({
@@ -410,8 +418,13 @@ export class SalesReportsService implements OnApplicationBootstrap {
   async checkOrder(user: any, orderCodeInput: string) {
     const orderCode = this.normalizeOrderCode(orderCodeInput);
     await this.assertOrderNotReported(orderCode);
+    await this.assertOrderNotExcluded(orderCode);
     const context = await this.resolveUserSnapshot(user);
-    const erpOrder = await this.erp.lookupOrder(orderCode, context.storeCode);
+    const erpOrder = await this.lookupErpOrderForReport(
+      user,
+      context,
+      orderCode ?? '',
+    );
     await this.attachCategoryTypes(erpOrder);
     await this.upsertErpOrderCacheFromOrder(user, context, erpOrder);
     const matchedCategories = await this.categories.matchCategoriesFromErp(
@@ -449,7 +462,12 @@ export class SalesReportsService implements OnApplicationBootstrap {
     let erpOrder: SalesReportErpOrder | null = null;
     if (reportType === REPORT_TYPE_PURCHASED) {
       await this.assertOrderNotReported(orderCode);
-      erpOrder = await this.erp.lookupOrder(orderCode ?? '', context.storeCode);
+      await this.assertOrderNotExcluded(orderCode);
+      erpOrder = await this.lookupErpOrderForReport(
+        user,
+        context,
+        orderCode ?? '',
+      );
       await this.attachCategoryTypes(erpOrder);
     }
     const customerType = this.normalizeCustomerType(
@@ -618,7 +636,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
       requestedAllStores: filters.requestedAllStores,
       storeIds: filters.storeIds,
     });
-    const where = this.andWhere(scopeWhere, this.buildFilterWhere(filters));
+    const where = this.andWhere(
+      scopeWhere,
+      this.visibleSalesReportWhere(),
+      this.buildFilterWhere(filters),
+    );
     const [total, rows] = await this.prisma.$transaction([
       this.prisma.salesReport.count({ where }),
       this.prisma.salesReport.findMany({
@@ -652,7 +674,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
       requestedAllStores: filters.requestedAllStores,
       storeIds: filters.storeIds,
     });
-    const where = this.andWhere(scopeWhere, this.buildFilterWhere(filters));
+    const where = this.andWhere(
+      scopeWhere,
+      this.visibleSalesReportWhere(),
+      this.buildFilterWhere(filters),
+    );
     const exportWhere =
       exportType === EXPORT_TYPE_INSTALLMENT
         ? this.andWhere(where, { installmentNeed: true })
@@ -1091,6 +1117,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
   ) {
     const orderCode = this.normalizeOrderCode(order.orderCode);
     if (!orderCode) return;
+    const exclusion = this.orderExclusionState(
+      order.confirmationStatus,
+      order.fulfillmentStatus,
+    );
     const storeCode = this.normalizeStoreCode(
       order.storeCode ?? syncOwner?.storeCode ?? context.storeCode,
     );
@@ -1102,6 +1132,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
       paymentStatus: this.optionalText(order.paymentStatus, 80),
       confirmationStatus: this.optionalText(order.confirmationStatus, 80),
       fulfillmentStatus: this.optionalText(order.fulfillmentStatus, 80),
+      excludedAt: exclusion.excludedAt,
+      exclusionReason: exclusion.exclusionReason,
       terminalName: this.optionalText(order.terminalName, 120),
       grandTotal: order.grandTotal,
       customerName: this.optionalText(order.customerName, 120),
@@ -1150,11 +1182,25 @@ export class SalesReportsService implements OnApplicationBootstrap {
     ]) {
       if (updateData[key] === null) delete updateData[key];
     }
+    if (!exclusion.excludedAt) {
+      delete updateData.excludedAt;
+      delete updateData.exclusionReason;
+    }
     await this.prisma.salesReportErpOrderCache.upsert({
       where: { orderCode },
       create: { orderCode, ...data },
       update: updateData,
     });
+    if (exclusion.excludedAt) {
+      await this.markSalesReportsExcluded(
+        orderCode,
+        exclusion.excludedAt,
+        exclusion.exclusionReason!,
+      );
+      this.logger.warn(
+        `Sales report canceled order exclusion persisted: orderLength=${orderCode.length} confirmationStatus=${data.confirmationStatus || 'none'} fulfillmentStatus=${data.fulfillmentStatus || 'none'} reason=${exclusion.exclusionReason}`,
+      );
+    }
   }
 
   private async storesByCode(storeCodes: string[]) {
@@ -1675,6 +1721,96 @@ export class SalesReportsService implements OnApplicationBootstrap {
     if (existing) {
       throw new BadRequestException('Đơn hàng này đã được báo cáo mua hàng.');
     }
+  }
+
+  private async assertOrderNotExcluded(orderCode: string | null) {
+    if (!orderCode) return;
+    const existing = await this.prisma.salesReportErpOrderCache.findUnique({
+      where: { orderCode },
+      select: { excludedAt: true, exclusionReason: true },
+    });
+    if (!existing?.excludedAt) return;
+    this.logger.warn(
+      `Sales report excluded order blocked from cache: orderLength=${orderCode.length} reason=${existing.exclusionReason || 'none'}`,
+    );
+    throw new BadRequestException('Đơn đã bị hủy.');
+  }
+
+  private visibleSalesReportWhere(): Prisma.SalesReportWhereInput {
+    return { erpExcludedAt: null };
+  }
+
+  private visibleOrderCacheWhere(): Prisma.SalesReportErpOrderCacheWhereInput {
+    return { excludedAt: null };
+  }
+
+  private orderExclusionState(
+    confirmationStatus: unknown,
+    fulfillmentStatus: unknown,
+  ) {
+    if (
+      !isSalesReportErpOrderCanceledStatuses({
+        confirmationStatus: this.optionalText(confirmationStatus, 80),
+        fulfillmentStatus: this.optionalText(fulfillmentStatus, 80),
+      })
+    ) {
+      return { excludedAt: null, exclusionReason: null };
+    }
+    return {
+      excludedAt: new Date(),
+      exclusionReason: ERP_ORDER_CANCELED_EXCLUSION_REASON,
+    };
+  }
+
+  private async lookupErpOrderForReport(
+    user: any,
+    context: Awaited<ReturnType<SalesReportsService['resolveUserSnapshot']>>,
+    orderCode: string,
+  ) {
+    try {
+      return await this.erp.lookupOrder(orderCode, context.storeCode);
+    } catch (error) {
+      if (error instanceof SalesReportErpCanceledOrderException) {
+        await this.persistCanceledOrderExclusion(user, context, error.cacheItem);
+      }
+      throw error;
+    }
+  }
+
+  private async persistCanceledOrderExclusion(
+    user: any,
+    context: Awaited<ReturnType<SalesReportsService['resolveUserSnapshot']>>,
+    cacheItem: SalesReportErpOrderListItem,
+  ) {
+    try {
+      await this.upsertErpOrderCacheItem(
+        user,
+        context,
+        cacheItem,
+        new Map<string, any>(),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Sales report canceled order exclusion persist failed: orderLength=${cacheItem.orderCode.length} reason=${ERP_ORDER_CANCELED_EXCLUSION_REASON} error=${String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Đơn hàng đã bị hủy nhưng hệ thống chưa cập nhật kịp. Vui lòng thử lại sau ít phút.',
+      );
+    }
+  }
+
+  private async markSalesReportsExcluded(
+    orderCode: string,
+    excludedAt: Date,
+    exclusionReason: string,
+  ) {
+    await this.prisma.salesReport.updateMany({
+      where: { orderCode },
+      data: {
+        erpExcludedAt: excludedAt,
+        erpExclusionReason: exclusionReason,
+      },
+    });
   }
 
   private async resolveUserSnapshot(user: any) {

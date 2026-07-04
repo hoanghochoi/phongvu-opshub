@@ -853,6 +853,8 @@ model SalesReport {
   erpSnapshot                     Json?
   erpFetchedAt                    DateTime?
   erpFetchStatus                  String?
+  erpExcludedAt                   DateTime?
+  erpExclusionReason              String?
   rawResponses                    Json?
   submittedAt                     DateTime  @default(now())
   createdAt                       DateTime  @default(now())
@@ -872,6 +874,7 @@ model SalesReport {
   @@index([customerType, submittedAt])
   @@index([installmentNeed, submittedAt])
   @@index([organizationNodeId, submittedAt])
+  @@index([erpExcludedAt, submittedAt])
 }
 
 model SalesReportCategorySelection {
@@ -946,6 +949,8 @@ model SalesReportErpOrderCache {
   paymentStatus         String?
   confirmationStatus    String?
   fulfillmentStatus     String?
+  excludedAt            DateTime?
+  exclusionReason       String?
   terminalName          String?
   grandTotal            Int?
   customerName          String?
@@ -977,6 +982,7 @@ model SalesReportErpOrderCache {
   @@index([sourceUserEmail, orderCreatedAt])
   @@index([consultantCustomId, orderCreatedAt])
   @@index([sellerId, orderCreatedAt])
+  @@index([excludedAt, orderCreatedAt])
 }
 
 // ============================================================

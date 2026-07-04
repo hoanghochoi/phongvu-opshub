@@ -1072,6 +1072,18 @@ Recent focused evidence:
   `npm test -- --runInBand src/sales-reports` (14 tests), `npm run build`,
   `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
   (5 tests), `flutter analyze --no-pub`, and `git diff --check`.
+- `SALES-REPORT-001`, 2026-07-04: canceled ERP orders are now excluded
+  durably instead of only being blocked inline at lookup time. When ERP confirms
+  `confirmationStatus` or `fulfillmentStatus = cancelled`, OpsHub persists
+  `excludedAt`/`exclusionReason = ERP_ORDER_CANCELLED` on
+  `SalesReportErpOrderCache`, marks matching purchased reports with
+  `erpExcludedAt`/`erpExclusionReason`, removes those rows from cockpit/admin
+  list/export queries, and blocks future check/submit attempts fail-closed
+  before calling ERP again if the exclusion is already cached. Validation:
+  `npx prisma validate`, `npx prisma generate`,
+  `npm test -- --runInBand src/sales-reports/sales-report-erp.service.spec.ts src/sales-reports/sales-reports.service.spec.ts`
+  (33 tests), `npm run build`, `flutter analyze --no-pub`, and
+  `git diff --check` (CRLF warnings only).
 - `SALES-REPORT-001`, 2026-06-30: after a report submit succeeds, the Flutter
   form resets and scrolls back to the top of the page. The sales-report CSV
   export now uses a compact `query_1`-style 34-column shape: one row per ERP
