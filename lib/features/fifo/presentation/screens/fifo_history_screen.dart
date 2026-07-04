@@ -324,30 +324,36 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
     VoidCallback onRefresh,
   ) {
     if (loading && logs.isEmpty) {
-      return const AppStatePanel.loading(title: 'Đang tải lịch sử FIFO');
+      return const _FifoHistoryStateViewport(
+        child: AppStatePanel.loading(title: 'Đang tải lịch sử FIFO'),
+      );
     }
 
     if (error != null && logs.isEmpty) {
-      return AppStatePanel.error(
-        key: const Key('fifo-history-error'),
-        title: error,
-        message: 'Kiểm tra kết nối rồi thử tải lại.',
-        actionLabel: 'Thử tải lại',
-        actionIcon: Icons.refresh_outlined,
-        onAction: onRefresh,
-        compact: true,
+      return _FifoHistoryStateViewport(
+        child: AppStatePanel.error(
+          key: const Key('fifo-history-error'),
+          title: error,
+          message: 'Kiểm tra kết nối rồi thử tải lại.',
+          actionLabel: 'Thử tải lại',
+          actionIcon: Icons.refresh_outlined,
+          onAction: onRefresh,
+          compact: true,
+        ),
       );
     }
 
     if (logs.isEmpty) {
-      return AppStatePanel.empty(
-        title: _searchQuery != null || _filterUser != null
-            ? 'Không tìm thấy kết quả'
-            : 'Chưa có lịch sử',
-        icon: Icons.inbox_rounded,
-        actionLabel: 'Tải lại',
-        onAction: onRefresh,
-        compact: true,
+      return _FifoHistoryStateViewport(
+        child: AppStatePanel.empty(
+          title: _searchQuery != null || _filterUser != null
+              ? 'Không tìm thấy kết quả'
+              : 'Chưa có lịch sử',
+          icon: Icons.inbox_rounded,
+          actionLabel: 'Tải lại',
+          onAction: onRefresh,
+          compact: true,
+        ),
       );
     }
 
@@ -389,6 +395,30 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
           );
         },
       ),
+    );
+  }
+}
+
+class _FifoHistoryStateViewport extends StatelessWidget {
+  const _FifoHistoryStateViewport({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final minHeight = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : 0.0;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: minHeight),
+            child: child,
+          ),
+        );
+      },
     );
   }
 }

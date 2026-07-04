@@ -10,6 +10,7 @@ class AppLayoutTokens {
   static const double compactBreakpoint = 600;
   static const double tabletBreakpoint = 900;
   static const double desktopBreakpoint = 1200;
+  static const double authDesktopBreakpoint = 1024;
   static const double legacyDesktopBreakpoint = tabletBreakpoint;
   static const double contentMaxWidth = 1180;
   static const double pageMaxWidth = contentMaxWidth;
@@ -20,6 +21,15 @@ class AppLayoutTokens {
   static const double formMaxWidth = 720;
   static const double actionBarMaxWidth = 560;
   static const double authMaxWidth = 460;
+  static const double authBrandPanelMinWidth = 520;
+  static const double authFormPanelMinWidth = 420;
+  static const double authCardPadding = 28;
+  static const double authMobileCardPadding = 22;
+  static const double authControlHeight = 48;
+  static const double authControlRadius = AppRadius.md;
+  static const double authSubmitHeight = 52;
+  static const double authBenefitIconSize = 44;
+  static const double authCompactBenefitIconSize = 38;
   static const double sectionGap = 24;
   static const double cardGap = 12;
   static const double formFieldGap = 16;
@@ -37,6 +47,18 @@ class AppLayoutTokens {
   }
 
   static int formColumnsFor(double width) => width >= tabletBreakpoint ? 2 : 1;
+}
+
+class AppShadowTokens {
+  AppShadowTokens._();
+
+  static List<BoxShadow> authCard(BuildContext context) => [
+    BoxShadow(
+      color: Theme.of(context).shadowColor.withValues(alpha: 0.10),
+      blurRadius: 28,
+      offset: const Offset(0, 14),
+    ),
+  ];
 }
 
 class AppResponsiveContent extends StatelessWidget {

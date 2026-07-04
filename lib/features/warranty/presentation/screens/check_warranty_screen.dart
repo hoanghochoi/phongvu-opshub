@@ -256,7 +256,7 @@ class _WarrantyLookupHeader extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: 136,
+                width: 160,
                 child: AppSecondaryButton(
                   onPressed: onBackToHub,
                   icon: Icons.arrow_back_rounded,

@@ -73,6 +73,20 @@ visual systems that make the app feel assembled from unrelated screens.
   `AppLayoutTokens.contentMaxWidth` so feature pages do not stretch across the
   full window. Form-heavy screens should prefer `AppFormColumn` and
   `formMaxWidth`.
+- Public auth pages use the shared Auth components: `AuthPage`,
+  `AuthBrandPanel`, `AuthFormPanel`, `LoginCard`, `LoginForm`,
+  `AuthSecondaryActions`, and `AuthFooter`. At widths `>= 1024px`, auth uses a
+  split layout with brand/benefits on the left and a bounded form panel on the
+  right, following `minmax(520px, 56%) minmax(420px, 44%)`. Below `768px`, auth
+  becomes a single column: centered brand header, full-width login card, then
+  footer. The login card is capped at `AppLayoutTokens.authMaxWidth` on desktop
+  and fills the available mobile width without horizontal scroll.
+- Auth secondary actions must stay visually below the primary CTA. Use compact
+  link-style actions in one row for `Quên mật khẩu`, `Đăng ký`, and `Hướng dẫn`
+  instead of stacked outline buttons. Keep the primary submit at 52px height,
+  auth inputs at 48px height, shared radius/spacing tokens, visible focus and
+  error states, disabled/loading states, and semantic labels/tooltips for icon
+  controls such as password visibility.
 - Primary actions use `AppPrimaryButton`; secondary actions use
   `AppSecondaryButton`; icon-only actions should use a stable square touch
   target and a tooltip.
@@ -131,6 +145,7 @@ visual systems that make the app feel assembled from unrelated screens.
   staff workspace catalog. Legacy `/tasks` deep links return to `/home`. Later
   batches must migrate individual hub, form, dialog, loading, empty, error, and
   permission states into that shell.
+- Các biểu mẫu (Form) nghiệp vụ thu thập dữ liệu có số lượng trường nhập liệu lớn hơn 10 trường (hoặc có chiều cao cuộn thực tế trên mobile > 1500px) bắt buộc phải được hiển thị dưới dạng luồng nhiều bước (Stepper/Wizard Flow), không trải phẳng toàn bộ form nhằm giảm tải nhận thức (cognitive load) cho nhân viên vận hành và tránh việc bị điền thiếu hoặc sai lệch thông tin khi phải cuộn quá dài.
 - The feature-layer baseline for the 2026 migration is guarded by
   `test/design_system_migration_guard_test.dart`. New feature UI must use shared
   tokens/components instead of raw local `Colors.*`, `Color(0x...)`,
@@ -141,6 +156,7 @@ visual systems that make the app feel assembled from unrelated screens.
 
 - List, report, and admin-index filters must use dropdowns or anchored menus.
   Do not open dialogs for filter selection.
+- Rút gọn toàn bộ các selector showroom riêng lẻ. Mọi luồng cần chọn Showroom trong app (VietQR, Tiền vào, Sao kê, Cấn trừ) bắt buộc phải tái sử dụng component duy nhất `ShowroomPicker` có hỗ trợ tìm kiếm nội bộ và giới hạn chiều cao hiển thị để đảm bảo nhất quán trải nghiệm.
 - Date range filters must use one shared dropdown component with common presets
   and inline custom start/end controls. Do not use date-picker dialogs for
   list filters.
@@ -220,6 +236,7 @@ visual systems that make the app feel assembled from unrelated screens.
 ## Platform Contracts
 
 - Android and Windows are the primary UI proof targets for current OpsHub work.
+- Trên các thiết bị di động (Mobile), các thành phần điều khiển hành động quan trọng ở chân trang (như sticky action bar, submit button) bắt buộc phải chèn một khoảng đệm an toàn tối thiểu `80px` (bằng chiều cao Bottom Navigation Bar cộng thêm khoảng cách an toàn) để tránh bị che đè bởi thanh điều hướng hệ thống hoặc navigation chrome của ứng dụng.
 - Flutter web is an additional staff operations surface served from the domain
   root in production and staging. The SPA fallback must preserve `/api`, `/ws`,
   `/download`, `/help`, `/uploads`, `/downloads`, `/staging-download`, and

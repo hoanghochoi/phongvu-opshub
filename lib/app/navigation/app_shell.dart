@@ -26,7 +26,6 @@ import 'app_nav_model.dart';
 const _supportQrAssetPath = 'data/group_invitation.jpg';
 const _supportGroupInviteUrl =
     'https://link.seatalk.io/group/open?invite_id=IkaYSKrlQkImmkCfNj4aBdpd5cpcCWFPaaegCUhYXjgcfi1Tzn9E9Gbuac_qt8Jk5mruc0AJGqQLaQeSWG1e';
-const _appSlogan = 'Kết nối nguồn lực. Đồng bộ vận hành.';
 const _appDeveloperName = 'Hoàng Học Hỏi';
 
 class AppShell extends StatefulWidget {
@@ -123,6 +122,7 @@ class _AppShellState extends State<AppShell> {
             )
           : _MobileShell(
               location: widget.location,
+              drawerDestinations: sidebarDestinations,
               destinations: mobileDestinations,
               activeDestination: activeDestination,
               onNavigate: _navigate,
@@ -466,7 +466,7 @@ class _AppShellState extends State<AppShell> {
             ),
             const SizedBox(height: 12),
             Text(
-              _appSlogan,
+              AppBrand.slogan,
               style: AppTextStyles.labelS.copyWith(
                 color: AppColors.textSecondaryOf(context),
               ),
@@ -555,6 +555,7 @@ class _WideShell extends StatelessWidget {
 
 class _MobileShell extends StatelessWidget {
   final String location;
+  final List<AppNavDestination> drawerDestinations;
   final List<AppNavDestination> destinations;
   final AppNavDestination activeDestination;
   final ValueChanged<AppNavDestination> onNavigate;
@@ -564,6 +565,7 @@ class _MobileShell extends StatelessWidget {
 
   const _MobileShell({
     required this.location,
+    required this.drawerDestinations,
     required this.destinations,
     required this.activeDestination,
     required this.onNavigate,
@@ -577,12 +579,19 @@ class _MobileShell extends StatelessWidget {
     final selectedIndex = _selectedMobileIndex();
     return Scaffold(
       backgroundColor: AppColors.canvasOf(context),
+      drawer: _MobileNavigationDrawer(
+        location: location,
+        destinations: drawerDestinations,
+        onNavigate: onNavigate,
+      ),
       appBar: AppBar(
         centerTitle: true,
-        leadingWidth: 116,
-        leading: const Align(
-          alignment: Alignment.centerLeft,
-          child: _ShellMetricsPill(),
+        leading: Builder(
+          builder: (context) => IconButton(
+            tooltip: 'Mở menu',
+            onPressed: () => Scaffold.of(context).openDrawer(),
+            icon: const Icon(Icons.menu_rounded),
+          ),
         ),
         title: Text(
           activeDestination.label,
@@ -590,6 +599,7 @@ class _MobileShell extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          const _ShellMetricsPill(),
           IconButton(
             tooltip: 'Hỗ trợ',
             onPressed: onSupport,
@@ -629,6 +639,131 @@ class _MobileShell extends StatelessWidget {
     );
     if (directIndex >= 0) return directIndex;
     return 0;
+  }
+}
+
+class _MobileNavigationDrawer extends StatelessWidget {
+  const _MobileNavigationDrawer({
+    required this.location,
+    required this.destinations,
+    required this.onNavigate,
+  });
+
+  final String location;
+  final List<AppNavDestination> destinations;
+  final ValueChanged<AppNavDestination> onNavigate;
+
+  @override
+  Widget build(BuildContext context) {
+    final sections = _SidebarSection.fromDestinations(destinations);
+    return Drawer(
+      backgroundColor: AppColors.sidebarSurfaceOf(context),
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+          children: [
+            Row(
+              children: [
+                const AppLogo(size: 42, borderRadius: AppRadius.md),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        AppBrand.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.labelL.copyWith(
+                          color: AppColors.sidebarTextOf(context),
+                        ),
+                      ),
+                      Text(
+                        AppBrand.slogan,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.labelS.copyWith(
+                          color: AppColors.sidebarMutedOf(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            for (final section in sections) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 14, 4, 6),
+                child: Text(
+                  section.label,
+                  style: AppTextStyles.labelS.copyWith(
+                    color: AppColors.sidebarMutedOf(context),
+                  ),
+                ),
+              ),
+              for (final destination in section.destinations) ...[
+                _MobileDrawerItem(
+                  destination: destination,
+                  selected: AppNavModel.isSelected(destination, location),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    onNavigate(destination);
+                  },
+                ),
+                const SizedBox(height: 4),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileDrawerItem extends StatelessWidget {
+  const _MobileDrawerItem({
+    required this.destination,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AppNavDestination destination;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = selected
+        ? AppColors.primaryOf(context)
+        : AppColors.sidebarTextOf(context);
+    return Material(
+      color: selected
+          ? AppColors.sidebarSelectedOf(context).withValues(alpha: 0.16)
+          : AppColors.transparent,
+      borderRadius: AppRadius.allMd,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.allMd,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          child: Row(
+            children: [
+              Icon(destination.icon, color: foreground, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  destination.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelM.copyWith(color: foreground),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -709,7 +844,7 @@ class _DesktopSidebar extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    _appSlogan,
+                    AppBrand.slogan,
                     style: AppTextStyles.labelS.copyWith(
                       color: AppColors.sidebarMutedOf(context),
                     ),

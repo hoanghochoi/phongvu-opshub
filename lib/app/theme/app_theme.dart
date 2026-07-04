@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'app_radius.dart';
 import 'app_text_styles.dart';
+import '../widgets/app_inputs.dart';
 
 class AppTheme {
   AppTheme._();
@@ -70,10 +71,20 @@ class AppTheme {
           borderRadius: AppRadius.allMd,
           borderSide: const BorderSide(color: AppColors.error, width: 1),
         ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: AppRadius.allMd,
+          borderSide: const BorderSide(color: AppColors.error, width: 2),
         ),
+        prefixIconConstraints: const BoxConstraints.tightFor(
+          width: AppInputMetrics.iconBoxSize,
+          height: AppInputMetrics.iconBoxSize,
+        ),
+        suffixIconConstraints: const BoxConstraints.tightFor(
+          width: AppInputMetrics.iconBoxSize,
+          height: AppInputMetrics.iconBoxSize,
+        ),
+        contentPadding: AppInputMetrics.contentPadding,
+        constraints: const BoxConstraints(minHeight: AppInputMetrics.height),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -190,10 +201,20 @@ class AppTheme {
           borderRadius: AppRadius.allMd,
           borderSide: const BorderSide(color: AppColors.error, width: 1),
         ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: AppRadius.allMd,
+          borderSide: const BorderSide(color: AppColors.darkError, width: 2),
         ),
+        prefixIconConstraints: const BoxConstraints.tightFor(
+          width: AppInputMetrics.iconBoxSize,
+          height: AppInputMetrics.iconBoxSize,
+        ),
+        suffixIconConstraints: const BoxConstraints.tightFor(
+          width: AppInputMetrics.iconBoxSize,
+          height: AppInputMetrics.iconBoxSize,
+        ),
+        contentPadding: AppInputMetrics.contentPadding,
+        constraints: const BoxConstraints(minHeight: AppInputMetrics.height),
         labelStyle: const TextStyle(color: AppColors.neutral400),
         hintStyle: const TextStyle(color: AppColors.neutral500),
       ),

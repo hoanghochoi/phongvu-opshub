@@ -7,6 +7,7 @@ class AppBrand {
 
   static const productionTitle = 'PhongVu OpsHub';
   static const stagingTitle = 'PhongVu OpsHub Staging';
+  static const slogan = 'Kết nối nguồn lực. Đồng bộ vận hành.';
 
   static const productionLogoAsset = 'assets/icon/source/app_icon_master.png';
   static const productionPaddedLogoAsset =

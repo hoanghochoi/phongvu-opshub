@@ -34,6 +34,7 @@ void main() {
     expect(find.byType(AuthScreenShell), findsOneWidget);
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Đăng nhập'), findsWidgets);
+    expect(find.text('Kết nối nguồn lực. Đồng bộ vận hành.'), findsOneWidget);
     expect(find.text('Dùng tài khoản nội bộ để tiếp tục.'), findsOneWidget);
     expect(find.text('Hướng dẫn'), findsOneWidget);
 
@@ -59,6 +60,36 @@ void main() {
     expect(find.text('Tải lại trạng thái'), findsOneWidget);
     expect(find.text('Đăng xuất'), findsOneWidget);
   });
+
+  testWidgets('login layout follows desktop and mobile auth breakpoints', (
+    WidgetTester tester,
+  ) async {
+    await _expectLoginViewport(
+      tester,
+      size: const Size(1440, 900),
+      desktop: true,
+    );
+    await _expectLoginViewport(
+      tester,
+      size: const Size(1024, 768),
+      desktop: true,
+    );
+    await _expectLoginViewport(
+      tester,
+      size: const Size(768, 1024),
+      desktop: false,
+    );
+    await _expectLoginViewport(
+      tester,
+      size: const Size(460, 920),
+      desktop: false,
+    );
+    await _expectLoginViewport(
+      tester,
+      size: const Size(390, 844),
+      desktop: false,
+    );
+  });
 }
 
 Future<void> _pumpAuthScreen(WidgetTester tester, Widget screen) async {
@@ -69,6 +100,36 @@ Future<void> _pumpAuthScreen(WidgetTester tester, Widget screen) async {
     ),
   );
   await tester.pumpAndSettle();
+}
+
+Future<void> _expectLoginViewport(
+  WidgetTester tester, {
+  required Size size,
+  required bool desktop,
+}) async {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
+  await _pumpAuthScreen(tester, const EmailCheckScreen());
+
+  expect(find.byType(AuthPage), findsOneWidget);
+  expect(find.byType(LoginCard), findsOneWidget);
+  expect(find.byType(LoginForm), findsOneWidget);
+  expect(find.byType(AuthSecondaryActions), findsOneWidget);
+  expect(find.text('Quên mật khẩu'), findsOneWidget);
+  expect(find.text('Đăng ký'), findsOneWidget);
+  expect(find.text('Hướng dẫn'), findsOneWidget);
+
+  if (desktop) {
+    expect(find.byType(AuthBrandPanel), findsOneWidget);
+    expect(find.byType(MobileBrandHeader), findsNothing);
+  } else {
+    expect(find.byType(AuthBrandPanel), findsNothing);
+    expect(find.byType(MobileBrandHeader), findsOneWidget);
+  }
+  expect(tester.takeException(), isNull);
 }
 
 class _IdleAuthProvider extends AuthProvider {

@@ -24,6 +24,8 @@ class AppPrimaryButton extends StatelessWidget {
   final String label;
   final bool isLoading;
   final String? loadingLabel;
+  final double height;
+  final double radius;
 
   const AppPrimaryButton({
     super.key,
@@ -32,6 +34,8 @@ class AppPrimaryButton extends StatelessWidget {
     required this.label,
     this.isLoading = false,
     this.loadingLabel,
+    this.height = AppButtonMetrics.height,
+    this.radius = AppButtonMetrics.radius,
   });
 
   @override
@@ -43,7 +47,7 @@ class AppPrimaryButton extends StatelessWidget {
       disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.45),
       disabledForegroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
+        borderRadius: BorderRadius.circular(radius),
       ),
       textStyle: AppTextStyles.labelL,
     );
@@ -57,7 +61,7 @@ class AppPrimaryButton extends StatelessWidget {
 
     return SizedBox(
       width: double.infinity,
-      height: AppButtonMetrics.height,
+      height: height,
       child: hasIcon
           ? FilledButton.icon(
               onPressed: isLoading ? null : onPressed,
@@ -92,6 +96,8 @@ class AppSecondaryButton extends StatelessWidget {
   final Color? foregroundColor;
   final Color? borderColor;
   final bool expand;
+  final double height;
+  final double radius;
 
   const AppSecondaryButton({
     super.key,
@@ -103,6 +109,8 @@ class AppSecondaryButton extends StatelessWidget {
     this.foregroundColor,
     this.borderColor,
     this.expand = true,
+    this.height = AppButtonMetrics.height,
+    this.radius = AppButtonMetrics.radius,
   });
 
   @override
@@ -111,7 +119,7 @@ class AppSecondaryButton extends StatelessWidget {
     final effectiveBorderColor = borderColor ?? effectiveForegroundColor;
     return SizedBox(
       width: expand ? double.infinity : null,
-      height: AppButtonMetrics.height,
+      height: height,
       child: OutlinedButton.icon(
         onPressed: isLoading ? null : onPressed,
         icon: isLoading
@@ -131,12 +139,80 @@ class AppSecondaryButton extends StatelessWidget {
           foregroundColor: effectiveForegroundColor,
           side: BorderSide(color: effectiveBorderColor),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
+            borderRadius: BorderRadius.circular(radius),
           ),
           textStyle: AppTextStyles.labelM,
         ),
       ),
     );
+  }
+}
+
+class AppLinkButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final String label;
+  final String? tooltip;
+  final bool compact;
+
+  const AppLinkButton({
+    super.key,
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+    this.tooltip,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveColor = AppColors.primaryOf(context);
+    final horizontalPadding = compact ? 4.0 : 6.0;
+    final iconSize = compact ? 16.0 : 18.0;
+    final button = SizedBox(
+      height: 44,
+      child: TextButton(
+        onPressed: onPressed,
+        style: ButtonStyle(
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return AppColors.textMutedOf(context);
+            }
+            return effectiveColor;
+          }),
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.focused) ||
+                states.contains(WidgetState.hovered)) {
+              return effectiveColor.withValues(alpha: 0.10);
+            }
+            if (states.contains(WidgetState.pressed)) {
+              return effectiveColor.withValues(alpha: 0.16);
+            }
+            return null;
+          }),
+          minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          padding: WidgetStatePropertyAll(
+            EdgeInsets.symmetric(horizontal: horizontalPadding),
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: AppRadius.allMd),
+          ),
+          textStyle: const WidgetStatePropertyAll(AppTextStyles.labelS),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: iconSize),
+            SizedBox(width: compact ? 4 : 6),
+            Text(label, maxLines: 1, softWrap: false),
+          ],
+        ),
+      ),
+    );
+
+    if (tooltip == null) return button;
+    return Tooltip(message: tooltip!, child: button);
   }
 }
 

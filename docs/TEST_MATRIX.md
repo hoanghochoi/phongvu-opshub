@@ -45,6 +45,24 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`FIFO-HISTORY-STATE-VIEWPORT`, 2026-07-04: FIFO History loading,
+  empty, and error panels now sit inside a scroll-safe viewport so compact
+  mobile retry states do not overflow after shared button/input density changes.
+  Validation: focused
+  `flutter test --no-pub --reporter expanded test\fifo_history_redesign_test.dart`
+  (3 tests).
+- `HOME-DASHBOARD-001`/`MOCKUP-POLISH`, 2026-07-04: Home dashboard UI aligned
+  with the supplied desktop/tablet/mobile mockup while preserving the existing
+  `/home/summary` data contract. The dashboard now starts directly with
+  `Trang chủ vận hành`, scope/date/update controls, compact KPI cards, a donut
+  plus 0/50/100 progress bar, and a four-item quick-tools panel. Mobile/tablet
+  shell keeps bottom navigation and now exposes the collapsed navigation drawer
+  through the hamburger entry while retaining support, notification, account,
+  and payment-delivery metrics behavior. Validation: changed-file
+  `dart format --output=none --set-exit-if-changed`, `git diff --check`,
+  `flutter analyze --no-pub`, and focused
+  `flutter test --no-pub --reporter expanded test\home_dashboard_test.dart test\home_feedback_action_test.dart test\home_avatar_test.dart test\app_shell_route_viewport_test.dart`
+  (21 tests).
 - `HOME-DASHBOARD-001`, 2026-07-04: completed Batch 3
   `Home Dashboard Theo Scope` from
   `docs/OPSHUB_MASTER_IMPLEMENTATION_PLAN.md`. Home now consumes
@@ -469,6 +487,25 @@ Recent focused evidence:
   `152:1217`/`151:89`/`152:119`; text/structure QA confirmed runtime copy,
   zero-size text count `0`, and no unsupported SSO/2FA or simplified
   register-copy mock remains.
+- `UI-UX-001`/`AUTH-002`, 2026-07-04: login/auth layout polish aligned the
+  public auth shell with the supplied desktop/mobile mockup. Desktop auth now
+  uses a 56/44 split from 1024px with a denser brand panel for tablet
+  landscape; mobile hides the brand panel, shows the shared brand header with
+  `Kết nối nguồn lực. Đồng bộ vận hành.`, keeps the login card full-width and
+  bounded, and changes `Quên mật khẩu`/`Đăng ký`/`Hướng dẫn` from stacked
+  outline buttons to compact link actions below the primary CTA. Shared tokens
+  now cover auth input height, card padding, control radius, benefit icon
+  sizing, card shadow, and link button focus/hover states. Focused viewport
+  proof covers 1440x900, 1024x768, 768x1024, 460x920, and 390x844 with
+  screenshots under `output/playwright/auth-login-*.png`. Validation in this
+  patch: `dart format --output=none --set-exit-if-changed` on changed Dart
+  files, `flutter test --no-pub --reporter expanded
+  test\auth_pre_shell_redesign_test.dart test\app_shell_route_viewport_test.dart
+  test\app_theme_tokens_test.dart`, `flutter analyze --no-pub`,
+  `flutter build web --debug --no-pub`, and local Playwright screenshot capture
+  against the debug web build. Local screenshot browser console still reports
+  expected API/app-version errors because no backend was served with the static
+  web build; the screenshots are visual layout proof, not API smoke proof.
 - `UI-UX-001`/`ADMIN-ROLES`, 2026-07-02: `/admin/roles` now renders as a
   content-only workspace under `AppShell` instead of nesting a
   `GradientHeader`. The read-only role catalog uses shared header/state/list

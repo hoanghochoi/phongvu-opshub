@@ -51,8 +51,10 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _HomeCommandPanel(user: user),
-          const SizedBox(height: AppLayoutTokens.sectionGap),
+          if (homeSummaryProvider == null) ...[
+            _HomeCommandPanel(user: user),
+            const SizedBox(height: AppLayoutTokens.sectionGap),
+          ],
           if (canUsePaymentSpeaker) ...[
             const _PaymentMonitorQuickToggle(),
             const SizedBox(height: AppLayoutTokens.sectionGap),
@@ -67,7 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
           if (homeSummaryProvider != null && workspaceCount > 0) ...[
             const SizedBox(height: AppLayoutTokens.cardGap),
             HomeOperationsShortcutCard(
-              onOpenOperations: () => _openOperations(context, workspaceCount),
+              actions: _quickToolsFor(context, user, workspaceCount),
             ),
           ],
           const SizedBox(height: 20),
@@ -85,6 +87,94 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     context.go('/operations');
+  }
+
+  List<HomeQuickToolAction> _quickToolsFor(
+    BuildContext context,
+    User? user,
+    int workspaceCount,
+  ) {
+    HomeQuickToolAction action({
+      required String id,
+      required String title,
+      required String description,
+      required IconData icon,
+      required Color color,
+      required String route,
+      String? fallbackRoute,
+    }) {
+      return HomeQuickToolAction(
+        id: id,
+        title: title,
+        description: description,
+        icon: icon,
+        color: color,
+        onTap: () {
+          final targetRoute = fallbackRoute ?? route;
+          unawaited(
+            AppLogger.instance.info(
+              'Home',
+              'Quick tool opened from home dashboard',
+              context: {
+                'tool': id,
+                'route': targetRoute,
+                'visibleActions': workspaceCount,
+              },
+            ),
+          );
+          context.go(targetRoute);
+        },
+      );
+    }
+
+    final salesDestination = AppNavModel.destinations.firstWhere(
+      (destination) => destination.id == 'sales',
+    );
+    final statementDestination = AppNavModel.destinations.firstWhere(
+      (destination) => destination.id == 'statement',
+    );
+    final canOpenSales = AppNavModel.canUseDestination(user, salesDestination);
+    final canOpenStatement = AppNavModel.canUseDestination(
+      user,
+      statementDestination,
+    );
+
+    return [
+      action(
+        id: 'reports',
+        title: 'Tổng hợp ngày',
+        description: 'Xem tổng hợp và chi tiết báo cáo',
+        icon: Icons.description_outlined,
+        color: AppColors.secondary,
+        route: '/reports',
+        fallbackRoute: canOpenSales ? null : '/operations',
+      ),
+      action(
+        id: 'reconcile',
+        title: 'Đối soát',
+        description: 'Đối soát doanh số và đơn hàng',
+        icon: Icons.fact_check_outlined,
+        color: AppColors.info,
+        route: '/bank-statement',
+        fallbackRoute: canOpenStatement ? null : '/operations',
+      ),
+      action(
+        id: 'operations',
+        title: 'Vận hành',
+        description: 'Xử lý đơn và theo dõi tiến độ vận hành',
+        icon: Icons.apps_outlined,
+        color: AppColors.accent,
+        route: '/operations',
+      ),
+      action(
+        id: 'settings',
+        title: 'Thiết lập phạm vi',
+        description: 'Thiết lập hệ thống và phạm vi',
+        icon: Icons.settings_outlined,
+        color: AppColors.warning,
+        route: '/settings',
+      ),
+    ];
   }
 
   void _logHomeResolved(

@@ -2,6 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/app_text_styles.dart';
+import 'app_layout.dart';
+
+class AppInputMetrics {
+  AppInputMetrics._();
+
+  static const double height = AppLayoutTokens.authControlHeight;
+  static const double iconBoxSize = AppLayoutTokens.authControlHeight;
+  static const EdgeInsets contentPadding = EdgeInsets.symmetric(
+    horizontal: 14,
+    vertical: 12,
+  );
+}
 
 InputDecoration appInputDecoration({
   required String label,
@@ -19,9 +31,19 @@ InputDecoration appInputDecoration({
     helperText: helperText,
     suffixText: suffixText,
     errorText: errorText,
-    prefixIcon: icon == null ? null : Icon(icon),
+    prefixIcon: icon == null ? null : Icon(icon, size: 20),
+    prefixIconConstraints: const BoxConstraints.tightFor(
+      width: AppInputMetrics.iconBoxSize,
+      height: AppInputMetrics.iconBoxSize,
+    ),
     suffixIcon: suffixIcon,
+    suffixIconConstraints: const BoxConstraints.tightFor(
+      width: AppInputMetrics.iconBoxSize,
+      height: AppInputMetrics.iconBoxSize,
+    ),
     isDense: dense,
+    contentPadding: AppInputMetrics.contentPadding,
+    constraints: const BoxConstraints(minHeight: AppInputMetrics.height),
   );
 }
 

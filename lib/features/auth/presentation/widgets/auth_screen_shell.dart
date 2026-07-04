@@ -1,9 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
-import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_logo.dart';
 import '../../../../core/config/app_brand.dart';
@@ -38,59 +39,364 @@ class AuthScreenShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return AuthPage(maxWidth: maxWidth, highlights: highlights, child: child);
+  }
+}
+
+class AuthPage extends StatelessWidget {
+  final Widget child;
+  final double maxWidth;
+  final List<AuthShellHighlight> highlights;
+
+  const AuthPage({
+    super.key,
+    required this.child,
+    required this.highlights,
+    this.maxWidth = AppLayoutTokens.authMaxWidth,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.canvasOf(context),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isDesktop =
-                constraints.maxWidth >= AppLayoutTokens.desktopBreakpoint;
+                constraints.maxWidth >= AppLayoutTokens.authDesktopBreakpoint;
             if (!isDesktop) {
-              return AppResponsiveScrollView(
+              return AuthFormPanel(
                 maxWidth: maxWidth,
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const AuthBrandHeader(compact: true),
-                    const SizedBox(height: AppLayoutTokens.sectionGap),
-                    child,
-                    const SizedBox(height: AppLayoutTokens.formSectionGap),
-                    Text(
-                      '© 2026 ${AppBrand.title}',
-                      style: AppTextStyles.labelS.copyWith(
-                        color: AppColors.textMutedOf(context),
-                      ),
-                    ),
-                  ],
-                ),
+                mobile: true,
+                child: child,
               );
             }
 
+            final preferredFormWidth = math.max(
+              AppLayoutTokens.authFormPanelMinWidth,
+              constraints.maxWidth * 0.44,
+            );
+            final maxFormWidth =
+                constraints.maxWidth - AppLayoutTokens.authBrandPanelMinWidth;
+            final formPanelWidth = math.min(preferredFormWidth, maxFormWidth);
+            final brandPanelWidth = constraints.maxWidth - formPanelWidth;
+
             return Row(
               children: [
-                Expanded(
-                  flex: 5,
+                SizedBox(
+                  width: brandPanelWidth,
                   child: AuthBrandPanel(highlights: highlights),
                 ),
-                Expanded(
-                  flex: 4,
-                  child: AppResponsiveScrollView(
-                    maxWidth: maxWidth,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 56,
-                      vertical: 40,
-                    ),
-                    keyboardDismissBehavior:
-                        ScrollViewKeyboardDismissBehavior.onDrag,
-                    child: child,
-                  ),
+                SizedBox(
+                  width: formPanelWidth,
+                  child: AuthFormPanel(maxWidth: maxWidth, child: child),
                 ),
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class AuthBrandPanel extends StatelessWidget {
+  final List<AuthShellHighlight> highlights;
+
+  const AuthBrandPanel({super.key, required this.highlights});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final dense = constraints.maxHeight < 820;
+        final padding = EdgeInsets.symmetric(
+          horizontal: dense ? 40 : 56,
+          vertical: dense ? 36 : 52,
+        );
+        return ColoredBox(
+          color: AppColors.sidebarSurfaceOf(context),
+          child: Padding(
+            padding: padding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                BrandHeader(dense: dense),
+                SizedBox(height: dense ? 24 : 42),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: Text(
+                    'Một tài khoản cho FIFO, bảo hành, VietQR, sao kê, cấn trừ và báo cáo bán hàng.',
+                    style:
+                        (dense ? AppTextStyles.labelM : AppTextStyles.headingS)
+                            .copyWith(color: AppColors.sidebarTextOf(context)),
+                  ),
+                ),
+                SizedBox(height: dense ? 16 : AppLayoutTokens.sectionGap),
+                AuthBenefitList(highlights: highlights, dense: dense),
+                const Spacer(),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.lock_rounded,
+                      size: 18,
+                      color: AppColors.sidebarMutedOf(context),
+                    ),
+                    const SizedBox(width: AppLayoutTokens.formInlineGap),
+                    Expanded(
+                      child: Text(
+                        'Bảo mật bằng phân quyền và session nội bộ OpsHub.',
+                        style:
+                            (dense ? AppTextStyles.bodyS : AppTextStyles.labelM)
+                                .copyWith(
+                                  color: AppColors.sidebarMutedOf(context),
+                                ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class BrandHeader extends StatelessWidget {
+  final bool centered;
+  final bool compact;
+  final bool dense;
+
+  const BrandHeader({
+    super.key,
+    this.centered = false,
+    this.compact = false,
+    this.dense = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = compact
+        ? AppColors.textPrimaryOf(context)
+        : AppColors.sidebarTextOf(context);
+    final mutedColor = compact
+        ? AppColors.textSecondaryOf(context)
+        : AppColors.sidebarMutedOf(context);
+    final alignment = centered
+        ? CrossAxisAlignment.center
+        : CrossAxisAlignment.start;
+    return Column(
+      crossAxisAlignment: alignment,
+      children: [
+        AppLogo(
+          size: dense ? 64 : (compact ? 72 : 88),
+          borderRadius: AppRadius.xxl,
+        ),
+        SizedBox(height: dense ? 12 : 16),
+        Text(
+          AppBrand.title,
+          style:
+              (dense
+                      ? AppTextStyles.headingM
+                      : compact
+                      ? AppTextStyles.headingM
+                      : AppTextStyles.headingXL)
+                  .copyWith(color: textColor),
+          textAlign: centered ? TextAlign.center : TextAlign.start,
+        ),
+        SizedBox(height: dense ? 4 : 8),
+        Text(
+          AppBrand.slogan,
+          textAlign: centered ? TextAlign.center : TextAlign.start,
+          style: (dense ? AppTextStyles.bodyS : AppTextStyles.bodyM).copyWith(
+            color: mutedColor,
+          ),
+        ),
+        SizedBox(height: dense ? 12 : 18),
+        Container(
+          width: 52,
+          height: 3,
+          decoration: BoxDecoration(
+            color: AppColors.primaryOf(context),
+            borderRadius: AppRadius.allPill,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class MobileBrandHeader extends StatelessWidget {
+  const MobileBrandHeader({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const BrandHeader(centered: true, compact: true);
+  }
+}
+
+class AuthBrandHeader extends StatelessWidget {
+  final bool compact;
+
+  const AuthBrandHeader({super.key, this.compact = false});
+
+  @override
+  Widget build(BuildContext context) {
+    if (compact) return const MobileBrandHeader();
+    return const BrandHeader();
+  }
+}
+
+class AuthBenefitList extends StatelessWidget {
+  final List<AuthShellHighlight> highlights;
+  final bool dense;
+
+  const AuthBenefitList({
+    super.key,
+    required this.highlights,
+    this.dense = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 470),
+      child: AppFormColumn(
+        spacing: dense ? 8 : AppLayoutTokens.cardGap,
+        children: [
+          for (final highlight in highlights)
+            _AuthBenefitTile(highlight: highlight, dense: dense),
+        ],
+      ),
+    );
+  }
+}
+
+class AuthFormPanel extends StatelessWidget {
+  final Widget child;
+  final double maxWidth;
+  final bool mobile;
+
+  const AuthFormPanel({
+    super.key,
+    required this.child,
+    this.maxWidth = AppLayoutTokens.authMaxWidth,
+    this.mobile = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final padding = mobile
+            ? const EdgeInsets.fromLTRB(20, 24, 20, 20)
+            : const EdgeInsets.symmetric(horizontal: 48, vertical: 40);
+        final minHeight = math.max(
+          0.0,
+          constraints.maxHeight - padding.vertical,
+        );
+        return SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: padding,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: minHeight),
+            child: Column(
+              mainAxisAlignment: mobile
+                  ? MainAxisAlignment.start
+                  : MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (mobile) ...[
+                  const MobileBrandHeader(),
+                  const SizedBox(height: AppLayoutTokens.sectionGap),
+                ],
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: SizedBox(width: double.infinity, child: child),
+                ),
+                const SizedBox(height: AppLayoutTokens.formSectionGap),
+                const AuthFooter(),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class LoginCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  const LoginCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isCompact =
+        MediaQuery.sizeOf(context).width < AppLayoutTokens.compactBreakpoint;
+    final padding = EdgeInsets.all(
+      isCompact
+          ? AppLayoutTokens.authMobileCardPadding
+          : AppLayoutTokens.authCardPadding,
+    );
+    return Semantics(
+      container: true,
+      label: title,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.cardOf(context),
+          borderRadius: AppRadius.allLg,
+          border: Border.all(color: AppColors.borderOf(context)),
+          boxShadow: AppShadowTokens.authCard(context),
+        ),
+        child: Padding(
+          padding: padding,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySurfaceOf(context),
+                    borderRadius: AppRadius.allMd,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Icon(
+                      icon,
+                      size: 24,
+                      color: AppColors.primaryOf(context),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppLayoutTokens.formFieldGap),
+              Text(title, style: AppTextStyles.headingM),
+              const SizedBox(height: 6),
+              Text(
+                subtitle,
+                style: AppTextStyles.bodyM.copyWith(
+                  color: AppColors.textSecondaryOf(context),
+                ),
+              ),
+              const SizedBox(height: AppLayoutTokens.formSectionGap),
+              child,
+            ],
+          ),
         ),
       ),
     );
@@ -113,164 +419,118 @@ class AuthCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      padding: const EdgeInsets.all(24),
-      borderColor: AppColors.borderOf(context),
-      backgroundColor: AppColors.cardOf(context),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.primarySurfaceOf(context),
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Icon(icon, color: AppColors.primaryOf(context)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(title, style: AppTextStyles.headingM),
-          const SizedBox(height: 8),
-          Text(
-            subtitle,
-            style: AppTextStyles.bodyM.copyWith(
-              color: AppColors.textSecondaryOf(context),
-            ),
-          ),
-          const SizedBox(height: AppLayoutTokens.formSectionGap),
-          child,
-        ],
+    return LoginCard(
+      icon: icon,
+      title: title,
+      subtitle: subtitle,
+      child: child,
+    );
+  }
+}
+
+class AuthFooter extends StatelessWidget {
+  const AuthFooter({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      '© 2026 ${AppBrand.title}',
+      textAlign: TextAlign.center,
+      style: AppTextStyles.labelS.copyWith(
+        color: AppColors.textMutedOf(context),
       ),
     );
   }
 }
 
-class AuthBrandHeader extends StatelessWidget {
-  final bool compact;
-
-  const AuthBrandHeader({super.key, this.compact = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final textColor = compact
-        ? AppColors.textPrimaryOf(context)
-        : AppColors.sidebarTextOf(context);
-    final mutedColor = compact
-        ? AppColors.textSecondaryOf(context)
-        : AppColors.sidebarMutedOf(context);
-    return Column(
-      children: [
-        AppLogo(size: compact ? 72 : 88, borderRadius: AppRadius.xxl),
-        const SizedBox(height: 16),
-        Text(
-          AppBrand.title,
-          style: (compact ? AppTextStyles.headingL : AppTextStyles.headingXL)
-              .copyWith(color: textColor),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Trung tâm tác vụ vận hành nội bộ',
-          textAlign: TextAlign.center,
-          style: AppTextStyles.bodyM.copyWith(color: mutedColor),
-        ),
-      ],
-    );
-  }
-}
-
-class AuthBrandPanel extends StatelessWidget {
-  final List<AuthShellHighlight> highlights;
-
-  const AuthBrandPanel({super.key, required this.highlights});
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: AppColors.sidebarSurfaceOf(context),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 56, vertical: 48),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const AuthBrandHeader(),
-            const Spacer(),
-            Text(
-              'Một tài khoản cho FIFO, bảo hành, VietQR, sao kê, cấn trừ và báo cáo bán hàng.',
-              style: AppTextStyles.headingS.copyWith(
-                color: AppColors.sidebarTextOf(context),
-              ),
-            ),
-            const SizedBox(height: AppLayoutTokens.sectionGap),
-            AppFormColumn(
-              spacing: AppLayoutTokens.cardGap,
-              children: [
-                for (final highlight in highlights)
-                  _AuthHighlightTile(highlight: highlight),
-              ],
-            ),
-            const Spacer(),
-            Text(
-              'Bảo mật bằng phân quyền và session nội bộ OpsHub.',
-              style: AppTextStyles.labelM.copyWith(
-                color: AppColors.sidebarMutedOf(context),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AuthHighlightTile extends StatelessWidget {
+class _AuthBenefitTile extends StatefulWidget {
   final AuthShellHighlight highlight;
+  final bool dense;
 
-  const _AuthHighlightTile({required this.highlight});
+  const _AuthBenefitTile({required this.highlight, required this.dense});
+
+  @override
+  State<_AuthBenefitTile> createState() => _AuthBenefitTileState();
+}
+
+class _AuthBenefitTileState extends State<_AuthBenefitTile> {
+  bool _hovered = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.sidebarSelectedOf(context).withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        border: Border.all(
-          color: AppColors.sidebarMutedOf(context).withValues(alpha: 0.24),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Icon(highlight.icon, color: AppColors.sidebarTextOf(context)),
-            const SizedBox(width: AppLayoutTokens.formInlineGap),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    highlight.title,
-                    style: AppTextStyles.labelM.copyWith(
+    final active = _hovered || _focused;
+    final borderColor = _focused
+        ? AppColors.primaryOf(context)
+        : AppColors.sidebarMutedOf(context).withValues(alpha: 0.24);
+    return Semantics(
+      container: true,
+      label: '${widget.highlight.title}. ${widget.highlight.description}',
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.basic,
+        onShowHoverHighlight: (value) => setState(() => _hovered = value),
+        onShowFocusHighlight: (value) => setState(() => _focused = value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            color: AppColors.sidebarSelectedOf(
+              context,
+            ).withValues(alpha: active ? 0.18 : 0.10),
+            borderRadius: AppRadius.allMd,
+            border: Border.all(color: borderColor, width: _focused ? 2 : 1),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(widget.dense ? 10 : 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.sidebarSelectedOf(
+                      context,
+                    ).withValues(alpha: active ? 0.22 : 0.14),
+                    borderRadius: AppRadius.allMd,
+                  ),
+                  child: SizedBox.square(
+                    dimension: widget.dense
+                        ? AppLayoutTokens.authCompactBenefitIconSize
+                        : AppLayoutTokens.authBenefitIconSize,
+                    child: Icon(
+                      widget.highlight.icon,
+                      size: widget.dense ? 20 : 22,
                       color: AppColors.sidebarTextOf(context),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    highlight.description,
-                    style: AppTextStyles.bodyS.copyWith(
-                      color: AppColors.sidebarMutedOf(context),
-                    ),
+                ),
+                const SizedBox(width: AppLayoutTokens.formInlineGap),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.highlight.title,
+                        style: AppTextStyles.labelM.copyWith(
+                          color: AppColors.sidebarTextOf(context),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.highlight.description,
+                        style:
+                            (widget.dense
+                                    ? AppTextStyles.caption
+                                    : AppTextStyles.bodyS)
+                                .copyWith(
+                                  color: AppColors.sidebarMutedOf(context),
+                                ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

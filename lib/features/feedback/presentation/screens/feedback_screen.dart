@@ -325,7 +325,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               onRemoveImage: (index) => unawaited(_removeImage(index)),
               onSubmit: _submitFeedback,
             ),
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
+            const SizedBox(height: 80.0),
           ],
         ),
       ),

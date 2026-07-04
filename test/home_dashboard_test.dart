@@ -110,10 +110,16 @@ void main() {
       expect(structuredChildren[1], isA<HomeSummaryToolbar>());
       expect(structuredChildren[2], isA<SummaryCardGrid>());
       expect(structuredChildren[3], isA<ReportProgressPanel>());
-      expect(find.text('Dashboard theo phạm vi'), findsOneWidget);
+      expect(find.text('Trang chủ vận hành'), findsOneWidget);
       expect(find.text('Doanh số trong ngày'), findsOneWidget);
       expect(find.text('125.000.000 VND'), findsOneWidget);
+      expect(
+        find.byKey(const Key('home-summary-progress-donut')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('home-operations-shortcut')), findsOneWidget);
+      expect(find.text('Công cụ nhanh'), findsOneWidget);
+      expect(find.text('Đối soát'), findsOneWidget);
       expect(
         find.descendant(
           of: find.byKey(const Key('home-summary-page')),
