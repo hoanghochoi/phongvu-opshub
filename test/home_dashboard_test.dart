@@ -104,6 +104,13 @@ void main() {
       expect(find.text('Doanh số trong ngày'), findsOneWidget);
       expect(find.text('125.000.000 VND'), findsOneWidget);
       expect(find.byKey(const Key('home-operations-shortcut')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-page')),
+          matching: find.byKey(const Key('home-operations-shortcut')),
+        ),
+        findsNothing,
+      );
     },
   );
 

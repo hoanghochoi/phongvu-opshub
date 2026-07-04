@@ -16,20 +16,14 @@ import '../../domain/home_summary.dart';
 import '../providers/home_summary_provider.dart';
 
 class HomeSummaryPage extends StatelessWidget {
-  const HomeSummaryPage({
-    super.key,
-    required this.provider,
-    required this.canOpenOperations,
-    required this.onOpenOperations,
-  });
+  const HomeSummaryPage({super.key, required this.provider});
 
   final HomeSummaryProvider provider;
-  final bool canOpenOperations;
-  final VoidCallback onOpenOperations;
 
   @override
   Widget build(BuildContext context) {
     final summary = provider.summary;
+    final content = _buildSummaryContent(summary);
 
     return Column(
       key: const Key('home-summary-page'),
@@ -58,12 +52,7 @@ class HomeSummaryPage extends StatelessWidget {
           ),
           const SizedBox(height: AppLayoutTokens.cardGap),
         ],
-        _SummaryBody(
-          provider: provider,
-          summary: summary,
-          canOpenOperations: canOpenOperations,
-          onOpenOperations: onOpenOperations,
-        ),
+        ...content,
       ],
     );
   }
@@ -80,6 +69,84 @@ class HomeSummaryPage extends StatelessWidget {
     );
     if (picked == null) return;
     await provider.setSelectedDate(picked);
+  }
+
+  List<Widget> _buildSummaryContent(HomeSummary? summary) {
+    if (provider.isInitialLoading) {
+      return [
+        _buildStateCard(
+          key: const Key('home-summary-loading'),
+          child: const AppStatePanel.loading(
+            title: 'Đang tải dashboard',
+            message: 'Hệ thống đang tổng hợp doanh số và tiến độ báo cáo.',
+          ),
+        ),
+      ];
+    }
+
+    if (summary == null && provider.errorMessage != null) {
+      return [
+        _buildStateCard(
+          key: const Key('home-summary-error'),
+          child: AppStatePanel.error(
+            title: 'Chưa tải được dashboard',
+            message: provider.errorMessage,
+            actionLabel: 'Thử lại',
+            actionIcon: Icons.refresh_rounded,
+            onAction: provider.canRefresh
+                ? () => unawaited(provider.refreshNow())
+                : null,
+          ),
+        ),
+      ];
+    }
+
+    if (summary == null) {
+      return [
+        _buildStateCard(
+          key: const Key('home-summary-empty'),
+          child: const AppStatePanel.empty(
+            title: 'Chưa có dữ liệu dashboard',
+            message: 'Dữ liệu sẽ hiển thị ngay khi hệ thống đồng bộ xong.',
+          ),
+        ),
+      ];
+    }
+
+    if (summary.isUnavailable) {
+      return [
+        _buildStateCard(
+          key: const Key('home-summary-unavailable'),
+          child: AppStatePanel.empty(
+            title: 'Dashboard chưa khả dụng cho tài khoản này',
+            message: summary.resolvedUnavailableMessage,
+          ),
+        ),
+      ];
+    }
+
+    if (!summary.hasMetrics) {
+      return [
+        _buildStateCard(
+          key: const Key('home-summary-no-metrics'),
+          child: const AppStatePanel.empty(
+            title: 'Chưa có số liệu trong ngày',
+            message:
+                'Hiện chưa phát sinh đơn hoặc báo cáo hợp lệ trong phạm vi đang xem.',
+          ),
+        ),
+      ];
+    }
+
+    return [
+      SummaryCardGrid(summary: summary),
+      const SizedBox(height: AppLayoutTokens.cardGap),
+      ReportProgressPanel(summary: summary),
+    ];
+  }
+
+  Widget _buildStateCard({required Key key, required Widget child}) {
+    return AppSurfaceCard(key: key, child: child);
   }
 }
 
@@ -545,107 +612,8 @@ class ReportProgressPanel extends StatelessWidget {
   }
 }
 
-class _SummaryBody extends StatelessWidget {
-  const _SummaryBody({
-    required this.provider,
-    required this.summary,
-    required this.canOpenOperations,
-    required this.onOpenOperations,
-  });
-
-  final HomeSummaryProvider provider;
-  final HomeSummary? summary;
-  final bool canOpenOperations;
-  final VoidCallback onOpenOperations;
-
-  @override
-  Widget build(BuildContext context) {
-    if (provider.isInitialLoading) {
-      return _buildStateCard(
-        key: const Key('home-summary-loading'),
-        child: const AppStatePanel.loading(
-          title: 'Đang tải dashboard',
-          message: 'Hệ thống đang tổng hợp doanh số và tiến độ báo cáo.',
-        ),
-      );
-    }
-
-    if (summary == null && provider.errorMessage != null) {
-      return _buildStateCard(
-        key: const Key('home-summary-error'),
-        child: AppStatePanel.error(
-          title: 'Chưa tải được dashboard',
-          message: provider.errorMessage,
-          actionLabel: 'Thử lại',
-          actionIcon: Icons.refresh_rounded,
-          onAction: provider.canRefresh
-              ? () => unawaited(provider.refreshNow())
-              : null,
-        ),
-      );
-    }
-
-    if (summary == null) {
-      return _buildStateCard(
-        key: const Key('home-summary-empty'),
-        child: const AppStatePanel.empty(
-          title: 'Chưa có dữ liệu dashboard',
-          message: 'Dữ liệu sẽ hiển thị ngay khi hệ thống đồng bộ xong.',
-        ),
-      );
-    }
-    final currentSummary = summary!;
-
-    final content = <Widget>[];
-    if (currentSummary.isUnavailable) {
-      content.add(
-        _buildStateCard(
-          key: const Key('home-summary-unavailable'),
-          child: AppStatePanel.empty(
-            title: 'Dashboard chưa khả dụng cho tài khoản này',
-            message: currentSummary.resolvedUnavailableMessage,
-          ),
-        ),
-      );
-    } else if (!currentSummary.hasMetrics) {
-      content.add(
-        _buildStateCard(
-          key: const Key('home-summary-no-metrics'),
-          child: const AppStatePanel.empty(
-            title: 'Chưa có số liệu trong ngày',
-            message:
-                'Hiện chưa phát sinh đơn hoặc báo cáo hợp lệ trong phạm vi đang xem.',
-          ),
-        ),
-      );
-    } else {
-      content.addAll([
-        SummaryCardGrid(summary: currentSummary),
-        const SizedBox(height: AppLayoutTokens.cardGap),
-        ReportProgressPanel(summary: currentSummary),
-      ]);
-    }
-
-    if (canOpenOperations) {
-      content.add(const SizedBox(height: AppLayoutTokens.cardGap));
-      content.add(
-        _HomeOperationsShortcutCard(onOpenOperations: onOpenOperations),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: content,
-    );
-  }
-
-  Widget _buildStateCard({required Key key, required Widget child}) {
-    return AppSurfaceCard(key: key, child: child);
-  }
-}
-
-class _HomeOperationsShortcutCard extends StatelessWidget {
-  const _HomeOperationsShortcutCard({required this.onOpenOperations});
+class HomeOperationsShortcutCard extends StatelessWidget {
+  const HomeOperationsShortcutCard({super.key, required this.onOpenOperations});
 
   final VoidCallback onOpenOperations;
 

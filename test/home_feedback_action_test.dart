@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phongvu_opshub/app/widgets/app_feature_grid.dart';
@@ -90,65 +91,94 @@ void main() {
     expect(find.text('Không gian làm việc'), findsNothing);
   });
 
-  testWidgets('Windows Home shows speaker paused for multiple assigned SRs', (
-    tester,
-  ) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-    SharedPreferences.setMockInitialValues({});
-    FlutterSecureStorage.setMockInitialValues({});
-    PackageInfo.setMockInitialValues(
-      appName: 'PhongVu OpsHub',
-      packageName: 'com.example.phongvu_opshub',
-      version: '1.1.1',
-      buildNumber: '2',
-      buildSignature: '',
-    );
-    const user = User(
-      id: 'user-1',
-      email: 'staff@phongvu.vn',
-      name: 'Staging',
-      role: 'USER',
-      organizationNodeId: 'org-store-cp75',
-      assignedStores: [
-        StoreBranch(id: 'store-75', storeId: 'CP75', storeName: 'CP75'),
-        StoreBranch(id: 'store-62', storeId: 'CP62', storeName: 'CP62'),
-      ],
-      featureAccess: {'PAYMENT_MONITOR': true, 'PAYMENT_SPEAKER': true},
-    );
-    final authProvider = _FakeAuthProvider(user);
-    final paymentProvider = _FakeHomePaymentMonitorProvider(
-      isActive: true,
-      isSpeakerEnabled: true,
-      canUsePaymentSpeaker: false,
-      speakerSelectionNotice:
-          'Loa chỉ đọc khi chọn đúng 1 showroom. Bạn đang xem 2 showroom nên danh sách vẫn cập nhật, còn loa tạm dừng.',
-    );
-    addTearDown(paymentProvider.dispose);
-
-    await tester.pumpWidget(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
-          ChangeNotifierProvider<PaymentMonitorProvider>.value(
-            value: paymentProvider,
+  testWidgets(
+    'Windows Home shows speaker paused for multiple assigned SRs and opens help',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      addTearDown(() {
+        debugDefaultTargetPlatformOverride = null;
+      });
+      SharedPreferences.setMockInitialValues({});
+      FlutterSecureStorage.setMockInitialValues({});
+      PackageInfo.setMockInitialValues(
+        appName: 'PhongVu OpsHub',
+        packageName: 'com.example.phongvu_opshub',
+        version: '1.1.1',
+        buildNumber: '2',
+        buildSignature: '',
+      );
+      const user = User(
+        id: 'user-1',
+        email: 'staff@phongvu.vn',
+        name: 'Staging',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp75',
+        assignedStores: [
+          StoreBranch(id: 'store-75', storeId: 'CP75', storeName: 'CP75'),
+          StoreBranch(id: 'store-62', storeId: 'CP62', storeName: 'CP62'),
+        ],
+        featureAccess: {'PAYMENT_MONITOR': true, 'PAYMENT_SPEAKER': true},
+      );
+      final authProvider = _FakeAuthProvider(user);
+      final paymentProvider = _FakeHomePaymentMonitorProvider(
+        isActive: true,
+        isSpeakerEnabled: true,
+        canUsePaymentSpeaker: false,
+        speakerSelectionNotice:
+            'Loa chỉ đọc khi chọn đúng 1 showroom. Bạn đang xem 2 showroom nên danh sách vẫn cập nhật, còn loa tạm dừng.',
+      );
+      addTearDown(paymentProvider.dispose);
+      final router = GoRouter(
+        initialLocation: '/home',
+        routes: [
+          GoRoute(
+            path: '/home',
+            builder: (context, state) => MultiProvider(
+              providers: [
+                ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+                ChangeNotifierProvider<PaymentMonitorProvider>.value(
+                  value: paymentProvider,
+                ),
+              ],
+              child: const HomeScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/help',
+            builder: (context, state) =>
+                const Scaffold(body: Text('Hướng dẫn đã mở')),
           ),
         ],
-        child: const MaterialApp(home: HomeScreen()),
-      ),
-    );
-    await tester.pump();
+      );
 
-    expect(find.text('Đọc loa tiền vào'), findsOneWidget);
-    expect(
-      find.textContaining('Loa chỉ đọc khi chọn đúng 1 showroom'),
-      findsOneWidget,
-    );
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
 
-    final toggle = tester.widget<SwitchListTile>(find.byType(SwitchListTile));
-    expect(toggle.value, isFalse);
-    expect(toggle.onChanged, isNull);
-    debugDefaultTargetPlatformOverride = null;
-  });
+      expect(find.text('Đọc loa tiền vào'), findsOneWidget);
+      expect(
+        find.textContaining('Loa chỉ đọc khi chọn đúng 1 showroom'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          'Vui lòng cài đặt để máy tính đọc loa không vào chế độ khóa màn hình hoặc Sleep.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Đọc thêm phần Hướng dẫn.'), findsOneWidget);
+
+      final toggle = tester.widget<SwitchListTile>(find.byType(SwitchListTile));
+      expect(toggle.value, isFalse);
+      expect(toggle.onChanged, isNull);
+
+      await tester.tap(find.byKey(const Key('payment-speaker-help-link')));
+      await tester.pumpAndSettle();
+
+      expect(router.routeInformationProvider.value.uri.path, '/help');
+      expect(find.text('Hướng dẫn đã mở'), findsOneWidget);
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
 
   testWidgets('Android Home keeps speaker quick toggle hidden', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;

@@ -58,16 +58,18 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: AppLayoutTokens.sectionGap),
           ],
           if (homeSummaryProvider != null)
-            HomeSummaryPage(
-              provider: homeSummaryProvider,
-              canOpenOperations: workspaceCount > 0,
-              onOpenOperations: () => _openOperations(context, workspaceCount),
-            )
+            HomeSummaryPage(provider: homeSummaryProvider)
           else
             _LegacyHomeBody(
               workspaceCount: workspaceCount,
               onOpenOperations: () => _openOperations(context, workspaceCount),
             ),
+          if (homeSummaryProvider != null && workspaceCount > 0) ...[
+            const SizedBox(height: AppLayoutTokens.cardGap),
+            HomeOperationsShortcutCard(
+              onOpenOperations: () => _openOperations(context, workspaceCount),
+            ),
+          ],
           const SizedBox(height: 20),
         ],
       ),
@@ -333,6 +335,21 @@ class _PaymentMonitorQuickToggle extends StatelessWidget {
             ? 'Đang chuẩn bị cập nhật'
             : 'Chọn showroom để dùng');
 
+    void openPaymentSpeakerHelp() {
+      unawaited(
+        AppLogger.instance.info(
+          'Home',
+          'Payment speaker help opened from quick toggle',
+          context: {
+            'source': 'paymentSpeakerQuickToggle',
+            'canToggle': canToggle,
+            'speakerEnabled': speakerEnabled,
+          },
+        ),
+      );
+      context.go('/help');
+    }
+
     return AppSurfaceCard(
       padding: EdgeInsets.zero,
       child: SwitchListTile.adaptive(
@@ -347,7 +364,61 @@ class _PaymentMonitorQuickToggle extends StatelessWidget {
           color: speakerActive ? AppColors.success : AppColors.neutral500,
         ),
         title: const Text('Đọc loa tiền vào', style: AppTextStyles.labelM),
-        subtitle: Text(statusText, style: AppTextStyles.bodyS),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(statusText, style: AppTextStyles.bodyS),
+            const SizedBox(height: 6),
+            Row(
+              key: const Key('payment-speaker-warning'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Icon(
+                    Icons.warning_amber_rounded,
+                    size: 16,
+                    color: AppColors.warning,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    runSpacing: 2,
+                    children: [
+                      Text(
+                        'Vui lòng cài đặt để máy tính đọc loa không vào chế độ khóa màn hình hoặc Sleep. ',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.neutral600,
+                        ),
+                      ),
+                      InkWell(
+                        key: const Key('payment-speaker-help-link'),
+                        borderRadius: AppRadius.allXs,
+                        onTap: openPaymentSpeakerHelp,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 2,
+                            vertical: 1,
+                          ),
+                          child: Text(
+                            'Đọc thêm phần Hướng dẫn.',
+                            style: AppTextStyles.captionBold.copyWith(
+                              color: AppColors.primary,
+                              decoration: TextDecoration.underline,
+                              decorationColor: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       ),
     );
