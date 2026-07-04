@@ -47,7 +47,7 @@ class SalesReportWorkspaceHeader extends StatelessWidget {
                   ),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(10),
                   child: Icon(icon, color: AppColors.primary),
                 ),
               ),
@@ -56,16 +56,16 @@ class SalesReportWorkspaceHeader extends StatelessWidget {
           final titleBlock = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: AppTextStyles.headingM),
-              const SizedBox(height: 6),
+              Text(title, style: AppTextStyles.headingS),
+              const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: AppTextStyles.bodyM.copyWith(
+                style: AppTextStyles.bodyS.copyWith(
                   color: AppColors.neutral600,
                 ),
               ),
               if (chips.isNotEmpty) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Wrap(spacing: 8, runSpacing: 8, children: chips),
               ],
             ],

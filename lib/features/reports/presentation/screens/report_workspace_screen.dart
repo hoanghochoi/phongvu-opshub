@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -128,8 +129,8 @@ class _ReportWorkspaceHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 52,
-            height: 52,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: AppColors.info.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
@@ -141,23 +142,28 @@ class _ReportWorkspaceHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Lối vào báo cáo', style: AppTextStyles.headingM),
-                const SizedBox(height: 6),
+                Text('Lối vào báo cáo', style: AppTextStyles.headingS),
+                const SizedBox(height: 4),
                 Text(
                   'Tổng hợp các báo cáo vận hành theo quyền tài khoản.',
-                  style: AppTextStyles.bodyM.copyWith(
+                  style: AppTextStyles.bodyS.copyWith(
                     color: AppColors.textSecondaryOf(context),
                     height: 1.35,
                   ),
                 ),
-                const SizedBox(height: AppLayoutTokens.formInlineGap),
-                Text(
-                  actionCount > 0
-                      ? '$actionCount báo cáo khả dụng'
-                      : 'Chưa có báo cáo khả dụng',
-                  style: AppTextStyles.labelS.copyWith(
-                    color: AppColors.textMutedOf(context),
-                  ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    AppStatusChip(
+                      label: actionCount > 0
+                          ? '$actionCount báo cáo khả dụng'
+                          : 'Chưa có báo cáo khả dụng',
+                      color: AppColors.info,
+                      backgroundColor: AppColors.infoSurface,
+                    ),
+                  ],
                 ),
               ],
             ),

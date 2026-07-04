@@ -355,8 +355,8 @@ class _FeedbackHeader extends StatelessWidget {
           final isCompact =
               constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
           final icon = Container(
-            width: 52,
-            height: 52,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: AppColors.info.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
@@ -369,17 +369,17 @@ class _FeedbackHeader extends StatelessWidget {
           final heading = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Chia sẻ phản hồi', style: AppTextStyles.headingM),
-              const SizedBox(height: 6),
+              Text('Chia sẻ phản hồi', style: AppTextStyles.headingS),
+              const SizedBox(height: 4),
               Text(
                 'Chia sẻ đề xuất, điểm chưa thuận tiện hoặc lỗi bạn gặp '
                 'trong lúc làm việc.',
-                style: AppTextStyles.bodyM.copyWith(
+                style: AppTextStyles.bodyS.copyWith(
                   color: AppColors.neutral600,
                   height: 1.35,
                 ),
               ),
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
+              const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -409,11 +409,7 @@ class _FeedbackHeader extends StatelessWidget {
           if (isCompact) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                icon,
-                const SizedBox(height: AppLayoutTokens.formInlineGap),
-                heading,
-              ],
+              children: [icon, const SizedBox(height: 10), heading],
             );
           }
 
