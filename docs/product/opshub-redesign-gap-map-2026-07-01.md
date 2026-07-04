@@ -396,11 +396,11 @@ test\design_system_migration_guard_test.dart` (7 tests),
   biến môi trường. Script seed session web an toàn, rồi chụp screenshot ignored
   cho desktop `1440x900` và mobile `390x844`. Smoke live mặc định kiểm 3
   public routes (`/login`, `/register`, `/forgot-password`), 1 pending auth
-  route bằng tokenless cached session (`/assignment-pending`) và 32
+  route bằng tokenless cached session (`/assignment-pending`) và 33
   authenticated shell routes trong `AppRouter`
   (`/home`, `/operations`, `/profile`, các admin workspaces, FIFO, BH/SC, VietQR,
-  Payment Monitor web fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report và
-  Settings), tổng 72 route/viewport checks: không redirect sai route, không
+  Payment Monitor web fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report,
+  Help Content admin và Settings), tổng 74 route/viewport checks: không redirect sai route, không
   console/page error, không visible horizontal overflow. Script bỏ qua các node
   semantics nội bộ của Flutter như `flt-announcement-*` và paragraph
   accessibility khổng lồ vì chúng không tạo lỗi layout nhìn thấy.
@@ -408,7 +408,7 @@ test\design_system_migration_guard_test.dart` (7 tests),
   `design_system_migration_guard_test.dart`: public auth routes phải là
   `/login`, `/register`, `/forgot-password`, pending auth route phải là
   `/assignment-pending`, còn authenticated route list phải khớp toàn bộ
-  `ShellRoute` trong `AppRouter`, tổng 72 checks cho 2 viewport.
+  `ShellRoute` trong `AppRouter`, tổng 74 checks cho 2 viewport.
   Follow-up pixel sanity 03/07/2026 bổ sung PNG parser trong smoke script để
   xác nhận screenshot đúng kích thước viewport và không phải ảnh phẳng/trắng
   bằng ngưỡng sampled-color/luma trước khi coi route là pass.

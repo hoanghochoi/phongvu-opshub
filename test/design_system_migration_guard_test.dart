@@ -159,6 +159,8 @@ void main() {
           'public auth shell outside AppShell',
       'lib/features/fifo_check/presentation/widgets/barcode_scanner_screen.dart':
           'fullscreen scanner modal outside AppShell',
+      'lib/features/help/presentation/screens/help_screen.dart':
+          'public help route outside AppShell',
     };
     final scaffoldPattern = RegExp(r'\bScaffold\s*\(');
     final hits = <String>[];
@@ -580,6 +582,10 @@ void main() {
           (count: 1, reason: 'inline refresh progress'),
       'lib/features/bank_statement/presentation/screens/bank_statement_screen.dart':
           (count: 1, reason: 'inline refresh progress'),
+      'lib/features/home/presentation/widgets/home_summary_page.dart': (
+        count: 1,
+        reason: 'report coverage progress panel',
+      ),
       'lib/features/vietqr/presentation/widgets/payment_waiting_card.dart': (
         count: 1,
         reason: 'payment waiting status',
@@ -710,8 +716,8 @@ void main() {
               pendingSmokeRoutes.length +
               authenticatedSmokeRoutes.length) *
           2,
-      72,
-      reason: 'Default smoke should stay at 36 routes across 2 viewports.',
+      74,
+      reason: 'Default smoke should stay at 37 routes across 2 viewports.',
     );
     expect(smokeSource, contains('readPngVisualStats'));
     expect(smokeSource, contains('uniqueSampledColors < 16'));
@@ -728,10 +734,10 @@ void main() {
     expect(smokeSource, contains('OPSHUB_VISUAL_SMOKE_WARRANTY_RECEIPT'));
     expect(smokeSource, contains('GET /warranties'));
     expect(smokeSource, contains('skippedRoutes'));
-    expect(gapMap, contains('tổng 72 route/viewport checks'));
-    expect(gapMap, contains('32\n  authenticated shell routes'));
-    expect(testMatrix, contains('default live staging smoke now runs 72'));
-    expect(testMatrix, contains('all 32 authenticated shell routes'));
+    expect(gapMap, contains('tổng 74 route/viewport checks'));
+    expect(gapMap, contains('33\n  authenticated shell routes'));
+    expect(testMatrix, contains('default live staging smoke now runs 74'));
+    expect(testMatrix, contains('all 33 authenticated shell routes'));
   });
 }
 

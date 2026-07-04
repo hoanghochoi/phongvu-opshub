@@ -390,13 +390,12 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
           'Thao tác này sẽ ghi đè toàn bộ nội dung runtime hiện tại bằng dữ liệu trong docs/help.',
         ),
         actions: [
-          TextButton(
+          AppDialogCancelButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Hủy'),
           ),
-          FilledButton(
+          AppDialogConfirmButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Khôi phục'),
+            label: 'Khôi phục',
           ),
         ],
       ),
@@ -671,10 +670,14 @@ class _HelpContentPageListCard extends StatelessWidget {
               Expanded(
                 child: Text('Danh sách trang', style: AppTextStyles.headingS),
               ),
-              TextButton.icon(
-                onPressed: onCreatePage,
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Trang mới'),
+              SizedBox(
+                width: 148,
+                child: AppSecondaryButton(
+                  onPressed: onCreatePage,
+                  icon: Icons.add_rounded,
+                  label: 'Trang mới',
+                  expand: false,
+                ),
               ),
             ],
           ),
