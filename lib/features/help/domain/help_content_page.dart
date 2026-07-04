@@ -1,3 +1,48 @@
+enum HelpPageVisibility { draft, public, private }
+
+extension HelpPageVisibilityX on HelpPageVisibility {
+  String get apiValue => switch (this) {
+    HelpPageVisibility.draft => 'DRAFT',
+    HelpPageVisibility.public => 'PUBLIC',
+    HelpPageVisibility.private => 'PRIVATE',
+  };
+
+  String get label => switch (this) {
+    HelpPageVisibility.draft => 'Nháp',
+    HelpPageVisibility.public => 'Public',
+    HelpPageVisibility.private => 'Private',
+  };
+
+  String get description => switch (this) {
+    HelpPageVisibility.draft => 'Chưa hiển thị ra ngoài sau khi lưu.',
+    HelpPageVisibility.public =>
+      'Ai có link cũng xem được, không cần đăng nhập.',
+    HelpPageVisibility.private => 'Chỉ xem được sau khi đăng nhập.',
+  };
+
+  bool get isPublished => this != HelpPageVisibility.draft;
+  bool get isAuthenticatedOnly => this == HelpPageVisibility.private;
+
+  static HelpPageVisibility fromJson(
+    Object? value, {
+    required bool isPublished,
+    required bool isAuthenticatedOnly,
+  }) {
+    final normalized = value?.toString().trim().toUpperCase();
+    return switch (normalized) {
+      'DRAFT' => HelpPageVisibility.draft,
+      'PUBLIC' => HelpPageVisibility.public,
+      'PRIVATE' => HelpPageVisibility.private,
+      _ =>
+        !isPublished
+            ? HelpPageVisibility.draft
+            : isAuthenticatedOnly
+            ? HelpPageVisibility.private
+            : HelpPageVisibility.public,
+    };
+  }
+}
+
 class HelpContentPage {
   const HelpContentPage({
     required this.id,
@@ -8,6 +53,7 @@ class HelpContentPage {
     required this.sortOrder,
     required this.markdown,
     required this.isPublished,
+    this.isAuthenticatedOnly = false,
     required this.seededFromDocsAt,
     required this.updatedAt,
     required this.updatedByUserId,
@@ -22,12 +68,26 @@ class HelpContentPage {
   final int sortOrder;
   final String markdown;
   final bool isPublished;
+  final bool isAuthenticatedOnly;
   final DateTime? seededFromDocsAt;
   final DateTime? updatedAt;
   final String? updatedByUserId;
   final String? updatedByEmail;
 
+  HelpPageVisibility get visibility => HelpPageVisibilityX.fromJson(
+    null,
+    isPublished: isPublished,
+    isAuthenticatedOnly: isAuthenticatedOnly,
+  );
+
   factory HelpContentPage.fromJson(Map<String, dynamic> json) {
+    final isPublished = json['isPublished'] == true;
+    final isAuthenticatedOnly = json['isAuthenticatedOnly'] == true;
+    final visibility = HelpPageVisibilityX.fromJson(
+      json['visibility'],
+      isPublished: isPublished,
+      isAuthenticatedOnly: isAuthenticatedOnly,
+    );
     return HelpContentPage(
       id: _textOf(json['id']),
       key: _textOf(json['key']),
@@ -36,7 +96,8 @@ class HelpContentPage {
       parentKey: _nullableTextOf(json['parentKey']),
       sortOrder: _intOf(json['sortOrder']),
       markdown: json['markdown']?.toString() ?? '',
-      isPublished: json['isPublished'] == true,
+      isPublished: visibility.isPublished,
+      isAuthenticatedOnly: visibility.isAuthenticatedOnly,
       seededFromDocsAt: _dateOf(json['seededFromDocsAt']),
       updatedAt: _dateOf(json['updatedAt']),
       updatedByUserId: _nullableTextOf(json['updatedByUserId']),
@@ -89,6 +150,29 @@ class HelpContentAdminSnapshot {
 }
 
 typedef HelpContentPublicSnapshot = HelpContentAdminSnapshot;
+
+class HelpContentAssetUploadResult {
+  const HelpContentAssetUploadResult({
+    required this.pageKey,
+    required this.imageUrl,
+    required this.markdown,
+    required this.fileName,
+  });
+
+  final String? pageKey;
+  final String imageUrl;
+  final String markdown;
+  final String? fileName;
+
+  factory HelpContentAssetUploadResult.fromJson(Map<String, dynamic> json) {
+    return HelpContentAssetUploadResult(
+      pageKey: HelpContentPage._nullableTextOf(json['pageKey']),
+      imageUrl: HelpContentPage._textOf(json['imageUrl']),
+      markdown: HelpContentPage._textOf(json['markdown']),
+      fileName: HelpContentPage._nullableTextOf(json['fileName']),
+    );
+  }
+}
 
 class HelpContentSeedResult {
   const HelpContentSeedResult({

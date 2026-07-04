@@ -98,6 +98,28 @@ export class UploadService {
     return `${this.baseUrl}/avatars/${safeUserId}/${filename}`;
   }
 
+  async saveHelpContentImage(
+    pageKey: string | null | undefined,
+    file: Express.Multer.File,
+  ): Promise<string> {
+    const safePageKey = this.getSafePathSegment(
+      pageKey?.trim() || 'general',
+      'pageKey',
+    );
+    const helpDir = this.getPathInsideBase('help-content', safePageKey);
+
+    await fs.promises.mkdir(helpDir, { recursive: true });
+
+    const ext = this.getSafeImageExtension(file.originalname);
+    const filename = `${safePageKey}-${Date.now()}${ext}`;
+    const filePath = path.join(helpDir, filename);
+
+    await fs.promises.writeFile(filePath, file.buffer);
+    this.logger.log(`Saved help content image: ${filePath}`);
+
+    return `${this.baseUrl}/help-content/${safePageKey}/${filename}`;
+  }
+
   getLinksString(links: string[]): string {
     return links.join(';');
   }

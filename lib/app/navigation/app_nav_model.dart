@@ -52,7 +52,6 @@ class AppNavModel {
       icon: Icons.apps_outlined,
       color: AppColors.success,
       group: AppNavGroup.root,
-      showInSidebar: false,
       showInMobileNav: true,
     ),
     AppNavDestination(
@@ -139,21 +138,30 @@ class AppNavModel {
       group: AppNavGroup.workspace,
     ),
     AppNavDestination(
-      id: 'feedback',
-      label: 'Góp ý',
-      description: 'Gửi đề xuất và báo lỗi',
-      route: '/feedback',
-      icon: Icons.lightbulb_outline_rounded,
-      color: AppColors.amber500,
-      group: AppNavGroup.workspace,
-    ),
-    AppNavDestination(
       id: 'settings',
       label: 'Cài đặt',
       description: 'Tùy chỉnh ứng dụng',
       route: '/settings',
       icon: Icons.settings_outlined,
       color: AppColors.neutral600,
+      group: AppNavGroup.account,
+    ),
+    AppNavDestination(
+      id: 'feedback',
+      label: 'Góp ý',
+      description: 'Gửi đề xuất và báo lỗi',
+      route: '/feedback',
+      icon: Icons.lightbulb_outline_rounded,
+      color: AppColors.amber500,
+      group: AppNavGroup.account,
+    ),
+    AppNavDestination(
+      id: 'help',
+      label: 'Hướng dẫn',
+      description: 'Tài liệu thao tác và hỗ trợ',
+      route: '/help',
+      icon: Icons.menu_book_outlined,
+      color: AppColors.info,
       group: AppNavGroup.account,
     ),
     AppNavDestination(
@@ -236,6 +244,7 @@ class AppNavModel {
       'home' ||
       'notifications' ||
       'operations' ||
+      'help' ||
       'profile' ||
       'settings' => true,
       'admin' => _canUseAdmin(user),

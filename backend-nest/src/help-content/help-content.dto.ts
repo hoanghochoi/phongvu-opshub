@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -9,6 +10,8 @@ import {
 } from 'class-validator';
 
 const HELP_CONTENT_KEY_PATTERN = /^[a-z0-9-]+$/;
+const HELP_CONTENT_VISIBILITIES = ['DRAFT', 'PUBLIC', 'PRIVATE'] as const;
+export type HelpContentVisibility = (typeof HELP_CONTENT_VISIBILITIES)[number];
 
 export class CreateHelpContentPageDto {
   @IsString()
@@ -48,6 +51,11 @@ export class CreateHelpContentPageDto {
   @IsOptional()
   @IsBoolean()
   isPublished?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(HELP_CONTENT_VISIBILITIES)
+  visibility?: HelpContentVisibility;
 }
 
 export class UpdateHelpContentPageDto {
@@ -82,10 +90,25 @@ export class UpdateHelpContentPageDto {
   @IsOptional()
   @IsBoolean()
   isPublished?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(HELP_CONTENT_VISIBILITIES)
+  visibility?: HelpContentVisibility;
 }
 
 export class SeedHelpContentDto {
   @IsOptional()
   @IsBoolean()
   overwriteExisting?: boolean;
+}
+
+export class UploadHelpContentAssetDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  @Matches(HELP_CONTENT_KEY_PATTERN, {
+    message: 'Khóa trang chỉ gồm chữ thường, số và dấu gạch ngang.',
+  })
+  pageKey?: string;
 }

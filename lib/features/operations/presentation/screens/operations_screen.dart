@@ -62,17 +62,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
           title: destination.label,
           description: destination.description,
           color: destination.color,
-          onTap: () {
-            if (destination.id == 'feedback') {
-              unawaited(
-                AppLogger.instance.info(
-                  'Feedback',
-                  'Suggestion opened from operations',
-                ),
-              );
-            }
-            context.go(destination.route);
-          },
+          onTap: () => context.go(destination.route),
         ),
     ];
   }

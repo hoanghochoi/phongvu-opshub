@@ -1060,6 +1060,7 @@ model HelpContentPage {
   sortOrder        Int       @default(0)
   markdown         String
   isPublished      Boolean   @default(true)
+  isAuthenticatedOnly Boolean @default(false)
   updatedByUserId  String?
   updatedByEmail   String?
   seededFromDocsAt DateTime?
@@ -1068,6 +1069,7 @@ model HelpContentPage {
 
   @@index([parentKey, sortOrder, key])
   @@index([isPublished, parentKey, sortOrder])
+  @@index([isPublished, isAuthenticatedOnly, parentKey, sortOrder])
 }
 
 // ============================================================

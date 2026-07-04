@@ -1,10 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../../core/utils/validators.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_screen_shell.dart';
@@ -50,11 +53,23 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
               onSubmit: () => _handleLogin(context),
               onForgotPassword: () => context.push('/forgot-password'),
               onRegister: () => context.push('/register'),
+              onHelp: () => _openHelp(context),
             ),
           ),
         );
       },
     );
+  }
+
+  Future<void> _openHelp(BuildContext context) async {
+    unawaited(
+      AppLogger.instance.info(
+        'Auth',
+        'Help route opened from login screen',
+        context: {'source': 'login'},
+      ),
+    );
+    context.go('/help');
   }
 
   Future<void> _handleLogin(BuildContext context) async {
@@ -104,6 +119,7 @@ class _LoginCard extends StatelessWidget {
     required this.onSubmit,
     required this.onForgotPassword,
     required this.onRegister,
+    required this.onHelp,
   });
 
   final GlobalKey<FormState> formKey;
@@ -115,6 +131,7 @@ class _LoginCard extends StatelessWidget {
   final VoidCallback onSubmit;
   final VoidCallback onForgotPassword;
   final VoidCallback onRegister;
+  final VoidCallback onHelp;
 
   @override
   Widget build(BuildContext context) {
@@ -182,6 +199,11 @@ class _LoginCard extends StatelessWidget {
             onPressed: isLoading ? null : onRegister,
             icon: Icons.person_add_alt_1_rounded,
             label: 'Đăng ký',
+          ),
+          AppDialogSecondaryButton(
+            onPressed: isLoading ? null : onHelp,
+            icon: Icons.menu_book_outlined,
+            label: 'Hướng dẫn',
           ),
         ],
       ),

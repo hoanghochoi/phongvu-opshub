@@ -16,12 +16,22 @@ and images while keeping content editable by hand in Markdown.
   `children` entry in `docs/help/navigation.json`.
 - `docs/help/README.md` documents how to edit content, add images, build, test,
   and deploy the route.
-- `/download` includes a visible `Hướng dẫn sử dụng` link to `/help`.
-- The Flutter account menu includes `Hướng dẫn sử dụng` and opens the in-app
-  help route with `AppLogger` coverage.
+- `/download` includes a visible `Hướng dẫn` link to `/help`.
+- The login screen includes a visible `Hướng dẫn` action that opens the
+  same public route before authentication.
+- The Flutter side menu includes `Hướng dẫn` under `Cấu hình` and opens the
+  in-app help route with `AppLogger` coverage.
+- Runtime help pages support `Nháp`, `Public`, and `Private`, where `Private`
+  content only appears after login.
+- The public help screen always shows a `Quay lại` action that returns to the
+  previous route when possible, or falls back to `/login` or `/home` based on
+  session state.
 - `GET /api/help-content/public` mirrors the runtime help pages from DB, and
   Super Admin can edit that runtime copy through `/admin/help-content` plus the
   `/api/admin/help-content/*` endpoints.
+- Super Admin can upload help images through `POST /api/admin/help-content/assets`
+  and the runtime editor inserts a ready-to-use Markdown snippet for the new
+  public `/uploads/help-content/...` URL.
 - Runtime help auto-seeds from `docs/help/*` when DB is empty. When all current
   runtime pages still come from docs, the backend auto-syncs them from
   `docs/help/*` on the next load. Admin-edited runtime pages stop auto-syncing
@@ -36,8 +46,9 @@ and images while keeping content editable by hand in Markdown.
   before building the help asset bundle when that branch exists.
 - Manual static-only production deploys and staging deploys also publish
   `dist/help/` with the download static files.
-- Runtime image upload is deferred; image references still rely on
-  `docs/help/assets/` until a dedicated upload flow is shipped.
+- `docs/help/assets/` remains the static image path for hand-authored content
+  and the `help-content` branch deploy flow, while runtime editor uploads use
+  the public `/uploads/help-content/...` path.
 
 ## Validation
 

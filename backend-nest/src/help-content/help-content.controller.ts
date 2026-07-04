@@ -2,27 +2,34 @@ import {
   Body,
   Controller,
   Get,
+  Post,
   Param,
   Patch,
-  Post,
   Request,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { imageUploadOptions } from '../upload/image-upload.options';
 import {
   CreateHelpContentPageDto,
   SeedHelpContentDto,
+  UploadHelpContentAssetDto,
   UpdateHelpContentPageDto,
 } from './help-content.dto';
 import { HelpContentService } from './help-content.service';
+import { OptionalJwtAuthGuard } from './optional-jwt-auth.guard';
 
 @Controller()
 export class HelpContentController {
   constructor(private readonly helpContentService: HelpContentService) {}
 
   @Get('help-content/public')
-  getPublicContent() {
-    return this.helpContentService.getPublicContent();
+  @UseGuards(OptionalJwtAuthGuard)
+  getPublicContent(@Request() req: any) {
+    return this.helpContentService.getPublicContent(req.user);
   }
 
   @Get('admin/help-content/pages')
@@ -51,5 +58,24 @@ export class HelpContentController {
   @UseGuards(AuthGuard('jwt'))
   seedFromDocs(@Request() req: any, @Body() body: SeedHelpContentDto) {
     return this.helpContentService.seedFromDocs(req.user, body);
+  }
+
+  @Post('admin/help-content/assets')
+  @UseGuards(AuthGuard('jwt'))
+  @UseInterceptors(
+    FileInterceptor('image', {
+      ...imageUploadOptions,
+      limits: {
+        ...imageUploadOptions.limits,
+        files: 1,
+      },
+    }),
+  )
+  uploadAsset(
+    @Request() req: any,
+    @Body() body: UploadHelpContentAssetDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.helpContentService.uploadAsset(req.user, body, file);
   }
 }

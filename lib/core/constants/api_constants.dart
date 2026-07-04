@@ -58,6 +58,8 @@ class ApiConstants {
   static const String helpContentPublicEndpoint = '/help-content/public';
   static const String adminHelpContentPagesEndpoint =
       '/admin/help-content/pages';
+  static const String adminHelpContentAssetsEndpoint =
+      '/admin/help-content/assets';
   static const String adminHelpContentSeedEndpoint =
       '/admin/help-content/seed-from-docs';
   static String adminHelpContentPageEndpoint(String key) =>

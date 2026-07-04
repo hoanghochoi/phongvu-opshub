@@ -150,8 +150,34 @@ class AppRouter {
         ),
         GoRoute(
           path: '/help',
-          pageBuilder: (context, state) =>
-              _noTransitionPage(state, helpScreen ?? const HelpScreen()),
+          pageBuilder: (context, state) {
+            final publicHelp =
+                helpScreen ??
+                HelpScreen(
+                  onBack: () {
+                    final navigator = navigatorKey.currentState;
+                    if (navigator?.canPop() ?? false) {
+                      navigator!.pop();
+                      return;
+                    }
+                    context.go(
+                      authProvider.isAuthenticated ? '/home' : '/login',
+                    );
+                  },
+                );
+            if (!authProvider.isAuthenticated) {
+              return _noTransitionPage(state, publicHelp);
+            }
+            final shellHelpChild =
+                helpScreen ?? const HelpScreen(embeddedInShell: true);
+            return _noTransitionPage(
+              state,
+              AppShell(
+                location: state.uri.path,
+                child: _selectable(shellHelpChild),
+              ),
+            );
+          },
         ),
         GoRoute(
           path: '/assignment-pending',

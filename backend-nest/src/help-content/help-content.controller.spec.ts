@@ -8,6 +8,7 @@ describe('HelpContentController', () => {
       createPage: jest.fn().mockResolvedValue({ key: 'guide' }),
       updatePage: jest.fn().mockResolvedValue({ key: 'guide' }),
       seedFromDocs: jest.fn().mockResolvedValue({ seeded: true }),
+      uploadAsset: jest.fn().mockResolvedValue({ imageUrl: '/uploads/help.png' }),
     };
     return {
       controller: new HelpContentController(service as any),
@@ -17,11 +18,12 @@ describe('HelpContentController', () => {
 
   it('returns the public help runtime snapshot', async () => {
     const { controller, service } = createController();
+    const req = { user: null };
 
-    await expect(controller.getPublicContent()).resolves.toEqual({
+    await expect(controller.getPublicContent(req)).resolves.toEqual({
       source: 'runtime',
     });
-    expect(service.getPublicContent).toHaveBeenCalledTimes(1);
+    expect(service.getPublicContent).toHaveBeenCalledWith(null);
   });
 
   it('forwards authenticated admin users to the page list service', async () => {
@@ -50,5 +52,21 @@ describe('HelpContentController', () => {
     expect(service.seedFromDocs).toHaveBeenCalledWith(req.user, {
       overwriteExisting: true,
     });
+  });
+
+  it('forwards help image uploads with the authenticated user', async () => {
+    const { controller, service } = createController();
+    const req = { user: { id: 'admin-1', role: 'SUPER_ADMIN' } };
+    const file = { originalname: 'setup.png', size: 1200 } as any;
+
+    await expect(
+      controller.uploadAsset(req, { pageKey: 'guide' } as any, file),
+    ).resolves.toEqual({ imageUrl: '/uploads/help.png' });
+
+    expect(service.uploadAsset).toHaveBeenCalledWith(
+      req.user,
+      { pageKey: 'guide' },
+      file,
+    );
   });
 });

@@ -60,7 +60,10 @@ visual systems that make the app feel assembled from unrelated screens.
   until a dedicated inbox route is accepted.
 - Desktop sidebar destinations must be grouped with visible section labels:
   `Tổng quan`, `Nghiệp vụ`, and `Cấu hình`. The sidebar remains flat navigation;
-  do not add row chevrons unless a real nested menu is introduced.
+  do not add row chevrons unless a real nested menu is introduced. `Tổng quan`
+  currently contains `Trang chủ` and `Vận hành`; `Cấu hình` contains
+  `Cài đặt`, `Góp ý`, and `Hướng dẫn`. The desktop brand block shows the
+  current slogan directly under the logo.
 - Navigation visibility is role/feature-aware and must hide unavailable
   destinations in normal staff UI. Log the resolved visible/hidden counts
   through `AppLogger` so permission issues can be debugged without exposing

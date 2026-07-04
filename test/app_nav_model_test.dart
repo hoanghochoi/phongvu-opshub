@@ -42,12 +42,20 @@ void main() {
     final workspaceLabels = AppNavModel.visibleWorkspaceDestinations(
       user,
     ).map((destination) => destination.label).toList(growable: false);
+    final sidebarLabels = AppNavModel.visibleSidebarDestinations(
+      user,
+    ).map((destination) => destination.label).toList(growable: false);
 
-    expect(workspaceLabels, containsAll(['FIFO', 'Bảo hành', 'Góp ý']));
+    expect(workspaceLabels, containsAll(['FIFO', 'Bảo hành']));
+    expect(workspaceLabels, isNot(contains('Góp ý')));
     expect(workspaceLabels, isNot(contains('Sắp xếp')));
     expect(workspaceLabels, isNot(contains('VietQR')));
     expect(workspaceLabels, isNot(contains('Tiền vào')));
     expect(workspaceLabels, isNot(contains('Sao kê')));
+    expect(
+      sidebarLabels,
+      containsAll(['Vận hành', 'Cài đặt', 'Góp ý', 'Hướng dẫn']),
+    );
   });
 
   test(
@@ -69,7 +77,8 @@ void main() {
       ).map((destination) => destination.label).toList(growable: false);
 
       expect(mobileLabels, ['Trang chủ', 'Vận hành', 'Thông báo', 'Tài khoản']);
-      expect(sidebarLabels, isNot(contains('Vận hành')));
+      expect(sidebarLabels, contains('Vận hành'));
+      expect(sidebarLabels, contains('Hướng dẫn'));
       expect(mobileLabels, isNot(contains('Tác vụ')));
     },
   );

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -28,6 +29,15 @@ class HelpContentAdminScreen extends StatefulWidget {
 }
 
 class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
+  static const _helpImageExtensions = [
+    'jpg',
+    'jpeg',
+    'png',
+    'webp',
+    'heic',
+    'heif',
+  ];
+
   final _formKey = GlobalKey<FormState>();
   final _keyController = TextEditingController();
   final _titleController = TextEditingController();
@@ -40,10 +50,11 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
   bool _loading = true;
   bool _saving = false;
   bool _restoring = false;
+  bool _uploadingAsset = false;
   String? _errorMessage;
   String? _selectedKey;
   String? _selectedParentKey;
-  bool _isPublished = true;
+  HelpPageVisibility _visibility = HelpPageVisibility.draft;
   bool _isCreating = true;
 
   @override
@@ -109,7 +120,12 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
         context: {
           'reason': reason,
           'pageCount': pages.length,
-          'publishedCount': pages.where((page) => page.isPublished).length,
+          'publicCount': pages
+              .where((page) => page.visibility == HelpPageVisibility.public)
+              .length,
+          'privateCount': pages
+              .where((page) => page.visibility == HelpPageVisibility.private)
+              .length,
           'draftCount': pages.where((page) => !page.isPublished).length,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
@@ -173,7 +189,7 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
         'key': key,
         'parentKey': _selectedParentKey,
         'sortOrder': sortOrder,
-        'isPublished': _isPublished,
+        'visibility': _visibility.apiValue,
         'markdownLength': markdown.length,
       },
     );
@@ -187,7 +203,7 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
               parentKey: _selectedParentKey,
               sortOrder: sortOrder,
               markdown: markdown,
-              isPublished: _isPublished,
+              visibility: _visibility,
             )
           : await _repository.updatePage(
               _selectedKey ?? key,
@@ -196,7 +212,7 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
               parentKey: _selectedParentKey,
               sortOrder: sortOrder,
               markdown: markdown,
-              isPublished: _isPublished,
+              visibility: _visibility,
             );
       await AppLogger.instance.info(
         'HelpContentAdmin',
@@ -320,7 +336,7 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
       _isCreating = true;
       _selectedKey = null;
       _selectedParentKey = null;
-      _isPublished = true;
+      _visibility = HelpPageVisibility.draft;
       _keyController.clear();
       _titleController.clear();
       _fileNameController.clear();
@@ -346,7 +362,7 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
       _isCreating = false;
       _selectedKey = page.key;
       _selectedParentKey = page.parentKey;
-      _isPublished = page.isPublished;
+      _visibility = page.visibility;
       _keyController.text = page.key;
       _titleController.text = page.title;
       _fileNameController.text = page.fileName;
@@ -361,7 +377,7 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
           context: {
             'mode': 'edit',
             'key': page.key,
-            'isPublished': page.isPublished,
+            'visibility': page.visibility.apiValue,
           },
         ),
       );
@@ -408,6 +424,146 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _pickAndInsertImage() async {
+    final pageKey = _draftPageKey;
+    await AppLogger.instance.info(
+      'HelpContentAdmin',
+      'Help content image picker opened',
+      context: {'pageKey': pageKey, 'isCreating': _isCreating},
+    );
+
+    try {
+      final picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: _helpImageExtensions,
+        allowMultiple: false,
+        withData: true,
+      );
+      final file = picked?.files.single;
+      if (file == null) {
+        await AppLogger.instance.info(
+          'HelpContentAdmin',
+          'Help content image picker cancelled',
+          context: {'pageKey': pageKey},
+        );
+        return;
+      }
+
+      final path = file.path;
+      final bytes = file.bytes;
+      if (path == null && bytes == null) {
+        await AppLogger.instance.warn(
+          'HelpContentAdmin',
+          'Help content image picker returned unreadable file',
+          context: {
+            'pageKey': pageKey,
+            'fileName': file.name,
+            'size': file.size,
+          },
+        );
+        if (mounted) {
+          _showSnackBar('Chưa đọc được file ảnh. Vui lòng chọn ảnh khác.');
+        }
+        return;
+      }
+
+      await AppLogger.instance.info(
+        'HelpContentAdmin',
+        'Help content image upload started',
+        context: {
+          'pageKey': pageKey,
+          'fileName': file.name,
+          'size': file.size,
+          'hasPath': path != null,
+          'hasBytes': bytes != null,
+        },
+      );
+      if (mounted) setState(() => _uploadingAsset = true);
+
+      final result = await _repository.uploadAsset(
+        pageKey: pageKey,
+        path: path,
+        bytes: bytes,
+        fileName: file.name,
+      );
+      if (!mounted) return;
+
+      _insertMarkdownSnippet(result.markdown);
+      _showSnackBar('Đã chèn ảnh vào nội dung hướng dẫn.');
+      await AppLogger.instance.info(
+        'HelpContentAdmin',
+        'Help content image upload succeeded',
+        context: {
+          'pageKey': result.pageKey,
+          'imageUrl': result.imageUrl,
+          'fileName': result.fileName,
+        },
+      );
+    } on ApiException catch (error) {
+      await AppLogger.instance.warn(
+        'HelpContentAdmin',
+        'Help content image upload failed',
+        context: {'pageKey': pageKey, 'message': error.message},
+      );
+      if (mounted) _showSnackBar(error.message);
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'HelpContentAdmin',
+        'Help content image upload failed unexpectedly',
+        error: error,
+        stackTrace: stackTrace,
+        upload: true,
+        context: {'pageKey': pageKey},
+      );
+      if (mounted) {
+        _showSnackBar('Chưa tải được ảnh hướng dẫn. Vui lòng thử lại.');
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingAsset = false);
+    }
+  }
+
+  String? get _draftPageKey {
+    final text = _keyController.text.trim().toLowerCase();
+    if (text.isEmpty) return null;
+    return RegExp(r'^[a-z0-9-]+$').hasMatch(text) ? text : null;
+  }
+
+  void _insertMarkdownSnippet(String snippet) {
+    final controller = _markdownController;
+    final current = controller.text;
+    final rawSelection = controller.selection;
+    final selection = rawSelection.isValid
+        ? rawSelection
+        : TextSelection.collapsed(offset: current.length);
+    final start = selection.start.clamp(0, current.length);
+    final end = selection.end.clamp(0, current.length);
+    final prefix = current.substring(0, start);
+    final suffix = current.substring(end);
+    final leadingBreak = prefix.isEmpty
+        ? ''
+        : prefix.endsWith('\n\n')
+        ? ''
+        : prefix.endsWith('\n')
+        ? '\n'
+        : '\n\n';
+    final trailingBreak = suffix.isEmpty
+        ? ''
+        : suffix.startsWith('\n\n')
+        ? ''
+        : suffix.startsWith('\n')
+        ? '\n'
+        : '\n\n';
+    final inserted = '$leadingBreak$snippet$trailingBreak';
+    final nextText = '$prefix$inserted$suffix';
+    final caretOffset = (prefix + inserted).length;
+
+    controller.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: caretOffset),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppResponsiveScrollView(
@@ -419,7 +575,12 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
             saving: _saving,
             restoring: _restoring,
             totalPages: _pages.length,
-            publishedCount: _pages.where((page) => page.isPublished).length,
+            publicCount: _pages
+                .where((page) => page.visibility == HelpPageVisibility.public)
+                .length,
+            privateCount: _pages
+                .where((page) => page.visibility == HelpPageVisibility.private)
+                .length,
             draftCount: _pages.where((page) => !page.isPublished).length,
             updatedAt: _pages.isEmpty
                 ? null
@@ -435,8 +596,11 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
             onRefresh: _loading
                 ? null
                 : () => _load(reason: 'manual_refresh', logOpenEditor: false),
-            onCreatePage: _saving || _restoring ? null : _startCreateDraft,
-            onRestoreFromDocs: _loading || _saving || _restoring
+            onCreatePage: _saving || _restoring || _uploadingAsset
+                ? null
+                : _startCreateDraft,
+            onRestoreFromDocs:
+                _loading || _saving || _restoring || _uploadingAsset
                 ? null
                 : _restoreFromDocs,
           ),
@@ -477,12 +641,15 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
           selectedKey: _selectedKey,
           isCreating: _isCreating,
           onSelectPage: (page) => _applyPageToEditor(page),
-          onCreatePage: _saving || _restoring ? null : _startCreateDraft,
+          onCreatePage: _saving || _restoring || _uploadingAsset
+              ? null
+              : _startCreateDraft,
         );
         final editorCard = _HelpContentEditorCard(
           formKey: _formKey,
           isCreating: _isCreating,
           isSaving: _saving,
+          isUploadingAsset: _uploadingAsset,
           selectedPage: _selectedPage,
           keyController: _keyController,
           titleController: _titleController,
@@ -490,12 +657,18 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
           sortOrderController: _sortOrderController,
           markdownController: _markdownController,
           selectedParentKey: _selectedParentKey,
-          isPublished: _isPublished,
+          visibility: _visibility,
           availableParents: _availableParentPages,
           onParentChanged: (value) =>
               setState(() => _selectedParentKey = value),
-          onPublishedChanged: (value) => setState(() => _isPublished = value),
-          onSave: _saving || _restoring ? null : _save,
+          onVisibilityChanged: (value) {
+            if (value == null) return;
+            setState(() => _visibility = value);
+          },
+          onUploadImage: _saving || _restoring || _uploadingAsset
+              ? null
+              : _pickAndInsertImage,
+          onSave: _saving || _restoring || _uploadingAsset ? null : _save,
         );
 
         if (compact) {
@@ -539,7 +712,8 @@ class _HelpContentHeader extends StatelessWidget {
     required this.saving,
     required this.restoring,
     required this.totalPages,
-    required this.publishedCount,
+    required this.publicCount,
+    required this.privateCount,
     required this.draftCount,
     required this.updatedAt,
     required this.onRefresh,
@@ -551,7 +725,8 @@ class _HelpContentHeader extends StatelessWidget {
   final bool saving;
   final bool restoring;
   final int totalPages;
-  final int publishedCount;
+  final int publicCount;
+  final int privateCount;
   final int draftCount;
   final DateTime? updatedAt;
   final VoidCallback? onRefresh;
@@ -617,8 +792,12 @@ class _HelpContentHeader extends StatelessWidget {
                 color: AppColors.primary,
               ),
               AppStatusChip(
-                label: '$publishedCount đang xuất bản',
+                label: '$publicCount public',
                 color: AppColors.success,
+              ),
+              AppStatusChip(
+                label: '$privateCount private',
+                color: AppColors.info,
               ),
               AppStatusChip(
                 label: '$draftCount bản nháp',
@@ -737,6 +916,17 @@ class _HelpContentPageListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final statusColor = switch (page.visibility) {
+      HelpPageVisibility.draft => AppColors.warning,
+      HelpPageVisibility.public => AppColors.success,
+      HelpPageVisibility.private => AppColors.info,
+    };
+    final statusIcon = switch (page.visibility) {
+      HelpPageVisibility.draft => Icons.edit_note_outlined,
+      HelpPageVisibility.public => Icons.public_rounded,
+      HelpPageVisibility.private => Icons.lock_outline_rounded,
+    };
+
     final borderColor = selected
         ? AppColors.primary.withValues(alpha: 0.30)
         : AppColors.borderOf(context);
@@ -760,12 +950,7 @@ class _HelpContentPageListItem extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(width: depth * 12),
-              Icon(
-                page.isPublished
-                    ? Icons.menu_book_outlined
-                    : Icons.edit_note_outlined,
-                color: page.isPublished ? AppColors.success : AppColors.warning,
-              ),
+              Icon(statusIcon, color: statusColor),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -785,10 +970,7 @@ class _HelpContentPageListItem extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              AppStatusChip(
-                label: page.isPublished ? 'Đang mở' : 'Nháp',
-                color: page.isPublished ? AppColors.success : AppColors.warning,
-              ),
+              AppStatusChip(label: page.visibility.label, color: statusColor),
             ],
           ),
         ),
@@ -802,6 +984,7 @@ class _HelpContentEditorCard extends StatelessWidget {
     required this.formKey,
     required this.isCreating,
     required this.isSaving,
+    required this.isUploadingAsset,
     required this.selectedPage,
     required this.keyController,
     required this.titleController,
@@ -809,16 +992,18 @@ class _HelpContentEditorCard extends StatelessWidget {
     required this.sortOrderController,
     required this.markdownController,
     required this.selectedParentKey,
-    required this.isPublished,
+    required this.visibility,
     required this.availableParents,
     required this.onParentChanged,
-    required this.onPublishedChanged,
+    required this.onVisibilityChanged,
+    required this.onUploadImage,
     required this.onSave,
   });
 
   final GlobalKey<FormState> formKey;
   final bool isCreating;
   final bool isSaving;
+  final bool isUploadingAsset;
   final HelpContentPage? selectedPage;
   final TextEditingController keyController;
   final TextEditingController titleController;
@@ -826,10 +1011,11 @@ class _HelpContentEditorCard extends StatelessWidget {
   final TextEditingController sortOrderController;
   final TextEditingController markdownController;
   final String? selectedParentKey;
-  final bool isPublished;
+  final HelpPageVisibility visibility;
   final List<HelpContentPage> availableParents;
   final ValueChanged<String?> onParentChanged;
-  final ValueChanged<bool> onPublishedChanged;
+  final ValueChanged<HelpPageVisibility?> onVisibilityChanged;
+  final VoidCallback? onUploadImage;
   final VoidCallback? onSave;
 
   @override
@@ -846,7 +1032,7 @@ class _HelpContentEditorCard extends StatelessWidget {
             Text(
               isCreating
                   ? 'Tạo một trang markdown mới cho runtime help. Khóa trang sẽ được giữ cố định sau khi tạo.'
-                  : 'Cập nhật nội dung runtime. Lưu xong API public sẽ thấy thay đổi ngay.',
+                  : 'Cập nhật nội dung runtime. Lưu xong trạng thái hiển thị sẽ áp dụng ngay theo chế độ đã chọn.',
               style: AppTextStyles.bodyM.copyWith(
                 color: AppColors.textSecondaryOf(context),
               ),
@@ -929,23 +1115,29 @@ class _HelpContentEditorCard extends StatelessWidget {
                   ),
               ],
             ),
-            SwitchListTile.adaptive(
-              value: isPublished,
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Cho phép hiển thị công khai'),
-              subtitle: Text(
-                isPublished
-                    ? 'API public sẽ trả về trang này ngay sau khi lưu.'
-                    : 'Giữ ở trạng thái nháp để chưa hiển thị ra public.',
-                style: AppTextStyles.bodyS.copyWith(
-                  color: AppColors.textSecondaryOf(context),
-                ),
+            AppSelectField<HelpPageVisibility>(
+              label: 'Chế độ hiển thị',
+              value: visibility,
+              onChanged: onVisibilityChanged,
+              items: [
+                for (final value in HelpPageVisibility.values)
+                  DropdownMenuItem<HelpPageVisibility>(
+                    value: value,
+                    child: Text(value.label),
+                  ),
+              ],
+            ),
+            Text(
+              visibility.description,
+              style: AppTextStyles.bodyS.copyWith(
+                color: AppColors.textSecondaryOf(context),
               ),
-              onChanged: onPublishedChanged,
             ),
             AppFormTextInput(
               controller: markdownController,
               label: 'Nội dung markdown',
+              helperText:
+                  'Có thể dán markdown trực tiếp hoặc dùng nút tải ảnh để chèn nhanh cú pháp hình minh họa.',
               maxLines: 18,
               minLines: 12,
               alignLabelWithHint: true,
@@ -954,6 +1146,43 @@ class _HelpContentEditorCard extends StatelessWidget {
                 if ((value ?? '').isEmpty) return 'Nhập nội dung markdown.';
                 return null;
               },
+            ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.info.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+                border: Border.all(
+                  color: AppColors.info.withValues(alpha: 0.18),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Ảnh minh họa', style: AppTextStyles.labelL),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Tải ảnh lên để nhận URL public dưới /uploads/help-content và chèn markdown ngay tại vị trí con trỏ.',
+                      style: AppTextStyles.bodyS.copyWith(
+                        color: AppColors.textSecondaryOf(context),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: 240,
+                      child: AppSecondaryButton(
+                        onPressed: onUploadImage,
+                        icon: Icons.add_photo_alternate_outlined,
+                        label: 'Tải ảnh và chèn',
+                        isLoading: isUploadingAsset,
+                        loadingLabel: 'Đang tải ảnh',
+                        expand: false,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
             SizedBox(
               width: 220,

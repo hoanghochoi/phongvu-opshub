@@ -8,9 +8,11 @@ import {
 import { HelpContentPage } from '@prisma/client';
 import { isSuperAdminRole } from '../common/system-role';
 import { PrismaService } from '../prisma/prisma.service';
+import { UploadService } from '../upload/upload.service';
 import {
   CreateHelpContentPageDto,
   SeedHelpContentDto,
+  UploadHelpContentAssetDto,
   UpdateHelpContentPageDto,
 } from './help-content.dto';
 import {
@@ -22,6 +24,8 @@ type HelpSnapshotOptions = {
   includeEditorFields: boolean;
 };
 
+type HelpContentVisibility = 'DRAFT' | 'PUBLIC' | 'PRIVATE';
+
 @Injectable()
 export class HelpContentService {
   private readonly logger = new Logger(HelpContentService.name);
@@ -29,23 +33,30 @@ export class HelpContentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly docsLoader: HelpContentDocsLoader,
+    private readonly uploadService: UploadService,
   ) {}
 
-  async getPublicContent() {
-    this.logger.log('Help content public load started');
+  async getPublicContent(user?: any) {
+    const includePrivate = user != null;
+    this.logger.log(
+      `Help content public load started: includePrivate=${includePrivate}`,
+    );
     try {
       await this.ensureSeeded();
-      const pages = await this.listPages({ publishedOnly: true });
+      const pages = await this.listPages({
+        publishedOnly: true,
+        includePrivate,
+      });
       const snapshot = this.buildSnapshot(pages, {
         includeEditorFields: false,
       });
       this.logger.log(
-        `Help content public load succeeded: pageCount=${pages.length}`,
+        `Help content public load succeeded: includePrivate=${includePrivate} pageCount=${pages.length}`,
       );
       return snapshot;
     } catch (error) {
       this.logger.error(
-        `Help content public load failed: message=${this.errorMessage(error)}`,
+        `Help content public load failed: includePrivate=${includePrivate} message=${this.errorMessage(error)}`,
       );
       throw error;
     }
@@ -78,7 +89,7 @@ export class HelpContentService {
       await this.ensureSeeded();
       const payload = await this.buildCreatePayload(dto);
       this.logger.log(
-        `Help content save started: mode=create user=${this.safeUserLabel(user)} key=${payload.key} parentKey=${payload.parentKey || 'root'} markdownLength=${payload.markdown.length}`,
+        `Help content save started: mode=create user=${this.safeUserLabel(user)} key=${payload.key} parentKey=${payload.parentKey || 'root'} visibility=${payload.isPublished ? payload.isAuthenticatedOnly ? 'PRIVATE' : 'PUBLIC' : 'DRAFT'} markdownLength=${payload.markdown.length}`,
       );
       const created = await this.prisma.helpContentPage.create({
         data: {
@@ -114,7 +125,7 @@ export class HelpContentService {
 
       const payload = await this.buildUpdatePayload(existing, dto);
       this.logger.log(
-        `Help content save started: mode=update user=${this.safeUserLabel(user)} key=${existing.key} parentKey=${payload.parentKey || 'root'} markdownLength=${payload.markdown.length}`,
+        `Help content save started: mode=update user=${this.safeUserLabel(user)} key=${existing.key} parentKey=${payload.parentKey || 'root'} visibility=${payload.isPublished ? payload.isAuthenticatedOnly ? 'PRIVATE' : 'PUBLIC' : 'DRAFT'} markdownLength=${payload.markdown.length}`,
       );
       const updated = await this.prisma.helpContentPage.update({
         where: { key: existing.key },
@@ -163,6 +174,45 @@ export class HelpContentService {
     } catch (error) {
       this.logger.error(
         `Help content docs restore failed: user=${this.safeUserLabel(user)} overwriteExisting=${overwriteExisting}`,
+      );
+      throw error;
+    }
+  }
+
+  async uploadAsset(
+    user: any,
+    dto: UploadHelpContentAssetDto,
+    file: Express.Multer.File | undefined,
+  ) {
+    this.assertSuperAdmin(user);
+    if (!file) {
+      throw new BadRequestException('Chưa có ảnh để tải lên.');
+    }
+
+    const pageKey = dto.pageKey ? this.normalizeKey(dto.pageKey) : null;
+    const startedAt = Date.now();
+    this.logger.log(
+      `Help content asset upload started: user=${this.safeUserLabel(user)} pageKey=${pageKey || 'general'} fileName=${this.optionalText(file.originalname, 160) || 'unknown'} size=${file.size}`,
+    );
+
+    try {
+      const imageUrl = await this.uploadService.saveHelpContentImage(
+        pageKey,
+        file,
+      );
+      const markdown = `![Mô tả ảnh](${imageUrl})`;
+      this.logger.log(
+        `Help content asset upload succeeded: user=${this.safeUserLabel(user)} pageKey=${pageKey || 'general'} size=${file.size} durationMs=${Date.now() - startedAt}`,
+      );
+      return {
+        pageKey,
+        imageUrl,
+        markdown,
+        fileName: this.optionalText(file.originalname, 160),
+      };
+    } catch (error) {
+      this.logger.error(
+        `Help content asset upload failed: user=${this.safeUserLabel(user)} pageKey=${pageKey || 'general'} message=${this.errorMessage(error)}`,
       );
       throw error;
     }
@@ -260,15 +310,24 @@ export class HelpContentService {
       sortOrder: page.sortOrder,
       markdown: page.markdown,
       isPublished: page.isPublished,
+      isAuthenticatedOnly: page.isAuthenticatedOnly,
       updatedByUserId: this.optionalText(user?.id, 80),
       updatedByEmail: this.normalizeEmail(user?.email),
       seededFromDocsAt: seededAt,
     };
   }
 
-  private async listPages(options?: { publishedOnly?: boolean }) {
+  private async listPages(options?: {
+    publishedOnly?: boolean;
+    includePrivate?: boolean;
+  }) {
+    const where = options?.publishedOnly
+      ? options.includePrivate
+        ? { isPublished: true }
+        : { isPublished: true, isAuthenticatedOnly: false }
+      : undefined;
     return this.prisma.helpContentPage.findMany({
-      where: options?.publishedOnly ? { isPublished: true } : undefined,
+      where,
       orderBy: [{ parentKey: 'asc' }, { sortOrder: 'asc' }, { key: 'asc' }],
     });
   }
@@ -284,6 +343,7 @@ export class HelpContentService {
     }
 
     const parentKey = await this.validateParentKey(dto.parentKey, null);
+    const visibility = this.resolveVisibility(dto.visibility, dto.isPublished);
     return {
       key,
       title: this.requiredTitle(dto.title),
@@ -291,7 +351,8 @@ export class HelpContentService {
       parentKey,
       sortOrder: this.normalizeSortOrder(dto.sortOrder),
       markdown: this.normalizeMarkdown(dto.markdown),
-      isPublished: dto.isPublished != false,
+      isPublished: visibility != 'DRAFT',
+      isAuthenticatedOnly: visibility == 'PRIVATE',
     };
   }
 
@@ -300,6 +361,11 @@ export class HelpContentService {
     dto: UpdateHelpContentPageDto,
   ) {
     const hasParentKey = Object.prototype.hasOwnProperty.call(dto, 'parentKey');
+    const visibility = this.resolveVisibility(
+      dto.visibility,
+      dto.isPublished,
+      this.visibilityFromPage(existing),
+    );
     return {
       title: dto.title == null ? existing.title : this.requiredTitle(dto.title),
       fileName:
@@ -317,7 +383,8 @@ export class HelpContentService {
         dto.markdown == null
           ? existing.markdown
           : this.normalizeMarkdown(dto.markdown),
-      isPublished: dto.isPublished ?? existing.isPublished,
+      isPublished: visibility != 'DRAFT',
+      isAuthenticatedOnly: visibility == 'PRIVATE',
     };
   }
 
@@ -352,6 +419,8 @@ export class HelpContentService {
         parentKey: string | null;
         sortOrder: number;
         isPublished: boolean;
+        isAuthenticatedOnly: boolean;
+        visibility: HelpContentVisibility;
         updatedAt: Date;
         children: any[];
       }
@@ -365,6 +434,8 @@ export class HelpContentService {
         parentKey: page.parentKey,
         sortOrder: page.sortOrder,
         isPublished: page.isPublished,
+        isAuthenticatedOnly: page.isAuthenticatedOnly,
+        visibility: this.visibilityFromPage(page),
         updatedAt: page.updatedAt,
         children: [],
       });
@@ -395,6 +466,8 @@ export class HelpContentService {
       sortOrder: page.sortOrder,
       markdown: page.markdown,
       isPublished: page.isPublished,
+      isAuthenticatedOnly: page.isAuthenticatedOnly,
+      visibility: this.visibilityFromPage(page),
       seededFromDocsAt: page.seededFromDocsAt,
       updatedAt: page.updatedAt,
       ...(includeEditorFields
@@ -423,7 +496,8 @@ export class HelpContentService {
         page.parentKey != docsPage.parentKey ||
         page.sortOrder != docsPage.sortOrder ||
         page.markdown != docsPage.markdown ||
-        page.isPublished != docsPage.isPublished
+        page.isPublished != docsPage.isPublished ||
+        page.isAuthenticatedOnly != docsPage.isAuthenticatedOnly
       ) {
         return false;
       }
@@ -500,6 +574,31 @@ export class HelpContentService {
       throw new BadRequestException('Thứ tự hiển thị phải từ 0 trở lên.');
     }
     return Math.floor(sortOrder);
+  }
+
+  private resolveVisibility(
+    visibility: unknown,
+    isPublished?: boolean,
+    fallback: HelpContentVisibility = 'PUBLIC',
+  ): HelpContentVisibility {
+    const normalized = String(visibility ?? '')
+      .trim()
+      .toUpperCase();
+    if (normalized == 'DRAFT' || normalized == 'PUBLIC' || normalized == 'PRIVATE') {
+      return normalized;
+    }
+    if (isPublished === false) {
+      return 'DRAFT';
+    }
+    if (isPublished === true) {
+      return 'PUBLIC';
+    }
+    return fallback;
+  }
+
+  private visibilityFromPage(page: Pick<HelpContentPage, 'isPublished' | 'isAuthenticatedOnly'>): HelpContentVisibility {
+    if (!page.isPublished) return 'DRAFT';
+    return page.isAuthenticatedOnly ? 'PRIVATE' : 'PUBLIC';
   }
 
   private normalizeMarkdown(value: unknown) {

@@ -21,10 +21,18 @@ import '../../domain/help_content_page.dart';
 typedef HelpContentPublicLoader = Future<HelpContentPublicSnapshot> Function();
 
 class HelpScreen extends StatefulWidget {
-  const HelpScreen({super.key, this.repository, this.loader});
+  const HelpScreen({
+    super.key,
+    this.repository,
+    this.loader,
+    this.onBack,
+    this.embeddedInShell = false,
+  });
 
   final HelpContentRepository? repository;
   final HelpContentPublicLoader? loader;
+  final VoidCallback? onBack;
+  final bool embeddedInShell;
 
   @override
   State<HelpScreen> createState() => _HelpScreenState();
@@ -166,10 +174,65 @@ class _HelpScreenState extends State<HelpScreen> {
     }
   }
 
+  Future<void> _handleBack() async {
+    final navigator = Navigator.of(context);
+    await AppLogger.instance.info(
+      'HelpScreen',
+      'Help back requested',
+      context: {'hasCustomBack': widget.onBack != null},
+    );
+    if (widget.onBack != null) {
+      widget.onBack!();
+      return;
+    }
+    if (navigator.canPop()) {
+      navigator.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final pageContent = AppResponsiveScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (widget.embeddedInShell)
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                tooltip: 'Tải lại hướng dẫn',
+                onPressed: _loading
+                    ? null
+                    : () => _load(reason: 'manual_refresh'),
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+            ),
+          _HelpScreenHeader(
+            loading: _loading,
+            pageCount: _pages.length,
+            updatedAt: _pages
+                .map((page) => page.updatedAt)
+                .whereType<DateTime>()
+                .fold<DateTime?>(null, (latest, value) {
+                  if (latest == null || value.isAfter(latest)) return value;
+                  return latest;
+                }),
+          ),
+          const SizedBox(height: AppLayoutTokens.cardGap),
+          _buildBody(),
+        ],
+      ),
+    );
+    if (widget.embeddedInShell) return pageContent;
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onBack != null || Navigator.of(context).canPop()
+            ? IconButton(
+                tooltip: 'Quay lại',
+                onPressed: _handleBack,
+                icon: const Icon(Icons.arrow_back_rounded),
+              )
+            : null,
         title: const Text('Hướng dẫn sử dụng'),
         actions: [
           IconButton(
@@ -179,26 +242,7 @@ class _HelpScreenState extends State<HelpScreen> {
           ),
         ],
       ),
-      body: AppResponsiveScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _HelpScreenHeader(
-              loading: _loading,
-              pageCount: _pages.length,
-              updatedAt: _pages
-                  .map((page) => page.updatedAt)
-                  .whereType<DateTime>()
-                  .fold<DateTime?>(null, (latest, value) {
-                    if (latest == null || value.isAfter(latest)) return value;
-                    return latest;
-                  }),
-            ),
-            const SizedBox(height: AppLayoutTokens.cardGap),
-            _buildBody(),
-          ],
-        ),
-      ),
+      body: pageContent,
     );
   }
 

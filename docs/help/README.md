@@ -418,7 +418,9 @@ Kết quả mong muốn:
 - Không có ảnh hoặc nội dung lộ dữ liệu nhạy cảm.
 - `node scripts/build-help-site.mjs` chạy thành công.
 - `git diff --check` không báo lỗi whitespace.
-- `/download` vẫn có nút `Hướng dẫn sử dụng`.
-- Menu app vẫn có mục `Hướng dẫn sử dụng`.
+- `/download` vẫn có nút `Hướng dẫn`.
+- Menu app vẫn có mục `Hướng dẫn`.
+- Runtime editor đang hỗ trợ 3 chế độ hiển thị: `Nháp`, `Public`, `Private`.
+- Nội dung `Private` chỉ xuất hiện khi người xem đã đăng nhập.
 - Nếu có runtime chỉnh tay trước đó, đã xác nhận có cần `Khôi phục từ docs`
   hay không.

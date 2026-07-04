@@ -26,6 +26,8 @@ import 'app_nav_model.dart';
 const _supportQrAssetPath = 'data/group_invitation.jpg';
 const _supportGroupInviteUrl =
     'https://link.seatalk.io/group/open?invite_id=IkaYSKrlQkImmkCfNj4aBdpd5cpcCWFPaaegCUhYXjgcfi1Tzn9E9Gbuac_qt8Jk5mruc0AJGqQLaQeSWG1e';
+const _appSlogan = 'Kết nối nguồn lực. Đồng bộ vận hành.';
+const _appDeveloperName = 'Hoàng Học Hỏi';
 
 class AppShell extends StatefulWidget {
   final String location;
@@ -115,7 +117,6 @@ class _AppShellState extends State<AppShell> {
               version: _version,
               onNavigate: _navigate,
               onSupport: () => _showSupportDialog(context),
-              onHelp: () => _openHelpPage(context),
               onLogout: () => _logout(context),
               onAppInfo: () => _showAppInfoDialog(context),
               child: widget.child,
@@ -420,40 +421,8 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  Future<void> _openHelpPage(BuildContext context) async {
-    final logContext = {'route': '/help'};
-    await AppLogger.instance.info(
-      'AppShellHelp',
-      'Help page opening',
-      context: logContext,
-    );
-    try {
-      if (!context.mounted) return;
-      context.go('/help');
-      await AppLogger.instance.info(
-        'AppShellHelp',
-        'Help page opened',
-        context: logContext,
-      );
-      return;
-    } catch (error) {
-      await AppLogger.instance.error(
-        'AppShellHelp',
-        'Help page open failed',
-        error: error,
-        context: logContext,
-      );
-    }
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Chưa mở được hướng dẫn. Vui lòng thử lại.'),
-        ),
-      );
-    }
-  }
-
   void _showAppInfoDialog(BuildContext context) {
+    final currentYear = DateTime.now().year;
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -481,9 +450,23 @@ class _AppShellState extends State<AppShell> {
                 color: AppColors.textMutedOf(context),
               ),
             ),
+            const SizedBox(height: 6),
+            Text(
+              'Dev: $_appDeveloperName',
+              style: AppTextStyles.labelS.copyWith(
+                color: AppColors.textMutedOf(context),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '© $currentYear ${AppBrand.productionTitle}',
+              style: AppTextStyles.labelS.copyWith(
+                color: AppColors.textMutedOf(context),
+              ),
+            ),
             const SizedBox(height: 12),
             Text(
-              'Kết nối con người. Đồng bộ vận hành.',
+              _appSlogan,
               style: AppTextStyles.labelS.copyWith(
                 color: AppColors.textSecondaryOf(context),
               ),
@@ -510,7 +493,6 @@ class _WideShell extends StatelessWidget {
   final String version;
   final ValueChanged<AppNavDestination> onNavigate;
   final VoidCallback onSupport;
-  final VoidCallback onHelp;
   final VoidCallback onLogout;
   final VoidCallback onAppInfo;
   final Widget child;
@@ -524,7 +506,6 @@ class _WideShell extends StatelessWidget {
     required this.version,
     required this.onNavigate,
     required this.onSupport,
-    required this.onHelp,
     required this.onLogout,
     required this.onAppInfo,
     required this.child,
@@ -557,7 +538,6 @@ class _WideShell extends StatelessWidget {
                   activeDestination: activeDestination,
                   user: user,
                   onSupport: onSupport,
-                  onHelp: onHelp,
                   onLogout: onLogout,
                   onAppInfo: onAppInfo,
                 ),
@@ -699,27 +679,39 @@ class _DesktopSidebar extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const AppLogo(size: 44, borderRadius: AppRadius.md),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'PhongVu',
-                          style: AppTextStyles.labelL.copyWith(
-                            color: AppColors.sidebarTextOf(context),
-                          ),
+                  Row(
+                    children: [
+                      const AppLogo(size: 44, borderRadius: AppRadius.md),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'PhongVu',
+                              style: AppTextStyles.labelL.copyWith(
+                                color: AppColors.sidebarTextOf(context),
+                              ),
+                            ),
+                            Text(
+                              'OpsHub',
+                              style: AppTextStyles.bodyS.copyWith(
+                                color: AppColors.sidebarMutedOf(context),
+                              ),
+                            ),
+                          ],
                         ),
-                        Text(
-                          'OpsHub',
-                          style: AppTextStyles.bodyS.copyWith(
-                            color: AppColors.sidebarMutedOf(context),
-                          ),
-                        ),
-                      ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _appSlogan,
+                    style: AppTextStyles.labelS.copyWith(
+                      color: AppColors.sidebarMutedOf(context),
                     ),
                   ),
                 ],
@@ -744,18 +736,49 @@ class _DesktopSidebar extends StatelessWidget {
                 ],
               ),
             ),
-            if (version.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Version $version',
-                  style: AppTextStyles.labelS.copyWith(
-                    color: AppColors.sidebarMutedOf(context),
-                  ),
-                ),
-              ),
+            _SidebarFooter(version: version),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SidebarFooter extends StatelessWidget {
+  const _SidebarFooter({required this.version});
+
+  final String version;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentYear = DateTime.now().year;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (version.isNotEmpty)
+            Text(
+              'Version $version',
+              style: AppTextStyles.labelS.copyWith(
+                color: AppColors.sidebarMutedOf(context),
+              ),
+            ),
+          const SizedBox(height: 6),
+          Text(
+            'Dev: $_appDeveloperName',
+            style: AppTextStyles.labelS.copyWith(
+              color: AppColors.sidebarMutedOf(context),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '© $currentYear ${AppBrand.productionTitle}',
+            style: AppTextStyles.labelS.copyWith(
+              color: AppColors.sidebarMutedOf(context),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -952,7 +975,6 @@ class _ShellTopBar extends StatelessWidget {
   final AppNavDestination activeDestination;
   final User? user;
   final VoidCallback onSupport;
-  final VoidCallback onHelp;
   final VoidCallback onLogout;
   final VoidCallback onAppInfo;
 
@@ -960,7 +982,6 @@ class _ShellTopBar extends StatelessWidget {
     required this.activeDestination,
     required this.user,
     required this.onSupport,
-    required this.onHelp,
     required this.onLogout,
     required this.onAppInfo,
   });
@@ -1013,7 +1034,6 @@ class _ShellTopBar extends StatelessWidget {
           const SizedBox(width: 8),
           _AccountMenuButton(
             user: user,
-            onHelp: onHelp,
             onLogout: onLogout,
             onAppInfo: onAppInfo,
           ),
@@ -1025,13 +1045,11 @@ class _ShellTopBar extends StatelessWidget {
 
 class _AccountMenuButton extends StatelessWidget {
   final User? user;
-  final VoidCallback onHelp;
   final VoidCallback onLogout;
   final VoidCallback onAppInfo;
 
   const _AccountMenuButton({
     required this.user,
-    required this.onHelp,
     required this.onLogout,
     required this.onAppInfo,
   });
@@ -1053,8 +1071,6 @@ class _AccountMenuButton extends StatelessWidget {
             context.go('/profile');
           case _AccountAction.settings:
             context.go('/settings');
-          case _AccountAction.help:
-            onHelp();
           case _AccountAction.appInfo:
             onAppInfo();
           case _AccountAction.logout:
@@ -1074,13 +1090,6 @@ class _AccountMenuButton extends StatelessWidget {
           child: ListTile(
             leading: Icon(Icons.settings_outlined),
             title: Text('Cài đặt'),
-          ),
-        ),
-        PopupMenuItem(
-          value: _AccountAction.help,
-          child: ListTile(
-            leading: Icon(Icons.menu_book_outlined),
-            title: Text('Hướng dẫn sử dụng'),
           ),
         ),
         PopupMenuItem(
@@ -1141,4 +1150,4 @@ class _ShellMetricsPill extends StatelessWidget {
   }
 }
 
-enum _AccountAction { profile, settings, help, appInfo, logout }
+enum _AccountAction { profile, settings, appInfo, logout }

@@ -21,6 +21,7 @@ export type HelpDocsPageSeed = {
   sortOrder: number;
   markdown: string;
   isPublished: boolean;
+  isAuthenticatedOnly: boolean;
 };
 
 export type HelpDocsLoadResult = {
@@ -80,6 +81,7 @@ export class HelpContentDocsLoader {
         sortOrder: index,
         markdown,
         isPublished: true,
+        isAuthenticatedOnly: false,
       });
 
       if (node.children != null) {

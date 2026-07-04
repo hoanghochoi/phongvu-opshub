@@ -72,7 +72,7 @@ Nguyên tắc rollout:
 - Build static bằng `scripts/build-help-site.mjs`.
 - Deploy hiện tại phục vụ `/help` riêng qua Caddy, không đi qua Flutter SPA.
 - App hiện mở help bằng external browser, chưa navigate nội bộ.
-- Entry `Hướng dẫn sử dụng` hiện nằm ở account menu shell trên desktop/tablet; mobile hiện mới có support action, chưa có help screen in-app.
+- Entry `Hướng dẫn` hiện nằm trong side menu `Cấu hình` trên desktop/tablet; mobile hiện mới có support action, chưa có help screen in-app.
 - Production content hiện còn dính contract `help-content` branch và static-only deploy.
 
 ### 3.3 Sales Report Và Order Hủy

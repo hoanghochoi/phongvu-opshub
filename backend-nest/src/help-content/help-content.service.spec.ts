@@ -95,8 +95,19 @@ describe('HelpContentService', () => {
         ],
       }),
     };
-    const service = new HelpContentService(prisma as any, docsLoader as any);
-    return { prisma, docsLoader, service };
+    const uploadService = {
+      saveHelpContentImage: jest
+        .fn()
+        .mockResolvedValue(
+          'https://opshub.example/uploads/help-content/guide/guide-123.png',
+        ),
+    };
+    const service = new HelpContentService(
+      prisma as any,
+      docsLoader as any,
+      uploadService as any,
+    );
+    return { prisma, docsLoader, uploadService, service };
   }
 
   it('seeds docs on first public load and returns runtime navigation', async () => {
@@ -172,6 +183,67 @@ describe('HelpContentService', () => {
 
     expect(docsLoader.loadPages).toHaveBeenCalledTimes(1);
     expect(prisma.helpContentPage.createMany).toHaveBeenCalled();
+  });
+
+  it('only includes private help pages after authentication', async () => {
+    const { service, prisma } = createHarness();
+    const pages = [
+      {
+        id: 'page-guide',
+        key: 'guide',
+        title: 'Hướng dẫn sử dụng',
+        fileName: 'index.md',
+        parentKey: null,
+        sortOrder: 0,
+        markdown: '# Guide',
+        isPublished: true,
+        isAuthenticatedOnly: false,
+        updatedByUserId: null,
+        updatedByEmail: null,
+        seededFromDocsAt: null,
+        createdAt: new Date('2026-07-04T10:00:00.000Z'),
+        updatedAt: new Date('2026-07-04T10:00:00.000Z'),
+      },
+      {
+        id: 'page-internal',
+        key: 'internal',
+        title: 'Quy trình nội bộ',
+        fileName: 'internal.md',
+        parentKey: null,
+        sortOrder: 1,
+        markdown: '# Internal',
+        isPublished: true,
+        isAuthenticatedOnly: true,
+        updatedByUserId: null,
+        updatedByEmail: null,
+        seededFromDocsAt: null,
+        createdAt: new Date('2026-07-04T10:00:00.000Z'),
+        updatedAt: new Date('2026-07-04T10:00:00.000Z'),
+      },
+    ];
+
+    prisma.helpContentPage.findMany
+      .mockResolvedValueOnce(pages)
+      .mockResolvedValueOnce([pages[0]]);
+    await service.getPublicContent();
+    expect(prisma.helpContentPage.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { isPublished: true, isAuthenticatedOnly: false },
+      }),
+    );
+
+    prisma.helpContentPage.findMany.mockReset();
+    prisma.helpContentPage.findMany
+      .mockResolvedValueOnce(pages)
+      .mockResolvedValueOnce(pages);
+    await service.getPublicContent({ id: 'user-1' });
+    expect(prisma.helpContentPage.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { isPublished: true },
+      }),
+    );
   });
 
   it('blocks admin help access for non-super-admin users', async () => {
@@ -381,5 +453,33 @@ describe('HelpContentService', () => {
 
     expect(prisma.$transaction).toHaveBeenCalled();
     expect(prisma.helpContentPage.deleteMany).toHaveBeenCalledWith({});
+  });
+
+  it('uploads a help image for super admin and returns a markdown snippet', async () => {
+    const { service, uploadService } = createHarness();
+
+    await expect(
+      service.uploadAsset(
+        { id: 'admin-1', email: 'admin@phongvu.vn', role: 'SUPER_ADMIN' },
+        { pageKey: 'guide' },
+        {
+          originalname: 'setup.png',
+          size: 1024,
+          buffer: Buffer.from([1, 2, 3]),
+        } as any,
+      ),
+    ).resolves.toMatchObject({
+      pageKey: 'guide',
+      imageUrl:
+        'https://opshub.example/uploads/help-content/guide/guide-123.png',
+      markdown:
+        '![Mô tả ảnh](https://opshub.example/uploads/help-content/guide/guide-123.png)',
+      fileName: 'setup.png',
+    });
+
+    expect(uploadService.saveHelpContentImage).toHaveBeenCalledWith(
+      'guide',
+      expect.objectContaining({ originalname: 'setup.png', size: 1024 }),
+    );
   });
 });

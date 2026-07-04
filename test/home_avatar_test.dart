@@ -83,7 +83,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Thông tin ứng dụng'), findsOneWidget);
-    expect(find.text('Kết nối con người. Đồng bộ vận hành.'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Kết nối nguồn lực. Đồng bộ vận hành.'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('AppShell keeps logout in the account menu', (
@@ -124,7 +130,7 @@ void main() {
     expect(find.text('Đăng xuất'), findsOneWidget);
   });
 
-  testWidgets('AppShell account menu exposes the help page link', (
+  testWidgets('AppShell account menu no longer duplicates the help page link', (
     WidgetTester tester,
   ) async {
     _useDesktopSurface(tester);
@@ -157,7 +163,7 @@ void main() {
     await tester.tap(find.byTooltip('Tài khoản'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Hướng dẫn sử dụng'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'Hướng dẫn'), findsNothing);
   });
 }
 

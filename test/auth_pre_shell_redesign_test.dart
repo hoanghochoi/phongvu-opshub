@@ -35,6 +35,7 @@ void main() {
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Đăng nhập'), findsWidgets);
     expect(find.text('Dùng tài khoản nội bộ để tiếp tục.'), findsOneWidget);
+    expect(find.text('Hướng dẫn'), findsOneWidget);
 
     await _pumpAuthScreen(
       tester,

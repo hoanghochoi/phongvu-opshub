@@ -20,37 +20,42 @@ void main() {
     AppLogger.instance.setUploadsEnabledForTesting(true);
   });
 
-  testWidgets('Góp ý is the last visible Operations action', (tester) async {
-    await _pumpOperations(
-      tester,
-      const User(
-        id: 'staff-1',
-        email: 'staff@phongvu.vn',
-        role: 'USER',
-        organizationNodeId: 'org-store-cp01',
-        featureAccess: {
-          'FIFO': true,
-          'WARRANTY': true,
-          'VIETQR': true,
-          'BANK_STATEMENTS': true,
-          'FEEDBACK': true,
-        },
-      ),
-    );
+  testWidgets(
+    'Operations chỉ hiển thị công cụ nghiệp vụ, không kéo Góp ý vào',
+    (tester) async {
+      await _pumpOperations(
+        tester,
+        const User(
+          id: 'staff-1',
+          email: 'staff@phongvu.vn',
+          role: 'USER',
+          organizationNodeId: 'org-store-cp01',
+          featureAccess: {
+            'FIFO': true,
+            'WARRANTY': true,
+            'VIETQR': true,
+            'BANK_STATEMENTS': true,
+            'FEEDBACK': true,
+          },
+        ),
+      );
 
-    final titles = tester
-        .widgetList<AppFeatureTile>(find.byType(AppFeatureTile))
-        .map((tile) => tile.action.title)
-        .toList(growable: false);
+      final titles = tester
+          .widgetList<AppFeatureTile>(find.byType(AppFeatureTile))
+          .map((tile) => tile.action.title)
+          .toList(growable: false);
 
-    expect(find.byKey(const Key('operations-feature-section')), findsOneWidget);
-    expect(
-      titles,
-      containsAll(<String>['FIFO', 'Bảo hành', 'VietQR', 'Sao kê']),
-    );
-    expect(titles.last, 'Góp ý');
-    expect(titles.where((title) => title == 'Góp ý'), hasLength(1));
-  });
+      expect(
+        find.byKey(const Key('operations-feature-section')),
+        findsOneWidget,
+      );
+      expect(
+        titles,
+        containsAll(<String>['FIFO', 'Bảo hành', 'VietQR', 'Sao kê']),
+      );
+      expect(titles, isNot(contains('Góp ý')));
+    },
+  );
 
   testWidgets(
     'Operations shows Báo cáo for admin sales report access without Quản trị',

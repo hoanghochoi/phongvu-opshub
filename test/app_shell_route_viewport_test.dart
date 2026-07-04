@@ -142,6 +142,38 @@ void main() {
     expect(find.text('Email check'), findsNothing);
   });
 
+  testWidgets('login screen exposes a help entry that opens /help', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _LoggedOutAuthProvider();
+    final router = AppRouter.createRouter(
+      authProvider,
+      helpScreen: const _RouteMarker(label: 'help-route-marker'),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(router.routeInformationProvider.value.uri.path, '/login');
+    expect(find.text('Hướng dẫn'), findsOneWidget);
+
+    await tester.tap(find.text('Hướng dẫn'));
+    await tester.pumpAndSettle();
+
+    expect(router.routeInformationProvider.value.uri.path, '/help');
+    expect(find.text('help-route-marker'), findsOneWidget);
+  });
+
   testWidgets(
     'mobile shell routes to /operations and keeps notifications shell-owned',
     (tester) async {
@@ -233,7 +265,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('account help entry opens the in-app help route', (tester) async {
+  testWidgets('sidebar help entry opens the in-app help route', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -253,12 +285,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Tài khoản'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Hướng dẫn sử dụng'));
+    await tester.tap(find.byKey(const ValueKey('sidebar-item-help')));
     await tester.pumpAndSettle();
 
     expect(router.routeInformationProvider.value.uri.path, '/help');
+    expect(find.byKey(const ValueKey('route-/help')), findsOneWidget);
+    expect(find.byKey(const ValueKey('sidebar-item-help')), findsOneWidget);
     expect(find.text('help-route-marker'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -378,7 +410,15 @@ void main() {
     expect(find.text('Tổng quan'), findsOneWidget);
     expect(find.text('Nghiệp vụ'), findsOneWidget);
     expect(find.text('Cấu hình'), findsOneWidget);
-    expect(find.byKey(const ValueKey('sidebar-item-operations')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('sidebar-item-operations')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('sidebar-item-feedback')), findsOneWidget);
+    expect(find.byKey(const ValueKey('sidebar-item-help')), findsOneWidget);
+    expect(find.text('Kết nối nguồn lực. Đồng bộ vận hành.'), findsOneWidget);
+    expect(find.text('Dev: Hoàng Học Hỏi'), findsOneWidget);
+    expect(find.textContaining('© '), findsOneWidget);
     expect(
       tester.getTopLeft(rootGroup).dy,
       lessThan(tester.getTopLeft(workspaceGroup).dy),
