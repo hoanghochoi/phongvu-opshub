@@ -100,6 +100,16 @@ void main() {
         find.byKey(const Key('home-summary-card-unreportedOrders')),
         findsOneWidget,
       );
+      final homeSummaryColumn = tester.widget<Column>(
+        find.byKey(const Key('home-summary-page')),
+      );
+      final structuredChildren = homeSummaryColumn.children
+          .where((child) => child is! SizedBox)
+          .toList();
+      expect(structuredChildren[0], isA<HomeSummaryHeader>());
+      expect(structuredChildren[1], isA<HomeSummaryToolbar>());
+      expect(structuredChildren[2], isA<SummaryCardGrid>());
+      expect(structuredChildren[3], isA<ReportProgressPanel>());
       expect(find.text('Dashboard theo phạm vi'), findsOneWidget);
       expect(find.text('Doanh số trong ngày'), findsOneWidget);
       expect(find.text('125.000.000 VND'), findsOneWidget);

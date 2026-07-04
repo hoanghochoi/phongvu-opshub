@@ -41,17 +41,12 @@ class HomeSummaryPage extends StatelessWidget {
           onRefresh: provider.canRefresh
               ? () => unawaited(provider.refreshNow())
               : null,
+          warningMessage: provider.errorMessage != null && summary != null
+              ? provider.errorMessage
+              : null,
         ),
         const SizedBox(height: AppLayoutTokens.cardGap),
-        if (provider.errorMessage != null && summary != null) ...[
-          AppStatusBanner(
-            icon: Icons.sync_problem_rounded,
-            title: 'Đang hiển thị dữ liệu gần nhất',
-            message: provider.errorMessage!,
-            tone: AppStateTone.warning,
-          ),
-          const SizedBox(height: AppLayoutTokens.cardGap),
-        ],
+        // Keep the metrics dashboard tree stable: header, toolbar, grid, progress.
         ...content,
       ],
     );
@@ -252,12 +247,14 @@ class HomeSummaryToolbar extends StatelessWidget {
     required this.isRefreshing,
     required this.onPickDate,
     required this.onRefresh,
+    required this.warningMessage,
   });
 
   final DateTime selectedDate;
   final bool isRefreshing;
   final VoidCallback onPickDate;
   final VoidCallback? onRefresh;
+  final String? warningMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -302,6 +299,15 @@ class HomeSummaryToolbar extends StatelessWidget {
                       children: buttons,
                     )
                   : Wrap(spacing: 12, runSpacing: 12, children: buttons),
+              if (warningMessage != null) ...[
+                const SizedBox(height: 12),
+                AppStatusBanner(
+                  icon: Icons.sync_problem_rounded,
+                  title: 'Đang hiển thị dữ liệu gần nhất',
+                  message: warningMessage!,
+                  tone: AppStateTone.warning,
+                ),
+              ],
             ],
           );
         },
