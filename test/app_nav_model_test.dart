@@ -51,7 +51,7 @@ void main() {
   });
 
   test(
-    'mobile navigation stays limited to Home, notifications and account',
+    'mobile navigation shows Home, Operations, notifications and account',
     () {
       const user = User(
         id: 'staff-1',
@@ -64,11 +64,22 @@ void main() {
       final mobileLabels = AppNavModel.visibleMobileDestinations(
         user,
       ).map((destination) => destination.label).toList(growable: false);
+      final sidebarLabels = AppNavModel.visibleSidebarDestinations(
+        user,
+      ).map((destination) => destination.label).toList(growable: false);
 
-      expect(mobileLabels, ['Trang chủ', 'Thông báo', 'Tài khoản']);
+      expect(mobileLabels, ['Trang chủ', 'Vận hành', 'Thông báo', 'Tài khoản']);
+      expect(sidebarLabels, isNot(contains('Vận hành')));
       expect(mobileLabels, isNot(contains('Tác vụ')));
     },
   );
+
+  test('operations route selects Vận hành destination', () {
+    final destination = AppNavModel.destinationForLocation('/operations');
+
+    expect(destination?.id, 'operations');
+    expect(destination?.label, 'Vận hành');
+  });
 
   test('sort route stays inside the FIFO workspace', () {
     final destination = AppNavModel.destinationForLocation('/sort');

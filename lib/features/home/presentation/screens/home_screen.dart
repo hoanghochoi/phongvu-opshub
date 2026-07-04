@@ -8,8 +8,8 @@ import '../../../../app/navigation/app_nav_model.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
-import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -31,12 +31,14 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
-    final actions = _buildHomeActions(context, user);
+    final workspaceCount = AppNavModel.visibleWorkspaceDestinations(
+      user,
+    ).length;
     final canUsePaymentSpeaker =
         user?.canUseFeature('PAYMENT_SPEAKER') == true &&
         AppPlatformCapabilities.isPaymentSpeakerSupported();
 
-    _logHomeResolved(actions.length, user);
+    _logHomeResolved(workspaceCount, user);
 
     return AppResponsiveScrollView(
       child: Column(
@@ -48,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const _PaymentMonitorQuickToggle(),
             const SizedBox(height: AppLayoutTokens.sectionGap),
           ],
-          if (actions.isEmpty)
+          if (workspaceCount == 0)
             const AppSurfaceCard(
               key: Key('home-empty-state'),
               child: AppStatePanel.empty(
@@ -59,35 +61,25 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             )
           else
-            AppFeatureSection(title: 'Không gian làm việc', actions: actions),
+            _OperationsLandingCard(
+              workspaceCount: workspaceCount,
+              onOpenOperations: () => _openOperations(context, workspaceCount),
+            ),
           const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  List<AppFeatureAction> _buildHomeActions(BuildContext context, User? user) {
-    final destinations = AppNavModel.visibleWorkspaceDestinations(user);
-    return [
-      for (final destination in destinations)
-        AppFeatureAction(
-          icon: destination.icon,
-          title: destination.label,
-          description: destination.description,
-          color: destination.color,
-          onTap: () {
-            if (destination.id == 'feedback') {
-              unawaited(
-                AppLogger.instance.info(
-                  'Feedback',
-                  'Suggestion opened from home',
-                ),
-              );
-            }
-            context.go(destination.route);
-          },
-        ),
-    ];
+  void _openOperations(BuildContext context, int workspaceCount) {
+    unawaited(
+      AppLogger.instance.info(
+        'Home',
+        'Operations workspace opened from home',
+        context: {'visibleActions': workspaceCount},
+      ),
+    );
+    context.go('/operations');
   }
 
   void _logHomeResolved(int visibleCount, User? user) {
@@ -99,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
       unawaited(
         AppLogger.instance.info(
           'Home',
-          'Home command center resolved',
+          'Home landing resolved',
           context: {
             'visibleActions': visibleCount,
             'hiddenActions': hiddenCount,
@@ -107,6 +99,63 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     });
+  }
+}
+
+class _OperationsLandingCard extends StatelessWidget {
+  final int workspaceCount;
+  final VoidCallback onOpenOperations;
+
+  const _OperationsLandingCard({
+    required this.workspaceCount,
+    required this.onOpenOperations,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final countLabel = workspaceCount == 1
+        ? '1 công cụ đang sẵn sàng'
+        : '$workspaceCount công cụ đang sẵn sàng';
+
+    return AppSurfaceCard(
+      key: const Key('home-operations-card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Vận hành theo quyền',
+            style: AppTextStyles.headingS.copyWith(
+              color: AppColors.textPrimaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            countLabel,
+            style: AppTextStyles.labelM.copyWith(
+              color: AppColors.textPrimaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Các tác vụ nghiệp vụ đã chuyển sang tab Vận hành để thao tác nhanh hơn trên mobile và giữ luồng nhất quán giữa các nền tảng.',
+            style: AppTextStyles.bodyM.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+          const SizedBox(height: AppLayoutTokens.sectionGap),
+          AppActionRow(
+            desktopAlignment: MainAxisAlignment.start,
+            children: [
+              AppPrimaryButton(
+                onPressed: onOpenOperations,
+                icon: Icons.apps_rounded,
+                label: 'Mở Vận hành',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

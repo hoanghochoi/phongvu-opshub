@@ -63,15 +63,15 @@ void main() {
 
     expect(find.byKey(const ValueKey('route-/home')), findsOneWidget);
     expect(find.text('home-route-marker'), findsOneWidget);
-    expect(find.text('warranty-route-marker'), findsNothing);
+    expect(find.text('operations-route-marker'), findsNothing);
 
     await tester.pumpWidget(
       ChangeNotifierProvider<AuthProvider>.value(
         value: authProvider,
         child: const MaterialApp(
           home: AppShell(
-            location: '/warranty-main',
-            child: _RouteMarker(label: 'warranty-route-marker'),
+            location: '/operations',
+            child: _RouteMarker(label: 'operations-route-marker'),
           ),
         ),
       ),
@@ -79,9 +79,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('route-/home')), findsNothing);
-    expect(find.byKey(const ValueKey('route-/warranty-main')), findsOneWidget);
+    expect(find.byKey(const ValueKey('route-/operations')), findsOneWidget);
     expect(find.text('home-route-marker'), findsNothing);
-    expect(find.text('warranty-route-marker'), findsOneWidget);
+    expect(find.text('operations-route-marker'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -111,6 +111,54 @@ void main() {
     expect(find.text('Tác vụ của bạn'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'mobile shell routes to /operations and keeps notifications shell-owned',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final authProvider = _FakeAuthProvider(_shellUser);
+      final notificationsProvider = _FakeAppNotificationsProvider();
+      final router = AppRouter.createRouter(authProvider);
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+            ChangeNotifierProvider<AppNotificationsProvider>.value(
+              value: notificationsProvider,
+            ),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Trang chủ'), findsWidgets);
+      expect(find.text('Vận hành'), findsOneWidget);
+      expect(find.text('Thông báo'), findsOneWidget);
+      expect(find.text('Tài khoản'), findsOneWidget);
+
+      await tester.tap(find.text('Vận hành'));
+      await tester.pumpAndSettle();
+
+      expect(router.routeInformationProvider.value.uri.path, '/operations');
+      expect(find.byKey(const ValueKey('route-/operations')), findsOneWidget);
+      expect(find.text('Công cụ theo quyền'), findsOneWidget);
+
+      await tester.tap(find.text('Thông báo'));
+      await tester.pumpAndSettle();
+
+      expect(router.routeInformationProvider.value.uri.path, '/operations');
+      expect(notificationsProvider.loadCalls, 1);
+      expect(notificationsProvider.markReadCalls, 1);
+      expect(find.text('Chưa có thông báo.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('account logout waits for confirmation', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
@@ -270,6 +318,7 @@ void main() {
     expect(find.text('Tổng quan'), findsOneWidget);
     expect(find.text('Nghiệp vụ'), findsOneWidget);
     expect(find.text('Cấu hình'), findsOneWidget);
+    expect(find.byKey(const ValueKey('sidebar-item-operations')), findsNothing);
     expect(
       tester.getTopLeft(rootGroup).dy,
       lessThan(tester.getTopLeft(workspaceGroup).dy),

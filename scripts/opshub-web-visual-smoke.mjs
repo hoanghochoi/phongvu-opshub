@@ -48,6 +48,7 @@ const defaultAuthenticatedRoutes = parseRoutes(
     [
       '/home',
       '/profile',
+      '/operations',
       '/admin',
       '/admin/users',
       '/admin/roles',

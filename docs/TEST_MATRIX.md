@@ -109,7 +109,7 @@ Recent focused evidence:
   permission-aware workspace catalog through
   `visibleWorkspaceDestinations(user)`, mobile bottom nav removes `Tác vụ`, and
   legacy `/tasks` deep links redirect to `/home`. The default authenticated web
-  visual-smoke inventory now has 31 shell routes, or 70 route/viewport checks
+  visual-smoke inventory now has 32 shell routes, or 72 route/viewport checks
   across desktop and mobile. Validation: changed-file `dart format`,
   `dart format --output=none --set-exit-if-changed`,
   `node --check scripts\opshub-web-visual-smoke.mjs`, `git diff --check`,
@@ -824,13 +824,14 @@ Recent focused evidence:
   credentials, seeds the web session without committing secrets, captures
   ignored screenshots, and checks route hash, console/page errors, rendered
   Flutter viewport size, and visible horizontal overflow while ignoring Flutter
-  semantics-only overflow nodes. The default live staging smoke now runs 70
+  semantics-only overflow nodes. The default live staging smoke now runs 72
   checks across desktop `1440x900` and mobile `390x844`: 3 public routes
   (`/login`, `/register`, `/forgot-password`), 1 pending auth route
   (`/assignment-pending`) rendered from a tokenless cached pending session, plus
-  all 31 authenticated shell routes in `AppRouter`, including Admin, FIFO,
-  BH/SC, VietQR, Payment Monitor web fallback, Sao kê, Cấn trừ, Góp ý,
-  Report/Sales Report, Profile, Home, and Settings. Follow-up guard coverage in
+  all 32 authenticated shell routes in `AppRouter`, including Home,
+  Operations, Profile, Admin, FIFO, BH/SC, VietQR, Payment Monitor web
+  fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report, and Settings.
+  Follow-up guard coverage in
   `test\design_system_migration_guard_test.dart` now parses the smoke script
   and `AppRouter` so the default authenticated route list must stay aligned
   with every ShellRoute, while public and pending auth route lists are locked

@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phongvu_opshub/app/widgets/app_feature_grid.dart';
-import 'package:phongvu_opshub/app/widgets/app_state_widgets.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -35,139 +34,9 @@ void main() {
     AppLogger.instance.setUploadsEnabledForTesting(true);
   });
 
-  testWidgets('Góp ý is always the last visible Home action', (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    FlutterSecureStorage.setMockInitialValues({});
-    PackageInfo.setMockInitialValues(
-      appName: 'PhongVu OpsHub',
-      packageName: 'com.example.phongvu_opshub',
-      version: '1.1.1',
-      buildNumber: '2',
-      buildSignature: '',
-    );
-    final authProvider = _FakeAuthProvider(
-      const User(
-        id: 'user-1',
-        email: 'staff@phongvu.vn',
-        role: 'USER',
-        organizationNodeId: 'org-store-cp01',
-        featureAccess: {
-          'FIFO': true,
-          'WARRANTY': true,
-          'VIETQR': true,
-          'BANK_STATEMENTS': true,
-          'FEEDBACK': true,
-        },
-      ),
-    );
-
-    await tester.pumpWidget(
-      ChangeNotifierProvider<AuthProvider>.value(
-        value: authProvider,
-        child: const MaterialApp(
-          home: AppShell(location: '/home', child: HomeScreen()),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    final titles = tester
-        .widgetList<AppFeatureTile>(find.byType(AppFeatureTile))
-        .map((tile) => tile.action.title)
-        .toList(growable: false);
-
-    expect(
-      titles,
-      containsAll(<String>['FIFO', 'Bảo hành', 'VietQR', 'Sao kê']),
-    );
-    expect(titles.last, 'Góp ý');
-    expect(titles.where((title) => title == 'Góp ý'), hasLength(1));
-  });
-
-  testWidgets('Home shows Báo cáo for admin sales report node feature', (
+  testWidgets('Home landing keeps welcome strip and hides workspace grid', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({});
-    FlutterSecureStorage.setMockInitialValues({});
-    PackageInfo.setMockInitialValues(
-      appName: 'PhongVu OpsHub',
-      packageName: 'com.example.phongvu_opshub',
-      version: '1.1.1',
-      buildNumber: '2',
-      buildSignature: '',
-    );
-    final authProvider = _FakeAuthProvider(
-      const User(
-        id: 'lead-1',
-        email: 'lead@phongvu.vn',
-        role: 'USER',
-        organizationNodeId: 'org-area-hcm',
-        featureAccess: {'ADMIN_SALES_REPORTS': true},
-      ),
-    );
-
-    await tester.pumpWidget(
-      ChangeNotifierProvider<AuthProvider>.value(
-        value: authProvider,
-        child: const MaterialApp(
-          home: AppShell(location: '/home', child: HomeScreen()),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    final titles = tester
-        .widgetList<AppFeatureTile>(find.byType(AppFeatureTile))
-        .map((tile) => tile.action.title)
-        .toList(growable: false);
-
-    expect(titles, contains('Báo cáo'));
-    expect(titles, isNot(contains('Quản trị')));
-  });
-
-  testWidgets('Home uses shared empty state when no workspace is available', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
-    FlutterSecureStorage.setMockInitialValues({});
-    PackageInfo.setMockInitialValues(
-      appName: 'PhongVu OpsHub',
-      packageName: 'com.example.phongvu_opshub',
-      version: '1.1.1',
-      buildNumber: '2',
-      buildSignature: '',
-    );
-    final authProvider = _FakeAuthProvider(
-      const User(
-        id: 'staff-empty',
-        email: 'staff.empty@phongvu.vn',
-        role: 'USER',
-        organizationNodeId: 'org-store-cp01',
-      ),
-    );
-
-    await tester.pumpWidget(
-      ChangeNotifierProvider<AuthProvider>.value(
-        value: authProvider,
-        child: const MaterialApp(
-          home: AppShell(location: '/home', child: HomeScreen()),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('home-empty-state')), findsOneWidget);
-    expect(find.byType(AppStatePanel), findsOneWidget);
-    expect(find.byType(AppFeatureTile), findsNothing);
-    expect(find.text('Trang chủ vận hành'), findsOneWidget);
-    expect(find.text('Chưa có chức năng khả dụng'), findsOneWidget);
-    expect(
-      find.text('Vui lòng liên hệ quản lý để kiểm tra phân quyền truy cập.'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('Home header shows all assigned SR codes', (tester) async {
     tester.view.physicalSize = const Size(390, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -192,13 +61,22 @@ void main() {
           StoreBranch(id: 'store-75', storeId: 'CP75', storeName: 'CP75'),
           StoreBranch(id: 'store-62', storeId: 'CP62', storeName: 'CP62'),
         ],
+        featureAccess: {
+          'FIFO': true,
+          'WARRANTY': true,
+          'VIETQR': true,
+          'BANK_STATEMENTS': true,
+          'FEEDBACK': true,
+        },
       ),
     );
 
     await tester.pumpWidget(
       ChangeNotifierProvider<AuthProvider>.value(
         value: authProvider,
-        child: const MaterialApp(home: HomeScreen()),
+        child: const MaterialApp(
+          home: AppShell(location: '/home', child: HomeScreen()),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -206,7 +84,10 @@ void main() {
     final welcomeStrip = find.byKey(const Key('home-welcome-strip'));
     expect(welcomeStrip, findsOneWidget);
     expect(tester.getSize(welcomeStrip).height, lessThan(90));
+    expect(find.text('Trang chủ vận hành'), findsOneWidget);
     expect(find.text('2 showroom: CP75, CP62'), findsOneWidget);
+    expect(find.byType(AppFeatureTile), findsNothing);
+    expect(find.text('Không gian làm việc'), findsNothing);
   });
 
   testWidgets('Windows Home shows speaker paused for multiple assigned SRs', (
@@ -269,9 +150,7 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('Android Home shows Tiền vào but hides speaker quick toggle', (
-    tester,
-  ) async {
+  testWidgets('Android Home keeps speaker quick toggle hidden', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     addTearDown(() {
       debugDefaultTargetPlatformOverride = null;
@@ -303,13 +182,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final titles = tester
-        .widgetList<AppFeatureTile>(find.byType(AppFeatureTile))
-        .map((tile) => tile.action.title)
-        .toList(growable: false);
-
-    expect(titles, contains('Tiền vào'));
+    expect(find.byKey(const Key('home-welcome-strip')), findsOneWidget);
     expect(find.text('Đọc loa tiền vào'), findsNothing);
+    expect(find.byType(SwitchListTile), findsNothing);
+    expect(find.byType(AppFeatureTile), findsNothing);
     debugDefaultTargetPlatformOverride = null;
   });
 

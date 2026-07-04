@@ -45,6 +45,17 @@ class AppNavModel {
       showInMobileNav: true,
     ),
     AppNavDestination(
+      id: 'operations',
+      label: 'Vận hành',
+      description: 'Công cụ nghiệp vụ theo quyền',
+      route: '/operations',
+      icon: Icons.apps_outlined,
+      color: AppColors.success,
+      group: AppNavGroup.root,
+      showInSidebar: false,
+      showInMobileNav: true,
+    ),
+    AppNavDestination(
       id: 'notifications',
       label: 'Thông báo',
       description: 'Hộp thư thông báo',
@@ -222,7 +233,11 @@ class AppNavModel {
 
   static bool canUseDestination(User? user, AppNavDestination destination) {
     return switch (destination.id) {
-      'home' || 'notifications' || 'profile' || 'settings' => true,
+      'home' ||
+      'notifications' ||
+      'operations' ||
+      'profile' ||
+      'settings' => true,
       'admin' => _canUseAdmin(user),
       'fifo' =>
         user?.canUseFeature('FIFO') == true ||
