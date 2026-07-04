@@ -122,6 +122,7 @@ export class HelpContentService {
           ...payload,
           updatedByUserId: this.optionalText(user?.id, 80),
           updatedByEmail: this.normalizeEmail(user?.email),
+          seededFromDocsAt: null,
         },
       });
       this.logger.log(
@@ -168,7 +169,39 @@ export class HelpContentService {
   }
 
   private async ensureSeeded() {
-    await this.applyDocsSeed('seed-if-empty', null);
+    const existingPages = await this.listPages();
+    if (existingPages.length == 0) {
+      await this.applyDocsSeed('seed-if-empty', null);
+      return;
+    }
+
+    const docsManaged = existingPages.every(
+      (page) => page.seededFromDocsAt != null,
+    );
+    if (!docsManaged) return;
+
+    try {
+      const docs = await this.docsLoader.loadPages();
+      if (this.matchesDocsSnapshot(existingPages, docs.pages)) return;
+
+      const seededAt = new Date();
+      this.logger.log(
+        `Help content docs auto-sync started: currentPageCount=${existingPages.length} nextPageCount=${docs.pages.length}`,
+      );
+      await this.prisma.$transaction([
+        this.prisma.helpContentPage.deleteMany({}),
+        this.prisma.helpContentPage.createMany({
+          data: docs.pages.map((page) => this.seedRecord(page, seededAt, null)),
+        }),
+      ]);
+      this.logger.log(
+        `Help content docs auto-sync succeeded: pageCount=${docs.pages.length}`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Help content docs auto-sync skipped: message=${this.errorMessage(error)}`,
+      );
+    }
   }
 
   private async applyDocsSeed(
@@ -371,6 +404,32 @@ export class HelpContentService {
           }
         : {}),
     };
+  }
+
+  private matchesDocsSnapshot(
+    pages: HelpContentPage[],
+    docsPages: HelpDocsPageSeed[],
+  ) {
+    if (pages.length != docsPages.length) return false;
+    const pageByKey = new Map(pages.map((page) => [page.key, page]));
+    if (pageByKey.size != docsPages.length) return false;
+
+    for (const docsPage of docsPages) {
+      const page = pageByKey.get(docsPage.key);
+      if (!page) return false;
+      if (
+        page.title != docsPage.title ||
+        page.fileName != docsPage.fileName ||
+        page.parentKey != docsPage.parentKey ||
+        page.sortOrder != docsPage.sortOrder ||
+        page.markdown != docsPage.markdown ||
+        page.isPublished != docsPage.isPublished
+      ) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private assertSuperAdmin(user: any) {

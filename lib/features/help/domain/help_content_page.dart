@@ -88,6 +88,8 @@ class HelpContentAdminSnapshot {
   }
 }
 
+typedef HelpContentPublicSnapshot = HelpContentAdminSnapshot;
+
 class HelpContentSeedResult {
   const HelpContentSeedResult({
     required this.seeded,

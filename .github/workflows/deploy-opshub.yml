@@ -794,11 +794,16 @@ jobs:
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$windows_json")" >/dev/null
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/help" >/dev/null
+          help_json="$(retry_curl "${OPSHUB_API_BASE_URL}/help-content/public")"
           manifest_json="$(retry_curl "${OPSHUB_PUBLIC_BASE_URL}/downloads/latest.json")"
           node -e "
-            const manifest = JSON.parse(process.argv[1]);
-            const expectedVersion = process.argv[2];
-            const expectedBuild = Number(process.argv[3]);
+            const help = JSON.parse(process.argv[1]);
+            const manifest = JSON.parse(process.argv[2]);
+            const expectedVersion = process.argv[3];
+            const expectedBuild = Number(process.argv[4]);
+            if (!Array.isArray(help.pages) || help.pages.length === 0) {
+              throw new Error('Public help runtime snapshot is empty');
+            }
             if (manifest.version !== expectedVersion) {
               throw new Error('Download manifest version expected ' + expectedVersion + ', got ' + manifest.version);
             }
@@ -816,7 +821,7 @@ jobs:
             if (!manifest.files.windowsInstaller.url.endsWith('.exe')) throw new Error('Windows installer URL is invalid');
             if (!manifest.files.windowsZip.url.endsWith('.zip')) throw new Error('Windows ZIP URL is invalid');
             if (!manifest.files.windowsChecksum.url.endsWith('.sha256')) throw new Error('Windows checksum URL is invalid');
-          " "$manifest_json" "${{ needs.prepare.outputs.version_name }}" "${{ needs.prepare.outputs.version_code }}"
+          " "$help_json" "$manifest_json" "${{ needs.prepare.outputs.version_name }}" "${{ needs.prepare.outputs.version_code }}"
           node -e "
             const manifest = JSON.parse(process.argv[1]);
             for (const file of Object.values(manifest.files)) console.log(file.url);
@@ -898,12 +903,15 @@ jobs:
           node scripts/build-help-site.mjs
           caddy_tmp="/tmp/opshub-Caddyfile-${GITHUB_SHA}"
           ssh opshub-vps "mkdir -p /srv/opshub/downloads"
+          ssh opshub-vps "mkdir -p '${OPSHUB_REMOTE_APP_DIR}/current/docs/help'"
           scp 'dist/downloads/latest.json' \
             'opshub-vps:/srv/opshub/downloads/latest.json'
           scp 'deploy/home-server/download.html' \
             'opshub-vps:/srv/opshub/downloads/download.html'
           scp 'web/icons/Icon-192.png' \
             'opshub-vps:/srv/opshub/downloads/opshub-icon-192.png'
+          rsync -az --delete 'docs/help/' \
+            "opshub-vps:${OPSHUB_REMOTE_APP_DIR}/current/docs/help/"
           rsync -az --delete 'dist/help/' \
             'opshub-vps:/srv/opshub/downloads/help/'
           scp 'deploy/home-server/Caddyfile' "opshub-vps:${caddy_tmp}"
@@ -956,16 +964,21 @@ jobs:
 
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/help" >/dev/null
+          help_json="$(retry_curl "${OPSHUB_API_BASE_URL}/help-content/public")"
           manifest_json="$(retry_curl "${OPSHUB_PUBLIC_BASE_URL}/downloads/latest.json")"
           android_after="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android")"
           windows_after="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows")"
           node -e "
             const fs = require('node:fs');
-            const manifest = JSON.parse(process.argv[1]);
-            const androidBefore = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-            const windowsBefore = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
-            const androidAfter = JSON.parse(process.argv[4]);
-            const windowsAfter = JSON.parse(process.argv[5]);
+            const help = JSON.parse(process.argv[1]);
+            const manifest = JSON.parse(process.argv[2]);
+            const androidBefore = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+            const windowsBefore = JSON.parse(fs.readFileSync(process.argv[4], 'utf8'));
+            const androidAfter = JSON.parse(process.argv[5]);
+            const windowsAfter = JSON.parse(process.argv[6]);
+            if (!Array.isArray(help.pages) || help.pages.length === 0) {
+              throw new Error('Public help runtime snapshot is empty after static-only deploy');
+            }
             if (JSON.stringify(androidBefore) !== JSON.stringify(androidAfter)) {
               throw new Error('Android app-version changed during static-only deploy');
             }
@@ -982,7 +995,7 @@ jobs:
                 throw new Error('Download manifest file entry is invalid: ' + key);
               }
             }
-          " "$manifest_json" dist/downloads/android-before.json dist/downloads/windows-before.json "$android_after" "$windows_after"
+          " "$help_json" "$manifest_json" dist/downloads/android-before.json dist/downloads/windows-before.json "$android_after" "$windows_after"
           node -e "
             const manifest = JSON.parse(process.argv[1]);
             for (const file of Object.values(manifest.files)) console.log(file.url);

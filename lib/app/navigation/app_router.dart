@@ -31,6 +31,7 @@ import '../../features/admin/presentation/screens/policy_admin_screen.dart';
 import '../../features/admin/presentation/screens/role_admin_screen.dart';
 import '../../features/admin/presentation/screens/user_admin_screen.dart';
 import '../../features/help/presentation/screens/help_content_admin_screen.dart';
+import '../../features/help/presentation/screens/help_screen.dart';
 import '../../features/warranty/presentation/screens/warranty_screen.dart';
 import '../../features/warranty/presentation/screens/warranty_main_screen.dart';
 import '../../features/warranty/presentation/screens/check_warranty_screen.dart';
@@ -55,7 +56,10 @@ class AppRouter {
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
-  static GoRouter createRouter(AuthProvider authProvider) {
+  static GoRouter createRouter(
+    AuthProvider authProvider, {
+    Widget? helpScreen,
+  }) {
     return GoRouter(
       navigatorKey: navigatorKey,
       initialLocation: '/home',
@@ -78,9 +82,15 @@ class AppRouter {
         final isRegistering = location == '/register';
         final isForgotPassword = location == '/forgot-password';
         final isAssignmentPending = location == '/assignment-pending';
+        final isPublicHelp = location == '/help';
 
         if (!isAuthenticated) {
-          if (isLoggingIn || isRegistering || isForgotPassword) return null;
+          if (isLoggingIn ||
+              isRegistering ||
+              isForgotPassword ||
+              isPublicHelp) {
+            return null;
+          }
           return '/login';
         }
 
@@ -137,6 +147,11 @@ class AppRouter {
           path: '/forgot-password',
           builder: (context, state) =>
               _selectable(const ForgotPasswordScreen()),
+        ),
+        GoRoute(
+          path: '/help',
+          pageBuilder: (context, state) =>
+              _noTransitionPage(state, helpScreen ?? const HelpScreen()),
         ),
         GoRoute(
           path: '/assignment-pending',

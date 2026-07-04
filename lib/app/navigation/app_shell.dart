@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/app_brand.dart';
-import '../../core/constants/api_constants.dart';
 import '../../core/logging/app_logger.dart';
 import '../../features/auth/domain/entities/user.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
@@ -422,26 +421,21 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _openHelpPage(BuildContext context) async {
-    final helpUri = ApiConstants.helpPageUri;
-    final logContext = {'urlHost': helpUri.host, 'urlPath': helpUri.path};
+    final logContext = {'route': '/help'};
     await AppLogger.instance.info(
       'AppShellHelp',
       'Help page opening',
       context: logContext,
     );
     try {
-      final opened = await launchUrl(
-        helpUri,
-        mode: LaunchMode.externalApplication,
+      if (!context.mounted) return;
+      context.go('/help');
+      await AppLogger.instance.info(
+        'AppShellHelp',
+        'Help page opened',
+        context: logContext,
       );
-      if (opened) {
-        await AppLogger.instance.info(
-          'AppShellHelp',
-          'Help page opened',
-          context: logContext,
-        );
-        return;
-      }
+      return;
     } catch (error) {
       await AppLogger.instance.error(
         'AppShellHelp',

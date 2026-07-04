@@ -182,13 +182,15 @@ links.
 The public staff download page is served at `/download`. Full deploys publish
 `/srv/opshub/downloads/latest.json` beside the APK, Windows installer, Windows
 ZIP, and SHA256 checksum so that page can render the current links. The public
-staff help page is served at `/help` from built Markdown and image assets under
+staff help page now uses the Flutter `/help` route backed by
+`/api/help-content/public`, while Caddy still serves `/help/assets/*` from
 `/srv/opshub/downloads/help/`. For static download/help-page changes only, run
 the workflow manually with `skip_client_build=true`; that path uploads the
-static landing page/icon/help site, regenerates `latest.json` from the already
-live app-version metadata and files, updates the current Caddyfile, and reloads
-Caddy without rebuilding APK, Windows packages, backend images, or app-version
-metadata.
+static landing page/icon/help asset bundle, syncs `docs/help/*` into the
+current release as the runtime seed/rollback source, regenerates `latest.json`
+from the already live app-version metadata and files, updates the current
+Caddyfile, and reloads Caddy without rebuilding APK, Windows packages, backend
+images, or app-version metadata.
 
 Required GitHub repository secrets:
 

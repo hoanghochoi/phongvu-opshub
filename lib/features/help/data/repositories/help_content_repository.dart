@@ -17,6 +17,14 @@ class HelpContentRepository {
     return HelpContentAdminSnapshot.fromJson(data);
   }
 
+  Future<HelpContentPublicSnapshot> fetchPublicSnapshot() async {
+    final response = await _apiClient.get(
+      ApiConstants.helpContentPublicEndpoint,
+    );
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return HelpContentAdminSnapshot.fromJson(data);
+  }
+
   Future<HelpContentPage> createPage({
     required String key,
     required String title,

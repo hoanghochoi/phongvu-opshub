@@ -112,6 +112,36 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('public /help stays reachable when the user is logged out', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _LoggedOutAuthProvider();
+    final router = AppRouter.createRouter(
+      authProvider,
+      helpScreen: const _RouteMarker(label: 'help-route-marker'),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    router.go('/help');
+    await tester.pumpAndSettle();
+
+    expect(router.routeInformationProvider.value.uri.path, '/help');
+    expect(find.text('help-route-marker'), findsOneWidget);
+    expect(find.text('Email check'), findsNothing);
+  });
+
   testWidgets(
     'mobile shell routes to /operations and keeps notifications shell-owned',
     (tester) async {
@@ -200,6 +230,36 @@ void main() {
 
     expect(authProvider.logoutCalls, 1);
     expect(router.routeInformationProvider.value.uri.path, '/login');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('account help entry opens the in-app help route', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_shellUser);
+    final router = AppRouter.createRouter(
+      authProvider,
+      helpScreen: const _RouteMarker(label: 'help-route-marker'),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Tài khoản'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hướng dẫn sử dụng'));
+    await tester.pumpAndSettle();
+
+    expect(router.routeInformationProvider.value.uri.path, '/help');
+    expect(find.text('help-route-marker'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -395,6 +455,19 @@ class _FakeAuthProvider extends AuthProvider {
     _loggedOut = true;
     notifyListeners();
   }
+}
+
+class _LoggedOutAuthProvider extends AuthProvider {
+  _LoggedOutAuthProvider() : super(AuthRepository(ApiClient()));
+
+  @override
+  User? get user => null;
+
+  @override
+  bool get isInitialized => true;
+
+  @override
+  bool get isAuthenticated => false;
 }
 
 class _FakeAppNotificationsProvider extends AppNotificationsProvider {

@@ -1,8 +1,8 @@
 # Hướng dẫn thiết kế và quản lý trang /help
 
-Trang `/help` là trang hướng dẫn sử dụng và roadmap của OpsHub. Nội dung được
-soạn bằng Markdown trong `docs/help/content/`, ảnh nằm trong
-`docs/help/assets/`, còn menu nằm trong `docs/help/navigation.json`.
+Public `/help` hiện là route Flutter đọc runtime help qua
+`/api/help-content/public`. Bộ `docs/help/*` vẫn là nguồn authoring, asset, và
+rollback/source path ngắn hạn cho runtime help.
 
 ## 1. Cấu trúc thư mục
 
@@ -21,11 +21,14 @@ deploy/home-server/help.html
 scripts/build-help-site.mjs
 ```
 
-- `navigation.json`: cấu hình menu cha/con của trang help.
-- `content/*.md`: từng trang nội dung Markdown.
-- `assets/*`: ảnh minh họa dùng trong Markdown.
-- `help.html`: giao diện đọc Markdown, không cần sửa khi chỉ thêm nội dung.
-- `build-help-site.mjs`: build `docs/help/` thành `dist/help/`.
+- `navigation.json`: cấu hình menu cha/con của runtime help.
+- `content/*.md`: từng trang nội dung Markdown dùng để seed/restore runtime.
+- `assets/*`: ảnh minh họa dùng trong Markdown, được serve qua
+  `/help/assets/*`.
+- `help.html`: shell authoring/rollback cho bundle tĩnh, không còn là luồng
+  public chính.
+- `build-help-site.mjs`: build `docs/help/` thành `dist/help/` để kiểm tra
+  asset path và publish bundle tĩnh hỗ trợ rollback.
 
 ## 2. Cách soạn file Markdown
 
@@ -270,25 +273,14 @@ Bấm nút **Hỗ trợ** trên màn hình chính và gửi thông tin cần thi
 
 ## 9. Xem thử local
 
-Build trang:
+### 9.1. Kiểm tra bundle authoring và asset path
 
 ```powershell
 node scripts/build-help-site.mjs
-```
-
-Serve thư mục `dist`:
-
-```powershell
 python -m http.server 4173 -d dist
 ```
 
 Mở:
-
-```text
-http://localhost:4173/help/
-```
-
-Các link cần kiểm tra:
 
 ```text
 http://localhost:4173/help/
@@ -297,21 +289,40 @@ http://localhost:4173/help/#getting-started
 http://localhost:4173/help/#roadmap
 ```
 
+Luồng này chỉ để kiểm tra `docs/help/*` và asset bundle, không phải public
+route thật đang chạy trong app.
+
+### 9.2. Kiểm tra public route Flutter
+
+```powershell
+flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:3000/api
+```
+
+Sau đó mở `/help` trong app/web và xác nhận nội dung đọc được từ
+`/api/help-content/public`.
+
 ## 10. Deploy riêng trang /help
 
-Workflow production và staging sẽ tự build nội dung help bằng lệnh:
+Workflow production và staging vẫn build `docs/help/*` bằng:
 
 ```bash
 node scripts/build-help-site.mjs
 ```
 
-Nội dung production của `/help` dùng nhánh riêng `help-content` làm nguồn chính.
-Nhánh này đã được cấu hình trong GitHub Environment `production` để được phép
-deploy. Push `help-content` sẽ chạy production static-only deploy, chỉ refresh
-`/help`, `/download` và manifest từ artifact đang live; không rebuild APK,
-Windows installer, backend image hoặc app-version metadata. Full production
-deploy từ `main` cũng sẽ ưu tiên lấy `docs/help` từ `origin/help-content` nếu
-nhánh này tồn tại, để app deploy sau đó không ghi đè trang help bằng nội dung cũ.
+Nhưng public `/help` bây giờ là route Flutter đọc runtime DB/API, nên cần hiểu
+đúng 2 lớp:
+
+1. `docs/help/*` là source/asset/rollback path.
+2. Runtime help trong DB là nội dung public mà staff thật sự nhìn thấy.
+
+`help-content` vẫn là nhánh source chính cho `docs/help/*`. Push nhánh này sẽ
+chạy production static-only deploy, chỉ refresh `/download`, `/help/assets/*`,
+bundle `dist/help/`, và sync `docs/help/*` vào release đang chạy; không rebuild
+APK, Windows installer, backend image hoặc app-version metadata.
+
+Nếu runtime help hiện vẫn hoàn toàn bám docs, backend sẽ auto-sync nội dung mới
+ở request kế tiếp. Nếu đã từng chỉnh tay trong `Quản lý hướng dẫn`, dùng nút
+`Khôi phục từ docs` để kéo source branch về lại public runtime.
 
 ### 10.1. Tạo nhánh lần đầu
 
@@ -351,6 +362,13 @@ Sau khi push, GitHub Actions `Deploy OpsHub` sẽ tự chạy job
 `deploy_download_static`. Các job `build_android`, `build_windows`, và full
 `deploy` phải ở trạng thái `skipped` đối với branch `help-content`.
 
+Sau deploy:
+
+- Nếu runtime help chưa từng bị chỉnh tay trong admin, public `/help` sẽ tự lấy
+  nội dung docs mới ở request kế tiếp.
+- Nếu runtime help đã bị chỉnh tay, mở `Quản trị -> Quản lý hướng dẫn` và bấm
+  `Khôi phục từ docs` để realign với `help-content`.
+
 Theo dõi run:
 
 ```bash
@@ -369,16 +387,14 @@ gh workflow run deploy-opshub.yml --ref help-content -f skip_client_build=true
 
 ```bash
 curl -fsSI https://opshub.hoanghochoi.com/help
-curl -fsS https://opshub.hoanghochoi.com/help/navigation.json
-curl -fsS https://opshub.hoanghochoi.com/help/content/index.md
+curl -fsS https://opshub.hoanghochoi.com/api/help-content/public
 curl -fsS "https://opshub.hoanghochoi.com/api/app-version?platform=android"
 ```
 
 Kết quả mong muốn:
 
 - `/help` trả `200 OK`.
-- `navigation.json` đọc được và đúng menu mới.
-- `/help/content/index.md` đọc được.
+- `/api/help-content/public` trả về JSON có `pages`.
 - `/app-version` không đổi chỉ vì deploy help; release notes/version vẫn là bản
   app production hiện tại.
 
@@ -404,3 +420,5 @@ Kết quả mong muốn:
 - `git diff --check` không báo lỗi whitespace.
 - `/download` vẫn có nút `Hướng dẫn sử dụng`.
 - Menu app vẫn có mục `Hướng dẫn sử dụng`.
+- Nếu có runtime chỉnh tay trước đó, đã xác nhận có cần `Khôi phục từ docs`
+  hay không.

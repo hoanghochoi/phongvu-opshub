@@ -25,15 +25,16 @@ development services for OpsHub.
   UI decision. The smoke used current metadata to avoid forcing staff updates.
 - Staff client downloads are exposed by `GET /download`, backed by the public
   manifest at `GET /downloads/latest.json`.
-- Public staff guidance is exposed by `GET /help`, still backed by the static
-  Markdown site deployed from `docs/help/`.
-- Runtime help content is also exposed by `GET /api/help-content/public` and
-  managed by Super Admin through `/api/admin/help-content/*`; this DB-backed
-  runtime layer is the pre-cutover content source for the future Flutter
-  `/help` route.
+- Public staff guidance is exposed by the public Flutter `/help` route, backed
+  by `GET /api/help-content/public`.
+- Runtime help content is managed by Super Admin through
+  `/api/admin/help-content/*`. The production API container mounts
+  `docs/help/*` read-only so runtime help can seed, auto-sync docs-managed
+  pages, and restore from docs in deployed environments.
 - Flutter web is served as the SPA root at `GET /` in production and staging.
-  Caddy must route `/api`, `/ws`, `/download`, `/help`, `/uploads`,
-  `/downloads`, `/staging-download`, and `/health` before the SPA fallback.
+  Caddy must route `/api`, `/ws`, `/download`, `/help/assets`, `/uploads`,
+  `/downloads`, `/staging-download`, and `/health` before the SPA fallback, and
+  let `/help` itself fall through to the SPA route.
 
 ## Health Checks
 
@@ -59,24 +60,26 @@ curl http://localhost:3000/app-version
 - Deploy source branches are `staging`, `main`, and `help-content`. Pushing
   `staging` runs the staging workflow. Production app deploys fast-forward
   `main` from accepted `staging` code, then push `main` to run the production
-  workflow. The `help-content` branch is the production content source for
-  `/help`; pushing it runs only the production static help/download deploy.
-  Until the public Flutter cutover lands, the static site and runtime DB layer
-  are allowed to coexist. Super Admin can restore the runtime DB layer from
-  `docs/help/*` to realign it with the static deploy contract.
+  workflow. The `help-content` branch remains the production source branch for
+  `docs/help/*` plus `/help/assets/*`; pushing it runs only the production
+  static help/download deploy. That deploy syncs the latest `docs/help/*` onto
+  the live release so docs-managed runtime help can auto-sync on the next load,
+  while admin-edited runtime pages can be realigned manually through
+  `Khôi phục từ docs`.
 - Full production GitHub deploys build the client packages in Actions, upload
   the APK, Windows installer, Windows ZIP, and checksum directly to VPS staging,
   then promote them to `/srv/opshub/downloads/` and publish
   `/downloads/latest.json` for the download landing page. The same deploy
   builds Flutter web with
   `API_BASE_URL=https://opshub.hoanghochoi.com/api`, syncs it to
-  `/srv/opshub/web/`, and publishes the built help site under
+  `/srv/opshub/web/`, and publishes the built help asset bundle under
   `/srv/opshub/downloads/help/`. When `origin/help-content` exists, full
   production deploys load `docs/help` from that branch before building the help
-  site. Pushing `help-content`, or running manual `workflow_dispatch` with
-  `skip_client_build=true`, refreshes only the static download page and manifest
-  plus the help site from existing live artifacts; it must not change
-  app-version metadata or rebuild client packages.
+  asset bundle and before shipping the release source mounted into the API
+  container. Pushing `help-content`, or running manual `workflow_dispatch` with
+  `skip_client_build=true`, refreshes only the static download page, help
+  assets, and mounted `docs/help/*` source from existing live artifacts; it
+  must not change app-version metadata or rebuild client packages.
 - Staging deploys run on `staging` pushes or manual `Deploy OpsHub Staging`
   dispatches, target `opshub-staging.hoanghochoi.com` for API/runtime traffic,
   build Flutter web with

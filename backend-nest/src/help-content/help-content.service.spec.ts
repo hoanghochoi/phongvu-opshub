@@ -101,6 +101,55 @@ describe('HelpContentService', () => {
 
   it('seeds docs on first public load and returns runtime navigation', async () => {
     const { service, prisma, docsLoader } = createHarness();
+    prisma.helpContentPage.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 'page-guide',
+          key: 'guide',
+          title: 'Hướng dẫn sử dụng',
+          fileName: 'index.md',
+          parentKey: null,
+          sortOrder: 0,
+          markdown: '# Guide',
+          isPublished: true,
+          updatedByUserId: null,
+          updatedByEmail: null,
+          seededFromDocsAt: new Date('2026-07-04T10:00:00.000Z'),
+          createdAt: new Date('2026-07-04T10:00:00.000Z'),
+          updatedAt: new Date('2026-07-04T10:00:00.000Z'),
+        },
+        {
+          id: 'page-getting-started',
+          key: 'getting-started',
+          title: 'Bắt đầu sử dụng',
+          fileName: 'getting-started.md',
+          parentKey: 'guide',
+          sortOrder: 0,
+          markdown: '# Getting started',
+          isPublished: true,
+          updatedByUserId: null,
+          updatedByEmail: null,
+          seededFromDocsAt: new Date('2026-07-04T10:00:00.000Z'),
+          createdAt: new Date('2026-07-04T10:00:00.000Z'),
+          updatedAt: new Date('2026-07-04T10:00:00.000Z'),
+        },
+        {
+          id: 'page-roadmap',
+          key: 'roadmap',
+          title: 'Roadmap',
+          fileName: 'roadmap.md',
+          parentKey: null,
+          sortOrder: 1,
+          markdown: '# Roadmap',
+          isPublished: true,
+          updatedByUserId: null,
+          updatedByEmail: null,
+          seededFromDocsAt: new Date('2026-07-04T10:00:00.000Z'),
+          createdAt: new Date('2026-07-04T10:00:00.000Z'),
+          updatedAt: new Date('2026-07-04T10:00:00.000Z'),
+        },
+      ]);
 
     await expect(service.getPublicContent()).resolves.toMatchObject({
       source: 'runtime',
@@ -192,7 +241,114 @@ describe('HelpContentService', () => {
         markdown: '# Roadmap mới',
         updatedByUserId: 'admin-1',
         updatedByEmail: 'admin@phongvu.vn',
+        seededFromDocsAt: null,
       }),
+    });
+  });
+
+  it('auto-syncs docs-managed runtime pages when docs content changes', async () => {
+    const { service, prisma, docsLoader } = createHarness();
+    prisma.helpContentPage.count.mockResolvedValue(3);
+    prisma.helpContentPage.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'page-guide',
+          key: 'guide',
+          title: 'Hướng dẫn sử dụng',
+          fileName: 'index.md',
+          parentKey: null,
+          sortOrder: 0,
+          markdown: '# Guide cũ',
+          isPublished: true,
+          updatedByUserId: null,
+          updatedByEmail: null,
+          seededFromDocsAt: new Date('2026-07-04T10:00:00.000Z'),
+          createdAt: new Date('2026-07-04T10:00:00.000Z'),
+          updatedAt: new Date('2026-07-04T10:00:00.000Z'),
+        },
+        {
+          id: 'page-roadmap',
+          key: 'roadmap',
+          title: 'Roadmap',
+          fileName: 'roadmap.md',
+          parentKey: null,
+          sortOrder: 1,
+          markdown: '# Roadmap',
+          isPublished: true,
+          updatedByUserId: null,
+          updatedByEmail: null,
+          seededFromDocsAt: new Date('2026-07-04T10:00:00.000Z'),
+          createdAt: new Date('2026-07-04T10:00:00.000Z'),
+          updatedAt: new Date('2026-07-04T10:00:00.000Z'),
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'page-guide',
+          key: 'guide',
+          title: 'Hướng dẫn sử dụng',
+          fileName: 'index.md',
+          parentKey: null,
+          sortOrder: 0,
+          markdown: '# Guide mới',
+          isPublished: true,
+          updatedByUserId: null,
+          updatedByEmail: null,
+          seededFromDocsAt: new Date('2026-07-04T10:10:00.000Z'),
+          createdAt: new Date('2026-07-04T10:00:00.000Z'),
+          updatedAt: new Date('2026-07-04T10:10:00.000Z'),
+        },
+        {
+          id: 'page-roadmap',
+          key: 'roadmap',
+          title: 'Roadmap',
+          fileName: 'roadmap.md',
+          parentKey: null,
+          sortOrder: 1,
+          markdown: '# Roadmap',
+          isPublished: true,
+          updatedByUserId: null,
+          updatedByEmail: null,
+          seededFromDocsAt: new Date('2026-07-04T10:10:00.000Z'),
+          createdAt: new Date('2026-07-04T10:00:00.000Z'),
+          updatedAt: new Date('2026-07-04T10:10:00.000Z'),
+        },
+      ]);
+    docsLoader.loadPages.mockResolvedValueOnce({
+      sourcePath: 'C:/repo/docs/help',
+      pages: [
+        {
+          key: 'guide',
+          title: 'Hướng dẫn sử dụng',
+          fileName: 'index.md',
+          parentKey: null,
+          sortOrder: 0,
+          markdown: '# Guide mới',
+          isPublished: true,
+        },
+        {
+          key: 'roadmap',
+          title: 'Roadmap',
+          fileName: 'roadmap.md',
+          parentKey: null,
+          sortOrder: 1,
+          markdown: '# Roadmap',
+          isPublished: true,
+        },
+      ],
+    });
+
+    await expect(service.getPublicContent()).resolves.toMatchObject({
+      pages: expect.arrayContaining([
+        expect.objectContaining({ key: 'guide', markdown: '# Guide mới' }),
+      ]),
+    });
+
+    expect(prisma.helpContentPage.deleteMany).toHaveBeenCalledWith({});
+    expect(prisma.helpContentPage.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ key: 'guide', markdown: '# Guide mới' }),
+      ]),
     });
   });
 

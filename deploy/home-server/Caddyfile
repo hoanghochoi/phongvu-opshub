@@ -27,19 +27,12 @@ http://{$OPSHUB_DOMAIN} {
     redir /help 308
   }
 
-  handle /help {
-    root * /srv/downloads/help
-    rewrite * /index.html
+  handle_path /help/assets/* {
+    root * /srv/downloads/help/assets
     file_server
   }
 
-  header /help/navigation.json Cache-Control "no-store, no-cache, must-revalidate"
-  header /help/content/* Cache-Control "no-store, no-cache, must-revalidate"
-
-  handle_path /help/* {
-    root * /srv/downloads/help
-    file_server
-  }
+  header /help Cache-Control "no-store, no-cache, must-revalidate"
 
   handle /staging-download/ {
     redir /staging-download 308

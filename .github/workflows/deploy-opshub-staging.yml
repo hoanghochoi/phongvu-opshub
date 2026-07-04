@@ -804,12 +804,17 @@ jobs:
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
           retry_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}" >/dev/null
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/help" >/dev/null
+          help_json="$(retry_curl "${OPSHUB_API_BASE_URL}/help-content/public")"
           manifest_json="$(retry_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json")"
           node -e "
-            const manifest = JSON.parse(process.argv[1]);
-            const expectedVersion = process.argv[2];
-            const expectedBuild = Number(process.argv[3]);
-            const publicBaseUrl = process.argv[4];
+            const help = JSON.parse(process.argv[1]);
+            const manifest = JSON.parse(process.argv[2]);
+            const expectedVersion = process.argv[3];
+            const expectedBuild = Number(process.argv[4]);
+            const publicBaseUrl = process.argv[5];
+            if (!Array.isArray(help.pages) || help.pages.length === 0) {
+              throw new Error('Public help runtime snapshot is empty on staging');
+            }
             if (manifest.version !== expectedVersion) throw new Error('Manifest version mismatch');
             if (manifest.build !== expectedBuild) throw new Error('Manifest build mismatch');
             for (const [key, file] of Object.entries(manifest.files || {})) {
@@ -823,7 +828,7 @@ jobs:
                 throw new Error('Manifest file points to production downloads: ' + key);
               }
             }
-          " "$manifest_json" "${{ needs.prepare.outputs.version_name }}" "${{ needs.prepare.outputs.version_code }}" "$OPSHUB_DOWNLOAD_PUBLIC_BASE_URL"
+          " "$help_json" "$manifest_json" "${{ needs.prepare.outputs.version_name }}" "${{ needs.prepare.outputs.version_code }}" "$OPSHUB_DOWNLOAD_PUBLIC_BASE_URL"
           node -e "
             const manifest = JSON.parse(process.argv[1]);
             for (const file of Object.values(manifest.files)) console.log(file.url);
