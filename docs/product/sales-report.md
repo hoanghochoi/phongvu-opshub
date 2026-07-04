@@ -43,6 +43,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   `Quản trị`.
 - Màn hình `Báo cáo sale` của admin lọc danh sách và CSV theo loại báo cáo và
   khoảng `Từ ngày` / `Đến ngày` dựa trên thời điểm gửi báo cáo (`submittedAt`).
+  Nếu admin không chọn khoảng ngày, app vẫn giữ label `Tất cả ngày` nhưng mặc
+  định truy vấn/xuất 30 ngày gần nhất và hiện dòng nhắc nhỏ để tránh hiểu nhầm.
   Admin xuất được 3 file tiếng Việt: `HVTC` là mỗi dòng một báo cáo mua/chưa
   mua; `Doanh số` là một dòng tổng hợp doanh thu/số lượng theo type ngành hàng;
   `Trả góp` chỉ lấy báo cáo có `installmentNeed = true`.

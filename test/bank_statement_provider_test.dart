@@ -203,7 +203,7 @@ void main() {
     });
 
     test(
-      'requires complete date ranges and defaults missing ranges to today',
+      'requires complete date ranges and defaults missing ranges to the latest 30 days',
       () async {
         final repository = _FakeBankStatementRepository();
         final provider = BankStatementProvider(
@@ -224,8 +224,8 @@ void main() {
         await provider.search();
 
         expect(repository.lastQuery?.statementNumber, '00020300000000004567');
-        expect(repository.lastQuery?.startDate, DateTime(2026, 6));
-        expect(repository.lastQuery?.endDate, DateTime(2026, 6));
+        expect(repository.lastQuery?.startDate, DateTime(2026, 5, 3));
+        expect(repository.lastQuery?.endDate, DateTime(2026, 6, 1));
 
         provider.dispose();
       },
@@ -334,8 +334,8 @@ void main() {
       expect(
         repository.seenQueries.every(
           (query) =>
-              query.startDate == DateTime(2026, 6) &&
-              query.endDate == DateTime(2026, 6),
+              query.startDate == DateTime(2026, 5, 3) &&
+              query.endDate == DateTime(2026, 6, 1),
         ),
         isTrue,
       );

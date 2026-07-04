@@ -10,6 +10,7 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/utils/date_range_defaults.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../data/sales_report_repository.dart';
 import '../../domain/sales_report.dart';
@@ -428,10 +429,17 @@ class SalesReportProvider extends ChangeNotifier {
     _errorMessage = null;
     if (page != null) _adminPage = page;
     notifyListeners();
-    final effectiveQuery =
+    final requestedQuery =
         query ?? SalesReportQuery(page: _adminPage, limit: _adminLimit);
+    final usesImplicitRecentDateRange = _usesImplicitAdminDateRange(
+      requestedQuery,
+    );
+    final effectiveQuery = _applyImplicitAdminDateRange(requestedQuery);
     final startedAt = DateTime.now();
-    final queryContext = _adminQueryLogContext(effectiveQuery);
+    final queryContext = _adminQueryLogContext(
+      effectiveQuery,
+      defaultRecentDateRange: usesImplicitRecentDateRange,
+    );
     try {
       await AppLogger.instance.info(
         'SalesReport',
@@ -486,18 +494,23 @@ class SalesReportProvider extends ChangeNotifier {
     _successMessage = null;
     notifyListeners();
     final startedAt = DateTime.now();
-    final queryContext = _adminQueryLogContext(query);
+    final usesImplicitRecentDateRange = _usesImplicitAdminDateRange(query);
+    final effectiveQuery = _applyImplicitAdminDateRange(query);
+    final queryContext = _adminQueryLogContext(
+      effectiveQuery,
+      defaultRecentDateRange: usesImplicitRecentDateRange,
+    );
     try {
       await AppLogger.instance.info(
         'SalesReport',
         'Sales report export started',
         context: queryContext,
       );
-      final csvBytes = await _repository.exportCsv(query);
+      final csvBytes = await _repository.exportCsv(effectiveQuery);
       final path = await FilePicker.saveFile(
         dialogTitle: 'Lưu file báo cáo sale',
         fileName:
-            'opshub_${_exportTypeFilePart(query.exportType)}_${_timestampForFile()}.csv',
+            'opshub_${_exportTypeFilePart(effectiveQuery.exportType)}_${_timestampForFile()}.csv',
         type: FileType.custom,
         allowedExtensions: const ['csv'],
         bytes: _ensureUtf8BomForCsv(csvBytes),
@@ -547,7 +560,30 @@ class SalesReportProvider extends ChangeNotifier {
     return '${now.year}${two(now.month)}${two(now.day)}_${two(now.hour)}${two(now.minute)}${two(now.second)}';
   }
 
-  Map<String, Object?> _adminQueryLogContext(SalesReportQuery query) {
+  bool _usesImplicitAdminDateRange(SalesReportQuery query) {
+    return query.startDate == null || query.endDate == null;
+  }
+
+  SalesReportQuery _applyImplicitAdminDateRange(SalesReportQuery query) {
+    if (!_usesImplicitAdminDateRange(query)) return query;
+    return SalesReportQuery(
+      reportType: query.reportType,
+      orderCode: query.orderCode,
+      categoryGroupId: query.categoryGroupId,
+      exportType: query.exportType,
+      startDate: appImplicitDateRangeStart(_now()),
+      endDate: appImplicitDateRangeEnd(_now()),
+      reporter: query.reporter,
+      storeIds: query.storeIds,
+      page: query.page,
+      limit: query.limit,
+    );
+  }
+
+  Map<String, Object?> _adminQueryLogContext(
+    SalesReportQuery query, {
+    required bool defaultRecentDateRange,
+  }) {
     return {
       'type': query.reportType,
       'exportType': query.exportType,
@@ -557,6 +593,7 @@ class SalesReportProvider extends ChangeNotifier {
       'hasCategoryGroup': (query.categoryGroupId ?? '').trim().isNotEmpty,
       'hasStartDate': query.startDate != null,
       'hasEndDate': query.endDate != null,
+      'defaultRecentDateRange': defaultRecentDateRange,
       if (query.startDate != null) 'startDate': _dateForLog(query.startDate!),
       if (query.endDate != null) 'endDate': _dateForLog(query.endDate!),
     };

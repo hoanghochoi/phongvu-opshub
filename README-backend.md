@@ -122,16 +122,27 @@ Expected responses:
   to newer clients through
   `GET /payment-notifications/:id/audio?rawAmount=true`. The Windows client
   trims zero padding, joins its bundled `payment-cue-prefix.wav` to the amount
-  with an 80 ms gap, and plays one WAV to avoid player-switch latency. It falls
-  back to sequential playback when the two PCM WAV formats are incompatible.
+  with an 80 ms gap, and plays one WAV to avoid player-switch latency. Older
+  or manual clients may still download through `/audio`, but the current
+  Windows speaker flow now downloads speaker audio only through
+  `GET /payment-notifications/:id/stream`; `/payment-notifications/ready`
+  remains a metadata-only backlog endpoint that returns `audioUrl` plus
+  `streamUrl`. The client falls back to sequential playback when the two PCM
+  WAV formats are incompatible.
   Low-latency speaker streaming should run with
   `PAYMENT_SPEAKER_STREAMING_ENABLED=true`: the API creates the notification
   immediately, publishes `PAYMENT_SPEAKER_STREAM` up to
   `PAYMENT_STREAM_EVENT_REPEAT_COUNT` times, and only calls Piper when a
   speaker client requests `GET /payment-notifications/:id/stream`. The client
   records `STREAM_STARTED` when playback begins; delivery metrics then measure
-  `paidAt -> streamStartedAt`. Set `PAYMENT_TTS_CONCURRENCY=2` to match the
-  recommended two Piper workers on `hoang-n8n`.
+  `paidAt -> streamStartedAt`. Stream requests include `clientId`, and the API
+  now claims `DELIVERED` before preparing audio, guarded by an advisory lock on
+  `notificationId + clientId`; a second in-flight request for the same pair
+  returns HTTP `409` so the client can suppress duplicate same-machine
+  playback. Ready polling is now only a backlog fallback on startup, manual
+  refresh, reconnect, or extended realtime silence; speaker backlog playback
+  still goes through `/stream`, not `/audio`. Set `PAYMENT_TTS_CONCURRENCY=2`
+  to match the recommended two Piper workers on `hoang-n8n`.
 - Keep placeholder values out of production; the Nest API validates env values on startup.
 - Keep the API behind exactly one trusted Caddy hop. Rate limits use the
   verified JWT user id first, then stable request identifiers such as

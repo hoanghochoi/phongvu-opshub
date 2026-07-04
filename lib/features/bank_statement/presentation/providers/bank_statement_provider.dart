@@ -9,6 +9,7 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/utils/date_range_defaults.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../notifications/data/app_notification_read_store.dart';
@@ -765,7 +766,12 @@ class BankStatementProvider extends ChangeNotifier {
   }
 
   BankStatementQuery _query({int? page, int? limit}) {
-    final defaultToday = _usesDefaultTodayDateRange ? _todayInVietnam() : null;
+    final defaultStartDate = _usesImplicitRecentDateRange
+        ? _defaultRecentStartDate()
+        : null;
+    final defaultEndDate = _usesImplicitRecentDateRange
+        ? _defaultRecentEndDate()
+        : null;
     return BankStatementQuery(
       allStores: _allStores,
       storeIds: _selectedStoreIds.toList()..sort(),
@@ -774,14 +780,15 @@ class BankStatementProvider extends ChangeNotifier {
       amount: _amount,
       content: _content,
       orderStatus: _orderStatus,
-      startDate: _startDate ?? defaultToday,
-      endDate: _endDate ?? defaultToday,
+      startDate: _startDate ?? defaultStartDate,
+      endDate: _endDate ?? defaultEndDate,
       page: page ?? _page,
       limit: limit ?? _limit,
     );
   }
 
-  bool get _usesDefaultTodayDateRange => _startDate == null && _endDate == null;
+  bool get _usesImplicitRecentDateRange =>
+      _startDate == null && _endDate == null;
 
   bool get _usesGlobalLookup =>
       (_statementNumber ?? '').isNotEmpty ||
@@ -1032,9 +1039,15 @@ class BankStatementProvider extends ChangeNotifier {
     return null;
   }
 
-  DateTime _effectiveStartDate() => _startDate ?? _todayInVietnam();
+  DateTime _effectiveStartDate() => _startDate ?? _defaultRecentStartDate();
 
-  DateTime _effectiveEndDate() => _endDate ?? _todayInVietnam();
+  DateTime _effectiveEndDate() => _endDate ?? _defaultRecentEndDate();
+
+  DateTime _defaultRecentStartDate() =>
+      appImplicitDateRangeStart(_todayInVietnam());
+
+  DateTime _defaultRecentEndDate() =>
+      appImplicitDateRangeEnd(_todayInVietnam());
 
   int get _exportDateSpanDays {
     final start = _dateOnly(_effectiveStartDate());
@@ -1088,7 +1101,7 @@ class BankStatementProvider extends ChangeNotifier {
       'orderStatus': _orderStatus,
       'hasStartDate': _startDate != null,
       'hasEndDate': _endDate != null,
-      'defaultTodayDate': _usesDefaultTodayDateRange,
+      'defaultRecentDateRange': _usesImplicitRecentDateRange,
       'page': _page,
       'limit': _limit,
     };

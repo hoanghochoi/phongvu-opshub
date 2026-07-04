@@ -11,9 +11,11 @@ that must be reviewed by ACC before being treated as complete.
   SUPER_ADMIN reviewers can view requests across SRs, filter by SR, and review
   submitted requests. ACC/FIN_ACC can be resolved from either the user's
   department code or their assigned organization-tree ancestors.
-- The main list treats an empty date filter as `Tất cả ngày`. When a custom
-  range is selected it filters by `submittedAt`, uses server-side paging, and
-  sorts newest first.
+- The main list keeps `Tất cả ngày` as the empty date-filter label, but when
+  the user leaves the date range empty the query/export defaults to the latest
+  30 days and the UI shows a small helper note about that fallback. When a
+  custom range is selected it filters by `submittedAt`, uses server-side
+  paging, and sorts newest first.
 - The list supports filters for SR, type, old/new/order code, exact amount, and
   status. Reviewer SR filtering supports selecting multiple SRs or leaving the
   selection empty for all visible SRs.

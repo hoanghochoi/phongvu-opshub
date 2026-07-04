@@ -64,6 +64,7 @@ typedef PaymentRealtimeConnector = WebSocketChannel Function(Uri uri);
 
 class PaymentMonitorProvider extends ChangeNotifier {
   static const _defaultFallbackRefreshInterval = Duration(seconds: 10);
+  static const _fallbackReadyDrainSilenceThreshold = Duration(seconds: 30);
   static const _realtimeRefreshDebounce = Duration(milliseconds: 500);
   static const _defaultRealtimeReconnectDelay = Duration(seconds: 2);
   static const _maxRealtimeReconnectDelay = Duration(seconds: 30);
@@ -91,6 +92,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   final Duration _fallbackRefreshInterval;
   final Duration _realtimeReconnectDelay;
   final PaymentRealtimeConnector _realtimeConnector;
+  final Set<String> _deliveryInFlightNotificationIds = {};
   final Set<String> _terminalNotificationIds = {};
   final Set<String> _queuedStreamNotificationIds = {};
   final Queue<PaymentNotification> _streamNotificationQueue =
@@ -110,6 +112,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   String? _clientId;
   String? _realtimeKey;
   DateTime? _notificationCheckpointAt;
+  DateTime? _lastRealtimeEventAt;
   bool _isActive = false;
   bool _isLoading = false;
   String? _errorMessage;
@@ -128,6 +131,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   String? _lastSpeakerEligibilityLogKey;
   bool _refreshQueuedWhileLoading = false;
   bool _queuedRefreshIncludeTotal = false;
+  bool _queuedRefreshDrainReadyNotifications = false;
   bool _isDrainingStreamNotifications = false;
   bool _canReviewOrderTransfers = false;
   int _realtimeReconnectAttempt = 0;
@@ -278,6 +282,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       force: true,
       bypassBackoff: true,
       includeTotal: true,
+      drainReadyNotifications: _canUsePaymentSpeaker,
       reason: 'manual_refresh',
     );
   }
@@ -544,7 +549,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _notificationCheckpointAt = speakerEligible
         ? DateTime.now().toUtc().subtract(_startupNotificationLookback)
         : null;
+    _lastRealtimeEventAt = null;
     _loggedMonitorStarted = false;
+    _deliveryInFlightNotificationIds.clear();
     _terminalNotificationIds.clear();
     _queuedStreamNotificationIds.clear();
     _activeNotificationIds.clear();
@@ -553,10 +560,19 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _realtimeReconnectAttempt = 0;
     _speakerError = null;
     _latestTransactions.clear();
-    _poll(force: true, includeTotal: true, reason: 'initial_load');
+    _poll(
+      force: true,
+      includeTotal: true,
+      reason: 'initial_load',
+      drainReadyNotifications: speakerEligible,
+    );
     _timer = Timer.periodic(
       _fallbackRefreshInterval,
-      (_) => _poll(includeTotal: false, reason: 'fallback'),
+      (_) => _poll(
+        includeTotal: false,
+        reason: 'fallback',
+        drainReadyNotifications: _shouldDrainReadyNotificationsFromFallback(),
+      ),
     );
     notifyListeners();
   }
@@ -596,6 +612,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _lastSpeakerEligibilityLogKey = null;
     _refreshQueuedWhileLoading = false;
     _queuedRefreshIncludeTotal = false;
+    _queuedRefreshDrainReadyNotifications = false;
+    _lastRealtimeEventAt = null;
+    _deliveryInFlightNotificationIds.clear();
     _terminalNotificationIds.clear();
     _queuedStreamNotificationIds.clear();
     _activeNotificationIds.clear();
@@ -678,6 +697,16 @@ class PaymentMonitorProvider extends ChangeNotifier {
           context: {'storeId': storeCode},
         ),
       );
+      if (_isActive && _lastCheckedAt != null) {
+        unawaited(
+          _poll(
+            force: true,
+            includeTotal: false,
+            reason: 'realtime_connected',
+            drainReadyNotifications: _canUsePaymentSpeaker,
+          ),
+        );
+      }
     } catch (error, stackTrace) {
       unawaited(
         AppLogger.instance.error(
@@ -758,6 +787,31 @@ class PaymentMonitorProvider extends ChangeNotifier {
     return Duration(milliseconds: math.max(1, delayMs));
   }
 
+  bool _shouldDrainReadyNotificationsFromFallback() {
+    if (!_canUsePaymentSpeaker) return false;
+    if (_realtimeChannel == null || _realtimeSubscription == null) {
+      return true;
+    }
+    final lastRealtimeEventAt = _lastRealtimeEventAt;
+    if (lastRealtimeEventAt == null) return true;
+    return DateTime.now().difference(lastRealtimeEventAt) >=
+        _fallbackReadyDrainSilenceThreshold;
+  }
+
+  void _advanceNotificationCheckpoint(
+    Iterable<PaymentNotification> notifications,
+  ) {
+    for (final notification in notifications) {
+      final createdAt = notification.createdAt?.toUtc();
+      if (createdAt == null) continue;
+      final currentCheckpointAt = _notificationCheckpointAt;
+      if (currentCheckpointAt == null ||
+          createdAt.isAfter(currentCheckpointAt)) {
+        _notificationCheckpointAt = createdAt;
+      }
+    }
+  }
+
   Future<void> _handleRealtimeMessage(dynamic message) async {
     try {
       final decoded = jsonDecode(message.toString());
@@ -784,6 +838,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           eventStore != expectedStore) {
         return;
       }
+      _lastRealtimeEventAt = DateTime.now();
       await AppLogger.instance.info(
         'PaymentMonitorRealtime',
         eventType == 'PAYMENT_SPEAKER_STREAM'
@@ -823,7 +878,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
   void _scheduleRealtimeRefresh() {
     _realtimeRefreshTimer?.cancel();
     _realtimeRefreshTimer = Timer(_realtimeRefreshDebounce, () {
-      _poll(force: true, includeTotal: false, reason: 'realtime_event');
+      _poll(
+        force: true,
+        includeTotal: false,
+        reason: 'realtime_event',
+        drainReadyNotifications: false,
+      );
     });
   }
 
@@ -847,6 +907,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       );
       return;
     }
+    _advanceNotificationCheckpoint([notification]);
     if (!_canUsePaymentSpeaker) {
       await AppLogger.instance.info(
         'PaymentMonitorRealtime',
@@ -880,26 +941,35 @@ class PaymentMonitorProvider extends ChangeNotifier {
     PaymentNotification notification,
     String clientId,
   ) {
-    if (_terminalNotificationIds.contains(notification.notificationId) ||
-        _queuedStreamNotificationIds.contains(notification.notificationId) ||
-        _activeNotificationIds.contains(notification.notificationId)) {
+    final isTerminal = _terminalNotificationIds.contains(
+      notification.notificationId,
+    );
+    final isQueued = _queuedStreamNotificationIds.contains(
+      notification.notificationId,
+    );
+    final isActive = _activeNotificationIds.contains(
+      notification.notificationId,
+    );
+    final isInFlight = _deliveryInFlightNotificationIds.contains(
+      notification.notificationId,
+    );
+    if (isTerminal || isQueued || isActive || isInFlight) {
       unawaited(
         AppLogger.instance.info(
-          'PaymentMonitor',
-          'Payment speaker stream notification ignored because already active',
+          'PaymentSpeaker',
+          'Payment speaker stream notification ignored because delivery is already in flight locally',
           context: {
             'notificationId': notification.notificationId,
             'transactionId': notification.transactionId,
             'storeCode': notification.storeCode,
-            'terminal': _terminalNotificationIds.contains(
-              notification.notificationId,
-            ),
-            'queued': _queuedStreamNotificationIds.contains(
-              notification.notificationId,
-            ),
-            'active': _activeNotificationIds.contains(
-              notification.notificationId,
-            ),
+            'clientId': clientId,
+            'deliveryPath': 'stream',
+            'triggerSource': 'realtime_stream',
+            'dedupeHit': true,
+            'terminal': isTerminal,
+            'queued': isQueued,
+            'active': isActive,
+            'inFlight': isInFlight,
           },
         ),
       );
@@ -929,8 +999,17 @@ class PaymentMonitorProvider extends ChangeNotifier {
       while (_streamNotificationQueue.isNotEmpty) {
         final notification = _streamNotificationQueue.removeFirst();
         _queuedStreamNotificationIds.remove(notification.notificationId);
+        final ownsDeliveryLock = _deliveryInFlightNotificationIds.add(
+          notification.notificationId,
+        );
         if (_terminalNotificationIds.contains(notification.notificationId) ||
-            _activeNotificationIds.contains(notification.notificationId)) {
+            _activeNotificationIds.contains(notification.notificationId) ||
+            !ownsDeliveryLock) {
+          if (ownsDeliveryLock) {
+            _deliveryInFlightNotificationIds.remove(
+              notification.notificationId,
+            );
+          }
           continue;
         }
         if (!_canUsePaymentSpeaker) {
@@ -944,6 +1023,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
               'reason': _speakerEligibilityReason(),
             },
           );
+          _deliveryInFlightNotificationIds.remove(notification.notificationId);
           continue;
         }
         if (!_isSpeakerEnabled) {
@@ -952,6 +1032,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
             clientId,
             reason: 'speaker_disabled_after_queue',
           );
+          _deliveryInFlightNotificationIds.remove(notification.notificationId);
           continue;
         }
         _activeNotificationIds.add(notification.notificationId);
@@ -961,9 +1042,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
             clientId,
             useStreamEndpoint: true,
             activeNotificationIds: {notification.notificationId},
+            ownedDeliveryLocks: {notification.notificationId},
+            triggerSource: 'realtime_stream',
           );
         } finally {
           _activeNotificationIds.remove(notification.notificationId);
+          _deliveryInFlightNotificationIds.remove(notification.notificationId);
         }
       }
     } finally {
@@ -975,6 +1059,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     bool force = false,
     bool bypassBackoff = false,
     bool includeTotal = true,
+    bool drainReadyNotifications = false,
     String reason = 'unknown',
   }) async {
     if (!_canMonitorOnThisDevice || !_hasMonitorScope) return;
@@ -982,6 +1067,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
       if (force) {
         _refreshQueuedWhileLoading = true;
         _queuedRefreshIncludeTotal = _queuedRefreshIncludeTotal || includeTotal;
+        _queuedRefreshDrainReadyNotifications =
+            _queuedRefreshDrainReadyNotifications || drainReadyNotifications;
       }
       return;
     }
@@ -1040,7 +1127,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         limit: _pageSize,
         includeTotal: includeTotal,
       );
-      if (speakerEligible) {
+      if (speakerEligible && drainReadyNotifications) {
         phase = 'ready_notifications';
         await _drainReadyNotifications(clientId!, reason: reason);
       }
@@ -1096,13 +1183,17 @@ class PaymentMonitorProvider extends ChangeNotifier {
           _canMonitorOnThisDevice &&
           _hasMonitorScope) {
         final queuedIncludeTotal = _queuedRefreshIncludeTotal;
+        final queuedDrainReadyNotifications =
+            _queuedRefreshDrainReadyNotifications;
         _refreshQueuedWhileLoading = false;
         _queuedRefreshIncludeTotal = false;
+        _queuedRefreshDrainReadyNotifications = false;
         unawaited(
           _poll(
             force: true,
             bypassBackoff: false,
             includeTotal: queuedIncludeTotal,
+            drainReadyNotifications: queuedDrainReadyNotifications,
             reason: 'queued_after_loading',
           ),
         );
@@ -1153,6 +1244,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         storeCode: _requestStoreId,
       );
       await _handleReadyNotifications(notifications, clientId);
+      _advanceNotificationCheckpoint(notifications);
 
       if (notifications.length < _readyNotificationBatchLimit) break;
     }
@@ -1477,7 +1569,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
       await _silenceReadyNotifications(notifications, clientId);
       return;
     }
-    await _playReadyNotifications(notifications, clientId);
+    await _playReadyNotifications(
+      notifications,
+      clientId,
+      useStreamEndpoint: true,
+      triggerSource: 'ready_backlog',
+    );
   }
 
   Future<void> _silenceReadyNotifications(
@@ -1557,7 +1654,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
     String clientId, {
     bool useStreamEndpoint = false,
     Set<String> activeNotificationIds = const {},
+    Set<String> ownedDeliveryLocks = const {},
+    String triggerSource = 'ready_backlog',
   }) async {
+    final deliveryPath = useStreamEndpoint ? 'stream' : 'audio';
     final storeCode = _requestStoreId ?? _user?.storeId;
     await AppLogger.instance.info(
       'PaymentMonitor',
@@ -1566,6 +1666,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'count': notifications.length,
         'clientId': clientId,
         'storeCode': storeCode,
+        'deliveryPath': deliveryPath,
+        'triggerSource': triggerSource,
         'notificationIds': notifications
             .map((notification) => notification.notificationId)
             .toList(),
@@ -1588,9 +1690,38 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'notificationId': notification.notificationId,
             'transactionId': notification.transactionId,
             'storeCode': notification.storeCode,
+            'clientId': clientId,
+            'deliveryPath': deliveryPath,
+            'triggerSource': triggerSource,
+            'dedupeHit': false,
           },
         );
         continue;
+      }
+      final ownsDeliveryLock = ownedDeliveryLocks.contains(
+        notification.notificationId,
+      );
+      var deliveryLockAcquired = false;
+      if (!ownsDeliveryLock) {
+        deliveryLockAcquired = _deliveryInFlightNotificationIds.add(
+          notification.notificationId,
+        );
+        if (!deliveryLockAcquired) {
+          await AppLogger.instance.info(
+            'PaymentSpeaker',
+            'Payment notification skipped because a local delivery lock already exists',
+            context: {
+              'notificationId': notification.notificationId,
+              'transactionId': notification.transactionId,
+              'storeCode': notification.storeCode,
+              'clientId': clientId,
+              'deliveryPath': deliveryPath,
+              'triggerSource': triggerSource,
+              'dedupeHit': true,
+            },
+          );
+          continue;
+        }
       }
       final ownsActiveNotification = activeNotificationIds.contains(
         notification.notificationId,
@@ -1604,9 +1735,15 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'notificationId': notification.notificationId,
             'transactionId': notification.transactionId,
             'storeCode': notification.storeCode,
-            'streaming': useStreamEndpoint,
+            'clientId': clientId,
+            'deliveryPath': deliveryPath,
+            'triggerSource': triggerSource,
+            'dedupeHit': true,
           },
         );
+        if (deliveryLockAcquired) {
+          _deliveryInFlightNotificationIds.remove(notification.notificationId);
+        }
         continue;
       }
       if (!ownsActiveNotification) {
@@ -1617,11 +1754,17 @@ class PaymentMonitorProvider extends ChangeNotifier {
           notification,
           clientId,
           useStreamEndpoint: useStreamEndpoint,
+          triggerSource: triggerSource,
         );
         await AppLogger.instance.info(
           'PaymentMonitor',
           'Acknowledging payment notification played',
-          context: {'notificationId': notification.notificationId},
+          context: {
+            'notificationId': notification.notificationId,
+            'clientId': clientId,
+            'deliveryPath': deliveryPath,
+            'triggerSource': triggerSource,
+          },
         );
         await _acknowledgeNotificationEvent(
           notificationId: notification.notificationId,
@@ -1638,6 +1781,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'transactionId': notification.transactionId,
             'storeCode': notification.storeCode,
             'amount': notification.amount,
+            'clientId': clientId,
+            'deliveryPath': deliveryPath,
+            'triggerSource': triggerSource,
           },
         );
         await AppLogger.instance.uploadLog(
@@ -1648,11 +1794,31 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'notificationId': notification.notificationId,
             'transactionId': notification.transactionId,
             'amount': notification.amount,
+            'deliveryPath': deliveryPath,
+            'triggerSource': triggerSource,
           },
           storeCode: notification.storeCode,
         );
         await Future<void>.delayed(const Duration(milliseconds: 250));
       } catch (error) {
+        if (error is _PaymentNotificationDeliverySuppressedException) {
+          _setTerminalNotification(notification.notificationId);
+          await AppLogger.instance.info(
+            'PaymentSpeaker',
+            'Payment notification skipped because server already claimed this stream for the same client',
+            context: {
+              'notificationId': notification.notificationId,
+              'transactionId': notification.transactionId,
+              'storeCode': notification.storeCode,
+              'clientId': clientId,
+              'deliveryPath': deliveryPath,
+              'triggerSource': triggerSource,
+              'dedupeHit': true,
+              'reason': error.reason,
+            },
+          );
+          continue;
+        }
         final safeError = _safeSpeakerError(error);
         _speakerError = PaymentSpeakerError(
           storeCode: notification.storeCode,
@@ -1666,6 +1832,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
         if (!ownsActiveNotification) {
           _activeNotificationIds.remove(notification.notificationId);
         }
+        if (deliveryLockAcquired) {
+          _deliveryInFlightNotificationIds.remove(notification.notificationId);
+        }
       }
     }
   }
@@ -1674,6 +1843,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     PaymentNotification notification,
     String clientId, {
     bool useStreamEndpoint = false,
+    String triggerSource = 'ready_backlog',
   }) async {
     if (!useStreamEndpoint && notification.audioStatus != 'READY') {
       throw StateError(
@@ -1681,11 +1851,43 @@ class PaymentMonitorProvider extends ChangeNotifier {
       );
     }
 
-    final audio = await _downloadNotificationAudio(
-      notification,
-      clientId: clientId,
-      useStreamEndpoint: useStreamEndpoint,
-    );
+    final deliveryPath = useStreamEndpoint ? 'stream' : 'audio';
+    late final _DownloadedPaymentAudio audio;
+    try {
+      audio = await _downloadNotificationAudio(
+        notification,
+        clientId: clientId,
+        useStreamEndpoint: useStreamEndpoint,
+        triggerSource: triggerSource,
+      );
+    } catch (error, stackTrace) {
+      if (error is _PaymentNotificationDeliverySuppressedException) {
+        rethrow;
+      }
+      final safeError = _safeSpeakerError(error);
+      await _acknowledgeNotificationEvent(
+        notificationId: notification.notificationId,
+        clientId: clientId,
+        event: 'FAILED',
+        error: safeError,
+      );
+      _setTerminalNotification(notification.notificationId);
+      await AppLogger.instance.error(
+        'PaymentSpeaker',
+        'Payment speaker audio download failed before playback could start',
+        error: error,
+        stackTrace: stackTrace,
+        context: {
+          'notificationId': notification.notificationId,
+          'transactionId': notification.transactionId,
+          'storeCode': notification.storeCode,
+          'clientId': clientId,
+          'deliveryPath': deliveryPath,
+          'triggerSource': triggerSource,
+        },
+      );
+      Error.throwWithStackTrace(error, stackTrace);
+    }
     var streamStartedAckSent = false;
     Future<void> acknowledgePlaybackStarted() async {
       if (streamStartedAckSent) return;
@@ -1709,7 +1911,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'attempt': attempt,
           'bytes': audio.bytes.length,
           'audioMode': audio.mode,
-          'streaming': useStreamEndpoint,
+          'deliveryPath': deliveryPath,
+          'triggerSource': triggerSource,
         };
         unawaited(
           AppLogger.instance.info(
@@ -1731,7 +1934,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
               'attempt': attempt,
               'bytes': audio.bytes.length,
               'audioMode': audio.mode,
-              'streaming': useStreamEndpoint,
+              'deliveryPath': deliveryPath,
+              'triggerSource': triggerSource,
             },
             storeCode: notification.storeCode,
           ),
@@ -1768,7 +1972,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
             if (result.audioPreflightStatus != null)
               'audioPreflightStatus': result.audioPreflightStatus,
             'startedAt': startedAt.toIso8601String(),
-            'streaming': useStreamEndpoint,
+            'deliveryPath': deliveryPath,
+            'triggerSource': triggerSource,
           },
         );
         await AppLogger.instance.uploadLog(
@@ -1796,7 +2001,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
             if (result.audioPreflightStatus != null)
               'audioPreflightStatus': result.audioPreflightStatus,
             'startedAt': startedAt.toIso8601String(),
-            'streaming': useStreamEndpoint,
+            'deliveryPath': deliveryPath,
+            'triggerSource': triggerSource,
           },
           storeCode: notification.storeCode,
         );
@@ -1819,7 +2025,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'attempts': _maxAudioPlaybackAttempts,
           'final': isFinalAttempt,
           'retryable': retryable,
-          'streaming': useStreamEndpoint,
+          'deliveryPath': deliveryPath,
+          'triggerSource': triggerSource,
           'error': safeError,
           if (nextRetryAt != null) 'nextRetryAt': nextRetryAt.toIso8601String(),
           if (error is PaymentSpeakerException &&
@@ -1867,7 +2074,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
     PaymentNotification notification, {
     required String clientId,
     bool useStreamEndpoint = false,
+    String triggerSource = 'ready_backlog',
   }) async {
+    final deliveryPath = useStreamEndpoint ? 'stream' : 'audio';
     await AppLogger.instance.info(
       'PaymentMonitor',
       'Downloading payment notification audio',
@@ -1876,8 +2085,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'transactionId': notification.transactionId,
         'storeCode': notification.storeCode,
         'amount': notification.amount,
+        'clientId': clientId,
+        'deliveryPath': deliveryPath,
+        'triggerSource': triggerSource,
         'preferredMode': 'client_cue_prefix_amount',
-        'streaming': useStreamEndpoint,
       },
     );
     try {
@@ -1896,9 +2107,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
       }
       await _logNotificationAudioDownloaded(
         notification: notification,
+        clientId: clientId,
         bytes: audioBytes.length,
         mode: 'client_cue_prefix_amount',
-        streaming: useStreamEndpoint,
+        deliveryPath: deliveryPath,
+        triggerSource: triggerSource,
       );
       return _DownloadedPaymentAudio(
         bytes: audioBytes,
@@ -1911,6 +2124,14 @@ class PaymentMonitorProvider extends ChangeNotifier {
           (error.statusCode == 401 || error.statusCode == 403)) {
         rethrow;
       }
+      if (useStreamEndpoint &&
+          error is api.ApiException &&
+          error.statusCode == 409) {
+        throw _PaymentNotificationDeliverySuppressedException(
+          'duplicate_suppressed',
+          _safeSpeakerError(error),
+        );
+      }
       final safeError = _safeSpeakerError(error);
       await AppLogger.instance.warn(
         'PaymentMonitor',
@@ -1920,8 +2141,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'transactionId': notification.transactionId,
           'storeCode': notification.storeCode,
           'amount': notification.amount,
+          'clientId': clientId,
+          'deliveryPath': deliveryPath,
+          'triggerSource': triggerSource,
           'audioMode': 'server_combined_cue',
-          'streaming': useStreamEndpoint,
           'error': safeError,
           'stackTrace': stackTrace.toString(),
         },
@@ -1934,8 +2157,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'notificationId': notification.notificationId,
           'transactionId': notification.transactionId,
           'amount': notification.amount,
+          'deliveryPath': deliveryPath,
+          'triggerSource': triggerSource,
           'audioMode': 'server_combined_cue',
-          'streaming': useStreamEndpoint,
           'error': safeError,
         },
         storeCode: notification.storeCode,
@@ -1958,9 +2182,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
       }
       await _logNotificationAudioDownloaded(
         notification: notification,
+        clientId: clientId,
         bytes: audioBytes.length,
         mode: 'server_combined_cue',
-        streaming: useStreamEndpoint,
+        deliveryPath: deliveryPath,
+        triggerSource: triggerSource,
       );
       return _DownloadedPaymentAudio(
         bytes: audioBytes,
@@ -1973,6 +2199,14 @@ class PaymentMonitorProvider extends ChangeNotifier {
           (error.statusCode == 401 || error.statusCode == 403)) {
         rethrow;
       }
+      if (useStreamEndpoint &&
+          error is api.ApiException &&
+          error.statusCode == 409) {
+        throw _PaymentNotificationDeliverySuppressedException(
+          'duplicate_suppressed',
+          _safeSpeakerError(error),
+        );
+      }
       final safeError = _safeSpeakerError(error);
       await AppLogger.instance.warn(
         'PaymentMonitor',
@@ -1982,8 +2216,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'transactionId': notification.transactionId,
           'storeCode': notification.storeCode,
           'amount': notification.amount,
+          'clientId': clientId,
+          'deliveryPath': deliveryPath,
+          'triggerSource': triggerSource,
           'audioMode': 'local_cue_fallback',
-          'streaming': useStreamEndpoint,
           'error': safeError,
           'stackTrace': stackTrace.toString(),
         },
@@ -1996,8 +2232,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'notificationId': notification.notificationId,
           'transactionId': notification.transactionId,
           'amount': notification.amount,
+          'deliveryPath': deliveryPath,
+          'triggerSource': triggerSource,
           'audioMode': 'local_cue_fallback',
-          'streaming': useStreamEndpoint,
           'error': safeError,
         },
         storeCode: notification.storeCode,
@@ -2017,9 +2254,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
     await _logNotificationAudioDownloaded(
       notification: notification,
+      clientId: clientId,
       bytes: audioBytes.length,
       mode: 'local_cue_fallback',
-      streaming: useStreamEndpoint,
+      deliveryPath: deliveryPath,
+      triggerSource: triggerSource,
     );
     return _DownloadedPaymentAudio(
       bytes: audioBytes,
@@ -2031,18 +2270,22 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   Future<void> _logNotificationAudioDownloaded({
     required PaymentNotification notification,
+    required String clientId,
     required int bytes,
     required String mode,
-    required bool streaming,
+    required String deliveryPath,
+    required String triggerSource,
   }) async {
     await AppLogger.instance.info(
       'PaymentMonitor',
       'Payment notification audio downloaded',
       context: {
         'notificationId': notification.notificationId,
+        'clientId': clientId,
         'bytes': bytes,
         'audioMode': mode,
-        'streaming': streaming,
+        'deliveryPath': deliveryPath,
+        'triggerSource': triggerSource,
       },
     );
     await AppLogger.instance.uploadLog(
@@ -2051,9 +2294,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
       'Payment notification audio downloaded',
       context: {
         'notificationId': notification.notificationId,
+        'clientId': clientId,
         'bytes': bytes,
         'audioMode': mode,
-        'streaming': streaming,
+        'deliveryPath': deliveryPath,
+        'triggerSource': triggerSource,
       },
       storeCode: notification.storeCode,
     );
@@ -2238,4 +2483,17 @@ class _PaymentPollError {
     this.statusCode,
     this.isAuthFailure = false,
   });
+}
+
+class _PaymentNotificationDeliverySuppressedException implements Exception {
+  final String reason;
+  final String message;
+
+  const _PaymentNotificationDeliverySuppressedException(
+    this.reason,
+    this.message,
+  );
+
+  @override
+  String toString() => message;
 }

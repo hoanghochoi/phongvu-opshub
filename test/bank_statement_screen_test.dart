@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
-import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
@@ -19,6 +18,8 @@ import 'package:phongvu_opshub/features/notifications/presentation/providers/app
 import 'package:phongvu_opshub/features/offset_adjustment/data/offset_adjustment_repository.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'helpers/legacy_widget_finders.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

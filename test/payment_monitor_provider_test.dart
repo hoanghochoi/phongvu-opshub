@@ -232,7 +232,8 @@ void main() {
 
     expect(provider.hasMonitorScope, isTrue);
     expect(repository.readyFetchCount, greaterThan(0));
-    expect(repository.downloadCount, 1);
+    expect(repository.downloadCount, 0);
+    expect(repository.streamDownloadCount, 1);
     expect(repository.ackEvents, contains('PLAYED'));
     expect(speaker.playCount, 1);
 
@@ -410,6 +411,7 @@ void main() {
 
       expect(repository.requestedIncludeTotals.first, isTrue);
       expect(repository.requestedIncludeTotals.last, isFalse);
+      expect(repository.readyFetchCount, 1);
 
       provider.dispose();
     },
@@ -491,17 +493,9 @@ void main() {
   );
 
   test(
-    'stream event keeps same ready notification from playing twice',
+    'stream event ignores duplicate local payloads without triggering extra ready drain',
     () async {
-      final repository = _FakePaymentMonitorRepository(
-        notificationBatches: const [[]],
-        notifications: [
-          _readyNotification(
-            notificationId: 'note-race',
-            transactionId: 'txn-note-race',
-          ),
-        ],
-      );
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
       final speaker = _FakePaymentSpeaker(
         playDelay: const Duration(milliseconds: 1000),
       );
@@ -524,15 +518,18 @@ void main() {
           'payload': _streamPayload('note-race'),
         }),
       );
-      await _waitUntil(
-        () =>
-            repository.readyFetchCount >= 2 &&
-            repository.ackEvents.contains('PLAYED'),
+      await provider.handleRealtimeMessageForTesting(
+        jsonEncode({
+          'type': 'PAYMENT_SPEAKER_STREAM',
+          'payload': _streamPayload('note-race'),
+        }),
       );
+      await _waitUntil(() => repository.ackEvents.contains('PLAYED'));
 
       expect(repository.streamDownloadCount, 1);
       expect(repository.requestedStreamClientIds.single, isNotNull);
       expect(repository.downloadCount, 0);
+      expect(repository.readyFetchCount, 1);
       expect(speaker.playCount, 1);
       expect(
         repository.ackEvents.where((event) => event == 'STREAM_STARTED'),
@@ -542,6 +539,48 @@ void main() {
         repository.ackEvents.where((event) => event == 'PLAYED'),
         hasLength(1),
       );
+
+      provider.dispose();
+    },
+  );
+
+  test(
+    'stream duplicate-suppressed response is treated as a no-op without speaker error',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: const [],
+        rawAmountAudioError: ApiException(
+          'Giao dịch này đang được xử lý trên máy hiện tại.',
+          409,
+        ),
+      );
+      final speaker = _FakePaymentSpeaker();
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
+
+      await provider.handleRealtimeMessageForTesting(
+        jsonEncode({
+          'type': 'PAYMENT_SPEAKER_STREAM',
+          'payload': _streamPayload('note-suppressed'),
+        }),
+      );
+      await _waitUntil(() => repository.streamDownloadCount == 1);
+
+      expect(speaker.playCount, 0);
+      expect(provider.speakerError, isNull);
+      expect(repository.ackEvents, isNot(contains('FAILED')));
+      expect(repository.ackEvents, isNot(contains('PLAYED')));
+      expect(repository.ackEvents, isNot(contains('STREAM_STARTED')));
 
       provider.dispose();
     },
@@ -593,7 +632,8 @@ void main() {
       );
 
       expect(repository.readyFetchCount, 2);
-      expect(repository.downloadCount, 4);
+      expect(repository.downloadCount, 0);
+      expect(repository.streamDownloadCount, 4);
       expect(speaker.playCount, 4);
       expect(
         repository.ackEvents.where((event) => event == 'STREAM_STARTED'),
@@ -749,7 +789,8 @@ void main() {
         () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
       );
 
-      expect(repository.downloadCount, 1);
+      expect(repository.downloadCount, 0);
+      expect(repository.streamDownloadCount, 1);
       expect(speaker.playCount, 2);
       expect(
         repository.ackEvents.where((event) => event == 'PLAYBACK_FAILED'),
@@ -787,7 +828,7 @@ void main() {
 
     expect(repository.requestedRawAmounts, [true]);
     expect(repository.requestedIncludeCues, [false]);
-    expect(repository.streamDownloadCount, 0);
+    expect(repository.streamDownloadCount, 1);
     expect(repository.ackEvents, contains('STREAM_STARTED'));
     expect(
       repository.ackEvents.indexOf('STREAM_STARTED'),
@@ -795,7 +836,7 @@ void main() {
     );
     expect(speaker.playLocalCueValues, [false]);
     expect(speaker.playLocalCuePrefixValues, [true]);
-    expect(repository.downloadCount, 1);
+    expect(repository.downloadCount, 0);
 
     provider.dispose();
   });
@@ -825,7 +866,8 @@ void main() {
       expect(repository.requestedIncludeCues, [false, true]);
       expect(speaker.playLocalCueValues, [false]);
       expect(speaker.playLocalCuePrefixValues, [false]);
-      expect(repository.downloadCount, 2);
+      expect(repository.downloadCount, 0);
+      expect(repository.streamDownloadCount, 2);
 
       provider.dispose();
     },
@@ -857,7 +899,8 @@ void main() {
       expect(repository.requestedIncludeCues, [false, true, false]);
       expect(speaker.playLocalCueValues, [true]);
       expect(speaker.playLocalCuePrefixValues, [false]);
-      expect(repository.downloadCount, 3);
+      expect(repository.downloadCount, 0);
+      expect(repository.streamDownloadCount, 3);
 
       provider.dispose();
     },
@@ -883,7 +926,8 @@ void main() {
         () => repository.ackEvents.contains('FAILED') && !provider.isLoading,
       );
 
-      expect(repository.downloadCount, 1);
+      expect(repository.downloadCount, 0);
+      expect(repository.streamDownloadCount, 1);
       expect(speaker.playCount, 3);
       expect(
         repository.ackEvents.where((event) => event == 'PLAYBACK_FAILED'),
@@ -922,7 +966,8 @@ void main() {
         () => repository.ackEvents.contains('FAILED') && !provider.isLoading,
       );
 
-      expect(repository.downloadCount, 1);
+      expect(repository.downloadCount, 0);
+      expect(repository.streamDownloadCount, 1);
       expect(speaker.playCount, 1);
       expect(repository.ackEvents, isNot(contains('PLAYBACK_FAILED')));
       expect(
@@ -1016,6 +1061,7 @@ PaymentNotification _readyNotification({
     'amount': 1250000,
     'audioStatus': 'READY',
     'audioUrl': '/payment-notifications/$notificationId/audio',
+    'streamUrl': '/payment-notifications/$notificationId/stream',
     'createdAt': '2026-05-21T10:00:00.000Z',
   });
 }

@@ -1,5 +1,6 @@
 ﻿import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -67,6 +68,8 @@ const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
 const IN_FLIGHT_DELIVERY_EVENTS = [DELIVERY_CLAIM_EVENT, STREAM_STARTED_EVENT];
 const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE = 'Không có quyền Đọc loa tiền vào';
 const PAYMENT_TTS_PREFIX_TEXT = 'Phong Vũ đã nhận:';
+const PAYMENT_STREAM_DUPLICATE_MESSAGE =
+  'Giao dịch này đang được xử lý trên máy hiện tại.';
 
 type PaymentTtsAudioMode = 'full_text' | 'amount_only_with_prefix';
 
@@ -298,18 +301,6 @@ export class PaymentNotificationsService {
         take: limit,
       });
 
-      if (readyNotifications.length > 0) {
-        await tx.paymentNotificationDeliveryLog.createMany({
-          data: readyNotifications.map((notification) => ({
-            notificationId: notification.id,
-            transactionId: notification.transactionId,
-            storeCode: notification.storeCode,
-            clientId,
-            event: DELIVERY_CLAIM_EVENT,
-          })),
-        });
-      }
-
       return {
         readyNotifications,
         blockedCount: blockedNotificationIds.length,
@@ -330,6 +321,7 @@ export class PaymentNotificationsService {
         amount: notification.amount,
         audioStatus: notification.audioStatus,
         audioUrl: `/payment-notifications/${notification.id}/audio`,
+        streamUrl: `/payment-notifications/${notification.id}/stream`,
         createdAt: notification.createdAt.toISOString(),
       }));
 
@@ -420,12 +412,21 @@ export class PaymentNotificationsService {
     } = {},
   ) {
     const startedAt = Date.now();
-    const audio = await this.getAudioForUser(user, notificationId, options);
-    await this.claimStreamDelivery(user, notificationId, options.clientId);
-    this.logger.log(
-      `Payment speaker stream opened notification=${notificationId} user=${this.safeUserLabel(user)} client=${options.clientId ? this.safeClientLabel(options.clientId) : 'unknown'} rawAmount=${options.rawAmount === true} includeCue=${options.includeCue === true} durationMs=${Date.now() - startedAt}`,
+    const claim = await this.claimStreamDelivery(
+      user,
+      notificationId,
+      options.clientId,
     );
-    return audio;
+    try {
+      const audio = await this.getAudioForUser(user, notificationId, options);
+      this.logger.log(
+        `Payment speaker stream opened notification=${notificationId} user=${this.safeUserLabel(user)} client=${options.clientId ? this.safeClientLabel(options.clientId) : 'unknown'} rawAmount=${options.rawAmount === true} includeCue=${options.includeCue === true} durationMs=${Date.now() - startedAt}`,
+      );
+      return audio;
+    } catch (error) {
+      await this.releaseStreamDeliveryClaim(claim, notificationId, user);
+      throw error;
+    }
   }
 
   private async claimStreamDelivery(
@@ -436,24 +437,69 @@ export class PaymentNotificationsService {
     const normalizedClientId = String(clientId ?? '')
       .trim()
       .slice(0, 120);
-    if (!normalizedClientId) return;
-    try {
-      const notification = await this.prisma.paymentNotification.findUnique({
-        where: { id: notificationId },
-        select: { id: true, transactionId: true, storeCode: true },
+    if (!normalizedClientId) return null;
+    const notification = await this.prisma.paymentNotification.findUnique({
+      where: { id: notificationId },
+      select: { id: true, transactionId: true, storeCode: true },
+    });
+    if (!notification) {
+      throw new NotFoundException('Không tìm thấy thông báo');
+    }
+    await this.assertUserCanUsePaymentSpeaker(user, 'stream');
+    await this.assertUserCanAccessStore(user, notification.storeCode);
+    const claimCutoff = new Date(
+      Date.now() - this.deliveryClaimTtlSeconds() * 1000,
+    );
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockStreamNotificationClient(
+        tx,
+        notificationId,
+        normalizedClientId,
+      );
+      const existingClaim = await tx.paymentNotificationDeliveryLog.findFirst({
+        where: {
+          notificationId,
+          clientId: normalizedClientId,
+          event: { in: IN_FLIGHT_DELIVERY_EVENTS },
+          createdAt: { gt: claimCutoff },
+        },
+        orderBy: { createdAt: 'desc' },
       });
-      if (!notification) return;
-      await this.logDeliveryEvent({
-        notificationId: notification.id,
-        transactionId: notification.transactionId,
-        storeCode: notification.storeCode,
-        userId: user?.id,
-        clientId: normalizedClientId,
-        event: DELIVERY_CLAIM_EVENT,
+      if (existingClaim) {
+        this.logger.debug(
+          `Payment speaker stream duplicate suppressed notification=${notificationId} user=${this.safeUserLabel(user)} client=${this.safeClientLabel(normalizedClientId)} existingEvent=${existingClaim.event}`,
+        );
+        throw new ConflictException(PAYMENT_STREAM_DUPLICATE_MESSAGE);
+      }
+      return tx.paymentNotificationDeliveryLog.create({
+        data: {
+          notificationId: notification.id,
+          transactionId: notification.transactionId,
+          storeCode: notification.storeCode,
+          userId: user?.id,
+          clientId: normalizedClientId,
+          event: DELIVERY_CLAIM_EVENT,
+        },
+      });
+    });
+  }
+
+  private async releaseStreamDeliveryClaim(
+    claim: {
+      id: string;
+      clientId?: string | null;
+    } | null,
+    notificationId: string,
+    user: any,
+  ) {
+    if (!claim?.id) return;
+    try {
+      await this.prisma.paymentNotificationDeliveryLog.deleteMany({
+        where: { id: claim.id },
       });
     } catch (error) {
       this.logger.warn(
-        `Payment speaker stream claim failed notification=${notificationId} user=${this.safeUserLabel(user)} client=${this.safeClientLabel(normalizedClientId)}: ${this.safeError(error)}`,
+        `Payment speaker stream claim rollback failed notification=${notificationId} user=${this.safeUserLabel(user)} client=${claim.clientId ? this.safeClientLabel(claim.clientId) : 'unknown'}: ${this.safeError(error)}`,
       );
     }
   }
@@ -1887,6 +1933,14 @@ export class PaymentNotificationsService {
     storeCode: string,
   ) {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${clientId}), hashtext(${storeCode}))`;
+  }
+
+  private async lockStreamNotificationClient(
+    tx: Prisma.TransactionClient,
+    notificationId: string,
+    clientId: string,
+  ) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${notificationId}), hashtext(${clientId}))`;
   }
 
   private ttsVoiceId() {

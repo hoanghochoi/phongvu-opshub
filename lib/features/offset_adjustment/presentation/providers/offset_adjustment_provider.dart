@@ -9,6 +9,7 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/utils/date_range_defaults.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../data/offset_adjustment_repository.dart';
@@ -409,6 +410,12 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     String? status,
     String? type,
   }) {
+    final defaultStartDate = _usesImplicitRecentDateRange
+        ? _defaultRecentStartDate()
+        : null;
+    final defaultEndDate = _usesImplicitRecentDateRange
+        ? _defaultRecentEndDate()
+        : null;
     return OffsetAdjustmentQuery(
       allStores: _allStores || (_canReview && _selectedStoreIds.isEmpty),
       storeIds: _selectedStoreIds.toList()..sort(),
@@ -416,8 +423,8 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
       status: status ?? _status,
       order: _order,
       amount: _amount,
-      startDate: _startDate,
-      endDate: _endDate,
+      startDate: _startDate ?? defaultStartDate,
+      endDate: _endDate ?? defaultEndDate,
       page: page ?? _page,
       limit: limit ?? _limit,
     );
@@ -572,6 +579,13 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     return fallback;
   }
 
+  bool get _usesImplicitRecentDateRange =>
+      _startDate == null && _endDate == null;
+
+  DateTime _defaultRecentStartDate() => appImplicitDateRangeStart(_now());
+
+  DateTime _defaultRecentEndDate() => appImplicitDateRangeEnd(_now());
+
   Map<String, Object?> _logContext() {
     return {
       'allStores': _allStores || (_canReview && _selectedStoreIds.isEmpty),
@@ -580,6 +594,9 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
       'status': _status,
       'hasOrder': (_order ?? '').isNotEmpty,
       'hasAmount': (_amount ?? '').isNotEmpty,
+      'hasStartDate': _startDate != null,
+      'hasEndDate': _endDate != null,
+      'defaultRecentDateRange': _usesImplicitRecentDateRange,
       'page': _page,
       'limit': _limit,
       'canReview': _canReview,

@@ -79,6 +79,9 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   `Phương thức thanh toán cuối cùng`, `Lý do không trả góp`.
 - Admin có `ADMIN_SALES_REPORTS` theo node tổ chức xem/query/export báo cáo
   trong phạm vi được gán; Super Admin thấy toàn app.
+- Khi admin để filter `Ngày` ở trạng thái trống, UI vẫn hiển thị `Tất cả ngày`
+  nhưng query/export mặc định chỉ lấy 30 ngày gần nhất và hiện dòng nhắc nhỏ
+  để người dùng biết đây không phải toàn bộ lịch sử.
 - Ngành hàng lấy từ `data/categories.csv`, hiển thị tiếng Việt và lưu snapshot
   song song code/tên gốc/tên Việt.
 - Không có payload nhập tay `MSNV`.

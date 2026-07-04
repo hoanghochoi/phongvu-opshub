@@ -524,7 +524,10 @@ void main() {
         providers: [
           ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
           ChangeNotifierProvider<SalesReportProvider>(
-            create: (_) => SalesReportProvider(repository),
+            create: (_) => SalesReportProvider(
+              repository,
+              now: () => DateTime(2026, 7, 4, 9),
+            ),
           ),
         ],
         child: const MaterialApp(
@@ -541,8 +544,16 @@ void main() {
     );
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Ngày: Tất cả ngày'), findsOneWidget);
+    expect(
+      find.text(
+        'Không chọn khoảng ngày: hệ thống mặc định lấy 30 ngày gần nhất.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Loại: Tất cả'), findsOneWidget);
     expect(find.text('Xuất file'), findsOneWidget);
+    expect(repository.lastListQuery?.startDate, DateTime(2026, 6, 5));
+    expect(repository.lastListQuery?.endDate, DateTime(2026, 7, 4));
 
     await tester.tap(find.text('Xuất file'));
     await tester.pumpAndSettle();
@@ -555,11 +566,9 @@ void main() {
     await tester.tap(find.text('Hôm nay'));
     await tester.pumpAndSettle();
 
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
     expect(repository.fetchListCount, 2);
-    expect(repository.lastListQuery?.startDate, today);
-    expect(repository.lastListQuery?.endDate, today);
+    expect(repository.lastListQuery?.startDate, DateTime(2026, 7, 4));
+    expect(repository.lastListQuery?.endDate, DateTime(2026, 7, 4));
   });
 
   testWidgets('Sales report export menu emits selected export type', (

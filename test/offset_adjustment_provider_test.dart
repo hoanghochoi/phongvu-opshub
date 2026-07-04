@@ -38,23 +38,26 @@ void main() {
   });
 
   group('OffsetAdjustmentProvider', () {
-    test('loads all-day list for store-scoped SR on initialize', () async {
-      final repository = _FakeOffsetAdjustmentRepository();
-      final provider = OffsetAdjustmentProvider(
-        repository,
-        now: () => DateTime(2026, 6, 25, 10),
-      );
+    test(
+      'loads the latest 30 days for store-scoped SR on initialize',
+      () async {
+        final repository = _FakeOffsetAdjustmentRepository();
+        final provider = OffsetAdjustmentProvider(
+          repository,
+          now: () => DateTime(2026, 6, 25, 10),
+        );
 
-      await provider.initialize(_srUser);
+        await provider.initialize(_srUser);
 
-      expect(provider.stores.map((store) => store.storeId), ['CP01']);
-      expect(provider.items, hasLength(1));
-      expect(repository.lastQuery?.allStores, isFalse);
-      expect(repository.lastQuery?.startDate, isNull);
-      expect(repository.lastQuery?.endDate, isNull);
+        expect(provider.stores.map((store) => store.storeId), ['CP01']);
+        expect(provider.items, hasLength(1));
+        expect(repository.lastQuery?.allStores, isFalse);
+        expect(repository.lastQuery?.startDate, DateTime(2026, 5, 27));
+        expect(repository.lastQuery?.endDate, DateTime(2026, 6, 25));
 
-      provider.dispose();
-    });
+        provider.dispose();
+      },
+    );
 
     test('store-scoped SR can filter among assigned stores', () async {
       final repository = _FakeOffsetAdjustmentRepository();
@@ -89,6 +92,8 @@ void main() {
       expect(provider.canReview, isTrue);
       expect(provider.stores.map((store) => store.storeId), ['CP01', 'CP02']);
       expect(repository.seenQueries.first.allStores, isTrue);
+      expect(repository.seenQueries.first.startDate, DateTime(2026, 5, 27));
+      expect(repository.seenQueries.first.endDate, DateTime(2026, 6, 25));
       expect(
         repository.seenQueries.last.status,
         OffsetAdjustmentStatus.pending,

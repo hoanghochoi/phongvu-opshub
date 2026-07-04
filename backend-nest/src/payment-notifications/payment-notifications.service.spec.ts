@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -259,9 +260,12 @@ describe('PaymentNotificationsService', () => {
       storeCode: 'CP01',
       transactionId: 'txn-stream',
     });
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
     prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({
+      id: 'claim-1',
       createdAt: new Date('2026-06-27T01:00:00.000Z'),
     });
+    prisma.paymentNotificationDeliveryLog.findFirst.mockResolvedValue(null);
 
     await expect(
       service.getStreamForUser(speakerUser(), 'note-stream', {
@@ -285,6 +289,34 @@ describe('PaymentNotificationsService', () => {
         event: 'DELIVERED',
       }),
     });
+    expect(
+      prisma.paymentNotificationDeliveryLog.deleteMany,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('suppresses duplicate stream download on the same client before opening audio', async () => {
+    const audioSpy = jest.spyOn(service, 'getAudioForUser');
+    prisma.paymentNotification.findUnique.mockResolvedValue({
+      id: 'note-stream',
+      storeCode: 'CP01',
+      transactionId: 'txn-stream',
+    });
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+    prisma.paymentNotificationDeliveryLog.findFirst.mockResolvedValue({
+      id: 'claim-existing',
+      event: 'DELIVERED',
+      createdAt: new Date('2026-06-27T01:00:00.000Z'),
+    });
+
+    await expect(
+      service.getStreamForUser(speakerUser(), 'note-stream', {
+        rawAmount: true,
+        clientId: 'pc-1',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(audioSpy).not.toHaveBeenCalled();
+    expect(prisma.paymentNotificationDeliveryLog.create).not.toHaveBeenCalled();
   });
 
   it('sends Phong Vu payment text with the default Piper voice settings', async () => {
@@ -1267,6 +1299,7 @@ describe('PaymentNotificationsService', () => {
           amount: 2000,
           audioStatus: 'READY',
           audioUrl: '/payment-notifications/note-ready/audio',
+          streamUrl: '/payment-notifications/note-ready/stream',
           createdAt: createdAt.toISOString(),
         },
       ],
@@ -1298,17 +1331,7 @@ describe('PaymentNotificationsService', () => {
     );
     expect(
       prisma.paymentNotificationDeliveryLog.createMany,
-    ).toHaveBeenCalledWith({
-      data: [
-        expect.objectContaining({
-          notificationId: 'note-ready',
-          transactionId: 'txn-ready',
-          storeCode: 'CP01',
-          clientId: 'pc-1',
-          event: 'DELIVERED',
-        }),
-      ],
-    });
+    ).not.toHaveBeenCalled();
   });
 
   it('does not let an old failed notification hide a newer ready notification', async () => {
@@ -1342,6 +1365,7 @@ describe('PaymentNotificationsService', () => {
           amount: 3835000,
           audioStatus: 'READY',
           audioUrl: '/payment-notifications/note-new-ready/audio',
+          streamUrl: '/payment-notifications/note-new-ready/stream',
           createdAt: newer.toISOString(),
         },
       ],
@@ -1390,6 +1414,7 @@ describe('PaymentNotificationsService', () => {
           amount: 3835000,
           audioStatus: 'READY',
           audioUrl: '/payment-notifications/note-new-ready/audio',
+          streamUrl: '/payment-notifications/note-new-ready/stream',
           createdAt: newer.toISOString(),
         },
       ],

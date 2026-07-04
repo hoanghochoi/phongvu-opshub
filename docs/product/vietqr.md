@@ -148,36 +148,41 @@ a customer to scan and pay manually.
   through `TTS_VOICE_ID=piper:vi-vais1000`; the sidecar still accepts the
   legacy `custom:suong-vo` voice id for rollback-friendly deploys. The audio
   endpoint stays backward compatible: `GET /payment-notifications/:id/audio`
-  returns TTS-only audio for older clients, while new clients request
-  `includeCue=true` to receive one server-combined WAV containing the payment
-  cue followed by the full TTS WAV, including Piper's leading and tail silence.
-  The server caches the combined WAV beside the generated TTS file and deletes
-  both during audio cleanup. If combined audio is
-  unavailable, for example legacy MP3 audio or a missing cue WAV, the Windows
-  client falls back to downloading TTS-only audio and playing the local
-  `data/ting_ting.mp3` cue. Playback then attempts `media_kit` on Windows,
-  Win32 `PlaySoundW` for WAV files, and MCI as the final fallback. If MCI
-  returns error `326` for WAV audio, the client normalizes only that local temp
-  file to `WAV PCM 16-bit mono 44100 Hz` and retries once without requesting a
-  larger server audio payload. The Windows installer also runs a non-blocking
-  audio preflight for `Audiosrv`, `AudioEndpointBuilder`, and WinMM output
-  devices; missing service/device checks warn the user but do not block
-  installation.
+  still serves older/manual clients, including `includeCue=true` for one
+  server-combined WAV or `rawAmount=true` for amount-only WAV. The current
+  Windows speaker flow now downloads speaker audio only through
+  `GET /payment-notifications/:id/stream`, while `/payment-notifications/ready`
+  returns backlog metadata such as `audioUrl` and `streamUrl` instead of
+  serving the active speaker path directly. The server caches the combined WAV
+  beside the generated TTS file and deletes both during audio cleanup. If
+  combined audio is unavailable, for example legacy MP3 audio or a missing cue
+  WAV, the Windows client falls back to downloading TTS-only audio and playing
+  the local `data/ting_ting.mp3` cue. Playback then attempts `media_kit` on
+  Windows, Win32 `PlaySoundW` for WAV files, and MCI as the final fallback. If
+  MCI returns error `326` for WAV audio, the client normalizes only that local
+  temp file to `WAV PCM 16-bit mono 44100 Hz` and retries once without
+  requesting a larger server audio payload. The Windows installer also runs a
+  non-blocking audio preflight for `Audiosrv`, `AudioEndpointBuilder`, and
+  WinMM output devices; missing service/device checks warn the user but do not
+  block installation.
 - When `PAYMENT_SPEAKER_STREAMING_ENABLED=true`, the backend creates the
   notification and publishes `PAYMENT_SPEAKER_STREAM` immediately, before
   blocking on server-side TTS generation. Windows speaker clients then request
-  the stream endpoint, prefer `rawAmount=true` amount audio plus the bundled
-  cue-prefix asset, and acknowledge `STREAM_STARTED` when playback is about to
-  begin. The stream endpoint is still an authenticated audio file response, not
-  chunked audio. Stream audio requests include the speaker `clientId`, and the
-  backend records that stream open as an in-flight delivery claim. Normal
-  ready-notification polling remains as a fallback and drains multiple ready
-  batches in one poll when a speaker PC has backlog, but it excludes recent
-  `DELIVERED`/`STREAM_STARTED` claims for the same client so the fallback path
-  cannot re-fetch an audio notification that is already streaming. The Windows
-  client also skips locally terminal, queued, or active notification ids before
-  playback so repeated stream events and fallback ready polling cannot overlap
-  the same transaction audio.
+  the stream endpoint for both realtime wake-up and backlog recovery, prefer
+  `rawAmount=true` amount audio plus the bundled cue-prefix asset, and
+  acknowledge `STREAM_STARTED` when playback is about to begin. The stream
+  endpoint is still an authenticated audio file response, not chunked audio.
+  Stream audio requests include the speaker `clientId`, and the backend records
+  that stream open as an in-flight delivery claim before preparing audio. If
+  the same `notificationId + clientId` already has a recent
+  `DELIVERED`/`STREAM_STARTED` claim, the backend returns `409` so the client
+  can treat the duplicate as a no-op instead of playing over itself. Normal
+  ready polling remains only as backlog fallback on startup, manual refresh, or
+  realtime silence; it no longer downloads speaker audio through `/audio`
+  directly. The Windows client advances a local notification checkpoint and
+  skips locally terminal, queued, or in-flight notification ids before
+  playback, so repeated stream events and fallback ready checks cannot overlap
+  the same transaction audio on one machine.
 - When a speaker attempt fails, the client uploads `PaymentSpeaker` started /
   succeeded / failed logs with sanitized context and acknowledges
   `PLAYBACK_FAILED` for attempts 1-2. The client waits 10 seconds between
@@ -219,13 +224,15 @@ a customer to scan and pay manually.
   stored order in the transaction. Amount filter is exact integer amount.
   Content filter is case-insensitive contains matching.
 - When a statement search is run without a selected date range, the app sends
-  today's Vietnam-local date as both start and end date. SR searches therefore
-  load the full snapshot for the current day instead of scanning all stored
-  history.
-- The statement date-range control is a shared dropdown and shows `Hôm nay`
-  when no explicit range is selected. A custom date range must include both
-  start and end dates; an incomplete range is treated as no explicit range.
-  Manual date entry uses `dd/mm/yyyy` with `/` inserted while typing.
+  the latest 30 Vietnam-local days by default. This keeps broad lookups such as
+  order code, statement number, amount, and transfer content inside a recent
+  window instead of scanning all stored history.
+- The statement date-range control is a shared dropdown and keeps `Tất cả ngày`
+  as the empty state. When no explicit range is selected, the UI shows a small
+  helper note that the search/export will default to the latest 30 days. A
+  custom date range must include both start and end dates; an incomplete range
+  is treated as no explicit range. Manual date entry uses `dd/mm/yyyy` with
+  `/` inserted while typing.
 - `Đã có đơn hàng` means the stored order list is not empty.
   `Chưa có đơn hàng` means the order list is empty.
   `Chờ xác nhận` means the transaction has a pending ACC order-transfer

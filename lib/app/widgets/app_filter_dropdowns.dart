@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/utils/date_range_defaults.dart';
 import '../theme/app_text_styles.dart';
 import 'app_inputs.dart';
 import 'app_layout.dart';
@@ -330,6 +331,7 @@ class AppDateRangeDropdown extends StatefulWidget {
   final DateTime? end;
   final void Function(DateTime? start, DateTime? end) onChanged;
   final bool allowEmptyRange;
+  final String? emptyRangeHelperText;
 
   const AppDateRangeDropdown({
     super.key,
@@ -338,6 +340,7 @@ class AppDateRangeDropdown extends StatefulWidget {
     required this.end,
     required this.onChanged,
     this.allowEmptyRange = true,
+    this.emptyRangeHelperText,
   });
 
   @override
@@ -367,25 +370,45 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
   @override
   Widget build(BuildContext context) {
     _syncControllers();
-    return MenuAnchor(
-      menuChildren: [_buildMenu(context)],
-      builder: (context, controller, child) {
-        return OutlinedButton.icon(
-          icon: const Icon(Icons.date_range, size: 18),
-          style: _filterButtonStyle(),
-          label: Text(
-            '${widget.label}: ${_rangeLabel(widget.start, widget.end)}',
-            overflow: TextOverflow.ellipsis,
-          ),
-          onPressed: () {
-            if (controller.isOpen) {
-              controller.close();
-            } else {
-              controller.open();
-            }
+    final helperText = _emptyRangeHelperText();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        MenuAnchor(
+          menuChildren: [_buildMenu(context)],
+          builder: (context, controller, child) {
+            return OutlinedButton.icon(
+              icon: const Icon(Icons.date_range, size: 18),
+              style: _filterButtonStyle(),
+              label: Text(
+                '${widget.label}: ${_rangeLabel(widget.start, widget.end)}',
+                overflow: TextOverflow.ellipsis,
+              ),
+              onPressed: () {
+                if (controller.isOpen) {
+                  controller.close();
+                } else {
+                  controller.open();
+                }
+              },
+            );
           },
-        );
-      },
+        ),
+        if (helperText != null) ...[
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              helperText,
+              style:
+                  Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ) ??
+                  AppTextStyles.bodyS,
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -517,6 +540,15 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
     if (_endController.text != nextEnd) _endController.text = nextEnd;
   }
 
+  String? _emptyRangeHelperText() {
+    if (!widget.allowEmptyRange || widget.start != null || widget.end != null) {
+      return null;
+    }
+    final text = widget.emptyRangeHelperText?.trim();
+    if (text != null && text.isNotEmpty) return text;
+    return appImplicitDateRangeHelperText();
+  }
+
   Future<void> _pickDateFor(
     BuildContext context, {
     required TextEditingController controller,
@@ -597,8 +629,7 @@ ButtonStyle _filterButtonStyle() {
   );
 }
 
-DateTime _dateOnly(DateTime value) =>
-    DateTime(value.year, value.month, value.day);
+DateTime _dateOnly(DateTime value) => appDateOnly(value);
 
 DateTime? appParseDateInput(String value) {
   final text = value.trim();
