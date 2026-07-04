@@ -35,10 +35,20 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
     final trend = metrics?.trend ?? PaymentDeliveryMetricTrend.unknown;
     final statusColor = hasError && metrics == null
         ? AppColors.error
-        : AppColors.surface;
+        : AppColors.textPrimaryOf(context);
     final trendColor = hasError && metrics == null
         ? AppColors.error
-        : _trendColor(trend);
+        : _trendColor(context, trend);
+    final pillBackgroundColor = hasError && metrics == null
+        ? AppColors.error.withValues(alpha: 0.12)
+        : statusColor.withValues(
+            alpha: AppColors.isDark(context) ? 0.18 : 0.08,
+          );
+    final pillBorderColor = hasError && metrics == null
+        ? AppColors.error.withValues(alpha: 0.28)
+        : statusColor.withValues(
+            alpha: AppColors.isDark(context) ? 0.28 : 0.14,
+          );
     final tooltip = _tooltip(
       metrics,
       provider.isLoading,
@@ -77,15 +87,9 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
             ),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: hasError && metrics == null
-                    ? AppColors.error.withValues(alpha: 0.20)
-                    : AppColors.surface.withValues(alpha: 0.14),
+                color: pillBackgroundColor,
                 borderRadius: BorderRadius.circular(AppRadius.sm),
-                border: Border.all(
-                  color: hasError && metrics == null
-                      ? AppColors.error.withValues(alpha: 0.55)
-                      : AppColors.surface.withValues(alpha: 0.24),
-                ),
+                border: Border.all(color: pillBorderColor),
               ),
               child: Material(
                 type: MaterialType.transparency,
@@ -276,12 +280,12 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
     };
   }
 
-  Color _trendColor(PaymentDeliveryMetricTrend trend) {
+  Color _trendColor(BuildContext context, PaymentDeliveryMetricTrend trend) {
     return switch (trend) {
       PaymentDeliveryMetricTrend.down => AppColors.success,
       PaymentDeliveryMetricTrend.up => AppColors.warning,
-      PaymentDeliveryMetricTrend.flat => AppColors.neutral100,
-      PaymentDeliveryMetricTrend.unknown => AppColors.neutral100,
+      PaymentDeliveryMetricTrend.flat => AppColors.textSecondaryOf(context),
+      PaymentDeliveryMetricTrend.unknown => AppColors.textSecondaryOf(context),
     };
   }
 

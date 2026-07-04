@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/app/theme/app_colors.dart';
+import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -53,6 +55,43 @@ void main() {
 
     provider.dispose();
   });
+
+  testWidgets(
+    'keeps compact chip readable in light mode when average is empty',
+    (tester) async {
+      final repository = _FakePaymentMonitorRepository(
+        _metricsWithoutAverage(),
+        _history(),
+      );
+      final provider = PaymentDeliveryMetricsProvider(
+        repository,
+        refreshInterval: Duration.zero,
+      );
+      await provider.syncAuth(_user(), isInitialized: true);
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<PaymentDeliveryMetricsProvider>.value(
+          value: provider,
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: const Scaffold(
+              body: Center(child: PaymentDeliveryMetricsChip(compact: true)),
+            ),
+          ),
+        ),
+      );
+
+      final label = tester.widget<Text>(find.text('--'));
+      final icon = tester.widget<Icon>(find.byIcon(Icons.timer_outlined));
+
+      expect(label.style?.color, AppColors.onSurface);
+      expect(icon.color, AppColors.onSurface);
+      expect(label.style?.color, isNot(AppColors.surface));
+      expect(icon.color, isNot(AppColors.surface));
+
+      provider.dispose();
+    },
+  );
 }
 
 User _user() {
@@ -82,6 +121,28 @@ PaymentDeliveryMetrics _metrics() {
     'deltaMs': -1100,
     'deltaPercent': -13.2,
     'trend': 'down',
+  });
+}
+
+PaymentDeliveryMetrics _metricsWithoutAverage() {
+  return PaymentDeliveryMetrics.fromJson({
+    'sampledAt': '2026-06-27T02:00:00.000Z',
+    'windowHours': 24,
+    'current': {
+      'count': 0,
+      'averageMs': null,
+      'from': '2026-06-26T02:00:00.000Z',
+      'to': '2026-06-27T02:00:00.000Z',
+    },
+    'previous': {
+      'count': 0,
+      'averageMs': null,
+      'from': '2026-06-25T02:00:00.000Z',
+      'to': '2026-06-26T02:00:00.000Z',
+    },
+    'deltaMs': null,
+    'deltaPercent': null,
+    'trend': 'unknown',
   });
 }
 
