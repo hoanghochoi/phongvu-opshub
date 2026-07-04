@@ -417,14 +417,6 @@ class _WarrantyUploadHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Lưu hình ảnh bảo hành', style: AppTextStyles.headingM),
-              const SizedBox(height: 6),
-              Text(
-                'Quét hoặc nhập số biên nhận, đính kèm ảnh và lưu vào hồ sơ bảo hành / sửa chữa.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.neutral600,
-                  height: 1.35,
-                ),
-              ),
               const SizedBox(height: AppLayoutTokens.cardGap),
               Wrap(
                 spacing: 8,

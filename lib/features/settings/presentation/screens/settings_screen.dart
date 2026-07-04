@@ -417,14 +417,6 @@ class _SettingsHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Tùy chọn thiết bị', style: AppTextStyles.headingM),
-                const SizedBox(height: 6),
-                Text(
-                  'Điều chỉnh giao diện và tuỳ chọn ứng dụng trên thiết bị này.',
-                  style: AppTextStyles.bodyM.copyWith(
-                    color: AppColors.textSecondaryOf(context),
-                    height: 1.35,
-                  ),
-                ),
                 const SizedBox(height: AppLayoutTokens.formInlineGap),
                 Wrap(
                   spacing: 8,

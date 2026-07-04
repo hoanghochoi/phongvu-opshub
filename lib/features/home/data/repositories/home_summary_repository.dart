@@ -10,10 +10,20 @@ class HomeSummaryRepository {
 
   HomeSummaryRepository(this._apiClient);
 
-  Future<HomeSummary> fetchSummary({required String date}) async {
+  Future<HomeSummary> fetchSummary({
+    required String date,
+    String? scope,
+  }) async {
+    final queryParameters = <String, String>{'date': date};
+    final normalizedScope = scope?.trim().toUpperCase();
+    if (normalizedScope != null &&
+        normalizedScope.isNotEmpty &&
+        normalizedScope != 'AUTO') {
+      queryParameters['scope'] = normalizedScope;
+    }
     final response = await _apiClient.get(
       ApiConstants.homeSummaryEndpoint,
-      queryParameters: {'date': date},
+      queryParameters: queryParameters,
     );
     final data = jsonDecode(response.body);
     if (data is! Map<String, dynamic>) {

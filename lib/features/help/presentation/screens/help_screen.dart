@@ -369,13 +369,6 @@ class _HelpScreenHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Kho nội dung hỗ trợ OpsHub', style: AppTextStyles.headingM),
-          const SizedBox(height: 6),
-          Text(
-            'Đọc hướng dẫn thao tác, child page và roadmap ngay trong app mà không cần rời route hiện tại.',
-            style: AppTextStyles.bodyM.copyWith(
-              color: AppColors.textSecondaryOf(context),
-            ),
-          ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,

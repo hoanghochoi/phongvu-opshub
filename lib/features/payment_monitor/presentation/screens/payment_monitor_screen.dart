@@ -90,13 +90,6 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                       alignment: Alignment.centerLeft,
                       child: _SyncStatusPill(monitor: monitor),
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Giao dịch mới tự cập nhật theo realtime; nếu mất kết nối, máy sẽ tự kiểm tra lại định kỳ.',
-                      style: AppTextStyles.bodyS.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
                   ],
                   if (!canUsePaymentSpeaker &&
                       speakerSelectionNotice != null) ...[

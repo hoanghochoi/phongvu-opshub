@@ -45,6 +45,22 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `HOME-DASHBOARD-001`/`SCOPE-DROPDOWN-SPEAKER-STATUS`, 2026-07-04: Home
+  scope pill now opens a real selector, switches between `ALL` and `OWN`, and
+  reloads `/home/summary` with the selected `scope`. Home no longer renders the
+  payment-speaker switch/help card; it shows a compact `Loa đang bật/tắt`
+  header status that toggles the existing speaker preference and logs the
+  branch. Validation: focused
+  `flutter test --no-pub --reporter expanded test\home_dashboard_test.dart test\home_feedback_action_test.dart test\warranty_redesign_test.dart test\sort_screen_redesign_test.dart test\vietqr_screen_test.dart test\settings_screen_redesign_test.dart test\admin_menu_screen_test.dart test\help_screen_test.dart test\personnel_catalog_admin_screen_test.dart test\fifo_check_redesign_test.dart test\sales_report_hub_test.dart test\report_workspace_screen_test.dart`
+  (49 tests), `flutter analyze --no-pub`,
+  `npm test -- --runInBand src/home-summary/home-summary.service.spec.ts src/home-summary/home-summary.controller.spec.ts`,
+  `npm run build`, and `git diff --check`.
+- `UI-UX-001`/`HEADER-COPY-CLEANUP`, 2026-07-04: auth, Home, FIFO, Sort,
+  Warranty, VietQR, Admin, Help, Settings, Sales Report, and Tiền vào headers
+  now remove duplicated guide paragraphs and keep title, status chips, controls,
+  and operational state as the visible surface. Detailed instructions remain in
+  the Help area instead of hero/header cards. Validation: same focused Flutter
+  test set, `flutter analyze --no-pub`, and `git diff --check`.
 - `UI-UX-001`/`FIFO-HISTORY-STATE-VIEWPORT`, 2026-07-04: FIFO History loading,
   empty, and error panels now sit inside a scroll-safe viewport so compact
   mobile retry states do not overflow after shared button/input density changes.

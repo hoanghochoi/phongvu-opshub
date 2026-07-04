@@ -127,14 +127,6 @@ class _VietQrWorkspaceHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Tạo VietQR', style: AppTextStyles.headingM),
-              const SizedBox(height: 6),
-              Text(
-                'Tạo QR chuyển khoản theo showroom, kiểm tra thanh toán MAP và mở lại mã còn hạn từ lịch sử.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.neutral600,
-                  height: 1.35,
-                ),
-              ),
               const SizedBox(height: AppLayoutTokens.cardGap),
               Wrap(
                 spacing: 8,

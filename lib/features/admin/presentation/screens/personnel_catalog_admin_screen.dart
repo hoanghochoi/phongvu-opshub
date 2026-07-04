@@ -324,14 +324,6 @@ class _PersonnelCatalogHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Danh mục nhân sự', style: AppTextStyles.headingM),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Quản lý phòng ban và chức danh dùng cho quyền, báo cáo và dữ liệu tương thích.',
-                      style: AppTextStyles.bodyM.copyWith(
-                        color: AppColors.textSecondaryOf(context),
-                        height: 1.35,
-                      ),
-                    ),
                     const SizedBox(height: AppLayoutTokens.formInlineGap),
                     Text(
                       loading

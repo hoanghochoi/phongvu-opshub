@@ -17,9 +17,10 @@ import '../../domain/home_summary.dart';
 import '../providers/home_summary_provider.dart';
 
 class HomeSummaryPage extends StatelessWidget {
-  const HomeSummaryPage({super.key, required this.provider});
+  const HomeSummaryPage({super.key, required this.provider, this.headerAction});
 
   final HomeSummaryProvider provider;
+  final Widget? headerAction;
 
   @override
   Widget build(BuildContext context) {
@@ -33,12 +34,18 @@ class HomeSummaryPage extends StatelessWidget {
         HomeSummaryHeader(
           summary: summary,
           selectedDate: provider.selectedDate,
+          action: headerAction,
         ),
         const SizedBox(height: AppLayoutTokens.cardGap),
         HomeSummaryToolbar(
-          summary: summary,
+          selectedScope: provider.selectedScope,
+          selectedScopeLabel: provider.selectedScopeLabel,
+          scopeOptions: provider.scopeOptions,
           selectedDate: provider.selectedDate,
           isRefreshing: provider.isRefreshing || provider.isInitialLoading,
+          onScopeChanged: provider.scopeOptions.length > 1
+              ? (value) => unawaited(provider.setSelectedScope(value))
+              : null,
           onPickDate: () => _pickDate(context),
           onRefresh: provider.canRefresh
               ? () => unawaited(provider.refreshNow())
@@ -152,10 +159,12 @@ class HomeSummaryHeader extends StatelessWidget {
     super.key,
     required this.summary,
     required this.selectedDate,
+    this.action,
   });
 
   final HomeSummary? summary;
   final DateTime selectedDate;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -182,14 +191,6 @@ class HomeSummaryHeader extends StatelessWidget {
                   color: AppColors.textPrimaryOf(context),
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                summary?.resolvedScopeDetail ??
-                    'Theo dõi doanh số, đơn hàng và tiến độ báo cáo trong ngày theo đúng phạm vi hiện tại.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.textSecondaryOf(context),
-                ),
-              ),
             ],
           );
           final chips = Wrap(
@@ -208,6 +209,7 @@ class HomeSummaryHeader extends StatelessWidget {
                 updatedLabel,
                 color: AppColors.neutral700,
               ),
+              if (action != null) action!,
             ],
           );
 
@@ -235,17 +237,23 @@ class HomeSummaryHeader extends StatelessWidget {
 class HomeSummaryToolbar extends StatelessWidget {
   const HomeSummaryToolbar({
     super.key,
-    required this.summary,
+    required this.selectedScope,
+    required this.selectedScopeLabel,
+    required this.scopeOptions,
     required this.selectedDate,
     required this.isRefreshing,
+    required this.onScopeChanged,
     required this.onPickDate,
     required this.onRefresh,
     required this.warningMessage,
   });
 
-  final HomeSummary? summary;
+  final String selectedScope;
+  final String selectedScopeLabel;
+  final List<HomeSummaryScopeOption> scopeOptions;
   final DateTime selectedDate;
   final bool isRefreshing;
+  final ValueChanged<String>? onScopeChanged;
   final VoidCallback onPickDate;
   final VoidCallback? onRefresh;
   final String? warningMessage;
@@ -258,9 +266,14 @@ class HomeSummaryToolbar extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 700;
-          final scopeLabel = summary?.resolvedScopeLabel ?? 'Toàn hệ thống';
           final buttons = [
-            _ScopeSelectorPill(label: scopeLabel, compact: compact),
+            _ScopeSelectorPill(
+              label: selectedScopeLabel,
+              selectedScope: selectedScope,
+              options: scopeOptions,
+              compact: compact,
+              onSelected: onScopeChanged,
+            ),
             HomeSummaryDatePicker(
               selectedDate: selectedDate,
               compact: compact,
@@ -300,13 +313,23 @@ class HomeSummaryToolbar extends StatelessWidget {
 }
 
 class _ScopeSelectorPill extends StatelessWidget {
-  const _ScopeSelectorPill({required this.label, required this.compact});
+  const _ScopeSelectorPill({
+    required this.label,
+    required this.selectedScope,
+    required this.options,
+    required this.compact,
+    required this.onSelected,
+  });
 
   final String label;
+  final String selectedScope;
+  final List<HomeSummaryScopeOption> options;
   final bool compact;
+  final ValueChanged<String>? onSelected;
 
   @override
   Widget build(BuildContext context) {
+    final canSelect = options.length > 1 && onSelected != null;
     final content = Container(
       key: const Key('home-summary-scope-pill'),
       constraints: BoxConstraints(
@@ -338,18 +361,51 @@ class _ScopeSelectorPill extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          Icon(
-            Icons.keyboard_arrow_down_rounded,
-            size: 18,
-            color: AppColors.primaryOf(context),
-          ),
+          if (canSelect) ...[
+            const SizedBox(width: 8),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 18,
+              color: AppColors.primaryOf(context),
+            ),
+          ],
         ],
       ),
     );
 
-    if (compact) return content;
-    return SizedBox(width: 220, child: content);
+    final child = canSelect
+        ? PopupMenuButton<String>(
+            key: const Key('home-summary-scope-menu'),
+            tooltip: 'Chọn phạm vi dashboard',
+            initialValue: selectedScope,
+            onSelected: onSelected,
+            itemBuilder: (context) => [
+              for (final option in options)
+                PopupMenuItem<String>(
+                  value: option.value,
+                  child: Row(
+                    children: [
+                      Icon(
+                        option.value == selectedScope
+                            ? Icons.check_rounded
+                            : Icons.public_rounded,
+                        size: 18,
+                        color: option.value == selectedScope
+                            ? AppColors.primaryOf(context)
+                            : AppColors.textMutedOf(context),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(option.label)),
+                    ],
+                  ),
+                ),
+            ],
+            child: content,
+          )
+        : content;
+
+    if (compact) return child;
+    return SizedBox(width: 220, child: child);
   }
 }
 
@@ -653,14 +709,7 @@ class ReportProgressPanel extends StatelessWidget {
               color: AppColors.textPrimaryOf(context),
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Theo dõi mức phủ báo cáo trong ngày để đội vận hành biết còn bao nhiêu đơn cần xử lý tiếp.',
-            style: AppTextStyles.bodyM.copyWith(
-              color: AppColors.textSecondaryOf(context),
-            ),
-          ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 680;
@@ -931,13 +980,6 @@ class HomeOperationsShortcutCard extends StatelessWidget {
             'Công cụ nhanh',
             style: AppTextStyles.headingS.copyWith(
               color: AppColors.textPrimaryOf(context),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Chọn ngày để đổi phạm vi xem, hoặc làm mới khi cần đối soát số liệu mới nhất.',
-            style: AppTextStyles.bodyM.copyWith(
-              color: AppColors.textSecondaryOf(context),
             ),
           ),
           const SizedBox(height: 16),

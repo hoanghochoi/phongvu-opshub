@@ -260,8 +260,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           SalesReportWorkspaceHeader(
             key: const Key('sales-report-workspace-header'),
             title: 'Đơn cần báo cáo',
-            subtitle:
-                'Theo dõi đơn trong ngày, gửi báo cáo thiếu và xuất file theo bộ lọc đang xem.',
+            subtitle: '',
             icon: Icons.analytics_outlined,
             chips: [
               AppStatusChip(
@@ -1137,9 +1136,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
             SalesReportWorkspaceHeader(
               key: const Key('sales-report-form-header'),
               title: title,
-              subtitle: _isPurchased
-                  ? 'Quét hoặc nhập mã đơn, đối chiếu đơn hàng rồi hoàn tất thông tin khách hàng.'
-                  : 'Ghi nhận khách chưa mua, ngành hàng quan tâm và các bước tư vấn tại showroom.',
+              subtitle: '',
               icon: _isPurchased
                   ? Icons.receipt_long_outlined
                   : Icons.person_search_outlined,

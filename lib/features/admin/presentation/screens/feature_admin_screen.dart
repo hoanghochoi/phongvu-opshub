@@ -383,13 +383,6 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Quản lý tính năng, gán quyền theo đơn vị tổ chức và theo dõi quy tắc cũ.',
-                    style: AppTextStyles.bodyM.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
                   const SizedBox(height: 16),
                   AppActionRow(
                     desktopAlignment: MainAxisAlignment.start,

@@ -55,12 +55,13 @@ class _HomeScreenState extends State<HomeScreen> {
             _HomeCommandPanel(user: user),
             const SizedBox(height: AppLayoutTokens.sectionGap),
           ],
-          if (canUsePaymentSpeaker) ...[
-            const _PaymentMonitorQuickToggle(),
-            const SizedBox(height: AppLayoutTokens.sectionGap),
-          ],
           if (homeSummaryProvider != null)
-            HomeSummaryPage(provider: homeSummaryProvider)
+            HomeSummaryPage(
+              provider: homeSummaryProvider,
+              headerAction: canUsePaymentSpeaker
+                  ? const _HomeSpeakerStatusButton()
+                  : null,
+            )
           else
             _LegacyHomeBody(
               workspaceCount: workspaceCount,
@@ -246,13 +247,6 @@ class _LegacyHomeBody extends StatelessWidget {
               color: AppColors.textPrimaryOf(context),
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Các tác vụ nghiệp vụ đã chuyển sang tab Vận hành để thao tác nhanh hơn trên mobile và giữ luồng nhất quán giữa các nền tảng.',
-            style: AppTextStyles.bodyM.copyWith(
-              color: AppColors.textSecondaryOf(context),
-            ),
-          ),
           const SizedBox(height: AppLayoutTokens.sectionGap),
           AppActionRow(
             desktopAlignment: MainAxisAlignment.start,
@@ -405,111 +399,82 @@ class _AvatarInitials extends StatelessWidget {
   }
 }
 
-class _PaymentMonitorQuickToggle extends StatelessWidget {
-  const _PaymentMonitorQuickToggle();
+class _HomeSpeakerStatusButton extends StatelessWidget {
+  const _HomeSpeakerStatusButton();
 
   @override
   Widget build(BuildContext context) {
-    final monitor = context.watch<PaymentMonitorProvider>();
-    final canToggle = monitor.canUsePaymentSpeaker;
-    final speakerEnabled = monitor.isSpeakerEnabled;
-    final speakerActive = canToggle && speakerEnabled;
-    final speakerSelectionNotice = monitor.speakerSelectionNotice;
-    final statusText =
-        speakerSelectionNotice ??
-        (monitor.isActive
-            ? speakerActive
-                  ? 'Đang cập nhật, có đọc loa'
-                  : 'Đang cập nhật, đã tắt loa'
-            : canToggle
-            ? 'Đang chuẩn bị cập nhật'
-            : 'Chọn showroom để dùng');
+    late final PaymentMonitorProvider monitor;
+    try {
+      monitor = context.watch<PaymentMonitorProvider>();
+    } on ProviderNotFoundException {
+      return const SizedBox.shrink();
+    }
 
-    void openPaymentSpeakerHelp() {
+    if (!monitor.canUsePaymentSpeaker) {
+      return const SizedBox.shrink();
+    }
+
+    final speakerEnabled = monitor.isSpeakerEnabled;
+    final label = speakerEnabled ? 'Loa đang bật' : 'Loa đang tắt';
+    final color = speakerEnabled ? AppColors.success : AppColors.neutral600;
+    final backgroundColor = speakerEnabled
+        ? AppColors.successSurface
+        : AppColors.neutral100;
+    final icon = speakerEnabled
+        ? Icons.volume_up_rounded
+        : Icons.volume_off_rounded;
+
+    void toggleSpeaker() {
       unawaited(
         AppLogger.instance.info(
           'Home',
-          'Payment speaker help opened from quick toggle',
+          'Payment speaker toggled from home status',
           context: {
-            'source': 'paymentSpeakerQuickToggle',
-            'canToggle': canToggle,
-            'speakerEnabled': speakerEnabled,
+            'source': 'homeSpeakerStatus',
+            'nextEnabled': !speakerEnabled,
+            'syncActive': monitor.isActive,
           },
         ),
       );
-      context.go('/help');
+      unawaited(
+        context.read<PaymentMonitorProvider>().setSpeakerEnabled(
+          !speakerEnabled,
+        ),
+      );
     }
 
-    return AppSurfaceCard(
-      padding: EdgeInsets.zero,
-      child: SwitchListTile.adaptive(
-        value: speakerActive,
-        onChanged: canToggle
-            ? (value) => context
-                  .read<PaymentMonitorProvider>()
-                  .setSpeakerEnabled(value)
-            : null,
-        secondary: Icon(
-          speakerActive ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-          color: speakerActive ? AppColors.success : AppColors.neutral500,
-        ),
-        title: const Text('Đọc loa tiền vào', style: AppTextStyles.labelM),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(statusText, style: AppTextStyles.bodyS),
-            const SizedBox(height: 6),
-            Row(
-              key: const Key('payment-speaker-warning'),
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Tooltip(
+      message: speakerEnabled ? 'Bấm để tắt đọc loa' : 'Bấm để bật đọc loa',
+      child: Material(
+        color: AppColors.transparent,
+        child: InkWell(
+          key: const Key('home-speaker-status-toggle'),
+          borderRadius: AppRadius.allPill,
+          onTap: toggleSpeaker,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: AppRadius.allPill,
+              border: Border.all(color: color.withValues(alpha: 0.24)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Padding(
-                  padding: EdgeInsets.only(top: 1),
-                  child: Icon(
-                    Icons.warning_amber_rounded,
-                    size: 16,
-                    color: AppColors.warning,
-                  ),
-                ),
+                Icon(icon, size: 16, color: color),
                 const SizedBox(width: 6),
-                Expanded(
-                  child: Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    runSpacing: 2,
-                    children: [
-                      Text(
-                        'Vui lòng cài đặt để máy tính đọc loa không vào chế độ khóa màn hình hoặc Sleep. ',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.neutral600,
-                        ),
-                      ),
-                      InkWell(
-                        key: const Key('payment-speaker-help-link'),
-                        borderRadius: AppRadius.allXs,
-                        onTap: openPaymentSpeakerHelp,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 2,
-                            vertical: 1,
-                          ),
-                          child: Text(
-                            'Đọc thêm phần Hướng dẫn.',
-                            style: AppTextStyles.captionBold.copyWith(
-                              color: AppColors.primary,
-                              decoration: TextDecoration.underline,
-                              decorationColor: AppColors.primary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelS.copyWith(color: color),
                 ),
               ],
             ),
-          ],
+          ),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       ),
     );
   }

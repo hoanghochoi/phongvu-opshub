@@ -24,6 +24,7 @@ class SalesReportWorkspaceHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final navigator = Navigator.of(context);
     final canPop = navigator.canPop();
+    final hasSubtitle = subtitle.trim().isNotEmpty;
     return AppSurfaceCard(
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -57,13 +58,15 @@ class SalesReportWorkspaceHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: AppTextStyles.headingS),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: AppTextStyles.bodyS.copyWith(
-                  color: AppColors.neutral600,
+              if (hasSubtitle) ...[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: AppColors.neutral600,
+                  ),
                 ),
-              ),
+              ],
               if (chips.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Wrap(spacing: 8, runSpacing: 8, children: chips),

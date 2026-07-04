@@ -775,13 +775,6 @@ class _HelpContentHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Quản lý hướng dẫn', style: AppTextStyles.headingM),
-          const SizedBox(height: 6),
-          Text(
-            'Super Admin có thể chỉnh sửa nội dung runtime và khôi phục nhanh từ docs/help khi cần rollback.',
-            style: AppTextStyles.bodyM.copyWith(
-              color: AppColors.textSecondaryOf(context),
-            ),
-          ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,

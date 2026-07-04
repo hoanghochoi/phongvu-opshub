@@ -182,6 +182,74 @@ void main() {
     );
     expect(find.byKey(const Key('home-summary-grid')), findsNothing);
   });
+
+  testWidgets('Home dashboard scope dropdown reloads with selected scope', (
+    tester,
+  ) async {
+    final authProvider = _FakeAuthProvider(_superAdminUser());
+    final repository = _FakeHomeSummaryRepository(
+      summary: HomeSummary(
+        date: '2026-07-04',
+        available: true,
+        scope: 'ALL',
+        scopeLabel: 'Toàn hệ thống',
+        scopeDetail: 'Tổng hợp toàn hệ thống',
+        coverageLabel: 'Tỷ lệ phủ báo cáo',
+        totalRevenue: 125000000,
+        totalOrders: 42,
+        totalReports: 38,
+        reportedOrders: 35,
+        unreportedOrders: 7,
+        coverageRate: 83.33,
+        refreshedAt: DateTime.parse('2026-07-04T03:15:00.000Z'),
+      ),
+      scopedSummaries: {
+        'OWN': HomeSummary(
+          date: '2026-07-04',
+          available: true,
+          scope: 'OWN',
+          scopeLabel: 'Phạm vi cá nhân',
+          scopeDetail: 'CP75',
+          coverageLabel: 'Tỷ lệ phủ báo cáo',
+          totalRevenue: 5000000,
+          totalOrders: 2,
+          totalReports: 1,
+          reportedOrders: 1,
+          unreportedOrders: 1,
+          coverageRate: 50,
+          refreshedAt: DateTime.parse('2026-07-04T03:20:00.000Z'),
+        ),
+      },
+    );
+    final summaryProvider = HomeSummaryProvider(repository);
+    addTearDown(summaryProvider.dispose);
+    summaryProvider.syncAuth(authProvider.user, isInitialized: true);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<HomeSummaryProvider>.value(
+            value: summaryProvider,
+          ),
+        ],
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Toàn hệ thống'), findsWidgets);
+
+    await tester.tap(find.byKey(const Key('home-summary-scope-pill')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Phạm vi cá nhân').last);
+    await tester.pumpAndSettle();
+
+    expect(summaryProvider.selectedScope, 'OWN');
+    expect(repository.requestedScopes, contains('OWN'));
+    expect(find.text('Phạm vi cá nhân'), findsWidgets);
+    expect(find.text('5.000.000 VND'), findsOneWidget);
+  });
 }
 
 class _FakeAuthProvider extends AuthProvider {
@@ -195,11 +263,22 @@ class _FakeAuthProvider extends AuthProvider {
 
 class _FakeHomeSummaryRepository extends HomeSummaryRepository {
   final HomeSummary summary;
+  final Map<String, HomeSummary> scopedSummaries;
+  final List<String?> requestedScopes = [];
 
-  _FakeHomeSummaryRepository({required this.summary}) : super(ApiClient());
+  _FakeHomeSummaryRepository({
+    required this.summary,
+    this.scopedSummaries = const {},
+  }) : super(ApiClient());
 
   @override
-  Future<HomeSummary> fetchSummary({required String date}) async => summary;
+  Future<HomeSummary> fetchSummary({
+    required String date,
+    String? scope,
+  }) async {
+    requestedScopes.add(scope);
+    return scopedSummaries[scope] ?? summary;
+  }
 }
 
 User _staffUser() {
@@ -214,5 +293,20 @@ User _staffUser() {
       StoreBranch(id: 'store-62', storeId: 'CP62', storeName: 'CP62'),
     ],
     featureAccess: {'FIFO': true, 'WARRANTY': true, 'FEEDBACK': true},
+  );
+}
+
+User _superAdminUser() {
+  return const User(
+    id: 'super-1',
+    email: 'super@phongvu.vn',
+    name: 'Super Admin',
+    role: 'SUPER_ADMIN',
+    organizationNodeId: 'org-hq',
+    assignedStores: [
+      StoreBranch(id: 'store-75', storeId: 'CP75', storeName: 'CP75'),
+      StoreBranch(id: 'store-62', storeId: 'CP62', storeName: 'CP62'),
+    ],
+    featureAccess: {'SALES_REPORT': true, 'ADMIN_SALES_REPORTS': true},
   );
 }

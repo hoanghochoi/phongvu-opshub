@@ -136,9 +136,26 @@ describe('HomeSummaryService', () => {
       coverageRate: 50,
     });
 
-    expect(salesReports.describeHomeSummaryScope).toHaveBeenCalled();
+    expect(salesReports.describeHomeSummaryScope).toHaveBeenCalledWith(
+      { id: 'user-1', email: 'staff@phongvu.vn' },
+      'AUTO',
+    );
     expect(prisma.homeSummaryReportFact.upsert).toHaveBeenCalledTimes(2);
     expect(prisma.homeSummaryOrderFact.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it('passes the requested dashboard scope to sales report scope resolution', async () => {
+    const { service, salesReports } = createHarness();
+
+    await service.getSummary(
+      { id: 'super-1', email: 'super@phongvu.vn' },
+      { date: '2026-07-04', scope: 'OWN' },
+    );
+
+    expect(salesReports.describeHomeSummaryScope).toHaveBeenCalledWith(
+      { id: 'super-1', email: 'super@phongvu.vn' },
+      'OWN',
+    );
   });
 
   it('returns a neutral unavailable state when the user has no summary scope', async () => {

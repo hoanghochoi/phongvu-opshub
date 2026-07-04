@@ -123,16 +123,6 @@ class AuthBrandPanel extends StatelessWidget {
               children: [
                 BrandHeader(dense: dense),
                 SizedBox(height: dense ? 24 : 42),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 460),
-                  child: Text(
-                    'Một tài khoản cho FIFO, bảo hành, VietQR, sao kê, cấn trừ và báo cáo bán hàng.',
-                    style:
-                        (dense ? AppTextStyles.labelM : AppTextStyles.headingS)
-                            .copyWith(color: AppColors.sidebarTextOf(context)),
-                  ),
-                ),
-                SizedBox(height: dense ? 16 : AppLayoutTokens.sectionGap),
                 AuthBenefitList(highlights: highlights, dense: dense),
                 const Spacer(),
                 Row(
@@ -465,7 +455,7 @@ class _AuthBenefitTileState extends State<_AuthBenefitTile> {
         : AppColors.sidebarMutedOf(context).withValues(alpha: 0.24);
     return Semantics(
       container: true,
-      label: '${widget.highlight.title}. ${widget.highlight.description}',
+      label: widget.highlight.title,
       child: FocusableActionDetector(
         mouseCursor: SystemMouseCursors.basic,
         onShowHoverHighlight: (value) => setState(() => _hovered = value),
@@ -505,27 +495,11 @@ class _AuthBenefitTileState extends State<_AuthBenefitTile> {
                 ),
                 const SizedBox(width: AppLayoutTokens.formInlineGap),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.highlight.title,
-                        style: AppTextStyles.labelM.copyWith(
-                          color: AppColors.sidebarTextOf(context),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.highlight.description,
-                        style:
-                            (widget.dense
-                                    ? AppTextStyles.caption
-                                    : AppTextStyles.bodyS)
-                                .copyWith(
-                                  color: AppColors.sidebarMutedOf(context),
-                                ),
-                      ),
-                    ],
+                  child: Text(
+                    widget.highlight.title,
+                    style: AppTextStyles.labelM.copyWith(
+                      color: AppColors.sidebarTextOf(context),
+                    ),
                   ),
                 ),
               ],

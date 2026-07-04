@@ -139,14 +139,6 @@ class _AdminMenuHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Công cụ theo quyền', style: AppTextStyles.headingM),
-                const SizedBox(height: 6),
-                Text(
-                  'Truy cập các công cụ quản trị theo quyền tài khoản của bạn.',
-                  style: AppTextStyles.bodyM.copyWith(
-                    color: AppColors.textSecondaryOf(context),
-                    height: 1.35,
-                  ),
-                ),
                 const SizedBox(height: AppLayoutTokens.formInlineGap),
                 Text(
                   actionCount > 0

@@ -129,6 +129,12 @@ export type SalesReportSummaryScopeDescriptor = {
   allowedStoreCodes: string[];
 };
 
+export type HomeSummaryScopeRequest =
+  | 'AUTO'
+  | 'ALL'
+  | 'MANAGED_SCOPE'
+  | 'OWN';
+
 const ANSWER_LABELS: Record<string, string> = {
   YES: 'Có',
   CUSTOMER_BUSY_OR_NO_NEED:
@@ -217,9 +223,21 @@ export class SalesReportsService implements OnApplicationBootstrap {
 
   async describeHomeSummaryScope(
     user: any,
+    requestedScope: HomeSummaryScopeRequest = 'AUTO',
   ): Promise<SalesReportSummaryScopeDescriptor> {
     const context = await this.resolveUserSnapshot(user);
     const adminView = await this.canViewAdminSalesReports(user);
+
+    if (requestedScope === 'OWN') {
+      return this.describeOwnHomeSummaryScope(user, context);
+    }
+
+    if (requestedScope === 'ALL' && !adminView) {
+      return this.unavailableHomeSummaryScope(
+        'Tài khoản hiện chưa có quyền xem tổng quan toàn hệ thống.',
+      );
+    }
+
     if (adminView) {
       if (isSuperAdminRole(user?.role)) {
         return {
@@ -269,6 +287,19 @@ export class SalesReportsService implements OnApplicationBootstrap {
       }
     }
 
+    if (requestedScope === 'MANAGED_SCOPE') {
+      return this.unavailableHomeSummaryScope(
+        'Tài khoản hiện chưa có phạm vi quản lý để xem tổng quan.',
+      );
+    }
+
+    return this.describeOwnHomeSummaryScope(user, context);
+  }
+
+  private async describeOwnHomeSummaryScope(
+    user: any,
+    context: any,
+  ): Promise<SalesReportSummaryScopeDescriptor> {
     const canUseSalesReport = await this.canUseSalesReport(user);
     if (!canUseSalesReport) {
       return this.unavailableHomeSummaryScope(

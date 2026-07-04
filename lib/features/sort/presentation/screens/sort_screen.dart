@@ -164,14 +164,6 @@ class _SortHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Sắp xếp FIFO', style: AppTextStyles.headingM),
-              const SizedBox(height: 6),
-              Text(
-                'Nhập hoặc quét SKU/BIN để xem vị trí hàng hóa theo FIFO.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.neutral600,
-                  height: 1.35,
-                ),
-              ),
               const SizedBox(height: AppLayoutTokens.cardGap),
               Wrap(
                 spacing: 8,

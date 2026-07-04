@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phongvu_opshub/app/widgets/app_feature_grid.dart';
@@ -12,6 +11,9 @@ import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.d
 import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provider.dart';
+import 'package:phongvu_opshub/features/home/data/repositories/home_summary_repository.dart';
+import 'package:phongvu_opshub/features/home/domain/home_summary.dart';
+import 'package:phongvu_opshub/features/home/presentation/providers/home_summary_provider.dart';
 import 'package:phongvu_opshub/features/home/presentation/screens/home_screen.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/payment_speaker.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/repositories/payment_monitor_repository.dart';
@@ -92,7 +94,7 @@ void main() {
   });
 
   testWidgets(
-    'Windows Home shows speaker paused for multiple assigned SRs and opens help',
+    'Windows Home shows compact speaker status and toggles from header',
     (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.windows;
       addTearDown(() {
@@ -123,59 +125,44 @@ void main() {
       final paymentProvider = _FakeHomePaymentMonitorProvider(
         isActive: true,
         isSpeakerEnabled: true,
-        canUsePaymentSpeaker: false,
-        speakerSelectionNotice:
-            'Loa chỉ đọc khi chọn đúng 1 showroom. Bạn đang xem 2 showroom nên danh sách vẫn cập nhật, còn loa tạm dừng.',
+        canUsePaymentSpeaker: true,
+        speakerSelectionNotice: null,
+      );
+      final summaryProvider = HomeSummaryProvider(
+        _FakeHomeSummaryRepository(summary: _homeSummary()),
       );
       addTearDown(paymentProvider.dispose);
-      final router = GoRouter(
-        initialLocation: '/home',
-        routes: [
-          GoRoute(
-            path: '/home',
-            builder: (context, state) => MultiProvider(
-              providers: [
-                ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
-                ChangeNotifierProvider<PaymentMonitorProvider>.value(
-                  value: paymentProvider,
-                ),
-              ],
-              child: const HomeScreen(),
+      addTearDown(summaryProvider.dispose);
+      summaryProvider.syncAuth(user, isInitialized: true);
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+            ChangeNotifierProvider<PaymentMonitorProvider>.value(
+              value: paymentProvider,
             ),
-          ),
-          GoRoute(
-            path: '/help',
-            builder: (context, state) =>
-                const Scaffold(body: Text('Hướng dẫn đã mở')),
-          ),
-        ],
-      );
-
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Đọc loa tiền vào'), findsOneWidget);
-      expect(
-        find.textContaining('Loa chỉ đọc khi chọn đúng 1 showroom'),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining(
-          'Vui lòng cài đặt để máy tính đọc loa không vào chế độ khóa màn hình hoặc Sleep.',
+            ChangeNotifierProvider<HomeSummaryProvider>.value(
+              value: summaryProvider,
+            ),
+          ],
+          child: const MaterialApp(home: HomeScreen()),
         ),
-        findsOneWidget,
       );
-      expect(find.text('Đọc thêm phần Hướng dẫn.'), findsOneWidget);
 
-      final toggle = tester.widget<SwitchListTile>(find.byType(SwitchListTile));
-      expect(toggle.value, isFalse);
-      expect(toggle.onChanged, isNull);
-
-      await tester.tap(find.byKey(const Key('payment-speaker-help-link')));
       await tester.pumpAndSettle();
 
-      expect(router.routeInformationProvider.value.uri.path, '/help');
-      expect(find.text('Hướng dẫn đã mở'), findsOneWidget);
+      expect(find.text('Loa đang bật'), findsOneWidget);
+      expect(find.text('Đọc loa tiền vào'), findsNothing);
+      expect(find.byType(SwitchListTile), findsNothing);
+      expect(find.byKey(const Key('payment-speaker-warning')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('home-speaker-status-toggle')));
+      await tester.pumpAndSettle();
+
+      expect(paymentProvider.speakerToggleCalls, 1);
+      expect(paymentProvider.lastSpeakerValue, isFalse);
+      expect(find.text('Loa đang tắt'), findsOneWidget);
       debugDefaultTargetPlatformOverride = null;
     },
   );
@@ -438,11 +425,45 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   }
 }
 
+class _FakeHomeSummaryRepository extends HomeSummaryRepository {
+  final HomeSummary summary;
+
+  _FakeHomeSummaryRepository({required this.summary}) : super(ApiClient());
+
+  @override
+  Future<HomeSummary> fetchSummary({
+    required String date,
+    String? scope,
+  }) async {
+    return summary;
+  }
+}
+
+HomeSummary _homeSummary() {
+  return HomeSummary(
+    date: '2026-07-04',
+    available: true,
+    scope: 'OWN',
+    scopeLabel: 'Phạm vi cá nhân',
+    scopeDetail: 'CP75',
+    coverageLabel: 'Tỷ lệ phủ báo cáo',
+    totalRevenue: 1000000,
+    totalOrders: 1,
+    totalReports: 1,
+    reportedOrders: 1,
+    unreportedOrders: 0,
+    coverageRate: 100,
+    refreshedAt: DateTime.parse('2026-07-04T03:15:00.000Z'),
+  );
+}
+
 class _FakeHomePaymentMonitorProvider extends PaymentMonitorProvider {
   final bool _isActive;
-  final bool _isSpeakerEnabled;
+  bool _isSpeakerEnabled;
   final bool _canUsePaymentSpeaker;
   final String? _speakerSelectionNotice;
+  int speakerToggleCalls = 0;
+  bool? lastSpeakerValue;
 
   _FakeHomePaymentMonitorProvider({
     required bool isActive,
@@ -466,6 +487,14 @@ class _FakeHomePaymentMonitorProvider extends PaymentMonitorProvider {
 
   @override
   String? get speakerSelectionNotice => _speakerSelectionNotice;
+
+  @override
+  Future<void> setSpeakerEnabled(bool value) async {
+    speakerToggleCalls += 1;
+    lastSpeakerValue = value;
+    _isSpeakerEnabled = value;
+    notifyListeners();
+  }
 }
 
 class _FakePaymentSpeaker extends PaymentSpeaker {

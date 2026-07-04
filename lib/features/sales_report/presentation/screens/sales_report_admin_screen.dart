@@ -86,8 +86,7 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
           SalesReportWorkspaceHeader(
             key: const Key('sales-report-admin-workspace-header'),
             title: 'Báo cáo sale',
-            subtitle:
-                'Lọc danh sách báo cáo và xuất đúng file theo cùng bộ lọc đang xem.',
+            subtitle: '',
             icon: Icons.assignment_outlined,
             chips: [
               AppStatusChip(

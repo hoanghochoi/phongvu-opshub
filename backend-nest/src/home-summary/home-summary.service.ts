@@ -20,6 +20,12 @@ type HomeSummaryResponse = SalesReportOperatingSummary & {
   unavailableMessage: string | null;
 };
 
+type HomeSummaryScopeRequest =
+  | 'AUTO'
+  | 'ALL'
+  | 'MANAGED_SCOPE'
+  | 'OWN';
+
 @Injectable()
 export class HomeSummaryService {
   private readonly logger = new Logger(HomeSummaryService.name);
@@ -43,11 +49,15 @@ export class HomeSummaryService {
   ): Promise<HomeSummaryResponse> {
     const startedAt = Date.now();
     const date = this.parseDateParam(query.date) ?? this.todayVietnamDate();
+    const requestedScope = this.parseScopeParam(query.scope);
     const summaryDate = this.parseDateOnly(date) ?? new Date();
     this.logger.log(
-      `Home summary load started: user=${this.safeUserLabel(user)} date=${date}`,
+      `Home summary load started: user=${this.safeUserLabel(user)} date=${date} scopeFilter=${requestedScope}`,
     );
-    const scope = await this.salesReports.describeHomeSummaryScope(user);
+    const scope = await this.salesReports.describeHomeSummaryScope(
+      user,
+      requestedScope,
+    );
     if (!scope.available) {
       const response = this.emptySummary(
         date,
@@ -56,7 +66,7 @@ export class HomeSummaryService {
         scope.unavailableMessage,
       );
       this.logger.log(
-        `Home summary unavailable: user=${this.safeUserLabel(user)} date=${date} message=${scope.unavailableMessage || 'none'} durationMs=${Date.now() - startedAt}`,
+        `Home summary unavailable: user=${this.safeUserLabel(user)} date=${date} scopeFilter=${requestedScope} message=${scope.unavailableMessage || 'none'} durationMs=${Date.now() - startedAt}`,
       );
       return response;
     }
@@ -123,9 +133,23 @@ export class HomeSummaryService {
       unavailableMessage: null,
     };
     this.logger.log(
-      `Home summary load succeeded: user=${this.safeUserLabel(user)} date=${date} scope=${scope.scope} totalOrders=${totalOrders} totalReports=${totalReports} reportedOrders=${reportedOrders} durationMs=${Date.now() - startedAt}`,
+      `Home summary load succeeded: user=${this.safeUserLabel(user)} date=${date} scopeFilter=${requestedScope} scope=${scope.scope} totalOrders=${totalOrders} totalReports=${totalReports} reportedOrders=${reportedOrders} durationMs=${Date.now() - startedAt}`,
     );
     return response;
+  }
+
+  private parseScopeParam(value?: string | null): HomeSummaryScopeRequest {
+    const normalized = String(value || '')
+      .trim()
+      .toUpperCase();
+    if (
+      normalized === 'ALL' ||
+      normalized === 'MANAGED_SCOPE' ||
+      normalized === 'OWN'
+    ) {
+      return normalized;
+    }
+    return 'AUTO';
   }
 
   private async syncFacts(date: string, summaryDate: Date) {

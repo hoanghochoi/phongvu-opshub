@@ -282,14 +282,6 @@ class _FifoHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Kiểm tra FIFO', style: AppTextStyles.headingM),
-              const SizedBox(height: 6),
-              Text(
-                'Nhập hoặc quét SKU/serial để kiểm tra thứ tự FIFO và trạng thái xuất kho.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.neutral600,
-                  height: 1.35,
-                ),
-              ),
               if (result != null) ...[
                 const SizedBox(height: AppLayoutTokens.cardGap),
                 Wrap(

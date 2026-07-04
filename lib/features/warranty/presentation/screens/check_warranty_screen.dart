@@ -208,14 +208,6 @@ class _WarrantyLookupHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Xem lại biên nhận', style: AppTextStyles.headingM),
-              const SizedBox(height: 6),
-              Text(
-                'Tìm nhanh biên nhận bảo hành / sửa chữa, mở chi tiết và kiểm tra hình ảnh đã lưu.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.neutral600,
-                  height: 1.35,
-                ),
-              ),
               const SizedBox(height: AppLayoutTokens.cardGap),
               Wrap(
                 spacing: 8,

@@ -5,4 +5,9 @@ export class GetHomeSummaryQueryDto {
   @IsString()
   @MaxLength(10)
   date?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  scope?: string;
 }
