@@ -98,6 +98,28 @@ void main() {
     expect(find.text('Phòng ban và chức danh'), findsOneWidget);
     expect(find.text('Quản lý tính năng'), findsNothing);
   });
+
+  testWidgets('Admin menu shows help management for super admin only', (
+    tester,
+  ) async {
+    const user = User(
+      email: 'super-admin@phongvu.vn',
+      role: 'SUPER_ADMIN',
+      organizationNodeId: 'org-super-admin',
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(user),
+        child: const MaterialApp(home: AdminMenuScreen()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Quản lý hướng dẫn'), findsOneWidget);
+    expect(find.text('Nội dung runtime công khai'), findsOneWidget);
+    expect(find.text('Danh sách góp ý'), findsOneWidget);
+  });
 }
 
 class _FakeAuthProvider extends AuthProvider {

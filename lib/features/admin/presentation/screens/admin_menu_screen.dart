@@ -71,6 +71,14 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (isSuperAdmin)
         AppFeatureAction(
+          icon: Icons.menu_book_outlined,
+          title: 'Quản lý hướng dẫn',
+          description: 'Nội dung runtime công khai',
+          color: AppColors.secondary,
+          onTap: () => context.push('/admin/help-content'),
+        ),
+      if (isSuperAdmin)
+        AppFeatureAction(
           icon: Icons.lightbulb_outline_rounded,
           title: 'Danh sách góp ý',
           description: 'Góp ý nội bộ',

@@ -55,6 +55,13 @@ class ApiConstants {
   static const String adminFeatureRulesBatchEndpoint =
       '/admin/features/rules/batch';
   static const String homeSummaryEndpoint = '/home/summary';
+  static const String helpContentPublicEndpoint = '/help-content/public';
+  static const String adminHelpContentPagesEndpoint =
+      '/admin/help-content/pages';
+  static const String adminHelpContentSeedEndpoint =
+      '/admin/help-content/seed-from-docs';
+  static String adminHelpContentPageEndpoint(String key) =>
+      '/admin/help-content/pages/$key';
   static const String policiesMeEndpoint = '/policies/me';
   static const String adminPoliciesEndpoint = '/admin/policies';
   static const String adminPolicyRulesEndpoint = '/admin/policies/rules';

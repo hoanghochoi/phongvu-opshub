@@ -25,8 +25,12 @@ development services for OpsHub.
   UI decision. The smoke used current metadata to avoid forcing staff updates.
 - Staff client downloads are exposed by `GET /download`, backed by the public
   manifest at `GET /downloads/latest.json`.
-- Public staff guidance is exposed by `GET /help`, backed by Markdown content
-  and images deployed from `docs/help/`.
+- Public staff guidance is exposed by `GET /help`, still backed by the static
+  Markdown site deployed from `docs/help/`.
+- Runtime help content is also exposed by `GET /api/help-content/public` and
+  managed by Super Admin through `/api/admin/help-content/*`; this DB-backed
+  runtime layer is the pre-cutover content source for the future Flutter
+  `/help` route.
 - Flutter web is served as the SPA root at `GET /` in production and staging.
   Caddy must route `/api`, `/ws`, `/download`, `/help`, `/uploads`,
   `/downloads`, `/staging-download`, and `/health` before the SPA fallback.
@@ -57,6 +61,9 @@ curl http://localhost:3000/app-version
   `main` from accepted `staging` code, then push `main` to run the production
   workflow. The `help-content` branch is the production content source for
   `/help`; pushing it runs only the production static help/download deploy.
+  Until the public Flutter cutover lands, the static site and runtime DB layer
+  are allowed to coexist. Super Admin can restore the runtime DB layer from
+  `docs/help/*` to realign it with the static deploy contract.
 - Full production GitHub deploys build the client packages in Actions, upload
   the APK, Windows installer, Windows ZIP, and checksum directly to VPS staging,
   then promote them to `/srv/opshub/downloads/` and publish

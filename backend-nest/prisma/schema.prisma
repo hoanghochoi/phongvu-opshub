@@ -13,11 +13,11 @@ datasource db {
 // STORE
 // ============================================================
 model Store {
-  id                      String   @id @default(uuid())
-  storeId                 String   @unique // e.g. "HCM01", "HN02"
+  id                      String            @id @default(uuid())
+  storeId                 String            @unique // e.g. "HCM01", "HN02"
   storeName               String
   areaCode                String?
-  area                    AreaDefinition? @relation(fields: [areaCode], references: [code])
+  area                    AreaDefinition?   @relation(fields: [areaCode], references: [code])
   organizationNodeId      String?
   organizationNode        OrganizationNode? @relation(fields: [organizationNodeId], references: [id], onUpdate: Cascade)
   transferAccountNumber   String?
@@ -26,8 +26,8 @@ model Store {
   transferBankBin         String?
   mapVietinUsername       String?
   mapVietinPasswordCipher String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
 
   users User[]
 
@@ -85,7 +85,7 @@ model MapVietinTransaction {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  orderAudits MapVietinTransactionOrderAudit[]
+  orderAudits           MapVietinTransactionOrderAudit[]
   orderTransferRequests MapVietinStatementOrderTransferRequest[]
 
   @@index([storeCode, paidAt])
@@ -111,21 +111,21 @@ model MapVietinTransactionOrderAudit {
 }
 
 model MapVietinStatementOrderTransferRequest {
-  id                    String               @id @default(uuid())
-  transactionId         String
-  transaction           MapVietinTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  storeCode             String
-  oldOrders             String[]             @default([])
-  requestedOrders       String[]             @default([])
-  status                String               @default("PENDING")
-  requestedByUserId     String?
-  requestedByEmail      String?
-  reviewedByUserId      String?
-  reviewedByEmail       String?
-  reviewNote            String?
-  reviewedAt            DateTime?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  id                String               @id @default(uuid())
+  transactionId     String
+  transaction       MapVietinTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  storeCode         String
+  oldOrders         String[]             @default([])
+  requestedOrders   String[]             @default([])
+  status            String               @default("PENDING")
+  requestedByUserId String?
+  requestedByEmail  String?
+  reviewedByUserId  String?
+  reviewedByEmail   String?
+  reviewNote        String?
+  reviewedAt        DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
   @@index([transactionId, status])
   @@index([storeCode, status, createdAt])
@@ -164,28 +164,28 @@ model MapVietinSyncState {
 }
 
 model OffsetAdjustment {
-  id                   String    @id @default(uuid())
-  type                 String
-  status               String    @default("PENDING_ACC")
-  storeCode            String
-  oldOrderCode         String?
-  newOrderCode         String?
-  orderCode            String?
-  scanDate             DateTime?
-  editContentKind      String?
-  transactionCode      String?
-  amount               Int
-  note                 String?
-  ctCode               String?
-  rejectReason         String?
-  createdByUserId      String?
-  createdByEmail       String?
-  reviewedByUserId     String?
-  reviewedByEmail      String?
-  submittedAt          DateTime  @default(now())
-  reviewedAt           DateTime?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id               String    @id @default(uuid())
+  type             String
+  status           String    @default("PENDING_ACC")
+  storeCode        String
+  oldOrderCode     String?
+  newOrderCode     String?
+  orderCode        String?
+  scanDate         DateTime?
+  editContentKind  String?
+  transactionCode  String?
+  amount           Int
+  note             String?
+  ctCode           String?
+  rejectReason     String?
+  createdByUserId  String?
+  createdByEmail   String?
+  reviewedByUserId String?
+  reviewedByEmail  String?
+  submittedAt      DateTime  @default(now())
+  reviewedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   history OffsetAdjustmentHistory[]
 
@@ -200,17 +200,17 @@ model OffsetAdjustment {
 }
 
 model OffsetAdjustmentHistory {
-  id              String   @id @default(uuid())
-  adjustmentId    String
-  adjustment      OffsetAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
-  action          String
-  fromStatus      String?
-  toStatus        String?
-  actorUserId     String?
-  actorEmail      String?
-  reason          String?
-  snapshot        Json?
-  createdAt       DateTime @default(now())
+  id           String           @id @default(uuid())
+  adjustmentId String
+  adjustment   OffsetAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  action       String
+  fromStatus   String?
+  toStatus     String?
+  actorUserId  String?
+  actorEmail   String?
+  reason       String?
+  snapshot     Json?
+  createdAt    DateTime         @default(now())
 
   @@index([adjustmentId, createdAt])
   @@index([action, createdAt])
@@ -305,31 +305,31 @@ model User {
   store   Store?  @relation(fields: [storeId], references: [id])
 
   // Personnel assignment (separate from system access role)
-  departmentCode String?
-  department     DepartmentDefinition? @relation(fields: [departmentCode], references: [code])
-  jobRoleCode    String?
-  jobRole        JobRoleDefinition?    @relation(fields: [jobRoleCode], references: [code])
-  workScopeType  String?
-  regionCode     String?
-  region         RegionDefinition?     @relation(fields: [regionCode], references: [code])
-  areaCode       String?
-  area           AreaDefinition?       @relation(fields: [areaCode], references: [code])
+  departmentCode     String?
+  department         DepartmentDefinition? @relation(fields: [departmentCode], references: [code])
+  jobRoleCode        String?
+  jobRole            JobRoleDefinition?    @relation(fields: [jobRoleCode], references: [code])
+  workScopeType      String?
+  regionCode         String?
+  region             RegionDefinition?     @relation(fields: [regionCode], references: [code])
+  areaCode           String?
+  area               AreaDefinition?       @relation(fields: [areaCode], references: [code])
   organizationNodeId String?
-  organizationNode   OrganizationNode? @relation(fields: [organizationNodeId], references: [id], onUpdate: Cascade)
+  organizationNode   OrganizationNode?     @relation(fields: [organizationNodeId], references: [id], onUpdate: Cascade)
 
-  warrantiesCreated   Warranty[]            @relation("CreatedBy")
-  warrantiesHandled   Warranty[]            @relation("HandledBy")
-  feedbacks           Feedback[]
-  salesReportsCreated SalesReport[]
-  fifoLogs            FifoLog[]
-  vietQrPayments      VietQrPaymentIntent[]
-  passwordResetTokens PasswordResetToken[]
-  platformSessions    UserPlatformSession[]
-  featureAccessRules   FeatureAccessRule[]
-  userFeatureAssignments UserFeatureAssignment[]
-  organizationAssignments UserOrganizationAssignment[]
+  warrantiesCreated              Warranty[]                          @relation("CreatedBy")
+  warrantiesHandled              Warranty[]                          @relation("HandledBy")
+  feedbacks                      Feedback[]
+  salesReportsCreated            SalesReport[]
+  fifoLogs                       FifoLog[]
+  vietQrPayments                 VietQrPaymentIntent[]
+  passwordResetTokens            PasswordResetToken[]
+  platformSessions               UserPlatformSession[]
+  featureAccessRules             FeatureAccessRule[]
+  userFeatureAssignments         UserFeatureAssignment[]
+  organizationAssignments        UserOrganizationAssignment[]
   nodeFeatureAssignmentsAssigned OrganizationNodeFeatureAssignment[] @relation("NodeFeatureAssignedBy")
-  notificationReadReceipts AppNotificationReadReceipt[]
+  notificationReadReceipts       AppNotificationReadReceipt[]
 
   @@index([departmentCode])
   @@index([jobRoleCode])
@@ -412,37 +412,37 @@ model RoleDefinition {
 }
 
 model DepartmentDefinition {
-  id          String   @id @default(uuid())
-  code        String   @unique
-  displayName String
-  description String?
+  id                 String            @id @default(uuid())
+  code               String            @unique
+  displayName        String
+  description        String?
   organizationNodeId String?
   organizationNode   OrganizationNode? @relation(fields: [organizationNodeId], references: [id], onUpdate: Cascade)
-  isSystem    Boolean  @default(true)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isSystem           Boolean           @default(true)
+  isActive           Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
-  users User[]
+  users              User[]
   featureAccessRules FeatureAccessRule[]
 
   @@index([organizationNodeId])
 }
 
 model JobRoleDefinition {
-  id             String   @id @default(uuid())
-  code           String   @unique
-  displayName    String
-  description    String?
-  departmentCode String?
+  id                 String            @id @default(uuid())
+  code               String            @unique
+  displayName        String
+  description        String?
+  departmentCode     String?
   organizationNodeId String?
   organizationNode   OrganizationNode? @relation(fields: [organizationNodeId], references: [id], onUpdate: Cascade)
-  isSystem       Boolean  @default(true)
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isSystem           Boolean           @default(true)
+  isActive           Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
-  users User[]
+  users              User[]
   featureAccessRules FeatureAccessRule[]
 
   @@index([departmentCode])
@@ -450,42 +450,42 @@ model JobRoleDefinition {
 }
 
 model RegionDefinition {
-  id           String   @id @default(uuid())
-  code         String   @unique
-  displayName  String
-  abbreviation String
-  description  String?
+  id                 String            @id @default(uuid())
+  code               String            @unique
+  displayName        String
+  abbreviation       String
+  description        String?
   organizationNodeId String?
   organizationNode   OrganizationNode? @relation(fields: [organizationNodeId], references: [id], onUpdate: Cascade)
-  isSystem     Boolean  @default(false)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isSystem           Boolean           @default(false)
+  isActive           Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
-  areas AreaDefinition[]
-  users User[]
+  areas              AreaDefinition[]
+  users              User[]
   featureAccessRules FeatureAccessRule[]
 
   @@index([organizationNodeId])
 }
 
 model AreaDefinition {
-  id           String   @id @default(uuid())
-  code         String   @unique
-  displayName  String
-  abbreviation String
-  description  String?
-  regionCode   String
-  region       RegionDefinition @relation(fields: [regionCode], references: [code])
+  id                 String            @id @default(uuid())
+  code               String            @unique
+  displayName        String
+  abbreviation       String
+  description        String?
+  regionCode         String
+  region             RegionDefinition  @relation(fields: [regionCode], references: [code])
   organizationNodeId String?
   organizationNode   OrganizationNode? @relation(fields: [organizationNodeId], references: [id], onUpdate: Cascade)
-  isSystem     Boolean  @default(false)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isSystem           Boolean           @default(false)
+  isActive           Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
-  stores Store[]
-  users User[]
+  stores             Store[]
+  users              User[]
   featureAccessRules FeatureAccessRule[]
 
   @@index([regionCode])
@@ -493,34 +493,34 @@ model AreaDefinition {
 }
 
 model OrganizationNode {
-  id               String   @id @default(uuid())
-  code             String   @unique
-  displayName      String
-  businessCode     String?
-  abbreviation     String?
-  description      String?
-  type             String
-  parentId         String?
-  parent           OrganizationNode? @relation("OrganizationNodeChildren", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  children         OrganizationNode[] @relation("OrganizationNodeChildren")
-  emailDomain      String?
-  loginAllowed     Boolean  @default(false)
-  isSystem         Boolean  @default(false)
-  isActive         Boolean  @default(true)
-  sortOrder        Int      @default(0)
-  metadata         Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id           String             @id @default(uuid())
+  code         String             @unique
+  displayName  String
+  businessCode String?
+  abbreviation String?
+  description  String?
+  type         String
+  parentId     String?
+  parent       OrganizationNode?  @relation("OrganizationNodeChildren", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  children     OrganizationNode[] @relation("OrganizationNodeChildren")
+  emailDomain  String?
+  loginAllowed Boolean            @default(false)
+  isSystem     Boolean            @default(false)
+  isActive     Boolean            @default(true)
+  sortOrder    Int                @default(0)
+  metadata     Json?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
-  stores       Store[]
-  users        User[]
-  departments  DepartmentDefinition[]
-  jobRoles     JobRoleDefinition[]
-  regions      RegionDefinition[]
-  areas        AreaDefinition[]
-  featureAccessRules FeatureAccessRule[]
-  adminPolicyRules AdminPolicyRule[]
-  userAssignments UserOrganizationAssignment[]
+  stores                 Store[]
+  users                  User[]
+  departments            DepartmentDefinition[]
+  jobRoles               JobRoleDefinition[]
+  regions                RegionDefinition[]
+  areas                  AreaDefinition[]
+  featureAccessRules     FeatureAccessRule[]
+  adminPolicyRules       AdminPolicyRule[]
+  userAssignments        UserOrganizationAssignment[]
   nodeFeatureAssignments OrganizationNodeFeatureAssignment[] @relation("NodeFeatureScopeRoot")
 
   @@index([parentId])
@@ -531,19 +531,19 @@ model OrganizationNode {
 }
 
 model FeatureDefinition {
-  id          String   @id @default(uuid())
-  code        String   @unique
-  displayName String
-  description String?
-  parentCode  String?
-  sortOrder   Int      @default(0)
-  visibleInUserPicker Boolean @default(true)
-  isSystem    Boolean  @default(true)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                  String   @id @default(uuid())
+  code                String   @unique
+  displayName         String
+  description         String?
+  parentCode          String?
+  sortOrder           Int      @default(0)
+  visibleInUserPicker Boolean  @default(true)
+  isSystem            Boolean  @default(true)
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  rules FeatureAccessRule[]
+  rules           FeatureAccessRule[]
   userAssignments UserFeatureAssignment[]
   nodeAssignments OrganizationNodeFeatureAssignment[]
 
@@ -552,16 +552,16 @@ model FeatureDefinition {
 }
 
 model UserFeatureAssignment {
-  id           String   @id @default(uuid())
+  id           String            @id @default(uuid())
   userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   featureCode  String
   feature      FeatureDefinition @relation(fields: [featureCode], references: [code], onDelete: Cascade, onUpdate: Cascade)
-  enabled      Boolean  @default(true)
+  enabled      Boolean           @default(true)
   assignedById String?
   note         String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   @@unique([userId, featureCode])
   @@index([featureCode])
@@ -570,19 +570,19 @@ model UserFeatureAssignment {
 }
 
 model OrganizationNodeFeatureAssignment {
-  id              String   @id @default(uuid())
+  id              String            @id @default(uuid())
   scopeRootNodeId String
-  scopeRootNode   OrganizationNode @relation("NodeFeatureScopeRoot", fields: [scopeRootNodeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  scopeRootNode   OrganizationNode  @relation("NodeFeatureScopeRoot", fields: [scopeRootNodeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   nodeType        String
   nodeKey         String
   featureCode     String
   feature         FeatureDefinition @relation(fields: [featureCode], references: [code], onDelete: Cascade, onUpdate: Cascade)
-  enabled         Boolean  @default(true)
+  enabled         Boolean           @default(true)
   assignedById    String?
-  assignedBy      User?    @relation("NodeFeatureAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  assignedBy      User?             @relation("NodeFeatureAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   note            String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   @@unique([scopeRootNodeId, nodeType, nodeKey, featureCode])
   @@index([scopeRootNodeId])
@@ -593,30 +593,30 @@ model OrganizationNodeFeatureAssignment {
 }
 
 model FeatureAccessRule {
-  id             String   @id @default(uuid())
-  featureCode    String
-  feature        FeatureDefinition @relation(fields: [featureCode], references: [code], onDelete: Cascade, onUpdate: Cascade)
-  enabled        Boolean
-  emailDomain    String?
-  systemRole     String?
-  departmentCode String?
-  department     DepartmentDefinition? @relation(fields: [departmentCode], references: [code], onUpdate: Cascade)
-  jobRoleCode    String?
-  jobRole        JobRoleDefinition? @relation(fields: [jobRoleCode], references: [code], onUpdate: Cascade)
-  workScopeType  String?
-  regionCode     String?
-  region         RegionDefinition? @relation(fields: [regionCode], references: [code], onUpdate: Cascade)
-  areaCode       String?
+  id                 String                @id @default(uuid())
+  featureCode        String
+  feature            FeatureDefinition     @relation(fields: [featureCode], references: [code], onDelete: Cascade, onUpdate: Cascade)
+  enabled            Boolean
+  emailDomain        String?
+  systemRole         String?
+  departmentCode     String?
+  department         DepartmentDefinition? @relation(fields: [departmentCode], references: [code], onUpdate: Cascade)
+  jobRoleCode        String?
+  jobRole            JobRoleDefinition?    @relation(fields: [jobRoleCode], references: [code], onUpdate: Cascade)
+  workScopeType      String?
+  regionCode         String?
+  region             RegionDefinition?     @relation(fields: [regionCode], references: [code], onUpdate: Cascade)
+  areaCode           String?
   organizationNodeId String?
-  organizationNode   OrganizationNode? @relation(fields: [organizationNodeId], references: [id], onUpdate: Cascade)
-  area           AreaDefinition? @relation(fields: [areaCode], references: [code], onUpdate: Cascade)
-  storeCode      String?
-  store          Store? @relation(fields: [storeCode], references: [storeId], onUpdate: Cascade)
-  userId         String?
-  user           User? @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  note           String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  organizationNode   OrganizationNode?     @relation(fields: [organizationNodeId], references: [id], onUpdate: Cascade)
+  area               AreaDefinition?       @relation(fields: [areaCode], references: [code], onUpdate: Cascade)
+  storeCode          String?
+  store              Store?                @relation(fields: [storeCode], references: [storeId], onUpdate: Cascade)
+  userId             String?
+  user               User?                 @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  note               String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
 
   @@index([featureCode])
   @@index([emailDomain])
@@ -647,26 +647,26 @@ model AdminPolicyDefinition {
 }
 
 model AdminPolicyRule {
-  id             String   @id @default(uuid())
-  policyCode     String
-  policy         AdminPolicyDefinition @relation(fields: [policyCode], references: [code], onDelete: Cascade, onUpdate: Cascade)
-  allowed        Boolean
-  emailDomain    String?
-  systemRole     String?
-  departmentCode String?
-  jobRoleCode    String?
-  workScopeType  String?
-  regionCode     String?
-  areaCode       String?
+  id                 String                @id @default(uuid())
+  policyCode         String
+  policy             AdminPolicyDefinition @relation(fields: [policyCode], references: [code], onDelete: Cascade, onUpdate: Cascade)
+  allowed            Boolean
+  emailDomain        String?
+  systemRole         String?
+  departmentCode     String?
+  jobRoleCode        String?
+  workScopeType      String?
+  regionCode         String?
+  areaCode           String?
   organizationNodeId String?
-  organizationNode   OrganizationNode? @relation(fields: [organizationNodeId], references: [id], onUpdate: Cascade)
-  storeCode      String?
-  userId         String?
-  scopeContains  String?
-  note           String?
-  isSystem       Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  organizationNode   OrganizationNode?     @relation(fields: [organizationNodeId], references: [id], onUpdate: Cascade)
+  storeCode          String?
+  userId             String?
+  scopeContains      String?
+  note               String?
+  isSystem           Boolean               @default(false)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
 
   @@index([policyCode])
   @@index([emailDomain])
@@ -780,88 +780,88 @@ model Feedback {
 // SALES REPORT
 // ============================================================
 model SalesReportCategoryGroup {
-  id                  String   @id
-  catGroupName        String
-  catGroupNameVi      String
-  sourceRowCount      Int      @default(0)
-  sortOrder           Int      @default(0)
-  isActive            Boolean  @default(true)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id             String   @id
+  catGroupName   String
+  catGroupNameVi String
+  sourceRowCount Int      @default(0)
+  sortOrder      Int      @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  reports SalesReport[]
+  reports          SalesReport[]
   reportSelections SalesReportCategorySelection[]
 
   @@index([isActive, sortOrder])
 }
 
 model SalesReport {
-  id                              String    @id @default(uuid())
-  reportType                      String
-  orderCode                       String?   @unique
-  customerName                    String?
-  customerPhone                   String?
-  customerNeed                    String?
-  categoryGroupId                 String
-  categoryGroup                   SalesReportCategoryGroup @relation(fields: [categoryGroupId], references: [id], onUpdate: Cascade)
-  categoryGroupName               String
-  categoryGroupNameVi             String
-  consultedSolutionAnswer         String
-  consultedSolutionOtherReason    String?
-  experiencedAnswer               String
-  experiencedOtherReason          String?
-  zaloAnswer                      String
-  zaloOtherReason                 String?
-  appDownloadAnswer               String
-  appDownloadOtherReason          String?
-  notPurchasedReason              String?
-  notPurchasedOtherReason         String?
-  customerType                    String?
-  customerIsStudent               Boolean   @default(false)
-  promotionCodes                  String[]  @default([])
-  installmentNeed                 Boolean   @default(false)
-  installmentApproved             Boolean?
-  installmentLoanAmount           Int?
-  installmentNoInstallmentReason  String?
-  installmentStatus               String?
-  installmentFailureReason        String?
-  installmentPartnerCodes         String[]  @default([])
-  createdByUserId                 String?
-  createdBy                       User?     @relation(fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  createdByEmail                  String?
-  createdByName                   String?
-  createdByPersonnelCode          String?
-  storeCode                       String?
-  storeName                       String?
-  organizationNodeId              String?
-  organizationNodeName            String?
-  regionCode                      String?
-  areaCode                        String?
-  erpOrderId                      String?
-  erpExternalOrderRef             String?
-  erpOrderCreatedAt               DateTime?
-  erpPaymentStatus                String?
-  erpConfirmationStatus           String?
-  erpFulfillmentStatus            String?
-  erpTerminalName                 String?
-  erpGrandTotal                   Int?
-  erpPaymentMethods               String[]  @default([])
-  erpCustomerType                 String?
-  erpPlatformId                   Int?
-  erpConsultantCustomId           String?
-  erpConsultantName               String?
-  erpSnapshot                     Json?
-  erpFetchedAt                    DateTime?
-  erpFetchStatus                  String?
-  erpExcludedAt                   DateTime?
-  erpExclusionReason              String?
-  rawResponses                    Json?
-  submittedAt                     DateTime  @default(now())
-  createdAt                       DateTime  @default(now())
-  updatedAt                       DateTime  @updatedAt
+  id                             String                   @id @default(uuid())
+  reportType                     String
+  orderCode                      String?                  @unique
+  customerName                   String?
+  customerPhone                  String?
+  customerNeed                   String?
+  categoryGroupId                String
+  categoryGroup                  SalesReportCategoryGroup @relation(fields: [categoryGroupId], references: [id], onUpdate: Cascade)
+  categoryGroupName              String
+  categoryGroupNameVi            String
+  consultedSolutionAnswer        String
+  consultedSolutionOtherReason   String?
+  experiencedAnswer              String
+  experiencedOtherReason         String?
+  zaloAnswer                     String
+  zaloOtherReason                String?
+  appDownloadAnswer              String
+  appDownloadOtherReason         String?
+  notPurchasedReason             String?
+  notPurchasedOtherReason        String?
+  customerType                   String?
+  customerIsStudent              Boolean                  @default(false)
+  promotionCodes                 String[]                 @default([])
+  installmentNeed                Boolean                  @default(false)
+  installmentApproved            Boolean?
+  installmentLoanAmount          Int?
+  installmentNoInstallmentReason String?
+  installmentStatus              String?
+  installmentFailureReason       String?
+  installmentPartnerCodes        String[]                 @default([])
+  createdByUserId                String?
+  createdBy                      User?                    @relation(fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdByEmail                 String?
+  createdByName                  String?
+  createdByPersonnelCode         String?
+  storeCode                      String?
+  storeName                      String?
+  organizationNodeId             String?
+  organizationNodeName           String?
+  regionCode                     String?
+  areaCode                       String?
+  erpOrderId                     String?
+  erpExternalOrderRef            String?
+  erpOrderCreatedAt              DateTime?
+  erpPaymentStatus               String?
+  erpConfirmationStatus          String?
+  erpFulfillmentStatus           String?
+  erpTerminalName                String?
+  erpGrandTotal                  Int?
+  erpPaymentMethods              String[]                 @default([])
+  erpCustomerType                String?
+  erpPlatformId                  Int?
+  erpConsultantCustomId          String?
+  erpConsultantName              String?
+  erpSnapshot                    Json?
+  erpFetchedAt                   DateTime?
+  erpFetchStatus                 String?
+  erpExcludedAt                  DateTime?
+  erpExclusionReason             String?
+  rawResponses                   Json?
+  submittedAt                    DateTime                 @default(now())
+  createdAt                      DateTime                 @default(now())
+  updatedAt                      DateTime                 @updatedAt
 
-  items    SalesReportOrderItem[]
-  payments SalesReportPayment[]
+  items              SalesReportOrderItem[]
+  payments           SalesReportPayment[]
   categorySelections SalesReportCategorySelection[]
 
   @@index([reportType, submittedAt])
@@ -878,15 +878,15 @@ model SalesReport {
 }
 
 model SalesReportCategorySelection {
-  id                String      @id @default(uuid())
-  salesReportId     String
-  salesReport       SalesReport @relation(fields: [salesReportId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  categoryGroupId   String
-  categoryGroup     SalesReportCategoryGroup @relation(fields: [categoryGroupId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  categoryGroupName String
+  id                  String                   @id @default(uuid())
+  salesReportId       String
+  salesReport         SalesReport              @relation(fields: [salesReportId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  categoryGroupId     String
+  categoryGroup       SalesReportCategoryGroup @relation(fields: [categoryGroupId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  categoryGroupName   String
   categoryGroupNameVi String
-  sortOrder         Int         @default(0)
-  createdAt         DateTime    @default(now())
+  sortOrder           Int                      @default(0)
+  createdAt           DateTime                 @default(now())
 
   @@unique([salesReportId, categoryGroupId])
   @@index([salesReportId, sortOrder])
@@ -894,26 +894,26 @@ model SalesReportCategorySelection {
 }
 
 model SalesReportOrderItem {
-  id                String      @id @default(uuid())
-  salesReportId     String
-  salesReport       SalesReport @relation(fields: [salesReportId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  sku               String?
-  sellerSku         String?
-  name              String?
-  brandCode         String?
-  brandName         String?
-  productTypeCode   String?
-  productTypeName   String?
-  productGroupId    String?
-  productGroupCode  String?
-  productGroupName  String?
-  categoryType      String?
-  quantity          Int?
-  sellPrice         Int?
-  finalSellPrice    Int?
-  rowTotal          Int?
-  raw               Json?
-  createdAt         DateTime    @default(now())
+  id               String      @id @default(uuid())
+  salesReportId    String
+  salesReport      SalesReport @relation(fields: [salesReportId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sku              String?
+  sellerSku        String?
+  name             String?
+  brandCode        String?
+  brandName        String?
+  productTypeCode  String?
+  productTypeName  String?
+  productGroupId   String?
+  productGroupCode String?
+  productGroupName String?
+  categoryType     String?
+  quantity         Int?
+  sellPrice        Int?
+  finalSellPrice   Int?
+  rowTotal         Int?
+  raw              Json?
+  createdAt        DateTime    @default(now())
 
   @@index([salesReportId])
   @@index([sku])
@@ -924,16 +924,16 @@ model SalesReportOrderItem {
 }
 
 model SalesReportPayment {
-  id                      String      @id @default(uuid())
-  salesReportId           String
-  salesReport             SalesReport @relation(fields: [salesReportId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  paymentMethod           String?
-  amount                  Int?
-  paidAt                  DateTime?
-  transactionCode         String?
-  partnerTransactionCode  String?
-  raw                     Json?
-  createdAt               DateTime    @default(now())
+  id                     String      @id @default(uuid())
+  salesReportId          String
+  salesReport            SalesReport @relation(fields: [salesReportId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  paymentMethod          String?
+  amount                 Int?
+  paidAt                 DateTime?
+  transactionCode        String?
+  partnerTransactionCode String?
+  raw                    Json?
+  createdAt              DateTime    @default(now())
 
   @@index([salesReportId])
   @@index([paymentMethod])
@@ -941,38 +941,38 @@ model SalesReportPayment {
 }
 
 model SalesReportErpOrderCache {
-  id                    String    @id @default(uuid())
-  orderCode             String    @unique
-  erpOrderId            String?
-  erpExternalOrderRef   String?
-  orderCreatedAt        DateTime?
-  paymentStatus         String?
-  confirmationStatus    String?
-  fulfillmentStatus     String?
-  excludedAt            DateTime?
-  exclusionReason       String?
-  terminalName          String?
-  grandTotal            Int?
-  customerName          String?
-  customerPhone         String?
-  customerType          String?
-  paymentMethods        String[]  @default([])
-  platformId            Int?
-  consultantCustomId    String?
-  consultantName        String?
-  consultantEmail       String?
-  sellerId              String?
-  sellerName            String?
-  sellerEmail           String?
-  storeCode             String?
-  storeName             String?
-  organizationNodeId    String?
-  sourceUserId          String?
-  sourceUserEmail       String?
-  sanitizedSnapshot     Json?
-  fetchedAt             DateTime
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  id                  String    @id @default(uuid())
+  orderCode           String    @unique
+  erpOrderId          String?
+  erpExternalOrderRef String?
+  orderCreatedAt      DateTime?
+  paymentStatus       String?
+  confirmationStatus  String?
+  fulfillmentStatus   String?
+  excludedAt          DateTime?
+  exclusionReason     String?
+  terminalName        String?
+  grandTotal          Int?
+  customerName        String?
+  customerPhone       String?
+  customerType        String?
+  paymentMethods      String[]  @default([])
+  platformId          Int?
+  consultantCustomId  String?
+  consultantName      String?
+  consultantEmail     String?
+  sellerId            String?
+  sellerName          String?
+  sellerEmail         String?
+  storeCode           String?
+  storeName           String?
+  organizationNodeId  String?
+  sourceUserId        String?
+  sourceUserEmail     String?
+  sanitizedSnapshot   Json?
+  fetchedAt           DateTime
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([orderCreatedAt])
   @@index([storeCode, orderCreatedAt])
@@ -986,33 +986,33 @@ model SalesReportErpOrderCache {
 }
 
 model HomeSummaryOrderFact {
-  id                        String   @id @default(uuid())
-  summaryDate               DateTime
-  orderCode                 String   @unique
-  orderCreatedAt            DateTime?
-  fetchedAt                 DateTime?
-  storeCode                 String?
-  storeName                 String?
-  organizationNodeId        String?
-  sourceUserId              String?
-  sourceUserEmail           String?
-  consultantCustomId        String?
-  consultantName            String?
-  consultantEmail           String?
-  sellerId                  String?
-  sellerName                String?
-  sellerEmail               String?
-  grandTotal                Int?
-  hasValidReport            Boolean  @default(false)
-  reportId                  String?
-  reportSubmittedAt         DateTime?
-  reportRevenue             Int?
-  reportCreatedByUserId     String?
-  reportCreatedByEmail      String?
+  id                           String    @id @default(uuid())
+  summaryDate                  DateTime
+  orderCode                    String    @unique
+  orderCreatedAt               DateTime?
+  fetchedAt                    DateTime?
+  storeCode                    String?
+  storeName                    String?
+  organizationNodeId           String?
+  sourceUserId                 String?
+  sourceUserEmail              String?
+  consultantCustomId           String?
+  consultantName               String?
+  consultantEmail              String?
+  sellerId                     String?
+  sellerName                   String?
+  sellerEmail                  String?
+  grandTotal                   Int?
+  hasValidReport               Boolean   @default(false)
+  reportId                     String?
+  reportSubmittedAt            DateTime?
+  reportRevenue                Int?
+  reportCreatedByUserId        String?
+  reportCreatedByEmail         String?
   reportCreatedByPersonnelCode String?
-  refreshedAt               DateTime
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  refreshedAt                  DateTime
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
 
   @@index([summaryDate, storeCode])
   @@index([summaryDate, organizationNodeId])
@@ -1049,6 +1049,25 @@ model HomeSummaryReportFact {
   @@index([summaryDate, createdByUserId])
   @@index([summaryDate, createdByEmail])
   @@index([summaryDate, createdByPersonnelCode])
+}
+
+model HelpContentPage {
+  id               String    @id @default(uuid())
+  key              String    @unique
+  title            String
+  fileName         String
+  parentKey        String?
+  sortOrder        Int       @default(0)
+  markdown         String
+  isPublished      Boolean   @default(true)
+  updatedByUserId  String?
+  updatedByEmail   String?
+  seededFromDocsAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([parentKey, sortOrder, key])
+  @@index([isPublished, parentKey, sortOrder])
 }
 
 // ============================================================

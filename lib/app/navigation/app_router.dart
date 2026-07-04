@@ -30,6 +30,7 @@ import '../../features/admin/presentation/screens/personnel_catalog_admin_screen
 import '../../features/admin/presentation/screens/policy_admin_screen.dart';
 import '../../features/admin/presentation/screens/role_admin_screen.dart';
 import '../../features/admin/presentation/screens/user_admin_screen.dart';
+import '../../features/help/presentation/screens/help_content_admin_screen.dart';
 import '../../features/warranty/presentation/screens/warranty_screen.dart';
 import '../../features/warranty/presentation/screens/warranty_main_screen.dart';
 import '../../features/warranty/presentation/screens/check_warranty_screen.dart';
@@ -89,6 +90,11 @@ class AppRouter {
         }
 
         if (location == '/admin/feedback' &&
+            authProvider.user?.role != 'SUPER_ADMIN') {
+          return '/home';
+        }
+
+        if (location == '/admin/help-content' &&
             authProvider.user?.role != 'SUPER_ADMIN') {
           return '/home';
         }
@@ -200,6 +206,11 @@ class AppRouter {
               path: '/admin/feedback',
               pageBuilder: (context, state) =>
                   _noTransitionPage(state, const FeedbackAdminScreen()),
+            ),
+            GoRoute(
+              path: '/admin/help-content',
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const HelpContentAdminScreen()),
             ),
             GoRoute(
               path: '/admin/sales-reports',
