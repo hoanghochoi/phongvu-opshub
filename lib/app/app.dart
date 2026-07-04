@@ -9,6 +9,8 @@ import '../features/auth/data/repositories/auth_repository.dart';
 import '../features/auth/presentation/providers/auth_provider.dart';
 import '../features/app_update/presentation/app_update_gate.dart';
 import '../features/bank_statement/data/bank_statement_repository.dart';
+import '../features/home/data/repositories/home_summary_repository.dart';
+import '../features/home/presentation/providers/home_summary_provider.dart';
 import '../features/notifications/presentation/providers/app_notifications_provider.dart';
 import '../features/warranty/data/repositories/warranty_repository.dart';
 import '../features/warranty/presentation/providers/warranty_provider.dart';
@@ -95,6 +97,23 @@ class App extends StatelessWidget {
                 PaymentDeliveryMetricsProvider(
                   PaymentMonitorRepository(ApiClient()),
                 );
+            Future.microtask(
+              () => provider.syncAuth(
+                auth.user,
+                isInitialized: auth.isInitialized,
+              ),
+            );
+            return provider;
+          },
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, HomeSummaryProvider>(
+          lazy: false,
+          create: (_) =>
+              HomeSummaryProvider(HomeSummaryRepository(ApiClient())),
+          update: (_, auth, homeSummary) {
+            final provider =
+                homeSummary ??
+                HomeSummaryProvider(HomeSummaryRepository(ApiClient()));
             Future.microtask(
               () => provider.syncAuth(
                 auth.user,

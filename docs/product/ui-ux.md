@@ -44,18 +44,20 @@ visual systems that make the app feel assembled from unrelated screens.
 - Authenticated pages use the shared `AppShell` instead of feature-local
   navigation chrome. Desktop uses a persistent sidebar and top bar, tablet uses
   a compact rail, and mobile uses an app bar with bottom navigation for
-  `Trang chủ`, `Thông báo`, and `Tài khoản`. Feature screens should provide page
-  content only and let the shell own global notification, support, account, and
-  route navigation entry points. On mobile, the app bar places the delivery
-  metrics pill on the left, the active destination title in the center, and
-  support plus the notification bell on the right. Account/profile entry
-  belongs to the bottom `Tài khoản` destination; do not duplicate the account
-  avatar in the app bar when the screen content already shows user identity.
-  The shell top bar owns destination titles; feature content should use
-  task/status-specific headings instead of repeating the same destination label
-  in a header card. The mobile `Thông báo` destination opens the shared
-  notification panel; it should reuse the global notification provider instead
-  of introducing a feature-local inbox until a dedicated inbox route is accepted.
+  `Trang chủ`, `Vận hành`, `Thông báo`, and `Tài khoản`. `Trang chủ` là
+  dashboard tổng quan theo scope, còn `Vận hành` là catalog thao tác nghiệp vụ
+  theo quyền. Feature screens should provide page content only and let the
+  shell own global notification, support, account, and route navigation entry
+  points. On mobile, the app bar places the delivery metrics pill on the left,
+  the active destination title in the center, and support plus the notification
+  bell on the right. Account/profile entry belongs to the bottom `Tài khoản`
+  destination; do not duplicate the account avatar in the app bar when the
+  screen content already shows user identity. The shell top bar owns
+  destination titles; feature content should use task/status-specific headings
+  instead of repeating the same destination label in a header card. The mobile
+  `Thông báo` destination opens the shared notification panel; it should reuse
+  the global notification provider instead of introducing a feature-local inbox
+  until a dedicated inbox route is accepted.
 - Desktop sidebar destinations must be grouped with visible section labels:
   `Tổng quan`, `Nghiệp vụ`, and `Cấu hình`. The sidebar remains flat navigation;
   do not add row chevrons unless a real nested menu is introduced.
@@ -120,10 +122,12 @@ visual systems that make the app feel assembled from unrelated screens.
   migrating Home, Admin, Tiền vào, Sao kê, Cấn trừ, and Báo cáo screens.
   Batch 1 of the OpsHub Redesign System 2026 import established the shared
   shell, sidebar/bottom-nav permission model, and light/dark navigation tokens.
-  The later UI audit retired the duplicated `/tasks` workspace index, so Home is
-  the canonical staff workspace catalog while legacy `/tasks` deep links return
-  to `/home`. Later batches must migrate individual hub, form, dialog, loading,
-  empty, error, and permission states into that shell.
+  The later UI audit retired the duplicated `/tasks` workspace index, and the
+  current IA splits the old Home command-center into two surfaces:
+  `Trang chủ` is the scoped dashboard, while `/operations` is the canonical
+  staff workspace catalog. Legacy `/tasks` deep links return to `/home`. Later
+  batches must migrate individual hub, form, dialog, loading, empty, error, and
+  permission states into that shell.
 - The feature-layer baseline for the 2026 migration is guarded by
   `test/design_system_migration_guard_test.dart`. New feature UI must use shared
   tokens/components instead of raw local `Colors.*`, `Color(0x...)`,

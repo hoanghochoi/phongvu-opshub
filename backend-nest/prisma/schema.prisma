@@ -985,6 +985,72 @@ model SalesReportErpOrderCache {
   @@index([excludedAt, orderCreatedAt])
 }
 
+model HomeSummaryOrderFact {
+  id                        String   @id @default(uuid())
+  summaryDate               DateTime
+  orderCode                 String   @unique
+  orderCreatedAt            DateTime?
+  fetchedAt                 DateTime?
+  storeCode                 String?
+  storeName                 String?
+  organizationNodeId        String?
+  sourceUserId              String?
+  sourceUserEmail           String?
+  consultantCustomId        String?
+  consultantName            String?
+  consultantEmail           String?
+  sellerId                  String?
+  sellerName                String?
+  sellerEmail               String?
+  grandTotal                Int?
+  hasValidReport            Boolean  @default(false)
+  reportId                  String?
+  reportSubmittedAt         DateTime?
+  reportRevenue             Int?
+  reportCreatedByUserId     String?
+  reportCreatedByEmail      String?
+  reportCreatedByPersonnelCode String?
+  refreshedAt               DateTime
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@index([summaryDate, storeCode])
+  @@index([summaryDate, organizationNodeId])
+  @@index([summaryDate, sourceUserId])
+  @@index([summaryDate, sourceUserEmail])
+  @@index([summaryDate, consultantCustomId])
+  @@index([summaryDate, consultantEmail])
+  @@index([summaryDate, sellerId])
+  @@index([summaryDate, sellerEmail])
+}
+
+model HomeSummaryReportFact {
+  id                     String   @id @default(uuid())
+  summaryDate            DateTime
+  salesReportId          String   @unique
+  reportType             String
+  orderCode              String?
+  createdByUserId        String?
+  createdByEmail         String?
+  createdByPersonnelCode String?
+  storeCode              String?
+  storeName              String?
+  organizationNodeId     String?
+  revenue                Int?
+  submittedAt            DateTime
+  refreshedAt            DateTime
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([summaryDate, reportType])
+  @@index([summaryDate, orderCode])
+  @@index([summaryDate, storeCode])
+  @@index([summaryDate, organizationNodeId])
+  @@index([summaryDate, createdByUserId])
+  @@index([summaryDate, createdByEmail])
+  @@index([summaryDate, createdByPersonnelCode])
+}
+
 // ============================================================
 // FIFO LOG (Lịch sử Kiểm tra FIFO & Sắp xếp FIFO)
 // ============================================================

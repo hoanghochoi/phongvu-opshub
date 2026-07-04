@@ -45,6 +45,22 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `HOME-DASHBOARD-001`, 2026-07-04: completed Batch 3
+  `Home Dashboard Theo Scope` from
+  `docs/OPSHUB_MASTER_IMPLEMENTATION_PLAN.md`. Home now consumes
+  `GET /home/summary?date=YYYY-MM-DD`, backend persists dedicated
+  `HomeSummaryOrderFact` and `HomeSummaryReportFact` rows sourced from
+  `SalesReport` plus `SalesReportErpOrderCache`, and the Flutter Home screen
+  renders the new dashboard structure
+  `HomeSummaryPage -> Header -> Toolbar -> SummaryCardGrid -> ReportProgressPanel`
+  while keeping `/operations` as the follow-up action surface. Scope reuse stays
+  anchored to `SalesReportsService`, canceled orders remain excluded from the
+  metrics, and the KPI label is the safer `Tỷ lệ phủ báo cáo`. Validation:
+  `npx prisma validate`, `npx prisma generate`, `npm run build`,
+  `npm test -- --runInBand src/home-summary/home-summary.service.spec.ts src/home-summary/home-summary.controller.spec.ts`,
+  `flutter analyze --no-pub`, focused
+  `flutter test --no-pub --reporter expanded test\home_dashboard_test.dart test\home_feedback_action_test.dart test\home_avatar_test.dart test\app_nav_model_test.dart`
+  (20 tests), and `git diff --check`.
 - `UI-UX-001`/`AUDIT-DUPLICATE-TITLES`, 2026-07-04: completed the
   TopBar/content duplicate-title acceptance item from
   `docs/UI_UX_AUDIT_PLAN.md`. The shell top bar remains the owner of

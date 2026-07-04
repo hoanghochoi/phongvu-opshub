@@ -17,6 +17,8 @@ import '../../../../core/platform/app_platform_capabilities.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../payment_monitor/presentation/providers/payment_monitor_provider.dart';
+import '../providers/home_summary_provider.dart';
+import '../widgets/home_summary_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
+    final homeSummaryProvider = context.watch<HomeSummaryProvider?>();
     final workspaceCount = AppNavModel.visibleWorkspaceDestinations(
       user,
     ).length;
@@ -38,7 +41,11 @@ class _HomeScreenState extends State<HomeScreen> {
         user?.canUseFeature('PAYMENT_SPEAKER') == true &&
         AppPlatformCapabilities.isPaymentSpeakerSupported();
 
-    _logHomeResolved(workspaceCount, user);
+    _logHomeResolved(
+      workspaceCount,
+      user,
+      hasSummaryProvider: homeSummaryProvider != null,
+    );
 
     return AppResponsiveScrollView(
       child: Column(
@@ -50,18 +57,14 @@ class _HomeScreenState extends State<HomeScreen> {
             const _PaymentMonitorQuickToggle(),
             const SizedBox(height: AppLayoutTokens.sectionGap),
           ],
-          if (workspaceCount == 0)
-            const AppSurfaceCard(
-              key: Key('home-empty-state'),
-              child: AppStatePanel.empty(
-                icon: Icons.apps_outlined,
-                title: 'Chưa có chức năng khả dụng',
-                message:
-                    'Vui lòng liên hệ quản lý để kiểm tra phân quyền truy cập.',
-              ),
+          if (homeSummaryProvider != null)
+            HomeSummaryPage(
+              provider: homeSummaryProvider,
+              canOpenOperations: workspaceCount > 0,
+              onOpenOperations: () => _openOperations(context, workspaceCount),
             )
           else
-            _OperationsLandingCard(
+            _LegacyHomeBody(
               workspaceCount: workspaceCount,
               onOpenOperations: () => _openOperations(context, workspaceCount),
             ),
@@ -82,9 +85,13 @@ class _HomeScreenState extends State<HomeScreen> {
     context.go('/operations');
   }
 
-  void _logHomeResolved(int visibleCount, User? user) {
+  void _logHomeResolved(
+    int visibleCount,
+    User? user, {
+    required bool hasSummaryProvider,
+  }) {
     final hiddenCount = AppNavModel.hiddenWorkspaceCount(user);
-    final key = '$visibleCount|$hiddenCount';
+    final key = '$visibleCount|$hiddenCount|$hasSummaryProvider';
     if (_lastLogKey == key) return;
     _lastLogKey = key;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -95,6 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
           context: {
             'visibleActions': visibleCount,
             'hiddenActions': hiddenCount,
+            'hasSummaryProvider': hasSummaryProvider,
           },
         ),
       );
@@ -102,17 +110,28 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _OperationsLandingCard extends StatelessWidget {
+class _LegacyHomeBody extends StatelessWidget {
   final int workspaceCount;
   final VoidCallback onOpenOperations;
 
-  const _OperationsLandingCard({
+  const _LegacyHomeBody({
     required this.workspaceCount,
     required this.onOpenOperations,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (workspaceCount == 0) {
+      return const AppSurfaceCard(
+        key: Key('home-empty-state'),
+        child: AppStatePanel.empty(
+          icon: Icons.apps_outlined,
+          title: 'Chưa có chức năng khả dụng',
+          message: 'Vui lòng liên hệ quản lý để kiểm tra phân quyền truy cập.',
+        ),
+      );
+    }
+
     final countLabel = workspaceCount == 1
         ? '1 công cụ đang sẵn sàng'
         : '$workspaceCount công cụ đang sẵn sàng';

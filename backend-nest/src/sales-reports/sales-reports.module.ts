@@ -14,5 +14,6 @@ import { SalesReportsService } from './sales-reports.service';
     SalesReportErpService,
     SalesReportsService,
   ],
+  exports: [SalesReportsService],
 })
 export class SalesReportsModule {}

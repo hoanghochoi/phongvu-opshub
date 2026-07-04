@@ -7,8 +7,10 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 
 ## Current Shape
 
-- Home hiển thị ô `Báo cáo` khi user có feature `SALES_REPORT` hoặc
-  `ADMIN_SALES_REPORTS`.
+- Tab `Vận hành` hiển thị ô `Báo cáo` khi user có feature `SALES_REPORT` hoặc
+  `ADMIN_SALES_REPORTS`. `Trang chủ` không còn là catalog tác vụ; thay vào đó
+  nó hiển thị dashboard tổng quan theo scope lấy dữ liệu từ fact tables riêng
+  của Home Summary.
 - Màn hình `Báo cáo` là cockpit đơn hàng trong ngày: cột trái là đơn chưa báo
   cáo, cột phải là đơn đã báo cáo. Mỗi cột hiển thị 20 đơn/trang, có scroll
   theo màn hình và nút chuyển trang riêng; số lượng ở header là total đếm từ DB

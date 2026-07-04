@@ -23,6 +23,7 @@ import { FifoModule } from './fifo/fifo.module';
 import { FeatureModule } from './feature/feature.module';
 import { OffsetAdjustmentsModule } from './offset-adjustments/offset-adjustments.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { HomeSummaryModule } from './home-summary/home-summary.module';
 import { SalesReportsModule } from './sales-reports/sales-reports.module';
 import { UserAwareThrottlerGuard } from './common/user-aware-throttler.guard';
 
@@ -55,6 +56,7 @@ import { UserAwareThrottlerGuard } from './common/user-aware-throttler.guard';
     FeatureModule,
     PaymentNotificationsModule,
     NotificationsModule,
+    HomeSummaryModule,
     MapVietinModule,
     OffsetAdjustmentsModule,
     SalesReportsModule,

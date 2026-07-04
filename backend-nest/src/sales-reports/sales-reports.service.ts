@@ -95,6 +95,40 @@ type SalesReportOrderSyncOwner = {
   organizationNodeId: string | null;
 };
 
+export type SalesReportOperatingSummaryScope =
+  | 'ALL'
+  | 'MANAGED_SCOPE'
+  | 'OWN'
+  | 'UNAVAILABLE';
+
+export type SalesReportOperatingSummary = {
+  date: string;
+  available: boolean;
+  scope: SalesReportOperatingSummaryScope;
+  scopeLabel: string;
+  scopeDetail: string | null;
+  coverageLabel: string;
+  totalRevenue: number;
+  totalOrders: number;
+  totalReports: number;
+  reportedOrders: number;
+  unreportedOrders: number;
+  coverageRate: number;
+  refreshedAt: Date;
+};
+
+export type SalesReportSummaryScopeDescriptor = {
+  available: boolean;
+  scope: SalesReportOperatingSummaryScope;
+  scopeLabel: string;
+  scopeDetail: string | null;
+  unavailableMessage: string | null;
+  ownUserId: string | null;
+  ownEmail: string | null;
+  ownPersonnelCode: string | null;
+  allowedStoreCodes: string[];
+};
+
 const ANSWER_LABELS: Record<string, string> = {
   YES: 'Có',
   CUSTOMER_BUSY_OR_NO_NEED:
@@ -179,6 +213,94 @@ export class SalesReportsService implements OnApplicationBootstrap {
 
   async categoriesForReport() {
     return this.categories.listCategories();
+  }
+
+  async describeHomeSummaryScope(
+    user: any,
+  ): Promise<SalesReportSummaryScopeDescriptor> {
+    const context = await this.resolveUserSnapshot(user);
+    const adminView = await this.canViewAdminSalesReports(user);
+    if (adminView) {
+      if (isSuperAdminRole(user?.role)) {
+        return {
+          available: true,
+          scope: 'ALL',
+          scopeLabel: 'Toàn hệ thống',
+          scopeDetail: 'Tổng hợp doanh số và báo cáo hợp lệ trên toàn hệ thống.',
+          unavailableMessage: null,
+          ownUserId: null,
+          ownEmail: null,
+          ownPersonnelCode: null,
+          allowedStoreCodes: [],
+        };
+      }
+      try {
+        const stores = await this.resolveUserStores(user);
+        const allowedStoreCodes = stores
+          .map((store) => this.normalizeStoreCode(store?.storeId))
+          .filter((value): value is string => Boolean(value));
+        return {
+          available: allowedStoreCodes.length > 0,
+          scope: allowedStoreCodes.length > 0 ? 'MANAGED_SCOPE' : 'UNAVAILABLE',
+          scopeLabel:
+            allowedStoreCodes.length > 0
+              ? 'Showroom được gán'
+              : 'Chưa sẵn sàng',
+          scopeDetail:
+            allowedStoreCodes.length > 0
+              ? this.describeStoreScope(stores)
+              : null,
+          unavailableMessage:
+            allowedStoreCodes.length > 0
+              ? null
+              : 'Tài khoản chưa được gán showroom để xem tổng quan vận hành.',
+          ownUserId: null,
+          ownEmail: null,
+          ownPersonnelCode: null,
+          allowedStoreCodes,
+        };
+      } catch (error) {
+        this.logger.warn(
+          `Home summary managed scope resolution failed: user=${this.safeUserLabel(user)} error=${String(error)}`,
+        );
+        return this.unavailableHomeSummaryScope(
+          'Tài khoản chưa được gán showroom để xem tổng quan vận hành.',
+        );
+      }
+    }
+
+    const canUseSalesReport = await this.canUseSalesReport(user);
+    if (!canUseSalesReport) {
+      return this.unavailableHomeSummaryScope(
+        'Tài khoản hiện chưa có quyền xem tổng quan báo cáo sale.',
+      );
+    }
+
+    const ownUserId = this.optionalText(context.createdByUserId ?? user?.id, 80);
+    const ownEmail = this.normalizeEmail(context.createdByEmail ?? user?.email);
+    const ownPersonnelCode = this.optionalText(
+      context.createdByPersonnelCode,
+      120,
+    );
+    if (!ownUserId && !ownEmail && !ownPersonnelCode) {
+      return this.unavailableHomeSummaryScope(
+        'Tài khoản chưa có đủ thông tin nhân sự để tổng hợp dữ liệu.',
+      );
+    }
+    return {
+      available: true,
+      scope: 'OWN',
+      scopeLabel: 'Phạm vi cá nhân',
+      scopeDetail:
+        context.storeName ||
+        context.organizationNodeName ||
+        'Tổng hợp từ đơn và báo cáo của bạn trong ngày.',
+      unavailableMessage: null,
+      ownUserId,
+      ownEmail,
+      ownPersonnelCode,
+      allowedStoreCodes: [],
+    };
   }
 
   onApplicationBootstrap() {
@@ -1723,6 +1845,27 @@ export class SalesReportsService implements OnApplicationBootstrap {
     }
   }
 
+  private async canUseSalesReport(user: any) {
+    if (isSuperAdminRole(user?.role)) return true;
+    if (this.featureService?.canAccessFeature) {
+      try {
+        const canAccess = await this.featureService.canAccessFeature(
+          user,
+          FEATURE_KEYS.SALES_REPORT,
+        );
+        if (canAccess) return true;
+      } catch (error) {
+        this.logger.warn(
+          `Sales report feature check failed: user=${this.safeUserLabel(user)} error=${String(error)}`,
+        );
+      }
+    }
+    return (
+      user?.featureAccess?.[FEATURE_KEYS.SALES_REPORT] === true ||
+      user?.resolvedFeatureAccess?.[FEATURE_KEYS.SALES_REPORT] === true
+    );
+  }
+
   private async assertOrderNotExcluded(orderCode: string | null) {
     if (!orderCode) return;
     const existing = await this.prisma.salesReportErpOrderCache.findUnique({
@@ -1947,6 +2090,32 @@ export class SalesReportsService implements OnApplicationBootstrap {
       throw new ForbiddenException('Tài khoản chưa được gán showroom.');
     }
     return stores;
+  }
+
+  private unavailableHomeSummaryScope(
+    unavailableMessage: string,
+  ): SalesReportSummaryScopeDescriptor {
+    return {
+      available: false,
+      scope: 'UNAVAILABLE',
+      scopeLabel: 'Chưa sẵn sàng',
+      scopeDetail: null,
+      unavailableMessage,
+      ownUserId: null,
+      ownEmail: null,
+      ownPersonnelCode: null,
+      allowedStoreCodes: [],
+    };
+  }
+
+  private describeStoreScope(stores: any[]) {
+    const names = stores
+      .map((store) => this.optionalText(store?.storeName || store?.storeId, 120))
+      .filter((value): value is string => Boolean(value));
+    if (names.length === 0) return 'Tổng hợp theo showroom được gán.';
+    if (names.length === 1) return names[0];
+    if (names.length === 2) return `${names[0]}, ${names[1]}`;
+    return `${names.length} showroom được gán`;
   }
 
   private normalizeFilters(query: ListSalesReportsDto): SalesReportFilters {
