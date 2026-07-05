@@ -100,6 +100,63 @@ void main() {
     expect(find.text('Not purchased form'), findsOneWidget);
   });
 
+  testWidgets('Báo cáo mobile uses compact hero, tabs and filter sheet', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'user-1',
+        email: 'sale@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+        featureAccess: {'SALES_REPORT': true},
+      ),
+    );
+    final repository = _FakeSalesReportRepository();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(repository),
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: SalesReportScreen())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('sales-report-workspace-header')),
+      findsNothing,
+    );
+    expect(find.text('Chờ báo cáo'), findsOneWidget);
+    expect(find.text('Hoàn tất'), findsOneWidget);
+    expect(find.text('Chưa báo cáo (21)'), findsOneWidget);
+    expect(find.text('Đã báo cáo (1)'), findsOneWidget);
+    expect(find.text('2607010002'), findsOneWidget);
+    expect(find.text('2607010001'), findsNothing);
+
+    await tester.tap(find.text('Đã báo cáo (1)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2607010001'), findsOneWidget);
+
+    await tester.tap(find.text('Lọc'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bộ lọc nâng cao'), findsOneWidget);
+    expect(find.text('Áp dụng'), findsOneWidget);
+  });
+
   testWidgets('Báo cáo app route provides the sales report provider', (
     tester,
   ) async {
@@ -162,7 +219,17 @@ void main() {
 
     expect(find.text('Ngày: 01/07/2026'), findsOneWidget);
     expect(find.text('Showroom: Tất cả'), findsOneWidget);
+    expect(find.text('User: Tất cả'), findsNothing);
+    expect(find.text('Lọc'), findsOneWidget);
+
+    await tester.tap(find.text('Lọc'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bộ lọc nâng cao'), findsOneWidget);
     expect(find.text('User: Tất cả'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Đóng bộ lọc'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Showroom: Tất cả'));
     await tester.pumpAndSettle();

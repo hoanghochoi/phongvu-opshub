@@ -89,6 +89,11 @@ class SalesReportProvider extends ChangeNotifier {
       _ordersDate ?? DateTime(_now().year, _now().month, _now().day);
   String? get ordersStoreCode => _ordersStoreCode;
   String? get ordersUserEmail => _ordersUserEmail;
+  DateTime get currentDate {
+    final now = _now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
   List<SalesReportFilterOption> get orderStoreOptions =>
       List.unmodifiable(_orderCockpit?.storeOptions ?? const []);
   List<SalesReportFilterOption> get orderUserOptions =>

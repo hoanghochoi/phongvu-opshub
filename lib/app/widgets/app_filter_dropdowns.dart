@@ -333,6 +333,7 @@ class AppDateRangeDropdown extends StatefulWidget {
   final bool allowEmptyRange;
   final String? emptyRangeHelperText;
   final bool showEmptyRangeHelperText;
+  final DateTime Function()? now;
 
   const AppDateRangeDropdown({
     super.key,
@@ -343,6 +344,7 @@ class AppDateRangeDropdown extends StatefulWidget {
     this.allowEmptyRange = true,
     this.emptyRangeHelperText,
     this.showEmptyRangeHelperText = true,
+    this.now,
   });
 
   @override
@@ -434,28 +436,28 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
                 _DatePresetTile(
                   label: 'Hôm nay',
                   onTap: () {
-                    final today = _dateOnly(DateTime.now());
+                    final today = _today();
                     choose(today, today);
                   },
                 ),
                 _DatePresetTile(
                   label: '7 ngày',
                   onTap: () {
-                    final today = _dateOnly(DateTime.now());
+                    final today = _today();
                     choose(today.subtract(const Duration(days: 6)), today);
                   },
                 ),
                 _DatePresetTile(
                   label: '30 ngày',
                   onTap: () {
-                    final today = _dateOnly(DateTime.now());
+                    final today = _today();
                     choose(today.subtract(const Duration(days: 29)), today);
                   },
                 ),
                 _DatePresetTile(
                   label: 'Tháng này',
                   onTap: () {
-                    final today = _dateOnly(DateTime.now());
+                    final today = _today();
                     choose(DateTime(today.year, today.month), today);
                   },
                 ),
@@ -535,6 +537,8 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
     );
   }
 
+  DateTime _today() => _dateOnly((widget.now ?? DateTime.now)());
+
   void _syncControllers() {
     final nextStart = appFormatDateInput(widget.start);
     final nextEnd = appFormatDateInput(widget.end);
@@ -559,7 +563,7 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
     DateTime? fallback,
   }) async {
     final typedDate = appParseDateInput(controller.text);
-    final now = _dateOnly(DateTime.now());
+    final now = _today();
     final initial = typedDate ?? fallback ?? now;
     final picked = await showDatePicker(
       context: context,

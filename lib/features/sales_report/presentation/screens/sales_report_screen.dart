@@ -245,6 +245,8 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final compactViewport =
+        MediaQuery.sizeOf(context).width < AppLayoutTokens.compactBreakpoint;
     final canSubmitReports = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('SALES_REPORT') == true,
     );
@@ -257,29 +259,31 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SalesReportWorkspaceHeader(
-            key: const Key('sales-report-workspace-header'),
-            title: 'Đơn cần báo cáo',
-            subtitle: '',
-            icon: Icons.analytics_outlined,
-            chips: [
-              AppStatusChip(
-                label: '${provider.unreportedOrdersTotal} chưa báo cáo',
-                color: AppColors.warning,
-              ),
-              AppStatusChip(
-                label: '${provider.reportedOrdersTotal} đã báo cáo',
-                color: AppColors.success,
-              ),
-              AppStatusChip(
-                label: canViewAdminReports ? 'Có quyền xuất file' : 'Cá nhân',
-                color: canViewAdminReports
-                    ? AppColors.primary
-                    : AppColors.neutral600,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppLayoutTokens.cardGap),
+          if (!compactViewport) ...[
+            SalesReportWorkspaceHeader(
+              key: const Key('sales-report-workspace-header'),
+              title: 'Đơn cần báo cáo',
+              subtitle: '',
+              icon: Icons.analytics_outlined,
+              chips: [
+                AppStatusChip(
+                  label: '${provider.unreportedOrdersTotal} chưa báo cáo',
+                  color: AppColors.warning,
+                ),
+                AppStatusChip(
+                  label: '${provider.reportedOrdersTotal} đã báo cáo',
+                  color: AppColors.success,
+                ),
+                AppStatusChip(
+                  label: canViewAdminReports ? 'Có quyền xuất file' : 'Cá nhân',
+                  color: canViewAdminReports
+                      ? AppColors.primary
+                      : AppColors.neutral600,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppLayoutTokens.cardGap),
+          ],
           _SalesReportCockpit(
             provider: provider,
             canSubmitReports: canSubmitReports,
@@ -306,7 +310,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   }
 }
 
-class _SalesReportCockpit extends StatelessWidget {
+class _SalesReportCockpit extends StatefulWidget {
   final SalesReportProvider provider;
   final bool canSubmitReports;
   final bool canViewAdminReports;
@@ -330,137 +334,113 @@ class _SalesReportCockpit extends StatelessWidget {
   });
 
   @override
+  State<_SalesReportCockpit> createState() => _SalesReportCockpitState();
+}
+
+class _SalesReportCockpitState extends State<_SalesReportCockpit> {
+  bool _showUnreported = true;
+
+  Future<void> _openAdvancedFilters() async {
+    final user = context.read<AuthProvider>().user;
+    await AppLogger.instance.info(
+      'SalesReport',
+      'Sales report advanced filter sheet opened',
+      context: {
+        'userId': user?.id,
+        'storeId': user?.storeId,
+        'managedScope': widget.provider.orderCockpit?.scope == 'MANAGED_SCOPE',
+        'canExport': widget.canViewAdminReports,
+      },
+    );
+    if (!mounted) return;
+    final applied = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.overlayOf(context),
+      builder: (context) {
+        return ChangeNotifierProvider<SalesReportProvider>.value(
+          value: widget.provider,
+          child: Consumer<SalesReportProvider>(
+            builder: (context, provider, _) {
+              return _AdvancedFilterSheet(
+                provider: provider,
+                canViewAdminReports: widget.canViewAdminReports,
+                onSelectDate: widget.onSelectDate,
+                onExportCsv: widget.onExportCsv,
+                onOpenAdmin: widget.onOpenAdmin,
+              );
+            },
+          ),
+        );
+      },
+    );
+    if (!mounted) return;
+    await AppLogger.instance.info(
+      'SalesReport',
+      applied == true
+          ? 'Sales report advanced filter sheet applied'
+          : 'Sales report advanced filter sheet dismissed',
+      context: {
+        'userId': user?.id,
+        'storeId': user?.storeId,
+        'date': _dateLabel(widget.provider.ordersDate),
+        'storeSelected': widget.provider.ordersStoreCode != null,
+        'userSelected': widget.provider.ordersUserEmail != null,
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final provider = widget.provider;
     final cockpit = provider.orderCockpit;
-    final hasActionRow = canSubmitReports || canViewAdminReports;
+    final hasListAction =
+        widget.canViewAdminReports && widget.onOpenAdmin != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppSurfaceCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Wrap(
-                spacing: AppLayoutTokens.formInlineGap,
-                runSpacing: AppLayoutTokens.formInlineGap,
-                alignment: WrapAlignment.start,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 190,
-                    child: AppSecondaryButton(
-                      onPressed: provider.isLoadingOrders ? null : onSelectDate,
-                      icon: Icons.calendar_today_outlined,
-                      label: 'Ngày: ${_dateLabel(provider.ordersDate)}',
-                    ),
-                  ),
-                  if (cockpit?.scope == 'MANAGED_SCOPE')
-                    SizedBox(
-                      width: 220,
-                      child: AppFilterDropdown<String>(
-                        label: 'Showroom',
-                        value: provider.ordersStoreCode,
-                        allLabel: 'Tất cả',
-                        icon: Icons.store_outlined,
-                        options: provider.orderStoreOptions
-                            .map(
-                              (option) => AppFilterOption<String>(
-                                value: option.value,
-                                label: option.label,
-                              ),
-                            )
-                            .toList(growable: false),
-                        onChanged: (value) => unawaited(
-                          provider.setOrderFilters(
-                            storeCode: value,
-                            updateStore: true,
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (cockpit?.scope == 'MANAGED_SCOPE')
-                    SizedBox(
-                      width: 280,
-                      child: AppSearchableFilterDropdown<String>(
-                        label: 'User',
-                        value: provider.ordersUserEmail,
-                        allLabel: 'Tất cả',
-                        icon: Icons.person_outline_rounded,
-                        options: provider.orderUserOptions
-                            .map(
-                              (option) => AppFilterOption<String>(
-                                value: option.value,
-                                label: option.label,
-                              ),
-                            )
-                            .toList(growable: false),
-                        onChanged: (value) => unawaited(
-                          provider.setOrderFilters(
-                            userEmail: value,
-                            updateUser: true,
-                          ),
-                        ),
-                      ),
-                    ),
-                  SizedBox(
-                    width: 160,
-                    child: AppSecondaryButton(
-                      onPressed: provider.isLoadingOrders ? null : onReload,
-                      icon: Icons.refresh_rounded,
-                      label: 'Tải lại',
-                      isLoading: provider.isLoadingOrders,
-                    ),
-                  ),
-                ],
-              ),
-              if (hasActionRow) ...[
-                const SizedBox(height: AppLayoutTokens.formInlineGap),
-                Wrap(
-                  spacing: AppLayoutTokens.formInlineGap,
-                  runSpacing: AppLayoutTokens.formInlineGap,
-                  alignment: WrapAlignment.start,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (canSubmitReports)
-                      SizedBox(
-                        width: 220,
-                        child: AppPrimaryButton(
-                          onPressed: onNotPurchased,
-                          icon: Icons.person_search_outlined,
-                          label: 'Báo cáo chưa mua',
-                        ),
-                      ),
-                    if (canViewAdminReports)
-                      SizedBox(
-                        width: 180,
-                        child: SalesReportExportMenuButton(
-                          isExporting: provider.isExporting,
-                          onExport: onExportCsv!,
-                        ),
-                      ),
-                    if (canViewAdminReports)
-                      SizedBox(
-                        width: 170,
-                        child: AppSecondaryButton(
-                          onPressed: onOpenAdmin,
-                          icon: Icons.assignment_outlined,
-                          label: 'Danh sách',
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ],
-          ),
+        _CockpitHero(
+          unreportedTotal: provider.unreportedOrdersTotal,
+          reportedTotal: provider.reportedOrdersTotal,
+          isExporting: provider.isExporting,
+          onExportCsv: widget.canViewAdminReports ? widget.onExportCsv : null,
         ),
         const SizedBox(height: AppLayoutTokens.cardGap),
-        if (provider.errorMessage != null)
+        _QuickFilterBar(
+          provider: provider,
+          isManagedScope: cockpit?.scope == 'MANAGED_SCOPE',
+          onSelectDate: widget.onSelectDate,
+          onReload: widget.onReload,
+          onOpenAdvancedFilters: _openAdvancedFilters,
+        ),
+        const SizedBox(height: AppLayoutTokens.cardGap),
+        if (widget.canSubmitReports)
+          AppPrimaryButton(
+            onPressed: widget.onNotPurchased,
+            icon: Icons.person_search_outlined,
+            label: 'Báo cáo chưa mua',
+          ),
+        if (hasListAction) ...[
+          if (widget.canSubmitReports)
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
+          AppSecondaryButton(
+            onPressed: widget.onOpenAdmin,
+            icon: Icons.assignment_outlined,
+            label: 'Danh sách',
+          ),
+        ],
+        if (widget.canSubmitReports || hasListAction)
+          const SizedBox(height: AppLayoutTokens.cardGap),
+        if (provider.errorMessage != null) ...[
           AppStatusBanner(
             icon: Icons.error_outline_rounded,
             title: 'Chưa tải đủ dữ liệu',
             message: provider.errorMessage!,
             tone: AppStateTone.error,
           ),
+          const SizedBox(height: AppLayoutTokens.cardGap),
+        ],
         if (provider.isLoadingOrders && cockpit == null)
           const AppListSkeleton(itemCount: 6)
         else
@@ -509,14 +489,24 @@ class _SalesReportCockpit extends StatelessWidget {
                     provider.unreportedOrdersPage + 1,
                   ),
                 ),
-                onTap: onOrderTap,
+                onTap: widget.onOrderTap,
               );
               if (!twoColumns) {
                 return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    unreported,
+                    _OrderStatusTabs(
+                      showUnreported: _showUnreported,
+                      unreportedTotal: provider.unreportedOrdersTotal,
+                      reportedTotal: provider.reportedOrdersTotal,
+                      onChanged: (value) {
+                        setState(() => _showUnreported = value);
+                      },
+                    ),
                     const SizedBox(height: AppLayoutTokens.cardGap),
-                    reported,
+                    _showUnreported
+                        ? unreported.copyWith(showHeader: false)
+                        : reported.copyWith(showHeader: false),
                   ],
                 );
               }
@@ -540,6 +530,501 @@ class _SalesReportCockpit extends StatelessWidget {
   }
 }
 
+class _CockpitHero extends StatelessWidget {
+  final int unreportedTotal;
+  final int reportedTotal;
+  final bool isExporting;
+  final ValueChanged<String>? onExportCsv;
+
+  const _CockpitHero({
+    required this.unreportedTotal,
+    required this.reportedTotal,
+    required this.isExporting,
+    required this.onExportCsv,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: _MetricTile(
+              icon: Icons.receipt_long_outlined,
+              label: 'Chờ báo cáo',
+              value: '$unreportedTotal',
+              helper: 'chưa báo cáo',
+              color: AppColors.warning,
+              backgroundColor: AppColors.warningSurface,
+            ),
+          ),
+          const SizedBox(width: AppLayoutTokens.formInlineGap),
+          Expanded(
+            child: _MetricTile(
+              icon: Icons.check_circle_outline_rounded,
+              label: 'Hoàn tất',
+              value: '$reportedTotal',
+              helper: 'đã báo cáo',
+              color: AppColors.success,
+              backgroundColor: AppColors.successSurface,
+            ),
+          ),
+          if (onExportCsv != null) ...[
+            const SizedBox(width: AppLayoutTokens.formInlineGap),
+            SizedBox(
+              width: 112,
+              child: SalesReportExportMenuButton(
+                isExporting: isExporting,
+                onExport: onExportCsv!,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final String helper;
+  final Color color;
+  final Color backgroundColor;
+
+  const _MetricTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.helper,
+    required this.color,
+    required this.backgroundColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: backgroundColor.withValues(alpha: 0.58),
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 18, color: color),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.labelS.copyWith(
+                      color: AppColors.textSecondaryOf(context),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.headingM.copyWith(
+                color: AppColors.textPrimaryOf(context),
+              ),
+            ),
+            Text(
+              helper,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textMutedOf(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickFilterBar extends StatelessWidget {
+  final SalesReportProvider provider;
+  final bool isManagedScope;
+  final VoidCallback onSelectDate;
+  final VoidCallback onReload;
+  final VoidCallback onOpenAdvancedFilters;
+
+  const _QuickFilterBar({
+    required this.provider,
+    required this.isManagedScope,
+    required this.onSelectDate,
+    required this.onReload,
+    required this.onOpenAdvancedFilters,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 620;
+        final dateButton = AppSecondaryButton(
+          onPressed: provider.isLoadingOrders ? null : onSelectDate,
+          icon: Icons.calendar_today_outlined,
+          label: 'Ngày: ${_dateLabel(provider.ordersDate)}',
+          height: 44,
+        );
+        final storeFilter = isManagedScope
+            ? AppFilterDropdown<String>(
+                label: 'Showroom',
+                value: provider.ordersStoreCode,
+                allLabel: 'Tất cả',
+                icon: Icons.store_outlined,
+                options: provider.orderStoreOptions
+                    .map(
+                      (option) => AppFilterOption<String>(
+                        value: option.value,
+                        label: option.label,
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) => unawaited(
+                  provider.setOrderFilters(storeCode: value, updateStore: true),
+                ),
+              )
+            : const _ReadonlyFilterPill(
+                icon: Icons.store_outlined,
+                label: 'Showroom của tôi',
+              );
+        final filterButton = AppSecondaryButton(
+          onPressed: provider.isLoadingOrders ? null : onOpenAdvancedFilters,
+          icon: Icons.tune_rounded,
+          label: 'Lọc',
+          height: 44,
+        );
+        final reloadButton = Tooltip(
+          message: 'Tải lại danh sách',
+          child: AppSecondaryButton(
+            onPressed: provider.isLoadingOrders ? null : onReload,
+            icon: Icons.refresh_rounded,
+            label: 'Tải lại',
+            isLoading: provider.isLoadingOrders,
+            height: 44,
+          ),
+        );
+
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: dateButton),
+                  const SizedBox(width: AppLayoutTokens.formInlineGap),
+                  SizedBox(width: 96, child: filterButton),
+                ],
+              ),
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
+              Row(
+                children: [
+                  Expanded(child: storeFilter),
+                  const SizedBox(width: AppLayoutTokens.formInlineGap),
+                  SizedBox(width: 116, child: reloadButton),
+                ],
+              ),
+            ],
+          );
+        }
+
+        return Wrap(
+          spacing: AppLayoutTokens.formInlineGap,
+          runSpacing: AppLayoutTokens.formInlineGap,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            SizedBox(width: 190, child: dateButton),
+            SizedBox(width: 220, child: storeFilter),
+            SizedBox(width: 120, child: filterButton),
+            SizedBox(width: 150, child: reloadButton),
+          ],
+        );
+      },
+    );
+  }
+
+  static String _dateLabel(DateTime value) {
+    String two(int part) => part.toString().padLeft(2, '0');
+    return '${two(value.day)}/${two(value.month)}/${value.year}';
+  }
+}
+
+class _ReadonlyFilterPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _ReadonlyFilterPill({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 44,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+          border: Border.all(color: AppColors.borderOf(context)),
+          color: AppColors.cardOf(context),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: AppColors.primaryOf(context)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelM.copyWith(
+                    color: AppColors.primaryOf(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdvancedFilterSheet extends StatelessWidget {
+  final SalesReportProvider provider;
+  final bool canViewAdminReports;
+  final VoidCallback onSelectDate;
+  final ValueChanged<String>? onExportCsv;
+  final VoidCallback? onOpenAdmin;
+
+  const _AdvancedFilterSheet({
+    required this.provider,
+    required this.canViewAdminReports,
+    required this.onSelectDate,
+    required this.onExportCsv,
+    required this.onOpenAdmin,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final managedScope = provider.orderCockpit?.scope == 'MANAGED_SCOPE';
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottomInset),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Bộ lọc nâng cao',
+                      style: AppTextStyles.headingS.copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Đóng bộ lọc',
+                    onPressed: () => Navigator.of(context).pop(false),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
+              AppSecondaryButton(
+                onPressed: provider.isLoadingOrders ? null : onSelectDate,
+                icon: Icons.calendar_today_outlined,
+                label:
+                    'Ngày: ${_QuickFilterBar._dateLabel(provider.ordersDate)}',
+              ),
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
+              if (managedScope)
+                AppFilterDropdown<String>(
+                  label: 'Showroom',
+                  value: provider.ordersStoreCode,
+                  allLabel: 'Tất cả',
+                  icon: Icons.store_outlined,
+                  options: provider.orderStoreOptions
+                      .map(
+                        (option) => AppFilterOption<String>(
+                          value: option.value,
+                          label: option.label,
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (value) => unawaited(
+                    provider.setOrderFilters(
+                      storeCode: value,
+                      updateStore: true,
+                    ),
+                  ),
+                )
+              else
+                const _ReadonlyFilterPill(
+                  icon: Icons.store_outlined,
+                  label: 'Showroom của tôi',
+                ),
+              if (managedScope) ...[
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                AppSearchableFilterDropdown<String>(
+                  label: 'User',
+                  value: provider.ordersUserEmail,
+                  allLabel: 'Tất cả',
+                  icon: Icons.person_outline_rounded,
+                  options: provider.orderUserOptions
+                      .map(
+                        (option) => AppFilterOption<String>(
+                          value: option.value,
+                          label: option.label,
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (value) => unawaited(
+                    provider.setOrderFilters(
+                      userEmail: value,
+                      updateUser: true,
+                    ),
+                  ),
+                ),
+              ],
+              if (canViewAdminReports && onExportCsv != null) ...[
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                SalesReportExportMenuButton(
+                  isExporting: provider.isExporting,
+                  onExport: onExportCsv!,
+                ),
+              ],
+              if (canViewAdminReports && onOpenAdmin != null) ...[
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                AppSecondaryButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(false);
+                    onOpenAdmin!();
+                  },
+                  icon: Icons.assignment_outlined,
+                  label: 'Danh sách báo cáo',
+                ),
+              ],
+              const SizedBox(height: AppLayoutTokens.sectionGap),
+              AppPrimaryButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                icon: Icons.check_rounded,
+                label: 'Áp dụng',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrderStatusTabs extends StatelessWidget {
+  final bool showUnreported;
+  final int unreportedTotal;
+  final int reportedTotal;
+  final ValueChanged<bool> onChanged;
+
+  const _OrderStatusTabs({
+    required this.showUnreported,
+    required this.unreportedTotal,
+    required this.reportedTotal,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.cardOf(context),
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+        border: Border.all(color: AppColors.borderOf(context)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _OrderStatusTabButton(
+              selected: showUnreported,
+              label: 'Chưa báo cáo ($unreportedTotal)',
+              onTap: () => onChanged(true),
+            ),
+          ),
+          Expanded(
+            child: _OrderStatusTabButton(
+              selected: !showUnreported,
+              label: 'Đã báo cáo ($reportedTotal)',
+              onTap: () => onChanged(false),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderStatusTabButton extends StatelessWidget {
+  final bool selected;
+  final String label;
+  final VoidCallback onTap;
+
+  const _OrderStatusTabButton({
+    required this.selected,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primarySurfaceOf(context) : null,
+          borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+          border: selected
+              ? Border.all(color: AppColors.primaryOf(context))
+              : Border.all(color: AppColors.transparent),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.labelM.copyWith(
+            color: selected
+                ? AppColors.primaryOf(context)
+                : AppColors.textSecondaryOf(context),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _OrdersColumn extends StatelessWidget {
   final String title;
   final int count;
@@ -553,6 +1038,7 @@ class _OrdersColumn extends StatelessWidget {
   final VoidCallback onPreviousPage;
   final VoidCallback onNextPage;
   final ValueChanged<SalesReportOrderCockpitItem>? onTap;
+  final bool showHeader;
 
   const _OrdersColumn({
     required this.title,
@@ -567,7 +1053,26 @@ class _OrdersColumn extends StatelessWidget {
     required this.onPreviousPage,
     required this.onNextPage,
     required this.onTap,
+    this.showHeader = true,
   });
+
+  _OrdersColumn copyWith({bool? showHeader}) {
+    return _OrdersColumn(
+      title: title,
+      count: count,
+      emptyMessage: emptyMessage,
+      orders: orders,
+      page: page,
+      limit: limit,
+      isLoading: isLoading,
+      canGoPrevious: canGoPrevious,
+      canGoNext: canGoNext,
+      onPreviousPage: onPreviousPage,
+      onNextPage: onNextPage,
+      onTap: onTap,
+      showHeader: showHeader ?? this.showHeader,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -575,16 +1080,20 @@ class _OrdersColumn extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(child: Text(title, style: AppTextStyles.headingS)),
-            Text(
-              '$count',
-              style: AppTextStyles.labelM.copyWith(color: AppColors.neutral600),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppLayoutTokens.formInlineGap),
+        if (showHeader) ...[
+          Row(
+            children: [
+              Expanded(child: Text(title, style: AppTextStyles.headingS)),
+              Text(
+                '$count',
+                style: AppTextStyles.labelM.copyWith(
+                  color: AppColors.textMutedOf(context),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+        ],
         if (orders.isEmpty)
           AppStatePanel.empty(title: title, message: emptyMessage)
         else
@@ -639,12 +1148,12 @@ class _OrderCockpitTile extends StatelessWidget {
     ].whereType<String>().join(' • ');
     final meta = [
       if (money.isNotEmpty) money,
-      if ((order.paymentStatus ?? '').trim().isNotEmpty) order.paymentStatus,
       if (order.reportedAt != null)
         'Đã báo cáo ${_shortDate(order.reportedAt)}',
     ].whereType<String>().join(' • ');
     return AppSurfaceCard(
       onTap: onTap == null ? null : () => onTap!(order),
+      padding: const EdgeInsets.all(12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -659,11 +1168,22 @@ class _OrderCockpitTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  order.orderCode,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelM,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        order.orderCode,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.labelM,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _PaymentBadge(
+                      paymentStatus: order.paymentStatus,
+                      isReported: order.isReported,
+                    ),
+                  ],
                 ),
                 if ((order.customerName ?? '').trim().isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -689,7 +1209,7 @@ class _OrderCockpitTile extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     meta,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.labelS.copyWith(
                       color: AppColors.neutral500,
@@ -714,6 +1234,39 @@ class _OrderCockpitTile extends StatelessWidget {
     final local = value.toLocal();
     String two(int part) => part.toString().padLeft(2, '0');
     return '${two(local.day)}/${two(local.month)} ${two(local.hour)}:${two(local.minute)}';
+  }
+}
+
+class _PaymentBadge extends StatelessWidget {
+  final String? paymentStatus;
+  final bool isReported;
+
+  const _PaymentBadge({required this.paymentStatus, required this.isReported});
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = (paymentStatus ?? '').trim().toUpperCase();
+    final label = switch (normalized) {
+      'PAID' || 'DONE' || 'COMPLETED' => 'Đã TT',
+      'PARTIAL' || 'PARTIALLY_PAID' => 'Một phần',
+      'PENDING' || 'UNPAID' || '' => isReported ? 'Hoàn tất' : 'Chưa TT',
+      _ => isReported ? 'Hoàn tất' : 'Chưa TT',
+    };
+    final color = switch (normalized) {
+      'PAID' || 'DONE' || 'COMPLETED' => AppColors.success,
+      'PARTIAL' || 'PARTIALLY_PAID' => AppColors.error,
+      _ => isReported ? AppColors.success : AppColors.warning,
+    };
+    final background = switch (normalized) {
+      'PAID' || 'DONE' || 'COMPLETED' => AppColors.successSurface,
+      'PARTIAL' || 'PARTIALLY_PAID' => AppColors.errorSurface,
+      _ => isReported ? AppColors.successSurface : AppColors.warningSurface,
+    };
+    return AppStatusChip(
+      label: label,
+      color: color,
+      backgroundColor: background,
+    );
   }
 }
 

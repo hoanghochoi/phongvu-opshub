@@ -121,6 +121,7 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
                   start: _startDate,
                   end: _endDate,
                   onChanged: _setDateRange,
+                  now: () => provider.currentDate,
                 ),
               ),
               SizedBox(
