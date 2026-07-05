@@ -2,7 +2,7 @@
 
 ## Story
 
-Người quản lý cần xem nhanh hiệu quả báo cáo sale và tình trạng đối chiếu sao
+Người quản lý cần xem nhanh hiệu quả báo cáo bán hàng và tình trạng đối chiếu sao
 kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang chọn.
 
 ## Acceptance

@@ -911,7 +911,7 @@ User job label
 | Feature | `Gán node`, `Thêm rule cũ` | English/legacy | `Cấp theo đơn vị`, `Thêm quy tắc cũ` |
 | Bank Statement | `Chọn 1 filter chính` | English | `Chọn ít nhất một tiêu chí tìm kiếm` |
 | Warranty | `Có scanner` | English | `Có máy quét` |
-| Sales Report | `User: Tất cả` | English | `Nhân viên: Tất cả` |
+| Báo cáo bán hàng | bộ lọc nhân viên | English | `Nhân viên: Tất cả` |
 | Purchased Report | `kiểm tra ERP` | Internal system | `kiểm tra đơn hàng` |
 | Payment/VietQR | `giao dịch MAP` | Internal system | `giao dịch thanh toán` |
 | Status | `pending`, `fully_paid` | Raw enum | Vietnamese status labels |

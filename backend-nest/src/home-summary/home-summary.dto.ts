@@ -8,6 +8,16 @@ export class GetHomeSummaryQueryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(10)
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  endDate?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(20)
   scope?: string;
 

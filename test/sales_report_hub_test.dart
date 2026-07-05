@@ -225,7 +225,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Showroom: Tất cả'), findsOneWidget);
-    expect(find.text('User: Tất cả'), findsNothing);
+    expect(find.text('Nhân viên: Tất cả'), findsNothing);
     expect(find.text('Lọc'), findsOneWidget);
 
     await tester.tap(find.text('Ngày: Tất cả ngày'));
@@ -240,7 +240,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Bộ lọc nâng cao'), findsOneWidget);
-    expect(find.text('User: Tất cả'), findsOneWidget);
+    expect(find.text('Nhân viên: Tất cả'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Đóng bộ lọc'));
     await tester.pumpAndSettle();
@@ -336,7 +336,7 @@ void main() {
 
     expect(
       find.byKey(const Key('sales-report-workspace-header')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Báo cáo chưa mua'), findsOneWidget);
@@ -434,7 +434,7 @@ void main() {
     );
     await _tapVisible(
       tester,
-      find.byKey(const ValueKey('sales-report-answer-KH tải App PV-YES')),
+      find.byKey(const ValueKey('sales-report-answer-KH tải ứng dụng PV-YES')),
     );
     await _tapVisible(
       tester,
@@ -576,7 +576,7 @@ void main() {
     },
   );
 
-  testWidgets('Báo cáo sale admin filters list by selected date range', (
+  testWidgets('Báo cáo bán hàng admin filters list by selected date range', (
     tester,
   ) async {
     final authProvider = _FakeAuthProvider(

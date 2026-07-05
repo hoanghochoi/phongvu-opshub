@@ -499,7 +499,7 @@ class SalesReportProvider extends ChangeNotifier {
       );
       final csvBytes = await _repository.exportCsv(effectiveQuery);
       final path = await FilePicker.saveFile(
-        dialogTitle: 'Lưu file báo cáo sale',
+        dialogTitle: 'Lưu file báo cáo bán hàng',
         fileName:
             'opshub_${_exportTypeFilePart(effectiveQuery.exportType)}_${_timestampForFile()}.csv',
         type: FileType.custom,

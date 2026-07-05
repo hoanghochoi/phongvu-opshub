@@ -363,7 +363,7 @@ grid
     `flutter test --no-pub --reporter compact`.
     Batch 4F hoàn thành cùng ngày cho copy nội bộ/chữ viết tắt: điều hướng và
     màn bảo hành bỏ `BH/SC`, các bộ lọc/chip/dòng trạng thái dùng `showroom`
-    thay cho `SR`, báo cáo sale không hiển thị `ERP`, và các màn admin đổi
+    thay cho `SR`, báo cáo bán hàng không hiển thị `ERP`, và các màn admin đổi
     `policy/rule/node/internal/Key/JSON` thành nhãn tiếng Việt thân thiện.
     Guard test mới chỉ soi UI copy có khả năng hiển thị để chặn các cụm nội bộ
     lộ lại trong `presentation/screens` và `presentation/widgets`.

@@ -77,7 +77,7 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
           provider: provider,
           onRefresh: provider.isLoading ? null : () => provider.search(),
         ),
-        const SizedBox(height: AppLayoutTokens.sectionGap),
+        const SizedBox(height: AppLayoutTokens.cardGap),
         _ActionBar(onCreate: _showCreateDialog),
         const SizedBox(height: 10),
         _FilterPanel(

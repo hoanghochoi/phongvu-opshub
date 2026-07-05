@@ -140,7 +140,7 @@ Lý do:
 | Cơ cấu tổ chức | 6 | Chọn node -> xem/sửa chi tiết | Split pane đúng với desktop nhưng tablet bị chật; technical labels `Lv0`, `Lv1`, `SALE`, `User`, `SR` cần giải thích | Tree + detail panel có density compact, breadcrumb node path, action group có label |
 | Quản lý chính sách | 5 | Tab `Chính sách/Quy tắc` | Raw policy code trong title gây nhiễu; list divider thấp contrast; admin-only code cần secondary | Dùng policy table/card có label staff-first, code trong monospace secondary/copy |
 | Danh sách góp ý | 5 | Xem feedback list | ISO timestamp, rating text, email raw; thiếu filter/search/status | Card có rating stars/chip, date format `HH:mm dd/MM/yyyy`, filter theo ngày/rating/module |
-| Admin báo cáo sale | 6 | Lọc loại report, tải lại, xem list | Nút `Tải lại` bị cắt desktop; pagination bị cắt; list card dễ đọc | Table/card hybrid, sticky filter/action, pagination visible |
+| Admin báo cáo bán hàng | 6 | Lọc loại report, tải lại, xem list | Nút `Tải lại` bị cắt desktop; pagination bị cắt; list card dễ đọc | Table/card hybrid, sticky filter/action, pagination visible |
 | FIFO hub | 7 | 3 tác vụ rõ | Hub sạch, nhưng desktop thừa nhiều khoảng trắng | Giữ card-grid, thêm mô tả ngắn và shortcut scan |
 | Kiểm tra FIFO | 4 | Cần nhập/quét SKU/serial | First viewport chỉ thấy empty prompt, không thấy field/action rõ | Đưa scan/input/action vào primary zone, empty state bên dưới |
 | Sắp xếp FIFO | 5 | Nhập/quét SKU/BIN | Hướng dẫn có, empty state lệch xuống dưới; input/action không rõ trong first viewport | Step input đầu màn, state result gần input, scan CTA rõ |

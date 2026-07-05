@@ -4,7 +4,7 @@ import 'package:phongvu_opshub/core/platform/app_platform_capabilities.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 
 void main() {
-  test('admin sales report access shows Quản trị without Báo cáo sale', () {
+  test('admin sales report access shows Quản trị without Báo cáo bán hàng', () {
     const user = User(
       id: 'lead-1',
       email: 'lead@phongvu.vn',
@@ -20,8 +20,8 @@ void main() {
       user,
     ).map((destination) => destination.label);
 
-    expect(workspaceLabels, isNot(contains('Báo cáo sale')));
-    expect(sidebarLabels, isNot(contains('Báo cáo sale')));
+    expect(workspaceLabels, isNot(contains('Báo cáo bán hàng')));
+    expect(sidebarLabels, isNot(contains('Báo cáo bán hàng')));
     expect(workspaceLabels, isNot(contains('Quản trị')));
     expect(sidebarLabels, contains('Quản trị'));
   });
@@ -109,7 +109,7 @@ void main() {
     final destination = AppNavModel.destinationForLocation('/reports');
 
     expect(destination?.id, 'sales');
-    expect(destination?.label, 'Báo cáo sale');
+    expect(destination?.label, 'Báo cáo bán hàng');
   });
 
   test('sales report destination opens the cockpit directly', () {
@@ -125,7 +125,7 @@ void main() {
       user,
     ).singleWhere((item) => item.id == 'sales');
 
-    expect(destination.label, 'Báo cáo sale');
+    expect(destination.label, 'Báo cáo bán hàng');
     expect(destination.route, '/sales-reports');
   });
 
@@ -205,7 +205,7 @@ void main() {
     ]);
     expect(sections[0].destinations.map((item) => item.label), [
       'VietQR',
-      'Báo cáo sale',
+      'Báo cáo bán hàng',
       if (AppPlatformCapabilities.isPaymentMonitorSupported()) 'Tiền vào',
     ]);
     expect(sections[1].destinations.map((item) => item.label), [

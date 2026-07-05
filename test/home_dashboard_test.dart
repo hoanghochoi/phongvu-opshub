@@ -82,6 +82,11 @@ void main() {
                 target: 100000000,
                 percentage: 125,
               ),
+              range: HomeSalesProgressPeriod(
+                actual: 125000000,
+                target: 100000000,
+                percentage: 125,
+              ),
               week: HomeSalesProgressPeriod(
                 actual: 350000000,
                 target: 700000000,
@@ -121,7 +126,7 @@ void main() {
         find.byKey(const Key('home-finance-summary-grid')),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('home-summary-date-picker')), findsOneWidget);
+      expect(find.byKey(const Key('home-summary-date-range')), findsOneWidget);
       expect(
         find.byKey(const Key('home-summary-refresh-button')),
         findsOneWidget,
@@ -186,12 +191,17 @@ void main() {
         find.byKey(const Key('home-statement-progress-donut')),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('home-sales-progress-day')), findsOneWidget);
+      expect(
+        find.byKey(const Key('home-sales-progress-range')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('home-sales-progress-week')), findsOneWidget);
       expect(
         find.byKey(const Key('home-sales-progress-month')),
         findsOneWidget,
       );
+      expect(find.textContaining('Đã đạt:'), findsWidgets);
+      expect(find.textContaining('Chỉ tiêu:'), findsWidgets);
       expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(find.text('Tổng quan'), findsOneWidget);
       expect(
@@ -366,7 +376,7 @@ void main() {
           coverageRate: 0,
           refreshedAt: DateTime.parse('2026-07-04T03:15:00.000Z'),
           unavailableMessage:
-              'Tài khoản hiện chưa có quyền xem tổng quan báo cáo sale.',
+              'Tài khoản hiện chưa có quyền xem tổng quan báo cáo bán hàng.',
         ),
       ),
     );
@@ -392,7 +402,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.text('Tài khoản hiện chưa có quyền xem tổng quan báo cáo sale.'),
+      find.text('Tài khoản hiện chưa có quyền xem tổng quan báo cáo bán hàng.'),
       findsOneWidget,
     );
     expect(find.byKey(const Key('home-summary-grid')), findsNothing);
@@ -582,7 +592,9 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
 
   @override
   Future<HomeSummary> fetchSummary({
-    required String date,
+    String? date,
+    String? startDate,
+    String? endDate,
     String? scope,
     String? organizationNodeId,
   }) async {

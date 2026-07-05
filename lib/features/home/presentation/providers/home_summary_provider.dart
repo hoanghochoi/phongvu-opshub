@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/utils/date_range_defaults.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../data/repositories/home_summary_repository.dart';
 import '../../domain/home_summary.dart';
@@ -53,15 +54,18 @@ class HomeSummaryScopeOption {
 }
 
 class HomeSummaryProvider extends ChangeNotifier {
-  HomeSummaryProvider(this._repository);
+  HomeSummaryProvider(this._repository, {DateTime Function()? now})
+    : _now = now ?? DateTime.now;
 
   static final DateFormat _queryDateFormat = DateFormat('yyyy-MM-dd');
 
   final HomeSummaryRepository _repository;
+  final DateTime Function() _now;
 
   User? _user;
   HomeSummary? _summary;
-  DateTime _selectedDate = _normalizeDate(DateTime.now());
+  DateTime? _selectedStartDate;
+  DateTime? _selectedEndDate;
   String _selectedScope = HomeSummaryScopeFilters.auto;
   List<HomeSummaryScopeOption> _scopeOptions = const [];
   bool _isLoading = false;
@@ -71,7 +75,9 @@ class HomeSummaryProvider extends ChangeNotifier {
   int _requestToken = 0;
 
   HomeSummary? get summary => _summary;
-  DateTime get selectedDate => _selectedDate;
+  DateTime get selectedDate => selectedEndDate ?? currentDate;
+  DateTime? get selectedStartDate => _selectedStartDate;
+  DateTime? get selectedEndDate => _selectedEndDate;
   String get selectedScope => _selectedScope;
   bool get isLoading => _isLoading;
   bool get isRefreshing => _isRefreshing;
@@ -171,7 +177,8 @@ class HomeSummaryProvider extends ChangeNotifier {
     }
 
     if (sessionChanged) {
-      _selectedDate = _normalizeDate(DateTime.now());
+      _selectedStartDate = null;
+      _selectedEndDate = null;
       _scopeOptions = const [];
       _selectedScope = _defaultScopeFor(user, const []);
       _summary = null;
@@ -254,7 +261,9 @@ class HomeSummaryProvider extends ChangeNotifier {
       'Home summary manual refresh requested',
       context: {
         'userId': _user?.id,
-        'date': formattedSelectedDate,
+        'startDate': formattedSelectedStartDate,
+        'endDate': formattedSelectedEndDate,
+        'hasExplicitDateRange': hasExplicitDateRange,
         'hasCachedSummary': _summary != null,
       },
     );
@@ -262,22 +271,34 @@ class HomeSummaryProvider extends ChangeNotifier {
   }
 
   Future<void> setSelectedDate(DateTime value) async {
-    final nextDate = _normalizeDate(value);
-    if (_selectedDate == nextDate) return;
-    final previousDate = formattedSelectedDate;
-    _selectedDate = nextDate;
+    await setSelectedDateRange(value, value);
+  }
+
+  Future<void> setSelectedDateRange(DateTime? start, DateTime? end) async {
+    final nextStart = start == null ? null : _normalizeDate(start);
+    final nextEnd = end == null ? null : _normalizeDate(end);
+    if (_selectedStartDate == nextStart && _selectedEndDate == nextEnd) return;
+    final previousStartDate = formattedSelectedStartDate;
+    final previousEndDate = formattedSelectedEndDate;
+    final previousExplicit = hasExplicitDateRange;
+    _selectedStartDate = nextStart;
+    _selectedEndDate = nextEnd;
     notifyListeners();
 
     await AppLogger.instance.info(
       'HomeSummary',
-      'Home summary date changed',
+      'Home summary date range changed',
       context: {
         'userId': _user?.id,
-        'previousDate': previousDate,
-        'nextDate': formattedSelectedDate,
+        'previousStartDate': previousStartDate,
+        'previousEndDate': previousEndDate,
+        'nextStartDate': formattedSelectedStartDate,
+        'nextEndDate': formattedSelectedEndDate,
+        'previousExplicitDateRange': previousExplicit,
+        'nextExplicitDateRange': hasExplicitDateRange,
       },
     );
-    await loadSummary(reason: 'date_change');
+    await loadSummary(reason: 'date_range_change');
   }
 
   Future<void> setSelectedScope(String value) async {
@@ -297,7 +318,9 @@ class HomeSummaryProvider extends ChangeNotifier {
         'nextScope': _selectedScope,
         'requestScope': selectedOption?.requestScope,
         'organizationNodeId': selectedOption?.organizationNodeId,
-        'date': formattedSelectedDate,
+        'startDate': formattedSelectedStartDate,
+        'endDate': formattedSelectedEndDate,
+        'hasExplicitDateRange': hasExplicitDateRange,
       },
     );
     await loadSummary(reason: 'scope_change');
@@ -321,7 +344,9 @@ class HomeSummaryProvider extends ChangeNotifier {
         'userId': user.id,
         'role': user.role,
         'scopeStoreCount': user.assignedStores.length,
-        'date': formattedSelectedDate,
+        'startDate': formattedSelectedStartDate,
+        'endDate': formattedSelectedEndDate,
+        'hasExplicitDateRange': hasExplicitDateRange,
         'scopeFilter': _selectedScope,
         'requestScope': _requestScopeForSelectedScope,
         'organizationNodeId': _organizationNodeIdForSelectedScope,
@@ -332,7 +357,8 @@ class HomeSummaryProvider extends ChangeNotifier {
 
     try {
       final summary = await _repository.fetchSummary(
-        date: formattedSelectedDate,
+        startDate: formattedSelectedStartDate,
+        endDate: formattedSelectedEndDate,
         scope: _requestScopeForSelectedScope,
         organizationNodeId: _organizationNodeIdForSelectedScope,
       );
@@ -346,6 +372,9 @@ class HomeSummaryProvider extends ChangeNotifier {
         context: {
           'userId': user.id,
           'date': summary.date,
+          'startDate': summary.startDate,
+          'endDate': summary.endDate,
+          'hasExplicitDateRange': hasExplicitDateRange,
           'scopeFilter': _selectedScope,
           'requestScope': _requestScopeForSelectedScope,
           'organizationNodeId': _organizationNodeIdForSelectedScope,
@@ -374,7 +403,9 @@ class HomeSummaryProvider extends ChangeNotifier {
         'Home summary load failed',
         context: {
           'userId': user.id,
-          'date': formattedSelectedDate,
+          'startDate': formattedSelectedStartDate,
+          'endDate': formattedSelectedEndDate,
+          'hasExplicitDateRange': hasExplicitDateRange,
           'scopeFilter': _selectedScope,
           'requestScope': _requestScopeForSelectedScope,
           'organizationNodeId': _organizationNodeIdForSelectedScope,
@@ -392,7 +423,9 @@ class HomeSummaryProvider extends ChangeNotifier {
         stackTrace: stackTrace,
         context: {
           'userId': user.id,
-          'date': formattedSelectedDate,
+          'startDate': formattedSelectedStartDate,
+          'endDate': formattedSelectedEndDate,
+          'hasExplicitDateRange': hasExplicitDateRange,
           'scopeFilter': _selectedScope,
           'requestScope': _requestScopeForSelectedScope,
           'organizationNodeId': _organizationNodeIdForSelectedScope,
@@ -409,7 +442,28 @@ class HomeSummaryProvider extends ChangeNotifier {
     }
   }
 
-  String get formattedSelectedDate => _queryDateFormat.format(_selectedDate);
+  bool get hasExplicitDateRange =>
+      _selectedStartDate != null || _selectedEndDate != null;
+
+  DateTime get currentDate => _normalizeDate(_now());
+
+  DateTime get resolvedStartDate =>
+      _selectedStartDate ??
+      _selectedEndDate ??
+      appImplicitDateRangeStart(currentDate);
+
+  DateTime get resolvedEndDate =>
+      _selectedEndDate ??
+      _selectedStartDate ??
+      appImplicitDateRangeEnd(currentDate);
+
+  String get formattedSelectedDate => formattedSelectedEndDate;
+
+  String get formattedSelectedStartDate =>
+      _queryDateFormat.format(resolvedStartDate);
+
+  String get formattedSelectedEndDate =>
+      _queryDateFormat.format(resolvedEndDate);
 
   HomeSummaryScopeOption? _scopeOptionFor(String value) {
     final normalized = _normalizeScope(value);

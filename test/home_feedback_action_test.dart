@@ -432,7 +432,9 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
 
   @override
   Future<HomeSummary> fetchSummary({
-    required String date,
+    String? date,
+    String? startDate,
+    String? endDate,
     String? scope,
     String? organizationNodeId,
   }) async {

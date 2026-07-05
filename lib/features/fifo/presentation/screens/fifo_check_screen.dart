@@ -179,12 +179,10 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
     return Consumer<FifoProvider>(
       builder: (context, provider, _) {
         return AppResponsiveContent(
-          maxWidth: 980,
+          maxWidth: AppLayoutTokens.pageMaxWidth,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _FifoHeader(provider: provider),
-              const SizedBox(height: AppLayoutTokens.sectionGap),
               _FifoCommandCard(
                 controller: _controller,
                 focusNode: _focusNode,
@@ -211,128 +209,6 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
           ),
         );
       },
-    );
-  }
-}
-
-class _FifoHeader extends StatelessWidget {
-  final FifoProvider provider;
-
-  const _FifoHeader({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    final result = provider.result;
-    final resultCount = result == null
-        ? 0
-        : result.isSkuMode
-        ? result.items.length
-        : result.item == null
-        ? 0
-        : 1;
-    final modeLabel = result == null
-        ? 'Chưa kiểm tra'
-        : result.isSkuMode
-        ? 'SKU'
-        : 'Serial';
-    final statusLabel = switch (result?.status) {
-      'correct' => 'Đúng FIFO',
-      'wrong' => 'Sai FIFO',
-      'exported' => 'Đã xuất',
-      'display_reserved' => 'Trưng bày',
-      _ => provider.includeExported ? 'Có đã xuất' : 'Chỉ còn tồn',
-    };
-    final statusColor = switch (result?.status) {
-      'correct' => AppColors.success,
-      'wrong' => AppColors.error,
-      'exported' => AppColors.neutral600,
-      'display_reserved' => AppColors.warning,
-      _ => provider.includeExported ? AppColors.warning : AppColors.info,
-    };
-    final statusBackground = switch (result?.status) {
-      'correct' => AppColors.successSurface,
-      'wrong' => AppColors.errorSurface,
-      'exported' => AppColors.neutral100,
-      'display_reserved' => AppColors.warningSurface,
-      _ =>
-        provider.includeExported
-            ? AppColors.warningSurface
-            : AppColors.infoSurface,
-    };
-
-    return AppSurfaceCard(
-      key: const Key('fifo-check-header'),
-      backgroundColor: AppColors.infoSurface,
-      borderColor: AppColors.info.withValues(alpha: 0.24),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact =
-              constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
-          final icon = Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.info.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-            ),
-            child: const Icon(
-              Icons.qr_code_scanner_rounded,
-              color: AppColors.info,
-            ),
-          );
-          final textBlock = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Kiểm tra FIFO', style: AppTextStyles.headingM),
-              if (result != null) ...[
-                const SizedBox(height: AppLayoutTokens.cardGap),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    AppStatusChip(
-                      label: modeLabel,
-                      color: AppColors.info,
-                      backgroundColor: AppColors.infoSurface,
-                    ),
-                    AppStatusChip(
-                      label: '$resultCount sản phẩm',
-                      color: AppColors.neutral700,
-                      backgroundColor: AppColors.neutral100,
-                    ),
-                    AppStatusChip(
-                      label: statusLabel,
-                      color: statusColor,
-                      backgroundColor: statusBackground,
-                    ),
-                    const AppStatusChip(
-                      label: 'SKU/Serial',
-                      color: AppColors.primary,
-                      backgroundColor: AppColors.primarySurface,
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          );
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [icon, const SizedBox(height: 14), textBlock],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              icon,
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Expanded(child: textBlock),
-            ],
-          );
-        },
-      ),
     );
   }
 }

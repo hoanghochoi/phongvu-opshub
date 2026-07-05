@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 class HomeSummary {
   final String date;
+  final String startDate;
+  final String endDate;
   final bool available;
   final String scope;
   final String scopeLabel;
@@ -27,6 +29,8 @@ class HomeSummary {
 
   const HomeSummary({
     required this.date,
+    String? startDate,
+    String? endDate,
     required this.available,
     required this.scope,
     required this.scopeLabel,
@@ -49,11 +53,19 @@ class HomeSummary {
     this.salesProgress = const HomeSalesProgress.notApplicable(),
     required this.refreshedAt,
     this.unavailableMessage,
-  });
+  }) : startDate = startDate ?? date,
+       endDate = endDate ?? date;
 
   factory HomeSummary.fromJson(Map<String, dynamic> json) {
+    final date = _stringOf(json['date']);
     return HomeSummary(
-      date: _stringOf(json['date']),
+      date: date,
+      startDate: _stringOf(json['startDate']).isEmpty
+          ? date
+          : _stringOf(json['startDate']),
+      endDate: _stringOf(json['endDate']).isEmpty
+          ? date
+          : _stringOf(json['endDate']),
       available: json['available'] == true,
       scope: _stringOf(json['scope']),
       scopeLabel: _stringOf(json['scopeLabel']),
@@ -151,6 +163,7 @@ class HomeSalesProgress {
     required this.status,
     required this.scope,
     required this.missingStoreCodes,
+    required this.range,
     required this.day,
     required this.week,
     required this.month,
@@ -160,6 +173,7 @@ class HomeSalesProgress {
     : status = 'NOT_APPLICABLE',
       scope = null,
       missingStoreCodes = const [],
+      range = const HomeSalesProgressPeriod.empty(),
       day = const HomeSalesProgressPeriod.empty(),
       week = const HomeSalesProgressPeriod.empty(),
       month = const HomeSalesProgressPeriod.empty();
@@ -167,6 +181,7 @@ class HomeSalesProgress {
   final String status;
   final String? scope;
   final List<String> missingStoreCodes;
+  final HomeSalesProgressPeriod range;
   final HomeSalesProgressPeriod day;
   final HomeSalesProgressPeriod week;
   final HomeSalesProgressPeriod month;
@@ -184,6 +199,7 @@ class HomeSalesProgress {
       missingStoreCodes: (value['missingStoreCodes'] as List? ?? const [])
           .map((item) => item.toString())
           .toList(growable: false),
+      range: HomeSalesProgressPeriod.fromJson(value['range'] ?? value['day']),
       day: HomeSalesProgressPeriod.fromJson(value['day']),
       week: HomeSalesProgressPeriod.fromJson(value['week']),
       month: HomeSalesProgressPeriod.fromJson(value['month']),

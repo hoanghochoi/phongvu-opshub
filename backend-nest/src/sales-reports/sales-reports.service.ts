@@ -167,7 +167,7 @@ const ANSWER_LABELS: Record<string, string> = {
   PRODUCT_NOT_SOLD_OR_NOT_IN_STORE:
     'Không - SP KH cần không kinh doanh/không có tại CH',
   PRICE_HIGH: 'Không - SP giá cao',
-  SALES_FORGOT: 'Không - Sales quên tư vấn',
+  SALES_FORGOT: 'Không - Nhân viên bán hàng quên tư vấn',
   OTHER: 'Không - Lý do khác',
   ALREADY_FOLLOWED_ZALO: 'Không - KH đã quét Zalo OA rồi',
   NO_SMARTPHONE_OR_NO_ZALO:
@@ -378,7 +378,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
   ): Promise<SalesReportSummaryScopeDescriptor> {
     if (!accessGranted && !(await this.canUseSalesReport(user))) {
       return this.unavailableHomeSummaryScope(
-        'Tài khoản hiện chưa có quyền xem tổng quan báo cáo sale.',
+        'Tài khoản hiện chưa có quyền xem tổng quan báo cáo bán hàng.',
       );
     }
 

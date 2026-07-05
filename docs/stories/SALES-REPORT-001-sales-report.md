@@ -1,4 +1,4 @@
-# SALES-REPORT-001: Báo cáo sale
+# SALES-REPORT-001: Báo cáo bán hàng
 
 ## Story
 
@@ -7,12 +7,13 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 
 ## Acceptance
 
-- Vận hành hiện trực tiếp `Báo cáo sale` tại `/sales-reports` khi user có
+- Vận hành hiện trực tiếp `Báo cáo bán hàng` tại `/sales-reports` khi user có
   `SALES_REPORT`; `/reports` chỉ redirect tương thích. `ADMIN_SALES_REPORTS`
-  đưa `Danh sách báo cáo sale` vào menu `Quản trị`.
-- Màn hình `Báo cáo sale` hiển thị cockpit 2 cột theo khoảng ngày: trái là đơn chưa báo
-  cáo, phải là đơn đã báo cáo; mỗi cột hiển thị 20 đơn/trang, có total đếm từ
-  DB và nút chuyển trang riêng. Phía trên chỉ giữ `Báo cáo chưa mua` và
+  đưa `Danh sách báo cáo bán hàng` vào menu `Quản trị`.
+- Màn hình `Báo cáo bán hàng` hiển thị cockpit 2 cột theo khoảng ngày: trái là đơn chưa báo
+  cáo, phải là đơn đã báo cáo; phần card, nút và filter không cuộn theo danh
+  sách; mỗi cột tự cuộn vùng list, hiển thị 20 đơn/trang, có total đếm từ DB và
+  nút chuyển trang riêng. Phía trên chỉ giữ `Báo cáo chưa mua` và
   `Tải lại`; xuất file/danh sách thuộc màn quản trị riêng.
 - Cockpit lọc theo daterange `Ngày`, `SR` và `User`; filter `SR`/`User` chỉ hiện
   trong scope quản lý. Khoảng ngày trống mặc định truy vấn 30 ngày gần nhất và

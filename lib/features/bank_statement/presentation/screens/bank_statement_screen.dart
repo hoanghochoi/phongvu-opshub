@@ -85,7 +85,7 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _StatementHeader(provider: provider),
-            const SizedBox(height: AppLayoutTokens.sectionGap),
+            const SizedBox(height: AppLayoutTokens.cardGap),
             _FilterPanel(
               provider: provider,
               statementNumberController: _statementNumberController,

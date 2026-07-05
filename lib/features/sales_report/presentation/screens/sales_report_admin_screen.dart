@@ -78,14 +78,14 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<SalesReportProvider>();
-    return AppResponsiveScrollView(
+    return AppResponsiveContent(
       maxWidth: AppLayoutTokens.pageMaxWidth,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SalesReportWorkspaceHeader(
             key: const Key('sales-report-admin-workspace-header'),
-            title: 'Báo cáo sale',
+            title: 'Báo cáo bán hàng',
             subtitle: '',
             icon: Icons.assignment_outlined,
             chips: [
@@ -143,48 +143,62 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
             ],
           ),
           const SizedBox(height: AppLayoutTokens.cardGap),
-          if (provider.errorMessage != null)
+          if (provider.errorMessage != null) ...[
             AppStatusBanner(
               icon: Icons.error_outline_rounded,
               title: 'Chưa tải được dữ liệu',
               message: provider.errorMessage!,
               tone: AppStateTone.error,
             ),
-          if (provider.isLoadingAdminList && provider.adminItems.isEmpty)
-            const AppListSkeleton(itemCount: 5)
-          else if (provider.adminItems.isEmpty)
-            const AppStatePanel.empty(
-              title: 'Chưa có báo cáo',
-              message: 'Dữ liệu sẽ xuất hiện sau khi sale gửi báo cáo.',
-            )
-          else
-            Column(
-              children: [
-                for (final item in provider.adminItems) ...[
-                  _SalesReportAdminTile(item: item),
-                  const SizedBox(height: AppLayoutTokens.cardGap),
-                ],
-              ],
-            ),
-          AppActionRow(
-            children: [
-              AppSecondaryButton(
-                onPressed: provider.canGoPrevious
-                    ? () => _reload(page: provider.adminPage - 1)
-                    : null,
-                icon: Icons.chevron_left_rounded,
-                label: 'Trang trước',
-              ),
-              AppSecondaryButton(
-                onPressed: provider.canGoNext
-                    ? () => _reload(page: provider.adminPage + 1)
-                    : null,
-                icon: Icons.chevron_right_rounded,
-                label: 'Trang sau',
-              ),
-            ],
+            const SizedBox(height: AppLayoutTokens.cardGap),
+          ],
+          Expanded(
+            child: provider.isLoadingAdminList && provider.adminItems.isEmpty
+                ? const AppListSkeleton(itemCount: 5)
+                : provider.adminItems.isEmpty
+                ? const AppStatePanel.empty(
+                    title: 'Chưa có báo cáo',
+                    message:
+                        'Dữ liệu sẽ xuất hiện sau khi nhân viên bán hàng gửi báo cáo.',
+                  )
+                : ListView.separated(
+                    key: const Key('sales-report-admin-list'),
+                    primary: false,
+                    padding: const EdgeInsets.only(
+                      bottom: AppLayoutTokens.cardGap,
+                    ),
+                    itemCount: provider.adminItems.length,
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: AppLayoutTokens.cardGap),
+                    itemBuilder: (context, index) {
+                      return _SalesReportAdminTile(
+                        item: provider.adminItems[index],
+                      );
+                    },
+                  ),
           ),
           const SizedBox(height: AppLayoutTokens.formInlineGap),
+          SafeArea(
+            top: false,
+            child: AppActionRow(
+              children: [
+                AppSecondaryButton(
+                  onPressed: provider.canGoPrevious
+                      ? () => _reload(page: provider.adminPage - 1)
+                      : null,
+                  icon: Icons.chevron_left_rounded,
+                  label: 'Trang trước',
+                ),
+                AppSecondaryButton(
+                  onPressed: provider.canGoNext
+                      ? () => _reload(page: provider.adminPage + 1)
+                      : null,
+                  icon: Icons.chevron_right_rounded,
+                  label: 'Trang sau',
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

@@ -67,9 +67,9 @@ Ngày cập nhật: 03/07/2026
   trên desktop, tablet và mobile để thể hiện compact toolbar/export menu, gồm
   desktop `152:3577`/`152:2179`, tablet `152:938`/`152:470`, và mobile
   `151:698`/`151:350` cho hub/admin.
-- Quyết định ngày 06/07/2026 đã thay Generic Report Workspace: `Báo cáo sale`
+- Quyết định ngày 06/07/2026 đã thay Generic Report Workspace: `Báo cáo bán hàng`
   xuất hiện trực tiếp tại `Vận hành` và mở `/sales-reports`; `/reports` chỉ còn
-  redirect tương thích. `Danh sách báo cáo sale` chuyển vào `Quản trị`. Các
+  redirect tương thích. `Danh sách báo cáo bán hàng` chuyển vào `Quản trị`. Các
   frame Report Workspace cũ (`501:2`, `501:49`, `501:91`) chỉ còn là bằng chứng
   lịch sử, không còn là runtime contract cần duy trì.
 - Admin Users `/admin/users` đã được migrate khỏi `GradientHeader` riêng sang
@@ -560,7 +560,7 @@ test\design_system_migration_guard_test.dart` (7 tests),
   access và empty state khi tài khoản chưa có quyền quản trị. Figma
   desktop/tablet/mobile screenshots đã được kiểm lại sau khi sync Admin
   Workspace; ba frame không còn metric/table/permission-matrix/audit/add-user
-  mock hoặc action `Báo cáo sale` không có trong runtime menu Admin. Validation
+  mock hoặc action `Báo cáo bán hàng` không có trong runtime menu Admin. Validation
   sau batch Admin Menu đã pass `dart format`, focused Admin Menu + guard +
   router/nav `flutter test --no-pub --reporter expanded
   test\admin_menu_screen_test.dart test\design_system_migration_guard_test.dart

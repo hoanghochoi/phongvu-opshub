@@ -81,7 +81,7 @@ class AdminMenuScreen extends StatelessWidget {
       if (canUse('ADMIN_SALES_REPORTS'))
         AppFeatureAction(
           icon: Icons.table_chart_outlined,
-          title: 'Danh sách báo cáo sale',
+          title: 'Danh sách báo cáo bán hàng',
           description: 'Lọc danh sách và xuất file',
           color: AppColors.teal600,
           onTap: () {

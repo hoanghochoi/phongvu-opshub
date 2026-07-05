@@ -120,8 +120,8 @@ class AppNavModel {
     ),
     AppNavDestination(
       id: 'sales',
-      label: 'Báo cáo sale',
-      description: 'Theo dõi và gửi báo cáo sale',
+      label: 'Báo cáo bán hàng',
+      description: 'Theo dõi và gửi báo cáo bán hàng',
       route: '/sales-reports',
       icon: Icons.assignment_outlined,
       color: AppColors.info,

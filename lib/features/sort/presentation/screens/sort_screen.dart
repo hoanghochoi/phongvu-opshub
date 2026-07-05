@@ -109,12 +109,10 @@ class _SortScreenState extends State<SortScreen> {
     return Consumer<SortProvider>(
       builder: (context, provider, child) {
         return AppResponsiveContent(
-          maxWidth: 980,
+          maxWidth: AppLayoutTokens.pageMaxWidth,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _SortHeader(provider: provider),
-              const SizedBox(height: AppLayoutTokens.sectionGap),
               _SortCommandCard(
                 controller: _controller,
                 focusNode: _focusNode,
@@ -128,102 +126,6 @@ class _SortScreenState extends State<SortScreen> {
           ),
         );
       },
-    );
-  }
-}
-
-class _SortHeader extends StatelessWidget {
-  final SortProvider provider;
-
-  const _SortHeader({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    final groupCount = provider.skuGroups?.length ?? 0;
-    final itemCount = provider.skuItems?.length ?? 0;
-    final checkedCount =
-        provider.skuGroups?.fold<int>(
-          0,
-          (total, group) => total + group.checkedItems,
-        ) ??
-        0;
-
-    return AppSurfaceCard(
-      key: const Key('sort-fifo-header'),
-      backgroundColor: AppColors.infoSurface,
-      borderColor: AppColors.info.withValues(alpha: 0.24),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact =
-              constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
-          final icon = Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.info.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-            ),
-            child: const Icon(Icons.swap_vert_rounded, color: AppColors.info),
-          );
-          final textBlock = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Sắp xếp FIFO', style: AppTextStyles.headingM),
-              const SizedBox(height: AppLayoutTokens.cardGap),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  AppStatusChip(
-                    label: groupCount == 0
-                        ? 'Chưa có kết quả'
-                        : '$groupCount nhóm SKU',
-                    color: groupCount == 0 ? AppColors.warning : AppColors.info,
-                    backgroundColor: groupCount == 0
-                        ? AppColors.warningSurface
-                        : AppColors.infoSurface,
-                  ),
-                  AppStatusChip(
-                    label: '$itemCount vị trí',
-                    color: AppColors.neutral700,
-                    backgroundColor: AppColors.neutral100,
-                  ),
-                  AppStatusChip(
-                    label: '$checkedCount đã kiểm',
-                    color: checkedCount == 0
-                        ? AppColors.neutral600
-                        : AppColors.success,
-                    backgroundColor: checkedCount == 0
-                        ? AppColors.neutral100
-                        : AppColors.successSurface,
-                  ),
-                  const AppStatusChip(
-                    label: 'SKU/BIN',
-                    color: AppColors.primary,
-                    backgroundColor: AppColors.primarySurface,
-                  ),
-                ],
-              ),
-            ],
-          );
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [icon, const SizedBox(height: 14), textBlock],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              icon,
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Expanded(child: textBlock),
-            ],
-          );
-        },
-      ),
     );
   }
 }

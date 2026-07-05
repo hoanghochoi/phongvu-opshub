@@ -45,17 +45,19 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
-- `SALES-REPORT-001`/`UI-UX-002`, 2026-07-06: Cockpit `Báo cáo sale` bỏ hai
+- `SALES-REPORT-001`/`UI-UX-002`, 2026-07-06: Cockpit `Báo cáo bán hàng` bỏ hai
   action trùng `Xuất file`/`Danh sách`, thay picker một ngày bằng daterange chung
-  và giữ contract khoảng trống mặc định 30 ngày gần nhất. `Vận hành` mở thẳng
+  và giữ contract khoảng trống mặc định 30 ngày gần nhất. Card/nút/filter đứng
+  yên; chỉ vùng danh sách trong từng cột tự cuộn độc lập. `Vận hành` mở thẳng
   `/sales-reports`; `/reports` chỉ redirect tương thích; `Danh sách báo cáo
-  sale` chuyển vào `Quản trị` theo `ADMIN_SALES_REPORTS`. API cockpit nhận
+  bán hàng` chuyển vào `Quản trị` theo `ADMIN_SALES_REPORTS`. API cockpit nhận
   `startDate`/`endDate`, giữ field `date` tương thích client cũ và từ chối khoảng
   ngày đảo ngược bằng thông báo tiếng Việt. Validation: focused Flutter
-  navigation/admin/sales-report/home tests, full `flutter test --no-pub
-  --reporter compact` (360 tests), mobile widget 375x812, `flutter analyze
-  --no-pub`, focused Nest sales-report Jest (36 tests), `npm run build`, và
-  `git diff --check`.
+  navigation/admin/sales-report/home/design-guard tests, full `flutter test
+  --no-pub --reporter compact --concurrency=1` (360 tests), mobile widget
+  375x812, `flutter analyze --no-pub`, focused Nest sales-report/home-summary
+  Jest, full backend `npm test -- --runInBand` (52 suites, 467 tests),
+  `npm run build`, và `git diff --check`.
 - `HOME-DASHBOARD-002`/`SALES-REPORT-001`, 2026-07-06: Dashboard đưa
   `Tổng quan` lên đầu với donut báo cáo, sao kê và doanh số ngày/tuần/tháng;
   bỏ progress bar, đồng bộ chiều cao KPI và bổ sung các icon còn thiếu. Doanh
@@ -1152,7 +1154,7 @@ Recent focused evidence:
   Follow-up in the same migration slice added shared `AppTextInput`,
   `AppSelectField`, and `AppSurfaceCard`, then moved Sao kê filters, Sao kê
   order-update dialogs/cards, Cấn trừ filters/create dialogs/cards, and the
-  Báo cáo sale admin filter/list tiles onto those shared patterns. Continuation
+  Báo cáo bán hàng admin filter/list tiles onto those shared patterns. Continuation
   moved the `Tiền vào` speaker/store panel, transaction filters/page-size
   select, speaker error panel, transaction cards, order-edit inputs, and order
   transfer/history dialog actions onto the same shared primitives. The shared
@@ -1234,7 +1236,7 @@ Recent focused evidence:
   `npm test -- --runInBand src/sales-reports` (17 tests), `npm run build`,
   `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
   (8 tests), and `flutter analyze --no-pub`.
-- `SALES-REPORT-001`, 2026-06-30: admin `Báo cáo sale` list/export now has a
+- `SALES-REPORT-001`, 2026-06-30: admin `Báo cáo bán hàng` list/export now has a
   `Ngày` filter that sends `startDate`/`endDate` date-only query params and
   preserves the selected range when moving between pages. Validation:
   `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
@@ -1284,7 +1286,7 @@ Recent focused evidence:
   `npm test -- --runInBand src/sales-reports` (9 tests), `npm run build`,
   `flutter test --no-pub --reporter expanded test/sales_report_hub_test.dart`
   (2 tests), `flutter analyze --no-pub`, and `git diff --check`.
-- `SALES-REPORT-001`, 2026-06-29: moved the admin `Báo cáo sale` list/export
+- `SALES-REPORT-001`, 2026-06-29: moved the admin `Báo cáo bán hàng` list/export
   entry out of `Quản trị` and into the `Báo cáo` hub. Home and `/sales-reports`
   now open when either `SALES_REPORT` or node-assigned `ADMIN_SALES_REPORTS` is
   available; the submit forms still require `SALES_REPORT`, and the admin

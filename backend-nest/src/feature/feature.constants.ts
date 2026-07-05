@@ -101,8 +101,8 @@ export const DEFAULT_FEATURE_DEFINITIONS = [
   },
   {
     code: FEATURE_KEYS.ADMIN_SALES_REPORTS,
-    displayName: 'Báo cáo sale',
-    description: 'Xem, lọc và xuất báo cáo sale',
+    displayName: 'Báo cáo bán hàng',
+    description: 'Xem, lọc và xuất báo cáo bán hàng',
     parentCode: FEATURE_KEYS.ADMIN,
     sortOrder: 95,
   },
@@ -192,7 +192,7 @@ export const DEFAULT_FEATURE_DEFINITIONS = [
   {
     code: FEATURE_KEYS.SALES_REPORT,
     displayName: 'Báo cáo',
-    description: 'Gửi báo cáo sale mua hàng và chưa mua hàng',
+    description: 'Gửi báo cáo bán hàng mua hàng và chưa mua hàng',
     sortOrder: 620,
   },
 ] as const;

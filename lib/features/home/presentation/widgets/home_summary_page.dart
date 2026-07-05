@@ -8,6 +8,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/formatting/money_formatters.dart';
@@ -34,12 +35,14 @@ class HomeSummaryPage extends StatelessWidget {
           selectedScope: provider.selectedScope,
           selectedScopeLabel: provider.selectedScopeLabel,
           scopeOptions: provider.scopeOptions,
-          selectedDate: provider.selectedDate,
+          selectedStartDate: provider.selectedStartDate,
+          selectedEndDate: provider.selectedEndDate,
           isRefreshing: provider.isRefreshing || provider.isInitialLoading,
           onScopeChanged: provider.scopeOptions.length > 1
               ? (value) => unawaited(provider.setSelectedScope(value))
               : null,
-          onPickDate: () => _pickDate(context),
+          onDateRangeChanged: (start, end) =>
+              unawaited(provider.setSelectedDateRange(start, end)),
           onRefresh: provider.canRefresh
               ? () => unawaited(provider.refreshNow())
               : null,
@@ -53,20 +56,6 @@ class HomeSummaryPage extends StatelessWidget {
         ...content,
       ],
     );
-  }
-
-  Future<void> _pickDate(BuildContext context) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: provider.selectedDate,
-      firstDate: DateTime(2024),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
-      helpText: 'Chọn ngày xem dashboard',
-      cancelText: 'Hủy',
-      confirmText: 'Áp dụng',
-    );
-    if (picked == null) return;
-    await provider.setSelectedDate(picked);
   }
 
   List<Widget> _buildSummaryContent(HomeSummary? summary) {
@@ -213,10 +202,11 @@ class HomeSummaryHeader extends StatelessWidget {
     required this.selectedScope,
     required this.selectedScopeLabel,
     required this.scopeOptions,
-    required this.selectedDate,
+    required this.selectedStartDate,
+    required this.selectedEndDate,
     required this.isRefreshing,
     required this.onScopeChanged,
-    required this.onPickDate,
+    required this.onDateRangeChanged,
     required this.onRefresh,
     required this.warningMessage,
     this.action,
@@ -226,10 +216,11 @@ class HomeSummaryHeader extends StatelessWidget {
   final String selectedScope;
   final String selectedScopeLabel;
   final List<HomeSummaryScopeOption> scopeOptions;
-  final DateTime selectedDate;
+  final DateTime? selectedStartDate;
+  final DateTime? selectedEndDate;
   final bool isRefreshing;
   final ValueChanged<String>? onScopeChanged;
-  final VoidCallback onPickDate;
+  final void Function(DateTime? start, DateTime? end) onDateRangeChanged;
   final VoidCallback? onRefresh;
   final String? warningMessage;
   final Widget? action;
@@ -278,12 +269,17 @@ class HomeSummaryHeader extends StatelessWidget {
                 color: scopeColor,
                 onSelected: onScopeChanged,
               ),
-              _HeaderActionPill(
-                key: const Key('home-summary-date-picker'),
-                icon: Icons.calendar_today_outlined,
-                label: _dateLabel(selectedDate),
-                tooltip: 'Chọn ngày xem dashboard',
-                onTap: onPickDate,
+              SizedBox(
+                key: const Key('home-summary-date-range'),
+                width: compact ? double.infinity : 244,
+                child: AppDateRangeDropdown(
+                  label: 'Ngày',
+                  start: selectedStartDate,
+                  end: selectedEndDate,
+                  onChanged: onDateRangeChanged,
+                  showEmptyRangeHelperText: compact,
+                  now: () => DateTime.now(),
+                ),
               ),
               _HeaderActionPill(
                 key: const Key('home-summary-refresh-button'),
@@ -899,7 +895,12 @@ class ReportProgressPanel extends StatelessWidget {
           ),
         ),
       if (summary.salesAvailable && summary.salesProgress.isApplicable)
-        _SalesProgressPanel(progress: summary.salesProgress),
+        _SalesProgressPanel(
+          progress: summary.salesProgress,
+          rangeLabel: summary.startDate == summary.endDate
+              ? 'Ngày'
+              : 'Khoảng chọn',
+        ),
     ];
 
     return AppSurfaceCard(
@@ -926,12 +927,17 @@ class ReportProgressPanel extends StatelessWidget {
               final width =
                   (constraints.maxWidth - gap * math.max(0, columns - 1)) /
                   math.max(1, columns);
+              final height = constraints.maxWidth >= 980
+                  ? 258.0
+                  : constraints.maxWidth >= 620
+                  ? 248.0
+                  : 238.0;
               return Wrap(
                 spacing: gap,
                 runSpacing: gap,
                 children: [
                   for (final panel in panels)
-                    SizedBox(width: width, child: panel),
+                    SizedBox(width: width, height: height, child: panel),
                 ],
               );
             },
@@ -968,6 +974,7 @@ class _ProgressDonutPanel extends StatelessWidget {
         borderRadius: AppRadius.allMd,
       ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(title, style: AppTextStyles.labelM),
           const SizedBox(height: 10),
@@ -1024,9 +1031,10 @@ class _ProgressDonut extends StatelessWidget {
 }
 
 class _SalesProgressPanel extends StatelessWidget {
-  const _SalesProgressPanel({required this.progress});
+  const _SalesProgressPanel({required this.progress, required this.rangeLabel});
 
   final HomeSalesProgress progress;
+  final String rangeLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1040,6 +1048,7 @@ class _SalesProgressPanel extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
             'Tiến độ doanh số',
@@ -1047,34 +1056,31 @@ class _SalesProgressPanel extends StatelessWidget {
             style: AppTextStyles.labelM,
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            height: 156,
+          Expanded(
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
                   child: _SalesProgressPeriodView(
-                    label: 'Ngày',
-                    period: progress.day,
-                    dimension: 98,
-                    large: true,
+                    keySuffix: 'range',
+                    label: rangeLabel,
+                    period: progress.range,
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    children: [
-                      _SalesProgressPeriodView(
-                        label: 'Tuần',
-                        period: progress.week,
-                        dimension: 46,
-                      ),
-                      const SizedBox(height: 12),
-                      _SalesProgressPeriodView(
-                        label: 'Tháng',
-                        period: progress.month,
-                        dimension: 46,
-                      ),
-                    ],
+                  child: _SalesProgressPeriodView(
+                    keySuffix: 'week',
+                    label: 'Tuần',
+                    period: progress.week,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _SalesProgressPeriodView(
+                    keySuffix: 'month',
+                    label: 'Tháng',
+                    period: progress.month,
                   ),
                 ),
               ],
@@ -1100,64 +1106,58 @@ class _SalesProgressPanel extends StatelessWidget {
 
 class _SalesProgressPeriodView extends StatelessWidget {
   const _SalesProgressPeriodView({
+    required this.keySuffix,
     required this.label,
     required this.period,
-    required this.dimension,
-    this.large = false,
   });
 
+  final String keySuffix;
   final String label;
   final HomeSalesProgressPeriod period;
-  final double dimension;
-  final bool large;
 
   @override
   Widget build(BuildContext context) {
-    final content = [
-      _ProgressDonut(
-        percentage: period.percentage,
-        color: AppColors.violet600,
-        dimension: dimension,
-      ),
-      SizedBox(width: large ? 0 : 8, height: large ? 6 : 0),
-      Flexible(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: large
-              ? CrossAxisAlignment.center
-              : CrossAxisAlignment.start,
-          children: [
-            Text(label, style: AppTextStyles.labelS),
-            Text(
-              period.target == null
-                  ? formatVndAmount(period.actual)
-                  : '${formatVndAmount(period.actual)} / ${formatVndAmount(period.target!)}',
-              maxLines: large ? 2 : 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: large ? TextAlign.center : TextAlign.start,
-              style: AppTextStyles.caption.copyWith(
-                color: AppColors.textMutedOf(context),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ];
     return SizedBox(
-      key: Key(
-        'home-sales-progress-${label == 'Ngày'
-            ? 'day'
-            : label == 'Tuần'
-            ? 'week'
-            : 'month'}',
+      key: Key('home-sales-progress-$keySuffix'),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _ProgressDonut(
+            percentage: period.percentage,
+            color: AppColors.violet600,
+            dimension: 54,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.labelS,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Đã đạt: ${formatVndAmount(period.actual)}',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textMutedOf(context),
+            ),
+          ),
+          Text(
+            period.target == null
+                ? 'Chỉ tiêu: Chưa thiết lập'
+                : 'Chỉ tiêu: ${formatVndAmount(period.target!)}',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textMutedOf(context),
+            ),
+          ),
+        ],
       ),
-      height: large ? 156 : 72,
-      child: large
-          ? Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: content,
-            )
-          : Row(children: content),
     );
   }
 }
@@ -1453,8 +1453,6 @@ class _HomeQuickToolTile extends StatelessWidget {
     );
   }
 }
-
-String _dateLabel(DateTime value) => DateFormat('dd/MM/yyyy').format(value);
 
 String _timeOnlyLabel(DateTime value) =>
     DateFormat('HH:mm').format(value.toLocal());

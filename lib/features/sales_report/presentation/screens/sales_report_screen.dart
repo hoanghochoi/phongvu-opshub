@@ -33,7 +33,7 @@ const _consultedOptions = {
   'PRODUCT_NOT_SOLD_OR_NOT_IN_STORE':
       'Không - SP KH cần không kinh doanh/không có tại CH',
   'PRICE_HIGH': 'Không - SP giá cao',
-  'SALES_FORGOT': 'Không - Sales quên tư vấn',
+  'SALES_FORGOT': 'Không - Nhân viên bán hàng quên tư vấn',
   'OTHER': 'Không - Lý do khác',
 };
 
@@ -43,7 +43,7 @@ const _experienceOptions = {
       'Không - KH vội/không có nhu cầu/không muốn tư vấn/chỉ tham quan',
   'PRODUCT_NOT_SOLD_OR_NOT_IN_STORE':
       'Không - SP KH cần không kinh doanh/không có tại CH',
-  'SALES_FORGOT': 'Không - Sales quên tư vấn',
+  'SALES_FORGOT': 'Không - Nhân viên bán hàng quên tư vấn',
   'OTHER': 'Không - Lý do khác',
 };
 
@@ -53,8 +53,8 @@ const _zaloOptions = {
       'Không - KH vội/không có nhu cầu/không muốn tư vấn/chỉ tham quan',
   'ALREADY_FOLLOWED_ZALO': 'Không - KH đã quét Zalo OA rồi',
   'NO_SMARTPHONE_OR_NO_ZALO':
-      'Không - KH không dùng smartphone/không mang điện thoại/không dùng Zalo',
-  'SALES_FORGOT': 'Không - Sales quên tư vấn',
+      'Không - KH không dùng điện thoại thông minh/không mang điện thoại/không dùng Zalo',
+  'SALES_FORGOT': 'Không - Nhân viên bán hàng quên tư vấn',
   'OTHER': 'Không - Lý do khác',
 };
 
@@ -62,10 +62,10 @@ const _appOptions = {
   'YES': 'Có',
   'CUSTOMER_BUSY_OR_NO_NEED':
       'Không - KH vội/không có nhu cầu/không muốn tư vấn/chỉ tham quan',
-  'ALREADY_INSTALLED_APP': 'Không - KH đã tải App rồi',
+  'ALREADY_INSTALLED_APP': 'Không - KH đã tải ứng dụng rồi',
   'NO_SMARTPHONE_OR_NO_APP':
-      'Không - KH không dùng smartphone/không mang điện thoại/không dùng App',
-  'SALES_FORGOT': 'Không - Sales quên tư vấn',
+      'Không - KH không dùng điện thoại thông minh/không mang điện thoại/không dùng ứng dụng',
+  'SALES_FORGOT': 'Không - Nhân viên bán hàng quên tư vấn',
   'OTHER': 'Không - Lý do khác',
 };
 
@@ -241,44 +241,52 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       (auth) => auth.user?.canUseFeature('SALES_REPORT') == true,
     );
     final provider = context.watch<SalesReportProvider>();
-    return AppResponsiveScrollView(
+    return AppResponsiveContent(
       maxWidth: AppLayoutTokens.pageMaxWidth,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (!compactViewport) ...[
-            SalesReportWorkspaceHeader(
-              key: const Key('sales-report-workspace-header'),
-              title: 'Đơn cần báo cáo',
-              subtitle: '',
-              icon: Icons.analytics_outlined,
-              chips: [
-                AppStatusChip(
-                  label: '${provider.unreportedOrdersTotal} chưa báo cáo',
-                  color: AppColors.warning,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final shortViewport =
+              constraints.hasBoundedHeight && constraints.maxHeight < 680;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!compactViewport && !shortViewport) ...[
+                SalesReportWorkspaceHeader(
+                  key: const Key('sales-report-workspace-header'),
+                  title: 'Đơn cần báo cáo',
+                  subtitle: '',
+                  icon: Icons.analytics_outlined,
+                  chips: [
+                    AppStatusChip(
+                      label: '${provider.unreportedOrdersTotal} chưa báo cáo',
+                      color: AppColors.warning,
+                    ),
+                    AppStatusChip(
+                      label: '${provider.reportedOrdersTotal} đã báo cáo',
+                      color: AppColors.success,
+                    ),
+                  ],
                 ),
-                AppStatusChip(
-                  label: '${provider.reportedOrdersTotal} đã báo cáo',
-                  color: AppColors.success,
-                ),
+                const SizedBox(height: AppLayoutTokens.cardGap),
               ],
-            ),
-            const SizedBox(height: AppLayoutTokens.cardGap),
-          ],
-          _SalesReportCockpit(
-            provider: provider,
-            canSubmitReports: canSubmitReports,
-            onNotPurchased: canSubmitReports
-                ? () => _openReport(
-                    '/sales-reports/not-purchased',
-                    _typeNotPurchased,
-                  )
-                : null,
-            onReload: () => provider.loadOrderCockpit(),
-            onSelectDateRange: _setOrdersDateRange,
-            onOrderTap: canSubmitReports ? _openPurchasedDialog : null,
-          ),
-        ],
+              Expanded(
+                child: _SalesReportCockpit(
+                  provider: provider,
+                  canSubmitReports: canSubmitReports,
+                  onNotPurchased: canSubmitReports
+                      ? () => _openReport(
+                          '/sales-reports/not-purchased',
+                          _typeNotPurchased,
+                        )
+                      : null,
+                  onReload: () => provider.loadOrderCockpit(),
+                  onSelectDateRange: _setOrdersDateRange,
+                  onOrderTap: canSubmitReports ? _openPurchasedDialog : null,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -394,85 +402,88 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
           ),
           const SizedBox(height: AppLayoutTokens.cardGap),
         ],
-        if (provider.isLoadingOrders && cockpit == null)
-          const AppListSkeleton(itemCount: 6)
-        else
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final twoColumns = constraints.maxWidth >= 760;
-              final reported = _OrdersColumn(
-                title: 'Đã báo cáo',
-                count: provider.reportedOrdersTotal,
-                emptyMessage: 'Chưa có đơn đã báo cáo.',
-                orders: provider.reportedOrders,
-                page: provider.reportedOrdersPage,
-                limit: provider.ordersLimit,
-                isLoading: provider.isLoadingOrders,
-                canGoPrevious: provider.canGoPreviousReportedOrders,
-                canGoNext: provider.canGoNextReportedOrders,
-                onPreviousPage: () => unawaited(
-                  provider.loadReportedOrdersPage(
-                    provider.reportedOrdersPage - 1,
-                  ),
+        Expanded(
+          child: cockpit == null
+              ? const AppListSkeleton(itemCount: 6)
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final twoColumns = constraints.maxWidth >= 760;
+                    final reported = _OrdersColumn(
+                      title: 'Đã báo cáo',
+                      count: provider.reportedOrdersTotal,
+                      emptyMessage: 'Chưa có đơn đã báo cáo.',
+                      orders: provider.reportedOrders,
+                      page: provider.reportedOrdersPage,
+                      limit: provider.ordersLimit,
+                      isLoading: provider.isLoadingOrders,
+                      canGoPrevious: provider.canGoPreviousReportedOrders,
+                      canGoNext: provider.canGoNextReportedOrders,
+                      onPreviousPage: () => unawaited(
+                        provider.loadReportedOrdersPage(
+                          provider.reportedOrdersPage - 1,
+                        ),
+                      ),
+                      onNextPage: () => unawaited(
+                        provider.loadReportedOrdersPage(
+                          provider.reportedOrdersPage + 1,
+                        ),
+                      ),
+                      onTap: null,
+                    );
+                    final unreported = _OrdersColumn(
+                      title: 'Chưa báo cáo',
+                      count: provider.unreportedOrdersTotal,
+                      emptyMessage: 'Chưa có đơn chờ báo cáo.',
+                      orders: provider.unreportedOrders,
+                      page: provider.unreportedOrdersPage,
+                      limit: provider.ordersLimit,
+                      isLoading: provider.isLoadingOrders,
+                      canGoPrevious: provider.canGoPreviousUnreportedOrders,
+                      canGoNext: provider.canGoNextUnreportedOrders,
+                      onPreviousPage: () => unawaited(
+                        provider.loadUnreportedOrdersPage(
+                          provider.unreportedOrdersPage - 1,
+                        ),
+                      ),
+                      onNextPage: () => unawaited(
+                        provider.loadUnreportedOrdersPage(
+                          provider.unreportedOrdersPage + 1,
+                        ),
+                      ),
+                      onTap: widget.onOrderTap,
+                    );
+                    if (!twoColumns) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _OrderStatusTabs(
+                            showUnreported: _showUnreported,
+                            unreportedTotal: provider.unreportedOrdersTotal,
+                            reportedTotal: provider.reportedOrdersTotal,
+                            onChanged: (value) {
+                              setState(() => _showUnreported = value);
+                            },
+                          ),
+                          const SizedBox(height: AppLayoutTokens.cardGap),
+                          Expanded(
+                            child: _showUnreported
+                                ? unreported.copyWith(showHeader: false)
+                                : reported.copyWith(showHeader: false),
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: unreported),
+                        const SizedBox(width: AppLayoutTokens.cardGap),
+                        Expanded(child: reported),
+                      ],
+                    );
+                  },
                 ),
-                onNextPage: () => unawaited(
-                  provider.loadReportedOrdersPage(
-                    provider.reportedOrdersPage + 1,
-                  ),
-                ),
-                onTap: null,
-              );
-              final unreported = _OrdersColumn(
-                title: 'Chưa báo cáo',
-                count: provider.unreportedOrdersTotal,
-                emptyMessage: 'Chưa có đơn chờ báo cáo.',
-                orders: provider.unreportedOrders,
-                page: provider.unreportedOrdersPage,
-                limit: provider.ordersLimit,
-                isLoading: provider.isLoadingOrders,
-                canGoPrevious: provider.canGoPreviousUnreportedOrders,
-                canGoNext: provider.canGoNextUnreportedOrders,
-                onPreviousPage: () => unawaited(
-                  provider.loadUnreportedOrdersPage(
-                    provider.unreportedOrdersPage - 1,
-                  ),
-                ),
-                onNextPage: () => unawaited(
-                  provider.loadUnreportedOrdersPage(
-                    provider.unreportedOrdersPage + 1,
-                  ),
-                ),
-                onTap: widget.onOrderTap,
-              );
-              if (!twoColumns) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _OrderStatusTabs(
-                      showUnreported: _showUnreported,
-                      unreportedTotal: provider.unreportedOrdersTotal,
-                      reportedTotal: provider.reportedOrdersTotal,
-                      onChanged: (value) {
-                        setState(() => _showUnreported = value);
-                      },
-                    ),
-                    const SizedBox(height: AppLayoutTokens.cardGap),
-                    _showUnreported
-                        ? unreported.copyWith(showHeader: false)
-                        : reported.copyWith(showHeader: false),
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: unreported),
-                  const SizedBox(width: AppLayoutTokens.cardGap),
-                  Expanded(child: reported),
-                ],
-              );
-            },
-          ),
+        ),
       ],
     );
   }
@@ -815,7 +826,7 @@ class _AdvancedFilterSheet extends StatelessWidget {
               if (managedScope) ...[
                 const SizedBox(height: AppLayoutTokens.formInlineGap),
                 AppSearchableFilterDropdown<String>(
-                  label: 'User',
+                  label: 'Nhân viên',
                   value: provider.ordersUserEmail,
                   allLabel: 'Tất cả',
                   icon: Icons.person_outline_rounded,
@@ -1003,14 +1014,50 @@ class _OrdersColumn extends StatelessWidget {
           ),
           const SizedBox(height: AppLayoutTokens.formInlineGap),
         ],
-        if (orders.isEmpty)
-          AppStatePanel.empty(title: title, message: emptyMessage)
-        else
-          for (final order in orders) ...[
-            _OrderCockpitTile(order: order, onTap: onTap),
-            const SizedBox(height: AppLayoutTokens.cardGap),
-          ],
+        Expanded(
+          child: orders.isEmpty
+              ? LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.hasBoundedHeight &&
+                        constraints.maxHeight < 150) {
+                      return Align(
+                        alignment: Alignment.center,
+                        child: Text(
+                          emptyMessage,
+                          textAlign: TextAlign.center,
+                          style: AppTextStyles.bodyS.copyWith(
+                            color: AppColors.textMutedOf(context),
+                          ),
+                        ),
+                      );
+                    }
+                    return AppStatePanel.empty(
+                      title: title,
+                      message: emptyMessage,
+                    );
+                  },
+                )
+              : ListView.separated(
+                  key: Key(
+                    'sales-report-${title == 'Chưa báo cáo' ? 'unreported' : 'reported'}-list',
+                  ),
+                  primary: false,
+                  padding: const EdgeInsets.only(
+                    bottom: AppLayoutTokens.cardGap,
+                  ),
+                  itemCount: orders.length,
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(height: AppLayoutTokens.cardGap),
+                  itemBuilder: (context, index) {
+                    return _OrderCockpitTile(
+                      order: orders[index],
+                      onTap: onTap,
+                    );
+                  },
+                ),
+        ),
         if (count > limit || page > 0) ...[
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
           Text(
             'Trang ${page + 1}/$pageCount',
             textAlign: TextAlign.center,
@@ -2479,12 +2526,12 @@ class _BehaviorSection extends StatelessWidget {
           ),
           const SizedBox(height: AppLayoutTokens.formInlineGap),
           _AnswerDropdown(
-            label: 'KH tải App PV',
+            label: 'KH tải ứng dụng PV',
             value: appDownloadAnswer,
             options: _appOptions,
             onChanged: onAppChanged,
             otherController: appOtherController,
-            otherLabel: 'Lý do khác không tải App PV',
+            otherLabel: 'Lý do khác không tải ứng dụng PV',
           ),
         ],
       ),

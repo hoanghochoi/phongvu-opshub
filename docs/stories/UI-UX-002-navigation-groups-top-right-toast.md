@@ -8,10 +8,10 @@ không bị một thanh full-width che phần dưới màn hình.
 ## Acceptance
 
 - `Quản trị` nằm trong `Tổng quan`; không còn destination FIFO tổng hợp.
-- `Danh sách báo cáo sale`, `Cập nhật tồn kho` và `Lịch sử FIFO` nằm trong màn
+- `Danh sách báo cáo bán hàng`, `Cập nhật tồn kho` và `Lịch sử FIFO` nằm trong màn
   hình `Quản trị`.
 - Sidebar và màn hình `Vận hành` dùng cùng cấu trúc:
-  - Bán hàng: VietQR -> Báo cáo sale -> Tiền vào.
+  - Bán hàng: VietQR -> Báo cáo bán hàng -> Tiền vào.
   - Kho: Kiểm tra FIFO -> Sắp xếp FIFO.
   - Tài chính: Sao kê -> Cấn trừ.
   - Kỹ thuật: Bảo hành.

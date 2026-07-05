@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { FeatureService } from '../feature/feature.service';
@@ -16,13 +16,22 @@ import { GetHomeSummaryQueryDto } from './home-summary.dto';
 
 const REPORT_TYPE_PURCHASED = 'PURCHASED';
 const COVERAGE_LABEL = 'Tỉ lệ báo cáo';
+const DEFAULT_HOME_SUMMARY_RANGE_DAYS = 30;
 
 type DateRange = {
   start: Date;
   end: Date;
 };
 
+type SummaryDateRange = DateRange & {
+  startDate: string;
+  endDate: string;
+  legacyDate: string | null;
+};
+
 type HomeSummaryResponse = SalesReportOperatingSummary & {
+  startDate: string;
+  endDate: string;
   unavailableMessage: string | null;
   salesProgress: SalesProgressResponse;
 };
@@ -37,6 +46,7 @@ type SalesProgressResponse = {
   status: 'AVAILABLE' | 'MISSING' | 'PARTIAL' | 'NOT_APPLICABLE';
   scope: 'PERSONAL_SA' | 'MANAGED' | 'ALL' | null;
   missingStoreCodes: string[];
+  range: SalesProgressPeriod;
   day: SalesProgressPeriod;
   week: SalesProgressPeriod;
   month: SalesProgressPeriod;
@@ -77,11 +87,12 @@ export class HomeSummaryService {
     query: GetHomeSummaryQueryDto,
   ): Promise<HomeSummaryResponse> {
     const startedAt = Date.now();
-    const date = this.parseDateParam(query.date) ?? this.todayVietnamDate();
+    const range = this.parseSummaryRange(query);
+    const date = range.endDate;
     const requestedScope = this.parseScopeParam(query.scope);
     const summaryDate = this.parseDateOnly(date) ?? new Date();
     this.logger.log(
-      `Home summary load started: user=${this.safeUserLabel(user)} date=${date} scopeFilter=${requestedScope}`,
+      `Home summary load started: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope}`,
     );
     const { salesAvailable, financeAvailable } =
       await this.resolveSectionAccess(user);
@@ -99,10 +110,11 @@ export class HomeSummaryService {
         allowedStoreCodes: [],
       };
       this.logger.log(
-        `Home summary unavailable: user=${this.safeUserLabel(user)} date=${date} scopeFilter=${requestedScope} reason=no_section_access durationMs=${Date.now() - startedAt}`,
+        `Home summary unavailable: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} reason=no_section_access durationMs=${Date.now() - startedAt}`,
       );
       return this.emptySummary(
         date,
+        range,
         scope,
         new Date(),
         scope.unavailableMessage,
@@ -117,20 +129,21 @@ export class HomeSummaryService {
     if (!scope.available) {
       const response = this.emptySummary(
         date,
+        range,
         scope,
         new Date(),
         scope.unavailableMessage,
       );
       this.logger.log(
-        `Home summary unavailable: user=${this.safeUserLabel(user)} date=${date} scopeFilter=${requestedScope} message=${scope.unavailableMessage || 'none'} durationMs=${Date.now() - startedAt}`,
+        `Home summary unavailable: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} message=${scope.unavailableMessage || 'none'} durationMs=${Date.now() - startedAt}`,
       );
       return response;
     }
 
     let refreshedAt = new Date();
-    const orderWhere = this.orderScopeWhere(scope, summaryDate);
+    const orderWhere = this.orderScopeWhere(scope, range);
     if (salesAvailable || (financeAvailable && scope.scope === 'OWN')) {
-      refreshedAt = await this.syncFacts(date, summaryDate);
+      refreshedAt = await this.syncFactsForRange(range);
     }
 
     let totalRevenue = 0;
@@ -138,7 +151,7 @@ export class HomeSummaryService {
     let totalReports = 0;
     let reportedOrders = 0;
     if (salesAvailable) {
-      const reportWhere = this.reportScopeWhere(scope, summaryDate);
+      const reportWhere = this.reportScopeWhere(scope, range);
       const [orderCount, reportCount, reportedCodeRows] =
         await this.prisma.$transaction([
           this.homeSummaryOrderFact.count({ where: orderWhere }),
@@ -194,7 +207,7 @@ export class HomeSummaryService {
           : [];
       const financeWhere = this.financeScopeWhere(
         scope,
-        this.dateRangeFor(summaryDate),
+        range,
         personalOrderCodes,
       );
       const [
@@ -235,11 +248,13 @@ export class HomeSummaryService {
       ? Number(((totalStatementsWithOrder / totalStatements) * 100).toFixed(2))
       : 0;
     const salesProgress = salesAvailable
-      ? await this.buildSalesProgress(user, scope, summaryDate)
+      ? await this.buildSalesProgress(user, scope, summaryDate, range)
       : this.emptySalesProgress();
-    totalRevenue = salesProgress.day.actual;
+    totalRevenue = salesProgress.range.actual;
     const response: HomeSummaryResponse = {
       date,
+      startDate: range.startDate,
+      endDate: range.endDate,
       available: true,
       scope: scope.scope,
       scopeLabel: scope.scopeLabel,
@@ -264,7 +279,7 @@ export class HomeSummaryService {
       unavailableMessage: null,
     };
     this.logger.log(
-      `Home summary load succeeded: user=${this.safeUserLabel(user)} date=${date} scopeFilter=${requestedScope} scope=${scope.scope} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalOrders=${totalOrders} totalReports=${totalReports} reportedOrders=${reportedOrders} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
+      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalOrders=${totalOrders} totalReports=${totalReports} reportedOrders=${reportedOrders} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
     );
     return response;
   }
@@ -293,6 +308,22 @@ export class HomeSummaryService {
       return normalized;
     }
     return 'AUTO';
+  }
+
+  private async syncFactsForRange(range: SummaryDateRange) {
+    let refreshedAt = new Date();
+    for (
+      const cursor = new Date(range.start);
+      cursor < range.end;
+      cursor.setUTCDate(cursor.getUTCDate() + 1)
+    ) {
+      const dayStart = new Date(cursor);
+      refreshedAt = await this.syncFacts(
+        this.formatVietnamDate(dayStart),
+        dayStart,
+      );
+    }
+    return refreshedAt;
   }
 
   private async syncFacts(date: string, summaryDate: Date) {
@@ -628,9 +659,11 @@ export class HomeSummaryService {
 
   private reportScopeWhere(
     scope: SalesReportSummaryScopeDescriptor,
-    summaryDate: Date,
+    dateRange: DateRange,
   ) {
-    const base = { summaryDate };
+    const base = {
+      summaryDate: { gte: dateRange.start, lt: dateRange.end },
+    };
     if (scope.scope === 'ALL') return base;
     if (scope.scope === 'MANAGED_SCOPE') {
       return {
@@ -657,9 +690,11 @@ export class HomeSummaryService {
 
   private orderScopeWhere(
     scope: SalesReportSummaryScopeDescriptor,
-    summaryDate: Date,
+    dateRange: DateRange,
   ) {
-    const base = { summaryDate };
+    const base = {
+      summaryDate: { gte: dateRange.start, lt: dateRange.end },
+    };
     if (scope.scope === 'ALL') return base;
     if (scope.scope === 'MANAGED_SCOPE') {
       return {
@@ -732,10 +767,23 @@ export class HomeSummaryService {
     user: any,
     scope: SalesReportSummaryScopeDescriptor,
     summaryDate: Date,
+    selectedRange: DateRange,
   ): Promise<SalesProgressResponse> {
     const ranges = this.salesProgressRanges(summaryDate);
+    const progressRange = {
+      start: selectedRange.start,
+      end: selectedRange.end,
+    };
+    const queryRange = {
+      start: new Date(
+        Math.min(progressRange.start.getTime(), ranges.month.start.getTime()),
+      ),
+      end: new Date(
+        Math.max(progressRange.end.getTime(), ranges.month.end.getTime()),
+      ),
+    };
     const rows = await this.prisma.salesReport.findMany({
-      where: this.salesProgressReportWhere(scope, ranges.month),
+      where: this.salesProgressReportWhere(scope, queryRange),
       select: {
         erpOrderCreatedAt: true,
         submittedAt: true,
@@ -754,6 +802,7 @@ export class HomeSummaryService {
         return sum + Math.round(gross / 1.08);
       }, 0);
     const actuals = {
+      range: actualFor(progressRange),
       day: actualFor(ranges.day),
       week: actualFor(ranges.week),
       month: actualFor(ranges.month),
@@ -841,6 +890,16 @@ export class HomeSummaryService {
     const weekTarget = Math.round(
       (monthlyTarget * ranges.weekDaysInMonth) / ranges.daysInMonth,
     );
+    const selectedRangeDays = Math.max(
+      1,
+      Math.round(
+        (progressRange.end.getTime() - progressRange.start.getTime()) /
+          86_400_000,
+      ),
+    );
+    const rangeTarget = Math.round(
+      (monthlyTarget * selectedRangeDays) / ranges.daysInMonth,
+    );
     const period = (actual: number, target: number): SalesProgressPeriod => ({
       actual,
       target,
@@ -855,6 +914,7 @@ export class HomeSummaryService {
             ? 'ALL'
             : 'MANAGED',
       missingStoreCodes: [],
+      range: period(actuals.range, rangeTarget),
       day: period(actuals.day, dayTarget),
       week: period(actuals.week, weekTarget),
       month: period(actuals.month, Math.round(monthlyTarget)),
@@ -989,7 +1049,7 @@ export class HomeSummaryService {
     status: SalesProgressResponse['status'],
     scope: SalesProgressResponse['scope'],
     missingStoreCodes: string[],
-    actuals: { day: number; week: number; month: number },
+    actuals: { range: number; day: number; week: number; month: number },
   ): SalesProgressResponse {
     const period = (actual: number): SalesProgressPeriod => ({
       actual,
@@ -1000,6 +1060,7 @@ export class HomeSummaryService {
       status,
       scope,
       missingStoreCodes,
+      range: period(actuals.range),
       day: period(actuals.day),
       week: period(actuals.week),
       month: period(actuals.month),
@@ -1008,6 +1069,7 @@ export class HomeSummaryService {
 
   private emptySalesProgress(): SalesProgressResponse {
     return this.salesProgressWithActuals('NOT_APPLICABLE', null, [], {
+      range: 0,
       day: 0,
       week: 0,
       month: 0,
@@ -1078,12 +1140,15 @@ export class HomeSummaryService {
 
   private emptySummary(
     date: string,
+    range: SummaryDateRange,
     scope: SalesReportSummaryScopeDescriptor,
     refreshedAt: Date,
     unavailableMessage: string | null,
   ): HomeSummaryResponse {
     return {
       date,
+      startDate: range.startDate,
+      endDate: range.endDate,
       available: false,
       scope: scope.scope,
       scopeLabel: scope.scopeLabel,
@@ -1115,6 +1180,43 @@ export class HomeSummaryService {
     return { start: summaryDate, end };
   }
 
+  private parseSummaryRange(query: GetHomeSummaryQueryDto): SummaryDateRange {
+    const legacyDate = this.parseDateParam(query.date);
+    const today = this.todayVietnamDate();
+    const explicitStart = this.parseDateParam(query.startDate);
+    const explicitEnd = this.parseDateParam(query.endDate);
+    let startDate: string;
+    let endDate: string;
+
+    if (explicitStart || explicitEnd) {
+      startDate = explicitStart ?? explicitEnd ?? today;
+      endDate = explicitEnd ?? explicitStart ?? today;
+    } else if (legacyDate) {
+      startDate = legacyDate;
+      endDate = legacyDate;
+    } else {
+      endDate = today;
+      startDate = this.addVietnamDays(
+        endDate,
+        -(DEFAULT_HOME_SUMMARY_RANGE_DAYS - 1),
+      );
+    }
+
+    const start = this.parseDateOnly(startDate);
+    const endStart = this.parseDateOnly(endDate);
+    if (!start || !endStart) {
+      throw new BadRequestException('Khoảng ngày chưa đúng định dạng.');
+    }
+    if (endStart < start) {
+      throw new BadRequestException(
+        'Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.',
+      );
+    }
+    const end = new Date(endStart);
+    end.setUTCDate(end.getUTCDate() + 1);
+    return { startDate, endDate, legacyDate, start, end };
+  }
+
   private parseDateParam(value?: string) {
     const text = String(value || '').trim();
     return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
@@ -1128,9 +1230,19 @@ export class HomeSummaryService {
   }
 
   private todayVietnamDate() {
-    const vnNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    return this.formatVietnamDate(new Date());
+  }
+
+  private addVietnamDays(dateText: string, days: number) {
+    const date = this.parseDateOnly(dateText) ?? new Date();
+    date.setUTCDate(date.getUTCDate() + days);
+    return this.formatVietnamDate(date);
+  }
+
+  private formatVietnamDate(value: Date) {
+    const local = new Date(value.getTime() + 7 * 60 * 60 * 1000);
     const two = (part: number) => String(part).padStart(2, '0');
-    return `${vnNow.getUTCFullYear()}-${two(vnNow.getUTCMonth() + 1)}-${two(vnNow.getUTCDate())}`;
+    return `${local.getUTCFullYear()}-${two(local.getUTCMonth() + 1)}-${two(local.getUTCDate())}`;
   }
 
   private normalizeOrderCode(value: unknown) {

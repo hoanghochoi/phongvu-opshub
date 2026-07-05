@@ -138,7 +138,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Danh sách báo cáo sale'), findsOneWidget);
+    expect(find.text('Danh sách báo cáo bán hàng'), findsOneWidget);
     expect(find.text('Lọc danh sách và xuất file'), findsOneWidget);
     expect(find.byIcon(Icons.table_chart_outlined), findsOneWidget);
   });

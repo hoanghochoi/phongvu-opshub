@@ -45,11 +45,25 @@ class HomeSummaryRepository {
   HomeSummaryRepository(this._apiClient);
 
   Future<HomeSummary> fetchSummary({
-    required String date,
+    String? date,
+    String? startDate,
+    String? endDate,
     String? scope,
     String? organizationNodeId,
   }) async {
-    final queryParameters = <String, String>{'date': date};
+    final queryParameters = <String, String>{};
+    final normalizedDate = date?.trim();
+    if (normalizedDate != null && normalizedDate.isNotEmpty) {
+      queryParameters['date'] = normalizedDate;
+    }
+    final normalizedStartDate = startDate?.trim();
+    if (normalizedStartDate != null && normalizedStartDate.isNotEmpty) {
+      queryParameters['startDate'] = normalizedStartDate;
+    }
+    final normalizedEndDate = endDate?.trim();
+    if (normalizedEndDate != null && normalizedEndDate.isNotEmpty) {
+      queryParameters['endDate'] = normalizedEndDate;
+    }
     final normalizedScope = scope?.trim().toUpperCase();
     if (normalizedScope != null &&
         normalizedScope.isNotEmpty &&

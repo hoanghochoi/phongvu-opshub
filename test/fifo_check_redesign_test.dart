@@ -30,10 +30,10 @@ void main() {
 
     await tester.pumpWidget(_wrapFifoCheck(_FakeFifoRepository()));
 
-    expect(find.byKey(const Key('fifo-check-header')), findsOneWidget);
+    expect(find.byKey(const Key('fifo-check-header')), findsNothing);
     expect(find.byKey(const Key('fifo-check-command-card')), findsOneWidget);
     expect(find.byKey(const Key('fifo-check-results')), findsOneWidget);
-    expect(find.text('Kiểm tra FIFO'), findsOneWidget);
+    expect(find.text('Kiểm tra FIFO'), findsNothing);
     expect(find.text('Chưa kiểm tra'), findsNothing);
     expect(find.text('0 sản phẩm'), findsNothing);
     expect(find.text('Chỉ còn tồn'), findsNothing);
@@ -66,9 +66,6 @@ void main() {
 
     expect(repository.lastText, 'SN001');
     expect(repository.lastIncludeExported, isTrue);
-    expect(find.text('Serial'), findsOneWidget);
-    expect(find.text('1 sản phẩm'), findsOneWidget);
-    expect(find.text('Đúng FIFO'), findsOneWidget);
     expect(find.text('Đúng FIFO. Lấy sản phẩm này.'), findsOneWidget);
     expect(find.text('Chuột Logitech B100'), findsOneWidget);
     expect(find.text('SN001'), findsWidgets);
