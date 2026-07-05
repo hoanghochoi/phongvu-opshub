@@ -50,7 +50,7 @@ class AppNotificationsBell extends StatelessWidget {
                   ),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(maxHeight: maxHeight),
-                    child: _NotificationsMenu(
+                    child: AppNotificationsContent(
                       provider: provider,
                       onClose: () => Navigator.of(sheetContext).pop(),
                     ),
@@ -75,7 +75,7 @@ class AppNotificationsBell extends StatelessWidget {
     }
     if (!notifications.isEnabled) return const SizedBox.shrink();
     return MenuAnchor(
-      menuChildren: [_NotificationsMenu(provider: notifications)],
+      menuChildren: [AppNotificationsContent(provider: notifications)],
       builder: (context, controller, child) {
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -100,135 +100,135 @@ class AppNotificationsBell extends StatelessWidget {
   }
 }
 
-class _NotificationsMenu extends StatelessWidget {
+class AppNotificationsContent extends StatelessWidget {
   final AppNotificationsProvider provider;
   final VoidCallback? onClose;
+  final bool fullPage;
 
-  const _NotificationsMenu({required this.provider, this.onClose});
+  const AppNotificationsContent({
+    super.key,
+    required this.provider,
+    this.onClose,
+    this.fullPage = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final menuWidth = width < 460 ? width - 24 : 440.0;
+    final menuWidth = fullPage
+        ? double.infinity
+        : (width < 460 ? width - 24 : 440.0);
     final maxHeight = MediaQuery.sizeOf(context).height - 120;
     final requests = provider.statementOrderRequests;
     final offsets = provider.offsetAdjustmentRequests;
     final hasNotifications = requests.isNotEmpty || offsets.isNotEmpty;
-    return SizedBox(
-      width: menuWidth,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: maxHeight.clamp(260.0, 560.0).toDouble(),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-          child: SelectionArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+    final notificationList = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (requests.isNotEmpty) ...[
+          if (offsets.isNotEmpty)
+            const _NotificationSectionTitle(title: 'Sao kê'),
+          for (var index = 0; index < requests.length; index++) ...[
+            if (index > 0) const Divider(height: 18),
+            _StatementOrderNotificationTile(
+              request: requests[index],
+              canReview: provider.canReviewStatementOrderTransfers,
+              onApprove: () => _handleReview(
+                context,
+                provider,
+                requests[index],
+                approved: true,
+              ),
+              onReject: () => _handleReview(
+                context,
+                provider,
+                requests[index],
+                approved: false,
+              ),
+            ),
+          ],
+        ],
+        if (requests.isNotEmpty && offsets.isNotEmpty)
+          const Divider(height: 18),
+        if (offsets.isNotEmpty) ...[
+          const _NotificationSectionTitle(title: 'Cấn trừ'),
+          for (var index = 0; index < offsets.length; index++) ...[
+            if (index > 0) const Divider(height: 18),
+            _OffsetAdjustmentNotificationTile(
+              request: offsets[index],
+              onOpen: () => _openOffsetAdjustments(context),
+            ),
+          ],
+        ],
+      ],
+    );
+    final body = provider.isLoading && !hasNotifications
+        ? const AppListSkeleton(
+            itemCount: 3,
+            showLeading: false,
+            showTrailing: false,
+            itemHeight: 74,
+            scrollable: false,
+          )
+        : !hasNotifications
+        ? const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: SelectableText('Chưa có thông báo.')),
+          )
+        : fullPage
+        ? notificationList
+        : SingleChildScrollView(primary: false, child: notificationList);
+    final content = Padding(
+      padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+      child: SelectionArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.notifications_none_rounded,
-                      color: AppColors.primary500,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text('Thông báo', style: AppTextStyles.headingS),
-                    ),
-                    IconButton(
-                      tooltip: 'Tải lại',
-                      onPressed: provider.isLoading
-                          ? null
-                          : () async {
-                              await provider.load();
-                              await provider.markVisibleNotificationsRead();
-                            },
-                      icon: const Icon(Icons.refresh_rounded),
-                    ),
-                  ],
+                const Icon(
+                  Icons.notifications_none_rounded,
+                  color: AppColors.primary500,
                 ),
-                const SizedBox(height: 8),
-                Flexible(
-                  child: provider.isLoading && !hasNotifications
-                      ? const AppListSkeleton(
-                          itemCount: 3,
-                          showLeading: false,
-                          showTrailing: false,
-                          itemHeight: 74,
-                          scrollable: false,
-                        )
-                      : !hasNotifications
-                      ? const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: Center(
-                            child: SelectableText('Chưa có thông báo.'),
-                          ),
-                        )
-                      : SingleChildScrollView(
-                          primary: false,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (requests.isNotEmpty) ...[
-                                if (offsets.isNotEmpty)
-                                  const _NotificationSectionTitle(
-                                    title: 'Sao kê',
-                                  ),
-                                for (
-                                  var index = 0;
-                                  index < requests.length;
-                                  index++
-                                ) ...[
-                                  if (index > 0) const Divider(height: 18),
-                                  _StatementOrderNotificationTile(
-                                    request: requests[index],
-                                    canReview: provider
-                                        .canReviewStatementOrderTransfers,
-                                    onApprove: () => _handleReview(
-                                      context,
-                                      provider,
-                                      requests[index],
-                                      approved: true,
-                                    ),
-                                    onReject: () => _handleReview(
-                                      context,
-                                      provider,
-                                      requests[index],
-                                      approved: false,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                              if (requests.isNotEmpty && offsets.isNotEmpty)
-                                const Divider(height: 18),
-                              if (offsets.isNotEmpty) ...[
-                                const _NotificationSectionTitle(
-                                  title: 'Cấn trừ',
-                                ),
-                                for (
-                                  var index = 0;
-                                  index < offsets.length;
-                                  index++
-                                ) ...[
-                                  if (index > 0) const Divider(height: 18),
-                                  _OffsetAdjustmentNotificationTile(
-                                    request: offsets[index],
-                                    onOpen: () =>
-                                        _openOffsetAdjustments(context),
-                                  ),
-                                ],
-                              ],
-                            ],
-                          ),
-                        ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Thông báo', style: AppTextStyles.headingS),
                 ),
+                IconButton(
+                  tooltip: 'Tải lại',
+                  onPressed: provider.isLoading
+                      ? null
+                      : () async {
+                          await provider.load();
+                          await provider.markVisibleNotificationsRead();
+                        },
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+                if (onClose != null)
+                  IconButton(
+                    tooltip: 'Đóng',
+                    onPressed: onClose,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
               ],
             ),
-          ),
+            const SizedBox(height: 8),
+            fullPage ? body : Flexible(child: body),
+          ],
         ),
       ),
+    );
+    return SizedBox(
+      width: menuWidth,
+      child: fullPage
+          ? content
+          : ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: maxHeight.clamp(260.0, 560.0).toDouble(),
+              ),
+              child: content,
+            ),
     );
   }
 

@@ -38,6 +38,7 @@ import '../../features/warranty/presentation/screens/check_warranty_screen.dart'
 import '../../features/warranty/presentation/screens/warranty_details_screen.dart';
 import '../../features/feedback/presentation/screens/feedback_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
+import '../../features/notifications/presentation/screens/notifications_screen.dart';
 import '../../features/operations/presentation/screens/operations_screen.dart';
 import '../../features/payment_monitor/presentation/screens/payment_monitor_screen.dart';
 import '../../features/payment_monitor/presentation/screens/payment_monitor_unsupported_screen.dart';
@@ -203,6 +204,11 @@ class AppRouter {
               path: '/operations',
               pageBuilder: (context, state) =>
                   _noTransitionPage(state, const OperationsScreen()),
+            ),
+            GoRoute(
+              path: '/notifications',
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const NotificationsScreen()),
             ),
             GoRoute(
               path: '/admin',

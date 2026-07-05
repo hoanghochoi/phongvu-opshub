@@ -6,7 +6,7 @@ import '../theme/app_text_styles.dart';
 import 'app_inputs.dart';
 import 'app_layout.dart';
 
-const double _filterButtonHeight = 52;
+const double _filterButtonHeight = AppLayoutTokens.mobileActionHeight;
 
 class AppFilterOption<T> {
   final T value;

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,7 @@ import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provide
 import 'package:phongvu_opshub/features/bank_statement/data/bank_statement_repository.dart';
 import 'package:phongvu_opshub/features/bank_statement/domain/bank_statement_transaction.dart';
 import 'package:phongvu_opshub/features/notifications/presentation/providers/app_notifications_provider.dart';
+import 'package:phongvu_opshub/features/notifications/presentation/widgets/app_notifications_bell.dart';
 import 'package:phongvu_opshub/features/offset_adjustment/data/offset_adjustment_repository.dart';
 import 'package:phongvu_opshub/features/offset_adjustment/domain/offset_adjustment.dart';
 import 'package:provider/provider.dart';
@@ -175,7 +177,7 @@ void main() {
   });
 
   testWidgets(
-    'mobile shell routes to /operations and keeps notifications shell-owned',
+    'mobile shell routes to /operations and opens notifications as a route',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -218,13 +220,54 @@ void main() {
       await tester.tap(find.text('Thông báo'));
       await tester.pumpAndSettle();
 
-      expect(router.routeInformationProvider.value.uri.path, '/operations');
+      expect(router.routeInformationProvider.value.uri.path, '/notifications');
+      expect(
+        find.byKey(const ValueKey('route-/notifications')),
+        findsOneWidget,
+      );
+      expect(find.byType(NavigationBar), findsOneWidget);
       expect(notificationsProvider.loadCalls, 1);
       expect(notificationsProvider.markReadCalls, 1);
       expect(find.text('Chưa có thông báo.'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('Android system back returns to the previous shell route', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    try {
+      final authProvider = _FakeAuthProvider(_shellUser);
+      final router = AppRouter.createRouter(authProvider);
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AuthProvider>.value(
+          value: authProvider,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Vận hành'));
+      await tester.pumpAndSettle();
+
+      expect(router.routeInformationProvider.value.uri.path, '/operations');
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(router.routeInformationProvider.value.uri.path, '/home');
+      expect(tester.takeException(), isNull);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
 
   testWidgets('account logout waits for confirmation', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
@@ -334,7 +377,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('mobile notifications tab opens the notifications panel', (
+  testWidgets('mobile shell omits the header notification bell', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -364,8 +407,44 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Thông báo'), findsOneWidget);
+    expect(find.byType(AppNotificationsBell), findsNothing);
+    expect(notificationsProvider.loadCalls, 0);
+    expect(notificationsProvider.markReadCalls, 0);
+    expect(tester.takeException(), isNull);
+  });
 
-    await tester.tap(find.text('Thông báo'));
+  testWidgets('desktop shell keeps the notification bell quick menu', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_shellUser);
+    final notificationsProvider = _FakeAppNotificationsProvider();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<AppNotificationsProvider>.value(
+            value: notificationsProvider,
+          ),
+        ],
+        child: const MaterialApp(
+          home: AppShell(
+            location: '/home',
+            child: _RouteMarker(label: 'home-route-marker'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AppNotificationsBell), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Thông báo'));
     await tester.pumpAndSettle();
 
     expect(notificationsProvider.loadCalls, 1);

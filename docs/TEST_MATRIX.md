@@ -45,6 +45,17 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`/`MOBILE-NOTIFICATIONS-NAV-BACK-SIZING`, 2026-07-05: mobile
+  notification entry is now a full `/notifications` shell route with bottom
+  navigation visible, mobile header no longer renders a duplicate notification
+  bell, Android system back returns to the previous shell route before
+  double-back exit, shared action/filter/touch tokens cover 48/44/52/56/80dp
+  sizing, and desktop account chip shows staff name plus SR beside the avatar
+  while tablet keeps the compact avatar and mobile keeps identity in the bottom
+  `Tài khoản` destination.
+  Validation:
+  `flutter test --no-pub --reporter expanded test\app_nav_model_test.dart test\app_shell_route_viewport_test.dart test\app_buttons_test.dart test\app_theme_tokens_test.dart test\home_avatar_test.dart`,
+  `flutter analyze --no-pub`, and `git diff --check`.
 - `UI-UX-001`/`HEADER-ACTION-CONSOLIDATION`, 2026-07-04: Home no longer renders
   a separate `HomeSummaryToolbar`; the scope selector, date picker, refresh
   status, stale-data banner, and speaker status now live inside

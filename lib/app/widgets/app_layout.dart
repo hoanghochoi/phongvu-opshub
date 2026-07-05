@@ -18,6 +18,7 @@ class AppLayoutTokens {
   static const double tabletRailWidth = 88;
   static const double shellTopBarHeight = 72;
   static const double mobileBottomNavHeight = 76;
+  static const double mobileStickyActionBottomInset = 80;
   static const double formMaxWidth = 720;
   static const double actionBarMaxWidth = 560;
   static const double authMaxWidth = 460;
@@ -38,6 +39,10 @@ class AppLayoutTokens {
   static const double cardRadius = AppRadius.sm;
   static const double cardPadding = 16;
   static const double cardMarginBottom = 10;
+  static const double mobileActionHeight = 48;
+  static const double compactActionHeight = 44;
+  static const double iconTouchTarget = 48;
+  static const double listItemTouchTarget = 56;
 
   static EdgeInsets pagePaddingFor(double width) {
     if (width >= tabletBreakpoint) {

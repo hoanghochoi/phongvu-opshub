@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,7 @@ import '../../core/config/app_brand.dart';
 import '../../core/logging/app_logger.dart';
 import '../../features/auth/domain/entities/user.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
+import '../../features/notifications/presentation/providers/app_notifications_provider.dart';
 import '../../features/notifications/presentation/widgets/app_notifications_bell.dart';
 import '../../features/payment_monitor/presentation/providers/payment_delivery_metrics_provider.dart';
 import '../../features/payment_monitor/presentation/widgets/payment_delivery_metrics_chip.dart';
@@ -42,6 +44,8 @@ class _AppShellState extends State<AppShell> {
   DateTime? _lastBackPress;
   String _lastNavLogKey = '';
   String _version = '';
+  final List<String> _routeHistory = [];
+  bool _suppressNextHistoryPush = false;
 
   @override
   void initState() {
@@ -76,6 +80,20 @@ class _AppShellState extends State<AppShell> {
   }
 
   @override
+  void didUpdateWidget(covariant AppShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.location == widget.location) return;
+    if (_suppressNextHistoryPush) {
+      _suppressNextHistoryPush = false;
+      return;
+    }
+    if (_routeHistory.isEmpty || _routeHistory.last != oldWidget.location) {
+      _routeHistory.add(oldWidget.location);
+      if (_routeHistory.length > 12) _routeHistory.removeAt(0);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
     final sidebarDestinations = AppNavModel.visibleSidebarDestinations(user);
@@ -97,13 +115,22 @@ class _AppShellState extends State<AppShell> {
       hiddenCount: hiddenCount,
     );
 
+    final interceptAndroidBack =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
     return PopScope(
-      canPop: widget.location != '/home',
+      canPop: interceptAndroidBack ? false : widget.location != '/home',
       onPopInvokedWithResult: (didPop, result) async {
-        if (didPop || widget.location != '/home') return;
-        final shouldExit = await _handleBackNavigation();
-        if (shouldExit && context.mounted) {
-          SystemNavigator.pop();
+        if (didPop) return;
+        if (interceptAndroidBack) {
+          await _handleAndroidBackNavigation();
+          return;
+        }
+        if (widget.location == '/home') {
+          final shouldExit = await _handleBackNavigation();
+          if (shouldExit && context.mounted) {
+            SystemNavigator.pop();
+          }
         }
       },
       child: width >= AppLayoutTokens.tabletBreakpoint
@@ -126,12 +153,40 @@ class _AppShellState extends State<AppShell> {
               destinations: mobileDestinations,
               activeDestination: activeDestination,
               onNavigate: _navigate,
-              onNotifications: () =>
-                  unawaited(_showMobileNotifications(context)),
               onSupport: () => _showSupportDialog(context),
               child: widget.child,
             ),
     );
+  }
+
+  Future<void> _handleAndroidBackNavigation() async {
+    if (_routeHistory.isNotEmpty) {
+      final previous = _routeHistory.removeLast();
+      _suppressNextHistoryPush = true;
+      await AppLogger.instance.info(
+        'AppShell',
+        'Android system back navigated to previous route',
+        context: {'from': widget.location, 'to': previous},
+      );
+      if (mounted) context.go(previous);
+      return;
+    }
+
+    if (widget.location != '/home') {
+      _suppressNextHistoryPush = true;
+      await AppLogger.instance.info(
+        'AppShell',
+        'Android system back returned to home',
+        context: {'from': widget.location},
+      );
+      if (mounted) context.go('/home');
+      return;
+    }
+
+    final shouldExit = await _handleBackNavigation();
+    if (shouldExit && mounted) {
+      SystemNavigator.pop();
+    }
   }
 
   void _navigate(AppNavDestination destination) {
@@ -143,59 +198,6 @@ class _AppShellState extends State<AppShell> {
       ),
     );
     context.go(destination.route);
-  }
-
-  Future<void> _showMobileNotifications(BuildContext context) async {
-    final route = widget.location;
-    unawaited(
-      AppLogger.instance.info(
-        'AppShell',
-        'Mobile notifications tab selected',
-        context: {'route': route},
-      ),
-    );
-    try {
-      final opened = await AppNotificationsBell.showPanel(context);
-      if (!context.mounted) return;
-      if (!opened) {
-        unawaited(
-          AppLogger.instance.warn(
-            'AppShell',
-            'Mobile notifications panel skipped',
-            context: {'route': route, 'reason': 'unavailable'},
-          ),
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Thông báo chưa sẵn sàng. Vui lòng thử lại sau.'),
-          ),
-        );
-        return;
-      }
-      unawaited(
-        AppLogger.instance.info(
-          'AppShell',
-          'Mobile notifications panel opened',
-          context: {'route': route},
-        ),
-      );
-    } catch (error, stackTrace) {
-      unawaited(
-        AppLogger.instance.error(
-          'AppShell',
-          'Mobile notifications panel failed',
-          error: error,
-          stackTrace: stackTrace,
-          context: {'route': route},
-        ),
-      );
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Chưa mở được thông báo. Vui lòng thử lại.'),
-        ),
-      );
-    }
   }
 
   void _logNavigationModel({
@@ -537,6 +539,7 @@ class _WideShell extends StatelessWidget {
                 _ShellTopBar(
                   activeDestination: activeDestination,
                   user: user,
+                  showAccountDetails: isDesktop,
                   onSupport: onSupport,
                   onLogout: onLogout,
                   onAppInfo: onAppInfo,
@@ -559,7 +562,6 @@ class _MobileShell extends StatelessWidget {
   final List<AppNavDestination> destinations;
   final AppNavDestination activeDestination;
   final ValueChanged<AppNavDestination> onNavigate;
-  final VoidCallback onNotifications;
   final VoidCallback onSupport;
   final Widget child;
 
@@ -569,7 +571,6 @@ class _MobileShell extends StatelessWidget {
     required this.destinations,
     required this.activeDestination,
     required this.onNavigate,
-    required this.onNotifications,
     required this.onSupport,
     required this.child,
   });
@@ -605,7 +606,6 @@ class _MobileShell extends StatelessWidget {
             onPressed: onSupport,
             icon: const Icon(Icons.support_agent_rounded),
           ),
-          const AppNotificationsBell(),
           const SizedBox(width: 4),
         ],
       ),
@@ -616,17 +616,15 @@ class _MobileShell extends StatelessWidget {
         destinations: [
           for (final destination in destinations)
             NavigationDestination(
-              icon: Icon(destination.icon),
+              icon: destination.id == 'notifications'
+                  ? const _MobileNotificationDestinationIcon()
+                  : Icon(destination.icon),
               label: destination.label,
               tooltip: destination.description,
             ),
         ],
         onDestinationSelected: (index) {
           final destination = destinations[index];
-          if (destination.id == 'notifications') {
-            onNotifications();
-            return;
-          }
           onNavigate(destination);
         },
       ),
@@ -639,6 +637,26 @@ class _MobileShell extends StatelessWidget {
     );
     if (directIndex >= 0) return directIndex;
     return 0;
+  }
+}
+
+class _MobileNotificationDestinationIcon extends StatelessWidget {
+  const _MobileNotificationDestinationIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    late final AppNotificationsProvider notifications;
+    try {
+      notifications = context.watch<AppNotificationsProvider>();
+    } on ProviderNotFoundException {
+      return const Icon(Icons.notifications_none_rounded);
+    }
+
+    return Badge(
+      isLabelVisible: notifications.count > 0,
+      label: Text('${notifications.count}'),
+      child: const Icon(Icons.notifications_none_rounded),
+    );
   }
 }
 
@@ -1109,6 +1127,7 @@ class _SidebarItem extends StatelessWidget {
 class _ShellTopBar extends StatelessWidget {
   final AppNavDestination activeDestination;
   final User? user;
+  final bool showAccountDetails;
   final VoidCallback onSupport;
   final VoidCallback onLogout;
   final VoidCallback onAppInfo;
@@ -1116,6 +1135,7 @@ class _ShellTopBar extends StatelessWidget {
   const _ShellTopBar({
     required this.activeDestination,
     required this.user,
+    required this.showAccountDetails,
     required this.onSupport,
     required this.onLogout,
     required this.onAppInfo,
@@ -1169,6 +1189,7 @@ class _ShellTopBar extends StatelessWidget {
           const SizedBox(width: 8),
           _AccountMenuButton(
             user: user,
+            showDetails: showAccountDetails,
             onLogout: onLogout,
             onAppInfo: onAppInfo,
           ),
@@ -1179,21 +1200,27 @@ class _ShellTopBar extends StatelessWidget {
 }
 
 class _AccountMenuButton extends StatelessWidget {
+  static const double _avatarSize = 42;
+
   final User? user;
+  final bool showDetails;
   final VoidCallback onLogout;
   final VoidCallback onAppInfo;
 
   const _AccountMenuButton({
     required this.user,
+    required this.showDetails,
     required this.onLogout,
     required this.onAppInfo,
   });
 
   @override
   Widget build(BuildContext context) {
-    final cleanName = (user?.name?.trim().isNotEmpty == true
-        ? user!.name!
-        : user?.email ?? 'Tài khoản');
+    final cleanName = _accountDisplayName(user);
+    final storeLabel = user?.assignedStoreHeaderInfo.trim();
+    final srLabel = storeLabel?.isNotEmpty == true
+        ? 'SR: $storeLabel'
+        : 'SR: Chưa gán showroom';
     final initials = cleanName.trim().isNotEmpty
         ? cleanName.trim().characters.first.toUpperCase()
         : '?';
@@ -1242,20 +1269,84 @@ class _AccountMenuButton extends StatelessWidget {
           ),
         ),
       ],
-      child: Container(
-        width: 42,
-        height: 42,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: AppColors.primarySurfaceOf(context),
-          borderRadius: AppRadius.allMd,
-          border: Border.all(color: AppColors.borderOf(context)),
-        ),
-        child: Text(
-          initials,
-          style: AppTextStyles.labelL.copyWith(
-            color: AppColors.primaryOf(context),
-          ),
+      child: showDetails
+          ? ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 230),
+              child: SizedBox(
+                height: _avatarSize,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _AccountAvatar(initials: initials, size: _avatarSize),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: SizedBox(
+                        height: _avatarSize,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              cleanName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.labelS.copyWith(
+                                color: AppColors.textPrimaryOf(context),
+                                height: 1.12,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              srLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.textMutedOf(context),
+                                height: 1.10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : _AccountAvatar(initials: initials, size: _avatarSize),
+    );
+  }
+
+  String _accountDisplayName(User? user) {
+    final name = user?.name?.trim();
+    if (name?.isNotEmpty == true) return name!;
+    final email = user?.email.trim();
+    if (email?.isNotEmpty == true) return email!;
+    return 'Tài khoản';
+  }
+}
+
+class _AccountAvatar extends StatelessWidget {
+  final String initials;
+  final double size;
+
+  const _AccountAvatar({required this.initials, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.primarySurfaceOf(context),
+        borderRadius: AppRadius.allMd,
+        border: Border.all(color: AppColors.borderOf(context)),
+      ),
+      child: Text(
+        initials,
+        style: AppTextStyles.labelL.copyWith(
+          color: AppColors.primaryOf(context),
         ),
       ),
     );

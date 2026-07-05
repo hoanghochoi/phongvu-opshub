@@ -92,6 +92,75 @@ void main() {
     );
   });
 
+  testWidgets('Desktop shell shows name and SR beside the account avatar', (
+    WidgetTester tester,
+  ) async {
+    _useDesktopSurface(tester);
+    SharedPreferences.setMockInitialValues({
+      AppStorageKeys.shared('user_email'): 'dai.ca@example.com',
+      AppStorageKeys.shared('user_name'): 'Dai Ca',
+      AppStorageKeys.shared('user_storeId'): 'PV001',
+      AppStorageKeys.shared('user_storeName'): 'PV Test',
+      AppStorageKeys.shared('user_workScopeType'): 'STORE',
+    });
+    FlutterSecureStorage.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+      appName: 'PhongVu OpsHub',
+      packageName: 'com.example.phongvu_opshub',
+      version: '1.1.1',
+      buildNumber: '2',
+      buildSignature: '',
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>(
+        create: (_) => AuthProvider(AuthRepository(ApiClient())),
+        child: const MaterialApp(
+          home: AppShell(location: '/home', child: SizedBox.shrink()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dai Ca'), findsOneWidget);
+    expect(find.text('SR: PV001 - PV Test'), findsOneWidget);
+  });
+
+  testWidgets('Tablet shell keeps the account avatar compact', (
+    WidgetTester tester,
+  ) async {
+    _useTabletSurface(tester);
+    SharedPreferences.setMockInitialValues({
+      AppStorageKeys.shared('user_email'): 'dai.ca@example.com',
+      AppStorageKeys.shared('user_name'): 'Dai Ca',
+      AppStorageKeys.shared('user_storeId'): 'PV001',
+      AppStorageKeys.shared('user_storeName'): 'PV Test',
+      AppStorageKeys.shared('user_workScopeType'): 'STORE',
+    });
+    FlutterSecureStorage.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+      appName: 'PhongVu OpsHub',
+      packageName: 'com.example.phongvu_opshub',
+      version: '1.1.1',
+      buildNumber: '2',
+      buildSignature: '',
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>(
+        create: (_) => AuthProvider(AuthRepository(ApiClient())),
+        child: const MaterialApp(
+          home: AppShell(location: '/home', child: SizedBox.shrink()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Tài khoản'), findsOneWidget);
+    expect(find.text('Dai Ca'), findsNothing);
+    expect(find.text('SR: PV001 - PV Test'), findsNothing);
+  });
+
   testWidgets('AppShell keeps logout in the account menu', (
     WidgetTester tester,
   ) async {
@@ -170,6 +239,13 @@ void main() {
 void _useDesktopSurface(WidgetTester tester) {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(1366, 768);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
+}
+
+void _useTabletSurface(WidgetTester tester) {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(1024, 768);
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
 }

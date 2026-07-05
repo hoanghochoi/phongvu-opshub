@@ -11,8 +11,10 @@ class AppButtonMetrics {
   AppButtonMetrics._();
 
   static const double height = 52;
+  static const double mobileActionHeight = AppLayoutTokens.mobileActionHeight;
+  static const double compactActionHeight = AppLayoutTokens.compactActionHeight;
   static const double radius = AppRadius.lg;
-  static const double iconSize = 48;
+  static const double iconSize = AppLayoutTokens.iconTouchTarget;
   static const EdgeInsets horizontalPadding = EdgeInsets.symmetric(
     horizontal: 24,
   );
@@ -170,7 +172,7 @@ class AppLinkButton extends StatelessWidget {
     final horizontalPadding = compact ? 4.0 : 6.0;
     final iconSize = compact ? 16.0 : 18.0;
     final button = SizedBox(
-      height: 44,
+      height: AppButtonMetrics.compactActionHeight,
       child: TextButton(
         onPressed: onPressed,
         style: ButtonStyle(
@@ -190,7 +192,9 @@ class AppLinkButton extends StatelessWidget {
             }
             return null;
           }),
-          minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
+          minimumSize: const WidgetStatePropertyAll(
+            Size(0, AppButtonMetrics.compactActionHeight),
+          ),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           padding: WidgetStatePropertyAll(
             EdgeInsets.symmetric(horizontal: horizontalPadding),

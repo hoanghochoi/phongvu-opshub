@@ -54,8 +54,16 @@ void main() {
   test('shared layout and button metrics use design-system tokens', () {
     expect(AppLayoutTokens.cardRadius, AppRadius.sm);
     expect(AppLayoutTokens.cardPadding, 16);
+    expect(AppLayoutTokens.mobileActionHeight, 48);
+    expect(AppLayoutTokens.compactActionHeight, 44);
+    expect(AppLayoutTokens.iconTouchTarget, 48);
+    expect(AppLayoutTokens.listItemTouchTarget, 56);
+    expect(AppLayoutTokens.mobileStickyActionBottomInset, 80);
     expect(AppButtonMetrics.radius, AppRadius.lg);
     expect(AppButtonMetrics.height, 52);
+    expect(AppButtonMetrics.mobileActionHeight, 48);
+    expect(AppButtonMetrics.compactActionHeight, 44);
+    expect(AppButtonMetrics.iconSize, 48);
   });
 
   test('dark theme keeps context-aware foundation colors', () {

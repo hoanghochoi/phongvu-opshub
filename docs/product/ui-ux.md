@@ -49,15 +49,20 @@ visual systems that make the app feel assembled from unrelated screens.
   theo quyền. Feature screens should provide page content only and let the
   shell own global notification, support, account, and route navigation entry
   points. On mobile, the app bar places the delivery metrics pill on the left,
-  the active destination title in the center, and support plus the notification
-  bell on the right. Account/profile entry belongs to the bottom `Tài khoản`
-  destination; do not duplicate the account avatar in the app bar when the
-  screen content already shows user identity. The shell top bar owns
-  destination titles; feature content should use task/status-specific headings
-  instead of repeating the same destination label in a header card. The mobile
-  `Thông báo` destination opens the shared notification panel; it should reuse
-  the global notification provider instead of introducing a feature-local inbox
-  until a dedicated inbox route is accepted.
+  the active destination title in the center, and support on the right.
+  Notification entry belongs only to the bottom `Thông báo` destination on
+  mobile; do not render a second notification bell in the mobile app bar.
+  Account/profile entry belongs to the bottom `Tài khoản` destination; do not
+  duplicate the account avatar in the app bar when the screen content already
+  shows user identity. Desktop top bar account area shows the avatar plus two
+  compact lines for staff name and SR, with the text block matching the avatar
+  height and truncating long values; tablet keeps the account avatar compact.
+  The shell top bar owns destination titles; feature content should use
+  task/status-specific headings instead of repeating the same destination label
+  in a header card. The mobile `Thông báo` destination opens the
+  `/notifications` route as a full shell page with the bottom navigation still
+  visible; it should reuse the global notification provider instead of
+  introducing a feature-local inbox.
 - Desktop sidebar destinations must be grouped with visible section labels:
   `Tổng quan`, `Nghiệp vụ`, and `Cấu hình`. The sidebar remains flat navigation;
   do not add row chevrons unless a real nested menu is introduced. `Tổng quan`
@@ -116,17 +121,18 @@ visual systems that make the app feel assembled from unrelated screens.
   through `AppLogger` without storing raw scanned values.
 - Feature entry screens use `AppFeatureSection` and `AppFeatureGrid` so mobile
   and desktop tiles stay consistent.
-- User-facing notification entry points must use the shared global
-  `AppNotificationsBell` in the app header and the shell-owned mobile
-  `Thông báo` bottom-nav destination. New features that need in-app
-  notifications should register their count, realtime refresh, and menu rows in
-  the global bell provider/menu instead of adding a separate bell icon on their
-  own feature screen. Existing feature-local bells must be removed when the
-  global bell can represent the same work. Badge counts represent unread rows
-  for the signed-in user across devices: opening or refreshing the bell or
-  mobile notification tab marks the rows currently shown in the menu as read
-  through backend read receipts, while local read state is only a fallback until
-  the next API refresh and new realtime rows light the badge again.
+- User-facing notification entry points must use the shared global notification
+  provider. Desktop/tablet use `AppNotificationsBell` in the shell top bar for
+  a quick menu; mobile uses the shell-owned `Thông báo` bottom-nav destination
+  and `/notifications` full page. New features that need in-app notifications
+  should register their count, realtime refresh, and menu rows in the global
+  provider instead of adding a separate bell icon on their own feature screen.
+  Existing feature-local bells must be removed when the global provider can
+  represent the same work. Badge counts represent unread rows for the signed-in
+  user across devices: opening or refreshing the bell or mobile notification
+  page marks the rows currently shown as read through backend read receipts,
+  while local read state is only a fallback until the next API refresh and new
+  realtime rows light the badge again.
 - User-facing logout actions must ask for confirmation before revoking the
   current session. The cancel branch keeps the user in place, while the confirm
   branch performs the existing logout flow and routes to Login.
