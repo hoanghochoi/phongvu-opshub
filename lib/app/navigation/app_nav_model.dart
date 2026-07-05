@@ -150,7 +150,7 @@ class AppNavModel {
       label: 'Sắp xếp FIFO',
       description: 'Sắp xếp tồn kho theo FIFO',
       route: '/sort',
-      icon: Icons.sort_rounded,
+      icon: Icons.reorder_rounded,
       color: AppColors.teal600,
       group: AppNavGroup.warehouse,
     ),
@@ -331,6 +331,7 @@ class AppNavModel {
         user?.canUseFeature('ADMIN_POLICIES') == true ||
         user?.canUseFeature('ADMIN_FEATURES') == true ||
         user?.canUseFeature('ADMIN_PERSONNEL') == true ||
+        user?.canUseFeature('ADMIN_SALES_TARGETS') == true ||
         user?.canUseFeature('ADMIN_FEEDBACK') == true ||
         user?.canUseFeature('FIFO') == true ||
         user?.canUseFeature('FIFO_IMPORT') == true;

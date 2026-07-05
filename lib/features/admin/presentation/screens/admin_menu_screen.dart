@@ -67,6 +67,14 @@ class AdminMenuScreen extends StatelessWidget {
           color: AppColors.info,
           onTap: () => context.push('/admin/personnel'),
         ),
+      if (canUse('ADMIN_SALES_TARGETS'))
+        AppFeatureAction(
+          icon: Icons.query_stats_rounded,
+          title: 'Quản lý doanh số',
+          description: 'Chỉ tiêu theo tháng và showroom',
+          color: AppColors.teal600,
+          onTap: () => context.push('/admin/sales-targets'),
+        ),
       if (isSuperAdmin)
         AppFeatureAction(
           icon: Icons.menu_book_outlined,

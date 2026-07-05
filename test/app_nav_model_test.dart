@@ -146,6 +146,26 @@ void main() {
     expect(sidebarLabels, contains('Quản trị'));
   });
 
+  test('sales target access makes Admin workspace visible', () {
+    const user = User(
+      id: 'sales-target-admin',
+      email: 'sales-target-admin@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-area',
+      featureAccess: {'ADMIN_SALES_TARGETS': true},
+    );
+
+    final sidebarLabels = AppNavModel.visibleSidebarDestinations(
+      user,
+    ).map((destination) => destination.label);
+
+    expect(sidebarLabels, contains('Quản trị'));
+    expect(
+      AppNavModel.destinationForLocation('/admin/sales-targets')?.id,
+      'admin',
+    );
+  });
+
   test('workspace taxonomy keeps the requested section order', () {
     const user = User(
       id: 'all-tools',

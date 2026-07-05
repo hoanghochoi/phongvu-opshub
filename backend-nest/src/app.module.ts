@@ -27,6 +27,7 @@ import { HomeSummaryModule } from './home-summary/home-summary.module';
 import { HelpContentModule } from './help-content/help-content.module';
 import { SalesReportsModule } from './sales-reports/sales-reports.module';
 import { UserAwareThrottlerGuard } from './common/user-aware-throttler.guard';
+import { SalesTargetsModule } from './sales-targets/sales-targets.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { UserAwareThrottlerGuard } from './common/user-aware-throttler.guard';
     MapVietinModule,
     OffsetAdjustmentsModule,
     SalesReportsModule,
+    SalesTargetsModule,
     FifoModule,
   ],
   controllers: [AppController],

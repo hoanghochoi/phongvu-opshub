@@ -49,7 +49,7 @@ class HomeSummaryPage extends StatelessWidget {
           action: headerAction,
         ),
         const SizedBox(height: AppLayoutTokens.cardGap),
-        // Keep the metrics dashboard tree stable: header, grid, progress.
+        // Keep the metrics dashboard tree stable: header, overview, KPI grids.
         ...content,
       ],
     );
@@ -137,6 +137,8 @@ class HomeSummaryPage extends StatelessWidget {
     }
 
     return [
+      ReportProgressPanel(summary: summary),
+      const SizedBox(height: AppLayoutTokens.sectionGap),
       if (summary.salesAvailable) ...[
         const _SummarySectionHeader(
           key: Key('home-sales-section-header'),
@@ -146,8 +148,6 @@ class HomeSummaryPage extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         SummaryCardGrid(summary: summary),
-        const SizedBox(height: AppLayoutTokens.cardGap),
-        ReportProgressPanel(summary: summary),
       ],
       if (summary.financeAvailable) ...[
         const SizedBox(height: AppLayoutTokens.sectionGap),
@@ -565,7 +565,7 @@ class SummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'conversionRate',
-        icon: Icons.change_circle_outlined,
+        icon: Icons.swap_horiz_rounded,
         title: 'Tỉ lệ chuyển đổi',
         value: _percentLabel(summary.conversionRate),
         trend: SummaryTrend.conversion(summary.conversionRate),
@@ -642,7 +642,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'statementOrderRate',
-        icon: Icons.pie_chart_outline_rounded,
+        icon: Icons.percent_rounded,
         title: 'Tỉ lệ sao kê có đơn hàng',
         value: _percentLabel(summary.statementOrderRate),
         trend: SummaryTrend.statementOrder(summary.statementOrderRate),
@@ -672,7 +672,7 @@ class _SummaryMetricGrid extends StatelessWidget {
             ? 6
             : width >= 900
             ? 3
-            : width >= 620
+            : width >= 320
             ? 2
             : 1;
         final columns = math.min(desiredColumns, cards.length);
@@ -684,7 +684,12 @@ class _SummaryMetricGrid extends StatelessWidget {
           spacing: gap,
           runSpacing: gap,
           children: [
-            for (final card in cards) SizedBox(width: itemWidth, child: card),
+            for (final card in cards)
+              SizedBox(
+                width: itemWidth,
+                height: width >= 620 ? 138 : 146,
+                child: card,
+              ),
           ],
         );
       },
@@ -749,7 +754,7 @@ class SummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const Spacer(),
           Text(
             value,
             maxLines: 1,
@@ -851,14 +856,51 @@ class ReportProgressPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ratio = summary.totalOrders <= 0
-        ? 0.0
-        : summary.reportedOrders / summary.totalOrders;
-    final progressValue = ratio.clamp(0.0, 1.0);
     final reportedPercent = summary.totalOrders <= 0
         ? 0.0
         : (summary.reportedOrders / summary.totalOrders) * 100;
     final missingPercent = math.max(0.0, 100 - reportedPercent);
+    final panels = <Widget>[
+      if (summary.salesAvailable)
+        _ProgressDonutPanel(
+          panelKey: const Key('home-report-progress-panel'),
+          title: 'Tiến độ báo cáo',
+          percentage: summary.coverageRate,
+          color: AppColors.success,
+          legend: _ReportProgressLegend(
+            reportedOrders: summary.reportedOrders,
+            reportedPercent: reportedPercent,
+            unreportedOrders: summary.unreportedOrders,
+            missingPercent: missingPercent,
+          ),
+        ),
+      if (summary.financeAvailable)
+        _ProgressDonutPanel(
+          panelKey: const Key('home-statement-progress-panel'),
+          title: 'Tiến độ sao kê',
+          percentage: summary.statementOrderRate,
+          color: AppColors.info,
+          legend: Column(
+            children: [
+              _ReportLegendRow(
+                label: 'Có đơn hàng',
+                value:
+                    '${_integerLabel(summary.totalStatementsWithOrder)} sao kê',
+                color: AppColors.success,
+              ),
+              const SizedBox(height: 8),
+              _ReportLegendRow(
+                label: 'Chưa có đơn',
+                value:
+                    '${_integerLabel(summary.totalStatementsWithoutOrder)} sao kê',
+                color: AppColors.error,
+              ),
+            ],
+          ),
+        ),
+      if (summary.salesAvailable && summary.salesProgress.isApplicable)
+        _SalesProgressPanel(progress: summary.salesProgress),
+    ];
 
     return AppSurfaceCard(
       key: const Key('home-summary-progress-panel'),
@@ -867,7 +909,7 @@ class ReportProgressPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Tiến độ báo cáo',
+            'Tổng quan',
             style: AppTextStyles.headingS.copyWith(
               color: AppColors.textPrimaryOf(context),
             ),
@@ -875,50 +917,247 @@ class ReportProgressPanel extends StatelessWidget {
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
-              final compact = constraints.maxWidth < 680;
-              final donut = ReportCoverageDonut(
-                coverageRate: summary.coverageRate,
-              );
-              final legend = _ReportProgressLegend(
-                reportedOrders: summary.reportedOrders,
-                reportedPercent: reportedPercent,
-                unreportedOrders: summary.unreportedOrders,
-                missingPercent: missingPercent,
-              );
-              final bar = _ReportProgressBar(value: progressValue);
-
-              if (compact) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(child: donut),
-                    const SizedBox(height: 16),
-                    legend,
-                    const SizedBox(height: 16),
-                    bar,
-                  ],
-                );
-              }
-
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              final columns = constraints.maxWidth >= 980
+                  ? panels.length
+                  : constraints.maxWidth >= 620
+                  ? math.min(2, panels.length)
+                  : 1;
+              final gap = 16.0;
+              final width =
+                  (constraints.maxWidth - gap * math.max(0, columns - 1)) /
+                  math.max(1, columns);
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
                 children: [
-                  donut,
-                  const SizedBox(width: 28),
-                  Expanded(
-                    flex: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 16),
-                      child: legend,
-                    ),
-                  ),
-                  Expanded(flex: 3, child: bar),
+                  for (final panel in panels)
+                    SizedBox(width: width, child: panel),
                 ],
               );
             },
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ProgressDonutPanel extends StatelessWidget {
+  const _ProgressDonutPanel({
+    required this.panelKey,
+    required this.title,
+    required this.percentage,
+    required this.color,
+    required this.legend,
+  });
+
+  final Key panelKey;
+  final String title;
+  final double percentage;
+  final Color color;
+  final Widget legend;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: panelKey,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.04),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+        borderRadius: AppRadius.allMd,
+      ),
+      child: Column(
+        children: [
+          Text(title, style: AppTextStyles.labelM),
+          const SizedBox(height: 10),
+          _ProgressDonut(
+            key: title == 'Tiến độ báo cáo'
+                ? const Key('home-summary-progress-donut')
+                : const Key('home-statement-progress-donut'),
+            percentage: percentage,
+            color: color,
+            dimension: 92,
+          ),
+          const SizedBox(height: 12),
+          legend,
+        ],
+      ),
+    );
+  }
+}
+
+class _ProgressDonut extends StatelessWidget {
+  const _ProgressDonut({
+    super.key,
+    required this.percentage,
+    required this.color,
+    required this.dimension,
+  });
+
+  final double? percentage;
+  final Color color;
+  final double dimension;
+
+  @override
+  Widget build(BuildContext context) {
+    final display = percentage == null ? '--' : _percentLabel(percentage!);
+    return SizedBox.square(
+      dimension: dimension,
+      child: CustomPaint(
+        painter: _CoverageDonutPainter(
+          value: ((percentage ?? 0) / 100).clamp(0.0, 1.0),
+          trackColor: AppColors.neutral100,
+          valueColor: color,
+        ),
+        child: Center(
+          child: Text(
+            display,
+            style: AppTextStyles.labelL.copyWith(
+              color: AppColors.textPrimaryOf(context),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SalesProgressPanel extends StatelessWidget {
+  const _SalesProgressPanel({required this.progress});
+
+  final HomeSalesProgress progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('home-sales-progress-panel'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.violet600.withValues(alpha: 0.04),
+        border: Border.all(color: AppColors.violet600.withValues(alpha: 0.16)),
+        borderRadius: AppRadius.allMd,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Tiến độ doanh số',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.labelM,
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 156,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _SalesProgressPeriodView(
+                    label: 'Ngày',
+                    period: progress.day,
+                    dimension: 98,
+                    large: true,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    children: [
+                      _SalesProgressPeriodView(
+                        label: 'Tuần',
+                        period: progress.week,
+                        dimension: 46,
+                      ),
+                      const SizedBox(height: 12),
+                      _SalesProgressPeriodView(
+                        label: 'Tháng',
+                        period: progress.month,
+                        dimension: 46,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (!progress.hasTarget) ...[
+            const SizedBox(height: 8),
+            Text(
+              progress.missingStoreCodes.isEmpty
+                  ? 'Chưa có chỉ tiêu để tính tiến độ.'
+                  : 'Thiếu chỉ tiêu: ${progress.missingStoreCodes.join(', ')}',
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.caption.copyWith(color: AppColors.error),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SalesProgressPeriodView extends StatelessWidget {
+  const _SalesProgressPeriodView({
+    required this.label,
+    required this.period,
+    required this.dimension,
+    this.large = false,
+  });
+
+  final String label;
+  final HomeSalesProgressPeriod period;
+  final double dimension;
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = [
+      _ProgressDonut(
+        percentage: period.percentage,
+        color: AppColors.violet600,
+        dimension: dimension,
+      ),
+      SizedBox(width: large ? 0 : 8, height: large ? 6 : 0),
+      Flexible(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: large
+              ? CrossAxisAlignment.center
+              : CrossAxisAlignment.start,
+          children: [
+            Text(label, style: AppTextStyles.labelS),
+            Text(
+              period.target == null
+                  ? formatVndAmount(period.actual)
+                  : '${formatVndAmount(period.actual)} / ${formatVndAmount(period.target!)}',
+              maxLines: large ? 2 : 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: large ? TextAlign.center : TextAlign.start,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textMutedOf(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ];
+    return SizedBox(
+      key: Key(
+        'home-sales-progress-${label == 'Ngày'
+            ? 'day'
+            : label == 'Tuần'
+            ? 'week'
+            : 'month'}',
+      ),
+      height: large ? 156 : 72,
+      child: large
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: content,
+            )
+          : Row(children: content),
     );
   }
 }
@@ -1033,55 +1272,6 @@ class _ReportLegendRow extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ReportProgressBar extends StatelessWidget {
-  const _ReportProgressBar({required this.value});
-
-  final double value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ClipRRect(
-          borderRadius: AppRadius.allXs,
-          child: LinearProgressIndicator(
-            value: value,
-            minHeight: 12,
-            backgroundColor: AppColors.neutral100,
-            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.success),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: const [
-            _ProgressTick(label: '0%'),
-            _ProgressTick(label: '50%'),
-            _ProgressTick(label: '100%'),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _ProgressTick extends StatelessWidget {
-  const _ProgressTick({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: AppTextStyles.caption.copyWith(
-        color: AppColors.textMutedOf(context),
-      ),
     );
   }
 }

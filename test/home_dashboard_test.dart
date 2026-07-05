@@ -16,6 +16,29 @@ import 'package:provider/provider.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('Home summary parses sales target status and over-target progress', () {
+    final summary = HomeSummary.fromJson({
+      'date': '2026-07-05',
+      'available': true,
+      'scope': 'OWN',
+      'scopeLabel': 'Phạm vi cá nhân',
+      'coverageLabel': 'Tỉ lệ báo cáo',
+      'salesProgress': {
+        'status': 'PARTIAL',
+        'scope': 'PERSONAL_SA',
+        'missingStoreCodes': ['CP02'],
+        'day': {'actual': 120, 'target': 100, 'percentage': 120},
+        'week': {'actual': 500, 'target': null, 'percentage': null},
+        'month': {'actual': 800, 'target': null, 'percentage': null},
+      },
+    });
+
+    expect(summary.salesProgress.status, 'PARTIAL');
+    expect(summary.salesProgress.missingStoreCodes, ['CP02']);
+    expect(summary.salesProgress.day.percentage, 120);
+    expect(summary.salesProgress.week.target, isNull);
+  });
+
   setUp(() {
     AppLogger.instance.setUploadsEnabledForTesting(false);
   });
@@ -50,6 +73,26 @@ void main() {
             totalStatementsWithOrder: 18,
             totalStatementsWithoutOrder: 6,
             statementOrderRate: 75,
+            salesProgress: const HomeSalesProgress(
+              status: 'AVAILABLE',
+              scope: 'PERSONAL_SA',
+              missingStoreCodes: [],
+              day: HomeSalesProgressPeriod(
+                actual: 125000000,
+                target: 100000000,
+                percentage: 125,
+              ),
+              week: HomeSalesProgressPeriod(
+                actual: 350000000,
+                target: 700000000,
+                percentage: 50,
+              ),
+              month: HomeSalesProgressPeriod(
+                actual: 1200000000,
+                target: 3000000000,
+                percentage: 40,
+              ),
+            ),
             refreshedAt: DateTime.parse('2026-07-04T03:15:00.000Z'),
           ),
         ),
@@ -139,6 +182,42 @@ void main() {
         find.byKey(const Key('home-summary-progress-donut')),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const Key('home-statement-progress-donut')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('home-sales-progress-day')), findsOneWidget);
+      expect(find.byKey(const Key('home-sales-progress-week')), findsOneWidget);
+      expect(
+        find.byKey(const Key('home-sales-progress-month')),
+        findsOneWidget,
+      );
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(find.text('Tổng quan'), findsOneWidget);
+      expect(
+        tester
+            .getTopLeft(find.byKey(const Key('home-summary-progress-panel')))
+            .dy,
+        lessThan(
+          tester
+              .getTopLeft(find.byKey(const Key('home-sales-section-header')))
+              .dy,
+        ),
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-card-conversionRate')),
+          matching: find.byIcon(Icons.swap_horiz_rounded),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-card-statementOrderRate')),
+          matching: find.byIcon(Icons.percent_rounded),
+        ),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('home-operations-shortcut')), findsOneWidget);
       expect(find.text('Công cụ nhanh'), findsOneWidget);
       expect(find.text('Đối soát'), findsOneWidget);
@@ -187,6 +266,83 @@ void main() {
     );
 
     expect((iconCenter.dy - contentCenter.dy).abs(), lessThanOrEqualTo(0.5));
+  });
+
+  testWidgets('Home KPI grid keeps two cards per row on normal mobile width', (
+    tester,
+  ) async {
+    const summary = HomeSummary(
+      date: '2026-07-06',
+      available: true,
+      scope: 'OWN',
+      scopeLabel: 'Phạm vi cá nhân',
+      scopeDetail: 'CP01',
+      coverageLabel: 'Tỉ lệ báo cáo',
+      totalRevenue: 1000000,
+      totalOrders: 10,
+      totalReports: 8,
+      reportedOrders: 6,
+      unreportedOrders: 4,
+      coverageRate: 60,
+      refreshedAt: null,
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(width: 390, child: SummaryCardGrid(summary: summary)),
+        ),
+      ),
+    );
+
+    final first = tester.getTopLeft(
+      find.byKey(const Key('home-summary-card-revenue')),
+    );
+    final second = tester.getTopLeft(
+      find.byKey(const Key('home-summary-card-totalOrders')),
+    );
+    final third = tester.getTopLeft(
+      find.byKey(const Key('home-summary-card-coverageRate')),
+    );
+    expect(first.dy, second.dy);
+    expect(first.dx, lessThan(second.dx));
+    expect(third.dy, greaterThan(first.dy));
+  });
+
+  testWidgets('Home KPI grid falls back to one card when extremely narrow', (
+    tester,
+  ) async {
+    const summary = HomeSummary(
+      date: '2026-07-06',
+      available: true,
+      scope: 'OWN',
+      scopeLabel: 'Phạm vi cá nhân',
+      scopeDetail: 'CP01',
+      coverageLabel: 'Tỉ lệ báo cáo',
+      totalRevenue: 1000000,
+      totalOrders: 10,
+      totalReports: 8,
+      reportedOrders: 6,
+      unreportedOrders: 4,
+      coverageRate: 60,
+      refreshedAt: null,
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(width: 300, child: SummaryCardGrid(summary: summary)),
+        ),
+      ),
+    );
+
+    final first = tester.getTopLeft(
+      find.byKey(const Key('home-summary-card-revenue')),
+    );
+    final second = tester.getTopLeft(
+      find.byKey(const Key('home-summary-card-totalOrders')),
+    );
+    expect(second.dy, greaterThan(first.dy));
   });
 
   testWidgets('Home dashboard shows neutral unavailable state from scope API', (

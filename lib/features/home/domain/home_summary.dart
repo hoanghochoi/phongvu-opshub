@@ -21,6 +21,7 @@ class HomeSummary {
   final int totalStatementsWithOrder;
   final int totalStatementsWithoutOrder;
   final double statementOrderRate;
+  final HomeSalesProgress salesProgress;
   final DateTime? refreshedAt;
   final String? unavailableMessage;
 
@@ -45,6 +46,7 @@ class HomeSummary {
     this.totalStatementsWithOrder = 0,
     this.totalStatementsWithoutOrder = 0,
     this.statementOrderRate = 0,
+    this.salesProgress = const HomeSalesProgress.notApplicable(),
     required this.refreshedAt,
     this.unavailableMessage,
   });
@@ -73,6 +75,7 @@ class HomeSummary {
       totalStatementsWithOrder: _intOf(json['totalStatementsWithOrder']),
       totalStatementsWithoutOrder: _intOf(json['totalStatementsWithoutOrder']),
       statementOrderRate: _coverageOf(json['statementOrderRate']),
+      salesProgress: HomeSalesProgress.fromJson(json['salesProgress']),
       refreshedAt: _dateTimeOf(json['refreshedAt']),
       unavailableMessage: _nullableStringOf(json['unavailableMessage']),
     );
@@ -90,7 +93,8 @@ class HomeSummary {
       totalTransferredAmount > 0 ||
       totalStatements > 0 ||
       totalStatementsWithOrder > 0 ||
-      totalStatementsWithoutOrder > 0;
+      totalStatementsWithoutOrder > 0 ||
+      salesProgress.isApplicable;
 
   String get resolvedScopeLabel {
     final value = scopeLabel.trim();
@@ -139,5 +143,84 @@ class HomeSummary {
     final text = value?.toString().trim();
     if (text == null || text.isEmpty) return null;
     return DateTime.tryParse(text);
+  }
+}
+
+class HomeSalesProgress {
+  const HomeSalesProgress({
+    required this.status,
+    required this.scope,
+    required this.missingStoreCodes,
+    required this.day,
+    required this.week,
+    required this.month,
+  });
+
+  const HomeSalesProgress.notApplicable()
+    : status = 'NOT_APPLICABLE',
+      scope = null,
+      missingStoreCodes = const [],
+      day = const HomeSalesProgressPeriod.empty(),
+      week = const HomeSalesProgressPeriod.empty(),
+      month = const HomeSalesProgressPeriod.empty();
+
+  final String status;
+  final String? scope;
+  final List<String> missingStoreCodes;
+  final HomeSalesProgressPeriod day;
+  final HomeSalesProgressPeriod week;
+  final HomeSalesProgressPeriod month;
+
+  bool get isApplicable => status != 'NOT_APPLICABLE';
+  bool get hasTarget => status == 'AVAILABLE';
+
+  factory HomeSalesProgress.fromJson(Object? value) {
+    if (value is! Map<String, dynamic>) {
+      return const HomeSalesProgress.notApplicable();
+    }
+    return HomeSalesProgress(
+      status: value['status']?.toString() ?? 'NOT_APPLICABLE',
+      scope: value['scope']?.toString(),
+      missingStoreCodes: (value['missingStoreCodes'] as List? ?? const [])
+          .map((item) => item.toString())
+          .toList(growable: false),
+      day: HomeSalesProgressPeriod.fromJson(value['day']),
+      week: HomeSalesProgressPeriod.fromJson(value['week']),
+      month: HomeSalesProgressPeriod.fromJson(value['month']),
+    );
+  }
+}
+
+class HomeSalesProgressPeriod {
+  const HomeSalesProgressPeriod({
+    required this.actual,
+    required this.target,
+    required this.percentage,
+  });
+
+  const HomeSalesProgressPeriod.empty()
+    : actual = 0,
+      target = null,
+      percentage = null;
+
+  final int actual;
+  final int? target;
+  final double? percentage;
+
+  factory HomeSalesProgressPeriod.fromJson(Object? value) {
+    if (value is! Map<String, dynamic>) {
+      return const HomeSalesProgressPeriod.empty();
+    }
+    final targetValue = value['target'];
+    final percentageValue = value['percentage'];
+    return HomeSalesProgressPeriod(
+      actual: HomeSummary._intOf(value['actual']),
+      target: targetValue == null ? null : HomeSummary._intOf(targetValue),
+      percentage: percentageValue == null
+          ? null
+          : (percentageValue is num
+                ? percentageValue.toDouble()
+                : double.tryParse(percentageValue.toString())),
+    );
   }
 }

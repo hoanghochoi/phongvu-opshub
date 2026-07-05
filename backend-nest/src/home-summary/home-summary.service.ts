@@ -4,6 +4,10 @@ import { FEATURE_KEYS } from '../feature/feature.constants';
 import { FeatureService } from '../feature/feature.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  organizationNodeStoreTreeInclude,
+  storesForOrganizationNodeTree,
+} from '../common/organization-store-scope';
+import {
   SalesReportOperatingSummary,
   SalesReportSummaryScopeDescriptor,
   SalesReportsService,
@@ -20,6 +24,22 @@ type DateRange = {
 
 type HomeSummaryResponse = SalesReportOperatingSummary & {
   unavailableMessage: string | null;
+  salesProgress: SalesProgressResponse;
+};
+
+type SalesProgressPeriod = {
+  actual: number;
+  target: number | null;
+  percentage: number | null;
+};
+
+type SalesProgressResponse = {
+  status: 'AVAILABLE' | 'MISSING' | 'PARTIAL' | 'NOT_APPLICABLE';
+  scope: 'PERSONAL_SA' | 'MANAGED' | 'ALL' | null;
+  missingStoreCodes: string[];
+  day: SalesProgressPeriod;
+  week: SalesProgressPeriod;
+  month: SalesProgressPeriod;
 };
 
 type HomeSummaryScopeRequest = 'AUTO' | 'ALL' | 'MANAGED_SCOPE' | 'OWN';
@@ -119,17 +139,10 @@ export class HomeSummaryService {
     let reportedOrders = 0;
     if (salesAvailable) {
       const reportWhere = this.reportScopeWhere(scope, summaryDate);
-      const [orderCount, reportCount, revenueSummary, reportedCodeRows] =
+      const [orderCount, reportCount, reportedCodeRows] =
         await this.prisma.$transaction([
           this.homeSummaryOrderFact.count({ where: orderWhere }),
           this.homeSummaryReportFact.count({ where: reportWhere }),
-          this.homeSummaryReportFact.aggregate({
-            where: {
-              ...reportWhere,
-              reportType: REPORT_TYPE_PURCHASED,
-            },
-            _sum: { revenue: true },
-          }),
           this.homeSummaryReportFact.findMany({
             where: {
               ...reportWhere,
@@ -141,7 +154,6 @@ export class HomeSummaryService {
         ]);
       totalOrders = orderCount;
       totalReports = reportCount;
-      totalRevenue = revenueSummary._sum.revenue ?? 0;
       const reportedCodes = Array.from(
         new Set(
           reportedCodeRows
@@ -222,6 +234,10 @@ export class HomeSummaryService {
     const statementOrderRate = totalStatements
       ? Number(((totalStatementsWithOrder / totalStatements) * 100).toFixed(2))
       : 0;
+    const salesProgress = salesAvailable
+      ? await this.buildSalesProgress(user, scope, summaryDate)
+      : this.emptySalesProgress();
+    totalRevenue = salesProgress.day.actual;
     const response: HomeSummaryResponse = {
       date,
       available: true,
@@ -243,6 +259,7 @@ export class HomeSummaryService {
       totalStatementsWithOrder,
       totalStatementsWithoutOrder,
       statementOrderRate,
+      salesProgress,
       refreshedAt,
       unavailableMessage: null,
     };
@@ -711,6 +728,292 @@ export class HomeSummaryService {
     return { AND: compact };
   }
 
+  private async buildSalesProgress(
+    user: any,
+    scope: SalesReportSummaryScopeDescriptor,
+    summaryDate: Date,
+  ): Promise<SalesProgressResponse> {
+    const ranges = this.salesProgressRanges(summaryDate);
+    const rows = await this.prisma.salesReport.findMany({
+      where: this.salesProgressReportWhere(scope, ranges.month),
+      select: {
+        erpOrderCreatedAt: true,
+        submittedAt: true,
+        erpGrandTotal: true,
+        erpReturnedAfterTaxAmount: true,
+      },
+    });
+    const actualFor = (range: DateRange) =>
+      rows.reduce((sum, row) => {
+        const occurredAt = row.erpOrderCreatedAt ?? row.submittedAt;
+        if (occurredAt < range.start || occurredAt >= range.end) return sum;
+        const gross = Math.max(
+          0,
+          (row.erpGrandTotal ?? 0) - (row.erpReturnedAfterTaxAmount ?? 0),
+        );
+        return sum + Math.round(gross / 1.08);
+      }, 0);
+    const actuals = {
+      day: actualFor(ranges.day),
+      week: actualFor(ranges.week),
+      month: actualFor(ranges.month),
+    };
+
+    let jobRoleCode = String(user?.jobRoleCode || '')
+      .trim()
+      .toUpperCase();
+    if (scope.scope === 'OWN' && !jobRoleCode && user?.id) {
+      const saved = await this.prisma.user.findUnique({
+        where: { id: user.id },
+        select: { jobRoleCode: true },
+      });
+      jobRoleCode = String(saved?.jobRoleCode || '')
+        .trim()
+        .toUpperCase();
+    }
+    if (scope.scope === 'OWN' && jobRoleCode !== 'SA') {
+      return this.salesProgressWithActuals('NOT_APPLICABLE', null, [], actuals);
+    }
+
+    const stores = await this.prisma.store.findMany({
+      where: {
+        organizationNodeId: { not: null },
+        organizationNode: { isActive: true },
+        ...(scope.scope === 'ALL'
+          ? {}
+          : { storeId: { in: scope.allowedStoreCodes } }),
+      },
+      orderBy: { storeId: 'asc' },
+      select: {
+        storeId: true,
+        organizationNodeId: true,
+      },
+    });
+    const nodeIds = stores
+      .map((store) => store.organizationNodeId)
+      .filter((value): value is string => Boolean(value));
+    const targets = nodeIds.length
+      ? await this.prisma.salesTarget.findMany({
+          where: {
+            organizationNodeId: { in: nodeIds },
+            monthStart: ranges.targetMonthStart,
+          },
+        })
+      : [];
+    const targetByNode = new Map(
+      targets.map((target) => [
+        target.organizationNodeId,
+        Number(target.targetBeforeTax),
+      ]),
+    );
+    const saCountByStore =
+      scope.scope === 'OWN'
+        ? await this.activeSaCountByStore(stores.map((store) => store.storeId))
+        : new Map<string, number>();
+    const missingStoreCodes: string[] = [];
+    let monthlyTarget = 0;
+    for (const store of stores) {
+      const target = store.organizationNodeId
+        ? targetByNode.get(store.organizationNodeId)
+        : null;
+      const saCount =
+        scope.scope === 'OWN' ? (saCountByStore.get(store.storeId) ?? 0) : 1;
+      if (target == null || saCount <= 0) {
+        missingStoreCodes.push(store.storeId);
+        continue;
+      }
+      monthlyTarget +=
+        scope.scope === 'OWN' ? Math.round(target / saCount) : target;
+    }
+    if (stores.length === 0 || missingStoreCodes.length > 0) {
+      return this.salesProgressWithActuals(
+        targets.length === 0 ? 'MISSING' : 'PARTIAL',
+        scope.scope === 'OWN'
+          ? 'PERSONAL_SA'
+          : scope.scope === 'ALL'
+            ? 'ALL'
+            : 'MANAGED',
+        missingStoreCodes,
+        actuals,
+      );
+    }
+    const dayTarget = Math.round(monthlyTarget / ranges.daysInMonth);
+    const weekTarget = Math.round(
+      (monthlyTarget * ranges.weekDaysInMonth) / ranges.daysInMonth,
+    );
+    const period = (actual: number, target: number): SalesProgressPeriod => ({
+      actual,
+      target,
+      percentage: target > 0 ? Number(((actual / target) * 100).toFixed(2)) : 0,
+    });
+    return {
+      status: 'AVAILABLE',
+      scope:
+        scope.scope === 'OWN'
+          ? 'PERSONAL_SA'
+          : scope.scope === 'ALL'
+            ? 'ALL'
+            : 'MANAGED',
+      missingStoreCodes: [],
+      day: period(actuals.day, dayTarget),
+      week: period(actuals.week, weekTarget),
+      month: period(actuals.month, Math.round(monthlyTarget)),
+    };
+  }
+
+  private salesProgressReportWhere(
+    scope: SalesReportSummaryScopeDescriptor,
+    range: DateRange,
+  ): Prisma.SalesReportWhereInput {
+    const base: Prisma.SalesReportWhereInput = {
+      reportType: REPORT_TYPE_PURCHASED,
+      erpExcludedAt: null,
+      erpLifecycleStatus: {
+        in: ['COMPLETED', 'COMPLETED_PARTIAL_RETURN'],
+      },
+      OR: [
+        { erpOrderCreatedAt: { gte: range.start, lt: range.end } },
+        {
+          AND: [
+            { erpOrderCreatedAt: null },
+            { submittedAt: { gte: range.start, lt: range.end } },
+          ],
+        },
+      ],
+    };
+    if (scope.scope === 'ALL') return base;
+    if (scope.scope === 'MANAGED_SCOPE') {
+      return { AND: [base, { storeCode: { in: scope.allowedStoreCodes } }] };
+    }
+    const own: Prisma.SalesReportWhereInput[] = [];
+    if (scope.ownUserId) own.push({ createdByUserId: scope.ownUserId });
+    if (scope.ownEmail) {
+      own.push({
+        createdByEmail: { equals: scope.ownEmail, mode: 'insensitive' },
+      });
+    }
+    if (scope.ownPersonnelCode) {
+      own.push({
+        createdByPersonnelCode: {
+          equals: scope.ownPersonnelCode,
+          mode: 'insensitive',
+        },
+      });
+    }
+    return { AND: [base, { OR: own }] };
+  }
+
+  private salesProgressRanges(summaryDate: Date) {
+    const local = new Date(summaryDate.getTime() + 7 * 60 * 60 * 1000);
+    const year = local.getUTCFullYear();
+    const monthIndex = local.getUTCMonth();
+    const monthStart = new Date(
+      Date.UTC(year, monthIndex, 1) - 7 * 60 * 60 * 1000,
+    );
+    const monthEnd = new Date(
+      Date.UTC(year, monthIndex + 1, 1) - 7 * 60 * 60 * 1000,
+    );
+    const weekday = local.getUTCDay();
+    const mondayOffset = (weekday + 6) % 7;
+    const rawWeekStart = new Date(summaryDate);
+    rawWeekStart.setUTCDate(rawWeekStart.getUTCDate() - mondayOffset);
+    const rawWeekEnd = new Date(rawWeekStart);
+    rawWeekEnd.setUTCDate(rawWeekEnd.getUTCDate() + 7);
+    const weekStart = new Date(
+      Math.max(rawWeekStart.getTime(), monthStart.getTime()),
+    );
+    const weekEnd = new Date(
+      Math.min(rawWeekEnd.getTime(), monthEnd.getTime()),
+    );
+    const day = this.dateRangeFor(summaryDate);
+    return {
+      day,
+      week: { start: weekStart, end: weekEnd },
+      month: { start: monthStart, end: monthEnd },
+      targetMonthStart: new Date(Date.UTC(year, monthIndex, 1)),
+      daysInMonth: new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate(),
+      weekDaysInMonth: Math.max(
+        1,
+        Math.round((weekEnd.getTime() - weekStart.getTime()) / 86_400_000),
+      ),
+    };
+  }
+
+  private async activeSaCountByStore(storeCodes: string[]) {
+    const allowed = new Set(storeCodes.map((code) => code.toUpperCase()));
+    const counts = new Map<string, number>();
+    if (allowed.size === 0) return counts;
+    const users = await this.prisma.user.findMany({
+      where: { status: 'yes', jobRoleCode: 'SA' },
+      include: {
+        store: true,
+        organizationNode: {
+          include: organizationNodeStoreTreeInclude(),
+        },
+        organizationAssignments: {
+          where: { isActive: true },
+          include: {
+            organizationNode: {
+              include: organizationNodeStoreTreeInclude(),
+            },
+          },
+        },
+      },
+    });
+    for (const user of users) {
+      const userStores = new Set<string>();
+      if (user.store?.storeId) userStores.add(user.store.storeId.toUpperCase());
+      for (const store of storesForOrganizationNodeTree(
+        user.organizationNode,
+      )) {
+        if (store.storeId) userStores.add(String(store.storeId).toUpperCase());
+      }
+      for (const assignment of user.organizationAssignments) {
+        for (const store of storesForOrganizationNodeTree(
+          assignment.organizationNode,
+        )) {
+          if (store.storeId)
+            userStores.add(String(store.storeId).toUpperCase());
+        }
+      }
+      for (const storeCode of userStores) {
+        if (allowed.has(storeCode)) {
+          counts.set(storeCode, (counts.get(storeCode) ?? 0) + 1);
+        }
+      }
+    }
+    return counts;
+  }
+
+  private salesProgressWithActuals(
+    status: SalesProgressResponse['status'],
+    scope: SalesProgressResponse['scope'],
+    missingStoreCodes: string[],
+    actuals: { day: number; week: number; month: number },
+  ): SalesProgressResponse {
+    const period = (actual: number): SalesProgressPeriod => ({
+      actual,
+      target: null,
+      percentage: null,
+    });
+    return {
+      status,
+      scope,
+      missingStoreCodes,
+      day: period(actuals.day),
+      week: period(actuals.week),
+      month: period(actuals.month),
+    };
+  }
+
+  private emptySalesProgress(): SalesProgressResponse {
+    return this.salesProgressWithActuals('NOT_APPLICABLE', null, [], {
+      day: 0,
+      week: 0,
+      month: 0,
+    });
+  }
+
   private async resolveSectionAccess(user: any) {
     const [salesAvailable, financeAvailable] = await Promise.all([
       this.featureService.canAccessFeature(
@@ -800,6 +1103,7 @@ export class HomeSummaryService {
       totalStatementsWithOrder: 0,
       totalStatementsWithoutOrder: 0,
       statementOrderRate: 0,
+      salesProgress: this.emptySalesProgress(),
       refreshedAt,
       unavailableMessage,
     };

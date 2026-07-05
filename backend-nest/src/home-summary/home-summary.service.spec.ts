@@ -79,6 +79,16 @@ describe('HomeSummaryService', () => {
           },
         ]),
       },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ jobRoleCode: 'SA' }),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      store: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      salesTarget: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       homeSummaryReportFact: {
         upsert: jest.fn().mockResolvedValue({}),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -142,13 +152,16 @@ describe('HomeSummaryService', () => {
     const { service, prisma, salesReports } = createHarness();
 
     await expect(
-      service.getSummary({ id: 'user-1', email: 'staff@phongvu.vn' }, {}),
+      service.getSummary(
+        { id: 'user-1', email: 'staff@phongvu.vn' },
+        { date: '2026-07-04' },
+      ),
     ).resolves.toMatchObject({
       available: true,
       scope: 'OWN',
       scopeLabel: 'Phạm vi cá nhân',
       coverageLabel: 'Tỉ lệ báo cáo',
-      totalRevenue: 12500000,
+      totalRevenue: 11574074,
       totalOrders: 2,
       totalReports: 2,
       reportedOrders: 1,
@@ -185,6 +198,103 @@ describe('HomeSummaryService', () => {
     );
   });
 
+  it('subtracts completed returns before removing VAT from achieved sales', async () => {
+    const { service, prisma } = createHarness();
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          erpOrderCreatedAt: new Date('2026-07-04T02:00:00Z'),
+          submittedAt: new Date('2026-07-04T02:10:00Z'),
+          erpGrandTotal: 1080000,
+          erpReturnedAfterTaxAmount: 108000,
+        },
+      ]);
+
+    const result = await service.getSummary(
+      { id: 'user-1', email: 'staff@phongvu.vn', jobRoleCode: 'SA' },
+      { date: '2026-07-04' },
+    );
+
+    expect(result.totalRevenue).toBe(900000);
+    expect(result.salesProgress.day.actual).toBe(900000);
+    expect(prisma.salesReport.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: expect.arrayContaining([
+            expect.objectContaining({
+              erpLifecycleStatus: {
+                in: ['COMPLETED', 'COMPLETED_PARTIAL_RETURN'],
+              },
+            }),
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it('shares each SR monthly target across its active SA assignments', async () => {
+    const { service, prisma } = createHarness();
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    prisma.store.findMany.mockResolvedValueOnce([
+      {
+        storeId: 'CP01',
+        organizationNodeId: 'node-cp01',
+      },
+      {
+        storeId: 'CP02',
+        organizationNodeId: 'node-cp02',
+      },
+    ]);
+    prisma.salesTarget.findMany.mockResolvedValueOnce([
+      {
+        organizationNodeId: 'node-cp01',
+        targetBeforeTax: BigInt(300000000),
+      },
+      {
+        organizationNodeId: 'node-cp02',
+        targetBeforeTax: BigInt(310000000),
+      },
+    ]);
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        store: null,
+        organizationNode: {
+          id: 'sa-1',
+          stores: [{ storeId: 'CP01' }, { storeId: 'CP02' }],
+          children: [],
+        },
+        organizationAssignments: [],
+      },
+      {
+        store: null,
+        organizationNode: {
+          id: 'sa-2',
+          stores: [{ storeId: 'CP01' }],
+          children: [],
+        },
+        organizationAssignments: [],
+      },
+    ]);
+
+    const result = await service.getSummary(
+      { id: 'user-1', email: 'staff@phongvu.vn', jobRoleCode: 'SA' },
+      { date: '2026-07-04' },
+    );
+
+    expect(result.salesProgress).toMatchObject({
+      status: 'AVAILABLE',
+      scope: 'PERSONAL_SA',
+      missingStoreCodes: [],
+      day: { target: 14838710 },
+      week: { target: 74193548 },
+      month: { target: 460000000 },
+    });
+  });
+
   it('does not expose finance metrics when its dashboard section is disabled', async () => {
     const { service, prisma, featureService } = createHarness();
     featureService.canAccessFeature.mockImplementation(
@@ -193,7 +303,10 @@ describe('HomeSummaryService', () => {
     );
 
     await expect(
-      service.getSummary({ id: 'user-1', email: 'staff@phongvu.vn' }, {}),
+      service.getSummary(
+        { id: 'user-1', email: 'staff@phongvu.vn' },
+        { date: '2026-07-04' },
+      ),
     ).resolves.toMatchObject({
       available: true,
       salesAvailable: true,

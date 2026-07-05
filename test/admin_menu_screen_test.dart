@@ -97,6 +97,29 @@ void main() {
     expect(find.text('Quản lý tính năng'), findsNothing);
   });
 
+  testWidgets('Admin menu shows sales target management by feature access', (
+    tester,
+  ) async {
+    const user = User(
+      email: 'sales-target-admin@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-area',
+      featureAccess: {'ADMIN_SALES_TARGETS': true},
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(user),
+        child: const MaterialApp(home: AdminMenuScreen()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Quản lý doanh số'), findsOneWidget);
+    expect(find.text('Chỉ tiêu theo tháng và showroom'), findsOneWidget);
+    expect(find.byIcon(Icons.query_stats_rounded), findsOneWidget);
+  });
+
   testWidgets('Admin menu shows help management for super admin only', (
     tester,
   ) async {

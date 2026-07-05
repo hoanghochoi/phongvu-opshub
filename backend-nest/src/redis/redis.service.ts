@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import Redis from 'ioredis';
+import { randomUUID } from 'node:crypto';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
@@ -41,5 +42,26 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async publishMessageOrThrow(channel: string, message: any) {
     await this.redisClient.publish(channel, JSON.stringify(message));
     this.logger.log(`Message published to channel: ${channel}`);
+  }
+
+  async tryAcquireLease(key: string, ttlMs: number) {
+    const token = randomUUID();
+    const result = await this.redisClient.set(
+      key,
+      token,
+      'PX',
+      Math.max(1000, ttlMs),
+      'NX',
+    );
+    return result === 'OK' ? token : null;
+  }
+
+  async releaseLease(key: string, token: string) {
+    await this.redisClient.eval(
+      "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+      1,
+      key,
+      token,
+    );
   }
 }

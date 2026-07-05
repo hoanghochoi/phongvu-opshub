@@ -43,6 +43,10 @@ export type SalesReportErpOrder = {
   erpPaymentStatus: string | null;
   erpConfirmationStatus: string | null;
   erpFulfillmentStatus: string | null;
+  erpLifecycleStatus: SalesReportErpLifecycleStatus;
+  erpHasReturnedFullItems: boolean;
+  erpReturnedAfterTaxAmount: number;
+  erpStatusCheckedAt: Date;
   erpTerminalName: string | null;
   erpGrandTotal: number | null;
   erpCustomerType: string | null;
@@ -68,6 +72,10 @@ export type SalesReportErpOrderListItem = {
   paymentStatus: string | null;
   confirmationStatus: string | null;
   fulfillmentStatus: string | null;
+  lifecycleStatus: SalesReportErpLifecycleStatus;
+  hasReturnedFullItems: boolean;
+  returnedAfterTaxAmount: number;
+  statusCheckedAt: Date;
   terminalName: string | null;
   grandTotal: number | null;
   customerName: string | null;
@@ -87,6 +95,25 @@ export type SalesReportErpOrderListItem = {
   fetchedAt: Date;
 };
 
+export type SalesReportErpLifecycleStatus =
+  | 'PENDING'
+  | 'COMPLETED'
+  | 'COMPLETED_PARTIAL_RETURN'
+  | 'CANCELLED'
+  | 'RETURNED_FULL';
+
+type SalesReportErpReturnSummary = {
+  verified: boolean;
+  hasReturnedFullItems: boolean;
+  returnedAfterTaxAmount: number;
+  completedRequestCount: number;
+};
+
+type SalesReportErpResolvedLifecycle = SalesReportErpReturnSummary & {
+  lifecycleStatus: SalesReportErpLifecycleStatus;
+  statusCheckedAt: Date;
+};
+
 export function isSalesReportErpOrderCanceledStatuses(input: {
   confirmationStatus?: string | null;
   fulfillmentStatus?: string | null;
@@ -99,6 +126,12 @@ export function isSalesReportErpOrderCanceledStatuses(input: {
 export class SalesReportErpCanceledOrderException extends BadRequestException {
   constructor(public readonly cacheItem: SalesReportErpOrderListItem) {
     super('Đơn đã bị hủy.');
+  }
+}
+
+export class SalesReportErpReturnedOrderException extends BadRequestException {
+  constructor(public readonly cacheItem: SalesReportErpOrderListItem) {
+    super('Đơn đã hoàn trả toàn bộ, không thể báo cáo mua hàng.');
   }
 }
 
@@ -127,14 +160,30 @@ export class SalesReportErpService {
     try {
       const accessToken = await this.getAccessToken();
       const order = await this.fetchOrder(orderCode, accessToken);
-      this.assertOrderIsNotCanceled(order, orderCode, storeCode ?? null);
+      const status = await this.resolveOrderLifecycle(
+        order,
+        orderCode,
+        accessToken,
+      );
+      this.assertOrderCanBeReported(
+        order,
+        orderCode,
+        storeCode ?? null,
+        status,
+      );
       const items = await this.normalizeItems(
         order,
         accessToken,
         storeCode ?? null,
       );
       const payments = this.normalizePayments(order?.payments);
-      const result = this.normalizeOrder(orderCode, order, items, payments);
+      const result = this.normalizeOrder(
+        orderCode,
+        order,
+        items,
+        payments,
+        status,
+      );
       const customerTaxCode = this.billingTaxCode(order);
       this.logger.log(
         `Sales report ERP lookup succeeded: orderLength=${orderCode.length} itemCount=${items.length} paymentCount=${payments.length} levelOneCategoryCount=${result.categoryCandidates.length} customerType=${result.customerType} billingCustomerType=${result.erpCustomerType || 'none'} hasBillingTaxCode=${Boolean(customerTaxCode)} durationMs=${Date.now() - startedAt}`,
@@ -148,7 +197,7 @@ export class SalesReportErpService {
         throw error;
       }
       this.logger.error(
-        `Sales report ERP lookup failed: orderLength=${orderCode.length} durationMs=${Date.now() - startedAt} error=${String(error)}`,
+        `Sales report ERP lookup failed: orderLength=${orderCode.length} durationMs=${Date.now() - startedAt} errorType=${this.errorType(error)}`,
       );
       throw new ServiceUnavailableException(
         'Chưa kiểm tra được mã đơn hàng. Vui lòng thử lại sau ít phút.',
@@ -193,7 +242,7 @@ export class SalesReportErpService {
     } catch (error) {
       if (error instanceof ServiceUnavailableException) throw error;
       this.logger.error(
-        `Sales report ERP order list sync failed: date=${date} durationMs=${Date.now() - startedAt} error=${String(error)}`,
+        `Sales report ERP order list sync failed: date=${date} durationMs=${Date.now() - startedAt} errorType=${this.errorType(error)}`,
       );
       throw new ServiceUnavailableException(
         'Chưa đồng bộ được danh sách đơn hàng. Vui lòng thử lại sau ít phút.',
@@ -266,6 +315,7 @@ export class SalesReportErpService {
     row: any,
     fallbackStoreCode: string | null,
     fetchedAt: Date,
+    resolvedStatus?: SalesReportErpResolvedLifecycle,
   ): SalesReportErpOrderListItem | null {
     const order = row?.order && typeof row.order === 'object' ? row.order : row;
     const consultant = this.firstObject(
@@ -422,6 +472,8 @@ export class SalesReportErpService {
       billingCustomerType,
       billingTaxCode,
     );
+    const lifecycle =
+      resolvedStatus ?? this.lifecycleFromListOrder(order, fetchedAt);
     return {
       orderCode,
       erpOrderId: this.firstText(order?.orderId, order?.id),
@@ -430,6 +482,10 @@ export class SalesReportErpService {
       paymentStatus: this.optionalText(order?.paymentStatus),
       confirmationStatus: this.optionalText(order?.confirmationStatus),
       fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
+      lifecycleStatus: lifecycle.lifecycleStatus,
+      hasReturnedFullItems: lifecycle.hasReturnedFullItems,
+      returnedAfterTaxAmount: lifecycle.returnedAfterTaxAmount,
+      statusCheckedAt: lifecycle.statusCheckedAt,
       terminalName,
       grandTotal: this.toInt(order?.grandTotal ?? order?.totalAmount),
       customerName,
@@ -452,6 +508,9 @@ export class SalesReportErpService {
         paymentStatus: this.optionalText(order?.paymentStatus),
         confirmationStatus: this.optionalText(order?.confirmationStatus),
         fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
+        lifecycleStatus: lifecycle.lifecycleStatus,
+        hasReturnedFullItems: lifecycle.hasReturnedFullItems,
+        returnedAfterTaxAmount: lifecycle.returnedAfterTaxAmount,
         terminalName,
         createdFromSiteDisplayName,
         grandTotal: this.toInt(order?.grandTotal ?? order?.totalAmount),
@@ -516,97 +575,265 @@ export class SalesReportErpService {
     return order;
   }
 
-  private assertOrderIsNotCanceled(
+  private assertOrderCanBeReported(
     order: any,
     orderCode: string,
     storeCode: string | null,
+    status: SalesReportErpResolvedLifecycle,
   ) {
-    const confirmationStatus = this.optionalText(order?.confirmationStatus);
-    const fulfillmentStatus = this.optionalText(order?.fulfillmentStatus);
-    if (
-      !isSalesReportErpOrderCanceledStatuses({
-        confirmationStatus,
-        fulfillmentStatus,
-      })
-    ) {
-      return;
+    if (status.lifecycleStatus === 'CANCELLED') {
+      this.logger.warn(
+        `Sales report ERP canceled order blocked: orderLength=${orderCode.length}`,
+      );
+      throw new SalesReportErpCanceledOrderException(
+        this.excludedOrderCacheItem(order, orderCode, storeCode, status),
+      );
     }
-    this.logger.warn(
-      `Sales report ERP canceled order blocked: orderLength=${orderCode.length} confirmationStatus=${confirmationStatus || 'none'} fulfillmentStatus=${fulfillmentStatus || 'none'}`,
-    );
-    throw new SalesReportErpCanceledOrderException(
-      this.canceledOrderCacheItem(order, orderCode, storeCode),
-    );
+    if (status.lifecycleStatus === 'RETURNED_FULL') {
+      this.logger.warn(
+        `Sales report ERP returned order blocked: orderLength=${orderCode.length}`,
+      );
+      throw new SalesReportErpReturnedOrderException(
+        this.excludedOrderCacheItem(order, orderCode, storeCode, status),
+      );
+    }
   }
 
-  private canceledOrderCacheItem(
+  async lookupOrderStatus(
+    orderCodeInput: string,
+    fallbackStoreCode?: string | null,
+  ): Promise<SalesReportErpOrderListItem> {
+    const orderCode = this.normalizeOrderCode(orderCodeInput);
+    if (!orderCode) throw new BadRequestException('Mã đơn hàng không hợp lệ.');
+    const accessToken = await this.getAccessToken();
+    const order = await this.fetchOrder(orderCode, accessToken);
+    const status = await this.resolveOrderLifecycle(
+      order,
+      orderCode,
+      accessToken,
+    );
+    const normalized = this.normalizeOrderListItem(
+      order,
+      fallbackStoreCode ?? null,
+      status.statusCheckedAt,
+      status,
+    );
+    if (!normalized) {
+      throw new ServiceUnavailableException(
+        'ERP chưa trả đủ dữ liệu trạng thái đơn hàng.',
+      );
+    }
+    return normalized;
+  }
+
+  private excludedOrderCacheItem(
     order: any,
     orderCode: string,
     fallbackStoreCode: string | null,
+    status: SalesReportErpResolvedLifecycle,
   ): SalesReportErpOrderListItem {
-    const fetchedAt = new Date();
-    const normalized =
-      this.normalizeOrderListItem(order, fallbackStoreCode, fetchedAt) ?? null;
-    if (normalized) {
-      return {
-        ...normalized,
-        orderCode,
-        fetchedAt,
-        sanitizedSnapshot: {
-          ...normalized.sanitizedSnapshot,
-          exclusionCandidate: true,
-        },
-      };
+    const normalized = this.normalizeOrderListItem(
+      order,
+      fallbackStoreCode,
+      status.statusCheckedAt,
+      status,
+    );
+    if (!normalized) {
+      throw new ServiceUnavailableException(
+        'ERP chưa trả đủ dữ liệu trạng thái đơn hàng.',
+      );
     }
     return {
+      ...normalized,
       orderCode,
-      erpOrderId: this.firstText(order?.orderId, order?.id, orderCode),
-      erpExternalOrderRef: this.optionalText(order?.externalOrderRef),
-      orderCreatedAt: this.parseDate(order?.createdAt),
-      paymentStatus: this.optionalText(order?.paymentStatus),
-      confirmationStatus: this.optionalText(order?.confirmationStatus),
-      fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
-      terminalName: this.firstText(
-        order?.terminalName,
-        order?.storeName,
-        fallbackStoreCode,
-      ),
-      grandTotal: this.toInt(order?.grandTotal ?? order?.totalAmount),
-      customerName: this.firstText(
-        order?.customerName,
-        order?.customer?.name,
-        order?.customerInfo?.name,
-      ),
-      customerPhone: this.firstText(
-        order?.customerPhone,
-        order?.customer?.phone,
-        order?.customerInfo?.phone,
-      ),
-      customerType: this.detectCustomerType(
-        this.billingCustomerType(order),
-        this.billingTaxCode(order),
-      ),
-      paymentMethods: this.cleanPaymentMethods(
-        order?.paymentMethods ?? order?.payments ?? order?.paymentMethod,
-      ),
-      platformId: this.toInt(order?.platformId),
-      consultantCustomId: this.firstText(order?.consultantCustomId),
-      consultantName: this.firstText(order?.consultantName),
-      consultantEmail: this.firstText(order?.consultantEmail),
-      sellerId: this.firstText(order?.sellerId),
-      sellerName: this.firstText(order?.sellerName),
-      sellerEmail: this.firstText(order?.sellerEmail),
-      storeCode: this.normalizeStoreCode(fallbackStoreCode),
-      storeName: this.firstText(order?.storeName),
       sanitizedSnapshot: {
-        orderCode,
-        paymentStatus: this.optionalText(order?.paymentStatus),
-        confirmationStatus: this.optionalText(order?.confirmationStatus),
-        fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
+        ...normalized.sanitizedSnapshot,
         exclusionCandidate: true,
       },
-      fetchedAt,
     };
+  }
+
+  private async resolveOrderLifecycle(
+    order: any,
+    orderCode: string,
+    accessToken: string,
+  ): Promise<SalesReportErpResolvedLifecycle> {
+    const statusCheckedAt = new Date();
+    if (
+      isSalesReportErpOrderCanceledStatuses({
+        confirmationStatus: this.optionalText(order?.confirmationStatus),
+        fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
+      })
+    ) {
+      return {
+        verified: true,
+        lifecycleStatus: 'CANCELLED',
+        hasReturnedFullItems: false,
+        returnedAfterTaxAmount: 0,
+        completedRequestCount: 0,
+        statusCheckedAt,
+      };
+    }
+    const returns = await this.fetchReturnSummary(
+      orderCode,
+      this.toInt(order?.platformId),
+      this.toInt(order?.grandTotal),
+      order?.hasReturnedFullItems === true,
+      accessToken,
+    );
+    const grandTotal = Math.max(0, this.toInt(order?.grandTotal) ?? 0);
+    const returnedAmount = Math.min(
+      grandTotal,
+      Math.max(0, returns.returnedAfterTaxAmount),
+    );
+    const fullReturn =
+      returns.hasReturnedFullItems ||
+      (grandTotal > 0 && returnedAmount >= grandTotal);
+    if (fullReturn) {
+      return {
+        ...returns,
+        lifecycleStatus: 'RETURNED_FULL',
+        hasReturnedFullItems: true,
+        returnedAfterTaxAmount: grandTotal || returnedAmount,
+        statusCheckedAt,
+      };
+    }
+    const delivered =
+      this.optionalText(order?.fulfillmentStatus)?.toUpperCase() ===
+      'DELIVERED';
+    return {
+      ...returns,
+      lifecycleStatus:
+        delivered && returns.verified
+          ? returnedAmount > 0
+            ? 'COMPLETED_PARTIAL_RETURN'
+            : 'COMPLETED'
+          : 'PENDING',
+      hasReturnedFullItems: false,
+      returnedAfterTaxAmount: returnedAmount,
+      statusCheckedAt,
+    };
+  }
+
+  private lifecycleFromListOrder(
+    order: any,
+    statusCheckedAt: Date,
+  ): SalesReportErpResolvedLifecycle {
+    const cancelled = isSalesReportErpOrderCanceledStatuses({
+      confirmationStatus: this.optionalText(order?.confirmationStatus),
+      fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
+    });
+    return {
+      verified: cancelled,
+      lifecycleStatus: cancelled ? 'CANCELLED' : 'PENDING',
+      hasReturnedFullItems: false,
+      returnedAfterTaxAmount: 0,
+      completedRequestCount: 0,
+      statusCheckedAt,
+    };
+  }
+
+  private async fetchReturnSummary(
+    orderCode: string,
+    platformId: number | null,
+    grandTotal: number | null,
+    hasReturnedFullItems: boolean,
+    accessToken: string,
+  ): Promise<SalesReportErpReturnSummary> {
+    const baseUrl = this.env(
+      'ERP_STAFF_BFF_BASE_URL',
+      'https://staff-bff.tekoapis.com',
+    ).replace(/\/$/, '');
+    const url = new URL(`${baseUrl}/api/v2/return-requests`);
+    url.searchParams.set('orderIds', orderCode);
+    url.searchParams.set(
+      'platformId',
+      String(platformId ?? Number(this.env('ERP_ORDER_LIST_PLATFORM_ID', '3'))),
+    );
+    try {
+      const response = await this.fetchWithTimeout(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      });
+      if (!response.ok) {
+        this.logger.warn(
+          `Sales report ERP return lookup failed: status=${response.status} orderLength=${orderCode.length}`,
+        );
+        return {
+          verified: hasReturnedFullItems,
+          hasReturnedFullItems,
+          returnedAfterTaxAmount: hasReturnedFullItems
+            ? Math.max(0, grandTotal ?? 0)
+            : 0,
+          completedRequestCount: 0,
+        };
+      }
+      const body = (await response.json().catch(() => ({}))) as any;
+      const requests = Array.isArray(body?.request)
+        ? body.request
+        : Array.isArray(body?.data?.request)
+          ? body.data.request
+          : [];
+      const seenRequestIds = new Set<string>();
+      const completed = requests.filter((request: any) => {
+        if (
+          this.optionalText(request?.status)?.toUpperCase() !==
+          'RETURN_STATUS_RETURNED'
+        ) {
+          return false;
+        }
+        const requestId = this.firstText(
+          request?.id,
+          request?.requestId,
+          request?.returnRequestId,
+          request?.code,
+        );
+        if (!requestId) return true;
+        if (seenRequestIds.has(requestId)) return false;
+        seenRequestIds.add(requestId);
+        return true;
+      });
+      let returnedAfterTaxAmount = 0;
+      for (const request of completed) {
+        const items = Array.isArray(request?.items) ? request.items : [];
+        for (const item of items) {
+          const quantity = Math.max(0, this.toInt(item?.returnedQuantity) ?? 0);
+          const unitAfterTaxPrice = Math.max(
+            0,
+            this.toInt(item?.unitAfterTaxPrice) ??
+              this.toInt(item?.unitPrice) ??
+              0,
+          );
+          returnedAfterTaxAmount += quantity * unitAfterTaxPrice;
+        }
+      }
+      const cappedAmount = Math.min(
+        Math.max(0, grandTotal ?? returnedAfterTaxAmount),
+        Math.max(0, returnedAfterTaxAmount),
+      );
+      return {
+        verified: true,
+        hasReturnedFullItems:
+          hasReturnedFullItems ||
+          ((grandTotal ?? 0) > 0 && cappedAmount >= (grandTotal ?? 0)),
+        returnedAfterTaxAmount: cappedAmount,
+        completedRequestCount: completed.length,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Sales report ERP return lookup failed unexpectedly: orderLength=${orderCode.length} errorType=${this.errorType(error)}`,
+      );
+      return {
+        verified: hasReturnedFullItems,
+        hasReturnedFullItems,
+        returnedAfterTaxAmount: hasReturnedFullItems
+          ? Math.max(0, grandTotal ?? 0)
+          : 0,
+        completedRequestCount: 0,
+      };
+    }
   }
 
   private async normalizeItems(
@@ -705,7 +932,7 @@ export class SalesReportErpService {
       }
     } catch (error) {
       this.logger.warn(
-        `Sales report ERP product lookup failed but order lookup continues: error=${String(error)}`,
+        `Sales report ERP product lookup failed but order lookup continues: errorType=${this.errorType(error)}`,
       );
     }
     return result;
@@ -751,6 +978,7 @@ export class SalesReportErpService {
     order: any,
     items: SalesReportErpOrderItem[],
     payments: SalesReportErpPayment[],
+    status: SalesReportErpResolvedLifecycle,
   ): SalesReportErpOrder {
     const fetchedAt = new Date();
     const customerNeed = items
@@ -801,6 +1029,10 @@ export class SalesReportErpService {
       erpPaymentStatus: this.optionalText(order?.paymentStatus),
       erpConfirmationStatus: this.optionalText(order?.confirmationStatus),
       erpFulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
+      erpLifecycleStatus: status.lifecycleStatus,
+      erpHasReturnedFullItems: status.hasReturnedFullItems,
+      erpReturnedAfterTaxAmount: status.returnedAfterTaxAmount,
+      erpStatusCheckedAt: status.statusCheckedAt,
       erpTerminalName: this.optionalText(order?.terminalName),
       erpGrandTotal: this.toInt(order?.grandTotal),
       erpCustomerType,
@@ -825,6 +1057,9 @@ export class SalesReportErpService {
         paymentStatus: this.optionalText(order?.paymentStatus),
         confirmationStatus: this.optionalText(order?.confirmationStatus),
         fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
+        lifecycleStatus: status.lifecycleStatus,
+        hasReturnedFullItems: status.hasReturnedFullItems,
+        returnedAfterTaxAmount: status.returnedAfterTaxAmount,
         terminalName: this.optionalText(order?.terminalName),
         createdFromSiteDisplayName: this.optionalText(
           order?.createdFromSiteDisplayName,
@@ -1305,6 +1540,10 @@ export class SalesReportErpService {
   private objectKeys(value: unknown) {
     if (!value || typeof value !== 'object') return [];
     return Object.keys(value as Record<string, unknown>).slice(0, 20);
+  }
+
+  private errorType(error: unknown) {
+    return error instanceof Error ? error.name : typeof error;
   }
 
   private urlParam(url: string, key: string) {

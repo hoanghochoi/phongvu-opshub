@@ -8,7 +8,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { Interval } from '@nestjs/schedule';
+import { Cron, Interval } from '@nestjs/schedule';
 import {
   organizationNodeStoreTreeInclude,
   storesForOrganizationNodeTree,
@@ -23,6 +23,7 @@ import {
   SalesReportErpOrder,
   SalesReportErpCanceledOrderException,
   SalesReportErpOrderListItem,
+  SalesReportErpReturnedOrderException,
   SalesReportErpService,
   isSalesReportErpOrderCanceledStatuses,
 } from './sales-report-erp.service';
@@ -59,6 +60,8 @@ const MAX_ORDER_CACHE_SYNC_LOOKBACK_DAYS = 7;
 const INSTALLMENT_SUCCESS = 'SUCCESS';
 const INSTALLMENT_FAILED = 'FAILED';
 const ERP_ORDER_CANCELED_EXCLUSION_REASON = 'ERP_ORDER_CANCELLED';
+const ERP_ORDER_RETURNED_EXCLUSION_REASON = 'ERP_ORDER_RETURNED_FULL';
+const ERP_STATUS_SYNC_LOCK_KEY = 'opshub:sales-report:erp-status-sync';
 const MANAGED_SALES_REPORT_JOB_ROLE_CODES = new Set([
   'STORE_MANAGER',
   'AREA_MANAGER',
@@ -227,6 +230,7 @@ const INSTALLMENT_NO_INSTALLMENT_REASON_LABELS: Record<string, string> = {
 export class SalesReportsService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SalesReportsService.name);
   private orderCacheSyncRunning = false;
+  private erpStatusSyncRunning = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -625,6 +629,263 @@ export class SalesReportsService implements OnApplicationBootstrap {
     }
   }
 
+  @Cron('0 */20 * * * *')
+  async handleErpOrderStatusSync() {
+    await this.syncErpOrderStatuses('scheduled_20m');
+  }
+
+  async syncErpOrderStatuses(source = 'manual') {
+    if (this.envFlag('ERP_ORDER_STATUS_SYNC_ENABLED', true) === false) {
+      return { skipped: true, processed: 0, changed: 0, failed: 0 };
+    }
+    if (this.erpStatusSyncRunning) {
+      this.logger.warn(
+        `ERP order status sync skipped: source=${source} reason=already_running`,
+      );
+      return { skipped: true, processed: 0, changed: 0, failed: 0 };
+    }
+    const batchSize = this.envInt(
+      'ERP_ORDER_STATUS_SYNC_BATCH_SIZE',
+      50,
+      1,
+      200,
+    );
+    const concurrency = this.envInt(
+      'ERP_ORDER_STATUS_SYNC_CONCURRENCY',
+      2,
+      1,
+      5,
+    );
+    const lookbackDays = this.envInt(
+      'ERP_ORDER_STATUS_COMPLETED_LOOKBACK_DAYS',
+      30,
+      1,
+      180,
+    );
+    const pendingLimit = Math.max(1, Math.floor(batchSize * 0.8));
+    const completedLimit = Math.max(0, batchSize - pendingLimit);
+    let leaseToken: string | null = null;
+    if (this.redisService) {
+      try {
+        leaseToken = await this.redisService.tryAcquireLease(
+          ERP_STATUS_SYNC_LOCK_KEY,
+          18 * 60 * 1000,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `ERP order status sync skipped: source=${source} reason=lease_error errorType=${this.errorType(error)}`,
+        );
+        return { skipped: true, processed: 0, changed: 0, failed: 0 };
+      }
+      if (!leaseToken) {
+        this.logger.log(
+          `ERP order status sync skipped: source=${source} reason=lease_unavailable`,
+        );
+        return { skipped: true, processed: 0, changed: 0, failed: 0 };
+      }
+    }
+    this.erpStatusSyncRunning = true;
+    const startedAt = Date.now();
+    try {
+      const completedCutoff = new Date(
+        Date.now() - lookbackDays * 24 * 60 * 60 * 1000,
+      );
+      const pendingRows = await this.prisma.salesReportErpOrderCache.findMany({
+        where: { lifecycleStatus: 'PENDING' },
+        orderBy: [{ statusCheckedAt: 'asc' }, { createdAt: 'asc' }],
+        take: batchSize,
+        select: {
+          orderCode: true,
+          storeCode: true,
+          lifecycleStatus: true,
+          statusCheckedAt: true,
+          orderCreatedAt: true,
+        },
+      });
+      const completedRows =
+        completedLimit > 0
+          ? await this.prisma.salesReportErpOrderCache.findMany({
+              where: {
+                lifecycleStatus: {
+                  in: ['COMPLETED', 'COMPLETED_PARTIAL_RETURN'],
+                },
+                orderCreatedAt: { gte: completedCutoff },
+              },
+              orderBy: [{ statusCheckedAt: 'asc' }, { createdAt: 'asc' }],
+              take: batchSize,
+              select: {
+                orderCode: true,
+                storeCode: true,
+                lifecycleStatus: true,
+                statusCheckedAt: true,
+                orderCreatedAt: true,
+              },
+            })
+          : [];
+      const selectedPending = pendingRows.slice(0, pendingLimit);
+      const selectedCompleted = completedRows.slice(0, completedLimit);
+      let remaining =
+        batchSize - selectedPending.length - selectedCompleted.length;
+      if (remaining > 0) {
+        selectedPending.push(
+          ...pendingRows.slice(
+            selectedPending.length,
+            selectedPending.length + remaining,
+          ),
+        );
+        remaining =
+          batchSize - selectedPending.length - selectedCompleted.length;
+      }
+      if (remaining > 0) {
+        selectedCompleted.push(
+          ...completedRows.slice(
+            selectedCompleted.length,
+            selectedCompleted.length + remaining,
+          ),
+        );
+      }
+      const selected = [...selectedPending, ...selectedCompleted];
+      let cursor = 0;
+      let changed = 0;
+      let failed = 0;
+      const changedStores = new Set<string>();
+      const changedDates = new Set<string>();
+      const worker = async () => {
+        while (cursor < selected.length) {
+          const row = selected[cursor++];
+          try {
+            const next = await this.erp.lookupOrderStatus(
+              row.orderCode,
+              row.storeCode,
+            );
+            await this.persistScheduledErpStatus(next);
+            if (next.lifecycleStatus !== row.lifecycleStatus) {
+              changed += 1;
+              if (row.storeCode) changedStores.add(row.storeCode);
+              if (row.orderCreatedAt) {
+                changedDates.add(this.formatVietnamDate(row.orderCreatedAt));
+              }
+            }
+          } catch (error) {
+            failed += 1;
+            await this.recordErpStatusSyncFailure(row.orderCode);
+            this.logger.warn(
+              `ERP order status refresh failed: orderLength=${row.orderCode.length} errorType=${this.errorType(error)}`,
+            );
+          }
+        }
+      };
+      await Promise.all(
+        Array.from(
+          { length: Math.min(concurrency, Math.max(1, selected.length)) },
+          () => worker(),
+        ),
+      );
+      if (changed > 0) {
+        await this.publishOrderCacheUpdated({
+          source: 'erp_status_sync',
+          dates: Array.from(changedDates),
+          newOrderCount: 0,
+          mappedOrderCount: changed,
+          storeCodes: Array.from(changedStores),
+          recipientUserIds: [],
+        });
+      }
+      this.logger.log(
+        `ERP order status sync succeeded: source=${source} selected=${selected.length} pending=${selectedPending.length} completed=${selectedCompleted.length} changed=${changed} failed=${failed} concurrency=${concurrency} durationMs=${Date.now() - startedAt}`,
+      );
+      return {
+        skipped: false,
+        processed: selected.length,
+        changed,
+        failed,
+      };
+    } finally {
+      this.erpStatusSyncRunning = false;
+      if (leaseToken && this.redisService) {
+        try {
+          await this.redisService.releaseLease(
+            ERP_STATUS_SYNC_LOCK_KEY,
+            leaseToken,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `ERP order status sync lease release failed: source=${source} errorType=${this.errorType(error)}`,
+          );
+        }
+      }
+    }
+  }
+
+  private async persistScheduledErpStatus(order: SalesReportErpOrderListItem) {
+    const exclusion = this.orderExclusionState(order.lifecycleStatus);
+    const cacheData = {
+      paymentStatus: this.optionalText(order.paymentStatus, 80),
+      confirmationStatus: this.optionalText(order.confirmationStatus, 80),
+      fulfillmentStatus: this.optionalText(order.fulfillmentStatus, 80),
+      lifecycleStatus: order.lifecycleStatus,
+      hasReturnedFullItems: order.hasReturnedFullItems,
+      returnedAfterTaxAmount: Math.max(0, order.returnedAfterTaxAmount),
+      statusCheckedAt: order.statusCheckedAt,
+      statusCheckAttemptedAt: order.statusCheckedAt,
+      statusCheckFailureCount: 0,
+      fetchedAt: order.fetchedAt,
+      sanitizedSnapshot: order.sanitizedSnapshot as Prisma.InputJsonValue,
+      ...(exclusion.excludedAt
+        ? {
+            excludedAt: exclusion.excludedAt,
+            exclusionReason: exclusion.exclusionReason,
+          }
+        : {}),
+    };
+    await this.prisma.$transaction([
+      this.prisma.salesReportErpOrderCache.update({
+        where: { orderCode: order.orderCode },
+        data: cacheData,
+      }),
+      this.prisma.salesReport.updateMany({
+        where: {
+          orderCode: order.orderCode,
+          reportType: REPORT_TYPE_PURCHASED,
+        },
+        data: {
+          erpPaymentStatus: cacheData.paymentStatus,
+          erpConfirmationStatus: cacheData.confirmationStatus,
+          erpFulfillmentStatus: cacheData.fulfillmentStatus,
+          erpLifecycleStatus: order.lifecycleStatus,
+          erpHasReturnedFullItems: order.hasReturnedFullItems,
+          erpReturnedAfterTaxAmount: cacheData.returnedAfterTaxAmount,
+          erpStatusCheckedAt: order.statusCheckedAt,
+          erpStatusCheckFailureCount: 0,
+          erpFetchedAt: order.fetchedAt,
+          ...(exclusion.excludedAt
+            ? {
+                erpExcludedAt: exclusion.excludedAt,
+                erpExclusionReason: exclusion.exclusionReason,
+              }
+            : {}),
+        },
+      }),
+    ]);
+  }
+
+  private async recordErpStatusSyncFailure(orderCode: string) {
+    const attemptedAt = new Date();
+    await this.prisma.$transaction([
+      this.prisma.salesReportErpOrderCache.update({
+        where: { orderCode },
+        data: {
+          statusCheckAttemptedAt: attemptedAt,
+          statusCheckFailureCount: { increment: 1 },
+        },
+      }),
+      this.prisma.salesReport.updateMany({
+        where: { orderCode, reportType: REPORT_TYPE_PURCHASED },
+        data: { erpStatusCheckFailureCount: { increment: 1 } },
+      }),
+    ]);
+  }
+
   async orderCockpit(user: any, query: ListSalesReportOrdersDto) {
     const filters = this.normalizeOrderCockpitFilters(query);
     const context = await this.resolveUserSnapshot(user);
@@ -845,6 +1106,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
       `Sales report create started: user=${this.safeUserLabel(user)} type=${reportType} primaryCategory=${primaryCategory.id} categoryCount=${categories.length} hasOrder=${Boolean(orderCode)} hasCustomerName=${Boolean(customerName)} customerType=${customerType} hasInstallmentNeed=${installment.need} promotionCount=${promotionCodes.length}`,
     );
     try {
+      if (erpOrder) {
+        await this.upsertErpOrderCacheFromOrder(user, context, erpOrder);
+      }
       const report = await this.prisma.salesReport.create({
         data: {
           reportType,
@@ -1452,6 +1716,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
       paymentStatus: erpOrder.erpPaymentStatus,
       confirmationStatus: erpOrder.erpConfirmationStatus,
       fulfillmentStatus: erpOrder.erpFulfillmentStatus,
+      lifecycleStatus: erpOrder.erpLifecycleStatus,
+      hasReturnedFullItems: erpOrder.erpHasReturnedFullItems,
+      returnedAfterTaxAmount: erpOrder.erpReturnedAfterTaxAmount,
+      statusCheckedAt: erpOrder.erpStatusCheckedAt,
       terminalName: erpOrder.erpTerminalName,
       grandTotal: erpOrder.erpGrandTotal,
       customerName: erpOrder.customerName,
@@ -1482,10 +1750,16 @@ export class SalesReportsService implements OnApplicationBootstrap {
   ) {
     const orderCode = this.normalizeOrderCode(order.orderCode);
     if (!orderCode) return;
-    const exclusion = this.orderExclusionState(
-      order.confirmationStatus,
-      order.fulfillmentStatus,
-    );
+    const lifecycleStatus = this.normalizedErpLifecycleStatus(order);
+    const hasReturnedFullItems =
+      order.hasReturnedFullItems === true ||
+      lifecycleStatus === 'RETURNED_FULL';
+    const rawReturnedAmount = Number(order.returnedAfterTaxAmount ?? 0);
+    const returnedAfterTaxAmount = Number.isFinite(rawReturnedAmount)
+      ? Math.max(0, rawReturnedAmount)
+      : 0;
+    const statusCheckedAt = order.statusCheckedAt ?? order.fetchedAt;
+    const exclusion = this.orderExclusionState(lifecycleStatus);
     const storeCode = this.normalizeStoreCode(
       order.storeCode ?? syncOwner?.storeCode ?? context.storeCode,
     );
@@ -1497,6 +1771,12 @@ export class SalesReportsService implements OnApplicationBootstrap {
       paymentStatus: this.optionalText(order.paymentStatus, 80),
       confirmationStatus: this.optionalText(order.confirmationStatus, 80),
       fulfillmentStatus: this.optionalText(order.fulfillmentStatus, 80),
+      lifecycleStatus,
+      hasReturnedFullItems,
+      returnedAfterTaxAmount,
+      statusCheckedAt,
+      statusCheckAttemptedAt: statusCheckedAt,
+      statusCheckFailureCount: 0,
       excludedAt: exclusion.excludedAt,
       exclusionReason: exclusion.exclusionReason,
       terminalName: this.optionalText(order.terminalName, 120),
@@ -1556,6 +1836,20 @@ export class SalesReportsService implements OnApplicationBootstrap {
       create: { orderCode, ...data },
       update: updateData,
     });
+    await this.prisma.salesReport.updateMany({
+      where: { orderCode, reportType: REPORT_TYPE_PURCHASED },
+      data: {
+        erpPaymentStatus: data.paymentStatus,
+        erpConfirmationStatus: data.confirmationStatus,
+        erpFulfillmentStatus: data.fulfillmentStatus,
+        erpLifecycleStatus: lifecycleStatus,
+        erpHasReturnedFullItems: hasReturnedFullItems,
+        erpReturnedAfterTaxAmount: returnedAfterTaxAmount,
+        erpStatusCheckedAt: statusCheckedAt,
+        erpStatusCheckFailureCount: 0,
+        erpFetchedAt: order.fetchedAt,
+      },
+    });
     if (exclusion.excludedAt) {
       await this.markSalesReportsExcluded(
         orderCode,
@@ -1563,7 +1857,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         exclusion.exclusionReason!,
       );
       this.logger.warn(
-        `Sales report canceled order exclusion persisted: orderLength=${orderCode.length} confirmationStatus=${data.confirmationStatus || 'none'} fulfillmentStatus=${data.fulfillmentStatus || 'none'} reason=${exclusion.exclusionReason}`,
+        `Sales report excluded order persisted: orderLength=${orderCode.length} lifecycleStatus=${lifecycleStatus} reason=${exclusion.exclusionReason}`,
       );
     }
   }
@@ -2142,7 +2436,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
     this.logger.warn(
       `Sales report excluded order blocked from cache: orderLength=${orderCode.length} reason=${existing.exclusionReason || 'none'}`,
     );
-    throw new BadRequestException('Đơn đã bị hủy.');
+    throw new BadRequestException(
+      existing.exclusionReason === ERP_ORDER_RETURNED_EXCLUSION_REASON
+        ? 'Đơn đã hoàn trả toàn bộ, không thể báo cáo mua hàng.'
+        : 'Đơn đã bị hủy.',
+    );
   }
 
   private visibleSalesReportWhere(): Prisma.SalesReportWhereInput {
@@ -2153,22 +2451,43 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return { excludedAt: null };
   }
 
-  private orderExclusionState(
-    confirmationStatus: unknown,
-    fulfillmentStatus: unknown,
-  ) {
-    if (
-      !isSalesReportErpOrderCanceledStatuses({
-        confirmationStatus: this.optionalText(confirmationStatus, 80),
-        fulfillmentStatus: this.optionalText(fulfillmentStatus, 80),
-      })
-    ) {
+  private orderExclusionState(lifecycleStatus: string) {
+    if (lifecycleStatus === 'RETURNED_FULL') {
+      return {
+        excludedAt: new Date(),
+        exclusionReason: ERP_ORDER_RETURNED_EXCLUSION_REASON,
+      };
+    }
+    if (lifecycleStatus !== 'CANCELLED') {
       return { excludedAt: null, exclusionReason: null };
     }
     return {
       excludedAt: new Date(),
       exclusionReason: ERP_ORDER_CANCELED_EXCLUSION_REASON,
     };
+  }
+
+  private normalizedErpLifecycleStatus(order: SalesReportErpOrderListItem) {
+    const supplied = String(order.lifecycleStatus || '').toUpperCase();
+    if (
+      supplied === 'PENDING' ||
+      supplied === 'COMPLETED' ||
+      supplied === 'COMPLETED_PARTIAL_RETURN' ||
+      supplied === 'CANCELLED' ||
+      supplied === 'RETURNED_FULL'
+    ) {
+      return supplied;
+    }
+    if (order.hasReturnedFullItems === true) return 'RETURNED_FULL';
+    if (
+      isSalesReportErpOrderCanceledStatuses({
+        confirmationStatus: order.confirmationStatus,
+        fulfillmentStatus: order.fulfillmentStatus,
+      })
+    ) {
+      return 'CANCELLED';
+    }
+    return 'PENDING';
   }
 
   private async lookupErpOrderForReport(
@@ -2179,18 +2498,17 @@ export class SalesReportsService implements OnApplicationBootstrap {
     try {
       return await this.erp.lookupOrder(orderCode, context.storeCode);
     } catch (error) {
-      if (error instanceof SalesReportErpCanceledOrderException) {
-        await this.persistCanceledOrderExclusion(
-          user,
-          context,
-          error.cacheItem,
-        );
+      if (
+        error instanceof SalesReportErpCanceledOrderException ||
+        error instanceof SalesReportErpReturnedOrderException
+      ) {
+        await this.persistExcludedOrder(user, context, error.cacheItem);
       }
       throw error;
     }
   }
 
-  private async persistCanceledOrderExclusion(
+  private async persistExcludedOrder(
     user: any,
     context: Awaited<ReturnType<SalesReportsService['resolveUserSnapshot']>>,
     cacheItem: SalesReportErpOrderListItem,
@@ -2204,10 +2522,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
       );
     } catch (error) {
       this.logger.error(
-        `Sales report canceled order exclusion persist failed: orderLength=${cacheItem.orderCode.length} reason=${ERP_ORDER_CANCELED_EXCLUSION_REASON} error=${String(error)}`,
+        `Sales report excluded order persist failed: orderLength=${cacheItem.orderCode.length} lifecycleStatus=${cacheItem.lifecycleStatus} error=${String(error)}`,
       );
       throw new ServiceUnavailableException(
-        'Đơn hàng đã bị hủy nhưng hệ thống chưa cập nhật kịp. Vui lòng thử lại sau ít phút.',
+        'Trạng thái đơn hàng chưa được cập nhật kịp. Vui lòng thử lại sau ít phút.',
       );
     }
   }
@@ -2661,6 +2979,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
       erpPaymentStatus: erpOrder.erpPaymentStatus,
       erpConfirmationStatus: erpOrder.erpConfirmationStatus,
       erpFulfillmentStatus: erpOrder.erpFulfillmentStatus,
+      erpLifecycleStatus: erpOrder.erpLifecycleStatus,
+      erpHasReturnedFullItems: erpOrder.erpHasReturnedFullItems,
+      erpReturnedAfterTaxAmount: erpOrder.erpReturnedAfterTaxAmount,
+      erpStatusCheckedAt: erpOrder.erpStatusCheckedAt,
+      erpStatusCheckFailureCount: 0,
       erpTerminalName: erpOrder.erpTerminalName,
       erpGrandTotal: erpOrder.erpGrandTotal,
       erpPaymentMethods: erpOrder.paymentMethods,
@@ -3587,6 +3910,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
   private csvText(value: unknown) {
     if (value === undefined || value === null) return '';
     return String(value);
+  }
+
+  private errorType(error: unknown) {
+    return error instanceof Error ? error.name : typeof error;
   }
 
   private safeUserLabel(user: any) {

@@ -522,6 +522,7 @@ model OrganizationNode {
   adminPolicyRules       AdminPolicyRule[]
   userAssignments        UserOrganizationAssignment[]
   nodeFeatureAssignments OrganizationNodeFeatureAssignment[] @relation("NodeFeatureScopeRoot")
+  salesTargets           SalesTarget[]
 
   @@index([parentId])
   @@index([type])
@@ -843,6 +844,11 @@ model SalesReport {
   erpPaymentStatus               String?
   erpConfirmationStatus          String?
   erpFulfillmentStatus           String?
+  erpLifecycleStatus             String                   @default("PENDING")
+  erpHasReturnedFullItems        Boolean                  @default(false)
+  erpReturnedAfterTaxAmount      Int                      @default(0)
+  erpStatusCheckedAt             DateTime?
+  erpStatusCheckFailureCount     Int                      @default(0)
   erpTerminalName                String?
   erpGrandTotal                  Int?
   erpPaymentMethods              String[]                 @default([])
@@ -875,6 +881,7 @@ model SalesReport {
   @@index([installmentNeed, submittedAt])
   @@index([organizationNodeId, submittedAt])
   @@index([erpExcludedAt, submittedAt])
+  @@index([erpLifecycleStatus, erpStatusCheckedAt])
 }
 
 model SalesReportCategorySelection {
@@ -941,38 +948,44 @@ model SalesReportPayment {
 }
 
 model SalesReportErpOrderCache {
-  id                  String    @id @default(uuid())
-  orderCode           String    @unique
-  erpOrderId          String?
-  erpExternalOrderRef String?
-  orderCreatedAt      DateTime?
-  paymentStatus       String?
-  confirmationStatus  String?
-  fulfillmentStatus   String?
-  excludedAt          DateTime?
-  exclusionReason     String?
-  terminalName        String?
-  grandTotal          Int?
-  customerName        String?
-  customerPhone       String?
-  customerType        String?
-  paymentMethods      String[]  @default([])
-  platformId          Int?
-  consultantCustomId  String?
-  consultantName      String?
-  consultantEmail     String?
-  sellerId            String?
-  sellerName          String?
-  sellerEmail         String?
-  storeCode           String?
-  storeName           String?
-  organizationNodeId  String?
-  sourceUserId        String?
-  sourceUserEmail     String?
-  sanitizedSnapshot   Json?
-  fetchedAt           DateTime
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                      String    @id @default(uuid())
+  orderCode               String    @unique
+  erpOrderId              String?
+  erpExternalOrderRef     String?
+  orderCreatedAt          DateTime?
+  paymentStatus           String?
+  confirmationStatus      String?
+  fulfillmentStatus       String?
+  lifecycleStatus         String    @default("PENDING")
+  hasReturnedFullItems    Boolean   @default(false)
+  returnedAfterTaxAmount  Int       @default(0)
+  statusCheckedAt         DateTime?
+  statusCheckAttemptedAt  DateTime?
+  statusCheckFailureCount Int       @default(0)
+  excludedAt              DateTime?
+  exclusionReason         String?
+  terminalName            String?
+  grandTotal              Int?
+  customerName            String?
+  customerPhone           String?
+  customerType            String?
+  paymentMethods          String[]  @default([])
+  platformId              Int?
+  consultantCustomId      String?
+  consultantName          String?
+  consultantEmail         String?
+  sellerId                String?
+  sellerName              String?
+  sellerEmail             String?
+  storeCode               String?
+  storeName               String?
+  organizationNodeId      String?
+  sourceUserId            String?
+  sourceUserEmail         String?
+  sanitizedSnapshot       Json?
+  fetchedAt               DateTime
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   @@index([orderCreatedAt])
   @@index([storeCode, orderCreatedAt])
@@ -983,6 +996,24 @@ model SalesReportErpOrderCache {
   @@index([consultantCustomId, orderCreatedAt])
   @@index([sellerId, orderCreatedAt])
   @@index([excludedAt, orderCreatedAt])
+  @@index([lifecycleStatus, statusCheckedAt])
+  @@index([orderCreatedAt, lifecycleStatus, statusCheckedAt])
+}
+
+model SalesTarget {
+  id                 String           @id @default(uuid())
+  organizationNodeId String
+  organizationNode   OrganizationNode @relation(fields: [organizationNodeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  monthStart         DateTime         @db.Date
+  targetBeforeTax    BigInt
+  updatedByUserId    String?
+  updatedByEmail     String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([organizationNodeId, monthStart])
+  @@index([monthStart])
+  @@index([organizationNodeId, monthStart])
 }
 
 model HomeSummaryOrderFact {
@@ -1052,20 +1083,20 @@ model HomeSummaryReportFact {
 }
 
 model HelpContentPage {
-  id               String    @id @default(uuid())
-  key              String    @unique
-  title            String
-  fileName         String
-  parentKey        String?
-  sortOrder        Int       @default(0)
-  markdown         String
-  isPublished      Boolean   @default(true)
-  isAuthenticatedOnly Boolean @default(false)
-  updatedByUserId  String?
-  updatedByEmail   String?
-  seededFromDocsAt DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                  String    @id @default(uuid())
+  key                 String    @unique
+  title               String
+  fileName            String
+  parentKey           String?
+  sortOrder           Int       @default(0)
+  markdown            String
+  isPublished         Boolean   @default(true)
+  isAuthenticatedOnly Boolean   @default(false)
+  updatedByUserId     String?
+  updatedByEmail      String?
+  seededFromDocsAt    DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([parentKey, sortOrder, key])
   @@index([isPublished, parentKey, sortOrder])

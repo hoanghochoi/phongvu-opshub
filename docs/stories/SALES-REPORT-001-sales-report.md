@@ -58,6 +58,13 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 - Form có nhóm checkbox `CTKM áp dụng`: `Đổi điểm thi`,
   `Học sinh - Sinh viên`, `CTKM khác`.
 - Backend re-check ERP khi submit và chặn duplicate `orderCode`.
+- Check/submit lưu trạng thái vòng đời ERP và dữ liệu hoàn trả. Pending được
+  giữ trong tiến độ nhưng chưa tính doanh số; hủy/trả toàn bộ bị loại; trả một
+  phần trừ giá trị trả trước khi bỏ VAT 8%.
+- Backend rà trạng thái mỗi 20 phút, tối đa 50 đơn với concurrency 2: ưu tiên
+  pending và vẫn dành quota cho đơn completed 30 ngày gần nhất để bắt hoàn trả
+  muộn. Redis lease ngăn nhiều replica chạy trùng; lỗi từng đơn được retry ở
+  lượt sau.
 - Form `Chưa mua hàng` không gọi ERP, bắt buộc ngành hàng và lý do chưa mua.
 - Cả 2 form có tick `Có nhu cầu trả góp`. Khi tick, sale phải chọn một hoặc
   nhiều đối tác trong list: `VNPAY - POS`, `PAYOO - POS`,

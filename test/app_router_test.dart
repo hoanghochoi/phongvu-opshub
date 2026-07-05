@@ -60,6 +60,31 @@ void main() {
     expect(AppRouter.canUseRouteForTesting(staff, '/admin/personnel'), isFalse);
   });
 
+  test('sales target route requires ADMIN_SALES_TARGETS access', () {
+    const targetAdmin = User(
+      email: 'target-admin@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-area',
+      featureAccess: {'ADMIN_SALES_TARGETS': true},
+    );
+    const staff = User(
+      email: 'staff@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-store',
+      featureAccess: {'FIFO': true},
+    );
+
+    expect(AppRouter.canUseRouteForTesting(targetAdmin, '/admin'), isTrue);
+    expect(
+      AppRouter.canUseRouteForTesting(targetAdmin, '/admin/sales-targets'),
+      isTrue,
+    );
+    expect(
+      AppRouter.canUseRouteForTesting(staff, '/admin/sales-targets'),
+      isFalse,
+    );
+  });
+
   test('generic report workspace accepts sales report permissions', () {
     const salesUser = User(
       email: 'sales@phongvu.vn',

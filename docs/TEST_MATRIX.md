@@ -45,6 +45,21 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `HOME-DASHBOARD-002`/`SALES-REPORT-001`, 2026-07-06: Dashboard đưa
+  `Tổng quan` lên đầu với donut báo cáo, sao kê và doanh số ngày/tuần/tháng;
+  bỏ progress bar, đồng bộ chiều cao KPI và bổ sung các icon còn thiếu. Doanh
+  số thực đạt chỉ cộng báo cáo mua hàng ERP đã hoàn thành, trừ hoàn trả trước
+  khi chia VAT 8%. Backend lưu lifecycle/return khi check và submit, rồi rà
+  pending cùng completed 30 ngày gần nhất mỗi 20 phút với batch 50,
+  concurrency 2, quota 40/10 có bù slot và Redis lease. Thêm
+  `ADMIN_SALES_TARGETS`, API/màn Quản lý doanh số theo showroom/tháng và target
+  cá nhân SA. Validation: Prisma format/validate/generate; focused Nest Jest
+  (5 suites, 56 tests); `npm run build`; full Flutter regression (360 tests);
+  `flutter analyze --no-pub`; Web/Windows release build; local web smoke ở
+  428×844; `node --check scripts/opshub-web-visual-smoke.mjs`;
+  `git diff --check`. Windows app đã launch được nhưng update gate của phiên
+  cài đặt hiện tại chặn kiểm tra sâu dashboard; chưa chạy live ERP, apply
+  migration staging hay staging visual smoke trong lượt local này.
 - `HOME-DASHBOARD-002`, 2026-07-05: Home tách KPI thành `Bán hàng` và
   `Tài chính` dùng chung ngày/scope. Bán hàng bỏ `Tổng số báo cáo hợp lệ`, đổi
   nhãn thành `Tỉ lệ báo cáo`, thêm tỉ lệ chuyển đổi theo tổng số đơn trên tổng

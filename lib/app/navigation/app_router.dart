@@ -29,7 +29,9 @@ import '../../features/admin/presentation/screens/organization_tree_admin_screen
 import '../../features/admin/presentation/screens/personnel_catalog_admin_screen.dart';
 import '../../features/admin/presentation/screens/policy_admin_screen.dart';
 import '../../features/admin/presentation/screens/role_admin_screen.dart';
+import '../../features/admin/presentation/screens/sales_target_admin_screen.dart';
 import '../../features/admin/presentation/screens/user_admin_screen.dart';
+import '../../features/admin/data/repositories/sales_target_repository.dart';
 import '../../features/help/presentation/screens/help_content_admin_screen.dart';
 import '../../features/help/presentation/screens/help_screen.dart';
 import '../../features/warranty/presentation/screens/warranty_screen.dart';
@@ -246,6 +248,15 @@ class AppRouter {
                   _noTransitionPage(state, const PersonnelCatalogAdminScreen()),
             ),
             GoRoute(
+              path: '/admin/sales-targets',
+              pageBuilder: (context, state) => _noTransitionPage(
+                state,
+                SalesTargetAdminScreen(
+                  repository: SalesTargetRepository(ApiClient()),
+                ),
+              ),
+            ),
+            GoRoute(
               path: '/admin/inventory-import',
               pageBuilder: (context, state) =>
                   _noTransitionPage(state, const InventoryImportScreen()),
@@ -415,6 +426,7 @@ class AppRouter {
       '/admin/policies' => 'ADMIN_POLICIES',
       '/admin/features' => 'ADMIN_FEATURES',
       '/admin/personnel' => 'ADMIN_PERSONNEL',
+      '/admin/sales-targets' => 'ADMIN_SALES_TARGETS',
       '/admin/inventory-import' => 'FIFO_IMPORT',
       '/admin/feedback' => 'ADMIN_FEEDBACK',
       '/admin/sales-reports' => 'ADMIN_SALES_REPORTS',
@@ -446,6 +458,7 @@ class AppRouter {
           user?.canUseFeature('ADMIN_POLICIES') == true ||
           user?.canUseFeature('ADMIN_FEATURES') == true ||
           user?.canUseFeature('ADMIN_PERSONNEL') == true ||
+          user?.canUseFeature('ADMIN_SALES_TARGETS') == true ||
           user?.canUseFeature('ADMIN_FEEDBACK') == true;
     }
     if (featureCode == 'SALES_REPORT_HUB') {

@@ -402,8 +402,11 @@ void main() {
       "path: '/reports'",
       'PersonnelCatalogAdminScreen',
       "path: '/admin/personnel'",
+      'SalesTargetAdminScreen',
+      "path: '/admin/sales-targets'",
       "'/reports' => 'SALES_REPORT_HUB'",
       "'/admin/personnel' => 'ADMIN_PERSONNEL'",
+      "'/admin/sales-targets' => 'ADMIN_SALES_TARGETS'",
     ];
     for (final marker in requiredRouteMarkers) {
       expect(routerSource, contains(marker));
@@ -583,8 +586,8 @@ void main() {
       'lib/features/bank_statement/presentation/screens/bank_statement_screen.dart':
           (count: 1, reason: 'inline refresh progress'),
       'lib/features/home/presentation/widgets/home_summary_page.dart': (
-        count: 2,
-        reason: 'toolbar refresh and report coverage progress',
+        count: 1,
+        reason: 'toolbar refresh state',
       ),
       'lib/features/vietqr/presentation/widgets/payment_waiting_card.dart': (
         count: 1,
@@ -716,8 +719,8 @@ void main() {
               pendingSmokeRoutes.length +
               authenticatedSmokeRoutes.length) *
           2,
-      78,
-      reason: 'Default smoke should stay at 39 routes across 2 viewports.',
+      80,
+      reason: 'Default smoke should stay at 40 routes across 2 viewports.',
     );
     expect(smokeSource, contains('readPngVisualStats'));
     expect(smokeSource, contains('uniqueSampledColors < 16'));

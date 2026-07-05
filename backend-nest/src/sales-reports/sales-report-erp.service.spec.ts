@@ -574,6 +574,113 @@ describe('SalesReportErpService', () => {
       'CP01 - 264A-264B-264C Nguyen Thi Minh Khai, Phuong 6',
     );
   });
+
+  it('classifies pending, completed, canceled, partial and full returns from ERP payloads', async () => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const orders: Record<string, Record<string, unknown>> = {
+      '2607011001': {
+        orderId: '2607011001',
+        confirmationStatus: 'active',
+        fulfillmentStatus: 'PROCESSING',
+        platformId: 3,
+        grandTotal: 1000000,
+      },
+      '2607011002': {
+        orderId: '2607011002',
+        confirmationStatus: 'active',
+        fulfillmentStatus: 'DELIVERED',
+        platformId: 3,
+        grandTotal: 1000000,
+      },
+      '2607011003': {
+        orderId: '2607011003',
+        confirmationStatus: 'Active',
+        fulfillmentStatus: 'cAnCeLlEd',
+        platformId: 3,
+        grandTotal: 1000000,
+      },
+      '2607011004': {
+        orderId: '2607011004',
+        confirmationStatus: 'active',
+        fulfillmentStatus: 'DELIVERED',
+        platformId: 3,
+        grandTotal: 1000000,
+      },
+      '2607011005': {
+        orderId: '2607011005',
+        confirmationStatus: 'active',
+        fulfillmentStatus: 'DELIVERED',
+        hasReturnedFullItems: true,
+        platformId: 3,
+        grandTotal: 1000000,
+      },
+    };
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = new URL(input.toString());
+      if (url.pathname.startsWith('/api/v2/staff-admin/orders/')) {
+        const orderCode = url.pathname.split('/').pop()!;
+        return jsonResponse({ data: { order: orders[orderCode] } });
+      }
+      if (url.pathname === '/api/v2/return-requests') {
+        const orderCode = url.searchParams.get('orderIds');
+        if (orderCode === '2607011004') {
+          return jsonResponse({
+            request: [
+              {
+                id: 'return-1',
+                status: 'RETURN_STATUS_RETURNED',
+                refunds: [{ status: 'REFUND_STATUS_PENDING' }],
+                items: [{ returnedQuantity: 2, unitAfterTaxPrice: 100000 }],
+              },
+              {
+                id: 'return-1',
+                status: 'RETURN_STATUS_RETURNED',
+                items: [{ returnedQuantity: 2, unitAfterTaxPrice: 100000 }],
+              },
+              {
+                id: 'return-2',
+                status: 'RETURN_STATUS_RETURNED',
+                items: [{ returnedQuantity: 1, unitAfterTaxPrice: 50000 }],
+              },
+            ],
+          });
+        }
+        return jsonResponse({ request: [] });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    const service = new SalesReportErpService();
+    await expect(
+      service.lookupOrderStatus('2607011001'),
+    ).resolves.toMatchObject({
+      lifecycleStatus: 'PENDING',
+      returnedAfterTaxAmount: 0,
+    });
+    await expect(
+      service.lookupOrderStatus('2607011002'),
+    ).resolves.toMatchObject({
+      lifecycleStatus: 'COMPLETED',
+      returnedAfterTaxAmount: 0,
+    });
+    await expect(
+      service.lookupOrderStatus('2607011003'),
+    ).resolves.toMatchObject({ lifecycleStatus: 'CANCELLED' });
+    await expect(
+      service.lookupOrderStatus('2607011004'),
+    ).resolves.toMatchObject({
+      lifecycleStatus: 'COMPLETED_PARTIAL_RETURN',
+      returnedAfterTaxAmount: 250000,
+    });
+    await expect(
+      service.lookupOrderStatus('2607011005'),
+    ).resolves.toMatchObject({
+      lifecycleStatus: 'RETURNED_FULL',
+      hasReturnedFullItems: true,
+      returnedAfterTaxAmount: 1000000,
+    });
+  });
 });
 
 function redirectResponse(location: string) {

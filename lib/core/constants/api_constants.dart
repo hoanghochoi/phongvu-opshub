@@ -56,6 +56,9 @@ class ApiConstants {
       '/admin/features/rules/batch';
   static const String homeSummaryEndpoint = '/home/summary';
   static const String homeSummaryScopeOptionsEndpoint = '/home/summary/scopes';
+  static const String adminSalesTargetsEndpoint = '/admin/sales-targets';
+  static const String adminSalesTargetsBatchEndpoint =
+      '/admin/sales-targets/batch';
   static const String helpContentPublicEndpoint = '/help-content/public';
   static const String adminHelpContentPagesEndpoint =
       '/admin/help-content/pages';

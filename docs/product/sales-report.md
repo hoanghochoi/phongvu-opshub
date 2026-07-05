@@ -71,6 +71,20 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   không còn hợp lệ để các flow sau fail-closed: cockpit không trả lại ở cột
   chưa/đã báo cáo, admin list/export không tính tiếp, và các lần
   `Kiểm tra đơn hàng` hoặc submit sau đó bị chặn ngay cả khi chưa gọi lại ERP.
+- Mỗi lần sale kiểm tra đơn và mỗi lần submit, backend lấy order detail cùng
+  return request rồi lưu trạng thái chuẩn `PENDING`, `COMPLETED`,
+  `COMPLETED_PARTIAL_RETURN`, `CANCELLED` hoặc `RETURNED_FULL`. Đơn pending vẫn
+  được báo cáo nhưng chưa cộng doanh số; đơn trả toàn bộ bị chặn bằng thông báo
+  tiếng Việt; đơn trả một phần giữ report và trừ
+  `returnedQuantity × unitAfterTaxPrice` của request đã hoàn tất.
+- Job trạng thái chạy mỗi 20 phút, tối đa 50 đơn/lượt với concurrency 2 và
+  Redis lease. Mặc định dành 40 slot cho pending cũ nhất, 10 slot rà xoay vòng
+  đơn hoàn thành trong 30 ngày, rồi bù slot thừa cho nhóm còn lại. Lỗi một đơn
+  chỉ tăng failure count và thử lại ở lượt sau.
+- Doanh số dashboard của mỗi đơn là
+  `round(max(grandTotal - returnedAfterTaxAmount, 0) / 1.08)` và chỉ cộng trạng
+  thái hoàn thành. Menu `Quản trị` có `Quản lý doanh số` theo feature
+  `ADMIN_SALES_TARGETS`; chỉ tiêu lưu theo SR/tháng ở giá trị trước VAT.
 - ERP/Listing chỉ được tự điền ngành hàng khi map được về nhóm ngành OpsHub:
   chỉ lấy `result.products[].categories[]` có `level = 1` và dùng đúng `code`
   khớp `Cat group ID` trong `data/categories.csv`. Không dùng category level

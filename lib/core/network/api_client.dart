@@ -244,6 +244,29 @@ class ApiClient {
     }
   }
 
+  Future<http.Response> put(
+    String endpoint, {
+    required Map<String, dynamic> body,
+    Duration? timeout,
+  }) async {
+    try {
+      final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
+      final response = await _client
+          .put(url, headers: _authHeaders, body: jsonEncode(body))
+          .timeout(timeout ?? ApiConstants.defaultTimeout);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response;
+      }
+      await _throwForResponse(response);
+    } on SocketException {
+      throw NetworkException();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw _unexpectedException(e);
+    }
+  }
+
   Future<http.Response> delete(String endpoint, {Duration? timeout}) async {
     try {
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
