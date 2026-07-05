@@ -13,6 +13,14 @@ class HomeSummary {
   final int reportedOrders;
   final int unreportedOrders;
   final double coverageRate;
+  final double conversionRate;
+  final bool salesAvailable;
+  final bool financeAvailable;
+  final int totalTransferredAmount;
+  final int totalStatements;
+  final int totalStatementsWithOrder;
+  final int totalStatementsWithoutOrder;
+  final double statementOrderRate;
   final DateTime? refreshedAt;
   final String? unavailableMessage;
 
@@ -29,6 +37,14 @@ class HomeSummary {
     required this.reportedOrders,
     required this.unreportedOrders,
     required this.coverageRate,
+    this.conversionRate = 0,
+    this.salesAvailable = true,
+    this.financeAvailable = false,
+    this.totalTransferredAmount = 0,
+    this.totalStatements = 0,
+    this.totalStatementsWithOrder = 0,
+    this.totalStatementsWithoutOrder = 0,
+    this.statementOrderRate = 0,
     required this.refreshedAt,
     this.unavailableMessage,
   });
@@ -47,6 +63,16 @@ class HomeSummary {
       reportedOrders: _intOf(json['reportedOrders']),
       unreportedOrders: _intOf(json['unreportedOrders']),
       coverageRate: _coverageOf(json['coverageRate']),
+      conversionRate: _coverageOf(json['conversionRate']),
+      salesAvailable: json.containsKey('salesAvailable')
+          ? json['salesAvailable'] == true
+          : true,
+      financeAvailable: json['financeAvailable'] == true,
+      totalTransferredAmount: _intOf(json['totalTransferredAmount']),
+      totalStatements: _intOf(json['totalStatements']),
+      totalStatementsWithOrder: _intOf(json['totalStatementsWithOrder']),
+      totalStatementsWithoutOrder: _intOf(json['totalStatementsWithoutOrder']),
+      statementOrderRate: _coverageOf(json['statementOrderRate']),
       refreshedAt: _dateTimeOf(json['refreshedAt']),
       unavailableMessage: _nullableStringOf(json['unavailableMessage']),
     );
@@ -60,7 +86,11 @@ class HomeSummary {
       totalOrders > 0 ||
       totalReports > 0 ||
       reportedOrders > 0 ||
-      unreportedOrders > 0;
+      unreportedOrders > 0 ||
+      totalTransferredAmount > 0 ||
+      totalStatements > 0 ||
+      totalStatementsWithOrder > 0 ||
+      totalStatementsWithoutOrder > 0;
 
   String get resolvedScopeLabel {
     final value = scopeLabel.trim();
@@ -75,7 +105,7 @@ class HomeSummary {
 
   String get resolvedCoverageLabel {
     final value = coverageLabel.trim();
-    return value.isEmpty ? 'Tỷ lệ phủ báo cáo' : value;
+    return value.isEmpty ? 'Tỉ lệ báo cáo' : value;
   }
 
   String get resolvedUnavailableMessage {

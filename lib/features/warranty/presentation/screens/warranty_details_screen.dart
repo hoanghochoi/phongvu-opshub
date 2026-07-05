@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -174,7 +175,8 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
   }
 
   void _showSnackBar(String message, {required Color backgroundColor}) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    AppToast.show(
+      context,
       SnackBar(
         content: Text(message),
         backgroundColor: backgroundColor,

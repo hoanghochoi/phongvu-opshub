@@ -51,8 +51,18 @@ void main() {
       );
       expect(
         titles,
-        containsAll(<String>['FIFO', 'Bảo hành', 'VietQR', 'Sao kê']),
+        containsAll(<String>[
+          'Kiểm tra FIFO',
+          'Sắp xếp FIFO',
+          'Bảo hành',
+          'VietQR',
+          'Sao kê',
+        ]),
       );
+      expect(find.text('Bán hàng'), findsOneWidget);
+      expect(find.text('Kho'), findsOneWidget);
+      expect(find.text('Tài chính'), findsOneWidget);
+      expect(find.text('Kỹ thuật'), findsOneWidget);
       expect(titles, isNot(contains('Góp ý')));
     },
   );

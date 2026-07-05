@@ -25,15 +25,19 @@ class _OperationsScreenState extends State<OperationsScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
-    final actions = _buildActions(context, user);
+    final sections = _buildSections(context, user);
+    final visibleCount = sections.fold<int>(
+      0,
+      (count, section) => count + section.actions.length,
+    );
 
-    _logOperationsResolved(actions.length, user);
+    _logOperationsResolved(visibleCount, sections.length, user);
 
     return AppResponsiveScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (actions.isEmpty)
+          if (sections.isEmpty)
             const AppStatePanel.empty(
               key: Key('operations-empty-state'),
               icon: Icons.apps_outlined,
@@ -42,9 +46,22 @@ class _OperationsScreenState extends State<OperationsScreen> {
                   'Vui lòng liên hệ quản lý để kiểm tra phân quyền truy cập.',
             )
           else
-            AppFeatureGrid(
+            Column(
               key: const Key('operations-feature-section'),
-              actions: actions,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var index = 0; index < sections.length; index++) ...[
+                  if (index > 0)
+                    const SizedBox(height: AppLayoutTokens.sectionGap),
+                  AppFeatureSection(
+                    key: ValueKey(
+                      'operations-section-${sections[index].group.name}',
+                    ),
+                    title: sections[index].label,
+                    actions: sections[index].actions,
+                  ),
+                ],
+              ],
             ),
           const SizedBox(height: 20),
         ],
@@ -52,23 +69,30 @@ class _OperationsScreenState extends State<OperationsScreen> {
     );
   }
 
-  List<AppFeatureAction> _buildActions(BuildContext context, User? user) {
-    final destinations = AppNavModel.visibleWorkspaceDestinations(user);
+  List<_OperationsSection> _buildSections(BuildContext context, User? user) {
+    final sections = AppNavModel.visibleWorkspaceSections(user);
     return [
-      for (final destination in destinations)
-        AppFeatureAction(
-          icon: destination.icon,
-          title: destination.label,
-          description: destination.description,
-          color: destination.color,
-          onTap: () => context.go(destination.route),
+      for (final section in sections)
+        _OperationsSection(
+          group: section.group,
+          label: section.label,
+          actions: [
+            for (final destination in section.destinations)
+              AppFeatureAction(
+                icon: destination.icon,
+                title: destination.label,
+                description: destination.description,
+                color: destination.color,
+                onTap: () => context.go(destination.route),
+              ),
+          ],
         ),
     ];
   }
 
-  void _logOperationsResolved(int visibleCount, User? user) {
+  void _logOperationsResolved(int visibleCount, int sectionCount, User? user) {
     final hiddenCount = AppNavModel.hiddenWorkspaceCount(user);
-    final key = '$visibleCount|$hiddenCount';
+    final key = '$visibleCount|$hiddenCount|$sectionCount';
     if (_lastLogKey == key) return;
     _lastLogKey = key;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -79,9 +103,22 @@ class _OperationsScreenState extends State<OperationsScreen> {
           context: {
             'visibleActions': visibleCount,
             'hiddenActions': hiddenCount,
+            'sectionCount': sectionCount,
           },
         ),
       );
     });
   }
+}
+
+class _OperationsSection {
+  final AppNavGroup group;
+  final String label;
+  final List<AppFeatureAction> actions;
+
+  const _OperationsSection({
+    required this.group,
+    required this.label,
+    required this.actions,
+  });
 }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -1666,9 +1667,10 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
   }
 
   void _showSnack(String message, Color color) {
-    ScaffoldMessenger.of(
+    AppToast.show(
       context,
-    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
+      SnackBar(content: Text(message), backgroundColor: color),
+    );
   }
 
   @override

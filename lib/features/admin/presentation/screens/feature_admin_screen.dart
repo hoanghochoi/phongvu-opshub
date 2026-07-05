@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
@@ -333,9 +334,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    AppToast.show(context, SnackBar(content: Text(message)));
   }
 
   String _featureTitle(String code) {
@@ -1046,7 +1045,8 @@ class _FeatureEditorDialogState extends State<_FeatureEditorDialog> {
         context: {'featureCode': feature.code},
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           const SnackBar(
             content: Text('Chưa lưu được tính năng. Vui lòng thử lại.'),
           ),
@@ -1186,9 +1186,10 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
 
   Future<void> _save() async {
     if (_featureCode.isEmpty) {
-      ScaffoldMessenger.of(
+      AppToast.show(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Vui lòng chọn tính năng.')));
+        const SnackBar(content: Text('Vui lòng chọn tính năng.')),
+      );
       return;
     }
     setState(() => _saving = true);
@@ -1281,7 +1282,8 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
         },
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           const SnackBar(
             content: Text('Chưa lưu được quy tắc. Vui lòng thử lại.'),
           ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../features/home/presentation/screens/home_screen.dart';
 
@@ -22,7 +23,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
     _lastBackPress = now;
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(
           content: Text('Nhấn back lần nữa để thoát'),
           duration: Duration(seconds: 2),

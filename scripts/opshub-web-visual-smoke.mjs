@@ -46,9 +46,11 @@ const pendingRoutes = parseRoutes(
 const defaultAuthenticatedRoutes = parseRoutes(
   process.env.OPSHUB_VISUAL_SMOKE_ROUTES ||
     [
+      '/help',
       '/home',
       '/profile',
       '/operations',
+      '/notifications',
       '/admin',
       '/admin/users',
       '/admin/roles',

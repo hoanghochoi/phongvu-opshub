@@ -45,6 +45,23 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `HOME-DASHBOARD-002`, 2026-07-05: Home tách KPI thành `Bán hàng` và
+  `Tài chính` dùng chung ngày/scope. Bán hàng bỏ `Tổng số báo cáo hợp lệ`, đổi
+  nhãn thành `Tỉ lệ báo cáo`, thêm tỉ lệ chuyển đổi theo tổng số đơn trên tổng
+  báo cáo. Tài chính tổng hợp tiền chuyển khoản và số sao kê có/chưa có đơn từ
+  `MapVietinTransaction`. Hai section dùng feature riêng trên cây tổ chức; SA,
+  Kỹ thuật, Kho và Thu ngân chỉ chọn cá nhân hoặc từng showroom được gán, trong
+  đó tài chính cá nhân chỉ tính sao kê gắn với đơn cá nhân. Scope quản lý theo
+  node đã chọn và Super Admin có toàn hệ thống. Validation: focused Nest Jest
+  (4 suites, 58 tests), `npm run build`, full Flutter regression (352 tests),
+  `flutter analyze --no-pub`, và `git diff --check`.
+- `UI-UX-002`/`NAV-GROUPS-TOP-RIGHT-TOAST`, 2026-07-05: sidebar và Vận hành
+  dùng chung nhóm `Bán hàng`, `Kho`, `Tài chính`, `Kỹ thuật`; `Quản trị` chuyển
+  lên Tổng quan và sở hữu `Cập nhật tồn kho`/`Lịch sử FIFO`. Toàn bộ thông báo
+  tạm thời đi qua toast nổi góc trên phải, rộng tối đa 360px; source guard chặn
+  việc thêm lại `showSnackBar`. Validation: focused navigation/toast/route
+  widget tests, full Flutter regression (352 tests), `flutter analyze --no-pub`,
+  `node --check scripts/opshub-web-visual-smoke.mjs`, và `git diff --check`.
 - `UI-UX-001`/`MOBILE-NOTIFICATIONS-NAV-BACK-SIZING`, 2026-07-05: mobile
   notification entry is now a full `/notifications` shell route with bottom
   navigation visible, mobile header no longer renders a duplicate notification

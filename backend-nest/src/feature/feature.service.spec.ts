@@ -257,6 +257,27 @@ describe('FeatureService', () => {
     );
   });
 
+  it('seeds node-selectable dashboard section features', async () => {
+    await service.seedDefaultFeatures();
+
+    for (const [code, displayName] of [
+      ['HOME_DASHBOARD_SALES', 'Dashboard - Bán hàng'],
+      ['HOME_DASHBOARD_FINANCE', 'Dashboard - Tài chính'],
+    ]) {
+      expect(prisma.featureDefinition.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { code },
+          create: expect.objectContaining({
+            code,
+            displayName,
+            parentCode: 'HOME_DASHBOARD',
+            visibleInUserPicker: true,
+          }),
+        }),
+      );
+    }
+  });
+
   it('denies child node assignments when an organization parent is missing the feature', async () => {
     setNodeAssignment('FIFO', true, 'LV2_REGION', 'MIEN_NAM');
     setNodeAssignment('FIFO', true, 'LV4_STORE', 'CP62');

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../core/config/app_brand.dart';
 import '../../core/logging/app_logger.dart';
@@ -68,7 +69,8 @@ class _AppShellState extends State<AppShell> {
 
     _lastBackPress = now;
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(
           content: Text('Nhấn back lần nữa để thoát'),
           duration: Duration(seconds: 2),
@@ -248,7 +250,8 @@ class _AppShellState extends State<AppShell> {
         context: {'error': error.toString()},
       );
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(content: Text('Chưa đăng xuất được. Vui lòng thử lại.')),
       );
     }
@@ -364,7 +367,8 @@ class _AppShellState extends State<AppShell> {
         context: logContext,
       );
       if (!context.mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(content: Text('Đã sao chép liên kết group hỗ trợ.')),
       );
     } catch (error) {
@@ -375,7 +379,8 @@ class _AppShellState extends State<AppShell> {
         context: logContext,
       );
       if (!context.mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(
           content: Text('Chưa sao chép được liên kết. Vui lòng thử lại.'),
         ),
@@ -413,7 +418,8 @@ class _AppShellState extends State<AppShell> {
       );
     }
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(
           content: Text(
             'Chưa mở được link. Vui lòng copy link trong hộp thoại.',
@@ -872,6 +878,7 @@ class _DesktopSidebar extends StatelessWidget {
             ),
             Expanded(
               child: ListView(
+                key: const ValueKey('desktop-sidebar-list'),
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 children: [
                   for (final section in sections) ...[
@@ -956,11 +963,7 @@ class _SidebarSection {
         if (destinations.any((destination) => destination.group == group))
           _SidebarSection(
             group: group,
-            label: switch (group) {
-              AppNavGroup.root => 'Tổng quan',
-              AppNavGroup.workspace => 'Nghiệp vụ',
-              AppNavGroup.account => 'Cấu hình',
-            },
+            label: group.label,
             destinations: destinations
                 .where((destination) => destination.group == group)
                 .toList(growable: false),

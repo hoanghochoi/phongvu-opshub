@@ -10,7 +10,19 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Tab `Vận hành` hiển thị ô `Báo cáo` khi user có feature `SALES_REPORT` hoặc
   `ADMIN_SALES_REPORTS`. `Trang chủ` không còn là catalog tác vụ; thay vào đó
   nó hiển thị dashboard tổng quan theo scope lấy dữ liệu từ fact tables riêng
-  của Home Summary.
+  của Home Summary. Dashboard tách hai khu vực dùng chung bộ chọn ngày và
+  scope. Khu vực `Bán hàng` hiển thị doanh số, tổng đơn hợp lệ, số đơn đã/chưa
+  báo cáo, `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn` và
+  `Tỉ lệ chuyển đổi = tổng số đơn / tổng số báo cáo`; không còn card
+  `Tổng số báo cáo hợp lệ` riêng.
+- Quyền hiển thị hai khu vực dashboard là hai tính năng riêng trong cây tổ
+  chức: `Dashboard - Bán hàng` và `Dashboard - Tài chính`. Super Admin bật/tắt
+  từng tính năng tại node; backend và app cùng ẩn khu vực không được cấp.
+- Các vị trí SA, Kỹ thuật, Kho và Thu ngân luôn mặc định ở `Phạm vi cá nhân`,
+  đồng thời được chọn từng showroom gắn với node được phân công để theo dõi
+  tiến độ showroom. Các vị trí này không được chọn vùng, miền hoặc toàn hệ
+  thống. Vị trí quản lý tiếp tục dùng phạm vi node được gán; Super Admin có
+  phạm vi toàn hệ thống.
 - Màn hình `Báo cáo` là cockpit đơn hàng trong ngày: cột trái là đơn chưa báo
   cáo, cột phải là đơn đã báo cáo. Mỗi cột hiển thị 20 đơn/trang, có scroll
   theo màn hình và nút chuyển trang riêng; số lượng ở header là total đếm từ DB

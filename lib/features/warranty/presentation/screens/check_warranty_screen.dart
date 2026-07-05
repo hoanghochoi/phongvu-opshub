@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 import '../../../../core/utils/date_formatter.dart';
 import '../providers/warranty_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -85,7 +86,8 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           SnackBar(
             content: Text('Chưa quét được mã. Vui lòng thử lại.'),
             backgroundColor: AppColors.error,

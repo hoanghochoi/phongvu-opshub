@@ -64,6 +64,12 @@ const MANAGED_SALES_REPORT_JOB_ROLE_CODES = new Set([
   'AREA_MANAGER',
   'REGION_MANAGER',
 ]);
+const PERSONAL_OR_STORE_HOME_SUMMARY_JOB_ROLE_CODES = new Set([
+  'SA',
+  'TECH',
+  'WAREHOUSE',
+  'CASH',
+]);
 
 type SalesReportFilters = {
   reportType: string | null;
@@ -114,6 +120,14 @@ export type SalesReportOperatingSummary = {
   reportedOrders: number;
   unreportedOrders: number;
   coverageRate: number;
+  conversionRate: number;
+  salesAvailable: boolean;
+  financeAvailable: boolean;
+  totalTransferredAmount: number;
+  totalStatements: number;
+  totalStatementsWithOrder: number;
+  totalStatementsWithoutOrder: number;
+  statementOrderRate: number;
   refreshedAt: Date;
 };
 
@@ -231,16 +245,42 @@ export class SalesReportsService implements OnApplicationBootstrap {
     user: any,
     requestedScope: HomeSummaryScopeRequest = 'AUTO',
     organizationNodeId?: string | null,
+    options: { allowOwnScope?: boolean } = {},
   ): Promise<SalesReportSummaryScopeDescriptor> {
     const context = await this.resolveUserSnapshot(user);
-    const adminView = await this.canViewAdminSalesReports(user);
+    const personalOrStoreView = this.hasPersonalOrStoreHomeSummaryRole(
+      user,
+      context,
+    );
+    const adminView = personalOrStoreView
+      ? false
+      : await this.canViewAdminSalesReports(user);
+    const canUseOwnScope =
+      options.allowOwnScope === true || (await this.canUseSalesReport(user));
+    if (!canUseOwnScope && !adminView) {
+      return this.unavailableHomeSummaryScope(
+        'Tài khoản hiện chưa được cấp khu vực dashboard để xem.',
+      );
+    }
 
     if (requestedScope === 'OWN') {
-      return this.describeOwnHomeSummaryScope(user, context);
+      if (!canUseOwnScope) {
+        return this.unavailableHomeSummaryScope(
+          'Tài khoản hiện chưa có phạm vi cá nhân để xem tổng quan.',
+        );
+      }
+      return this.describeOwnHomeSummaryScope(user, context, canUseOwnScope);
     }
 
     const requestedNodeId = this.optionalText(organizationNodeId, 80);
     if (requestedNodeId) {
+      if (personalOrStoreView) {
+        return this.describeOrganizationNodeHomeSummaryScope(
+          user,
+          requestedNodeId,
+          { storeOnly: true },
+        );
+      }
       if (!adminView) {
         return this.unavailableHomeSummaryScope(
           'Tài khoản hiện chưa có quyền xem tổng quan theo đơn vị.',
@@ -250,6 +290,15 @@ export class SalesReportsService implements OnApplicationBootstrap {
         user,
         requestedNodeId,
       );
+    }
+
+    if (personalOrStoreView) {
+      if (requestedScope === 'ALL' || requestedScope === 'MANAGED_SCOPE') {
+        return this.unavailableHomeSummaryScope(
+          'Vui lòng chọn phạm vi cá nhân hoặc một showroom được gán.',
+        );
+      }
+      return this.describeOwnHomeSummaryScope(user, context, canUseOwnScope);
     }
 
     if (requestedScope === 'ALL' && !adminView) {
@@ -314,15 +363,15 @@ export class SalesReportsService implements OnApplicationBootstrap {
       );
     }
 
-    return this.describeOwnHomeSummaryScope(user, context);
+    return this.describeOwnHomeSummaryScope(user, context, canUseOwnScope);
   }
 
   private async describeOwnHomeSummaryScope(
     user: any,
     context: any,
+    accessGranted = false,
   ): Promise<SalesReportSummaryScopeDescriptor> {
-    const canUseSalesReport = await this.canUseSalesReport(user);
-    if (!canUseSalesReport) {
+    if (!accessGranted && !(await this.canUseSalesReport(user))) {
       return this.unavailableHomeSummaryScope(
         'Tài khoản hiện chưa có quyền xem tổng quan báo cáo sale.',
       );
@@ -337,6 +386,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       context.createdByPersonnelCode,
       120,
     );
+    const ownStoreCode = this.normalizeStoreCode(context.storeCode);
     if (!ownUserId && !ownEmail && !ownPersonnelCode) {
       return this.unavailableHomeSummaryScope(
         'Tài khoản chưa có đủ thông tin nhân sự để tổng hợp dữ liệu.',
@@ -354,20 +404,62 @@ export class SalesReportsService implements OnApplicationBootstrap {
       ownUserId,
       ownEmail,
       ownPersonnelCode,
-      allowedStoreCodes: [],
+      allowedStoreCodes: ownStoreCode ? [ownStoreCode] : [],
     };
   }
 
   async listHomeSummaryScopeOptions(
     user: any,
+    accessOptions: { allowOwnScope?: boolean } = {},
   ): Promise<HomeSummaryScopeOption[]> {
-    const options: HomeSummaryScopeOption[] = [];
+    const scopeOptions: HomeSummaryScopeOption[] = [];
     const seen = new Set<string>();
     const pushOption = (option: HomeSummaryScopeOption) => {
       if (seen.has(option.value)) return;
       seen.add(option.value);
-      options.push(option);
+      scopeOptions.push(option);
     };
+
+    const canUseOwnScope =
+      accessOptions.allowOwnScope === true ||
+      (await this.canUseSalesReport(user));
+
+    const context = await this.resolveUserSnapshot(user);
+    const personalOrStoreView = this.hasPersonalOrStoreHomeSummaryRole(
+      user,
+      context,
+    );
+
+    if (personalOrStoreView) {
+      if (!canUseOwnScope) return scopeOptions;
+      pushOption({
+        value: 'OWN',
+        label: 'Phạm vi cá nhân',
+        scope: 'OWN',
+        organizationNodeId: null,
+        organizationNodeType: null,
+        storeCount: null,
+        isDefault: true,
+      });
+      const assignments = await this.resolveHomeSummaryAssignments(user);
+      assignments.forEach((assignment: any) => {
+        for (const option of this.homeSummaryNodeOptions(
+          assignment?.organizationNode,
+          false,
+        )) {
+          if (
+            option.organizationNodeType === 'LV4_STORE' ||
+            option.organizationNodeType === 'SHOWROOM'
+          ) {
+            pushOption(option);
+          }
+        }
+      });
+      return scopeOptions;
+    }
+
+    const adminView = await this.canViewAdminSalesReports(user);
+    if (!canUseOwnScope && !adminView) return scopeOptions;
 
     if (isSuperAdminRole(user?.role)) {
       pushOption({
@@ -381,7 +473,6 @@ export class SalesReportsService implements OnApplicationBootstrap {
       });
     }
 
-    const adminView = await this.canViewAdminSalesReports(user);
     if (adminView && !isSuperAdminRole(user?.role)) {
       const assignments = await this.resolveHomeSummaryAssignments(user);
       assignments.forEach((assignment: any, assignmentIndex: number) => {
@@ -394,7 +485,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       });
     }
 
-    if (await this.canUseSalesReport(user)) {
+    if (canUseOwnScope) {
       pushOption({
         value: 'OWN',
         label: 'Phạm vi cá nhân',
@@ -402,16 +493,17 @@ export class SalesReportsService implements OnApplicationBootstrap {
         organizationNodeId: null,
         organizationNodeType: null,
         storeCount: null,
-        isDefault: options.length === 0,
+        isDefault: scopeOptions.length === 0,
       });
     }
 
-    return options;
+    return scopeOptions;
   }
 
   private async describeOrganizationNodeHomeSummaryScope(
     user: any,
     organizationNodeId: string,
+    options: { storeOnly?: boolean } = {},
   ): Promise<SalesReportSummaryScopeDescriptor> {
     const selectedNode = isSuperAdminRole(user?.role)
       ? await this.findHomeSummaryNodeById(organizationNodeId)
@@ -419,6 +511,14 @@ export class SalesReportsService implements OnApplicationBootstrap {
     if (!selectedNode) {
       return this.unavailableHomeSummaryScope(
         'Bạn chỉ được xem dashboard trong phạm vi cây được gán.',
+      );
+    }
+    if (
+      options.storeOnly === true &&
+      !this.isHomeSummaryStoreNode(selectedNode)
+    ) {
+      return this.unavailableHomeSummaryScope(
+        'Bạn chỉ được chọn một showroom thuộc phạm vi được gán.',
       );
     }
 
@@ -1333,6 +1433,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       organizationNodeName: null,
       regionCode: null,
       areaCode: null,
+      jobRoleCode: null,
     };
   }
 
@@ -1555,6 +1656,29 @@ export class SalesReportsService implements OnApplicationBootstrap {
           MANAGED_SALES_REPORT_JOB_ROLE_CODES.has(code) ||
           Array.from(MANAGED_SALES_REPORT_JOB_ROLE_CODES).some((roleCode) =>
             code.endsWith(`_${roleCode}`),
+          ),
+      );
+  }
+
+  private hasPersonalOrStoreHomeSummaryRole(user: any, context?: any) {
+    if (isSuperAdminRole(user?.role)) return false;
+    const candidates = [
+      context?.jobRoleCode,
+      user?.jobRoleCode,
+      user?.jobRole?.code,
+      user?.jobRole?.businessCode,
+    ];
+    return candidates
+      .map((value) =>
+        String(value || '')
+          .trim()
+          .toUpperCase(),
+      )
+      .some(
+        (code) =>
+          PERSONAL_OR_STORE_HOME_SUMMARY_JOB_ROLE_CODES.has(code) ||
+          Array.from(PERSONAL_OR_STORE_HOME_SUMMARY_JOB_ROLE_CODES).some(
+            (roleCode) => code.endsWith(`_${roleCode}`),
           ),
       );
   }
@@ -2160,6 +2284,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
         organizationNode?.displayName ?? source.organizationNodeName ?? null,
       regionCode: region?.code ?? source.regionCode ?? null,
       areaCode: area?.code ?? source.areaCode ?? null,
+      jobRoleCode:
+        source.jobRoleCode ?? source.jobRole?.code ?? user?.jobRoleCode ?? null,
     };
   }
 

@@ -452,7 +452,7 @@ HomeSummary _homeSummary() {
     scope: 'OWN',
     scopeLabel: 'Phạm vi cá nhân',
     scopeDetail: 'CP75',
-    coverageLabel: 'Tỷ lệ phủ báo cáo',
+    coverageLabel: 'Tỉ lệ báo cáo',
     totalRevenue: 1000000,
     totalOrders: 1,
     totalReports: 1,

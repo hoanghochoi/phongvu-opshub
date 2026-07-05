@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/widgets/app_buttons.dart';
@@ -346,7 +347,8 @@ class _NodeFeatureAssignmentDialogState
   Future<void> _save() async {
     final node = _selectedNode();
     if (node == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(content: Text('Vui lòng chọn đơn vị tổ chức.')),
       );
       return;
@@ -405,7 +407,8 @@ class _NodeFeatureAssignmentDialogState
         },
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           const SnackBar(
             content: Text('Chưa lưu được quyền tính năng cho đơn vị.'),
           ),

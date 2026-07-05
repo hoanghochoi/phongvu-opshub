@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/navigation/app_nav_model.dart';
+import 'package:phongvu_opshub/core/platform/app_platform_capabilities.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 
 void main() {
@@ -46,7 +47,10 @@ void main() {
       user,
     ).map((destination) => destination.label).toList(growable: false);
 
-    expect(workspaceLabels, containsAll(['FIFO', 'Bảo hành']));
+    expect(
+      workspaceLabels,
+      containsAll(['Kiểm tra FIFO', 'Sắp xếp FIFO', 'Bảo hành']),
+    );
     expect(workspaceLabels, isNot(contains('Góp ý')));
     expect(workspaceLabels, isNot(contains('Sắp xếp')));
     expect(workspaceLabels, isNot(contains('VietQR')));
@@ -54,7 +58,7 @@ void main() {
     expect(workspaceLabels, isNot(contains('Sao kê')));
     expect(
       sidebarLabels,
-      containsAll(['Vận hành', 'Cài đặt', 'Góp ý', 'Hướng dẫn']),
+      containsAll(['Vận hành', 'Quản trị', 'Cài đặt', 'Góp ý', 'Hướng dẫn']),
     );
   });
 
@@ -90,11 +94,11 @@ void main() {
     expect(destination?.label, 'Vận hành');
   });
 
-  test('sort route stays inside the FIFO workspace', () {
+  test('sort route selects the warehouse sorting destination', () {
     final destination = AppNavModel.destinationForLocation('/sort');
 
-    expect(destination?.id, 'fifo');
-    expect(destination?.label, 'FIFO');
+    expect(destination?.id, 'fifoSort');
+    expect(destination?.label, 'Sắp xếp FIFO');
   });
 
   test('admin sales report route stays inside Báo cáo workspace', () {
@@ -138,7 +142,48 @@ void main() {
       user,
     ).map((destination) => destination.label);
 
-    expect(workspaceLabels, contains('Quản trị'));
+    expect(workspaceLabels, isNot(contains('Quản trị')));
     expect(sidebarLabels, contains('Quản trị'));
+  });
+
+  test('workspace taxonomy keeps the requested section order', () {
+    const user = User(
+      id: 'all-tools',
+      email: 'all.tools@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-store-cp01',
+      featureAccess: {
+        'VIETQR': true,
+        'SALES_REPORT': true,
+        'PAYMENT_MONITOR': true,
+        'FIFO': true,
+        'BANK_STATEMENTS': true,
+        'OFFSET_ADJUSTMENTS': true,
+        'WARRANTY': true,
+      },
+    );
+
+    final sections = AppNavModel.visibleWorkspaceSections(user);
+
+    expect(sections.map((section) => section.label), [
+      'Bán hàng',
+      'Kho',
+      'Tài chính',
+      'Kỹ thuật',
+    ]);
+    expect(sections[0].destinations.map((item) => item.label), [
+      'VietQR',
+      'Báo cáo',
+      if (AppPlatformCapabilities.isPaymentMonitorSupported()) 'Tiền vào',
+    ]);
+    expect(sections[1].destinations.map((item) => item.label), [
+      'Kiểm tra FIFO',
+      'Sắp xếp FIFO',
+    ]);
+    expect(sections[2].destinations.map((item) => item.label), [
+      'Sao kê',
+      'Cấn trừ',
+    ]);
+    expect(sections[3].destinations.map((item) => item.label), ['Bảo hành']);
   });
 }

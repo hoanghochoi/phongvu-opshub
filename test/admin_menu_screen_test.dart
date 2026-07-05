@@ -118,6 +118,31 @@ void main() {
     expect(find.text('Nội dung runtime công khai'), findsOneWidget);
     expect(find.text('Danh sách góp ý'), findsOneWidget);
   });
+
+  testWidgets('Admin menu owns inventory update and FIFO history tools', (
+    tester,
+  ) async {
+    const user = User(
+      email: 'warehouse@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-warehouse',
+      featureAccess: {'FIFO': true, 'FIFO_IMPORT': true},
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(user),
+        child: const MaterialApp(home: AdminMenuScreen()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('admin-fifo-tools-section')), findsOneWidget);
+    expect(find.text('Công cụ FIFO'), findsOneWidget);
+    expect(find.text('Cập nhật tồn kho'), findsOneWidget);
+    expect(find.text('Lịch sử FIFO'), findsOneWidget);
+    expect(find.text('Chức năng quản trị'), findsNothing);
+  });
 }
 
 class _FakeAuthProvider extends AuthProvider {

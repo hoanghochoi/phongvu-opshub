@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -86,7 +87,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _setStartupEnabled(bool enabled) async {
-    final messenger = ScaffoldMessenger.of(context);
     await AppLogger.instance.info(
       _logSource,
       'Settings startup toggle started',
@@ -114,7 +114,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'hasStaleEntry': snapshot.hasStaleEntry,
         },
       );
-      messenger.showSnackBar(
+      if (!mounted) return;
+      AppToast.show(
+        context,
         SnackBar(
           content: Text(
             enabled
@@ -137,7 +139,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         stackTrace: stackTrace,
         context: {'targetEnabled': enabled},
       );
-      messenger.showSnackBar(
+      if (!mounted) return;
+      AppToast.show(
+        context,
         const SnackBar(
           content: Text('Không lưu được cài đặt. Vui lòng thử lại.'),
           behavior: SnackBarBehavior.floating,

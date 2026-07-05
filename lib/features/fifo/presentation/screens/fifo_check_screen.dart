@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/storage/app_storage_keys.dart';
@@ -166,7 +167,8 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
     final provider = context.read<FifoProvider>();
     final error = provider.error;
     if (error == null || !mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    AppToast.show(
+      context,
       SnackBar(content: Text(error), backgroundColor: AppColors.error),
     );
     provider.clearError();

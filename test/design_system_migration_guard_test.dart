@@ -583,8 +583,8 @@ void main() {
       'lib/features/bank_statement/presentation/screens/bank_statement_screen.dart':
           (count: 1, reason: 'inline refresh progress'),
       'lib/features/home/presentation/widgets/home_summary_page.dart': (
-        count: 1,
-        reason: 'report coverage progress panel',
+        count: 2,
+        reason: 'toolbar refresh and report coverage progress',
       ),
       'lib/features/vietqr/presentation/widgets/payment_waiting_card.dart': (
         count: 1,
@@ -716,8 +716,8 @@ void main() {
               pendingSmokeRoutes.length +
               authenticatedSmokeRoutes.length) *
           2,
-      74,
-      reason: 'Default smoke should stay at 37 routes across 2 viewports.',
+      78,
+      reason: 'Default smoke should stay at 39 routes across 2 viewports.',
     );
     expect(smokeSource, contains('readPngVisualStats'));
     expect(smokeSource, contains('uniqueSampledColors < 16'));

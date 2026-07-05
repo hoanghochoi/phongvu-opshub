@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_inputs.dart';
@@ -240,7 +241,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           : '/home';
       context.go(route);
     } else if (authProvider.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         SnackBar(
           content: Text(authProvider.errorMessage!),
           backgroundColor: AppColors.error,
@@ -266,7 +268,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isSendingCode = false);
 
     if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(
           content: Text('Đã gửi mã xác thực. Vui lòng kiểm tra email.'),
           backgroundColor: AppColors.success,
@@ -278,7 +281,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _showError(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    AppToast.show(
+      context,
       SnackBar(content: Text(message), backgroundColor: AppColors.error),
     );
   }

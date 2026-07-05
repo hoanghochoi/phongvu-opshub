@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
@@ -162,7 +163,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         context: {'role': currentUser?.role, 'email': currentUser?.email},
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           const SnackBar(content: Text('Không tải được danh sách người dùng')),
         );
       }
@@ -284,9 +286,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         },
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      AppToast.show(context, SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _importing = false);
     }
@@ -310,13 +310,14 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         newPassword: newPassword,
       );
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
       await AppLogger.instance.info(
         'Admin',
         'Admin password reset succeeded',
         context: {'userId': userId, 'email': user.email},
       );
-      messenger.showSnackBar(
+      if (!mounted) return;
+      AppToast.show(
+        context,
         SnackBar(
           content: Text('Đã đổi mật khẩu cho ${user.email}'),
           backgroundColor: AppColors.success,
@@ -324,7 +325,6 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
       await AppLogger.instance.error(
         'Admin',
         'Admin password reset failed',
@@ -332,7 +332,9 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         upload: true,
         context: {'userId': userId, 'email': user.email},
       );
-      messenger.showSnackBar(
+      if (!mounted) return;
+      AppToast.show(
+        context,
         const SnackBar(
           content: Text('Không đổi được mật khẩu'),
           backgroundColor: AppColors.error,
@@ -377,7 +379,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         context: {'userId': userId, 'email': user.email},
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         SnackBar(
           content: Text('Đã xóa tài khoản ${user.email}'),
           backgroundColor: AppColors.success,
@@ -394,9 +397,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         context: {'userId': userId, 'email': user.email},
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      AppToast.show(context, SnackBar(content: Text(message)));
     }
   }
 
@@ -1201,7 +1202,8 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
         },
       );
       if (mounted && welcomeEmailError?.isNotEmpty == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           SnackBar(
             content: Text(
               'Đã tạo người dùng nhưng chưa gửi được email chào mừng: $welcomeEmailError',
@@ -1230,9 +1232,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
         },
       );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        AppToast.show(context, SnackBar(content: Text(message)));
       }
     } finally {
       if (mounted) setState(() => _saving = false);

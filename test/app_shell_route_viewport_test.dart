@@ -332,6 +332,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('sidebar-item-help')),
+      300,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('desktop-sidebar-list')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     await tester.tap(find.byKey(const ValueKey('sidebar-item-help')));
     await tester.pumpAndSettle();
 
@@ -456,7 +466,7 @@ void main() {
   testWidgets('desktop sidebar uses a left indicator for selected route', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.physicalSize = const Size(1200, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -483,15 +493,25 @@ void main() {
       find.byKey(const ValueKey('sidebar-item-home')),
     );
     final selectedIndicator = _sidebarIndicator(tester, 'home');
-    final unselectedIndicator = _sidebarIndicator(tester, 'fifo');
-    final rootGroup = find.byKey(const ValueKey('sidebar-group-root'));
-    final workspaceGroup = find.byKey(
-      const ValueKey('sidebar-group-workspace'),
+    final unselectedIndicator = _sidebarIndicator(tester, 'fifoCheck');
+    final overviewGroup = find.byKey(const ValueKey('sidebar-group-overview'));
+    final salesGroup = find.byKey(const ValueKey('sidebar-group-sales'));
+    final warehouseGroup = find.byKey(
+      const ValueKey('sidebar-group-warehouse'),
     );
-    final accountGroup = find.byKey(const ValueKey('sidebar-group-account'));
+    final financeGroup = find.byKey(const ValueKey('sidebar-group-finance'));
+    final technicalGroup = find.byKey(
+      const ValueKey('sidebar-group-technical'),
+    );
+    final configurationGroup = find.byKey(
+      const ValueKey('sidebar-group-configuration'),
+    );
 
     expect(find.text('Tổng quan'), findsOneWidget);
-    expect(find.text('Nghiệp vụ'), findsOneWidget);
+    expect(find.text('Bán hàng'), findsOneWidget);
+    expect(find.text('Kho'), findsOneWidget);
+    expect(find.text('Tài chính'), findsOneWidget);
+    expect(find.text('Kỹ thuật'), findsOneWidget);
     expect(find.text('Cấu hình'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('sidebar-item-operations')),
@@ -503,12 +523,24 @@ void main() {
     expect(find.text('Dev: Hoàng Học Hỏi'), findsOneWidget);
     expect(find.textContaining('© '), findsOneWidget);
     expect(
-      tester.getTopLeft(rootGroup).dy,
-      lessThan(tester.getTopLeft(workspaceGroup).dy),
+      tester.getTopLeft(overviewGroup).dy,
+      lessThan(tester.getTopLeft(salesGroup).dy),
     );
     expect(
-      tester.getTopLeft(workspaceGroup).dy,
-      lessThan(tester.getTopLeft(accountGroup).dy),
+      tester.getTopLeft(salesGroup).dy,
+      lessThan(tester.getTopLeft(warehouseGroup).dy),
+    );
+    expect(
+      tester.getTopLeft(warehouseGroup).dy,
+      lessThan(tester.getTopLeft(financeGroup).dy),
+    );
+    expect(
+      tester.getTopLeft(financeGroup).dy,
+      lessThan(tester.getTopLeft(technicalGroup).dy),
+    );
+    expect(
+      tester.getTopLeft(technicalGroup).dy,
+      lessThan(tester.getTopLeft(configurationGroup).dy),
     );
     expect(selectedItem.color, AppColors.transparent);
     expect(tester.getSize(selectedIndicatorFinder), const Size(4, 28));

@@ -76,7 +76,7 @@ class HomeSummaryPage extends StatelessWidget {
           key: const Key('home-summary-loading'),
           child: const AppStatePanel.loading(
             title: 'Đang tải dashboard',
-            message: 'Hệ thống đang tổng hợp doanh số và tiến độ báo cáo.',
+            message: 'Hệ thống đang tổng hợp số liệu theo phạm vi đã chọn.',
           ),
         ),
       ];
@@ -137,14 +137,72 @@ class HomeSummaryPage extends StatelessWidget {
     }
 
     return [
-      SummaryCardGrid(summary: summary),
-      const SizedBox(height: AppLayoutTokens.cardGap),
-      ReportProgressPanel(summary: summary),
+      if (summary.salesAvailable) ...[
+        const _SummarySectionHeader(
+          key: Key('home-sales-section-header'),
+          title: 'Bán hàng',
+          icon: Icons.storefront_outlined,
+          color: AppColors.primary,
+        ),
+        const SizedBox(height: 10),
+        SummaryCardGrid(summary: summary),
+        const SizedBox(height: AppLayoutTokens.cardGap),
+        ReportProgressPanel(summary: summary),
+      ],
+      if (summary.financeAvailable) ...[
+        const SizedBox(height: AppLayoutTokens.sectionGap),
+        const _SummarySectionHeader(
+          key: Key('home-finance-section-header'),
+          title: 'Tài chính',
+          icon: Icons.account_balance_outlined,
+          color: AppColors.success,
+        ),
+        const SizedBox(height: 10),
+        FinanceSummaryCardGrid(summary: summary),
+      ],
     ];
   }
 
   Widget _buildStateCard({required Key key, required Widget child}) {
     return AppSurfaceCard(key: key, child: child);
+  }
+}
+
+class _SummarySectionHeader extends StatelessWidget {
+  const _SummarySectionHeader({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.color,
+  });
+
+  final String title;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.10),
+            borderRadius: AppRadius.allSm,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(7),
+            child: Icon(icon, size: 18, color: color),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: AppTextStyles.headingS.copyWith(
+            color: AppColors.textPrimaryOf(context),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -498,7 +556,7 @@ class SummaryCardGrid extends StatelessWidget {
         color: AppColors.primary,
       ),
       SummaryCard(
-        metricKey: 'conversionRate',
+        metricKey: 'coverageRate',
         icon: Icons.percent_rounded,
         title: summary.resolvedCoverageLabel,
         value: _percentLabel(summary.coverageRate),
@@ -506,11 +564,11 @@ class SummaryCardGrid extends StatelessWidget {
         color: AppColors.info,
       ),
       SummaryCard(
-        metricKey: 'totalReports',
-        icon: Icons.description_outlined,
-        title: 'Tổng số báo cáo hợp lệ',
-        value: _integerLabel(summary.totalReports),
-        trend: const SummaryTrend.neutral('không đổi'),
+        metricKey: 'conversionRate',
+        icon: Icons.change_circle_outlined,
+        title: 'Tỉ lệ chuyển đổi',
+        value: _percentLabel(summary.conversionRate),
+        trend: SummaryTrend.conversion(summary.conversionRate),
         color: AppColors.secondary,
       ),
       SummaryCard(
@@ -533,21 +591,96 @@ class SummaryCardGrid extends StatelessWidget {
       ),
     ];
 
+    return _SummaryMetricGrid(
+      gridKey: const Key('home-summary-grid'),
+      cards: cards,
+    );
+  }
+}
+
+class FinanceSummaryCardGrid extends StatelessWidget {
+  const FinanceSummaryCardGrid({super.key, required this.summary});
+
+  final HomeSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final cards = [
+      SummaryCard(
+        metricKey: 'totalTransferredAmount',
+        icon: Icons.account_balance_wallet_outlined,
+        title: 'Tổng số tiền chuyển khoản',
+        value: formatVndAmount(summary.totalTransferredAmount),
+        trend: const SummaryTrend.neutral('Theo phạm vi'),
+        color: AppColors.success,
+      ),
+      SummaryCard(
+        metricKey: 'totalStatements',
+        icon: Icons.receipt_long_outlined,
+        title: 'Tổng số sao kê',
+        value: _integerLabel(summary.totalStatements),
+        trend: const SummaryTrend.neutral('Trong ngày'),
+        color: AppColors.primary,
+      ),
+      SummaryCard(
+        metricKey: 'totalStatementsWithOrder',
+        icon: Icons.task_alt_rounded,
+        title: 'Tổng sao kê có đơn hàng',
+        value: _integerLabel(summary.totalStatementsWithOrder),
+        trend: const SummaryTrend.success('đã đối chiếu'),
+        color: AppColors.success,
+      ),
+      SummaryCard(
+        metricKey: 'totalStatementsWithoutOrder',
+        icon: Icons.assignment_late_outlined,
+        title: 'Tổng sao kê chưa có đơn hàng',
+        value: _integerLabel(summary.totalStatementsWithoutOrder),
+        trend: summary.totalStatementsWithoutOrder > 0
+            ? const SummaryTrend.warning('cần xử lý')
+            : const SummaryTrend.success('đã đủ'),
+        color: AppColors.warning,
+      ),
+      SummaryCard(
+        metricKey: 'statementOrderRate',
+        icon: Icons.pie_chart_outline_rounded,
+        title: 'Tỉ lệ sao kê có đơn hàng',
+        value: _percentLabel(summary.statementOrderRate),
+        trend: SummaryTrend.statementOrder(summary.statementOrderRate),
+        color: AppColors.info,
+      ),
+    ];
+
+    return _SummaryMetricGrid(
+      gridKey: const Key('home-finance-summary-grid'),
+      cards: cards,
+    );
+  }
+}
+
+class _SummaryMetricGrid extends StatelessWidget {
+  const _SummaryMetricGrid({required this.gridKey, required this.cards});
+
+  final Key gridKey;
+  final List<SummaryCard> cards;
+
+  @override
+  Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final columns = width >= 1120
+        final desiredColumns = width >= 1120
             ? 6
             : width >= 900
             ? 3
             : width >= 620
             ? 2
             : 1;
+        final columns = math.min(desiredColumns, cards.length);
         final gap = AppLayoutTokens.cardGap;
         final itemWidth = (width - (gap * math.max(0, columns - 1))) / columns;
 
         return Wrap(
-          key: const Key('home-summary-grid'),
+          key: gridKey,
           spacing: gap,
           runSpacing: gap,
           children: [
@@ -676,8 +809,24 @@ class SummaryTrend {
 
   factory SummaryTrend.coverage(double coverageRate) {
     if (coverageRate >= 95) return const SummaryTrend.success('đã đủ');
-    if (coverageRate <= 0) return const SummaryTrend.warning('chưa phủ');
+    if (coverageRate <= 0) return const SummaryTrend.warning('chưa báo cáo');
     return const SummaryTrend.warning('cần bổ sung');
+  }
+
+  factory SummaryTrend.conversion(double conversionRate) {
+    if (conversionRate >= 50) return const SummaryTrend.success('chốt tốt');
+    if (conversionRate <= 0) return const SummaryTrend.warning('chưa có đơn');
+    return const SummaryTrend.warning('cần cải thiện');
+  }
+
+  factory SummaryTrend.statementOrder(double statementOrderRate) {
+    if (statementOrderRate >= 95) {
+      return const SummaryTrend.success('đã đối chiếu');
+    }
+    if (statementOrderRate <= 0) {
+      return const SummaryTrend.warning('chưa có đơn');
+    }
+    return const SummaryTrend.warning('cần đối chiếu');
   }
 
   final String label;
@@ -803,7 +952,7 @@ class ReportCoverageDonut extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                'Tỷ lệ phủ',
+                'Tỉ lệ báo cáo',
                 style: AppTextStyles.caption.copyWith(
                   color: AppColors.textMutedOf(context),
                 ),

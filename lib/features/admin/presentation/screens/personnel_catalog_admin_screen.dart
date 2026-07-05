@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
@@ -167,9 +168,7 @@ class _PersonnelCatalogAdminScreenState
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    AppToast.show(context, SnackBar(content: Text(message)));
   }
 
   @override
@@ -571,7 +570,8 @@ class _PersonnelEditorDialogState extends State<_PersonnelEditorDialog> {
         context: {'type': widget.type.name, 'code': item.code},
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           const SnackBar(
             content: Text('Chưa lưu được danh mục. Vui lòng thử lại.'),
           ),

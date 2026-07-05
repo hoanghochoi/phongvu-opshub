@@ -36,13 +36,20 @@ void main() {
             scope: 'OWN',
             scopeLabel: 'Phạm vi cá nhân',
             scopeDetail: '2 showroom: CP75, CP62',
-            coverageLabel: 'Tỷ lệ phủ báo cáo',
+            coverageLabel: 'Tỉ lệ báo cáo',
             totalRevenue: 125000000,
             totalOrders: 42,
             totalReports: 38,
             reportedOrders: 35,
             unreportedOrders: 7,
             coverageRate: 83.33,
+            conversionRate: 110.53,
+            financeAvailable: true,
+            totalTransferredAmount: 98000000,
+            totalStatements: 24,
+            totalStatementsWithOrder: 18,
+            totalStatementsWithoutOrder: 6,
+            statementOrderRate: 75,
             refreshedAt: DateTime.parse('2026-07-04T03:15:00.000Z'),
           ),
         ),
@@ -67,6 +74,10 @@ void main() {
       expect(find.byKey(const Key('home-summary-header')), findsOneWidget);
       expect(find.byKey(const Key('home-summary-toolbar')), findsNothing);
       expect(find.byKey(const Key('home-summary-grid')), findsOneWidget);
+      expect(
+        find.byKey(const Key('home-finance-summary-grid')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('home-summary-date-picker')), findsOneWidget);
       expect(
         find.byKey(const Key('home-summary-refresh-button')),
@@ -87,13 +98,13 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(const Key('home-summary-card-conversionRate')),
-          matching: find.text('83.3%'),
+          matching: find.text('110.5%'),
         ),
         findsOneWidget,
       );
       expect(
         find.byKey(const Key('home-summary-card-totalReports')),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         find.byKey(const Key('home-summary-card-reportedOrders')),
@@ -110,8 +121,17 @@ void main() {
           .where((child) => child is! SizedBox)
           .toList();
       expect(structuredChildren[0], isA<HomeSummaryHeader>());
-      expect(structuredChildren[1], isA<SummaryCardGrid>());
-      expect(structuredChildren[2], isA<ReportProgressPanel>());
+      expect(find.text('Bán hàng'), findsOneWidget);
+      expect(find.text('Tài chính'), findsOneWidget);
+      expect(find.text('Tỉ lệ báo cáo'), findsWidgets);
+      expect(find.text('Tỉ lệ chuyển đổi'), findsOneWidget);
+      expect(find.text('Tổng số báo cáo hợp lệ'), findsNothing);
+      expect(find.text('Tổng số tiền chuyển khoản'), findsOneWidget);
+      expect(find.text('Tổng số sao kê'), findsOneWidget);
+      expect(find.text('Tổng sao kê có đơn hàng'), findsOneWidget);
+      expect(find.text('Tổng sao kê chưa có đơn hàng'), findsOneWidget);
+      expect(find.text('Tỉ lệ sao kê có đơn hàng'), findsOneWidget);
+      expect(find.text('98.000.000 VND'), findsOneWidget);
       expect(find.text('Trang chủ vận hành'), findsOneWidget);
       expect(find.text('Doanh số trong ngày'), findsOneWidget);
       expect(find.text('125.000.000 VND'), findsOneWidget);
@@ -181,7 +201,7 @@ void main() {
           scope: 'UNAVAILABLE',
           scopeLabel: 'Chưa sẵn sàng',
           scopeDetail: '',
-          coverageLabel: 'Tỷ lệ phủ báo cáo',
+          coverageLabel: 'Tỉ lệ báo cáo',
           totalRevenue: 0,
           totalOrders: 0,
           totalReports: 0,
@@ -233,7 +253,7 @@ void main() {
         scope: 'ALL',
         scopeLabel: 'Toàn hệ thống',
         scopeDetail: 'Tổng hợp toàn hệ thống',
-        coverageLabel: 'Tỷ lệ phủ báo cáo',
+        coverageLabel: 'Tỉ lệ báo cáo',
         totalRevenue: 125000000,
         totalOrders: 42,
         totalReports: 38,
@@ -249,7 +269,7 @@ void main() {
           scope: 'OWN',
           scopeLabel: 'Phạm vi cá nhân',
           scopeDetail: 'CP75',
-          coverageLabel: 'Tỷ lệ phủ báo cáo',
+          coverageLabel: 'Tỉ lệ báo cáo',
           totalRevenue: 5000000,
           totalOrders: 2,
           totalReports: 1,
@@ -278,6 +298,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Toàn hệ thống'), findsWidgets);
+    expect(find.text('Tài chính'), findsNothing);
+    expect(find.byKey(const Key('home-finance-summary-grid')), findsNothing);
 
     await tester.tap(find.byKey(const Key('home-summary-scope-pill')));
     await tester.pumpAndSettle();
@@ -301,7 +323,7 @@ void main() {
         scope: 'MANAGED_SCOPE',
         scopeLabel: 'Vùng: Hồ Chí Minh',
         scopeDetail: '2 showroom được gán',
-        coverageLabel: 'Tỷ lệ phủ báo cáo',
+        coverageLabel: 'Tỉ lệ báo cáo',
         totalRevenue: 125000000,
         totalOrders: 42,
         totalReports: 38,
@@ -336,7 +358,7 @@ void main() {
           scope: 'MANAGED_SCOPE',
           scopeLabel: 'Showroom: CP75',
           scopeDetail: 'CP75',
-          coverageLabel: 'Tỷ lệ phủ báo cáo',
+          coverageLabel: 'Tỉ lệ báo cáo',
           totalRevenue: 9000000,
           totalOrders: 3,
           totalReports: 2,

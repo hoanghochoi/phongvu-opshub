@@ -18,7 +18,7 @@ class AdminMenuScreen extends StatelessWidget {
     bool canUse(String featureCode) => user?.canUseFeature(featureCode) == true;
     final isSuperAdmin = user?.role == 'SUPER_ADMIN';
 
-    final actions = [
+    final administrationActions = [
       if (canUse('ADMIN_USERS'))
         AppFeatureAction(
           icon: Icons.people_alt_outlined,
@@ -84,19 +84,52 @@ class AdminMenuScreen extends StatelessWidget {
           onTap: () => context.push('/admin/feedback'),
         ),
     ];
+    final fifoActions = [
+      if (canUse('FIFO_IMPORT'))
+        AppFeatureAction(
+          icon: Icons.inventory_2_outlined,
+          title: 'Cập nhật tồn kho',
+          description: 'Nhập dữ liệu tồn kho FIFO',
+          color: AppColors.info,
+          onTap: () => context.push('/admin/inventory-import'),
+        ),
+      if (canUse('FIFO'))
+        AppFeatureAction(
+          icon: Icons.history_rounded,
+          title: 'Lịch sử FIFO',
+          description: 'Tra cứu lịch sử kiểm tra và sắp xếp',
+          color: AppColors.teal600,
+          onTap: () => context.push('/fifo-history'),
+        ),
+    ];
+    final hasActions =
+        administrationActions.isNotEmpty || fifoActions.isNotEmpty;
 
     return AppResponsiveScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (actions.isEmpty)
+          if (!hasActions)
             const AppStatePanel.empty(
               title: 'Chưa có tính năng quản trị',
               message: 'Liên hệ quản trị viên để được cấp quyền phù hợp.',
               icon: Icons.admin_panel_settings_outlined,
             )
-          else
-            AppFeatureSection(title: 'Chức năng quản trị', actions: actions),
+          else ...[
+            if (administrationActions.isNotEmpty)
+              AppFeatureSection(
+                title: 'Chức năng quản trị',
+                actions: administrationActions,
+              ),
+            if (administrationActions.isNotEmpty && fifoActions.isNotEmpty)
+              const SizedBox(height: AppLayoutTokens.sectionGap),
+            if (fifoActions.isNotEmpty)
+              AppFeatureSection(
+                key: const Key('admin-fifo-tools-section'),
+                title: 'Công cụ FIFO',
+                actions: fifoActions,
+              ),
+          ],
         ],
       ),
     );

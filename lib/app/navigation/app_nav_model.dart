@@ -4,7 +4,42 @@ import '../../core/platform/app_platform_capabilities.dart';
 import '../../features/auth/domain/entities/user.dart';
 import '../theme/app_colors.dart';
 
-enum AppNavGroup { root, workspace, account }
+enum AppNavGroup {
+  overview,
+  sales,
+  warehouse,
+  finance,
+  technical,
+  configuration,
+}
+
+extension AppNavGroupLabel on AppNavGroup {
+  String get label => switch (this) {
+    AppNavGroup.overview => 'Tổng quan',
+    AppNavGroup.sales => 'Bán hàng',
+    AppNavGroup.warehouse => 'Kho',
+    AppNavGroup.finance => 'Tài chính',
+    AppNavGroup.technical => 'Kỹ thuật',
+    AppNavGroup.configuration => 'Cấu hình',
+  };
+
+  bool get isWorkspace => switch (this) {
+    AppNavGroup.sales ||
+    AppNavGroup.warehouse ||
+    AppNavGroup.finance ||
+    AppNavGroup.technical => true,
+    _ => false,
+  };
+}
+
+class AppNavSection {
+  final AppNavGroup group;
+  final List<AppNavDestination> destinations;
+
+  const AppNavSection({required this.group, required this.destinations});
+
+  String get label => group.label;
+}
 
 class AppNavDestination {
   final String id;
@@ -41,7 +76,7 @@ class AppNavModel {
       route: '/home',
       icon: Icons.dashboard_outlined,
       color: AppColors.primary,
-      group: AppNavGroup.root,
+      group: AppNavGroup.overview,
       showInMobileNav: true,
     ),
     AppNavDestination(
@@ -51,7 +86,7 @@ class AppNavModel {
       route: '/operations',
       icon: Icons.apps_outlined,
       color: AppColors.success,
-      group: AppNavGroup.root,
+      group: AppNavGroup.overview,
       showInMobileNav: true,
     ),
     AppNavDestination(
@@ -61,7 +96,7 @@ class AppNavModel {
       route: '/notifications',
       icon: Icons.notifications_none_rounded,
       color: AppColors.warning,
-      group: AppNavGroup.root,
+      group: AppNavGroup.overview,
       showInSidebar: false,
       showInMobileNav: true,
     ),
@@ -72,25 +107,7 @@ class AppNavModel {
       route: '/admin',
       icon: Icons.admin_panel_settings_outlined,
       color: AppColors.neutral600,
-      group: AppNavGroup.workspace,
-    ),
-    AppNavDestination(
-      id: 'fifo',
-      label: 'FIFO',
-      description: 'Kiểm tra và sắp xếp tồn kho',
-      route: '/fifo-menu',
-      icon: Icons.qr_code_scanner_rounded,
-      color: AppColors.info,
-      group: AppNavGroup.workspace,
-    ),
-    AppNavDestination(
-      id: 'warranty',
-      label: 'Bảo hành',
-      description: 'Tiếp nhận và tra cứu bảo hành/sửa chữa',
-      route: '/warranty-main',
-      icon: Icons.camera_alt_rounded,
-      color: AppColors.success,
-      group: AppNavGroup.workspace,
+      group: AppNavGroup.overview,
     ),
     AppNavDestination(
       id: 'vietqr',
@@ -99,34 +116,7 @@ class AppNavModel {
       route: '/vietqr',
       icon: Icons.qr_code_2_rounded,
       color: AppColors.teal600,
-      group: AppNavGroup.workspace,
-    ),
-    AppNavDestination(
-      id: 'payment',
-      label: 'Tiền vào',
-      description: 'Theo dõi giao dịch thanh toán',
-      route: '/payment-monitor',
-      icon: Icons.payments_outlined,
-      color: AppColors.violet600,
-      group: AppNavGroup.workspace,
-    ),
-    AppNavDestination(
-      id: 'statement',
-      label: 'Sao kê',
-      description: 'Rà soát giao dịch theo mã đơn',
-      route: '/bank-statement',
-      icon: Icons.fact_check_outlined,
-      color: AppColors.info,
-      group: AppNavGroup.workspace,
-    ),
-    AppNavDestination(
-      id: 'offset',
-      label: 'Cấn trừ',
-      description: 'Gửi yêu cầu xác nhận cấn trừ',
-      route: '/offset-adjustments',
-      icon: Icons.swap_horiz_rounded,
-      color: AppColors.teal600,
-      group: AppNavGroup.workspace,
+      group: AppNavGroup.sales,
     ),
     AppNavDestination(
       id: 'sales',
@@ -135,7 +125,61 @@ class AppNavModel {
       route: '/reports',
       icon: Icons.assignment_outlined,
       color: AppColors.info,
-      group: AppNavGroup.workspace,
+      group: AppNavGroup.sales,
+    ),
+    AppNavDestination(
+      id: 'payment',
+      label: 'Tiền vào',
+      description: 'Theo dõi giao dịch thanh toán',
+      route: '/payment-monitor',
+      icon: Icons.payments_outlined,
+      color: AppColors.violet600,
+      group: AppNavGroup.sales,
+    ),
+    AppNavDestination(
+      id: 'fifoCheck',
+      label: 'Kiểm tra FIFO',
+      description: 'Kiểm tra thứ tự xuất kho',
+      route: '/fifo-check',
+      icon: Icons.qr_code_scanner_rounded,
+      color: AppColors.info,
+      group: AppNavGroup.warehouse,
+    ),
+    AppNavDestination(
+      id: 'fifoSort',
+      label: 'Sắp xếp FIFO',
+      description: 'Sắp xếp tồn kho theo FIFO',
+      route: '/sort',
+      icon: Icons.sort_rounded,
+      color: AppColors.teal600,
+      group: AppNavGroup.warehouse,
+    ),
+    AppNavDestination(
+      id: 'statement',
+      label: 'Sao kê',
+      description: 'Rà soát giao dịch theo mã đơn',
+      route: '/bank-statement',
+      icon: Icons.fact_check_outlined,
+      color: AppColors.info,
+      group: AppNavGroup.finance,
+    ),
+    AppNavDestination(
+      id: 'offset',
+      label: 'Cấn trừ',
+      description: 'Gửi yêu cầu xác nhận cấn trừ',
+      route: '/offset-adjustments',
+      icon: Icons.swap_horiz_rounded,
+      color: AppColors.teal600,
+      group: AppNavGroup.finance,
+    ),
+    AppNavDestination(
+      id: 'warranty',
+      label: 'Bảo hành',
+      description: 'Tiếp nhận và tra cứu bảo hành/sửa chữa',
+      route: '/warranty-main',
+      icon: Icons.camera_alt_rounded,
+      color: AppColors.success,
+      group: AppNavGroup.technical,
     ),
     AppNavDestination(
       id: 'settings',
@@ -144,7 +188,7 @@ class AppNavModel {
       route: '/settings',
       icon: Icons.settings_outlined,
       color: AppColors.neutral600,
-      group: AppNavGroup.account,
+      group: AppNavGroup.configuration,
     ),
     AppNavDestination(
       id: 'feedback',
@@ -153,7 +197,7 @@ class AppNavModel {
       route: '/feedback',
       icon: Icons.lightbulb_outline_rounded,
       color: AppColors.amber500,
-      group: AppNavGroup.account,
+      group: AppNavGroup.configuration,
     ),
     AppNavDestination(
       id: 'help',
@@ -162,7 +206,7 @@ class AppNavModel {
       route: '/help',
       icon: Icons.menu_book_outlined,
       color: AppColors.info,
-      group: AppNavGroup.account,
+      group: AppNavGroup.configuration,
     ),
     AppNavDestination(
       id: 'profile',
@@ -171,7 +215,7 @@ class AppNavModel {
       route: '/profile',
       icon: Icons.person_outline,
       color: AppColors.primary,
-      group: AppNavGroup.account,
+      group: AppNavGroup.configuration,
       showInSidebar: false,
       showInMobileNav: true,
     ),
@@ -186,14 +230,30 @@ class AppNavModel {
 
   static List<AppNavDestination> visibleWorkspaceDestinations(User? user) {
     return destinations
-        .where((destination) => destination.group == AppNavGroup.workspace)
+        .where((destination) => destination.group.isWorkspace)
         .where((destination) => canUseDestination(user, destination))
+        .toList(growable: false);
+  }
+
+  static List<AppNavSection> visibleWorkspaceSections(User? user) {
+    final visible = visibleWorkspaceDestinations(user);
+    return [
+          for (final group in AppNavGroup.values)
+            if (group.isWorkspace)
+              AppNavSection(
+                group: group,
+                destinations: visible
+                    .where((destination) => destination.group == group)
+                    .toList(growable: false),
+              ),
+        ]
+        .where((section) => section.destinations.isNotEmpty)
         .toList(growable: false);
   }
 
   static int hiddenWorkspaceCount(User? user) {
     return destinations
-        .where((destination) => destination.group == AppNavGroup.workspace)
+        .where((destination) => destination.group.isWorkspace)
         .where((destination) => !canUseDestination(user, destination))
         .length;
   }
@@ -223,12 +283,10 @@ class AppNavModel {
     if (location == destination.route) return true;
     return switch (destination.id) {
       'admin' =>
-        location.startsWith('/admin') && location != '/admin/sales-reports',
-      'fifo' =>
-        location == '/fifo-check' ||
+        (location.startsWith('/admin') && location != '/admin/sales-reports') ||
             location == '/fifo-history' ||
-            location == '/fifo/inventory-import' ||
-            location == '/sort',
+            location == '/fifo/inventory-import',
+      'operations' => location == '/fifo-menu',
       'warranty' =>
         location == '/warranty' || location.startsWith('/check-warranty'),
       'sales' =>
@@ -248,9 +306,7 @@ class AppNavModel {
       'profile' ||
       'settings' => true,
       'admin' => _canUseAdmin(user),
-      'fifo' =>
-        user?.canUseFeature('FIFO') == true ||
-            user?.canUseFeature('FIFO_IMPORT') == true,
+      'fifoCheck' || 'fifoSort' => user?.canUseFeature('FIFO') == true,
       'warranty' => user?.canUseFeature('WARRANTY') == true,
       'vietqr' => user?.canUseFeature('VIETQR') == true,
       'payment' =>
@@ -275,6 +331,8 @@ class AppNavModel {
         user?.canUseFeature('ADMIN_POLICIES') == true ||
         user?.canUseFeature('ADMIN_FEATURES') == true ||
         user?.canUseFeature('ADMIN_PERSONNEL') == true ||
-        user?.canUseFeature('ADMIN_FEEDBACK') == true;
+        user?.canUseFeature('ADMIN_FEEDBACK') == true ||
+        user?.canUseFeature('FIFO') == true ||
+        user?.canUseFeature('FIFO_IMPORT') == true;
   }
 }

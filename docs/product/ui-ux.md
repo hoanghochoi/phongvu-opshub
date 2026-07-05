@@ -64,11 +64,15 @@ visual systems that make the app feel assembled from unrelated screens.
   visible; it should reuse the global notification provider instead of
   introducing a feature-local inbox.
 - Desktop sidebar destinations must be grouped with visible section labels:
-  `Tổng quan`, `Nghiệp vụ`, and `Cấu hình`. The sidebar remains flat navigation;
-  do not add row chevrons unless a real nested menu is introduced. `Tổng quan`
-  currently contains `Trang chủ` and `Vận hành`; `Cấu hình` contains
-  `Cài đặt`, `Góp ý`, and `Hướng dẫn`. The desktop brand block shows the
-  current slogan directly under the logo.
+  `Tổng quan`, `Bán hàng`, `Kho`, `Tài chính`, `Kỹ thuật`, and `Cấu hình`.
+  `Tổng quan` contains `Trang chủ`, `Vận hành`, and `Quản trị`; `Bán hàng`
+  follows `VietQR` -> `Báo cáo` -> `Tiền vào`; `Kho` follows `Kiểm tra FIFO`
+  -> `Sắp xếp FIFO`; `Tài chính` follows `Sao kê` -> `Cấn trừ`; `Kỹ thuật`
+  contains `Bảo hành`. The `Vận hành` page reuses the same operational groups
+  and ordering. `Cập nhật tồn kho` and `Lịch sử FIFO` belong to `Quản trị`, not
+  a standalone FIFO menu. The sidebar remains flat and scrollable; do not add
+  row chevrons unless a real nested menu is introduced. The desktop brand block
+  shows the current slogan directly under the logo.
 - Navigation visibility is role/feature-aware and must hide unavailable
   destinations in normal staff UI. Log the resolved visible/hidden counts
   through `AppLogger` so permission issues can be debugged without exposing
@@ -213,6 +217,10 @@ visual systems that make the app feel assembled from unrelated screens.
   configuration inputs when they are required to operate the system, but normal
   staff-facing status, blocker, snackbar, dialog, and error copy must stay
   user-facing.
+- Transient success/error notifications use the shared floating toast at the
+  top-right of the current user viewport. Desktop width is bounded at 360px;
+  compact screens keep 16px side spacing. Do not use bottom, full-width
+  `SnackBar` surfaces for these notifications.
 - Use one product vocabulary consistently:
   - `showroom`, not `SR`, `store`, `branch`, or `shop` in visible UI.
   - `biên nhận` for warranty/repair receipts.

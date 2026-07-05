@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 import '../providers/warranty_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../fifo_check/presentation/widgets/barcode_scanner_screen.dart'
@@ -153,7 +154,8 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           SnackBar(
             content: Text('Chưa quét được mã. Vui lòng thử lại.'),
             backgroundColor: AppColors.error,
@@ -171,9 +173,10 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
 
   void _showSnackBar(String message, Color color) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
+    AppToast.show(
       context,
-    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
+      SnackBar(content: Text(message), backgroundColor: color),
+    );
   }
 
   void _showImageSourceDialog() {
@@ -230,7 +233,8 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
     final userEmail = authProvider.user?.email ?? '';
 
     if (userEmail.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(
           content: Text('Bạn cần đăng nhập lại để lưu biên nhận.'),
           backgroundColor: AppColors.error,

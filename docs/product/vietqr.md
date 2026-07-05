@@ -63,6 +63,17 @@ a customer to scan and pay manually.
 
 ## Payment Monitor
 
+- Khu vực `Tài chính` trên dashboard Home dùng cùng ngày và scope với khu vực
+  `Bán hàng`, tổng hợp trực tiếp từ `MapVietinTransaction`: tổng số tiền chuyển
+  khoản, tổng số sao kê, tổng sao kê có/chưa có đơn hàng và
+  `Tỉ lệ sao kê có đơn hàng = sao kê có đơn / tổng sao kê`. Scope toàn hệ thống
+  đọc toàn bộ showroom; scope quản lý đọc các showroom thuộc node đã chọn;
+  SA, Kỹ thuật, Kho và Thu ngân chỉ được chọn `Phạm vi cá nhân` hoặc từng
+  showroom được gán. Ở phạm vi cá nhân, sao kê chỉ được tính khi có mã đơn
+  thuộc đơn hàng cá nhân của user, không mở rộng thành toàn bộ showroom; khi
+  chọn showroom được gán thì tính toàn showroom đó. Backend chỉ trả và app chỉ
+  hiện khu vực khi node được bật tính năng `Dashboard - Tài chính`, độc lập với
+  quyền mở màn hình `Sao kê`.
 - The app exposes a `Tiền vào` home action for users with `PAYMENT_MONITOR` on
   Android, Windows, and web. Android and web show the stored transaction list
   without enabling the speaker path.

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
@@ -93,7 +94,8 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
       final message = authProvider.errorMessage!;
       if (message.contains('chưa tồn tại') ||
           message.contains('chưa có mật khẩu')) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           SnackBar(content: Text(message), backgroundColor: AppColors.warning),
         );
         await Future<void>.delayed(const Duration(milliseconds: 600));
@@ -102,7 +104,8 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
         }
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         SnackBar(content: Text(message), backgroundColor: AppColors.error),
       );
     }

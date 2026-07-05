@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -26,7 +27,8 @@ class FifoCheckEntryCard extends StatelessWidget {
 
   void _copyToClipboard(BuildContext context, String text) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
+    AppToast.show(
+      context,
       SnackBar(
         content: Text('Đã sao chép: $text'),
         duration: const Duration(seconds: 1),

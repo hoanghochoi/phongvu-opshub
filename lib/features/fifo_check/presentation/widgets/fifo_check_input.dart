@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 import '../providers/fifo_check_provider.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
@@ -49,7 +50,8 @@ class _FifoCheckInputState extends State<FifoCheckInput> {
         await fifoCheckProvider.runCheck(result, userEmail);
 
         if (fifoCheckProvider.error != null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          AppToast.show(
+            context,
             SnackBar(
               content: Text(fifoCheckProvider.error!),
               backgroundColor: AppColors.error,
@@ -60,7 +62,8 @@ class _FifoCheckInputState extends State<FifoCheckInput> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           SnackBar(
             content: Text('Chưa quét được mã. Vui lòng thử lại.'),
             backgroundColor: AppColors.error,
@@ -76,7 +79,8 @@ class _FifoCheckInputState extends State<FifoCheckInput> {
     if (input.isEmpty) return;
 
     if (!Validators.isValidFifoCheckInput(input)) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(
           content: Text(
             'Nội dung chưa đúng. Nhập SKU, SKU + số lượng, hoặc serial.\nVí dụ: ABC123 hoặc ABC123 10',
@@ -97,7 +101,8 @@ class _FifoCheckInputState extends State<FifoCheckInput> {
     await fifoCheckProvider.runCheck(input, userEmail);
 
     if (fifoCheckProvider.error != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         SnackBar(
           content: Text(fifoCheckProvider.error!),
           backgroundColor: AppColors.error,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
@@ -358,7 +359,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     String message, {
     bool success = false,
   }) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    AppToast.show(
+      context,
       SnackBar(
         content: Text(message),
         backgroundColor: success ? AppColors.success : AppColors.error,

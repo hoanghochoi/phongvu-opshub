@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -1138,7 +1139,8 @@ class _StatementCardState extends State<_StatementCard> {
   ) async {
     final requestId = transaction.orderTransferRequestId?.trim() ?? '';
     if (requestId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(content: Text('Chưa tìm thấy yêu cầu cần duyệt.')),
       );
       return;
@@ -1166,7 +1168,8 @@ class _StatementCardState extends State<_StatementCard> {
                   if (dialogContext.mounted) Navigator.of(dialogContext).pop();
                 } catch (_) {
                   if (dialogContext.mounted) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    AppToast.show(
+                      dialogContext,
                       SnackBar(
                         content: Text(
                           approved

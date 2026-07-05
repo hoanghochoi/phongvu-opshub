@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { FEATURE_KEYS } from '../feature/feature.constants';
+import { FeatureService } from '../feature/feature.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   SalesReportOperatingSummary,
@@ -9,7 +11,7 @@ import {
 import { GetHomeSummaryQueryDto } from './home-summary.dto';
 
 const REPORT_TYPE_PURCHASED = 'PURCHASED';
-const COVERAGE_LABEL = 'Tỷ lệ phủ báo cáo';
+const COVERAGE_LABEL = 'Tỉ lệ báo cáo';
 
 type DateRange = {
   start: Date;
@@ -39,6 +41,7 @@ export class HomeSummaryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly salesReports: SalesReportsService,
+    private readonly featureService: FeatureService,
   ) {}
 
   private get homeSummaryOrderFact() {
@@ -60,10 +63,36 @@ export class HomeSummaryService {
     this.logger.log(
       `Home summary load started: user=${this.safeUserLabel(user)} date=${date} scopeFilter=${requestedScope}`,
     );
+    const { salesAvailable, financeAvailable } =
+      await this.resolveSectionAccess(user);
+    if (!salesAvailable && !financeAvailable) {
+      const scope: SalesReportSummaryScopeDescriptor = {
+        available: false,
+        scope: 'UNAVAILABLE',
+        scopeLabel: 'Chưa được cấp quyền',
+        scopeDetail: null,
+        unavailableMessage:
+          'Tài khoản hiện chưa được cấp khu vực dashboard để xem.',
+        ownUserId: null,
+        ownEmail: null,
+        ownPersonnelCode: null,
+        allowedStoreCodes: [],
+      };
+      this.logger.log(
+        `Home summary unavailable: user=${this.safeUserLabel(user)} date=${date} scopeFilter=${requestedScope} reason=no_section_access durationMs=${Date.now() - startedAt}`,
+      );
+      return this.emptySummary(
+        date,
+        scope,
+        new Date(),
+        scope.unavailableMessage,
+      );
+    }
     const scope = await this.salesReports.describeHomeSummaryScope(
       user,
       requestedScope,
       this.optionalText(query.organizationNodeId, 80),
+      { allowOwnScope: salesAvailable || financeAvailable },
     );
     if (!scope.available) {
       const response = this.emptySummary(
@@ -78,50 +107,120 @@ export class HomeSummaryService {
       return response;
     }
 
-    const refreshedAt = await this.syncFacts(date, summaryDate);
-    const reportWhere = this.reportScopeWhere(scope, summaryDate);
+    let refreshedAt = new Date();
     const orderWhere = this.orderScopeWhere(scope, summaryDate);
-    const [totalOrders, totalReports, revenueSummary, reportedCodeRows] =
-      await this.prisma.$transaction([
-        this.homeSummaryOrderFact.count({ where: orderWhere }),
-        this.homeSummaryReportFact.count({ where: reportWhere }),
-        this.homeSummaryReportFact.aggregate({
-          where: {
-            ...reportWhere,
-            reportType: REPORT_TYPE_PURCHASED,
-          },
-          _sum: { revenue: true },
+    if (salesAvailable || (financeAvailable && scope.scope === 'OWN')) {
+      refreshedAt = await this.syncFacts(date, summaryDate);
+    }
+
+    let totalRevenue = 0;
+    let totalOrders = 0;
+    let totalReports = 0;
+    let reportedOrders = 0;
+    if (salesAvailable) {
+      const reportWhere = this.reportScopeWhere(scope, summaryDate);
+      const [orderCount, reportCount, revenueSummary, reportedCodeRows] =
+        await this.prisma.$transaction([
+          this.homeSummaryOrderFact.count({ where: orderWhere }),
+          this.homeSummaryReportFact.count({ where: reportWhere }),
+          this.homeSummaryReportFact.aggregate({
+            where: {
+              ...reportWhere,
+              reportType: REPORT_TYPE_PURCHASED,
+            },
+            _sum: { revenue: true },
+          }),
+          this.homeSummaryReportFact.findMany({
+            where: {
+              ...reportWhere,
+              reportType: REPORT_TYPE_PURCHASED,
+              orderCode: { not: null },
+            },
+            select: { orderCode: true },
+          }),
+        ]);
+      totalOrders = orderCount;
+      totalReports = reportCount;
+      totalRevenue = revenueSummary._sum.revenue ?? 0;
+      const reportedCodes = Array.from(
+        new Set(
+          reportedCodeRows
+            .map((row: { orderCode: string | null }) =>
+              this.normalizeOrderCode(row.orderCode),
+            )
+            .filter((value: string | null): value is string => Boolean(value)),
+        ),
+      );
+      reportedOrders =
+        reportedCodes.length > 0
+          ? await this.homeSummaryOrderFact.count({
+              where: {
+                ...orderWhere,
+                orderCode: { in: reportedCodes },
+              },
+            })
+          : 0;
+    }
+
+    let totalStatements = 0;
+    let totalTransferredAmount = 0;
+    let totalStatementsWithOrder = 0;
+    let totalStatementsWithoutOrder = 0;
+    if (financeAvailable) {
+      const personalOrderCodes =
+        scope.scope === 'OWN'
+          ? (
+              await this.homeSummaryOrderFact.findMany({
+                where: orderWhere,
+                select: { orderCode: true },
+              })
+            )
+              .map((row: { orderCode: string | null }) =>
+                this.normalizeOrderCode(row.orderCode),
+              )
+              .filter((value: string | null): value is string => Boolean(value))
+          : [];
+      const financeWhere = this.financeScopeWhere(
+        scope,
+        this.dateRangeFor(summaryDate),
+        personalOrderCodes,
+      );
+      const [
+        statementCount,
+        transferredAmountSummary,
+        statementWithOrderCount,
+        statementWithoutOrderCount,
+      ] = await this.prisma.$transaction([
+        this.prisma.mapVietinTransaction.count({ where: financeWhere }),
+        this.prisma.mapVietinTransaction.aggregate({
+          where: financeWhere,
+          _sum: { amount: true },
         }),
-        this.homeSummaryReportFact.findMany({
-          where: {
-            ...reportWhere,
-            reportType: REPORT_TYPE_PURCHASED,
-            orderCode: { not: null },
-          },
-          select: { orderCode: true },
+        this.prisma.mapVietinTransaction.count({
+          where: this.andMapTransactionWhere(financeWhere, {
+            orders: { isEmpty: false },
+          }),
+        }),
+        this.prisma.mapVietinTransaction.count({
+          where: this.andMapTransactionWhere(financeWhere, {
+            orders: { isEmpty: true },
+          }),
         }),
       ]);
-    const reportedCodes = Array.from(
-      new Set(
-        reportedCodeRows
-          .map((row: { orderCode: string | null }) =>
-            this.normalizeOrderCode(row.orderCode),
-          )
-          .filter((value: string | null): value is string => Boolean(value)),
-      ),
-    );
-    const reportedOrders =
-      reportedCodes.length > 0
-        ? await this.homeSummaryOrderFact.count({
-            where: {
-              ...orderWhere,
-              orderCode: { in: reportedCodes },
-            },
-          })
-        : 0;
+      totalStatements = statementCount;
+      totalTransferredAmount = transferredAmountSummary._sum.amount ?? 0;
+      totalStatementsWithOrder = statementWithOrderCount;
+      totalStatementsWithoutOrder = statementWithoutOrderCount;
+    }
     const unreportedOrders = Math.max(totalOrders - reportedOrders, 0);
     const coverageRate = totalOrders
       ? Number(((reportedOrders / totalOrders) * 100).toFixed(2))
+      : 0;
+    const conversionRate = totalReports
+      ? Number(((totalOrders / totalReports) * 100).toFixed(2))
+      : 0;
+    const statementOrderRate = totalStatements
+      ? Number(((totalStatementsWithOrder / totalStatements) * 100).toFixed(2))
       : 0;
     const response: HomeSummaryResponse = {
       date,
@@ -130,17 +229,25 @@ export class HomeSummaryService {
       scopeLabel: scope.scopeLabel,
       scopeDetail: scope.scopeDetail,
       coverageLabel: COVERAGE_LABEL,
-      totalRevenue: revenueSummary._sum.revenue ?? 0,
+      totalRevenue,
       totalOrders,
       totalReports,
       reportedOrders,
       unreportedOrders,
       coverageRate,
+      conversionRate,
+      salesAvailable,
+      financeAvailable,
+      totalTransferredAmount,
+      totalStatements,
+      totalStatementsWithOrder,
+      totalStatementsWithoutOrder,
+      statementOrderRate,
       refreshedAt,
       unavailableMessage: null,
     };
     this.logger.log(
-      `Home summary load succeeded: user=${this.safeUserLabel(user)} date=${date} scopeFilter=${requestedScope} scope=${scope.scope} totalOrders=${totalOrders} totalReports=${totalReports} reportedOrders=${reportedOrders} durationMs=${Date.now() - startedAt}`,
+      `Home summary load succeeded: user=${this.safeUserLabel(user)} date=${date} scopeFilter=${requestedScope} scope=${scope.scope} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalOrders=${totalOrders} totalReports=${totalReports} reportedOrders=${reportedOrders} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
     );
     return response;
   }
@@ -149,7 +256,12 @@ export class HomeSummaryService {
     this.logger.log(
       `Home summary scope options requested: user=${this.safeUserLabel(user)}`,
     );
-    return this.salesReports.listHomeSummaryScopeOptions(user);
+    const { salesAvailable, financeAvailable } =
+      await this.resolveSectionAccess(user);
+    if (!salesAvailable && !financeAvailable) return [];
+    return this.salesReports.listHomeSummaryScopeOptions(user, {
+      allowOwnScope: salesAvailable || financeAvailable,
+    });
   }
 
   private parseScopeParam(value?: string | null): HomeSummaryScopeRequest {
@@ -560,6 +672,59 @@ export class HomeSummaryService {
     return { AND: [base, { OR: or }] };
   }
 
+  private financeScopeWhere(
+    scope: SalesReportSummaryScopeDescriptor,
+    dateRange: DateRange,
+    personalOrderCodes: string[],
+  ): Prisma.MapVietinTransactionWhereInput {
+    const dateWhere: Prisma.MapVietinTransactionWhereInput = {
+      OR: [
+        { paidAt: { gte: dateRange.start, lt: dateRange.end } },
+        {
+          paidAt: null,
+          firstSeenAt: { gte: dateRange.start, lt: dateRange.end },
+        },
+      ],
+    };
+    if (scope.scope === 'ALL') return dateWhere;
+    if (scope.scope === 'OWN') {
+      return this.andMapTransactionWhere(dateWhere, {
+        orders: {
+          hasSome:
+            personalOrderCodes.length > 0
+              ? personalOrderCodes
+              : ['__NO_PERSONAL_ORDER__'],
+        },
+      });
+    }
+    return this.andMapTransactionWhere(dateWhere, {
+      storeCode: { in: scope.allowedStoreCodes },
+    });
+  }
+
+  private andMapTransactionWhere(
+    ...parts: Prisma.MapVietinTransactionWhereInput[]
+  ): Prisma.MapVietinTransactionWhereInput {
+    const compact = parts.filter((part) => Object.keys(part).length > 0);
+    if (compact.length === 0) return {};
+    if (compact.length === 1) return compact[0];
+    return { AND: compact };
+  }
+
+  private async resolveSectionAccess(user: any) {
+    const [salesAvailable, financeAvailable] = await Promise.all([
+      this.featureService.canAccessFeature(
+        user,
+        FEATURE_KEYS.HOME_DASHBOARD_SALES,
+      ),
+      this.featureService.canAccessFeature(
+        user,
+        FEATURE_KEYS.HOME_DASHBOARD_FINANCE,
+      ),
+    ]);
+    return { salesAvailable, financeAvailable };
+  }
+
   private reportedOrderDateWhere(dateRange: DateRange) {
     return {
       OR: [
@@ -627,6 +792,14 @@ export class HomeSummaryService {
       reportedOrders: 0,
       unreportedOrders: 0,
       coverageRate: 0,
+      conversionRate: 0,
+      salesAvailable: false,
+      financeAvailable: false,
+      totalTransferredAmount: 0,
+      totalStatements: 0,
+      totalStatementsWithOrder: 0,
+      totalStatementsWithoutOrder: 0,
+      statementOrderRate: 0,
       refreshedAt,
       unavailableMessage,
     };

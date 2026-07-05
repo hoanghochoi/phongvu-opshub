@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
@@ -217,9 +218,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    AppToast.show(context, SnackBar(content: Text(message)));
   }
 
   String _policyTitle(String code) {
@@ -953,7 +952,8 @@ class _PolicyEditorDialogState extends State<_PolicyEditorDialog> {
         context: {'policyCode': policy.code},
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           const SnackBar(content: Text('Chưa lưu được chính sách.')),
         );
       }
@@ -1071,7 +1071,8 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
         context: {'policyCode': _policyCode, 'isEdit': widget.rule != null},
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           const SnackBar(content: Text('Chọn đơn vị tổ chức cho quy tắc.')),
         );
         setState(() => _saving = false);
@@ -1140,9 +1141,10 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
         },
       );
       if (mounted) {
-        ScaffoldMessenger.of(
+        AppToast.show(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Chưa lưu được quy tắc.')));
+          const SnackBar(content: Text('Chưa lưu được quy tắc.')),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -1429,7 +1431,8 @@ class _SettingEditorDialogState extends State<_SettingEditorDialog> {
     try {
       decoded = jsonDecode(_value.text);
     } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(content: Text('Giá trị cấu hình không đúng định dạng.')),
       );
       return;
@@ -1474,7 +1477,8 @@ class _SettingEditorDialogState extends State<_SettingEditorDialog> {
         context: {'settingKey': setting.key},
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           const SnackBar(content: Text('Chưa lưu được cấu hình.')),
         );
       }

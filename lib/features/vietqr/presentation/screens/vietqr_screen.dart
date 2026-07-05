@@ -35,6 +35,7 @@ import '../widgets/payment_confirmation_card.dart';
 import '../services/vietqr_history_store.dart';
 import '../services/vietqr_image_saver.dart';
 import 'package:go_router/go_router.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 typedef VietQrRealtimeConnector = WebSocketChannel Function(Uri uri);
 
@@ -474,7 +475,8 @@ class _VietQrScreenState extends State<VietQrScreen> {
         context: {'storeCode': _storeCodeController.text.trim()},
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           SnackBar(
             content: Text('Chưa tạo được mã QR. Vui lòng thử lại.'),
             backgroundColor: AppColors.error,
@@ -788,18 +790,19 @@ class _VietQrScreenState extends State<VietQrScreen> {
       if (_shouldStopAutoCheck(confirmation)) {
         _stopPaymentPolling();
       }
+      if (!mounted) return;
       if (confirmation.confirmed && !_hasShownPaymentReceived) {
         _hasShownPaymentReceived = true;
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           const SnackBar(
             content: Text('Đã nhận thanh toán'),
             backgroundColor: AppColors.success,
           ),
         );
       } else if (showFeedback) {
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           SnackBar(content: Text(_confirmationMessage(confirmation))),
         );
       }
@@ -813,7 +816,8 @@ class _VietQrScreenState extends State<VietQrScreen> {
       );
       if (mounted) {
         if (showFeedback) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          AppToast.show(
+            context,
             SnackBar(
               content: Text('Chưa kiểm tra được thanh toán. Vui lòng thử lại.'),
               backgroundColor: AppColors.error,
@@ -1116,7 +1120,8 @@ class _VietQrScreenState extends State<VietQrScreen> {
       },
     );
     if (shouldShowSnack && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(
           content: Text('Đã nhận thanh toán'),
           backgroundColor: AppColors.success,
@@ -1284,7 +1289,8 @@ class _VietQrScreenState extends State<VietQrScreen> {
         error: e,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           SnackBar(
             content: Text('Chưa quét được mã đơn. Vui lòng thử lại.'),
             backgroundColor: AppColors.error,
@@ -1348,9 +1354,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
         },
       );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(result.userMessage)));
+        AppToast.show(context, SnackBar(content: Text(result.userMessage)));
       }
     } catch (e) {
       await AppLogger.instance.error(
@@ -1365,7 +1369,8 @@ class _VietQrScreenState extends State<VietQrScreen> {
         },
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           SnackBar(
             content: Text('Chưa lưu được ảnh QR. Vui lòng thử lại.'),
             backgroundColor: AppColors.error,

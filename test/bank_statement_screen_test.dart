@@ -89,8 +89,10 @@ void main() {
   });
 
   testWidgets('shows accounting bell through AppShell', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1200, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     final repository = _WidgetBankStatementRepository();
     final provider = BankStatementProvider(

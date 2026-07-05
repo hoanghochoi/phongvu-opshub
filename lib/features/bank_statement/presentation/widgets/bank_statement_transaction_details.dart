@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/widgets/app_buttons.dart';
@@ -105,7 +106,8 @@ Future<void> showBankStatementTransactionDetails(
       context: {...logContext, 'durationMs': stopwatch.elapsedMilliseconds},
     );
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(content: Text('Không mở được chi tiết giao dịch')),
       );
     }

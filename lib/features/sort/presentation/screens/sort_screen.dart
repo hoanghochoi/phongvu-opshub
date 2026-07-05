@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -42,7 +43,8 @@ class _SortScreenState extends State<SortScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           const SnackBar(content: Text('Chưa quét được mã. Vui lòng thử lại.')),
         );
       }
@@ -61,14 +63,16 @@ class _SortScreenState extends State<SortScreen> {
     final text = _controller.text.trim();
 
     if (text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(content: Text('Vui lòng nhập SKU hoặc BIN')),
       );
       return;
     }
 
     if (_looksLikeSerial(text)) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppToast.show(
+        context,
         const SnackBar(
           content: Text(
             'Sắp xếp chỉ hỗ trợ SKU hoặc BIN.\nNếu cần kiểm tra serial, vui lòng dùng Kiểm tra FIFO.',
@@ -92,7 +96,8 @@ class _SortScreenState extends State<SortScreen> {
       final error = sortProvider.error;
 
       if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppToast.show(
+          context,
           SnackBar(content: Text(error), backgroundColor: AppColors.error),
         );
       }

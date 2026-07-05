@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -288,9 +289,7 @@ class _OrganizationTreeAdminScreenState
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    AppToast.show(context, SnackBar(content: Text(message)));
   }
 
   @override
@@ -1053,9 +1052,7 @@ class _OrganizationNodeEditorDialogState
         final message = error is ApiException
             ? error.message
             : 'Chưa lưu được đơn vị tổ chức.';
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        AppToast.show(context, SnackBar(content: Text(message)));
       }
     } finally {
       if (mounted) setState(() => _saving = false);

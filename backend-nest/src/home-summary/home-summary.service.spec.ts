@@ -90,6 +90,22 @@ describe('HomeSummaryService', () => {
         upsert: jest.fn().mockResolvedValue({}),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         count: jest.fn().mockResolvedValueOnce(2).mockResolvedValueOnce(1),
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { orderCode: '2607040001' },
+            { orderCode: '2607040002' },
+          ]),
+      },
+      mapVietinTransaction: {
+        count: jest
+          .fn()
+          .mockResolvedValueOnce(4)
+          .mockResolvedValueOnce(3)
+          .mockResolvedValueOnce(1),
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { amount: 42000000 },
+        }),
       },
       $transaction: jest.fn(async (input: any) => {
         if (Array.isArray(input)) {
@@ -108,11 +124,18 @@ describe('HomeSummaryService', () => {
         ownUserId: 'user-1',
         ownEmail: 'staff@phongvu.vn',
         ownPersonnelCode: 'PV001',
-        allowedStoreCodes: [],
+        allowedStoreCodes: ['CP75'],
       }),
     };
-    const service = new HomeSummaryService(prisma as any, salesReports as any);
-    return { service, prisma, salesReports };
+    const featureService = {
+      canAccessFeature: jest.fn().mockResolvedValue(true),
+    };
+    const service = new HomeSummaryService(
+      prisma as any,
+      salesReports as any,
+      featureService as any,
+    );
+    return { service, prisma, salesReports, featureService };
   }
 
   it('returns scoped summary metrics from dedicated home summary facts', async () => {
@@ -124,22 +147,66 @@ describe('HomeSummaryService', () => {
       available: true,
       scope: 'OWN',
       scopeLabel: 'Phạm vi cá nhân',
-      coverageLabel: 'Tỷ lệ phủ báo cáo',
+      coverageLabel: 'Tỉ lệ báo cáo',
       totalRevenue: 12500000,
       totalOrders: 2,
       totalReports: 2,
       reportedOrders: 1,
       unreportedOrders: 1,
       coverageRate: 50,
+      conversionRate: 100,
+      salesAvailable: true,
+      financeAvailable: true,
+      totalTransferredAmount: 42000000,
+      totalStatements: 4,
+      totalStatementsWithOrder: 3,
+      totalStatementsWithoutOrder: 1,
+      statementOrderRate: 75,
     });
 
     expect(salesReports.describeHomeSummaryScope).toHaveBeenCalledWith(
       { id: 'user-1', email: 'staff@phongvu.vn' },
       'AUTO',
       null,
+      { allowOwnScope: true },
     );
     expect(prisma.homeSummaryReportFact.upsert).toHaveBeenCalledTimes(2);
     expect(prisma.homeSummaryOrderFact.upsert).toHaveBeenCalledTimes(2);
+    expect(prisma.mapVietinTransaction.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: expect.arrayContaining([
+            {
+              orders: { hasSome: ['2607040001', '2607040002'] },
+            },
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it('does not expose finance metrics when its dashboard section is disabled', async () => {
+    const { service, prisma, featureService } = createHarness();
+    featureService.canAccessFeature.mockImplementation(
+      async (_user: any, featureCode: string) =>
+        featureCode === 'HOME_DASHBOARD_SALES',
+    );
+
+    await expect(
+      service.getSummary({ id: 'user-1', email: 'staff@phongvu.vn' }, {}),
+    ).resolves.toMatchObject({
+      available: true,
+      salesAvailable: true,
+      financeAvailable: false,
+      totalTransferredAmount: 0,
+      totalStatements: 0,
+      totalStatementsWithOrder: 0,
+      totalStatementsWithoutOrder: 0,
+      statementOrderRate: 0,
+    });
+
+    expect(prisma.mapVietinTransaction.count).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransaction.aggregate).not.toHaveBeenCalled();
   });
 
   it('passes the requested dashboard scope to sales report scope resolution', async () => {
@@ -154,6 +221,7 @@ describe('HomeSummaryService', () => {
       { id: 'super-1', email: 'super@phongvu.vn' },
       'OWN',
       null,
+      { allowOwnScope: true },
     );
   });
 
@@ -173,6 +241,7 @@ describe('HomeSummaryService', () => {
       { id: 'manager-1', email: 'manager@phongvu.vn' },
       'MANAGED_SCOPE',
       'org-area-hcm',
+      { allowOwnScope: true },
     );
   });
 
@@ -197,6 +266,9 @@ describe('HomeSummaryService', () => {
       scope: 'UNAVAILABLE',
       totalOrders: 0,
       totalReports: 0,
+      financeAvailable: false,
+      totalStatements: 0,
+      statementOrderRate: 0,
       unavailableMessage: 'Không có quyền xem tổng quan.',
     });
     expect(prisma.salesReport.findMany).not.toHaveBeenCalled();

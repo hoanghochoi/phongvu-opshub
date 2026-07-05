@@ -1069,7 +1069,7 @@ describe('SalesReportsService', () => {
   it('keeps home dashboard scope options at showroom level for assigned position nodes', async () => {
     const { service, prisma } = createHarness();
     const { storeNode, positionNode } = organizationNodeFixture();
-    prisma.user.findUnique.mockResolvedValueOnce({
+    prisma.user.findUnique.mockResolvedValue({
       organizationNode: positionNode,
       organizationAssignments: [
         {
@@ -1080,9 +1080,16 @@ describe('SalesReportsService', () => {
       ],
     });
 
-    const options = await service.listHomeSummaryScopeOptions(adminSalesUser());
+    const options = await service.listHomeSummaryScopeOptions(adminSalesUser(), {
+      allowOwnScope: true,
+    });
 
     expect(options).toEqual([
+      expect.objectContaining({
+        value: 'OWN',
+        label: 'Phạm vi cá nhân',
+        isDefault: true,
+      }),
       expect.objectContaining({
         value: `NODE:${storeNode.id}`,
         label: 'Showroom: CP75',
@@ -1094,6 +1101,91 @@ describe('SalesReportsService', () => {
     expect(options.map((option) => option.organizationNodeId)).not.toContain(
       positionNode.id,
     );
+  });
+
+  it.each(['SA', 'TECH', 'WAREHOUSE', 'CASH'])(
+    'offers personal and assigned-showroom dashboard scopes to %s',
+    async (jobRoleCode) => {
+      const { service, prisma } = createHarness();
+      const { storeNode, positionNode } = organizationNodeFixture();
+      const user = {
+        ...userFixture(),
+        jobRoleCode,
+        store: null,
+        organizationNode: positionNode,
+        organizationAssignments: [
+          {
+            organizationNodeId: positionNode.id,
+            organizationNode: positionNode,
+            isPrimary: true,
+          },
+        ],
+      };
+      prisma.user.findUnique.mockResolvedValue(user);
+
+      const options = await service.listHomeSummaryScopeOptions(user, {
+        allowOwnScope: true,
+      });
+
+      expect(options.map((option) => option.value)).toEqual([
+        'OWN',
+        `NODE:${storeNode.id}`,
+      ]);
+      expect(options[0]).toMatchObject({
+        label: 'Phạm vi cá nhân',
+        isDefault: true,
+      });
+      expect(options[1]).toMatchObject({
+        label: 'Showroom: CP75',
+        organizationNodeType: 'LV4_STORE',
+        isDefault: false,
+      });
+
+      await expect(
+        service.describeHomeSummaryScope(user, 'MANAGED_SCOPE', storeNode.id, {
+          allowOwnScope: true,
+        }),
+      ).resolves.toMatchObject({
+        available: true,
+        scope: 'MANAGED_SCOPE',
+        scopeLabel: 'Showroom: CP75',
+        allowedStoreCodes: ['CP75'],
+      });
+    },
+  );
+
+  it('rejects broad managed scope for personal-or-showroom dashboard roles', async () => {
+    const { service, prisma } = createHarness();
+    const user = { ...userFixture(), jobRoleCode: 'SA' };
+    prisma.user.findUnique.mockResolvedValue(user);
+
+    await expect(
+      service.describeHomeSummaryScope(user, 'MANAGED_SCOPE', null, {
+        allowOwnScope: true,
+      }),
+    ).resolves.toMatchObject({
+      available: false,
+      scope: 'UNAVAILABLE',
+      unavailableMessage:
+        'Vui lòng chọn phạm vi cá nhân hoặc một showroom được gán.',
+    });
+  });
+
+  it('keeps personal dashboard finance scope at the user assigned showroom', async () => {
+    const { service } = createHarness();
+    const user = {
+      ...userFixture(),
+      featureAccess: { [FEATURE_KEYS.SALES_REPORT]: true },
+    };
+
+    await expect(
+      service.describeHomeSummaryScope(user, 'OWN'),
+    ).resolves.toMatchObject({
+      available: true,
+      scope: 'OWN',
+      scopeLabel: 'Phạm vi cá nhân',
+      allowedStoreCodes: ['CP62'],
+    });
   });
 
   it('allows home dashboard scope requests for the parent showroom of an assigned position node', async () => {
@@ -1119,6 +1211,7 @@ describe('SalesReportsService', () => {
         adminSalesUser(),
         'MANAGED_SCOPE',
         storeNode.id,
+        { allowOwnScope: true },
       ),
     ).resolves.toMatchObject({
       available: true,

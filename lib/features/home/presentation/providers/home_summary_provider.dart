@@ -357,6 +357,13 @@ class HomeSummaryProvider extends ChangeNotifier {
           'reportedOrders': summary.reportedOrders,
           'unreportedOrders': summary.unreportedOrders,
           'coverageRate': summary.coverageRate,
+          'conversionRate': summary.conversionRate,
+          'salesAvailable': summary.salesAvailable,
+          'financeAvailable': summary.financeAvailable,
+          'totalStatements': summary.totalStatements,
+          'totalStatementsWithOrder': summary.totalStatementsWithOrder,
+          'totalStatementsWithoutOrder': summary.totalStatementsWithoutOrder,
+          'statementOrderRate': summary.statementOrderRate,
         },
       );
     } on ApiException catch (error) {

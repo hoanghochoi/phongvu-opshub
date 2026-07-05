@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
@@ -295,9 +296,10 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   }
 
   void _showSnackBar(String message, {required Color color}) {
-    ScaffoldMessenger.of(
+    AppToast.show(
       context,
-    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
+      SnackBar(content: Text(message), backgroundColor: color),
+    );
   }
 
   @override
