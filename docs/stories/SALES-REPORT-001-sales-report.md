@@ -7,14 +7,16 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 
 ## Acceptance
 
-- Home hiện `Báo cáo` khi user có `SALES_REPORT` hoặc
-  `ADMIN_SALES_REPORTS`.
-- Màn hình `Báo cáo` hiển thị cockpit 2 cột trong ngày: trái là đơn chưa báo
+- Vận hành hiện trực tiếp `Báo cáo sale` tại `/sales-reports` khi user có
+  `SALES_REPORT`; `/reports` chỉ redirect tương thích. `ADMIN_SALES_REPORTS`
+  đưa `Danh sách báo cáo sale` vào menu `Quản trị`.
+- Màn hình `Báo cáo sale` hiển thị cockpit 2 cột theo khoảng ngày: trái là đơn chưa báo
   cáo, phải là đơn đã báo cáo; mỗi cột hiển thị 20 đơn/trang, có total đếm từ
-  DB và nút chuyển trang riêng. Phía trên có `Báo cáo chưa mua`, `Tải lại` và
-  action xuất file/danh sách khi user có quyền admin report.
-- Cockpit lọc theo `Ngày`, `SR` và `User`; filter `SR`/`User` chỉ hiện trong
-  scope quản lý và các nút xuất file dùng cùng filter đang chọn.
+  DB và nút chuyển trang riêng. Phía trên chỉ giữ `Báo cáo chưa mua` và
+  `Tải lại`; xuất file/danh sách thuộc màn quản trị riêng.
+- Cockpit lọc theo daterange `Ngày`, `SR` và `User`; filter `SR`/`User` chỉ hiện
+  trong scope quản lý. Khoảng ngày trống mặc định truy vấn 30 ngày gần nhất và
+  phải hiện helper text giải thích.
 - Backend tự đồng bộ danh sách đơn ERP từ staff-bff theo ngày mỗi 3 phút và khi
   service khởi động, mặc định 50 đơn, rồi upsert snapshot rút gọn vào bảng
   cache riêng. Ngay trong lần sync, backend map `creator.email` sang user nội

@@ -103,7 +103,7 @@ void main() {
   testWidgets('Báo cáo mobile uses compact hero, tabs and filter sheet', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(390, 844);
+    tester.view.physicalSize = const Size(375, 812);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
       tester.view.resetPhysicalSize();
@@ -217,10 +217,24 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Ngày: 01/07/2026'), findsOneWidget);
+    expect(find.text('Ngày: Tất cả ngày'), findsOneWidget);
+    expect(
+      find.text(
+        'Không chọn khoảng ngày: hệ thống mặc định lấy 30 ngày gần nhất.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Showroom: Tất cả'), findsOneWidget);
     expect(find.text('User: Tất cả'), findsNothing);
     expect(find.text('Lọc'), findsOneWidget);
+
+    await tester.tap(find.text('Ngày: Tất cả ngày'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('7 ngày'));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastOrdersQuery?.startDate, DateTime(2026, 6, 25));
+    expect(repository.lastOrdersQuery?.endDate, DateTime(2026, 7, 1));
 
     await tester.tap(find.text('Lọc'));
     await tester.pumpAndSettle();
@@ -237,7 +251,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.lastOrdersQuery?.storeCode, 'CP01');
-    expect(repository.lastOrdersQuery?.date, DateTime(2026, 7, 1));
+    expect(repository.lastOrdersQuery?.startDate, DateTime(2026, 6, 25));
+    expect(repository.lastOrdersQuery?.endDate, DateTime(2026, 7, 1));
     expect(repository.lastOrdersQuery?.reportedPage, 0);
     expect(repository.lastOrdersQuery?.unreportedPage, 0);
   });
@@ -278,7 +293,7 @@ void main() {
     expect(find.text('Đơn hàng đã kiểm tra'), findsOneWidget);
   });
 
-  testWidgets('Báo cáo hub shows export and list actions with admin feature', (
+  testWidgets('Báo cáo hub omits duplicate export and list actions', (
     tester,
   ) async {
     final authProvider = _FakeAuthProvider(
@@ -287,7 +302,7 @@ void main() {
         email: 'lead@phongvu.vn',
         role: 'USER',
         organizationNodeId: 'org-area-hcm',
-        featureAccess: {'ADMIN_SALES_REPORTS': true},
+        featureAccess: {'SALES_REPORT': true, 'ADMIN_SALES_REPORTS': true},
       ),
     );
     final repository = _FakeSalesReportRepository();
@@ -324,22 +339,11 @@ void main() {
       findsOneWidget,
     );
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.text('Báo cáo chưa mua'), findsNothing);
-    expect(find.text('Xuất file'), findsOneWidget);
-    expect(find.text('Danh sách'), findsOneWidget);
+    expect(find.text('Báo cáo chưa mua'), findsOneWidget);
+    expect(find.text('Xuất file'), findsNothing);
+    expect(find.text('Danh sách'), findsNothing);
     expect(find.text('Đã báo cáo'), findsOneWidget);
     expect(find.text('Chưa báo cáo'), findsOneWidget);
-
-    await tester.tap(find.text('Xuất file'));
-    await tester.pumpAndSettle();
-    expect(find.text('HVTC'), findsOneWidget);
-    expect(find.text('Doanh số'), findsOneWidget);
-    expect(find.text('Trả góp'), findsOneWidget);
-
-    await tester.tap(find.text('Danh sách'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Admin reports'), findsOneWidget);
   });
 
   testWidgets('Báo cáo form requires explicit behavior answers', (
@@ -719,29 +723,36 @@ void main() {
     });
   });
 
-  test('SalesReportOrdersQuery serializes report date, pages and limit', () {
-    final query = SalesReportOrdersQuery(
-      date: DateTime(2026, 7, 1, 9, 30),
-      reportedPage: 2,
-      unreportedPage: 3,
-      limit: 75,
-      storeCode: 'CP01',
-      userEmail: 'sale.cp01@phongvu.vn',
-    );
+  test(
+    'SalesReportOrdersQuery serializes report date range, pages and limit',
+    () {
+      final query = SalesReportOrdersQuery(
+        startDate: DateTime(2026, 6, 25, 9, 30),
+        endDate: DateTime(2026, 7, 1, 23, 59),
+        reportedPage: 2,
+        unreportedPage: 3,
+        limit: 75,
+        storeCode: 'CP01',
+        userEmail: 'sale.cp01@phongvu.vn',
+      );
 
-    expect(query.toQueryParameters(), {
-      'date': '2026-07-01',
-      'storeCode': 'CP01',
-      'userEmail': 'sale.cp01@phongvu.vn',
-      'reportedPage': '2',
-      'unreportedPage': '3',
-      'limit': '75',
-    });
-  });
+      expect(query.toQueryParameters(), {
+        'startDate': '2026-06-25',
+        'endDate': '2026-07-01',
+        'storeCode': 'CP01',
+        'userEmail': 'sale.cp01@phongvu.vn',
+        'reportedPage': '2',
+        'unreportedPage': '3',
+        'limit': '75',
+      });
+    },
+  );
 
   test('SalesReportOrderCockpit parses reported and unreported orders', () {
     final cockpit = SalesReportOrderCockpit.fromJson({
       'date': '2026-07-01',
+      'startDate': '2026-06-25',
+      'endDate': '2026-07-01',
       'syncSucceeded': true,
       'syncCount': 2,
       'scope': 'MANAGED_SCOPE',
@@ -768,6 +779,9 @@ void main() {
         {'status': 'UNREPORTED', 'orderCode': '2607010002'},
       ],
     });
+
+    expect(cockpit.startDate, '2026-06-25');
+    expect(cockpit.endDate, '2026-07-01');
 
     expect(cockpit.scope, 'MANAGED_SCOPE');
     expect(cockpit.selectedStoreCode, 'CP01');

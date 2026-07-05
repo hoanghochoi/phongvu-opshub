@@ -67,13 +67,11 @@ Ngày cập nhật: 03/07/2026
   trên desktop, tablet và mobile để thể hiện compact toolbar/export menu, gồm
   desktop `152:3577`/`152:2179`, tablet `152:938`/`152:470`, và mobile
   `151:698`/`151:350` cho hub/admin.
-- Generic Report Workspace `/reports` đã được mở theo runtime contract: hub
-  content-only trong `AppShell`, header `Báo cáo`, chip số báo cáo khả dụng,
-  action `Báo cáo sale` và `Danh sách báo cáo sale` hiển thị theo quyền
-  `SALES_REPORT`/`ADMIN_SALES_REPORTS`. Figma đã thêm đủ frame runtime
-  `Desktop v2 / Report Workspace` (`501:2`), `Tablet v2 / Report Workspace`
-  (`501:49`) và `Mobile v2 / Report Workspace` (`501:91`), bỏ mọi report
-  placeholder không có route thật.
+- Quyết định ngày 06/07/2026 đã thay Generic Report Workspace: `Báo cáo sale`
+  xuất hiện trực tiếp tại `Vận hành` và mở `/sales-reports`; `/reports` chỉ còn
+  redirect tương thích. `Danh sách báo cáo sale` chuyển vào `Quản trị`. Các
+  frame Report Workspace cũ (`501:2`, `501:49`, `501:91`) chỉ còn là bằng chứng
+  lịch sử, không còn là runtime contract cần duy trì.
 - Admin Users `/admin/users` đã được migrate khỏi `GradientHeader` riêng sang
   content-only workspace trong `AppShell`: header/action card chỉ hiện
   import/thêm mới cho Super Admin, search và 5 bộ lọc dùng shared controls,
@@ -327,7 +325,7 @@ test\design_system_migration_guard_test.dart` (7 tests),
 | Figma frame | Trạng thái code hiện tại | Hướng xử lý |
 | --- | --- | --- |
 | Data Workspace | Retired / hidden in Figma | Bỏ khỏi plan hiện tại; không có route/runtime screen. Figma nodes `Retired / Desktop v2 / Data Workspace` (`97:2`), `Retired / Tablet v2 / Data Workspace` (`135:597`), `Retired / Mobile v2 / Data Workspace` (`135:171`) đều `visible=false` |
-| Generic Report Workspace | Approved / implemented | Route `/reports` là hub báo cáo chung, gom các report runtime hiện có theo quyền rồi điều hướng vào Sales Report hub/admin |
+| Generic Report Workspace | Superseded / retired 06-07-2026 | `/reports` redirect sang `/sales-reports`; Vận hành mở trực tiếp cockpit và danh sách/export thuộc menu Quản trị |
 | Personnel Catalog Admin | Approved / implemented | Route `/admin/personnel` dùng `ADMIN_PERSONNEL`, screen content-only trong `AppShell`, feature picker bật lại `Danh mục nhân sự` |
 | FIFO Conversation Check | Retired / hidden in Figma | Screen conversation legacy chưa expose đã được gỡ; giữ lại barcode scanner/entities vì các runtime screen khác đang dùng. Figma nodes `Retired / Desktop v2 / FIFO Conversation Check` (`152:2715`), `Retired / Tablet v2 / FIFO Conversation Check` (`152:626`), `Retired / Mobile v2 / FIFO Conversation Check` (`151:466`) đều `visible=false` |
 | Dialog/loading/empty/error state inventory | Đã audit các route expose: full loading/empty/error dùng shared state; dialog action dùng shared button | Guard khóa raw indicator vào đúng ngữ cảnh inline đã review; audit lại khi thêm runtime state mới |

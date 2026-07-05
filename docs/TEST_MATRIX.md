@@ -45,6 +45,17 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `SALES-REPORT-001`/`UI-UX-002`, 2026-07-06: Cockpit `Báo cáo sale` bỏ hai
+  action trùng `Xuất file`/`Danh sách`, thay picker một ngày bằng daterange chung
+  và giữ contract khoảng trống mặc định 30 ngày gần nhất. `Vận hành` mở thẳng
+  `/sales-reports`; `/reports` chỉ redirect tương thích; `Danh sách báo cáo
+  sale` chuyển vào `Quản trị` theo `ADMIN_SALES_REPORTS`. API cockpit nhận
+  `startDate`/`endDate`, giữ field `date` tương thích client cũ và từ chối khoảng
+  ngày đảo ngược bằng thông báo tiếng Việt. Validation: focused Flutter
+  navigation/admin/sales-report/home tests, full `flutter test --no-pub
+  --reporter compact` (360 tests), mobile widget 375x812, `flutter analyze
+  --no-pub`, focused Nest sales-report Jest (36 tests), `npm run build`, và
+  `git diff --check`.
 - `HOME-DASHBOARD-002`/`SALES-REPORT-001`, 2026-07-06: Dashboard đưa
   `Tổng quan` lên đầu với donut báo cáo, sao kê và doanh số ngày/tuần/tháng;
   bỏ progress bar, đồng bộ chiều cao KPI và bổ sung các icon còn thiếu. Doanh

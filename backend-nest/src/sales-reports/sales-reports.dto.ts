@@ -325,10 +325,21 @@ export class ExportSalesReportsDto extends ListSalesReportsDto {
 }
 
 export class ListSalesReportOrdersDto {
+  /** @deprecated Dùng startDate/endDate cho bộ lọc khoảng ngày. */
   @IsOptional()
   @IsString()
   @MaxLength(10)
   date?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  endDate?: string;
 
   @IsOptional()
   @IsString()

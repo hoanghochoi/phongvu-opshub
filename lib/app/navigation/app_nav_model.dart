@@ -120,9 +120,9 @@ class AppNavModel {
     ),
     AppNavDestination(
       id: 'sales',
-      label: 'Báo cáo',
+      label: 'Báo cáo sale',
       description: 'Theo dõi và gửi báo cáo sale',
-      route: '/reports',
+      route: '/sales-reports',
       icon: Icons.assignment_outlined,
       color: AppColors.info,
       group: AppNavGroup.sales,
@@ -283,16 +283,14 @@ class AppNavModel {
     if (location == destination.route) return true;
     return switch (destination.id) {
       'admin' =>
-        (location.startsWith('/admin') && location != '/admin/sales-reports') ||
+        location.startsWith('/admin') ||
             location == '/fifo-history' ||
             location == '/fifo/inventory-import',
       'operations' => location == '/fifo-menu',
       'warranty' =>
         location == '/warranty' || location.startsWith('/check-warranty'),
       'sales' =>
-        location == '/reports' ||
-            location.startsWith('/sales-reports') ||
-            location == '/admin/sales-reports',
+        location == '/reports' || location.startsWith('/sales-reports'),
       _ => false,
     };
   }
@@ -314,9 +312,7 @@ class AppNavModel {
             AppPlatformCapabilities.isPaymentMonitorSupported(),
       'statement' => user?.canUseBankStatements == true,
       'offset' => user?.canUseOffsetAdjustments == true,
-      'sales' =>
-        user?.canUseFeature('SALES_REPORT') == true ||
-            user?.canUseFeature('ADMIN_SALES_REPORTS') == true,
+      'sales' => user?.canUseFeature('SALES_REPORT') == true,
       'feedback' => user?.canUseFeature('FEEDBACK') == true,
       _ => false,
     };
@@ -332,6 +328,7 @@ class AppNavModel {
         user?.canUseFeature('ADMIN_FEATURES') == true ||
         user?.canUseFeature('ADMIN_PERSONNEL') == true ||
         user?.canUseFeature('ADMIN_SALES_TARGETS') == true ||
+        user?.canUseFeature('ADMIN_SALES_REPORTS') == true ||
         user?.canUseFeature('ADMIN_FEEDBACK') == true ||
         user?.canUseFeature('FIFO') == true ||
         user?.canUseFeature('FIFO_IMPORT') == true;

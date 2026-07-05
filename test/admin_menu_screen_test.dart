@@ -120,6 +120,29 @@ void main() {
     expect(find.byIcon(Icons.query_stats_rounded), findsOneWidget);
   });
 
+  testWidgets('Admin menu owns the sales report list and export entry', (
+    tester,
+  ) async {
+    const user = User(
+      email: 'sales-report-admin@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-area',
+      featureAccess: {'ADMIN_SALES_REPORTS': true},
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(user),
+        child: const MaterialApp(home: AdminMenuScreen()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Danh sách báo cáo sale'), findsOneWidget);
+    expect(find.text('Lọc danh sách và xuất file'), findsOneWidget);
+    expect(find.byIcon(Icons.table_chart_outlined), findsOneWidget);
+  });
+
   testWidgets('Admin menu shows help management for super admin only', (
     tester,
   ) async {

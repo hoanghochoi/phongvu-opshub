@@ -85,7 +85,7 @@ void main() {
     );
   });
 
-  test('generic report workspace accepts sales report permissions', () {
+  test('sales report routes separate staff and admin permissions', () {
     const salesUser = User(
       email: 'sales@phongvu.vn',
       role: 'USER',
@@ -106,7 +106,16 @@ void main() {
     );
 
     expect(AppRouter.canUseRouteForTesting(salesUser, '/reports'), isTrue);
-    expect(AppRouter.canUseRouteForTesting(salesAdmin, '/reports'), isTrue);
+    expect(
+      AppRouter.canUseRouteForTesting(salesUser, '/sales-reports'),
+      isTrue,
+    );
+    expect(AppRouter.canUseRouteForTesting(salesAdmin, '/reports'), isFalse);
+    expect(AppRouter.canUseRouteForTesting(salesAdmin, '/admin'), isTrue);
+    expect(
+      AppRouter.canUseRouteForTesting(salesAdmin, '/admin/sales-reports'),
+      isTrue,
+    );
     expect(AppRouter.canUseRouteForTesting(staff, '/reports'), isFalse);
   });
 

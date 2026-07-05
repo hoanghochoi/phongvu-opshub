@@ -10,7 +10,6 @@ import '../../features/bank_statement/presentation/screens/bank_statement_screen
 import '../../features/offset_adjustment/data/offset_adjustment_repository.dart';
 import '../../features/offset_adjustment/presentation/providers/offset_adjustment_provider.dart';
 import '../../features/offset_adjustment/presentation/screens/offset_adjustment_screen.dart';
-import '../../features/reports/presentation/screens/report_workspace_screen.dart';
 import '../../features/sales_report/data/sales_report_repository.dart';
 import '../../features/sales_report/presentation/providers/sales_report_provider.dart';
 import '../../features/sales_report/presentation/screens/sales_report_admin_screen.dart';
@@ -374,8 +373,7 @@ class AppRouter {
             ),
             GoRoute(
               path: '/reports',
-              pageBuilder: (context, state) =>
-                  _noTransitionPage(state, const ReportWorkspaceScreen()),
+              redirect: (context, state) => '/sales-reports',
             ),
             GoRoute(
               path: '/sales-reports',
@@ -441,8 +439,8 @@ class AppRouter {
       '/offset-adjustments' => 'OFFSET_ADJUSTMENTS',
       '/payment-monitor' => 'PAYMENT_MONITOR',
       '/feedback' => 'FEEDBACK',
-      '/reports' => 'SALES_REPORT_HUB',
-      '/sales-reports' => 'SALES_REPORT_HUB',
+      '/reports' => 'SALES_REPORT',
+      '/sales-reports' => 'SALES_REPORT',
       '/sales-reports/purchased' => 'SALES_REPORT',
       '/sales-reports/not-purchased' => 'SALES_REPORT',
       _ => null,
@@ -459,11 +457,8 @@ class AppRouter {
           user?.canUseFeature('ADMIN_FEATURES') == true ||
           user?.canUseFeature('ADMIN_PERSONNEL') == true ||
           user?.canUseFeature('ADMIN_SALES_TARGETS') == true ||
+          user?.canUseFeature('ADMIN_SALES_REPORTS') == true ||
           user?.canUseFeature('ADMIN_FEEDBACK') == true;
-    }
-    if (featureCode == 'SALES_REPORT_HUB') {
-      return user?.canUseFeature('SALES_REPORT') == true ||
-          user?.canUseFeature('ADMIN_SALES_REPORTS') == true;
     }
     if (featureCode == 'BANK_STATEMENTS') {
       return user?.canUseBankStatements == true;

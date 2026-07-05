@@ -197,7 +197,10 @@ class SalesReportOrderCockpitItem {
 }
 
 class SalesReportOrderCockpit {
+  /// Ngày cuối của khoảng lọc, giữ lại để tương thích response cũ.
   final String date;
+  final String startDate;
+  final String endDate;
   final DateTime? refreshedAt;
   final bool syncSucceeded;
   final String? syncError;
@@ -217,6 +220,8 @@ class SalesReportOrderCockpit {
 
   const SalesReportOrderCockpit({
     required this.date,
+    required this.startDate,
+    required this.endDate,
     required this.refreshedAt,
     required this.syncSucceeded,
     required this.syncError,
@@ -255,8 +260,11 @@ class SalesReportOrderCockpit {
 
     final reportedOrders = itemList(json['reportedOrders']);
     final unreportedOrders = itemList(json['unreportedOrders']);
+    final legacyDate = json['date']?.toString() ?? '';
     return SalesReportOrderCockpit(
-      date: json['date']?.toString() ?? '',
+      date: legacyDate,
+      startDate: json['startDate']?.toString() ?? legacyDate,
+      endDate: json['endDate']?.toString() ?? legacyDate,
       refreshedAt: DateTime.tryParse(json['refreshedAt']?.toString() ?? ''),
       syncSucceeded: json['syncSucceeded'] == true,
       syncError: json['syncError']?.toString(),
@@ -468,7 +476,8 @@ class SalesReportQuery {
 }
 
 class SalesReportOrdersQuery {
-  final DateTime? date;
+  final DateTime? startDate;
+  final DateTime? endDate;
   final String? storeCode;
   final String? userEmail;
   final int reportedPage;
@@ -476,7 +485,8 @@ class SalesReportOrdersQuery {
   final int limit;
 
   const SalesReportOrdersQuery({
-    this.date,
+    this.startDate,
+    this.endDate,
     this.storeCode,
     this.userEmail,
     this.reportedPage = 0,
@@ -486,7 +496,8 @@ class SalesReportOrdersQuery {
 
   Map<String, String> toQueryParameters() {
     return {
-      if (date != null) 'date': SalesReportQuery._date(date!),
+      if (startDate != null) 'startDate': SalesReportQuery._date(startDate!),
+      if (endDate != null) 'endDate': SalesReportQuery._date(endDate!),
       if ((storeCode ?? '').trim().isNotEmpty) 'storeCode': storeCode!.trim(),
       if ((userEmail ?? '').trim().isNotEmpty) 'userEmail': userEmail!.trim(),
       'reportedPage': reportedPage.toString(),

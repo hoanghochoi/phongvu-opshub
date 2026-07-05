@@ -147,7 +147,7 @@ class _HomeScreenState extends State<HomeScreen> {
         description: 'Xem tổng hợp và chi tiết báo cáo',
         icon: Icons.description_outlined,
         color: AppColors.secondary,
-        route: '/reports',
+        route: salesDestination.route,
         fallbackRoute: canOpenSales ? null : '/operations',
       ),
       action(

@@ -66,11 +66,12 @@ visual systems that make the app feel assembled from unrelated screens.
 - Desktop sidebar destinations must be grouped with visible section labels:
   `Tổng quan`, `Bán hàng`, `Kho`, `Tài chính`, `Kỹ thuật`, and `Cấu hình`.
   `Tổng quan` contains `Trang chủ`, `Vận hành`, and `Quản trị`; `Bán hàng`
-  follows `VietQR` -> `Báo cáo` -> `Tiền vào`; `Kho` follows `Kiểm tra FIFO`
+  follows `VietQR` -> `Báo cáo sale` -> `Tiền vào`; `Kho` follows `Kiểm tra FIFO`
   -> `Sắp xếp FIFO`; `Tài chính` follows `Sao kê` -> `Cấn trừ`; `Kỹ thuật`
   contains `Bảo hành`. The `Vận hành` page reuses the same operational groups
-  and ordering. `Cập nhật tồn kho` and `Lịch sử FIFO` belong to `Quản trị`, not
-  a standalone FIFO menu. The sidebar remains flat and scrollable; do not add
+  and ordering. `Danh sách báo cáo sale`, `Cập nhật tồn kho` and `Lịch sử FIFO`
+  belong to `Quản trị`, not the operational `Báo cáo sale` cockpit or a
+  standalone FIFO menu. The sidebar remains flat and scrollable; do not add
   row chevrons unless a real nested menu is introduced. The desktop brand block
   shows the current slogan directly under the logo.
 - Navigation visibility is role/feature-aware and must hide unavailable

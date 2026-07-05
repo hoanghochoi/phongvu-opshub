@@ -231,7 +231,8 @@ describe('SalesReportsService', () => {
     ]);
 
     const result = await service.orderCockpit(userFixture(), {
-      date: '2026-07-01',
+      startDate: '2026-06-25',
+      endDate: '2026-07-01',
     });
 
     expect(erp.listRecentOrders).not.toHaveBeenCalled();
@@ -242,6 +243,9 @@ describe('SalesReportsService', () => {
     expect(result.scope).toBe('OWN');
     expect(result.syncSucceeded).toBe(true);
     expect(result.syncCount).toBe(0);
+    expect(result.startDate).toBe('2026-06-25');
+    expect(result.endDate).toBe('2026-07-01');
+    expect(result.date).toBe('2026-07-01');
     expect(result.limit).toBe(20);
     expect(result.reportedPage).toBe(0);
     expect(result.reportedTotal).toBe(1);
@@ -275,6 +279,17 @@ describe('SalesReportsService', () => {
     expect(
       JSON.stringify(prisma.salesReport.findMany.mock.calls[1][0].where),
     ).toContain('"erpExcludedAt":null');
+  });
+
+  it('rejects an order cockpit date range whose end is before its start', async () => {
+    const { service } = createHarness();
+
+    await expect(
+      service.orderCockpit(userFixture(), {
+        startDate: '2026-07-02',
+        endDate: '2026-07-01',
+      }),
+    ).rejects.toThrow('Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.');
   });
 
   it('lets super admin see all cached unreported orders without store scope', async () => {

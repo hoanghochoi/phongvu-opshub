@@ -7,8 +7,10 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 
 ## Current Shape
 
-- Tab `Vận hành` hiển thị ô `Báo cáo` khi user có feature `SALES_REPORT` hoặc
-  `ADMIN_SALES_REPORTS`. `Trang chủ` không còn là catalog tác vụ; thay vào đó
+- Tab `Vận hành` hiển thị trực tiếp ô `Báo cáo sale` dẫn tới
+  `/sales-reports` khi user có feature `SALES_REPORT`; không còn màn trung gian
+  `/reports`. User chỉ có `ADMIN_SALES_REPORTS` truy cập danh sách qua menu
+  `Quản trị`. `Trang chủ` không còn là catalog tác vụ; thay vào đó
   nó hiển thị dashboard tổng quan theo scope lấy dữ liệu từ fact tables riêng
   của Home Summary. Dashboard tách hai khu vực dùng chung bộ chọn ngày và
   scope. Khu vực `Bán hàng` hiển thị doanh số, tổng đơn hợp lệ, số đơn đã/chưa
@@ -23,7 +25,7 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   tiến độ showroom. Các vị trí này không được chọn vùng, miền hoặc toàn hệ
   thống. Vị trí quản lý tiếp tục dùng phạm vi node được gán; Super Admin có
   phạm vi toàn hệ thống.
-- Màn hình `Báo cáo` là cockpit đơn hàng trong ngày: cột trái là đơn chưa báo
+- Màn hình `Báo cáo sale` là cockpit đơn hàng theo khoảng ngày: cột trái là đơn chưa báo
   cáo, cột phải là đơn đã báo cáo. Mỗi cột hiển thị 20 đơn/trang, có scroll
   theo màn hình và nút chuyển trang riêng; số lượng ở header là total đếm từ DB
   theo scope hiện tại. User thường chỉ thấy dữ liệu của mình theo email từ
@@ -32,11 +34,11 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   `STORE_MANAGER`, hoặc có `ADMIN_SALES_REPORTS`, xem trong phạm vi node tổ chức
   được gán, gồm các showroom/node con; Super Admin xem toàn bộ cache/report
   trong DB.
-- Cockpit tách hàng filter `Ngày`/`SR`/`User`/`Tải lại` khỏi hàng thao tác
-  `Báo cáo chưa mua`, xuất CSV và lối vào danh sách báo cáo chi tiết. Bộ lọc
-  `SR`/`User` chỉ hiện với scope quản lý, lấy option từ chính cache/report đang
-  nằm trong phạm vi user được phép xem. Các nút xuất file dùng cùng bộ lọc
-  ngày/SR/user đang chọn.
+- Cockpit dùng daterange chung `Ngày` cùng `SR`/`User`/`Tải lại` và chỉ giữ thao
+  tác nghiệp vụ `Báo cáo chưa mua`; không lặp lại nút xuất file hay lối vào danh
+  sách. Khi không chọn khoảng ngày, UI giữ nhãn `Tất cả ngày`, hiện dòng nhắc và
+  truy vấn 30 ngày gần nhất theo contract chung. Bộ lọc `SR`/`User` chỉ hiện với
+  scope quản lý, lấy option từ cache/report trong phạm vi user được phép xem.
 - Backend tự đồng bộ danh sách đơn từ staff-bff ERP mỗi 3 phút và khi service
   khởi động, map `creator.email` sang user nội bộ cùng showroom/node tổ chức
   được gán, rồi upsert snapshot rút gọn vào bảng cache riêng. Mapping này diễn
@@ -50,10 +52,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Khi sale bấm một đơn chưa báo cáo, app mở form báo cáo mua hàng trong dialog,
   tự kiểm tra lại mã đơn qua luồng `check-order` hiện tại rồi fill tên khách,
   nhu cầu, loại khách, ngành hàng và thông tin đơn cần thiết.
-- Màn hình `Báo cáo` hiển thị lối vào `Báo cáo sale` để xem danh sách và xuất
-  CSV khi user có `ADMIN_SALES_REPORTS`; entry này không nằm trong menu
-  `Quản trị`.
-- Màn hình `Báo cáo sale` của admin lọc danh sách và CSV theo loại báo cáo và
+- Menu `Quản trị` hiển thị `Danh sách báo cáo sale` khi user có
+  `ADMIN_SALES_REPORTS`; đây là nơi duy nhất lọc danh sách và xuất file.
+- Màn hình danh sách báo cáo sale của admin lọc danh sách và CSV theo loại báo cáo và
   khoảng `Từ ngày` / `Đến ngày` dựa trên thời điểm gửi báo cáo (`submittedAt`).
   Nếu admin không chọn khoảng ngày, app vẫn giữ label `Tất cả ngày` nhưng mặc
   định truy vấn/xuất 30 ngày gần nhất và hiện dòng nhắc nhỏ để tránh hiểu nhầm.

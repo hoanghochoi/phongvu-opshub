@@ -44,7 +44,8 @@ class SalesReportProvider extends ChangeNotifier {
   int _reportedOrdersPage = 0;
   int _unreportedOrdersPage = 0;
   int _ordersLimit = _defaultOrdersLimit;
-  DateTime? _ordersDate;
+  DateTime? _ordersStartDate;
+  DateTime? _ordersEndDate;
   String? _ordersStoreCode;
   String? _ordersUserEmail;
   User? _user;
@@ -85,8 +86,8 @@ class SalesReportProvider extends ChangeNotifier {
   int get unreportedOrdersPage =>
       _orderCockpit?.unreportedPage ?? _unreportedOrdersPage;
   int get ordersLimit => _orderCockpit?.limit ?? _ordersLimit;
-  DateTime get ordersDate =>
-      _ordersDate ?? DateTime(_now().year, _now().month, _now().day);
+  DateTime? get ordersStartDate => _ordersStartDate;
+  DateTime? get ordersEndDate => _ordersEndDate;
   String? get ordersStoreCode => _ordersStoreCode;
   String? get ordersUserEmail => _ordersUserEmail;
   DateTime get currentDate {
@@ -236,16 +237,7 @@ class SalesReportProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     final startedAt = DateTime.now();
-    final effectiveQuery =
-        query ??
-        SalesReportOrdersQuery(
-          date: _ordersDate,
-          storeCode: _ordersStoreCode,
-          userEmail: _ordersUserEmail,
-          reportedPage: _reportedOrdersPage,
-          unreportedPage: _unreportedOrdersPage,
-          limit: _ordersLimit,
-        );
+    final effectiveQuery = query ?? _currentOrdersQuery();
     try {
       await AppLogger.instance.info(
         'SalesReport',
@@ -257,7 +249,6 @@ class SalesReportProvider extends ChangeNotifier {
       _reportedOrdersPage = result.reportedPage;
       _unreportedOrdersPage = result.unreportedPage;
       _ordersLimit = result.limit;
-      _ordersDate = DateTime.tryParse(result.date) ?? effectiveQuery.date;
       _ordersStoreCode = result.selectedStoreCode;
       _ordersUserEmail = result.selectedUserEmail;
       if ((result.syncError ?? '').trim().isNotEmpty) {
@@ -295,7 +286,8 @@ class SalesReportProvider extends ChangeNotifier {
   Future<void> loadReportedOrdersPage(int page) async {
     await loadOrderCockpit(
       query: SalesReportOrdersQuery(
-        date: ordersDate,
+        startDate: _resolvedOrdersStartDate,
+        endDate: _resolvedOrdersEndDate,
         storeCode: _ordersStoreCode,
         userEmail: _ordersUserEmail,
         reportedPage: page < 0 ? 0 : page,
@@ -308,7 +300,8 @@ class SalesReportProvider extends ChangeNotifier {
   Future<void> loadUnreportedOrdersPage(int page) async {
     await loadOrderCockpit(
       query: SalesReportOrdersQuery(
-        date: ordersDate,
+        startDate: _resolvedOrdersStartDate,
+        endDate: _resolvedOrdersEndDate,
         storeCode: _ordersStoreCode,
         userEmail: _ordersUserEmail,
         reportedPage: reportedOrdersPage,
@@ -319,31 +312,24 @@ class SalesReportProvider extends ChangeNotifier {
   }
 
   Future<void> setOrderFilters({
-    DateTime? date,
+    DateTime? startDate,
+    DateTime? endDate,
     String? storeCode,
     String? userEmail,
-    bool updateDate = false,
+    bool updateDateRange = false,
     bool updateStore = false,
     bool updateUser = false,
   }) async {
     if (_isLoadingOrders) return;
-    if (updateDate) _ordersDate = date;
+    if (updateDateRange) {
+      _ordersStartDate = startDate;
+      _ordersEndDate = endDate;
+    }
     if (updateStore) _ordersStoreCode = _cleanFilter(storeCode);
     if (updateUser) _ordersUserEmail = _cleanFilter(userEmail)?.toLowerCase();
     _reportedOrdersPage = 0;
     _unreportedOrdersPage = 0;
     await loadOrderCockpit();
-  }
-
-  SalesReportQuery cockpitExportQuery(String exportType) {
-    final date = ordersDate;
-    return SalesReportQuery(
-      exportType: exportType,
-      startDate: date,
-      endDate: date,
-      reporter: _ordersUserEmail,
-      storeIds: _ordersStoreCode == null ? const [] : [_ordersStoreCode!],
-    );
   }
 
   Future<bool> submit(SalesReportInput input, User? user) async {
@@ -609,11 +595,39 @@ class SalesReportProvider extends ChangeNotifier {
       'reportedPage': query.reportedPage,
       'unreportedPage': query.unreportedPage,
       'limit': query.limit,
-      'hasDate': query.date != null,
+      'hasStartDate': query.startDate != null,
+      'hasEndDate': query.endDate != null,
+      'defaultRecentDateRange':
+          _ordersStartDate == null && _ordersEndDate == null,
       'hasStoreFilter': (query.storeCode ?? '').trim().isNotEmpty,
       'hasUserFilter': (query.userEmail ?? '').trim().isNotEmpty,
-      if (query.date != null) 'date': _dateForLog(query.date!),
+      if (query.startDate != null) 'startDate': _dateForLog(query.startDate!),
+      if (query.endDate != null) 'endDate': _dateForLog(query.endDate!),
     };
+  }
+
+  SalesReportOrdersQuery _currentOrdersQuery() {
+    return SalesReportOrdersQuery(
+      startDate: _resolvedOrdersStartDate,
+      endDate: _resolvedOrdersEndDate,
+      storeCode: _ordersStoreCode,
+      userEmail: _ordersUserEmail,
+      reportedPage: _reportedOrdersPage,
+      unreportedPage: _unreportedOrdersPage,
+      limit: _ordersLimit,
+    );
+  }
+
+  DateTime get _resolvedOrdersStartDate {
+    return _ordersStartDate ??
+        _ordersEndDate ??
+        appImplicitDateRangeStart(_now());
+  }
+
+  DateTime get _resolvedOrdersEndDate {
+    return _ordersEndDate ??
+        _ordersStartDate ??
+        appImplicitDateRangeEnd(_now());
   }
 
   String? _cleanFilter(String? value) {
@@ -719,8 +733,16 @@ class SalesReportProvider extends ChangeNotifier {
         (payload['dates'] is List ? payload['dates'] as List : const [])
             .map((value) => value.toString())
             .toSet();
-    if (dates.isNotEmpty && !dates.contains(_dateForLog(ordersDate))) {
-      return false;
+    if (dates.isNotEmpty) {
+      final start = _resolvedOrdersStartDate;
+      final end = _resolvedOrdersEndDate;
+      final overlaps = dates.any((value) {
+        final date = DateTime.tryParse(value);
+        if (date == null) return false;
+        final day = DateTime(date.year, date.month, date.day);
+        return !day.isBefore(start) && !day.isAfter(end);
+      });
+      if (!overlaps) return false;
     }
     final user = _user;
     if (user == null || user.isSuperAdmin) return user != null;

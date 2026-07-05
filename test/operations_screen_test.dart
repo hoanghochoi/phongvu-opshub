@@ -67,29 +67,28 @@ void main() {
     },
   );
 
-  testWidgets(
-    'Operations shows Báo cáo for admin sales report access without Quản trị',
-    (tester) async {
-      await _pumpOperations(
-        tester,
-        const User(
-          id: 'lead-1',
-          email: 'lead@phongvu.vn',
-          role: 'USER',
-          organizationNodeId: 'org-area-hcm',
-          featureAccess: {'ADMIN_SALES_REPORTS': true},
-        ),
-      );
+  testWidgets('Operations hides Báo cáo sale for admin-only report access', (
+    tester,
+  ) async {
+    await _pumpOperations(
+      tester,
+      const User(
+        id: 'lead-1',
+        email: 'lead@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-area-hcm',
+        featureAccess: {'ADMIN_SALES_REPORTS': true},
+      ),
+    );
 
-      final titles = tester
-          .widgetList<AppFeatureTile>(find.byType(AppFeatureTile))
-          .map((tile) => tile.action.title)
-          .toList(growable: false);
+    final titles = tester
+        .widgetList<AppFeatureTile>(find.byType(AppFeatureTile))
+        .map((tile) => tile.action.title)
+        .toList(growable: false);
 
-      expect(titles, contains('Báo cáo'));
-      expect(titles, isNot(contains('Quản trị')));
-    },
-  );
+    expect(titles, isNot(contains('Báo cáo sale')));
+    expect(titles, isNot(contains('Quản trị')));
+  });
 
   testWidgets(
     'Operations shows shared empty state when no workspace is available',

@@ -4,7 +4,7 @@ import 'package:phongvu_opshub/core/platform/app_platform_capabilities.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 
 void main() {
-  test('admin sales report access shows Báo cáo without Quản trị', () {
+  test('admin sales report access shows Quản trị without Báo cáo sale', () {
     const user = User(
       id: 'lead-1',
       email: 'lead@phongvu.vn',
@@ -20,15 +20,10 @@ void main() {
       user,
     ).map((destination) => destination.label);
 
-    expect(workspaceLabels, contains('Báo cáo'));
-    expect(sidebarLabels, contains('Báo cáo'));
+    expect(workspaceLabels, isNot(contains('Báo cáo sale')));
+    expect(sidebarLabels, isNot(contains('Báo cáo sale')));
     expect(workspaceLabels, isNot(contains('Quản trị')));
-    expect(sidebarLabels, isNot(contains('Quản trị')));
-
-    final salesDestination = AppNavModel.visibleWorkspaceDestinations(
-      user,
-    ).singleWhere((destination) => destination.id == 'sales');
-    expect(salesDestination.route, '/reports');
+    expect(sidebarLabels, contains('Quản trị'));
   });
 
   test('scoped staff only sees allowed workspaces', () {
@@ -101,20 +96,37 @@ void main() {
     expect(destination?.label, 'Sắp xếp FIFO');
   });
 
-  test('admin sales report route stays inside Báo cáo workspace', () {
+  test('admin sales report route stays inside Quản trị workspace', () {
     final destination = AppNavModel.destinationForLocation(
       '/admin/sales-reports',
     );
 
-    expect(destination?.id, 'sales');
-    expect(destination?.label, 'Báo cáo');
+    expect(destination?.id, 'admin');
+    expect(destination?.label, 'Quản trị');
   });
 
   test('generic report route selects Báo cáo workspace', () {
     final destination = AppNavModel.destinationForLocation('/reports');
 
     expect(destination?.id, 'sales');
-    expect(destination?.label, 'Báo cáo');
+    expect(destination?.label, 'Báo cáo sale');
+  });
+
+  test('sales report destination opens the cockpit directly', () {
+    const user = User(
+      id: 'sale-1',
+      email: 'sale@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-store-cp01',
+      featureAccess: {'SALES_REPORT': true},
+    );
+
+    final destination = AppNavModel.visibleWorkspaceDestinations(
+      user,
+    ).singleWhere((item) => item.id == 'sales');
+
+    expect(destination.label, 'Báo cáo sale');
+    expect(destination.route, '/sales-reports');
   });
 
   test('warranty detail route stays inside BH SC workspace', () {
@@ -193,7 +205,7 @@ void main() {
     ]);
     expect(sections[0].destinations.map((item) => item.label), [
       'VietQR',
-      'Báo cáo',
+      'Báo cáo sale',
       if (AppPlatformCapabilities.isPaymentMonitorSupported()) 'Tiền vào',
     ]);
     expect(sections[1].destinations.map((item) => item.label), [

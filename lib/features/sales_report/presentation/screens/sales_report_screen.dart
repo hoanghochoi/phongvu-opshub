@@ -20,7 +20,6 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../fifo_check/presentation/widgets/barcode_scanner_screen.dart';
 import '../../domain/sales_report.dart';
 import '../providers/sales_report_provider.dart';
-import '../widgets/sales_report_export_menu.dart';
 import '../widgets/sales_report_workspace_header.dart';
 
 const _typePurchased = 'PURCHASED';
@@ -173,36 +172,26 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     context.push(route);
   }
 
-  Future<void> _openAdminReports() async {
+  Future<void> _setOrdersDateRange(DateTime? start, DateTime? end) async {
+    final provider = context.read<SalesReportProvider>();
     final user = context.read<AuthProvider>().user;
     await AppLogger.instance.info(
       'SalesReport',
-      'Sales report admin list action selected',
+      'Sales report order date range changed',
       context: {
-        'route': '/admin/sales-reports',
         'userId': user?.id,
         'storeId': user?.storeId,
-        'hasAdminSalesReports':
-            user?.canUseFeature('ADMIN_SALES_REPORTS') == true,
+        'hasExplicitRange': start != null || end != null,
+        'hasStartDate': start != null,
+        'hasEndDate': end != null,
       },
     );
     if (!mounted) return;
-    context.push('/admin/sales-reports');
-  }
-
-  Future<void> _selectOrdersDate() async {
-    final provider = context.read<SalesReportProvider>();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: provider.ordersDate,
-      firstDate: DateTime(2024),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
-      helpText: 'Chọn ngày báo cáo',
-      cancelText: 'Hủy',
-      confirmText: 'Chọn',
+    await provider.setOrderFilters(
+      startDate: start,
+      endDate: end,
+      updateDateRange: true,
     );
-    if (picked == null || !mounted) return;
-    await provider.setOrderFilters(date: picked, updateDate: true);
   }
 
   Future<void> _openPurchasedDialog(SalesReportOrderCockpitItem order) async {
@@ -251,9 +240,6 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     final canSubmitReports = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('SALES_REPORT') == true,
     );
-    final canViewAdminReports = context.select<AuthProvider, bool>(
-      (auth) => auth.user?.canUseFeature('ADMIN_SALES_REPORTS') == true,
-    );
     final provider = context.watch<SalesReportProvider>();
     return AppResponsiveScrollView(
       maxWidth: AppLayoutTokens.pageMaxWidth,
@@ -275,12 +261,6 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                   label: '${provider.reportedOrdersTotal} đã báo cáo',
                   color: AppColors.success,
                 ),
-                AppStatusChip(
-                  label: canViewAdminReports ? 'Có quyền xuất file' : 'Cá nhân',
-                  color: canViewAdminReports
-                      ? AppColors.primary
-                      : AppColors.neutral600,
-                ),
               ],
             ),
             const SizedBox(height: AppLayoutTokens.cardGap),
@@ -288,21 +268,14 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           _SalesReportCockpit(
             provider: provider,
             canSubmitReports: canSubmitReports,
-            canViewAdminReports: canViewAdminReports,
             onNotPurchased: canSubmitReports
                 ? () => _openReport(
                     '/sales-reports/not-purchased',
                     _typeNotPurchased,
                   )
                 : null,
-            onOpenAdmin: canViewAdminReports ? _openAdminReports : null,
             onReload: () => provider.loadOrderCockpit(),
-            onSelectDate: _selectOrdersDate,
-            onExportCsv: canViewAdminReports
-                ? (exportType) => provider.exportCsv(
-                    query: provider.cockpitExportQuery(exportType),
-                  )
-                : null,
+            onSelectDateRange: _setOrdersDateRange,
             onOrderTap: canSubmitReports ? _openPurchasedDialog : null,
           ),
         ],
@@ -314,23 +287,17 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 class _SalesReportCockpit extends StatefulWidget {
   final SalesReportProvider provider;
   final bool canSubmitReports;
-  final bool canViewAdminReports;
   final VoidCallback? onNotPurchased;
-  final VoidCallback? onOpenAdmin;
   final VoidCallback onReload;
-  final VoidCallback onSelectDate;
-  final ValueChanged<String>? onExportCsv;
+  final void Function(DateTime? start, DateTime? end) onSelectDateRange;
   final ValueChanged<SalesReportOrderCockpitItem>? onOrderTap;
 
   const _SalesReportCockpit({
     required this.provider,
     required this.canSubmitReports,
-    required this.canViewAdminReports,
     required this.onNotPurchased,
-    required this.onOpenAdmin,
     required this.onReload,
-    required this.onSelectDate,
-    required this.onExportCsv,
+    required this.onSelectDateRange,
     required this.onOrderTap,
   });
 
@@ -350,7 +317,6 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
         'userId': user?.id,
         'storeId': user?.storeId,
         'managedScope': widget.provider.orderCockpit?.scope == 'MANAGED_SCOPE',
-        'canExport': widget.canViewAdminReports,
       },
     );
     if (!mounted) return;
@@ -366,10 +332,7 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
             builder: (context, provider, _) {
               return _AdvancedFilterSheet(
                 provider: provider,
-                canViewAdminReports: widget.canViewAdminReports,
-                onSelectDate: widget.onSelectDate,
-                onExportCsv: widget.onExportCsv,
-                onOpenAdmin: widget.onOpenAdmin,
+                onSelectDateRange: widget.onSelectDateRange,
               );
             },
           ),
@@ -385,7 +348,9 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
       context: {
         'userId': user?.id,
         'storeId': user?.storeId,
-        'date': _dateLabel(widget.provider.ordersDate),
+        'hasExplicitDateRange':
+            widget.provider.ordersStartDate != null ||
+            widget.provider.ordersEndDate != null,
         'storeSelected': widget.provider.ordersStoreCode != null,
         'userSelected': widget.provider.ordersUserEmail != null,
       },
@@ -396,22 +361,18 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
   Widget build(BuildContext context) {
     final provider = widget.provider;
     final cockpit = provider.orderCockpit;
-    final hasListAction =
-        widget.canViewAdminReports && widget.onOpenAdmin != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _CockpitHero(
           unreportedTotal: provider.unreportedOrdersTotal,
           reportedTotal: provider.reportedOrdersTotal,
-          isExporting: provider.isExporting,
-          onExportCsv: widget.canViewAdminReports ? widget.onExportCsv : null,
         ),
         const SizedBox(height: AppLayoutTokens.cardGap),
         _QuickFilterBar(
           provider: provider,
           isManagedScope: cockpit?.scope == 'MANAGED_SCOPE',
-          onSelectDate: widget.onSelectDate,
+          onSelectDateRange: widget.onSelectDateRange,
           onReload: widget.onReload,
           onOpenAdvancedFilters: _openAdvancedFilters,
         ),
@@ -422,16 +383,7 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
             icon: Icons.person_search_outlined,
             label: 'Báo cáo chưa mua',
           ),
-        if (hasListAction) ...[
-          if (widget.canSubmitReports)
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
-          AppSecondaryButton(
-            onPressed: widget.onOpenAdmin,
-            icon: Icons.assignment_outlined,
-            label: 'Danh sách',
-          ),
-        ],
-        if (widget.canSubmitReports || hasListAction)
+        if (widget.canSubmitReports)
           const SizedBox(height: AppLayoutTokens.cardGap),
         if (provider.errorMessage != null) ...[
           AppStatusBanner(
@@ -524,24 +476,15 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
       ],
     );
   }
-
-  String _dateLabel(DateTime value) {
-    String two(int part) => part.toString().padLeft(2, '0');
-    return '${two(value.day)}/${two(value.month)}/${value.year}';
-  }
 }
 
 class _CockpitHero extends StatelessWidget {
   final int unreportedTotal;
   final int reportedTotal;
-  final bool isExporting;
-  final ValueChanged<String>? onExportCsv;
 
   const _CockpitHero({
     required this.unreportedTotal,
     required this.reportedTotal,
-    required this.isExporting,
-    required this.onExportCsv,
   });
 
   @override
@@ -572,16 +515,6 @@ class _CockpitHero extends StatelessWidget {
               backgroundColor: AppColors.successSurface,
             ),
           ),
-          if (onExportCsv != null) ...[
-            const SizedBox(width: AppLayoutTokens.formInlineGap),
-            SizedBox(
-              width: 112,
-              child: SalesReportExportMenuButton(
-                isExporting: isExporting,
-                onExport: onExportCsv!,
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -662,14 +595,14 @@ class _MetricTile extends StatelessWidget {
 class _QuickFilterBar extends StatelessWidget {
   final SalesReportProvider provider;
   final bool isManagedScope;
-  final VoidCallback onSelectDate;
+  final void Function(DateTime? start, DateTime? end) onSelectDateRange;
   final VoidCallback onReload;
   final VoidCallback onOpenAdvancedFilters;
 
   const _QuickFilterBar({
     required this.provider,
     required this.isManagedScope,
-    required this.onSelectDate,
+    required this.onSelectDateRange,
     required this.onReload,
     required this.onOpenAdvancedFilters,
   });
@@ -679,11 +612,13 @@ class _QuickFilterBar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 620;
-        final dateButton = AppSecondaryButton(
-          onPressed: provider.isLoadingOrders ? null : onSelectDate,
-          icon: Icons.calendar_today_outlined,
-          label: 'Ngày: ${_dateLabel(provider.ordersDate)}',
-          height: 44,
+        final dateRangeFilter = AppDateRangeDropdown(
+          key: const Key('sales-report-orders-date-range'),
+          label: 'Ngày',
+          start: provider.ordersStartDate,
+          end: provider.ordersEndDate,
+          onChanged: onSelectDateRange,
+          now: () => provider.currentDate,
         );
         final storeFilter = isManagedScope
             ? AppFilterDropdown<String>(
@@ -730,7 +665,7 @@ class _QuickFilterBar extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Expanded(child: dateButton),
+                  Expanded(child: dateRangeFilter),
                   const SizedBox(width: AppLayoutTokens.formInlineGap),
                   SizedBox(width: 96, child: filterButton),
                 ],
@@ -752,7 +687,7 @@ class _QuickFilterBar extends StatelessWidget {
           runSpacing: AppLayoutTokens.formInlineGap,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            SizedBox(width: 190, child: dateButton),
+            SizedBox(width: 240, child: dateRangeFilter),
             SizedBox(width: 220, child: storeFilter),
             SizedBox(width: 120, child: filterButton),
             SizedBox(width: 150, child: reloadButton),
@@ -760,11 +695,6 @@ class _QuickFilterBar extends StatelessWidget {
         );
       },
     );
-  }
-
-  static String _dateLabel(DateTime value) {
-    String two(int part) => part.toString().padLeft(2, '0');
-    return '${two(value.day)}/${two(value.month)}/${value.year}';
   }
 }
 
@@ -810,17 +740,11 @@ class _ReadonlyFilterPill extends StatelessWidget {
 
 class _AdvancedFilterSheet extends StatelessWidget {
   final SalesReportProvider provider;
-  final bool canViewAdminReports;
-  final VoidCallback onSelectDate;
-  final ValueChanged<String>? onExportCsv;
-  final VoidCallback? onOpenAdmin;
+  final void Function(DateTime? start, DateTime? end) onSelectDateRange;
 
   const _AdvancedFilterSheet({
     required this.provider,
-    required this.canViewAdminReports,
-    required this.onSelectDate,
-    required this.onExportCsv,
-    required this.onOpenAdmin,
+    required this.onSelectDateRange,
   });
 
   @override
@@ -853,11 +777,13 @@ class _AdvancedFilterSheet extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: AppLayoutTokens.formInlineGap),
-              AppSecondaryButton(
-                onPressed: provider.isLoadingOrders ? null : onSelectDate,
-                icon: Icons.calendar_today_outlined,
-                label:
-                    'Ngày: ${_QuickFilterBar._dateLabel(provider.ordersDate)}',
+              AppDateRangeDropdown(
+                key: const Key('sales-report-orders-date-range-advanced'),
+                label: 'Ngày',
+                start: provider.ordersStartDate,
+                end: provider.ordersEndDate,
+                onChanged: onSelectDateRange,
+                now: () => provider.currentDate,
               ),
               const SizedBox(height: AppLayoutTokens.formInlineGap),
               if (managedScope)
@@ -907,24 +833,6 @@ class _AdvancedFilterSheet extends StatelessWidget {
                       updateUser: true,
                     ),
                   ),
-                ),
-              ],
-              if (canViewAdminReports && onExportCsv != null) ...[
-                const SizedBox(height: AppLayoutTokens.formInlineGap),
-                SalesReportExportMenuButton(
-                  isExporting: provider.isExporting,
-                  onExport: onExportCsv!,
-                ),
-              ],
-              if (canViewAdminReports && onOpenAdmin != null) ...[
-                const SizedBox(height: AppLayoutTokens.formInlineGap),
-                AppSecondaryButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(false);
-                    onOpenAdmin!();
-                  },
-                  icon: Icons.assignment_outlined,
-                  label: 'Danh sách báo cáo',
                 ),
               ],
               const SizedBox(height: AppLayoutTokens.sectionGap),

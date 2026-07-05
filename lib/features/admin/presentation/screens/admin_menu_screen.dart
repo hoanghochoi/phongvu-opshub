@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +8,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
@@ -74,6 +77,27 @@ class AdminMenuScreen extends StatelessWidget {
           description: 'Chỉ tiêu theo tháng và showroom',
           color: AppColors.teal600,
           onTap: () => context.push('/admin/sales-targets'),
+        ),
+      if (canUse('ADMIN_SALES_REPORTS'))
+        AppFeatureAction(
+          icon: Icons.table_chart_outlined,
+          title: 'Danh sách báo cáo sale',
+          description: 'Lọc danh sách và xuất file',
+          color: AppColors.teal600,
+          onTap: () {
+            unawaited(
+              AppLogger.instance.info(
+                'Admin',
+                'Sales report admin list selected',
+                context: {
+                  'route': '/admin/sales-reports',
+                  'userId': user?.id,
+                  'storeId': user?.storeId,
+                },
+              ),
+            );
+            context.push('/admin/sales-reports');
+          },
         ),
       if (isSuperAdmin)
         AppFeatureAction(

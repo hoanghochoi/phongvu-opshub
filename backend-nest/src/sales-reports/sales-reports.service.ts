@@ -87,7 +87,8 @@ type SalesReportFilters = {
 };
 
 type SalesReportOrderCockpitFilters = {
-  date: string;
+  startDate: string;
+  endDate: string;
   dateRange: { start: Date; end: Date };
   storeCode: string | null;
   userEmail: string | null;
@@ -1013,10 +1014,13 @@ export class SalesReportsService implements OnApplicationBootstrap {
     );
 
     this.logger.log(
-      `Sales report order cockpit loaded from cache: user=${this.safeUserLabel(user)} date=${filters.date} admin=${adminView} hasStoreFilter=${Boolean(filters.storeCode)} hasUserFilter=${Boolean(filters.userEmail)} storeOptionCount=${filterOptions.stores.length} userOptionCount=${filterOptions.users.length} reported=${reportedOrders.length}/${reportedTotal} unreported=${unreportedOrders.length}/${unreportedTotal} reportedPage=${filters.reportedPage} unreportedPage=${filters.unreportedPage} limit=${filters.limit}`,
+      `Sales report order cockpit loaded from cache: user=${this.safeUserLabel(user)} startDate=${filters.startDate} endDate=${filters.endDate} admin=${adminView} hasStoreFilter=${Boolean(filters.storeCode)} hasUserFilter=${Boolean(filters.userEmail)} storeOptionCount=${filterOptions.stores.length} userOptionCount=${filterOptions.users.length} reported=${reportedOrders.length}/${reportedTotal} unreported=${unreportedOrders.length}/${unreportedTotal} reportedPage=${filters.reportedPage} unreportedPage=${filters.unreportedPage} limit=${filters.limit}`,
     );
     return {
-      date: filters.date,
+      // Giữ `date` trong response để client cũ tiếp tục đọc được ngày cuối.
+      date: filters.endDate,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
       refreshedAt: new Date(),
       syncSucceeded: true,
       syncError: null,
@@ -1334,9 +1338,29 @@ export class SalesReportsService implements OnApplicationBootstrap {
   private normalizeOrderCockpitFilters(
     query: ListSalesReportOrdersDto,
   ): SalesReportOrderCockpitFilters {
-    const date = this.parseDateParam(query.date) ?? this.todayVietnamDate();
-    const start = new Date(`${date}T00:00:00.000+07:00`);
-    const end = new Date(start);
+    const legacyDate = this.parseDateParam(query.date);
+    const requestedStartDate =
+      this.parseDateParam(query.startDate) ?? legacyDate;
+    const requestedEndDate = this.parseDateParam(query.endDate) ?? legacyDate;
+    let startDate: string;
+    let endDate: string;
+    if (!requestedStartDate && !requestedEndDate) {
+      endDate = this.todayVietnamDate();
+      const implicitStart = new Date(`${endDate}T00:00:00.000+07:00`);
+      implicitStart.setDate(implicitStart.getDate() - 29);
+      startDate = this.formatVietnamDate(implicitStart);
+    } else {
+      const fallbackDate = requestedStartDate ?? requestedEndDate!;
+      startDate = requestedStartDate ?? fallbackDate;
+      endDate = requestedEndDate ?? fallbackDate;
+    }
+    if (startDate > endDate) {
+      throw new BadRequestException(
+        'Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.',
+      );
+    }
+    const start = new Date(`${startDate}T00:00:00.000+07:00`);
+    const end = new Date(`${endDate}T00:00:00.000+07:00`);
     end.setDate(end.getDate() + 1);
     const normalizeNumber = (value: unknown, fallback: number) => {
       const normalized = Math.trunc(Number(value ?? fallback));
@@ -1347,7 +1371,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
       Math.min(100, normalizeNumber(query.limit, DEFAULT_ORDER_COCKPIT_LIMIT)),
     );
     return {
-      date,
+      startDate,
+      endDate,
       dateRange: { start, end },
       storeCode: this.normalizeStoreCode(query.storeCode),
       userEmail: this.normalizeEmail(query.userEmail),

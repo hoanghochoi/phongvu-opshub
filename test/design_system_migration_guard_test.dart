@@ -398,13 +398,13 @@ void main() {
     ).readAsStringSync();
 
     const requiredRouteMarkers = <String>[
-      'ReportWorkspaceScreen',
       "path: '/reports'",
+      "redirect: (context, state) => '/sales-reports'",
       'PersonnelCatalogAdminScreen',
       "path: '/admin/personnel'",
       'SalesTargetAdminScreen',
       "path: '/admin/sales-targets'",
-      "'/reports' => 'SALES_REPORT_HUB'",
+      "'/reports' => 'SALES_REPORT'",
       "'/admin/personnel' => 'ADMIN_PERSONNEL'",
       "'/admin/sales-targets' => 'ADMIN_SALES_TARGETS'",
     ];
