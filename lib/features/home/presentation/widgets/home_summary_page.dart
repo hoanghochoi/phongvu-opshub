@@ -1070,6 +1070,7 @@ class _HomeQuickToolTile extends StatelessWidget {
           child: Row(
             children: [
               Container(
+                key: ValueKey('home-quick-tool-icon-${action.id}'),
                 width: 44,
                 height: 44,
                 alignment: Alignment.center,
@@ -1082,6 +1083,8 @@ class _HomeQuickToolTile extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
+                  key: ValueKey('home-quick-tool-content-${action.id}'),
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(

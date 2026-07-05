@@ -132,6 +132,43 @@ void main() {
     },
   );
 
+  testWidgets('Quick tool icon and text block share the same vertical center', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 1200,
+              child: HomeOperationsShortcutCard(
+                actions: [
+                  HomeQuickToolAction(
+                    id: 'reports',
+                    title: 'Tổng hợp ngày',
+                    description: 'Xem tổng hợp và chi tiết báo cáo',
+                    icon: Icons.description_outlined,
+                    color: Colors.teal,
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final iconCenter = tester.getCenter(
+      find.byKey(const Key('home-quick-tool-icon-reports')),
+    );
+    final contentCenter = tester.getCenter(
+      find.byKey(const Key('home-quick-tool-content-reports')),
+    );
+
+    expect((iconCenter.dy - contentCenter.dy).abs(), lessThanOrEqualTo(0.5));
+  });
+
   testWidgets('Home dashboard shows neutral unavailable state from scope API', (
     tester,
   ) async {
