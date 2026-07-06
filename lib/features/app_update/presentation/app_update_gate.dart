@@ -612,6 +612,12 @@ class _UpdatePromptOverlay extends StatelessWidget {
                       Text(
                         'Phiên bản mới: ${updateInfo.latestVersion}+${updateInfo.latestBuild}',
                       ),
+                      if (!shouldReload) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          'Sau khi cập nhật xong, hãy mở lại ứng dụng để dùng phiên bản mới.',
+                        ),
+                      ],
                       if (updateInfo.releaseNotes.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         Text(updateInfo.releaseNotes),

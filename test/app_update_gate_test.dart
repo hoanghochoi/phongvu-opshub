@@ -83,6 +83,12 @@ void main() {
 
     expect(find.text('Cần cập nhật ứng dụng'), findsOneWidget);
     expect(find.text('Để sau'), findsNothing);
+    expect(
+      find.text(
+        'Sau khi cập nhật xong, hãy mở lại ứng dụng để dùng phiên bản mới.',
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Cập nhật'));
     await tester.pump();
@@ -113,6 +119,12 @@ void main() {
 
     expect(find.text('Có bản web mới'), findsOneWidget);
     expect(find.text('Tải lại'), findsOneWidget);
+    expect(
+      find.text(
+        'Sau khi cập nhật xong, hãy mở lại ứng dụng để dùng phiên bản mới.',
+      ),
+      findsNothing,
+    );
     expect(find.byIcon(Icons.refresh_rounded), findsOneWidget);
     expect(find.byIcon(Icons.download_rounded), findsNothing);
 
