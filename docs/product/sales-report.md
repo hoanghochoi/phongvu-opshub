@@ -45,10 +45,10 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Cockpit dùng daterange chung `Ngày` cùng `SR`/`Nhân viên`/`Tải lại` và giữ hai
   thao tác nghiệp vụ nằm ngang nhau: `Báo cáo mua thủ công` mở form mua hàng để
   sale tự nhập/quét mã đơn, còn `Báo cáo chưa mua` mở form khách chưa mua; không
-  lặp lại nút xuất file hay lối vào danh sách. Khi không chọn khoảng ngày, UI
-  giữ nhãn `Tất cả ngày`, hiện dòng nhắc và truy vấn 30 ngày gần nhất theo
-  contract chung. Bộ lọc `SR`/`Nhân viên` chỉ hiện với scope quản lý, lấy option
-  từ cache/report trong phạm vi user được phép xem.
+  lặp lại nút xuất file hay lối vào danh sách. Khi mở cockpit, bộ lọc `Ngày` mặc
+  định chọn ngày hiện tại và request đầu tiên gửi cùng ngày bắt đầu/kết thúc,
+  đồng bộ với Trang chủ. Bộ lọc `SR`/`Nhân viên` chỉ hiện với scope quản lý,
+  lấy option từ cache/report trong phạm vi user được phép xem.
 - Backend tự đồng bộ danh sách đơn từ staff-bff ERP mỗi 3 phút và khi service
   khởi động, map `creator.email` sang user nội bộ cùng showroom/node tổ chức
   được gán, rồi upsert snapshot rút gọn vào bảng cache riêng. Mapping này diễn
@@ -64,10 +64,13 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   nhu cầu, loại khách, ngành hàng và thông tin đơn cần thiết.
 - Menu `Quản trị` hiển thị `Danh sách báo cáo bán hàng` khi user có
   `ADMIN_SALES_REPORTS`; đây là nơi duy nhất lọc danh sách và xuất file.
-- Màn hình danh sách báo cáo bán hàng của admin lọc danh sách và CSV theo loại báo cáo và
-  khoảng `Từ ngày` / `Đến ngày` dựa trên thời điểm gửi báo cáo (`submittedAt`).
-  Nếu admin không chọn khoảng ngày, app vẫn giữ label `Tất cả ngày` nhưng mặc
-  định truy vấn/xuất 30 ngày gần nhất và hiện dòng nhắc nhỏ để tránh hiểu nhầm.
+- Màn hình danh sách báo cáo bán hàng của admin lọc danh sách và CSV theo loại
+  báo cáo và khoảng `Từ ngày` / `Đến ngày` dựa trên thời điểm gửi báo cáo
+  (`submittedAt`). Khi mở màn hình, bộ lọc ngày mặc định là ngày hiện tại giống
+  Trang chủ/cockpit. Người dùng chọn `Chọn khoảng ngày` để chọn cả hai mốc trong
+  một range picker rồi áp dụng một lần; nếu chủ động chọn `Tất cả ngày`, app vẫn
+  mặc định truy vấn/xuất 30 ngày gần nhất và hiện dòng nhắc nhỏ để tránh hiểu
+  nhầm.
   Admin xuất được 3 file tiếng Việt: `HVTC` là mỗi dòng một báo cáo mua/chưa
   mua; `Doanh số` là một dòng tổng hợp doanh thu/số lượng theo type ngành hàng;
   `Trả góp` chỉ lấy báo cáo có `installmentNeed = true`.

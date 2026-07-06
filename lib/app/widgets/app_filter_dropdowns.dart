@@ -434,10 +434,12 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _DatePresetTile(
-                  label: 'Hôm nay',
+                  label: 'Hôm qua',
                   onTap: () {
-                    final today = _today();
-                    choose(today, today);
+                    final yesterday = _today().subtract(
+                      const Duration(days: 1),
+                    );
+                    choose(yesterday, yesterday);
                   },
                 ),
                 _DatePresetTile(
@@ -467,28 +469,22 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
                     onTap: () => choose(null, null),
                   ),
                 const Divider(),
+                OutlinedButton.icon(
+                  onPressed: () => _pickDateRange(context),
+                  icon: const Icon(Icons.date_range_rounded),
+                  label: const Text('Chọn khoảng ngày'),
+                ),
+                const SizedBox(height: 12),
                 AppDateTextField(
                   controller: _startController,
                   label: 'Từ ngày',
                   dense: true,
-                  onPickDate: () => _pickDateFor(
-                    context,
-                    controller: _startController,
-                    fallback: widget.start ?? widget.end,
-                    setMenuState: setMenuState,
-                  ),
                 ),
                 const SizedBox(height: 8),
                 AppDateTextField(
                   controller: _endController,
                   label: 'Đến ngày',
                   dense: true,
-                  onPickDate: () => _pickDateFor(
-                    context,
-                    controller: _endController,
-                    fallback: widget.end ?? widget.start,
-                    setMenuState: setMenuState,
-                  ),
                 ),
                 if (_errorText != null) ...[
                   const SizedBox(height: 8),
@@ -556,26 +552,35 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
     return appImplicitDateRangeHelperText();
   }
 
-  Future<void> _pickDateFor(
-    BuildContext context, {
-    required TextEditingController controller,
-    required void Function(VoidCallback fn) setMenuState,
-    DateTime? fallback,
-  }) async {
-    final typedDate = appParseDateInput(controller.text);
-    final now = _today();
-    final initial = typedDate ?? fallback ?? now;
-    final picked = await showDatePicker(
+  Future<void> _pickDateRange(BuildContext context) async {
+    final today = _today();
+    final typedStart = appParseDateInput(_startController.text);
+    final typedEnd = appParseDateInput(_endController.text);
+    final initialStart = typedStart ?? widget.start ?? widget.end ?? today;
+    final candidateEnd = typedEnd ?? widget.end ?? widget.start ?? initialStart;
+    final initialEnd = candidateEnd.isBefore(initialStart)
+        ? initialStart
+        : candidateEnd;
+    final picked = await showDateRangePicker(
       context: context,
-      initialDate: initial,
+      initialDateRange: DateTimeRange(start: initialStart, end: initialEnd),
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
+      helpText: 'Chọn khoảng ngày',
+      cancelText: 'Hủy',
+      confirmText: 'Áp dụng',
+      saveText: 'Áp dụng',
+      fieldStartLabelText: 'Từ ngày',
+      fieldEndLabelText: 'Đến ngày',
+      errorInvalidRangeText: 'Ngày kết thúc phải sau ngày bắt đầu',
     );
-    if (picked == null) return;
-    setMenuState(() {
-      controller.text = appFormatDateInput(picked);
-      _errorText = null;
-    });
+    if (picked == null || !mounted) return;
+    final start = _dateOnly(picked.start);
+    final end = _dateOnly(picked.end);
+    _startController.text = appFormatDateInput(start);
+    _endController.text = appFormatDateInput(end);
+    setState(() => _errorText = null);
+    widget.onChanged(start, end);
   }
 }
 

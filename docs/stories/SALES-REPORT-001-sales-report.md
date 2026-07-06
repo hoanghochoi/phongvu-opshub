@@ -17,8 +17,8 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   nằm ngang `Báo cáo mua thủ công` và `Báo cáo chưa mua`, cùng `Tải lại`;
   xuất file/danh sách thuộc màn quản trị riêng.
 - Cockpit lọc theo daterange `Ngày`, `SR` và `User`; filter `SR`/`User` chỉ hiện
-  trong scope quản lý. Khoảng ngày trống mặc định truy vấn 30 ngày gần nhất và
-  phải hiện helper text giải thích.
+  trong scope quản lý. Khi mở màn hình, daterange mặc định là ngày hiện tại
+  giống Trang chủ và request đầu tiên gửi ngày bắt đầu/kết thúc cùng ngày đó.
 - Backend tự đồng bộ danh sách đơn ERP từ staff-bff theo ngày mỗi 3 phút và khi
   service khởi động, mặc định 50 đơn, rồi upsert snapshot rút gọn vào bảng
   cache riêng. Ngay trong lần sync, backend map `creator.email` sang user nội
@@ -95,9 +95,10 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 - OpsHub sync dữ liệu báo cáo sang BigQuery bằng ba bảng report/item/payment
   để Looker Studio đọc từ BigQuery. Sync chạy nền khi bật env và có endpoint
   admin `POST /api/sales-reports/admin/bigquery-sync` để chạy thủ công.
-- Khi admin để filter `Ngày` ở trạng thái trống, UI vẫn hiển thị `Tất cả ngày`
-  nhưng query/export mặc định chỉ lấy 30 ngày gần nhất và hiện dòng nhắc nhỏ
-  để người dùng biết đây không phải toàn bộ lịch sử.
+- Danh sách báo cáo admin mặc định chọn ngày hiện tại. Bộ lọc dùng một action
+  `Chọn khoảng ngày` để chọn cả `Từ ngày` và `Đến ngày` trong cùng một range
+  picker rồi áp dụng một lần; nếu admin chủ động chọn `Tất cả ngày`, query/export
+  mặc định lấy 30 ngày gần nhất và hiện dòng nhắc giải thích fallback này.
 - Ngành hàng lấy từ `data/categories.csv`, hiển thị tiếng Việt và lưu snapshot
   song song code/tên gốc/tên Việt.
 - Không có payload nhập tay `MSNV`.

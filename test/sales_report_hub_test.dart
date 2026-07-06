@@ -240,18 +240,20 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Ngày: Tất cả ngày'), findsOneWidget);
+    expect(find.text('Ngày: 01/07/2026'), findsOneWidget);
     expect(
       find.text(
         'Không chọn khoảng ngày: hệ thống mặc định lấy 30 ngày gần nhất.',
       ),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text('Showroom: Tất cả'), findsOneWidget);
     expect(find.text('Nhân viên: Tất cả'), findsNothing);
     expect(find.text('Lọc'), findsOneWidget);
+    expect(repository.lastOrdersQuery?.startDate, DateTime(2026, 7, 1));
+    expect(repository.lastOrdersQuery?.endDate, DateTime(2026, 7, 1));
 
-    await tester.tap(find.text('Ngày: Tất cả ngày'));
+    await tester.tap(find.text('Ngày: 01/07/2026'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('7 ngày'));
     await tester.pumpAndSettle();
@@ -637,16 +639,16 @@ void main() {
       findsOneWidget,
     );
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.text('Ngày: Tất cả ngày'), findsOneWidget);
+    expect(find.text('Ngày: 04/07/2026'), findsOneWidget);
     expect(
       find.text(
         'Không chọn khoảng ngày: hệ thống mặc định lấy 30 ngày gần nhất.',
       ),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text('Loại: Tất cả'), findsOneWidget);
     expect(find.text('Xuất file'), findsOneWidget);
-    expect(repository.lastListQuery?.startDate, DateTime(2026, 6, 5));
+    expect(repository.lastListQuery?.startDate, DateTime(2026, 7, 4));
     expect(repository.lastListQuery?.endDate, DateTime(2026, 7, 4));
 
     await tester.tap(find.text('Xuất file'));
@@ -655,14 +657,10 @@ void main() {
     expect(find.text('Doanh số'), findsOneWidget);
     expect(find.text('Trả góp'), findsOneWidget);
 
-    await tester.tap(find.text('Ngày: Tất cả ngày'));
+    await tester.tap(find.text('Ngày: 04/07/2026'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Hôm nay'));
-    await tester.pumpAndSettle();
-
-    expect(repository.fetchListCount, 2);
-    expect(repository.lastListQuery?.startDate, DateTime(2026, 7, 4));
-    expect(repository.lastListQuery?.endDate, DateTime(2026, 7, 4));
+    expect(find.text('Chọn khoảng ngày'), findsOneWidget);
+    expect(find.byTooltip('Chọn ngày'), findsNothing);
   });
 
   testWidgets('Sales report export menu emits selected export type', (

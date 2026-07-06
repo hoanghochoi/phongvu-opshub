@@ -122,6 +122,15 @@ Recent focused evidence:
   tự nhập/quét và kiểm tra mã đơn qua ERP trước khi gửi; không thay đổi loại
   báo cáo hay nới validation backend. Validation: focused Flutter sales-report
   widget test, `flutter analyze --no-pub`, và `git diff --check`.
+- `SALES-REPORT-001`/`UI-UX-001`, 2026-07-07: Cockpit và danh sách quản trị
+  `Báo cáo bán hàng` mặc định chọn ngày hiện tại giống Trang chủ; request đầu
+  tiên gửi ngày bắt đầu/kết thúc cùng ngày đó. `AppDateRangeDropdown` thay hai
+  date picker riêng bằng một action `Chọn khoảng ngày`, cho phép chọn cả hai mốc
+  và áp dụng một lần trong range picker; preset nhanh đổi từ `Hôm nay` sang
+  `Hôm qua` vì màn mặc định đã là ngày hiện tại, còn nhập tay vẫn được giữ.
+  Validation: focused Flutter date-range/sales-report widget tests, shared
+  consumer regression tests cho Home/Sao kê/Cấn trừ/Tiền vào,
+  `flutter analyze --no-pub`, và `git diff --check`.
 - `HOME-DASHBOARD-002`/`SALES-REPORT-001`, 2026-07-06: Dashboard đưa
   `Tổng quan` lên đầu với donut báo cáo, sao kê và doanh số ngày/tuần/tháng;
   bỏ progress bar, đồng bộ chiều cao KPI và bổ sung các icon còn thiếu. Doanh

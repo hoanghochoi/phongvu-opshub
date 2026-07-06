@@ -168,11 +168,15 @@ visual systems that make the app feel assembled from unrelated screens.
 ## Filter Controls
 
 - List, report, and admin-index filters must use dropdowns or anchored menus.
-  Do not open dialogs for filter selection.
+  Do not open dialogs for ordinary single-select filters; the shared date-range
+  control may open one dedicated range picker so both dates are confirmed once.
 - Rút gọn toàn bộ các selector showroom riêng lẻ. Mọi luồng cần chọn Showroom trong app (VietQR, Tiền vào, Sao kê, Cấn trừ) bắt buộc phải tái sử dụng component duy nhất `ShowroomPicker` có hỗ trợ tìm kiếm nội bộ và giới hạn chiều cao hiển thị để đảm bảo nhất quán trải nghiệm.
-- Date range filters must use one shared dropdown component with common presets
-  and inline custom start/end controls. Do not use date-picker dialogs for
-  list filters.
+- Date range filters must use one shared dropdown component with common presets,
+  one `Chọn khoảng ngày` action that selects both start/end in a single range
+  picker, and inline custom start/end inputs for exact manual entry. Do not use
+  two separate single-date picker dialogs that force users to reopen a filter.
+  When a screen already defaults to today, the first quick preset should be
+  `Hôm qua` instead of repeating `Hôm nay`.
 - Any staff-facing manual date input, including filters and form fields, uses
   visible format `dd/mm/yyyy` and auto-inserts `/` separators while typing. Do
   not show internal formats such as `yyyy-mm-dd` in normal UI.

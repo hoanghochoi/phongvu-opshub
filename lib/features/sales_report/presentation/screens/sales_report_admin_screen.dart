@@ -37,9 +37,11 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
     if (_initialized) return;
     _initialized = true;
     final user = context.read<AuthProvider>().user;
-    unawaited(
-      context.read<SalesReportProvider>().initialize(user, admin: true),
-    );
+    final provider = context.read<SalesReportProvider>();
+    final today = provider.currentDate;
+    _startDate = today;
+    _endDate = today;
+    unawaited(provider.initialize(user, admin: true, adminQuery: _query()));
   }
 
   SalesReportQuery _query({int page = 0, int limit = 20, String? exportType}) {

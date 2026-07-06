@@ -67,7 +67,9 @@ class SalesReportProvider extends ChangeNotifier {
        _realtimeConnector =
            realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri)),
        _realtimeDebounce = realtimeDebounce,
-       _realtimeReconnectBaseDelay = realtimeReconnectBaseDelay;
+       _realtimeReconnectBaseDelay = realtimeReconnectBaseDelay {
+    _resetOrdersDateRangeToToday();
+  }
 
   List<SalesReportCategoryGroup> get categories =>
       List.unmodifiable(_categories);
@@ -125,6 +127,7 @@ class SalesReportProvider extends ChangeNotifier {
     bool admin = false,
     bool orders = false,
     bool categories = true,
+    SalesReportQuery? adminQuery,
   }) async {
     _user = user;
     await AppLogger.instance.info(
@@ -142,7 +145,7 @@ class SalesReportProvider extends ChangeNotifier {
       },
     );
     if (categories) await loadCategories(admin: admin);
-    if (admin) await loadAdminList();
+    if (admin) await loadAdminList(query: adminQuery);
     if (orders) {
       await loadOrderCockpit();
       _connectRealtime();
@@ -628,6 +631,12 @@ class SalesReportProvider extends ChangeNotifier {
     return _ordersEndDate ??
         _ordersStartDate ??
         appImplicitDateRangeEnd(_now());
+  }
+
+  void _resetOrdersDateRangeToToday() {
+    final today = currentDate;
+    _ordersStartDate = today;
+    _ordersEndDate = today;
   }
 
   String? _cleanFilter(String? value) {
