@@ -78,7 +78,9 @@ Expected responses:
   `SALES_REPORT_BIGQUERY_PROJECT_ID`,
   `SALES_REPORT_BIGQUERY_DATASET_ID`, and optionally
   `SALES_REPORT_BIGQUERY_KEY_FILE` plus table ids/prefix. OpsHub full-refreshes
-  three BigQuery tables from the runtime DB: reports, order items, and payments.
+  four BigQuery tables from the runtime DB: reports, revenue-by-store, order
+  items, and payments. The revenue table keeps one summary row per store instead
+  of one all-store total row.
   The dataset must already exist and the service account must be allowed to run
   load jobs and create/replace tables in that dataset. Scheduled sync runs once
   per day at 07:00 Vietnam time (UTC+7) when sync is enabled.

@@ -8,6 +8,7 @@ const ENV_KEYS = [
   'SALES_REPORT_BIGQUERY_KEY_FILE',
   'SALES_REPORT_BIGQUERY_TABLE_PREFIX',
   'SALES_REPORT_BIGQUERY_REPORT_TABLE_ID',
+  'SALES_REPORT_BIGQUERY_REVENUE_TABLE_ID',
   'SALES_REPORT_BIGQUERY_ITEM_TABLE_ID',
   'SALES_REPORT_BIGQUERY_PAYMENT_TABLE_ID',
   'SALES_REPORT_BIGQUERY_MAX_ROWS',
@@ -54,7 +55,33 @@ describe('SalesReportsBigQuerySyncService', () => {
     process.env.SALES_REPORT_BIGQUERY_TABLE_PREFIX = 'sales_report';
     const prisma = {
       salesReport: {
-        findMany: jest.fn().mockResolvedValue([salesReportFixture()]),
+        findMany: jest.fn().mockResolvedValue([
+          salesReportFixture(),
+          {
+            ...salesReportFixture(),
+            id: 'report-2',
+            orderCode: '2607010002',
+            customerType: 'PERSONAL',
+            installmentNeed: false,
+            installmentNoInstallmentReason: null,
+            storeCode: 'CP02',
+            storeName: 'CP02',
+            organizationNodeId: 'node-cp02',
+            organizationNodeName: 'Showroom CP02',
+            erpGrandTotal: 2160000,
+            erpPaymentMethods: ['cash'],
+            items: [
+              {
+                ...salesReportFixture().items[0],
+                id: 'item-2',
+                categoryType: 'monitor',
+                quantity: 2,
+                rowTotal: 2160000,
+              },
+            ],
+            payments: [],
+          },
+        ]),
       },
     };
     const service = new SalesReportsBigQuerySyncService(prisma as any);
@@ -69,11 +96,14 @@ describe('SalesReportsBigQuerySyncService', () => {
 
     expect(result).toMatchObject({
       skipped: false,
-      reportRows: 1,
-      itemRows: 1,
+      reportRows: 2,
+      revenueRows: 2,
+      itemRows: 2,
       paymentRows: 1,
       tables: {
         reports: 'opshub-project.opshub_reporting.sales_report_reports',
+        revenueByStore:
+          'opshub-project.opshub_reporting.sales_report_revenue_by_store',
         items: 'opshub-project.opshub_reporting.sales_report_items',
         payments: 'opshub-project.opshub_reporting.sales_report_payments',
       },
@@ -88,15 +118,18 @@ describe('SalesReportsBigQuerySyncService', () => {
         }),
       }),
     );
-    expect(replaceTableRows).toHaveBeenCalledTimes(3);
+    expect(replaceTableRows).toHaveBeenCalledTimes(4);
 
     const reportRows = replaceTableRows.mock.calls[0][4] as Array<
       Record<string, unknown>
     >;
-    const itemRows = replaceTableRows.mock.calls[1][4] as Array<
+    const revenueRows = replaceTableRows.mock.calls[1][4] as Array<
       Record<string, unknown>
     >;
-    const paymentRows = replaceTableRows.mock.calls[2][4] as Array<
+    const itemRows = replaceTableRows.mock.calls[2][4] as Array<
+      Record<string, unknown>
+    >;
+    const paymentRows = replaceTableRows.mock.calls[3][4] as Array<
       Record<string, unknown>
     >;
 
@@ -111,6 +144,26 @@ describe('SalesReportsBigQuerySyncService', () => {
       final_payment_method_label: 'Trả góp',
       erp_grand_total: 1080000,
       revenue_before_vat: 1000000,
+    });
+    expect(revenueRows).toHaveLength(2);
+    expect(revenueRows[0]).toMatchObject({
+      store_code: 'CP01',
+      sales_report_count: 1,
+      installment_need_total_count: 1,
+      successful_installment_order_count: 1,
+      order_count_unique: 1,
+      business_revenue: 1080000,
+      personal_revenue: 0,
+    });
+    expect(revenueRows[1]).toMatchObject({
+      store_code: 'CP02',
+      sales_report_count: 1,
+      installment_need_total_count: 1,
+      successful_installment_order_count: 0,
+      order_count_unique: 1,
+      business_revenue: 0,
+      personal_revenue: 2160000,
+      monitor_quantity: 2,
     });
     expect(itemRows[0]).toMatchObject({
       sales_report_item_id: 'item-1',

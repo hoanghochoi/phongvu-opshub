@@ -1317,7 +1317,8 @@ describe('SalesReportsService', () => {
         'Số đơn hàng duy nhất',
         'Tổng doanh thu khách hàng doanh nghiệp',
         'Tổng doanh thu khách hàng cá nhân',
-        'Các lý do khách không trả góp',
+        'Nhu cầu trả góp (cả có và không)',
+        'Trả góp thành công (có đơn trả góp)',
         'Số lượng laptop',
         'Số lượng PC',
         'Số lượng PC ráp',
@@ -1326,11 +1327,12 @@ describe('SalesReportsService', () => {
         'Số lượng máy in',
         'Số lượng phụ kiện',
         'Số lượng dịch vụ bảo hiểm',
+        'Các lý do khách không trả góp',
       ].join(','),
     );
-    expect(lines[1]).toContain('2,1000,2000');
+    expect(lines[1]).toContain('2,1000,2000,3,0');
+    expect(lines[1]).toContain(',3,2,1,1,3,1,4,1,');
     expect(lines[1]).toContain('Khách từ chối: Lãi suất/Phí trả góp cao: 1');
-    expect(lines[1]).toContain(',3,2,1,1,3,1,4,1');
     expect(lines[1]).not.toContain('"');
   });
 

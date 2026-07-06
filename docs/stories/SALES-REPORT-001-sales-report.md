@@ -84,17 +84,21 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   tiên category level cao nhất trong payload `categories` từ Listing.
 - Admin xuất 3 file CSV tiếng Việt: `HVTC` một dòng mỗi báo cáo mua/chưa mua
   theo các cột hành vi khách hàng; `Doanh số` một dòng tổng hợp số đơn duy
-  nhất, doanh thu doanh nghiệp/cá nhân, lý do không trả góp và số lượng theo
-  type laptop/PC/PC ráp/Apple/màn hình/máy in/phụ kiện/bảo hiểm mở rộng;
+  nhất, doanh thu doanh nghiệp/cá nhân, tổng số nhu cầu trả góp lấy từ báo cáo
+  bán hàng, số đơn trả góp thành công theo payment method ERP và số lượng theo
+  type laptop/PC/PC ráp/Apple/màn hình/máy in/phụ kiện/bảo hiểm mở rộng; lý do
+  trả góp nằm ở cột cuối cùng của file `Doanh số`;
   `Trả góp` chỉ lấy các row có `installmentNeed = true`, gồm các cột tiếng Việt
   `Ngày báo cáo`, `Email người báo cáo`, `Số tiền vay trả góp`,
   `Đối tác trả góp`, `Kết quả duyệt hồ sơ`, `Loại báo cáo`,
   `Phương thức thanh toán cuối cùng`, `Lý do không trả góp`.
 - Admin có `ADMIN_SALES_REPORTS` theo node tổ chức xem/query/export báo cáo
   trong phạm vi được gán; Super Admin thấy toàn app.
-- OpsHub sync dữ liệu báo cáo sang BigQuery bằng ba bảng report/item/payment
-  để Looker Studio đọc từ BigQuery. Sync chạy nền khi bật env và có endpoint
-  admin `POST /api/sales-reports/admin/bigquery-sync` để chạy thủ công.
+- OpsHub sync dữ liệu báo cáo sang BigQuery bằng bốn bảng
+  report/revenue-by-store/item/payment để Looker Studio đọc từ BigQuery. Bảng
+  doanh số BigQuery có một row cho mỗi cửa hàng/showroom, không sync một dòng
+  tổng toàn bộ. Sync chạy nền khi bật env và có endpoint admin
+  `POST /api/sales-reports/admin/bigquery-sync` để chạy thủ công.
 - Danh sách báo cáo admin mặc định chọn ngày hiện tại. Bộ lọc dùng một action
   `Chọn khoảng ngày` để chọn cả `Từ ngày` và `Đến ngày` trong cùng một range
   picker rồi áp dụng một lần; nếu admin chủ động chọn `Tất cả ngày`, query/export

@@ -3315,7 +3315,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
       'Số đơn hàng duy nhất',
       'Tổng doanh thu khách hàng doanh nghiệp',
       'Tổng doanh thu khách hàng cá nhân',
-      'Các lý do khách không trả góp',
+      'Nhu cầu trả góp (cả có và không)',
+      'Trả góp thành công (có đơn trả góp)',
       'Số lượng laptop',
       'Số lượng PC',
       'Số lượng PC ráp',
@@ -3324,16 +3325,14 @@ export class SalesReportsService implements OnApplicationBootstrap {
       'Số lượng máy in',
       'Số lượng phụ kiện',
       'Số lượng dịch vụ bảo hiểm',
+      'Các lý do khách không trả góp',
     ];
     const values = [
       summary.orderCountUnique,
       summary.businessRevenue,
       summary.personalRevenue,
-      this.csvCompactList(
-        Array.from(summary.noInstallmentReasons.entries()).map(
-          ([reason, count]) => `${reason}: ${count}`,
-        ),
-      ),
+      summary.installmentNeedTotalCount,
+      summary.successfulInstallmentOrderCount,
       summary.laptopQuantity,
       summary.pcQuantity,
       summary.assembledPcQuantity,
@@ -3342,6 +3341,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
       summary.printerQuantity,
       summary.accessoriesQuantity,
       summary.extendedInsuranceQuantity,
+      this.csvCompactList(
+        Array.from(summary.noInstallmentReasons.entries()).map(
+          ([reason, count]) => `${reason}: ${count}`,
+        ),
+      ),
     ];
     return `\ufeff${[
       headers.map((header) => this.csvCell(header)).join(','),
@@ -3392,7 +3396,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
   private salesRevenueSummary(rows: any[]) {
     const uniquePurchased = new Map<string, any>();
     const noInstallmentReasons = new Map<string, number>();
+    let installmentNeedTotalCount = 0;
     for (const row of rows) {
+      installmentNeedTotalCount += 1;
       if (row.installmentNoInstallmentReason) {
         const reasonCode = String(row.installmentNoInstallmentReason);
         if (reasonCode !== 'NORMAL_INSTALLMENT') {
@@ -3415,6 +3421,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
       businessRevenue: 0,
       personalRevenue: 0,
       noInstallmentReasons,
+      installmentNeedTotalCount,
+      successfulInstallmentOrderCount: 0,
       laptopQuantity: 0,
       pcQuantity: 0,
       assembledPcQuantity: 0,
@@ -3431,6 +3439,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
         summary.businessRevenue += revenue;
       } else {
         summary.personalRevenue += revenue;
+      }
+      if (this.hasInstallmentPayment(row)) {
+        summary.successfulInstallmentOrderCount += 1;
       }
 
       const componentQuantities = new Map<string, number>();
@@ -3953,16 +3964,20 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private finalPaymentMethodLabel(row: any) {
+    return this.hasInstallmentPayment(row) ? 'Trả góp' : 'Trả thẳng';
+  }
+
+  private hasInstallmentPayment(row: any) {
     const paymentText = this.normalizeComparable(
       Array.isArray(row?.erpPaymentMethods)
         ? row.erpPaymentMethods.join(' ')
         : row?.erpPaymentMethods,
     );
-    const hasInstallment =
+    return (
       paymentText.includes('installment') ||
       paymentText.includes('tra gop') ||
-      paymentText.includes('tragop');
-    return hasInstallment ? 'Trả góp' : 'Trả thẳng';
+      paymentText.includes('tragop')
+    );
   }
 
   private cleanInstallmentPartnerCodes(value: unknown) {

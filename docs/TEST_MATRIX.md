@@ -1126,6 +1126,12 @@ Recent focused evidence:
   07:00 Vietnam time only when `SALES_REPORT_BIGQUERY_SYNC_ENABLED=true`.
   Validation: focused Nest
   sales-report BigQuery sync tests and backend build.
+- `SALES-REPORT-001`, 2026-07-07: `Doanh số` export adds total installment-need
+  count from sales reports and successful-installment order count from ERP
+  payment methods, then moves installment reasons to the final column. BigQuery
+  sync now also writes `revenue_by_store`, with one revenue summary row per
+  store/showroom instead of one all-store total row. Validation: focused Nest
+  sales-report export/BigQuery sync tests and backend build.
 - `AUTH-004`/`PAYMENT-MONITOR-001`, 2026-07-01: production diagnosis found
   payment monitor clients behind Caddy sharing the default IP throttling bucket,
   causing a newly opened client to receive HTTP 429 on its first request. The

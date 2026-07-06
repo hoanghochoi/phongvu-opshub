@@ -72,6 +72,7 @@ type SalesReportBigQueryConfig = {
   datasetId: string;
   keyFilename?: string;
   reportTableId: string;
+  revenueTableId: string;
   itemTableId: string;
   paymentTableId: string;
   maxRows: number;
@@ -81,14 +82,40 @@ export type SalesReportBigQuerySyncResult = {
   skipped: boolean;
   reason?: string;
   reportRows: number;
+  revenueRows: number;
   itemRows: number;
   paymentRows: number;
   tables: {
     reports: string;
+    revenueByStore: string;
     items: string;
     payments: string;
   } | null;
   durationMs: number;
+};
+
+type RevenueByStoreSummary = {
+  storeCode: string;
+  storeName: string;
+  organizationNodeId: string;
+  organizationNodeName: string;
+  regionCode: string;
+  areaCode: string;
+  reportCount: number;
+  installmentNeedTotalCount: number;
+  successfulInstallmentOrderCount: number;
+  orderKeys: Set<string>;
+  businessRevenue: number;
+  personalRevenue: number;
+  noInstallmentReasons: Map<string, number>;
+  laptopQuantity: number;
+  pcQuantity: number;
+  assembledPcQuantity: number;
+  appleQuantity: number;
+  monitorQuantity: number;
+  printerQuantity: number;
+  accessoriesQuantity: number;
+  extendedInsuranceQuantity: number;
 };
 
 @Injectable()
@@ -127,7 +154,7 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
 
     this.syncRunning = true;
     this.logger.log(
-      `Sales report BigQuery sync started: source=${source} dataset=${config.projectId}.${config.datasetId} reportTable=${config.reportTableId} itemTable=${config.itemTableId} paymentTable=${config.paymentTableId}`,
+      `Sales report BigQuery sync started: source=${source} dataset=${config.projectId}.${config.datasetId} reportTable=${config.reportTableId} revenueTable=${config.revenueTableId} itemTable=${config.itemTableId} paymentTable=${config.paymentTableId}`,
     );
 
     try {
@@ -150,6 +177,7 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
 
       const syncedAt = new Date();
       const reportRows = reports.map((row) => this.toReportRow(row, syncedAt));
+      const revenueRows = this.toRevenueByStoreRows(reports, syncedAt);
       const itemRows = reports.flatMap((row) =>
         (row.items ?? []).map((item: any) =>
           this.toItemRow(row, item, syncedAt),
@@ -171,6 +199,13 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
       await this.replaceTableRows(
         client,
         config,
+        config.revenueTableId,
+        REVENUE_BY_STORE_SCHEMA,
+        revenueRows,
+      );
+      await this.replaceTableRows(
+        client,
+        config,
         config.itemTableId,
         ITEM_SCHEMA,
         itemRows,
@@ -186,17 +221,19 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
       const result: SalesReportBigQuerySyncResult = {
         skipped: false,
         reportRows: reportRows.length,
+        revenueRows: revenueRows.length,
         itemRows: itemRows.length,
         paymentRows: paymentRows.length,
         tables: {
           reports: this.tablePath(config, config.reportTableId),
+          revenueByStore: this.tablePath(config, config.revenueTableId),
           items: this.tablePath(config, config.itemTableId),
           payments: this.tablePath(config, config.paymentTableId),
         },
         durationMs: Date.now() - startedAt,
       };
       this.logger.log(
-        `Sales report BigQuery sync succeeded: source=${source} reports=${result.reportRows} items=${result.itemRows} payments=${result.paymentRows} durationMs=${result.durationMs}`,
+        `Sales report BigQuery sync succeeded: source=${source} reports=${result.reportRows} revenueByStore=${result.revenueRows} items=${result.itemRows} payments=${result.paymentRows} durationMs=${result.durationMs}`,
       );
       return result;
     } catch (error) {
@@ -360,6 +397,144 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
     };
   }
 
+  private toRevenueByStoreRows(reports: any[], syncedAt: Date) {
+    const summaries = new Map<string, RevenueByStoreSummary>();
+    for (const row of reports) {
+      const summary = this.revenueSummaryForStore(summaries, row);
+      summary.reportCount += 1;
+      summary.installmentNeedTotalCount += 1;
+
+      if (row.installmentNoInstallmentReason) {
+        const reasonCode = this.text(row.installmentNoInstallmentReason);
+        if (reasonCode && reasonCode !== 'NORMAL_INSTALLMENT') {
+          const label = this.installmentNoInstallmentReasonLabel(reasonCode);
+          summary.noInstallmentReasons.set(
+            label,
+            (summary.noInstallmentReasons.get(label) ?? 0) + 1,
+          );
+        }
+      }
+
+      if (this.text(row.reportType) !== 'PURCHASED') continue;
+      const orderKey = this.text(row.orderCode || row.erpOrderId || row.id);
+      if (!orderKey || summary.orderKeys.has(orderKey)) continue;
+      summary.orderKeys.add(orderKey);
+
+      const revenue = this.orderRevenue(row);
+      if (this.text(row.customerType) === 'BUSINESS') {
+        summary.businessRevenue += revenue;
+      } else {
+        summary.personalRevenue += revenue;
+      }
+      if (this.hasInstallmentPayment(row)) {
+        summary.successfulInstallmentOrderCount += 1;
+      }
+
+      const componentQuantities = new Map<string, number>();
+      for (const item of Array.isArray(row.items) ? row.items : []) {
+        const type = this.normalizeSalesCategoryType(item?.categoryType);
+        if (!type) continue;
+        const quantity = this.salesItemQuantity(item);
+        componentQuantities.set(
+          type,
+          (componentQuantities.get(type) ?? 0) + quantity,
+        );
+        if (type === 'laptop') summary.laptopQuantity += quantity;
+        if (type === 'pc') summary.pcQuantity += quantity;
+        if (type === 'apple' && this.isTargetAppleItem(item)) {
+          summary.appleQuantity += quantity;
+        }
+        if (type === 'monitor') summary.monitorQuantity += quantity;
+        if (type === 'printer') summary.printerQuantity += quantity;
+        if (type === 'accessories') summary.accessoriesQuantity += quantity;
+        if (type === 'extendedinsurance') {
+          summary.extendedInsuranceQuantity += quantity;
+        }
+      }
+      summary.assembledPcQuantity +=
+        this.assembledPcQuantity(componentQuantities);
+    }
+
+    return Array.from(summaries.values())
+      .sort((left, right) =>
+        (left.storeCode || left.organizationNodeId).localeCompare(
+          right.storeCode || right.organizationNodeId,
+        ),
+      )
+      .map((summary) => ({
+        store_code: summary.storeCode,
+        store_name: summary.storeName,
+        organization_node_id: summary.organizationNodeId,
+        organization_node_name: summary.organizationNodeName,
+        region_code: summary.regionCode,
+        area_code: summary.areaCode,
+        sales_report_count: summary.reportCount,
+        installment_need_total_count: summary.installmentNeedTotalCount,
+        successful_installment_order_count:
+          summary.successfulInstallmentOrderCount,
+        order_count_unique: summary.orderKeys.size,
+        business_revenue: summary.businessRevenue,
+        personal_revenue: summary.personalRevenue,
+        no_installment_reasons: Array.from(
+          summary.noInstallmentReasons.entries(),
+        )
+          .map(([reason, count]) => `${reason}: ${count}`)
+          .join('; '),
+        laptop_quantity: summary.laptopQuantity,
+        pc_quantity: summary.pcQuantity,
+        assembled_pc_quantity: summary.assembledPcQuantity,
+        apple_quantity: summary.appleQuantity,
+        monitor_quantity: summary.monitorQuantity,
+        printer_quantity: summary.printerQuantity,
+        accessories_quantity: summary.accessoriesQuantity,
+        extended_insurance_quantity: summary.extendedInsuranceQuantity,
+        synced_at: this.timestamp(syncedAt),
+      }));
+  }
+
+  private revenueSummaryForStore(
+    summaries: Map<string, RevenueByStoreSummary>,
+    row: any,
+  ) {
+    const key =
+      this.text(row.storeCode) ||
+      this.text(row.organizationNodeId) ||
+      'UNKNOWN';
+    let summary = summaries.get(key);
+    if (!summary) {
+      summary = {
+        storeCode: this.text(row.storeCode),
+        storeName: this.text(row.storeName),
+        organizationNodeId: this.text(row.organizationNodeId),
+        organizationNodeName: this.text(row.organizationNodeName),
+        regionCode: this.text(row.regionCode),
+        areaCode: this.text(row.areaCode),
+        reportCount: 0,
+        installmentNeedTotalCount: 0,
+        successfulInstallmentOrderCount: 0,
+        orderKeys: new Set<string>(),
+        businessRevenue: 0,
+        personalRevenue: 0,
+        noInstallmentReasons: new Map<string, number>(),
+        laptopQuantity: 0,
+        pcQuantity: 0,
+        assembledPcQuantity: 0,
+        appleQuantity: 0,
+        monitorQuantity: 0,
+        printerQuantity: 0,
+        accessoriesQuantity: 0,
+        extendedInsuranceQuantity: 0,
+      };
+      summaries.set(key, summary);
+    }
+    summary.storeName ||= this.text(row.storeName);
+    summary.organizationNodeId ||= this.text(row.organizationNodeId);
+    summary.organizationNodeName ||= this.text(row.organizationNodeName);
+    summary.regionCode ||= this.text(row.regionCode);
+    summary.areaCode ||= this.text(row.areaCode);
+    return summary;
+  }
+
   private toItemRow(row: any, item: any, syncedAt: Date) {
     const submittedAt = this.dateValue(row.submittedAt);
     return {
@@ -452,6 +627,9 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
       reportTableId:
         this.firstEnv(['SALES_REPORT_BIGQUERY_REPORT_TABLE_ID']) ??
         `${prefix}_reports`,
+      revenueTableId:
+        this.firstEnv(['SALES_REPORT_BIGQUERY_REVENUE_TABLE_ID']) ??
+        `${prefix}_revenue_by_store`,
       itemTableId:
         this.firstEnv(['SALES_REPORT_BIGQUERY_ITEM_TABLE_ID']) ??
         `${prefix}_items`,
@@ -475,6 +653,7 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
       skipped: true,
       reason,
       reportRows: 0,
+      revenueRows: 0,
       itemRows: 0,
       paymentRows: 0,
       tables: null,
@@ -536,16 +715,79 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
   }
 
   private finalPaymentMethodLabel(row: any) {
+    return this.hasInstallmentPayment(row) ? 'Trả góp' : 'Trả thẳng';
+  }
+
+  private hasInstallmentPayment(row: any) {
     const paymentText = this.arrayText(row?.erpPaymentMethods)
       .join(' ')
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
-    return paymentText.includes('installment') ||
+    return (
+      paymentText.includes('installment') ||
       paymentText.includes('tra gop') ||
       paymentText.includes('tragop')
-      ? 'Trả góp'
-      : 'Trả thẳng';
+    );
+  }
+
+  private orderRevenue(row: any) {
+    const grandTotal = this.integer(row.erpGrandTotal);
+    if (grandTotal !== null) return grandTotal;
+    return (Array.isArray(row.items) ? row.items : []).reduce(
+      (total: number, item: any) => {
+        const rowTotal = this.integer(item?.rowTotal);
+        if (rowTotal !== null) return total + rowTotal;
+        const price = this.integer(item?.finalSellPrice);
+        return price === null
+          ? total
+          : total + price * this.salesItemQuantity(item);
+      },
+      0,
+    );
+  }
+
+  private salesItemQuantity(item: any) {
+    const quantity = this.integer(item?.quantity);
+    return quantity !== null && quantity > 0 ? quantity : 1;
+  }
+
+  private assembledPcQuantity(componentQuantities: Map<string, number>) {
+    const requiredTypes = [
+      'cpu',
+      'mainboard',
+      'memory',
+      'storage',
+      'case',
+      'psu',
+    ];
+    const quantities = requiredTypes.map(
+      (type) => componentQuantities.get(type) ?? 0,
+    );
+    const minQuantity = Math.min(...quantities);
+    return Number.isFinite(minQuantity) && minQuantity > 0 ? minQuantity : 0;
+  }
+
+  private normalizeSalesCategoryType(value: unknown) {
+    return this.text(value).replace(/\s+/g, '').toLowerCase();
+  }
+
+  private isTargetAppleItem(item: any) {
+    const text = this.normalizeComparable(
+      [item?.name, item?.productTypeName, item?.productGroupName]
+        .filter(Boolean)
+        .join(' '),
+    );
+    return ['macbook', 'iphone', 'ipad'].some((keyword) =>
+      text.includes(keyword),
+    );
+  }
+
+  private normalizeComparable(value: unknown) {
+    return this.text(value)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
   }
 
   private revenueBeforeVat(value: unknown) {
@@ -706,6 +948,31 @@ const REPORT_SCHEMA: BigQueryField[] = [
   { name: 'erp_fetch_status', type: 'STRING' },
   { name: 'created_at', type: 'TIMESTAMP' },
   { name: 'updated_at', type: 'TIMESTAMP' },
+  { name: 'synced_at', type: 'TIMESTAMP' },
+];
+
+const REVENUE_BY_STORE_SCHEMA: BigQueryField[] = [
+  { name: 'store_code', type: 'STRING' },
+  { name: 'store_name', type: 'STRING' },
+  { name: 'organization_node_id', type: 'STRING' },
+  { name: 'organization_node_name', type: 'STRING' },
+  { name: 'region_code', type: 'STRING' },
+  { name: 'area_code', type: 'STRING' },
+  { name: 'sales_report_count', type: 'INTEGER' },
+  { name: 'installment_need_total_count', type: 'INTEGER' },
+  { name: 'successful_installment_order_count', type: 'INTEGER' },
+  { name: 'order_count_unique', type: 'INTEGER' },
+  { name: 'business_revenue', type: 'INTEGER' },
+  { name: 'personal_revenue', type: 'INTEGER' },
+  { name: 'no_installment_reasons', type: 'STRING' },
+  { name: 'laptop_quantity', type: 'INTEGER' },
+  { name: 'pc_quantity', type: 'INTEGER' },
+  { name: 'assembled_pc_quantity', type: 'INTEGER' },
+  { name: 'apple_quantity', type: 'INTEGER' },
+  { name: 'monitor_quantity', type: 'INTEGER' },
+  { name: 'printer_quantity', type: 'INTEGER' },
+  { name: 'accessories_quantity', type: 'INTEGER' },
+  { name: 'extended_insurance_quantity', type: 'INTEGER' },
   { name: 'synced_at', type: 'TIMESTAMP' },
 ];
 

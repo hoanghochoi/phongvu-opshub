@@ -72,7 +72,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   mặc định truy vấn/xuất 30 ngày gần nhất và hiện dòng nhắc nhỏ để tránh hiểu
   nhầm.
   Admin xuất được 3 file tiếng Việt: `HVTC` là mỗi dòng một báo cáo mua/chưa
-  mua; `Doanh số` là một dòng tổng hợp doanh thu/số lượng theo type ngành hàng;
+  mua; `Doanh số` là một dòng tổng hợp doanh thu, nhu cầu trả góp, trả góp
+  thành công và số lượng theo type ngành hàng;
   `Trả góp` chỉ lấy báo cáo có `installmentNeed = true`.
 - `Mua hàng` bắt buộc nhập hoặc quét QR/barcode `Mã đơn hàng` và bấm
   `Kiểm tra đơn hàng` trước khi mở phần form còn lại. Sau khi đã kiểm tra, sale
@@ -167,9 +168,10 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   cáo, email người báo cáo, mã nhân viên tư vấn ERP, tên/số điện thoại/nhu cầu
   khách hàng, các câu trả lời hành vi, loại báo cáo, lý do chưa mua và showroom.
 - File `Doanh số` xuất một dòng tổng hợp theo bộ lọc hiện tại: số đơn hàng duy
-  nhất, doanh thu doanh nghiệp/cá nhân, các lý do khách không trả góp, số lượng
-  laptop, PC, PC ráp, Apple chỉ tính Macbook/iPhone/iPad, màn hình, máy in,
-  phụ kiện và dịch vụ bảo hiểm.
+  nhất, doanh thu doanh nghiệp/cá nhân, tổng số nhu cầu trả góp lấy từ báo cáo
+  bán hàng, số đơn trả góp thành công theo payment method ERP, số lượng laptop,
+  PC, PC ráp, Apple chỉ tính Macbook/iPhone/iPad, màn hình, máy in, phụ kiện,
+  dịch vụ bảo hiểm; các lý do khách không trả góp nằm ở cột cuối cùng.
 - File `Trả góp` xuất một dòng cho mỗi báo cáo có nhu cầu trả góp, gồm:
   `Ngày báo cáo`, `Email người báo cáo`, `Số tiền vay trả góp`,
   `Đối tác trả góp`, `Kết quả duyệt hồ sơ`, `Loại báo cáo`,
@@ -187,9 +189,11 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - OpsHub đồng bộ dữ liệu `Báo cáo bán hàng` sang BigQuery để Looker Studio đọc
   trực tiếp từ BigQuery thay vì gọi runtime API. Sync được bật bằng
   `SALES_REPORT_BIGQUERY_SYNC_ENABLED=true`, dùng service-account JSON nằm ngoài
-  git, full-refresh ba bảng: report fact, order item fact và payment fact. Ba
-  bảng giữ label tiếng Việt tương ứng với export admin hiện tại, đồng thời giữ
-  code gốc để lọc/đối soát. Dataset BigQuery phải tồn tại sẵn và service
+  git, full-refresh bốn bảng: report fact, revenue-by-store fact, order item
+  fact và payment fact. Bảng doanh số BigQuery chỉ sync từng dòng theo cửa
+  hàng/showroom, không sync một dòng tổng toàn hệ thống. Các bảng giữ label
+  tiếng Việt tương ứng với export admin hiện tại, đồng thời giữ code gốc để
+  lọc/đối soát. Dataset BigQuery phải tồn tại sẵn và service
   account cần quyền chạy load job/tạo hoặc replace bảng trong dataset đó. Khi
   bật sync, backend chạy lịch cố định 07:00 hằng ngày theo giờ Việt Nam (UTC+7).
   Admin có `ADMIN_SALES_REPORTS` có thể gọi
@@ -235,10 +239,12 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   Việt.
 - Snapshot report lưu cả code, tên gốc và tên Việt để dữ liệu lịch sử không bị
   lệch nếu CSV đổi sau này.
-- BigQuery sync tạo ba bảng theo table prefix mặc định:
-  `opshub_sales_report_reports`, `opshub_sales_report_items` và
+- BigQuery sync tạo bốn bảng theo table prefix mặc định:
+  `opshub_sales_report_reports`,
+  `opshub_sales_report_revenue_by_store`, `opshub_sales_report_items` và
   `opshub_sales_report_payments`. Có thể override bằng
   `SALES_REPORT_BIGQUERY_REPORT_TABLE_ID`,
+  `SALES_REPORT_BIGQUERY_REVENUE_TABLE_ID`,
   `SALES_REPORT_BIGQUERY_ITEM_TABLE_ID` và
   `SALES_REPORT_BIGQUERY_PAYMENT_TABLE_ID`.
 
