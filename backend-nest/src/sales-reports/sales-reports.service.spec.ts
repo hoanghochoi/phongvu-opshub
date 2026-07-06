@@ -475,6 +475,83 @@ describe('SalesReportsService', () => {
     }
   });
 
+  it('keeps verified ERP status when list sync sees the order as pending', async () => {
+    const { service, prisma, erp } = createHarness();
+    const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+    delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = '1';
+    const verifiedAt = new Date('2026-07-06T03:40:00Z');
+    erp.listRecentOrders.mockResolvedValueOnce([
+      {
+        ...erpListOrderFixture(),
+        fulfillmentStatus: 'DELIVERED',
+        lifecycleStatus: 'PENDING',
+        statusCheckedAt: new Date('2026-07-06T03:54:00Z'),
+        fetchedAt: new Date('2026-07-06T03:54:00Z'),
+      },
+    ]);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
+      {
+        orderCode: '2607010002',
+        paymentStatus: 'fully_paid',
+        confirmationStatus: 'active',
+        fulfillmentStatus: 'DELIVERED',
+        lifecycleStatus: 'COMPLETED',
+        hasReturnedFullItems: false,
+        returnedAfterTaxAmount: 0,
+        statusCheckedAt: verifiedAt,
+        statusCheckAttemptedAt: verifiedAt,
+        statusCheckFailureCount: 0,
+        excludedAt: null,
+        exclusionReason: null,
+        consultantEmail: 'sale@phongvu.vn',
+        sellerEmail: null,
+        storeCode: 'CP62',
+        organizationNodeId: 'node-cp62',
+        sourceUserId: 'user-1',
+        sourceUserEmail: 'sale@phongvu.vn',
+      },
+    ]);
+
+    try {
+      await service.syncScheduledErpOrderCache('test-preserve-status');
+
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '2607010002' },
+          update: expect.objectContaining({
+            lifecycleStatus: 'COMPLETED',
+            fulfillmentStatus: 'DELIVERED',
+            statusCheckedAt: verifiedAt,
+            statusCheckAttemptedAt: verifiedAt,
+            statusCheckFailureCount: 0,
+          }),
+        }),
+      );
+      expect(prisma.salesReport.updateMany).toHaveBeenCalledWith({
+        where: { orderCode: '2607010002', reportType: 'PURCHASED' },
+        data: expect.objectContaining({
+          erpLifecycleStatus: 'COMPLETED',
+          erpFulfillmentStatus: 'DELIVERED',
+          erpStatusCheckedAt: verifiedAt,
+          erpStatusCheckFailureCount: 0,
+        }),
+      });
+    } finally {
+      if (oldEnabled === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_ENABLED = oldEnabled;
+      }
+      if (oldLookback === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = oldLookback;
+      }
+    }
+  });
+
   it('scheduled sync marks canceled ERP orders as excluded and hides related purchased reports', async () => {
     const { service, prisma, erp } = createHarness();
     const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
@@ -797,13 +874,13 @@ describe('SalesReportsService', () => {
     const row = (index: number, lifecycleStatus: string) => ({
       orderCode: String(2607012000 + index),
       storeCode: 'CP62',
-      lifecycleStatus,
-      statusCheckedAt: new Date(
+      erpLifecycleStatus: lifecycleStatus,
+      erpStatusCheckedAt: new Date(
         `2026-07-04T${String(index % 24).padStart(2, '0')}:00:00Z`,
       ),
-      orderCreatedAt: new Date('2026-07-04T00:00:00Z'),
+      erpOrderCreatedAt: new Date('2026-07-04T00:00:00Z'),
     });
-    prisma.salesReportErpOrderCache.findMany
+    prisma.salesReport.findMany
       .mockResolvedValueOnce(
         Array.from({ length: 45 }, (_, index) => row(index, 'PENDING')),
       )
@@ -836,14 +913,31 @@ describe('SalesReportsService', () => {
       });
       expect(maxActive).toBe(2);
       expect(erp.lookupOrderStatus).toHaveBeenCalledTimes(50);
-      expect(prisma.salesReportErpOrderCache.findMany).toHaveBeenNthCalledWith(
+      expect(prisma.salesReport.findMany).toHaveBeenNthCalledWith(
         1,
-        expect.objectContaining({ take: 50 }),
+        expect.objectContaining({
+          where: expect.objectContaining({
+            reportType: 'PURCHASED',
+            orderCode: { not: null },
+            erpLifecycleStatus: 'PENDING',
+          }),
+          take: 50,
+        }),
       );
-      expect(prisma.salesReportErpOrderCache.findMany).toHaveBeenNthCalledWith(
+      expect(prisma.salesReport.findMany).toHaveBeenNthCalledWith(
         2,
-        expect.objectContaining({ take: 50 }),
+        expect.objectContaining({
+          where: expect.objectContaining({
+            reportType: 'PURCHASED',
+            orderCode: { not: null },
+            erpLifecycleStatus: {
+              in: ['COMPLETED', 'COMPLETED_PARTIAL_RETURN'],
+            },
+          }),
+          take: 50,
+        }),
       );
+      expect(prisma.salesReportErpOrderCache.findMany).not.toHaveBeenCalled();
     } finally {
       restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);
       restoreEnv('ERP_ORDER_STATUS_SYNC_BATCH_SIZE', previous.batch);
@@ -855,21 +949,21 @@ describe('SalesReportsService', () => {
     const { service, prisma, erp } = createHarness();
     const previous = process.env.ERP_ORDER_STATUS_SYNC_ENABLED;
     process.env.ERP_ORDER_STATUS_SYNC_ENABLED = 'true';
-    prisma.salesReportErpOrderCache.findMany
+    prisma.salesReport.findMany
       .mockResolvedValueOnce([
         {
           orderCode: '2607013001',
           storeCode: 'CP62',
-          lifecycleStatus: 'PENDING',
-          statusCheckedAt: null,
-          orderCreatedAt: new Date('2026-07-04T00:00:00Z'),
+          erpLifecycleStatus: 'PENDING',
+          erpStatusCheckedAt: null,
+          erpOrderCreatedAt: new Date('2026-07-04T00:00:00Z'),
         },
         {
           orderCode: '2607013002',
           storeCode: 'CP62',
-          lifecycleStatus: 'PENDING',
-          statusCheckedAt: null,
-          orderCreatedAt: new Date('2026-07-04T00:00:00Z'),
+          erpLifecycleStatus: 'PENDING',
+          erpStatusCheckedAt: null,
+          erpOrderCreatedAt: new Date('2026-07-04T00:00:00Z'),
         },
       ])
       .mockResolvedValueOnce([]);
@@ -942,6 +1036,9 @@ describe('SalesReportsService', () => {
     });
 
     expect(erp.lookupOrder).toHaveBeenCalledWith('2606290001', 'CP62');
+    expect(prisma.salesReport.create.mock.calls[0][0].data).not.toHaveProperty(
+      'jobRoleCode',
+    );
     expect(prisma.salesReport.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

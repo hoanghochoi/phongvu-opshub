@@ -64,7 +64,9 @@ a customer to scan and pay manually.
 ## Payment Monitor
 
 - Khu vực `Tài chính` trên dashboard Home dùng cùng ngày và scope với khu vực
-  `Bán hàng`, tổng hợp trực tiếp từ `MapVietinTransaction`: tổng số tiền chuyển
+  `Bán hàng`; khi mở `Trang chủ`, khoảng ngày mặc định là hôm nay rồi user đổi
+  thủ công nếu cần. Khu vực này tổng hợp trực tiếp từ `MapVietinTransaction`:
+  tổng số tiền chuyển
   khoản, tổng số sao kê, tổng sao kê có/chưa có đơn hàng và
   `Tỉ lệ sao kê có đơn hàng = sao kê có đơn / tổng sao kê`. Scope toàn hệ thống
   đọc toàn bộ showroom; scope quản lý đọc các showroom thuộc node đã chọn;

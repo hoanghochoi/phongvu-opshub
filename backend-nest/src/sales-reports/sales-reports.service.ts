@@ -688,61 +688,75 @@ export class SalesReportsService implements OnApplicationBootstrap {
     this.erpStatusSyncRunning = true;
     const startedAt = Date.now();
     try {
+      this.logger.log(
+        `ERP order status sync started: source=${source} reportedOnly=true batchSize=${batchSize} pendingLimit=${pendingLimit} completedLimit=${completedLimit} concurrency=${concurrency}`,
+      );
       const completedCutoff = new Date(
         Date.now() - lookbackDays * 24 * 60 * 60 * 1000,
       );
-      const pendingRows = await this.prisma.salesReportErpOrderCache.findMany({
-        where: { lifecycleStatus: 'PENDING' },
-        orderBy: [{ statusCheckedAt: 'asc' }, { createdAt: 'asc' }],
+      const pendingRows = await this.prisma.salesReport.findMany({
+        where: {
+          reportType: REPORT_TYPE_PURCHASED,
+          orderCode: { not: null },
+          erpLifecycleStatus: 'PENDING',
+        },
+        orderBy: [{ erpStatusCheckedAt: 'asc' }, { submittedAt: 'asc' }],
         take: batchSize,
         select: {
           orderCode: true,
           storeCode: true,
-          lifecycleStatus: true,
-          statusCheckedAt: true,
-          orderCreatedAt: true,
+          erpLifecycleStatus: true,
+          erpStatusCheckedAt: true,
+          erpOrderCreatedAt: true,
         },
       });
       const completedRows =
         completedLimit > 0
-          ? await this.prisma.salesReportErpOrderCache.findMany({
+          ? await this.prisma.salesReport.findMany({
               where: {
-                lifecycleStatus: {
+                reportType: REPORT_TYPE_PURCHASED,
+                orderCode: { not: null },
+                erpLifecycleStatus: {
                   in: ['COMPLETED', 'COMPLETED_PARTIAL_RETURN'],
                 },
-                orderCreatedAt: { gte: completedCutoff },
+                erpOrderCreatedAt: { gte: completedCutoff },
               },
-              orderBy: [{ statusCheckedAt: 'asc' }, { createdAt: 'asc' }],
+              orderBy: [{ erpStatusCheckedAt: 'asc' }, { submittedAt: 'asc' }],
               take: batchSize,
               select: {
                 orderCode: true,
                 storeCode: true,
-                lifecycleStatus: true,
-                statusCheckedAt: true,
-                orderCreatedAt: true,
+                erpLifecycleStatus: true,
+                erpStatusCheckedAt: true,
+                erpOrderCreatedAt: true,
               },
             })
           : [];
-      const selectedPending = pendingRows.slice(0, pendingLimit);
-      const selectedCompleted = completedRows.slice(0, completedLimit);
+      const selectedPending = pendingRows
+        .slice(0, pendingLimit)
+        .map((row) => this.reportedOrderStatusSyncRow(row));
+      const selectedCompleted = completedRows
+        .slice(0, completedLimit)
+        .map((row) => this.reportedOrderStatusSyncRow(row));
       let remaining =
         batchSize - selectedPending.length - selectedCompleted.length;
       if (remaining > 0) {
         selectedPending.push(
-          ...pendingRows.slice(
-            selectedPending.length,
-            selectedPending.length + remaining,
-          ),
+          ...pendingRows
+            .slice(selectedPending.length, selectedPending.length + remaining)
+            .map((row) => this.reportedOrderStatusSyncRow(row)),
         );
         remaining =
           batchSize - selectedPending.length - selectedCompleted.length;
       }
       if (remaining > 0) {
         selectedCompleted.push(
-          ...completedRows.slice(
-            selectedCompleted.length,
-            selectedCompleted.length + remaining,
-          ),
+          ...completedRows
+            .slice(
+              selectedCompleted.length,
+              selectedCompleted.length + remaining,
+            )
+            .map((row) => this.reportedOrderStatusSyncRow(row)),
         );
       }
       const selected = [...selectedPending, ...selectedCompleted];
@@ -793,7 +807,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         });
       }
       this.logger.log(
-        `ERP order status sync succeeded: source=${source} selected=${selected.length} pending=${selectedPending.length} completed=${selectedCompleted.length} changed=${changed} failed=${failed} concurrency=${concurrency} durationMs=${Date.now() - startedAt}`,
+        `ERP order status sync succeeded: source=${source} reportedOnly=true selected=${selected.length} pending=${selectedPending.length} completed=${selectedCompleted.length} changed=${changed} failed=${failed} concurrency=${concurrency} durationMs=${Date.now() - startedAt}`,
       );
       return {
         skipped: false,
@@ -816,6 +830,22 @@ export class SalesReportsService implements OnApplicationBootstrap {
         }
       }
     }
+  }
+
+  private reportedOrderStatusSyncRow(row: {
+    orderCode: string | null;
+    storeCode: string | null;
+    erpLifecycleStatus: string;
+    erpStatusCheckedAt: Date | null;
+    erpOrderCreatedAt: Date | null;
+  }) {
+    return {
+      orderCode: row.orderCode ?? '',
+      storeCode: row.storeCode,
+      lifecycleStatus: row.erpLifecycleStatus,
+      statusCheckedAt: row.erpStatusCheckedAt,
+      orderCreatedAt: row.erpOrderCreatedAt,
+    };
   }
 
   private async persistScheduledErpStatus(order: SalesReportErpOrderListItem) {
@@ -1164,7 +1194,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
           installmentStatus: installment.status,
           installmentFailureReason: installment.failureReason,
           installmentPartnerCodes: installment.partnerCodes,
-          ...context,
+          ...this.salesReportUserSnapshotCreateData(context),
           ...(erpOrder ? this.erpCreateData(erpOrder) : {}),
           rawResponses: {
             reportType,
@@ -1483,6 +1513,17 @@ export class SalesReportsService implements OnApplicationBootstrap {
           where: { orderCode: { in: orderCodes } },
           select: {
             orderCode: true,
+            paymentStatus: true,
+            confirmationStatus: true,
+            fulfillmentStatus: true,
+            lifecycleStatus: true,
+            hasReturnedFullItems: true,
+            returnedAfterTaxAmount: true,
+            statusCheckedAt: true,
+            statusCheckAttemptedAt: true,
+            statusCheckFailureCount: true,
+            excludedAt: true,
+            exclusionReason: true,
             consultantEmail: true,
             sellerEmail: true,
             storeCode: true,
@@ -1574,6 +1615,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         order,
         storeByCode,
         owner,
+        { existingCacheRow: existingRow, preserveVerifiedLifecycle: true },
       );
     }
     this.logger.log(
@@ -1726,6 +1768,23 @@ export class SalesReportsService implements OnApplicationBootstrap {
     };
   }
 
+  private salesReportUserSnapshotCreateData(
+    context: Awaited<ReturnType<SalesReportsService['resolveUserSnapshot']>>,
+  ) {
+    return {
+      createdByUserId: context.createdByUserId,
+      createdByEmail: context.createdByEmail,
+      createdByName: context.createdByName,
+      createdByPersonnelCode: context.createdByPersonnelCode,
+      storeCode: context.storeCode,
+      storeName: context.storeName,
+      organizationNodeId: context.organizationNodeId,
+      organizationNodeName: context.organizationNodeName,
+      regionCode: context.regionCode,
+      areaCode: context.areaCode,
+    };
+  }
+
   private async upsertErpOrderCacheFromOrder(
     user: any,
     context: Awaited<ReturnType<SalesReportsService['resolveUserSnapshot']>>,
@@ -1772,18 +1831,49 @@ export class SalesReportsService implements OnApplicationBootstrap {
     order: SalesReportErpOrderListItem,
     storeByCode: Map<string, any>,
     syncOwner: SalesReportOrderSyncOwner | null = null,
+    options: {
+      existingCacheRow?: any | null;
+      preserveVerifiedLifecycle?: boolean;
+    } = {},
   ) {
     const orderCode = this.normalizeOrderCode(order.orderCode);
     if (!orderCode) return;
-    const lifecycleStatus = this.normalizedErpLifecycleStatus(order);
+    const incomingLifecycleStatus = this.normalizedErpLifecycleStatus(order);
+    const existingLifecycleStatus = this.normalizePersistedErpLifecycleStatus(
+      options.existingCacheRow?.lifecycleStatus,
+    );
+    const preserveVerifiedLifecycle =
+      options.preserveVerifiedLifecycle === true &&
+      incomingLifecycleStatus === 'PENDING' &&
+      existingLifecycleStatus != null &&
+      this.isVerifiedErpLifecycleStatus(existingLifecycleStatus);
+    const lifecycleStatus = preserveVerifiedLifecycle
+      ? existingLifecycleStatus
+      : incomingLifecycleStatus;
+    const existingReturnedAfterTaxAmount = this.toNonNegativeInt(
+      options.existingCacheRow?.returnedAfterTaxAmount,
+    );
     const hasReturnedFullItems =
-      order.hasReturnedFullItems === true ||
+      (preserveVerifiedLifecycle
+        ? options.existingCacheRow?.hasReturnedFullItems === true
+        : order.hasReturnedFullItems === true) ||
       lifecycleStatus === 'RETURNED_FULL';
     const rawReturnedAmount = Number(order.returnedAfterTaxAmount ?? 0);
-    const returnedAfterTaxAmount = Number.isFinite(rawReturnedAmount)
-      ? Math.max(0, rawReturnedAmount)
+    const returnedAfterTaxAmount = preserveVerifiedLifecycle
+      ? existingReturnedAfterTaxAmount
+      : Number.isFinite(rawReturnedAmount)
+        ? Math.max(0, rawReturnedAmount)
+        : 0;
+    const incomingStatusCheckedAt = order.statusCheckedAt ?? order.fetchedAt;
+    const statusCheckedAt = preserveVerifiedLifecycle
+      ? (options.existingCacheRow?.statusCheckedAt ?? incomingStatusCheckedAt)
+      : incomingStatusCheckedAt;
+    const statusCheckAttemptedAt = preserveVerifiedLifecycle
+      ? (options.existingCacheRow?.statusCheckAttemptedAt ?? statusCheckedAt)
+      : statusCheckedAt;
+    const statusCheckFailureCount = preserveVerifiedLifecycle
+      ? this.toNonNegativeInt(options.existingCacheRow?.statusCheckFailureCount)
       : 0;
-    const statusCheckedAt = order.statusCheckedAt ?? order.fetchedAt;
     const exclusion = this.orderExclusionState(lifecycleStatus);
     const storeCode = this.normalizeStoreCode(
       order.storeCode ?? syncOwner?.storeCode ?? context.storeCode,
@@ -1793,15 +1883,21 @@ export class SalesReportsService implements OnApplicationBootstrap {
       erpOrderId: this.optionalText(order.erpOrderId, 80),
       erpExternalOrderRef: this.optionalText(order.erpExternalOrderRef, 120),
       orderCreatedAt: order.orderCreatedAt,
-      paymentStatus: this.optionalText(order.paymentStatus, 80),
-      confirmationStatus: this.optionalText(order.confirmationStatus, 80),
-      fulfillmentStatus: this.optionalText(order.fulfillmentStatus, 80),
+      paymentStatus: preserveVerifiedLifecycle
+        ? this.optionalText(options.existingCacheRow?.paymentStatus, 80)
+        : this.optionalText(order.paymentStatus, 80),
+      confirmationStatus: preserveVerifiedLifecycle
+        ? this.optionalText(options.existingCacheRow?.confirmationStatus, 80)
+        : this.optionalText(order.confirmationStatus, 80),
+      fulfillmentStatus: preserveVerifiedLifecycle
+        ? this.optionalText(options.existingCacheRow?.fulfillmentStatus, 80)
+        : this.optionalText(order.fulfillmentStatus, 80),
       lifecycleStatus,
       hasReturnedFullItems,
       returnedAfterTaxAmount,
       statusCheckedAt,
-      statusCheckAttemptedAt: statusCheckedAt,
-      statusCheckFailureCount: 0,
+      statusCheckAttemptedAt,
+      statusCheckFailureCount,
       excludedAt: exclusion.excludedAt,
       exclusionReason: exclusion.exclusionReason,
       terminalName: this.optionalText(order.terminalName, 120),
@@ -2513,6 +2609,34 @@ export class SalesReportsService implements OnApplicationBootstrap {
       return 'CANCELLED';
     }
     return 'PENDING';
+  }
+
+  private normalizePersistedErpLifecycleStatus(value: unknown) {
+    const supplied = String(value || '').toUpperCase();
+    if (
+      supplied === 'PENDING' ||
+      supplied === 'COMPLETED' ||
+      supplied === 'COMPLETED_PARTIAL_RETURN' ||
+      supplied === 'CANCELLED' ||
+      supplied === 'RETURNED_FULL'
+    ) {
+      return supplied;
+    }
+    return null;
+  }
+
+  private isVerifiedErpLifecycleStatus(value: string) {
+    return (
+      value === 'COMPLETED' ||
+      value === 'COMPLETED_PARTIAL_RETURN' ||
+      value === 'CANCELLED' ||
+      value === 'RETURNED_FULL'
+    );
+  }
+
+  private toNonNegativeInt(value: unknown) {
+    const parsed = Number(value ?? 0);
+    return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
   }
 
   private async lookupErpOrderForReport(

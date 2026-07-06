@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 final NumberFormat vietnameseMoneyNumberFormat = NumberFormat.decimalPattern(
   'vi_VN',
 );
+final NumberFormat _compactMoneyNumberFormat = NumberFormat('#,##0.#', 'vi_VN');
 
 int? parseMoneyAmount(Object? value) {
   if (value == null) return null;
@@ -17,6 +18,19 @@ String formatVndAmount(Object? value) {
   final amount = parseMoneyAmount(value);
   if (amount == null) return '';
   return '${vietnameseMoneyNumberFormat.format(amount)} VND';
+}
+
+String formatCompactVndAmount(Object? value) {
+  final amount = parseMoneyAmount(value);
+  if (amount == null) return '';
+  final absoluteAmount = amount.abs();
+  if (absoluteAmount >= 999500000) {
+    return '${_compactMoneyNumberFormat.format(amount / 1000000000)}B VND';
+  }
+  if (absoluteAmount >= 1000000) {
+    return '${_compactMoneyNumberFormat.format(amount / 1000000)}M VND';
+  }
+  return formatVndAmount(amount);
 }
 
 class VietnameseThousandsSeparatorInputFormatter extends TextInputFormatter {

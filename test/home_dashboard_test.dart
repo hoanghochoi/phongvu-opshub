@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/core/formatting/money_formatters.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -37,6 +38,26 @@ void main() {
     expect(summary.salesProgress.missingStoreCodes, ['CP02']);
     expect(summary.salesProgress.day.percentage, 120);
     expect(summary.salesProgress.week.target, isNull);
+  });
+
+  test('Compact VND formatter keeps long dashboard amounts short', () {
+    expect(formatCompactVndAmount(365741), '365.741 VND');
+    expect(formatCompactVndAmount(125000000), '125M VND');
+    expect(formatCompactVndAmount(1255935484), '1,3B VND');
+  });
+
+  test('Home summary provider defaults selected date range to today', () {
+    final summaryProvider = HomeSummaryProvider(
+      _FakeHomeSummaryRepository(summary: _homeSummary()),
+      now: () => DateTime(2026, 7, 6, 14, 30),
+    );
+    addTearDown(summaryProvider.dispose);
+
+    expect(summaryProvider.selectedStartDate, DateTime(2026, 7, 6));
+    expect(summaryProvider.selectedEndDate, DateTime(2026, 7, 6));
+    expect(summaryProvider.hasExplicitDateRange, isTrue);
+    expect(summaryProvider.formattedSelectedStartDate, '2026-07-06');
+    expect(summaryProvider.formattedSelectedEndDate, '2026-07-06');
   });
 
   setUp(() {
@@ -179,10 +200,10 @@ void main() {
       expect(find.text('Tổng sao kê có đơn hàng'), findsOneWidget);
       expect(find.text('Tổng sao kê chưa có đơn hàng'), findsOneWidget);
       expect(find.text('Tỉ lệ sao kê có đơn hàng'), findsOneWidget);
-      expect(find.text('98.000.000 VND'), findsOneWidget);
+      expect(find.text('98M VND'), findsOneWidget);
       expect(find.text('Trang chủ vận hành'), findsOneWidget);
       expect(find.text('Doanh số trong ngày'), findsOneWidget);
-      expect(find.text('125.000.000 VND'), findsOneWidget);
+      expect(find.text('125M VND'), findsOneWidget);
       expect(
         find.byKey(const Key('home-summary-progress-donut')),
         findsOneWidget,
@@ -202,6 +223,8 @@ void main() {
       );
       expect(find.textContaining('Đã đạt:'), findsWidgets);
       expect(find.textContaining('Chỉ tiêu:'), findsWidgets);
+      expect(find.text('Đã đạt: 1,2B VND'), findsOneWidget);
+      expect(find.text('Chỉ tiêu: 3B VND'), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(find.text('Tổng quan'), findsOneWidget);
       expect(
@@ -475,7 +498,7 @@ void main() {
     expect(summaryProvider.selectedScope, 'OWN');
     expect(repository.requestedScopes, contains('OWN'));
     expect(find.text('Phạm vi cá nhân'), findsWidgets);
-    expect(find.text('5.000.000 VND'), findsOneWidget);
+    expect(find.text('5M VND'), findsOneWidget);
   });
 
   testWidgets('Home dashboard scope dropdown selects assigned child node', (
@@ -562,8 +585,26 @@ void main() {
     expect(summaryProvider.selectedScope, 'NODE:org-store-cp75');
     expect(repository.requestedScopes, contains('MANAGED_SCOPE'));
     expect(repository.requestedNodeIds, contains('org-store-cp75'));
-    expect(find.text('9.000.000 VND'), findsOneWidget);
+    expect(find.text('9M VND'), findsOneWidget);
   });
+}
+
+HomeSummary _homeSummary() {
+  return HomeSummary(
+    date: '2026-07-06',
+    available: true,
+    scope: 'OWN',
+    scopeLabel: 'Phạm vi cá nhân',
+    scopeDetail: 'CP01',
+    coverageLabel: 'Tỉ lệ báo cáo',
+    totalRevenue: 0,
+    totalOrders: 0,
+    totalReports: 0,
+    reportedOrders: 0,
+    unreportedOrders: 0,
+    coverageRate: 0,
+    refreshedAt: DateTime.parse('2026-07-06T03:15:00.000Z'),
+  );
 }
 
 class _FakeAuthProvider extends AuthProvider {

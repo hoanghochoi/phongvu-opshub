@@ -45,6 +45,19 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `SALES-REPORT-001`, 2026-07-06: Hotfix backend status sync chỉ chọn các đơn
+  `PURCHASED` đã được báo cáo trong `SalesReport` để gọi ERP status, không còn
+  lấy batch pending/completed trực tiếp từ `SalesReportErpOrderCache` nên đơn
+  chưa báo cáo không làm phình backlog khi pending 2-3 ngày. Validation:
+  `npm test -- --runInBand src/sales-reports/sales-reports.service.spec.ts`,
+  `npm run build`, và `git diff --check`.
+- `HOME-DASHBOARD-002`, 2026-07-06: Home dashboard mặc định chọn daterange hôm
+  nay ngay khi mở trang, nên request đầu tiên gửi `startDate=endDate` và log
+  `hasExplicitDateRange=true`. Các KPI/card doanh số/tài chính có chiều ngang
+  hẹp dùng số tiền compact `M`/`B` để tránh wrap/ellipsis, trong khi màn chi
+  tiết vẫn giữ format đầy đủ. Validation: focused
+  `flutter test --no-pub --reporter expanded test\home_dashboard_test.dart`,
+  `flutter analyze --no-pub`, và `git diff --check`.
 - `SALES-REPORT-001`/`UI-UX-002`, 2026-07-06: Cockpit `Báo cáo bán hàng` bỏ hai
   action trùng `Xuất file`/`Danh sách`, thay picker một ngày bằng daterange chung
   và giữ contract khoảng trống mặc định 30 ngày gần nhất. Card/nút/filter đứng

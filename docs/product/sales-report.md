@@ -13,7 +13,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   `Quản trị`. `Trang chủ` không còn là catalog tác vụ; thay vào đó
   nó hiển thị dashboard tổng quan theo scope lấy dữ liệu từ fact tables riêng
   của Home Summary. Dashboard tách hai khu vực dùng chung bộ chọn ngày và
-  scope. Khu vực `Bán hàng` hiển thị doanh số, tổng đơn hợp lệ, số đơn đã/chưa
+  scope; khi mở `Trang chủ`, khoảng ngày mặc định là hôm nay và user đổi
+  thủ công nếu cần xem ngày/khoảng khác. Khu vực `Bán hàng` hiển thị doanh số,
+  tổng đơn hợp lệ, số đơn đã/chưa
   báo cáo, `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn` và
   `Tỉ lệ chuyển đổi = tổng số đơn / tổng số báo cáo`; không còn card
   `Tổng số báo cáo hợp lệ` riêng.
@@ -81,9 +83,11 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   tiếng Việt; đơn trả một phần giữ report và trừ
   `returnedQuantity × unitAfterTaxPrice` của request đã hoàn tất.
 - Job trạng thái chạy mỗi 20 phút, tối đa 50 đơn/lượt với concurrency 2 và
-  Redis lease. Mặc định dành 40 slot cho pending cũ nhất, 10 slot rà xoay vòng
-  đơn hoàn thành trong 30 ngày, rồi bù slot thừa cho nhóm còn lại. Lỗi một đơn
-  chỉ tăng failure count và thử lại ở lượt sau.
+  Redis lease. Job chỉ rà các đơn `Mua hàng` đã được báo cáo trong OpsHub; không
+  quét toàn bộ đơn chưa báo cáo trong cache ERP để tránh backlog lớn khi đơn
+  pending nhiều ngày. Mặc định dành 40 slot cho pending đã báo cáo cũ nhất, 10
+  slot rà xoay vòng đơn đã báo cáo hoàn thành trong 30 ngày, rồi bù slot thừa
+  cho nhóm còn lại. Lỗi một đơn chỉ tăng failure count và thử lại ở lượt sau.
 - Doanh số dashboard của mỗi đơn là
   `round(max(grandTotal - returnedAfterTaxAmount, 0) / 1.08)` và chỉ cộng trạng
   thái hoàn thành. Menu `Quản trị` có `Quản lý doanh số` theo feature
@@ -137,6 +141,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Mọi số tiền hiển thị/nhập trong UI sales-report dùng dấu phân cách hàng ngàn
   theo chuẩn `vi_VN`, ví dụ `5.000.000 VND`; payload gửi backend vẫn là số
   nguyên không có dấu phân cách.
+- Riêng các KPI/card tổng quan có chiều ngang hẹp được phép rút gọn số tiền dài
+  bằng hậu tố `M`/`B`, ví dụ `179,4M VND` hoặc `1,3B VND`, để không phá layout;
+  màn chi tiết, form nhập và file export vẫn dùng định dạng đầy đủ.
 - Khi lấy đơn hàng từ ERP, backend lưu loại khách hàng, phương thức thanh toán,
   snapshot đơn hàng đã sanitize, và từng sản phẩm trong bảng
   `SalesReportOrderItem`. Với từng sản phẩm, backend đọc `categories` trong

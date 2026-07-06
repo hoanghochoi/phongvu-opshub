@@ -55,7 +55,9 @@ class HomeSummaryScopeOption {
 
 class HomeSummaryProvider extends ChangeNotifier {
   HomeSummaryProvider(this._repository, {DateTime Function()? now})
-    : _now = now ?? DateTime.now;
+    : _now = now ?? DateTime.now {
+    _resetSelectedDateRangeToToday();
+  }
 
   static final DateFormat _queryDateFormat = DateFormat('yyyy-MM-dd');
 
@@ -177,8 +179,7 @@ class HomeSummaryProvider extends ChangeNotifier {
     }
 
     if (sessionChanged) {
-      _selectedStartDate = null;
-      _selectedEndDate = null;
+      _resetSelectedDateRangeToToday();
       _scopeOptions = const [];
       _selectedScope = _defaultScopeFor(user, const []);
       _summary = null;
@@ -446,6 +447,12 @@ class HomeSummaryProvider extends ChangeNotifier {
       _selectedStartDate != null || _selectedEndDate != null;
 
   DateTime get currentDate => _normalizeDate(_now());
+
+  void _resetSelectedDateRangeToToday() {
+    final today = currentDate;
+    _selectedStartDate = today;
+    _selectedEndDate = today;
+  }
 
   DateTime get resolvedStartDate =>
       _selectedStartDate ??

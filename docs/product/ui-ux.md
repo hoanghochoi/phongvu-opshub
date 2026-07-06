@@ -244,7 +244,8 @@ visual systems that make the app feel assembled from unrelated screens.
   not `Lịch sử đơn hàng` with an order code.
 - Production formats must be consistent: money as `1.250.000 VND`, date/time as
   `HH:mm:ss dd/MM/yyyy`, and counts with units such as `20 dòng`, `3 ảnh`, or
-  `56 giao dịch`.
+  `56 giao dịch`. Compact dashboard cards may shorten long money values with
+  `M`/`B`, for example `179,4M VND`, when full values would clip or wrap.
 - When copy appears in logs and UI, logs may include sanitized technical context;
   UI must stay human-readable and action-oriented.
 

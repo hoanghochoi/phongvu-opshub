@@ -539,7 +539,7 @@ class SummaryCardGrid extends StatelessWidget {
         metricKey: 'revenue',
         icon: Icons.payments_outlined,
         title: 'Doanh số trong ngày',
-        value: formatVndAmount(summary.totalRevenue),
+        value: formatCompactVndAmount(summary.totalRevenue),
         trend: const SummaryTrend.neutral('Đang theo dõi'),
         color: AppColors.success,
       ),
@@ -606,7 +606,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
         metricKey: 'totalTransferredAmount',
         icon: Icons.account_balance_wallet_outlined,
         title: 'Tổng số tiền chuyển khoản',
-        value: formatVndAmount(summary.totalTransferredAmount),
+        value: formatCompactVndAmount(summary.totalTransferredAmount),
         trend: const SummaryTrend.neutral('Theo phạm vi'),
         color: AppColors.success,
       ),
@@ -1137,8 +1137,8 @@ class _SalesProgressPeriodView extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            'Đã đạt: ${formatVndAmount(period.actual)}',
-            maxLines: 2,
+            'Đã đạt: ${formatCompactVndAmount(period.actual)}',
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: AppTextStyles.caption.copyWith(
@@ -1148,8 +1148,8 @@ class _SalesProgressPeriodView extends StatelessWidget {
           Text(
             period.target == null
                 ? 'Chỉ tiêu: Chưa thiết lập'
-                : 'Chỉ tiêu: ${formatVndAmount(period.target!)}',
-            maxLines: 2,
+                : 'Chỉ tiêu: ${formatCompactVndAmount(period.target!)}',
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: AppTextStyles.caption.copyWith(
