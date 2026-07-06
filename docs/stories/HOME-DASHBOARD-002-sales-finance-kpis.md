@@ -10,10 +10,23 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
 - Dashboard tách rõ hai khu vực `Bán hàng` và `Tài chính`.
 - Cả hai khu vực cùng dùng ngày và scope ở header; đổi một bộ lọc phải tải lại
   toàn bộ KPI trong hai khu vực.
-- `Bán hàng` bỏ card `Tổng số báo cáo hợp lệ`, đổi `Tỷ lệ phủ báo cáo` thành
-  `Tỉ lệ báo cáo`, và thêm `Tỉ lệ chuyển đổi`.
+- `Bán hàng` chia thành hai nhóm nhỏ: `Doanh số` và `Hành vi then chốt`.
+- Nhóm `Doanh số` hiển thị `Doanh số tổng`, `Số đơn bán`,
+  `Trung bình đơn hàng`, `Doanh số hoàn thành`, `Pending` và
+  `Tỉ lệ chuyển đổi`.
+- `Doanh số tổng` lấy tổng giá trị đơn trong cache theo ngày/scope đang chọn,
+  không cộng đơn hủy/trả toàn bộ và trừ giá trị trả một phần.
+- `Trung bình đơn hàng = Doanh số tổng / Số đơn bán`.
+- `Doanh số hoàn thành` chỉ cộng các báo cáo mua hàng có trạng thái ERP đã
+  sync là hoàn thành; đơn trả một phần trừ giá trị trả trước khi cộng.
+- `Pending = Doanh số tổng - Doanh số hoàn thành`, không âm.
+- Nhóm `Hành vi then chốt` hiển thị `Số khách chưa mua`,
+  `Số đơn chưa báo cáo`, `Tỉ lệ báo cáo`, `Tỉ lệ 3 giải pháp`,
+  `Tỉ lệ trải nghiệm`, `Tỉ lệ Zalo OA` và `Tỉ lệ tải App`.
 - `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn hợp lệ`.
 - `Tỉ lệ chuyển đổi = tổng số đơn / tổng số báo cáo`.
+- Các tỉ lệ hành vi tính bằng số báo cáo có câu trả lời `Có` (`YES`) chia cho
+  tổng số báo cáo trong cùng ngày/scope.
 - `Tài chính` hiển thị tổng số tiền chuyển khoản, tổng số sao kê, tổng sao kê
   có đơn hàng, tổng sao kê chưa có đơn hàng và tỉ lệ sao kê có đơn hàng.
 - `Tỉ lệ sao kê có đơn hàng = tổng sao kê có đơn / tổng số sao kê`.

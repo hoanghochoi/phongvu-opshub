@@ -45,6 +45,14 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `HOME-DASHBOARD-002`, 2026-07-07: Khu vực `Bán hàng` trên Trang chủ tách
+  thành nhóm `Doanh số` và `Hành vi then chốt`. Backend trả doanh số tổng từ
+  cache đơn hàng sau khi loại hủy/trả toàn bộ và trừ trả một phần, trung bình
+  đơn, doanh số hoàn thành, pending và các tỉ lệ hành vi `YES`/tổng báo cáo
+  cho 3 giải pháp, trải nghiệm, Zalo OA, tải App; Flutter render thành hai grid
+  con và log đủ field mới qua `AppLogger`.
+  Validation: focused Home Summary Jest, focused Home dashboard Flutter test,
+  backend build, `flutter analyze --no-pub`, và `git diff --check`.
 - `UPDATE-004`, 2026-07-06: Android/Windows update prompt now starts an
   in-app self-update flow instead of opening the browser: client downloads
   `packageUrl`, verifies SHA-256/size, logs progress/failure via `AppLogger`,

@@ -2,6 +2,68 @@ import { HomeSummaryService } from './home-summary.service';
 
 describe('HomeSummaryService', () => {
   function createHarness() {
+    const syncOrderRows = [
+      {
+        orderCode: '2607040001',
+        orderCreatedAt: new Date('2026-07-04T02:00:00Z'),
+        fetchedAt: new Date('2026-07-04T02:05:00Z'),
+        storeCode: 'CP75',
+        storeName: 'CP75',
+        organizationNodeId: 'node-cp75',
+        sourceUserId: 'user-1',
+        sourceUserEmail: 'staff@phongvu.vn',
+        consultantCustomId: 'PV001',
+        consultantName: 'Staff',
+        consultantEmail: 'staff@phongvu.vn',
+        sellerId: 'PV001',
+        sellerName: 'Staff',
+        sellerEmail: 'staff@phongvu.vn',
+        grandTotal: 12500000,
+      },
+      {
+        orderCode: '2607040002',
+        orderCreatedAt: new Date('2026-07-04T05:00:00Z'),
+        fetchedAt: new Date('2026-07-04T05:10:00Z'),
+        storeCode: 'CP75',
+        storeName: 'CP75',
+        organizationNodeId: 'node-cp75',
+        sourceUserId: 'user-1',
+        sourceUserEmail: 'staff@phongvu.vn',
+        consultantCustomId: 'PV001',
+        consultantName: 'Staff',
+        consultantEmail: 'staff@phongvu.vn',
+        sellerId: 'PV001',
+        sellerName: 'Staff',
+        sellerEmail: 'staff@phongvu.vn',
+        grandTotal: 5000000,
+      },
+    ];
+    const revenueOrderRows = [
+      {
+        grandTotal: 12500000,
+        lifecycleStatus: 'COMPLETED',
+        hasReturnedFullItems: false,
+        returnedAfterTaxAmount: 0,
+      },
+      {
+        grandTotal: 5000000,
+        lifecycleStatus: 'COMPLETED_PARTIAL_RETURN',
+        hasReturnedFullItems: false,
+        returnedAfterTaxAmount: 1000000,
+      },
+      {
+        grandTotal: 7000000,
+        lifecycleStatus: 'CANCELLED',
+        hasReturnedFullItems: false,
+        returnedAfterTaxAmount: 0,
+      },
+      {
+        grandTotal: 3000000,
+        lifecycleStatus: 'RETURNED_FULL',
+        hasReturnedFullItems: true,
+        returnedAfterTaxAmount: 3000000,
+      },
+    ];
     const prisma = {
       salesReport: {
         findMany: jest.fn().mockResolvedValue([
@@ -40,44 +102,27 @@ describe('HomeSummaryService', () => {
             submittedAt: new Date('2026-07-04T03:00:00Z'),
           },
         ]),
+        count: jest
+          .fn()
+          .mockImplementation(({ where }: any) =>
+            Promise.resolve(
+              where?.consultedSolutionAnswer === 'YES' ||
+                where?.experiencedAnswer === 'YES' ||
+                where?.zaloAnswer === 'YES' ||
+                where?.appDownloadAnswer === 'YES'
+                ? 1
+                : 0,
+            ),
+          ),
       },
       salesReportErpOrderCache: {
-        findMany: jest.fn().mockResolvedValue([
-          {
-            orderCode: '2607040001',
-            orderCreatedAt: new Date('2026-07-04T02:00:00Z'),
-            fetchedAt: new Date('2026-07-04T02:05:00Z'),
-            storeCode: 'CP75',
-            storeName: 'CP75',
-            organizationNodeId: 'node-cp75',
-            sourceUserId: 'user-1',
-            sourceUserEmail: 'staff@phongvu.vn',
-            consultantCustomId: 'PV001',
-            consultantName: 'Staff',
-            consultantEmail: 'staff@phongvu.vn',
-            sellerId: 'PV001',
-            sellerName: 'Staff',
-            sellerEmail: 'staff@phongvu.vn',
-            grandTotal: 12500000,
-          },
-          {
-            orderCode: '2607040002',
-            orderCreatedAt: new Date('2026-07-04T05:00:00Z'),
-            fetchedAt: new Date('2026-07-04T05:10:00Z'),
-            storeCode: 'CP75',
-            storeName: 'CP75',
-            organizationNodeId: 'node-cp75',
-            sourceUserId: 'user-1',
-            sourceUserEmail: 'staff@phongvu.vn',
-            consultantCustomId: 'PV001',
-            consultantName: 'Staff',
-            consultantEmail: 'staff@phongvu.vn',
-            sellerId: 'PV001',
-            sellerName: 'Staff',
-            sellerEmail: 'staff@phongvu.vn',
-            grandTotal: 5000000,
-          },
-        ]),
+        findMany: jest
+          .fn()
+          .mockImplementation(({ select }: any) =>
+            Promise.resolve(
+              select?.lifecycleStatus ? revenueOrderRows : syncOrderRows,
+            ),
+          ),
       },
       user: {
         findUnique: jest.fn().mockResolvedValue({ jobRoleCode: 'SA' }),
@@ -165,14 +210,21 @@ describe('HomeSummaryService', () => {
       scope: 'OWN',
       scopeLabel: 'Phạm vi cá nhân',
       coverageLabel: 'Tỉ lệ báo cáo',
-      totalRevenue: 11574074,
+      totalRevenue: 16500000,
       totalOrders: 2,
       totalReports: 2,
       reportedOrders: 1,
       notPurchasedReports: 1,
       unreportedOrders: 1,
+      averageOrderValue: 8250000,
+      completedRevenue: 12500000,
+      pendingRevenue: 4000000,
       coverageRate: 50,
       conversionRate: 100,
+      consultedSolutionRate: 50,
+      experiencedRate: 50,
+      zaloRate: 50,
+      appDownloadRate: 50,
       salesAvailable: true,
       financeAvailable: true,
       totalTransferredAmount: 42000000,
@@ -193,6 +245,19 @@ describe('HomeSummaryService', () => {
       where: expect.objectContaining({ reportType: 'NOT_PURCHASED' }),
     });
     expect(prisma.homeSummaryOrderFact.upsert).toHaveBeenCalledTimes(2);
+    expect(prisma.salesReportErpOrderCache.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          lifecycleStatus: true,
+          returnedAfterTaxAmount: true,
+        }),
+      }),
+    );
+    expect(prisma.salesReport.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ consultedSolutionAnswer: 'YES' }),
+      }),
+    );
     expect(prisma.mapVietinTransaction.aggregate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -217,6 +282,14 @@ describe('HomeSummaryService', () => {
           erpGrandTotal: 1080000,
           erpReturnedAfterTaxAmount: 108000,
         },
+      ])
+      .mockResolvedValueOnce([
+        {
+          erpOrderCreatedAt: new Date('2026-07-04T02:00:00Z'),
+          submittedAt: new Date('2026-07-04T02:10:00Z'),
+          erpGrandTotal: 1080000,
+          erpReturnedAfterTaxAmount: 108000,
+        },
       ]);
 
     const result = await service.getSummary(
@@ -224,7 +297,7 @@ describe('HomeSummaryService', () => {
       { date: '2026-07-04' },
     );
 
-    expect(result.totalRevenue).toBe(900000);
+    expect(result.completedRevenue).toBe(972000);
     expect(result.salesProgress.day.actual).toBe(900000);
     expect(prisma.salesReport.findMany).toHaveBeenNthCalledWith(
       2,

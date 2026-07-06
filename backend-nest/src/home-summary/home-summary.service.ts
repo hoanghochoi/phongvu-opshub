@@ -35,6 +35,13 @@ type HomeSummaryResponse = SalesReportOperatingSummary & {
   endDate: string;
   unavailableMessage: string | null;
   salesProgress: SalesProgressResponse;
+  averageOrderValue: number;
+  completedRevenue: number;
+  pendingRevenue: number;
+  consultedSolutionRate: number;
+  experiencedRate: number;
+  zaloRate: number;
+  appDownloadRate: number;
 };
 
 type SalesProgressPeriod = {
@@ -63,6 +70,13 @@ type HomeSummaryScopeOptionResponse = {
   organizationNodeType: string | null;
   storeCount: number | null;
   isDefault: boolean;
+};
+
+type SalesBehaviorYesCounts = {
+  consultedSolution: number;
+  experienced: number;
+  zalo: number;
+  appDownload: number;
 };
 
 @Injectable()
@@ -152,6 +166,8 @@ export class HomeSummaryService {
     let totalReports = 0;
     let reportedOrders = 0;
     let notPurchasedReports = 0;
+    let completedRevenue = 0;
+    let behaviorYesCounts = this.emptyBehaviorYesCounts();
     if (salesAvailable) {
       const reportWhere = this.reportScopeWhere(scope, range);
       const [
@@ -198,6 +214,11 @@ export class HomeSummaryService {
               },
             })
           : 0;
+      [totalRevenue, completedRevenue, behaviorYesCounts] = await Promise.all([
+        this.totalCacheRevenue(scope, range),
+        this.completedRevenue(scope, range),
+        this.countBehaviorYesReports(scope, range),
+      ]);
     }
 
     let totalStatements = 0;
@@ -251,19 +272,35 @@ export class HomeSummaryService {
       totalStatementsWithoutOrder = statementWithoutOrderCount;
     }
     const unreportedOrders = Math.max(totalOrders - reportedOrders, 0);
+    const averageOrderValue = totalOrders
+      ? Math.round(totalRevenue / totalOrders)
+      : 0;
+    const pendingRevenue = Math.max(totalRevenue - completedRevenue, 0);
     const coverageRate = totalOrders
       ? Number(((reportedOrders / totalOrders) * 100).toFixed(2))
       : 0;
     const conversionRate = totalReports
       ? Number(((totalOrders / totalReports) * 100).toFixed(2))
       : 0;
+    const consultedSolutionRate = this.percentOf(
+      behaviorYesCounts.consultedSolution,
+      totalReports,
+    );
+    const experiencedRate = this.percentOf(
+      behaviorYesCounts.experienced,
+      totalReports,
+    );
+    const zaloRate = this.percentOf(behaviorYesCounts.zalo, totalReports);
+    const appDownloadRate = this.percentOf(
+      behaviorYesCounts.appDownload,
+      totalReports,
+    );
     const statementOrderRate = totalStatements
       ? Number(((totalStatementsWithOrder / totalStatements) * 100).toFixed(2))
       : 0;
     const salesProgress = salesAvailable
       ? await this.buildSalesProgress(user, scope, summaryDate, range)
       : this.emptySalesProgress();
-    totalRevenue = salesProgress.range.actual;
     const response: HomeSummaryResponse = {
       date,
       startDate: range.startDate,
@@ -279,8 +316,15 @@ export class HomeSummaryService {
       reportedOrders,
       notPurchasedReports,
       unreportedOrders,
+      averageOrderValue,
+      completedRevenue,
+      pendingRevenue,
       coverageRate,
       conversionRate,
+      consultedSolutionRate,
+      experiencedRate,
+      zaloRate,
+      appDownloadRate,
       salesAvailable,
       financeAvailable,
       totalTransferredAmount,
@@ -293,7 +337,7 @@ export class HomeSummaryService {
       unavailableMessage: null,
     };
     this.logger.log(
-      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalOrders=${totalOrders} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
+      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
     );
     return response;
   }
@@ -738,6 +782,41 @@ export class HomeSummaryService {
     return { AND: [base, { OR: or }] };
   }
 
+  private orderCacheRevenueWhere(
+    scope: SalesReportSummaryScopeDescriptor,
+    dateRange: DateRange,
+  ): Prisma.SalesReportErpOrderCacheWhereInput {
+    const base: Prisma.SalesReportErpOrderCacheWhereInput = {
+      excludedAt: null,
+      ...this.orderCacheDateWhere(dateRange),
+    };
+    if (scope.scope === 'ALL') return base;
+    if (scope.scope === 'MANAGED_SCOPE') {
+      return { AND: [base, { storeCode: { in: scope.allowedStoreCodes } }] };
+    }
+    const or: Prisma.SalesReportErpOrderCacheWhereInput[] = [];
+    if (scope.ownUserId) or.push({ sourceUserId: scope.ownUserId });
+    if (scope.ownEmail) {
+      or.push(
+        { sourceUserEmail: { equals: scope.ownEmail, mode: 'insensitive' } },
+        { consultantEmail: { equals: scope.ownEmail, mode: 'insensitive' } },
+        { sellerEmail: { equals: scope.ownEmail, mode: 'insensitive' } },
+      );
+    }
+    if (scope.ownPersonnelCode) {
+      or.push(
+        {
+          consultantCustomId: {
+            equals: scope.ownPersonnelCode,
+            mode: 'insensitive',
+          },
+        },
+        { sellerId: { equals: scope.ownPersonnelCode, mode: 'insensitive' } },
+      );
+    }
+    return { AND: [base, { OR: or }] };
+  }
+
   private financeScopeWhere(
     scope: SalesReportSummaryScopeDescriptor,
     dateRange: DateRange,
@@ -935,6 +1014,97 @@ export class HomeSummaryService {
     };
   }
 
+  private async completedRevenue(
+    scope: SalesReportSummaryScopeDescriptor,
+    range: DateRange,
+  ) {
+    const rows = await this.prisma.salesReport.findMany({
+      where: this.salesProgressReportWhere(scope, range),
+      select: {
+        erpGrandTotal: true,
+        erpReturnedAfterTaxAmount: true,
+      },
+    });
+    return rows.reduce((sum, row) => {
+      const gross = Math.max(
+        0,
+        (row.erpGrandTotal ?? 0) - (row.erpReturnedAfterTaxAmount ?? 0),
+      );
+      return sum + gross;
+    }, 0);
+  }
+
+  private async totalCacheRevenue(
+    scope: SalesReportSummaryScopeDescriptor,
+    range: DateRange,
+  ) {
+    const rows = await this.prisma.salesReportErpOrderCache.findMany({
+      where: this.orderCacheRevenueWhere(scope, range),
+      select: {
+        grandTotal: true,
+        lifecycleStatus: true,
+        hasReturnedFullItems: true,
+        returnedAfterTaxAmount: true,
+      },
+    });
+    return rows.reduce((sum, row) => sum + this.netCacheRevenue(row), 0);
+  }
+
+  private netCacheRevenue(row: {
+    grandTotal: number | null;
+    lifecycleStatus: string;
+    hasReturnedFullItems: boolean;
+    returnedAfterTaxAmount: number;
+  }) {
+    const status = String(row.lifecycleStatus || '')
+      .trim()
+      .toUpperCase();
+    if (
+      status === 'CANCELLED' ||
+      status === 'RETURNED_FULL' ||
+      row.hasReturnedFullItems === true
+    ) {
+      return 0;
+    }
+    return Math.max(0, (row.grandTotal ?? 0) - row.returnedAfterTaxAmount);
+  }
+
+  private async countBehaviorYesReports(
+    scope: SalesReportSummaryScopeDescriptor,
+    range: DateRange,
+  ): Promise<SalesBehaviorYesCounts> {
+    const where = this.salesReportBehaviorWhere(scope, range);
+    const [consultedSolution, experienced, zalo, appDownload] =
+      await this.prisma.$transaction([
+        this.prisma.salesReport.count({
+          where: { ...where, consultedSolutionAnswer: 'YES' },
+        }),
+        this.prisma.salesReport.count({
+          where: { ...where, experiencedAnswer: 'YES' },
+        }),
+        this.prisma.salesReport.count({
+          where: { ...where, zaloAnswer: 'YES' },
+        }),
+        this.prisma.salesReport.count({
+          where: { ...where, appDownloadAnswer: 'YES' },
+        }),
+      ]);
+    return { consultedSolution, experienced, zalo, appDownload };
+  }
+
+  private emptyBehaviorYesCounts(): SalesBehaviorYesCounts {
+    return {
+      consultedSolution: 0,
+      experienced: 0,
+      zalo: 0,
+      appDownload: 0,
+    };
+  }
+
+  private percentOf(count: number, total: number) {
+    return total ? Number(((count / total) * 100).toFixed(2)) : 0;
+  }
+
   private salesProgressReportWhere(
     scope: SalesReportSummaryScopeDescriptor,
     range: DateRange,
@@ -954,6 +1124,36 @@ export class HomeSummaryService {
           ],
         },
       ],
+    };
+    if (scope.scope === 'ALL') return base;
+    if (scope.scope === 'MANAGED_SCOPE') {
+      return { AND: [base, { storeCode: { in: scope.allowedStoreCodes } }] };
+    }
+    const own: Prisma.SalesReportWhereInput[] = [];
+    if (scope.ownUserId) own.push({ createdByUserId: scope.ownUserId });
+    if (scope.ownEmail) {
+      own.push({
+        createdByEmail: { equals: scope.ownEmail, mode: 'insensitive' },
+      });
+    }
+    if (scope.ownPersonnelCode) {
+      own.push({
+        createdByPersonnelCode: {
+          equals: scope.ownPersonnelCode,
+          mode: 'insensitive',
+        },
+      });
+    }
+    return { AND: [base, { OR: own }] };
+  }
+
+  private salesReportBehaviorWhere(
+    scope: SalesReportSummaryScopeDescriptor,
+    range: DateRange,
+  ): Prisma.SalesReportWhereInput {
+    const base: Prisma.SalesReportWhereInput = {
+      erpExcludedAt: null,
+      ...this.reportedOrderDateWhere(range),
     };
     if (scope.scope === 'ALL') return base;
     if (scope.scope === 'MANAGED_SCOPE') {
@@ -1174,8 +1374,15 @@ export class HomeSummaryService {
       reportedOrders: 0,
       notPurchasedReports: 0,
       unreportedOrders: 0,
+      averageOrderValue: 0,
+      completedRevenue: 0,
+      pendingRevenue: 0,
       coverageRate: 0,
       conversionRate: 0,
+      consultedSolutionRate: 0,
+      experiencedRate: 0,
+      zaloRate: 0,
+      appDownloadRate: 0,
       salesAvailable: false,
       financeAvailable: false,
       totalTransferredAmount: 0,

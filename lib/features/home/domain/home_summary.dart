@@ -15,8 +15,15 @@ class HomeSummary {
   final int reportedOrders;
   final int notPurchasedReports;
   final int unreportedOrders;
+  final int averageOrderValue;
+  final int completedRevenue;
+  final int pendingRevenue;
   final double coverageRate;
   final double conversionRate;
+  final double consultedSolutionRate;
+  final double experiencedRate;
+  final double zaloRate;
+  final double appDownloadRate;
   final bool salesAvailable;
   final bool financeAvailable;
   final int totalTransferredAmount;
@@ -43,8 +50,15 @@ class HomeSummary {
     required this.reportedOrders,
     this.notPurchasedReports = 0,
     required this.unreportedOrders,
+    this.averageOrderValue = 0,
+    this.completedRevenue = 0,
+    this.pendingRevenue = 0,
     required this.coverageRate,
     this.conversionRate = 0,
+    this.consultedSolutionRate = 0,
+    this.experiencedRate = 0,
+    this.zaloRate = 0,
+    this.appDownloadRate = 0,
     this.salesAvailable = true,
     this.financeAvailable = false,
     this.totalTransferredAmount = 0,
@@ -79,8 +93,15 @@ class HomeSummary {
       reportedOrders: _intOf(json['reportedOrders']),
       notPurchasedReports: _intOf(json['notPurchasedReports']),
       unreportedOrders: _intOf(json['unreportedOrders']),
+      averageOrderValue: _intOf(json['averageOrderValue']),
+      completedRevenue: _intOf(json['completedRevenue']),
+      pendingRevenue: _intOf(json['pendingRevenue']),
       coverageRate: _coverageOf(json['coverageRate']),
       conversionRate: _coverageOf(json['conversionRate']),
+      consultedSolutionRate: _coverageOf(json['consultedSolutionRate']),
+      experiencedRate: _coverageOf(json['experiencedRate']),
+      zaloRate: _coverageOf(json['zaloRate']),
+      appDownloadRate: _coverageOf(json['appDownloadRate']),
       salesAvailable: json.containsKey('salesAvailable')
           ? json['salesAvailable'] == true
           : true,
@@ -106,6 +127,9 @@ class HomeSummary {
       reportedOrders > 0 ||
       notPurchasedReports > 0 ||
       unreportedOrders > 0 ||
+      averageOrderValue > 0 ||
+      completedRevenue > 0 ||
+      pendingRevenue > 0 ||
       totalTransferredAmount > 0 ||
       totalStatements > 0 ||
       totalStatementsWithOrder > 0 ||

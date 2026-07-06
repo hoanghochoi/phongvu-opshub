@@ -14,11 +14,15 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   nó hiển thị dashboard tổng quan theo scope lấy dữ liệu từ fact tables riêng
   của Home Summary. Dashboard tách hai khu vực dùng chung bộ chọn ngày và
   scope; khi mở `Trang chủ`, khoảng ngày mặc định là hôm nay và user đổi
-  thủ công nếu cần xem ngày/khoảng khác. Khu vực `Bán hàng` hiển thị doanh số,
-  tổng đơn hợp lệ, số đơn đã/chưa báo cáo, số báo cáo chưa mua,
-  `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn` và
-  `Tỉ lệ chuyển đổi = tổng số đơn / tổng số báo cáo`; không còn card
-  `Tổng số báo cáo hợp lệ` riêng.
+  thủ công nếu cần xem ngày/khoảng khác. Khu vực `Bán hàng` chia thành nhóm
+  `Doanh số` và `Hành vi then chốt`. Nhóm `Doanh số` hiển thị doanh số tổng
+  từ cache đơn hàng sau khi loại đơn hủy/trả toàn bộ và trừ giá trị trả một
+  phần, số đơn bán, trung bình đơn hàng, doanh số hoàn thành, pending và
+  `Tỉ lệ chuyển đổi = tổng số đơn / tổng số báo cáo`. Nhóm
+  `Hành vi then chốt` hiển thị số khách chưa mua, số đơn chưa báo cáo,
+  `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn`, cùng các tỉ lệ
+  `Có`/tổng báo cáo cho tư vấn 3 giải pháp, trải nghiệm, Zalo OA và tải App;
+  không còn card `Tổng số báo cáo hợp lệ` riêng.
 - Quyền hiển thị hai khu vực dashboard là hai tính năng riêng trong cây tổ
   chức: `Dashboard - Bán hàng` và `Dashboard - Tài chính`. Super Admin bật/tắt
   từng tính năng tại node; backend và app cùng ẩn khu vực không được cấp.
@@ -88,10 +92,14 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   pending nhiều ngày. Mặc định dành 40 slot cho pending đã báo cáo cũ nhất, 10
   slot rà xoay vòng đơn đã báo cáo hoàn thành trong 30 ngày, rồi bù slot thừa
   cho nhóm còn lại. Lỗi một đơn chỉ tăng failure count và thử lại ở lượt sau.
-- Doanh số dashboard của mỗi đơn là
-  `round(max(grandTotal - returnedAfterTaxAmount, 0) / 1.08)` và chỉ cộng trạng
-  thái hoàn thành. Menu `Quản trị` có `Quản lý doanh số` theo feature
-  `ADMIN_SALES_TARGETS`; chỉ tiêu lưu theo SR/tháng ở giá trị trước VAT.
+- Doanh số tổng trên dashboard lấy `grandTotal` từ cache đơn hàng theo
+  ngày/scope, bỏ đơn hủy/trả toàn bộ và trừ `returnedAfterTaxAmount` khi có trả
+  một phần. Doanh số hoàn thành chỉ cộng báo cáo mua hàng có trạng thái ERP
+  hoàn thành, cũng trừ `returnedAfterTaxAmount` khi có trả một phần. Riêng tiến
+  độ chỉ tiêu dùng giá trị trước VAT theo công thức
+  `round(max(grandTotal - returnedAfterTaxAmount, 0) / 1.08)`. Menu
+  `Quản trị` có `Quản lý doanh số` theo feature `ADMIN_SALES_TARGETS`; chỉ
+  tiêu lưu theo SR/tháng ở giá trị trước VAT.
 - ERP/Listing chỉ được tự điền ngành hàng khi map được về nhóm ngành OpsHub:
   chỉ lấy `result.products[].categories[]` có `level = 1` và dùng đúng `code`
   khớp `Cat group ID` trong `data/categories.csv`. Không dùng category level

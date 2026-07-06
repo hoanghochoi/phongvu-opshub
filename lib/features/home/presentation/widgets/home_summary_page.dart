@@ -136,7 +136,13 @@ class HomeSummaryPage extends StatelessWidget {
           color: AppColors.primary,
         ),
         const SizedBox(height: 10),
+        const _SummarySubsectionHeader(title: 'Doanh số'),
+        const SizedBox(height: 8),
         SummaryCardGrid(summary: summary),
+        const SizedBox(height: 14),
+        const _SummarySubsectionHeader(title: 'Hành vi then chốt'),
+        const SizedBox(height: 8),
+        SalesBehaviorSummaryCardGrid(summary: summary),
       ],
       if (summary.financeAvailable) ...[
         const SizedBox(height: AppLayoutTokens.sectionGap),
@@ -191,6 +197,23 @@ class _SummarySectionHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SummarySubsectionHeader extends StatelessWidget {
+  const _SummarySubsectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: AppTextStyles.labelM.copyWith(
+        color: AppColors.textSecondaryOf(context),
+        fontWeight: FontWeight.w800,
+      ),
     );
   }
 }
@@ -538,26 +561,44 @@ class SummaryCardGrid extends StatelessWidget {
       SummaryCard(
         metricKey: 'revenue',
         icon: Icons.payments_outlined,
-        title: 'Doanh số trong ngày',
+        title: 'Doanh số tổng',
         value: formatCompactVndAmount(summary.totalRevenue),
-        trend: const SummaryTrend.neutral('Đang theo dõi'),
+        trend: const SummaryTrend.neutral('Theo đơn cache'),
         color: AppColors.success,
       ),
       SummaryCard(
         metricKey: 'totalOrders',
         icon: Icons.shopping_bag_outlined,
-        title: 'Tổng số đơn hợp lệ',
+        title: 'Số đơn bán',
         value: _integerLabel(summary.totalOrders),
         trend: const SummaryTrend.neutral('Theo phạm vi'),
         color: AppColors.primary,
       ),
       SummaryCard(
-        metricKey: 'coverageRate',
-        icon: Icons.percent_rounded,
-        title: summary.resolvedCoverageLabel,
-        value: _percentLabel(summary.coverageRate),
-        trend: SummaryTrend.coverage(summary.coverageRate),
+        metricKey: 'averageOrderValue',
+        icon: Icons.show_chart_rounded,
+        title: 'Trung bình đơn hàng',
+        value: formatCompactVndAmount(summary.averageOrderValue),
+        trend: const SummaryTrend.neutral('Doanh số/đơn'),
         color: AppColors.info,
+      ),
+      SummaryCard(
+        metricKey: 'completedRevenue',
+        icon: Icons.verified_outlined,
+        title: 'Doanh số hoàn thành',
+        value: formatCompactVndAmount(summary.completedRevenue),
+        trend: const SummaryTrend.success('đã sync'),
+        color: AppColors.secondary,
+      ),
+      SummaryCard(
+        metricKey: 'pendingRevenue',
+        icon: Icons.pending_actions_outlined,
+        title: 'Pending',
+        value: formatCompactVndAmount(summary.pendingRevenue),
+        trend: summary.pendingRevenue > 0
+            ? const SummaryTrend.warning('chưa hoàn thành')
+            : const SummaryTrend.success('đã đủ'),
+        color: AppColors.warning,
       ),
       SummaryCard(
         metricKey: 'conversionRate',
@@ -567,20 +608,29 @@ class SummaryCardGrid extends StatelessWidget {
         trend: SummaryTrend.conversion(summary.conversionRate),
         color: AppColors.secondary,
       ),
-      SummaryCard(
-        metricKey: 'reportedOrders',
-        icon: Icons.task_alt_rounded,
-        title: 'Số đơn đã báo cáo',
-        value: _integerLabel(summary.reportedOrders),
-        trend: const SummaryTrend.neutral('không đổi'),
-        color: AppColors.success,
-      ),
+    ];
+
+    return _SummaryMetricGrid(
+      gridKey: const Key('home-summary-grid'),
+      cards: cards,
+    );
+  }
+}
+
+class SalesBehaviorSummaryCardGrid extends StatelessWidget {
+  const SalesBehaviorSummaryCardGrid({super.key, required this.summary});
+
+  final HomeSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final cards = [
       SummaryCard(
         metricKey: 'notPurchasedReports',
         icon: Icons.person_search_outlined,
-        title: 'Báo cáo chưa mua',
+        title: 'Số khách chưa mua',
         value: _integerLabel(summary.notPurchasedReports),
-        trend: const SummaryTrend.neutral('Theo phạm vi'),
+        trend: const SummaryTrend.neutral('Theo báo cáo'),
         color: AppColors.secondary,
       ),
       SummaryCard(
@@ -593,10 +643,50 @@ class SummaryCardGrid extends StatelessWidget {
             : const SummaryTrend.success('đã đủ'),
         color: AppColors.warning,
       ),
+      SummaryCard(
+        metricKey: 'coverageRate',
+        icon: Icons.percent_rounded,
+        title: summary.resolvedCoverageLabel,
+        value: _percentLabel(summary.coverageRate),
+        trend: SummaryTrend.coverage(summary.coverageRate),
+        color: AppColors.info,
+      ),
+      SummaryCard(
+        metricKey: 'consultedSolutionRate',
+        icon: Icons.psychology_alt_outlined,
+        title: 'Tỉ lệ 3 giải pháp',
+        value: _percentLabel(summary.consultedSolutionRate),
+        trend: SummaryTrend.yesRate(summary.consultedSolutionRate),
+        color: AppColors.primary,
+      ),
+      SummaryCard(
+        metricKey: 'experiencedRate',
+        icon: Icons.touch_app_outlined,
+        title: 'Tỉ lệ trải nghiệm',
+        value: _percentLabel(summary.experiencedRate),
+        trend: SummaryTrend.yesRate(summary.experiencedRate),
+        color: AppColors.success,
+      ),
+      SummaryCard(
+        metricKey: 'zaloRate',
+        icon: Icons.qr_code_2_outlined,
+        title: 'Tỉ lệ Zalo OA',
+        value: _percentLabel(summary.zaloRate),
+        trend: SummaryTrend.yesRate(summary.zaloRate),
+        color: AppColors.info,
+      ),
+      SummaryCard(
+        metricKey: 'appDownloadRate',
+        icon: Icons.download_for_offline_outlined,
+        title: 'Tỉ lệ tải App',
+        value: _percentLabel(summary.appDownloadRate),
+        trend: SummaryTrend.yesRate(summary.appDownloadRate),
+        color: AppColors.secondary,
+      ),
     ];
 
     return _SummaryMetricGrid(
-      gridKey: const Key('home-summary-grid'),
+      gridKey: const Key('home-sales-behavior-summary-grid'),
       cards: cards,
     );
   }
@@ -825,6 +915,12 @@ class SummaryTrend {
   factory SummaryTrend.conversion(double conversionRate) {
     if (conversionRate >= 50) return const SummaryTrend.success('chốt tốt');
     if (conversionRate <= 0) return const SummaryTrend.warning('chưa có đơn');
+    return const SummaryTrend.warning('cần cải thiện');
+  }
+
+  factory SummaryTrend.yesRate(double rate) {
+    if (rate >= 80) return const SummaryTrend.success('đang tốt');
+    if (rate <= 0) return const SummaryTrend.warning('chưa có');
     return const SummaryTrend.warning('cần cải thiện');
   }
 
