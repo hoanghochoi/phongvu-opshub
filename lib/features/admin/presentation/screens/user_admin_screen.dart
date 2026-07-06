@@ -43,7 +43,6 @@ class UserAdminScreen extends StatefulWidget {
 class _UserAdminScreenState extends State<UserAdminScreen> {
   late final AuthRepository _repository;
   final _searchController = TextEditingController();
-  List<User> _allUsers = [];
   List<User> _users = [];
   List<AdminRoleDefinition> _roles = AdminRoles.definitions;
   List<AdminPersonnelDefinition> _jobRoles = [];
@@ -60,6 +59,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   bool _importing = false;
   bool _metadataLoaded = false;
   Timer? _searchDebounce;
+  int _loadRequestSerial = 0;
 
   @override
   void initState() {
@@ -78,12 +78,14 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
 
   void _onSearchChanged() {
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 80), () {
-      if (mounted) _applyLocalSearch(logSearch: true);
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) _load();
     });
   }
 
   Future<void> _load({bool reloadMetadata = false}) async {
+    final requestSerial = ++_loadRequestSerial;
+    final query = _searchController.text.trim();
     setState(() => _loading = true);
     final currentUser = context.read<AuthProvider>().user;
     final canUseRoles = currentUser?.canUseFeature('ADMIN_ROLES') == true;
@@ -103,12 +105,16 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         'canUseUserScopeTree': canUseUserScopeTree,
         'canUseFeatures': canUseFeatures,
         'reloadMetadata': reloadMetadata || !_metadataLoaded,
+        'hasQuery': query.isNotEmpty,
+        'queryLength': query.length,
+        'searchSource': 'server',
       },
     );
     try {
       final shouldLoadMetadata = reloadMetadata || !_metadataLoaded;
       final results = await Future.wait<Object>([
         _repository.listUsers(
+          query: query,
           domain: _domainFilter,
           orgNodeId: _orgNodeFilter,
           featureCode: _featureFilter,
@@ -129,9 +135,10 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                   : Future.value(_orgNodes)
             : Future.value(<AdminOrganizationNode>[]),
       ]);
-      if (!mounted) return;
+      if (!mounted || requestSerial != _loadRequestSerial) return;
+      final users = results[0] as List<User>;
       setState(() {
-        _allUsers = results[0] as List<User>;
+        _users = users;
         _roles = results[1] as List<AdminRoleDefinition>;
         _jobRoles = const <AdminPersonnelDefinition>[];
         _regions = const <AdminRegionDefinition>[];
@@ -139,22 +146,23 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         _features = results[2] as List<AdminFeatureDefinition>;
         _orgNodes = results[3] as List<AdminOrganizationNode>;
         _metadataLoaded = true;
-        _users = _filterUsers(_allUsers, _searchController.text);
       });
       await AppLogger.instance.info(
         'Admin',
         'Admin user management load succeeded',
         context: {
           'role': currentUser?.role,
-          'userCount': _users.length,
-          'loadedUserCount': _allUsers.length,
+          'userCount': users.length,
           'roleCount': _roles.length,
           'featureCount': _features.length,
           'orgNodeCount': _orgNodes.length,
-          'localSearch': true,
+          'hasQuery': query.isNotEmpty,
+          'queryLength': query.length,
+          'searchSource': 'server',
         },
       );
     } catch (error) {
+      if (requestSerial != _loadRequestSerial) return;
       await AppLogger.instance.error(
         'Admin',
         'Admin user management load failed',
@@ -169,57 +177,15 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && requestSerial == _loadRequestSerial) {
+        setState(() => _loading = false);
+      }
     }
   }
 
-  void _applyLocalSearch({bool logSearch = false}) {
-    final query = _searchController.text;
-    final filtered = _filterUsers(_allUsers, query);
-    setState(() => _users = filtered);
-    if (logSearch) {
-      unawaited(
-        AppLogger.instance.info(
-          'Admin',
-          'Admin user local search applied',
-          context: {
-            'queryLength': query.trim().length,
-            'loadedUserCount': _allUsers.length,
-            'visibleUserCount': filtered.length,
-          },
-        ),
-      );
-    }
-  }
-
-  List<User> _filterUsers(List<User> users, String rawQuery) {
-    final query = _normalizeSearch(rawQuery);
-    if (query.isEmpty) return List<User>.from(users);
-    return users
-        .where((user) => _userSearchText(user).contains(query))
-        .toList();
-  }
-
-  String _userSearchText(User user) {
-    return _normalizeSearch(
-      [
-        user.email,
-        user.name,
-        user.lastName,
-        user.personnelCode,
-        user.storeId,
-        user.storeName,
-        user.assignedStoreHeaderInfo,
-        user.organizationNodeName,
-        user.departmentCode,
-        user.jobRoleCode,
-        user.role,
-      ].whereType<String>().join(' '),
-    );
-  }
-
-  String _normalizeSearch(String value) {
-    return value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  void _runSearchNow() {
+    _searchDebounce?.cancel();
+    _load();
   }
 
   Future<void> _importUsers() async {
@@ -553,6 +519,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       _statusFilter = null;
       _searchController.clear();
     });
+    _searchDebounce?.cancel();
     _load();
   }
 
@@ -737,14 +704,14 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                 AppTextInput(
                   controller: _searchController,
                   label: 'Tìm người dùng',
-                  hintText: 'Tìm trong danh sách đã tải',
+                  hintText: 'Tìm trực tiếp trong hệ thống',
                   icon: Icons.search,
                   suffixIcon: AppIconAction(
                     onPressed: _loading ? null : _load,
                     icon: Icons.refresh,
                     tooltip: 'Tải lại danh sách',
                   ),
-                  onSubmitted: (_) => _applyLocalSearch(logSearch: true),
+                  onSubmitted: (_) => _runSearchNow(),
                 ),
                 const SizedBox(height: AppLayoutTokens.formInlineGap),
                 _buildFilterToolbar(),

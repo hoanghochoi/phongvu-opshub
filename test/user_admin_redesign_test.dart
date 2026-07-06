@@ -118,6 +118,41 @@ void main() {
     expect(find.byTooltip('Sửa người dùng'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('User admin sends text search to the server', (tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const currentUser = User(
+      id: 'admin-1',
+      email: 'admin@phongvu.vn',
+      name: 'Quản trị viên',
+      role: 'SUPER_ADMIN',
+      status: 'yes',
+    );
+    final repository = _FakeUserAdminRepository(users: const []);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(currentUser),
+        child: MaterialApp(home: UserAdminScreen(repository: repository)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextField).first,
+      'vu.nt1@phongvu-mna.vn',
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    expect(repository.requestedQueries.last, 'vu.nt1@phongvu-mna.vn');
+    expect(find.text('vu.nt1@phongvu-mna.vn'), findsAtLeastNWidgets(2));
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _FakeAuthProvider extends AuthProvider {
@@ -139,6 +174,7 @@ class _FakeUserAdminRepository extends AuthRepository {
   _FakeUserAdminRepository({required this.users}) : super(ApiClient());
 
   final List<User> users;
+  final List<String?> requestedQueries = [];
 
   @override
   Future<List<User>> listUsers({
@@ -148,7 +184,21 @@ class _FakeUserAdminRepository extends AuthRepository {
     String? featureCode,
     String? role,
     String? status,
-  }) async => users;
+  }) async {
+    requestedQueries.add(query);
+    if (query?.trim() == 'vu.nt1@phongvu-mna.vn') {
+      return const [
+        User(
+          id: 'user-db-search',
+          email: 'vu.nt1@phongvu-mna.vn',
+          name: 'Vũ Nhật',
+          role: 'USER',
+          status: 'yes',
+        ),
+      ];
+    }
+    return users;
+  }
 
   @override
   Future<List<AdminRoleDefinition>> listAdminRoles() async =>

@@ -711,6 +711,51 @@ describe('UserService admin store management', () => {
     ]);
   });
 
+  it('searches admin users in the database when q is provided', async () => {
+    installUserScopeTreeMock();
+    const query = 'vu.nt1@phongvu-mna.vn';
+    prisma.user.findMany.mockResolvedValueOnce([]);
+
+    await service.adminListUsers(superAdmin, { q: query });
+
+    const where = prisma.user.findMany.mock.calls.at(-1)?.[0]?.where;
+    const searchClause = where.AND.find(
+      (item: any) =>
+        Array.isArray(item.OR) &&
+        item.OR.some((condition: any) => condition.email?.contains === query),
+    );
+    expect(searchClause.OR).toEqual(
+      expect.arrayContaining([
+        { email: { contains: query, mode: 'insensitive' } },
+        { firstName: { contains: query, mode: 'insensitive' } },
+        { store: { storeId: { contains: query, mode: 'insensitive' } } },
+        {
+          organizationAssignments: {
+            some: expect.objectContaining({
+              isActive: true,
+              OR: expect.arrayContaining([
+                {
+                  organizationNodeId: {
+                    contains: query,
+                    mode: 'insensitive',
+                  },
+                },
+              ]),
+            }),
+          },
+        },
+      ]),
+    );
+    expect(prisma.user.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        take: 200,
+        where: expect.objectContaining({
+          AND: expect.arrayContaining([searchClause]),
+        }),
+      }),
+    );
+  });
+
   it('blocks ADMIN_ACARE from updating users outside acare.vn', async () => {
     prisma.user.findUnique.mockResolvedValueOnce({
       id: 'phongvu-user',

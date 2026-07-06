@@ -544,7 +544,8 @@ class AuthRepository {
       'Admin',
       'Admin users loaded',
       context: {
-        'query': query,
+        'hasQuery': query?.trim().isNotEmpty == true,
+        'queryLength': query?.trim().length ?? 0,
         'domain': domain,
         'orgNodeId': orgNodeId,
         'featureCode': featureCode,

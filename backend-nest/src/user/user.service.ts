@@ -3049,15 +3049,8 @@ export class UserService implements OnModuleInit {
   ): Promise<Prisma.UserWhereInput> {
     const conditions: Prisma.UserWhereInput[] = [];
     if (Object.keys(scope).length > 0) conditions.push(scope);
-    if (query) {
-      conditions.push({
-        OR: [
-          { email: { contains: query, mode: 'insensitive' } },
-          { firstName: { contains: query, mode: 'insensitive' } },
-          { lastName: { contains: query, mode: 'insensitive' } },
-        ],
-      });
-    }
+    const searchWhere = this.adminUserSearchWhere(query);
+    if (searchWhere) conditions.push(searchWhere);
     const domain = this.normalizeOptionalEmailDomain(filters.domain);
     if (domain) {
       conditions.push({
@@ -3081,6 +3074,57 @@ export class UserService implements OnModuleInit {
     );
     if (orgNodeWhere) conditions.push(orgNodeWhere);
     return conditions.length > 0 ? { AND: conditions } : {};
+  }
+
+  private adminUserSearchWhere(query: string): Prisma.UserWhereInput | null {
+    if (!query) return null;
+    const text = { contains: query, mode: Prisma.QueryMode.insensitive };
+    return {
+      OR: [
+        { email: text },
+        { firstName: text },
+        { lastName: text },
+        { role: text },
+        { storeId: text },
+        { store: { storeId: text } },
+        { store: { storeName: text } },
+        { departmentCode: text },
+        { department: { code: text } },
+        { department: { displayName: text } },
+        { jobRoleCode: text },
+        { jobRole: { code: text } },
+        { jobRole: { displayName: text } },
+        { workScopeType: text },
+        { regionCode: text },
+        { region: { code: text } },
+        { region: { displayName: text } },
+        { region: { abbreviation: text } },
+        { areaCode: text },
+        { area: { code: text } },
+        { area: { displayName: text } },
+        { area: { abbreviation: text } },
+        { organizationNodeId: text },
+        { organizationNode: { id: text } },
+        { organizationNode: { code: text } },
+        { organizationNode: { businessCode: text } },
+        { organizationNode: { displayName: text } },
+        {
+          organizationAssignments: {
+            some: {
+              isActive: true,
+              OR: [
+                { organizationNodeId: text },
+                { organizationNode: { id: text } },
+                { organizationNode: { code: text } },
+                { organizationNode: { businessCode: text } },
+                { organizationNode: { displayName: text } },
+              ],
+            },
+          },
+        },
+        { userFeatureAssignments: { some: { featureCode: text } } },
+      ],
+    };
   }
 
   private async userOrganizationNodeWhere(
