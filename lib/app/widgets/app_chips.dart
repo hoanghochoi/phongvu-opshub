@@ -12,6 +12,9 @@ class AppInfoChip extends StatelessWidget {
   final String text;
   final Color? color;
   final double? maxWidth;
+  final VoidCallback? onTap;
+  final String? tooltip;
+  final String? semanticsLabel;
 
   const AppInfoChip(
     this.icon,
@@ -19,6 +22,9 @@ class AppInfoChip extends StatelessWidget {
     super.key,
     this.color,
     this.maxWidth,
+    this.onTap,
+    this.tooltip,
+    this.semanticsLabel,
   });
 
   @override
@@ -27,12 +33,8 @@ class AppInfoChip extends StatelessWidget {
     final effectiveColor = color ?? AppColors.neutral700;
     final displayColor = isEmpty ? AppColors.neutral400 : effectiveColor;
 
-    return Container(
+    final content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.chipBackground,
-        borderRadius: AppRadius.allSm,
-      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -59,9 +61,44 @@ class AppInfoChip extends StatelessWidget {
               ),
             ),
           ),
+          if (onTap != null) ...[
+            const SizedBox(width: 4),
+            Icon(Icons.copy_rounded, size: 12, color: displayColor),
+          ],
         ],
       ),
     );
+
+    if (onTap == null) {
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.chipBackground,
+          borderRadius: AppRadius.allSm,
+        ),
+        child: content,
+      );
+    }
+
+    Widget interactiveChip = Semantics(
+      button: true,
+      excludeSemantics: true,
+      label: semanticsLabel ?? text,
+      hint: 'Sao chép',
+      child: Material(
+        color: AppColors.chipBackground,
+        borderRadius: AppRadius.allSm,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadius.allSm,
+          child: content,
+        ),
+      ),
+    );
+    if (tooltip?.isNotEmpty == true) {
+      interactiveChip = Tooltip(message: tooltip!, child: interactiveChip);
+    }
+    return interactiveChip;
   }
 }
 

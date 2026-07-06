@@ -871,9 +871,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
         : {}),
     };
     await this.prisma.$transaction([
-      this.prisma.salesReportErpOrderCache.update({
+      this.prisma.salesReportErpOrderCache.upsert({
         where: { orderCode: order.orderCode },
-        data: cacheData,
+        create: { orderCode: order.orderCode, ...cacheData },
+        update: cacheData,
       }),
       this.prisma.salesReport.updateMany({
         where: {
@@ -903,8 +904,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
 
   private async recordErpStatusSyncFailure(orderCode: string) {
     const attemptedAt = new Date();
-    await this.prisma.$transaction([
-      this.prisma.salesReportErpOrderCache.update({
+    const [cacheResult] = await this.prisma.$transaction([
+      this.prisma.salesReportErpOrderCache.updateMany({
         where: { orderCode },
         data: {
           statusCheckAttemptedAt: attemptedAt,
@@ -916,6 +917,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
         data: { erpStatusCheckFailureCount: { increment: 1 } },
       }),
     ]);
+    if (cacheResult.count === 0) {
+      this.logger.warn(
+        `ERP order status failure recorded without cache row: orderLength=${orderCode.length}`,
+      );
+    }
   }
 
   async orderCockpit(user: any, query: ListSalesReportOrdersDto) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
@@ -13,12 +14,25 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  String? copiedText;
+
   setUp(() {
+    copiedText = null;
     SharedPreferences.setMockInitialValues({});
     AppLogger.instance.setUploadsEnabledForTesting(false);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copiedText =
+                (call.arguments as Map<dynamic, dynamic>)['text'] as String?;
+          }
+          return null;
+        });
   });
 
   tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null);
     AppLogger.instance.setUploadsEnabledForTesting(true);
   });
 
@@ -72,6 +86,44 @@ void main() {
     expect(find.text('250403171'), findsOneWidget);
     expect(find.text('LK.04-A-03-a'), findsOneWidget);
     expect(find.text('Đánh dấu xuất kho'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FIFO result copies serial and location by click or touch', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(_wrapFifoCheck(_FakeFifoRepository()));
+    await tester.enterText(find.byType(TextField), 'SN001');
+    await tester.tap(find.byTooltip('Tìm FIFO'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Sao chép serial'), findsOneWidget);
+    expect(find.byTooltip('Sao chép vị trí'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    final serialChip = find.byKey(const ValueKey('fifo-copy-serial-fifo-1'));
+    await tester.ensureVisible(serialChip);
+    await tester.tap(serialChip);
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(copiedText, 'SN001');
+    expect(find.text('Đã sao chép serial.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    final locationChip = find.byKey(
+      const ValueKey('fifo-copy-location-fifo-1'),
+    );
+    await tester.ensureVisible(locationChip);
+    await tester.tap(locationChip);
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(copiedText, 'LK.04-A-03-a');
+    expect(find.text('Đã sao chép vị trí.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

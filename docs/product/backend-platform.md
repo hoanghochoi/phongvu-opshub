@@ -13,7 +13,13 @@ development services for OpsHub.
 - Prisma owns the database schema.
 - BigQuery configuration is required for inventory-related backend behavior.
 - Client update metadata is exposed by `GET /app-version` and remains the source
-  of truth for update availability, force/minimum-build rules, and download URL.
+  of truth for update availability, force/minimum-build rules, legacy download
+  URL, and in-app self-update package metadata.
+- Android and Windows metadata must include `packageUrl`, `packageSha256`,
+  `packageSizeBytes`, and `packageType` when a release should update inside the
+  app. Windows also publishes `installerArgs` so the client can launch the Inno
+  Setup installer silently. `updateUrl` stays for older clients and must keep
+  pointing at the same package unless a deliberate migration says otherwise.
 - A full API startup publishes `APP_VERSION_UPDATED` through Redis. Go exposes
   that signal as `APP_UPDATE` on the public, updates-only `/ws/app-updates`
   endpoint. Running clients recheck `GET /app-version` after the signal,
@@ -54,9 +60,15 @@ curl http://localhost:3000/app-version
 - Configure Redis consistently for NestJS and Go.
 - Configure upload storage as persistent production storage.
 - Configure `APP_VERSION`, `APP_BUILD_NUMBER`, `APP_MIN_SUPPORTED_BUILD`,
-  `APP_UPDATE_URL`, `APP_RELEASE_NOTES`, and `APP_FORCE_UPDATE` when shipping
-  a mobile APK. Clients compare `APP_BUILD_NUMBER` with their installed build
-  number and open `APP_UPDATE_URL` when an update is required.
+  `APP_UPDATE_URL`, `APP_PACKAGE_URL`, `APP_PACKAGE_SHA256`,
+  `APP_PACKAGE_SIZE_BYTES`, `APP_PACKAGE_TYPE`, `APP_RELEASE_NOTES`, and
+  `APP_FORCE_UPDATE` when shipping a mobile APK. Platform-specific
+  `APP_ANDROID_*` and `APP_WINDOWS_*` values override the shared values.
+  Clients compare `APP_BUILD_NUMBER` with their installed build number; Android
+  and Windows clients download `packageUrl` inside the app, verify SHA-256 and
+  package size, then hand off to the OS installer. Android still shows the
+  system install-confirmation screen for self-hosted APKs. Windows uses the
+  published silent Inno Setup args and exits after launching the installer.
 - Deploy source branches are `staging`, `main`, and `help-content`. Pushing
   `staging` runs the staging workflow. Production app deploys fast-forward
   `main` from accepted `staging` code, then push `main` to run the production

@@ -74,6 +74,10 @@ APP_VERSION=1.1.2
 APP_BUILD_NUMBER=3
 APP_MIN_SUPPORTED_BUILD=3
 APP_UPDATE_URL=https://opshub.hoanghochoi.com/downloads/phongvu-opshub.apk
+APP_PACKAGE_URL=https://opshub.hoanghochoi.com/downloads/phongvu-opshub.apk
+APP_PACKAGE_SHA256=<sha256-of-final-apk>
+APP_PACKAGE_SIZE_BYTES=<apk-size-bytes>
+APP_PACKAGE_TYPE=apk
 APP_RELEASE_NOTES=Release notes shown in the app
 APP_FORCE_UPDATE=true
 ```
@@ -191,6 +195,12 @@ current release as the runtime seed/rollback source, regenerates `latest.json`
 from the already live app-version metadata and files, updates the current
 Caddyfile, and reloads Caddy without rebuilding APK, Windows packages, backend
 images, or app-version metadata.
+
+New Android and Windows clients use `/app-version` package metadata to update
+inside the app: they download `packageUrl`, verify `packageSha256` and
+`packageSizeBytes`, then open the OS installer. Windows uses silent Inno Setup
+args from `APP_WINDOWS_APP_INSTALLER_ARGS`; Android still uses the system
+Package Installer confirmation screen for self-hosted APKs.
 
 Required GitHub repository secrets:
 

@@ -115,7 +115,9 @@ visual systems that make the app feel assembled from unrelated screens.
   indicator, but it must not block reading the existing rows.
 - Status messages use `AppStatusBanner` when they explain a page-level state.
 - Metadata and status tags use `AppInfoChip`, `AppStatusChip`, or
-  `AppStatusPill`.
+  `AppStatusPill`. Metadata cần sao chép dùng chế độ tương tác của
+  `AppInfoChip` để có cùng click/touch, keyboard focus, tooltip, semantics và
+  biểu tượng copy trên mọi nền tảng Flutter.
 - Shared QR/barcode scanning uses a visible centered frame as a positioning
   guide while the detector analyzes the full preview on every camera-capable
   platform. It must keep all scanner formats enabled, including Code 128 and
@@ -261,6 +263,11 @@ visual systems that make the app feel assembled from unrelated screens.
   the user has `PAYMENT_MONITOR`. The speaker path is Windows-only because it
   depends on desktop audio behavior. Home tiles, speaker controls, and provider
   logic must not conflate those platform capabilities.
+- `Tiền vào` loads transactions on entry and after explicit user actions, then
+  refreshes when the payment WebSocket reports a new transaction. It must not
+  poll the transaction list on a fixed timer or when the socket merely
+  reconnects. A realtime event refreshes the list on every supported platform;
+  only an eligible Windows client with `Đọc loa` enabled also handles audio.
 - Web must not start payment audio handling or show speaker controls. The
   `Tiền vào` entry opens the transaction list on web, while the `Đọc loa`
   controls remain hidden or disabled outside supported Windows clients.

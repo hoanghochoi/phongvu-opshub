@@ -563,6 +563,10 @@ void main() {
         count: 2,
         reason: 'submit action and image viewer',
       ),
+      'lib/features/app_update/presentation/app_update_gate.dart': (
+        count: 1,
+        reason: 'inline package download and install action',
+      ),
       'lib/features/warranty/presentation/screens/warranty_details_screen.dart':
           (count: 1, reason: 'cached image placeholder'),
       'lib/features/offset_adjustment/presentation/screens/offset_adjustment_screen.dart':
@@ -737,10 +741,10 @@ void main() {
     expect(smokeSource, contains('OPSHUB_VISUAL_SMOKE_WARRANTY_RECEIPT'));
     expect(smokeSource, contains('GET /warranties'));
     expect(smokeSource, contains('skippedRoutes'));
-    expect(gapMap, contains('tổng 74 route/viewport checks'));
-    expect(gapMap, contains('33\n  authenticated shell routes'));
-    expect(testMatrix, contains('default live staging smoke now runs 74'));
-    expect(testMatrix, contains('all 33 authenticated shell routes'));
+    expect(gapMap, contains('tổng 80 route/viewport checks'));
+    expect(gapMap, contains('36\n  authenticated shell routes'));
+    expect(testMatrix, contains('default live staging smoke now runs 80'));
+    expect(testMatrix, contains('all 36 authenticated shell routes'));
   });
 }
 

@@ -3,9 +3,9 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme/app_colors.dart';
+import '../../../app/theme/app_text_styles.dart';
 import '../../../app/widgets/app_buttons.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/logging/app_logger.dart';
@@ -13,9 +13,14 @@ import '../../../core/network/api_client.dart';
 import '../../../core/platform/app_page_reloader.dart';
 import '../data/app_update_realtime_connection.dart';
 import '../data/app_update_service.dart';
+import '../data/app_self_update_service.dart';
 
 typedef AppUpdateChecker = Future<AppUpdateCheckResult?> Function();
-typedef AppUpdateUrlOpener = Future<void> Function(String updateUrl);
+typedef AppUpdateInstaller =
+    Future<void> Function(
+      AppUpdateCheckResult result,
+      ValueChanged<AppSelfUpdateProgress> onProgress,
+    );
 typedef AppUpdatePageReloader = Future<void> Function();
 
 class AppUpdateGate extends StatefulWidget {
@@ -23,7 +28,7 @@ class AppUpdateGate extends StatefulWidget {
     super.key,
     required this.child,
     this.checkForUpdate,
-    this.openUpdateUrl,
+    this.installUpdate,
     this.reloadPage,
     this.requiredUpdateOverride,
     this.realtimeConnector,
@@ -32,7 +37,7 @@ class AppUpdateGate extends StatefulWidget {
 
   final Widget child;
   final AppUpdateChecker? checkForUpdate;
-  final AppUpdateUrlOpener? openUpdateUrl;
+  final AppUpdateInstaller? installUpdate;
   final AppUpdatePageReloader? reloadPage;
   final bool? requiredUpdateOverride;
   final AppUpdateRealtimeConnector? realtimeConnector;
@@ -65,6 +70,8 @@ class _AppUpdateGateState extends State<AppUpdateGate>
   bool _checkingForUpdate = false;
   String? _queuedCheckReason;
   int? _dismissedLatestBuild;
+  String? _updateActionError;
+  AppSelfUpdateProgress? _selfUpdateProgress;
   AppUpdateCheckResult? _updateResult;
   AppUpdateRealtimeConnection? _realtimeConnection;
   StreamSubscription<dynamic>? _realtimeSubscription;
@@ -138,7 +145,11 @@ class _AppUpdateGateState extends State<AppUpdateGate>
           previous.updateInfo.latestBuild != latestBuild ||
           _isRequired(previous) != required;
       if (!promptChanged) return;
-      setState(() => _updateResult = result);
+      setState(() {
+        _updateResult = result;
+        _updateActionError = null;
+        _selfUpdateProgress = null;
+      });
       await AppLogger.instance.info(
         'AppUpdate',
         'Update prompt shown',
@@ -407,6 +418,7 @@ class _AppUpdateGateState extends State<AppUpdateGate>
       'latestBuild': result.updateInfo.latestBuild,
       'required': _isRequired(result),
       'hasUpdateUrl': result.updateInfo.updateUrl.isNotEmpty,
+      'hasSelfUpdatePackage': result.updateInfo.hasSelfUpdatePackage,
       'reloadsPage': _shouldReloadForUpdate(result),
     };
   }
@@ -418,7 +430,11 @@ class _AppUpdateGateState extends State<AppUpdateGate>
     if (_dismissedLatestBuild == null || latestBuild > _dismissedLatestBuild!) {
       _dismissedLatestBuild = latestBuild;
     }
-    setState(() => _updateResult = null);
+    setState(() {
+      _updateResult = null;
+      _updateActionError = null;
+      _selfUpdateProgress = null;
+    });
     await AppLogger.instance.info(
       'AppUpdate',
       'Optional update prompt dismissed',
@@ -431,7 +447,11 @@ class _AppUpdateGateState extends State<AppUpdateGate>
   }
 
   Future<void> _reloadForUpdate(AppUpdateCheckResult result) async {
-    setState(() => _runningUpdateAction = true);
+    setState(() {
+      _runningUpdateAction = true;
+      _updateActionError = null;
+      _selfUpdateProgress = null;
+    });
     await AppLogger.instance.info(
       'AppUpdate',
       'Reloading web app for update',
@@ -445,21 +465,48 @@ class _AppUpdateGateState extends State<AppUpdateGate>
     }
   }
 
-  Future<void> _openUpdateUrl(String updateUrl) async {
-    final uri = Uri.tryParse(updateUrl);
-    if (uri == null) return;
-    setState(() => _runningUpdateAction = true);
+  Future<void> _installUpdate(AppUpdateCheckResult result) async {
+    setState(() {
+      _runningUpdateAction = true;
+      _updateActionError = null;
+      _selfUpdateProgress = null;
+    });
     await AppLogger.instance.info(
       'AppUpdate',
-      'Opening update URL',
-      context: {'urlHost': uri.host, 'path': uri.path},
+      'Starting in-app update',
+      context: _logContext(result),
     );
     try {
-      final opener = widget.openUpdateUrl;
-      if (opener != null) {
-        await opener(updateUrl);
-      } else {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final installer =
+          widget.installUpdate ??
+          (updateResult, onProgress) => AppSelfUpdateService()
+              .downloadAndInstall(updateResult, onProgress: onProgress);
+      await installer(result, (progress) {
+        if (!mounted) return;
+        setState(() => _selfUpdateProgress = progress);
+      });
+    } on AppSelfUpdateException catch (error) {
+      await AppLogger.instance.warn(
+        'AppUpdate',
+        'In-app update stopped',
+        context: {..._logContext(result), 'reason': error.code ?? 'error'},
+      );
+      if (mounted) {
+        setState(() => _updateActionError = error.message);
+      }
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'AppUpdate',
+        'In-app update failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: _logContext(result),
+      );
+      if (mounted) {
+        setState(
+          () => _updateActionError =
+              'Chưa cập nhật được. Vui lòng thử lại sau ít phút.',
+        );
       }
     } finally {
       if (mounted) setState(() => _runningUpdateAction = false);
@@ -499,12 +546,12 @@ class _AppUpdateGateState extends State<AppUpdateGate>
               isRequired: isRequired,
               runningUpdateAction: _runningUpdateAction,
               shouldReload: shouldReload,
+              progress: _selfUpdateProgress,
+              errorMessage: _updateActionError,
               onDismiss: _dismissUpdatePrompt,
               onUpdate: shouldReload
                   ? () => _reloadForUpdate(result)
-                  : result.updateInfo.updateUrl.isEmpty
-                  ? null
-                  : () => _openUpdateUrl(result.updateInfo.updateUrl),
+                  : () => _installUpdate(result),
             ),
         ],
       ),
@@ -518,6 +565,8 @@ class _UpdatePromptOverlay extends StatelessWidget {
     required this.isRequired,
     required this.runningUpdateAction,
     required this.shouldReload,
+    required this.progress,
+    required this.errorMessage,
     required this.onDismiss,
     required this.onUpdate,
   });
@@ -526,6 +575,8 @@ class _UpdatePromptOverlay extends StatelessWidget {
   final bool isRequired;
   final bool runningUpdateAction;
   final bool shouldReload;
+  final AppSelfUpdateProgress? progress;
+  final String? errorMessage;
   final Future<void> Function() onDismiss;
   final VoidCallback? onUpdate;
 
@@ -565,6 +616,23 @@ class _UpdatePromptOverlay extends StatelessWidget {
                         const SizedBox(height: 12),
                         Text(updateInfo.releaseNotes),
                       ],
+                      if (progress != null) ...[
+                        const SizedBox(height: 14),
+                        LinearProgressIndicator(value: progress!.fraction),
+                        const SizedBox(height: 8),
+                        Text(progress!.displayMessage),
+                      ],
+                      if (errorMessage != null &&
+                          errorMessage!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        Text(
+                          errorMessage!,
+                          style: AppTextStyles.labelM.copyWith(
+                            color: Theme.of(context).colorScheme.error,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -578,8 +646,8 @@ class _UpdatePromptOverlay extends StatelessWidget {
                     onPressed: runningUpdateAction ? null : onUpdate,
                     icon: shouldReload
                         ? Icons.refresh_rounded
-                        : Icons.download_rounded,
-                    label: shouldReload ? 'Tải lại' : 'Cập nhật',
+                        : Icons.system_update_alt_rounded,
+                    label: shouldReload ? 'Tải lại' : 'Cập nhật trong app',
                     isLoading: runningUpdateAction,
                   ),
                 ],

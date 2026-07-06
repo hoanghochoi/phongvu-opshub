@@ -530,6 +530,11 @@ jobs:
           client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}"
           android_update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.apk_name }}"
           windows_update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.windows_installer_name }}"
+          android_package_sha256="$(ssh opshub-vps "sha256sum '/srv/opshub/downloads/${{ needs.prepare.outputs.apk_name }}' | awk '{print \$1}'")"
+          windows_package_sha256="$(ssh opshub-vps "sha256sum '/srv/opshub/downloads/${{ needs.prepare.outputs.windows_installer_name }}' | awk '{print \$1}'")"
+          android_package_size_bytes="$(ssh opshub-vps "stat -c%s '/srv/opshub/downloads/${{ needs.prepare.outputs.apk_name }}'")"
+          windows_package_size_bytes="$(ssh opshub-vps "stat -c%s '/srv/opshub/downloads/${{ needs.prepare.outputs.windows_installer_name }}'")"
+          windows_installer_args="/VERYSILENT,/SUPPRESSMSGBOXES,/NORESTART,/CLOSEAPPLICATIONS"
           ssh opshub-vps \
             "REMOTE_RELEASE_DIR='$remote_release_dir' \
              CLIENT_STAGING_DIR='$client_staging_dir' \
@@ -540,6 +545,11 @@ jobs:
              APP_BUILD_NUMBER='${{ needs.prepare.outputs.version_code }}' \
              ANDROID_UPDATE_URL='$android_update_url' \
              WINDOWS_UPDATE_URL='$windows_update_url' \
+             ANDROID_PACKAGE_SHA256='$android_package_sha256' \
+             WINDOWS_PACKAGE_SHA256='$windows_package_sha256' \
+             ANDROID_PACKAGE_SIZE_BYTES='$android_package_size_bytes' \
+             WINDOWS_PACKAGE_SIZE_BYTES='$windows_package_size_bytes' \
+             WINDOWS_INSTALLER_ARGS='$windows_installer_args' \
              APP_RELEASE_NOTES='${{ needs.prepare.outputs.release_notes }}' \
              bash -s" <<'REMOTE'
           set -euo pipefail
@@ -564,6 +574,10 @@ jobs:
           upsert_env APP_BUILD_NUMBER "$APP_BUILD_NUMBER"
           upsert_env APP_MIN_SUPPORTED_BUILD "$APP_BUILD_NUMBER"
           upsert_env APP_UPDATE_URL "$ANDROID_UPDATE_URL"
+          upsert_env APP_PACKAGE_URL "$ANDROID_UPDATE_URL"
+          upsert_env APP_PACKAGE_SHA256 "$ANDROID_PACKAGE_SHA256"
+          upsert_env APP_PACKAGE_SIZE_BYTES "$ANDROID_PACKAGE_SIZE_BYTES"
+          upsert_env APP_PACKAGE_TYPE apk
           upsert_env APP_RELEASE_NOTES "$APP_RELEASE_NOTES"
           upsert_env APP_FORCE_UPDATE true
 
@@ -571,6 +585,10 @@ jobs:
           upsert_env APP_ANDROID_APP_BUILD_NUMBER "$APP_BUILD_NUMBER"
           upsert_env APP_ANDROID_APP_MIN_SUPPORTED_BUILD "$APP_BUILD_NUMBER"
           upsert_env APP_ANDROID_APP_UPDATE_URL "$ANDROID_UPDATE_URL"
+          upsert_env APP_ANDROID_APP_PACKAGE_URL "$ANDROID_UPDATE_URL"
+          upsert_env APP_ANDROID_APP_PACKAGE_SHA256 "$ANDROID_PACKAGE_SHA256"
+          upsert_env APP_ANDROID_APP_PACKAGE_SIZE_BYTES "$ANDROID_PACKAGE_SIZE_BYTES"
+          upsert_env APP_ANDROID_APP_PACKAGE_TYPE apk
           upsert_env APP_ANDROID_APP_RELEASE_NOTES "$APP_RELEASE_NOTES"
           upsert_env APP_ANDROID_APP_FORCE_UPDATE true
 
@@ -578,6 +596,11 @@ jobs:
           upsert_env APP_WINDOWS_APP_BUILD_NUMBER "$APP_BUILD_NUMBER"
           upsert_env APP_WINDOWS_APP_MIN_SUPPORTED_BUILD "$APP_BUILD_NUMBER"
           upsert_env APP_WINDOWS_APP_UPDATE_URL "$WINDOWS_UPDATE_URL"
+          upsert_env APP_WINDOWS_APP_PACKAGE_URL "$WINDOWS_UPDATE_URL"
+          upsert_env APP_WINDOWS_APP_PACKAGE_SHA256 "$WINDOWS_PACKAGE_SHA256"
+          upsert_env APP_WINDOWS_APP_PACKAGE_SIZE_BYTES "$WINDOWS_PACKAGE_SIZE_BYTES"
+          upsert_env APP_WINDOWS_APP_PACKAGE_TYPE windowsInstaller
+          upsert_env APP_WINDOWS_APP_INSTALLER_ARGS "$WINDOWS_INSTALLER_ARGS"
           upsert_env APP_WINDOWS_APP_RELEASE_NOTES "$APP_RELEASE_NOTES"
           upsert_env APP_WINDOWS_APP_FORCE_UPDATE true
 
@@ -785,13 +808,29 @@ jobs:
             if (!String(windows.updateUrl || '').endsWith('.exe')) {
               throw new Error('Windows updateUrl is not an installer EXE');
             }
+            for (const [platform, payload] of Object.entries({ android, windows })) {
+              if (payload.packageUrl !== payload.updateUrl) {
+                throw new Error(platform + ' packageUrl must match updateUrl for self-update');
+              }
+              if (!/^[0-9a-f]{64}$/.test(String(payload.packageSha256 || ''))) {
+                throw new Error(platform + ' packageSha256 is invalid');
+              }
+              if (!Number.isInteger(payload.packageSizeBytes) || payload.packageSizeBytes <= 0) {
+                throw new Error(platform + ' packageSizeBytes is invalid');
+              }
+            }
+            if (android.packageType !== 'apk') throw new Error('Android packageType must be apk');
+            if (windows.packageType !== 'windowsInstaller') throw new Error('Windows packageType must be windowsInstaller');
+            if (!Array.isArray(windows.installerArgs) || !windows.installerArgs.includes('/VERYSILENT')) {
+              throw new Error('Windows installerArgs must include /VERYSILENT');
+            }
             if (web.platform !== 'web') throw new Error('Web app-version did not report platform=web');
             if (String(web.updateUrl || '') !== '') throw new Error('Web updateUrl must be empty');
             if (web.forceUpdate !== false) throw new Error('Web forceUpdate must be false');
             if (web.minSupportedBuild !== 1) throw new Error('Web minSupportedBuild must be 1');
           " "$android_json" "$windows_json" "$web_json" "${{ needs.prepare.outputs.version_code }}"
-          curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$android_json")" >/dev/null
-          curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).updateUrl)" "$windows_json")" >/dev/null
+          curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$android_json")" >/dev/null
+          curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$windows_json")" >/dev/null
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/help" >/dev/null
           help_json="$(retry_curl "${OPSHUB_API_BASE_URL}/help-content/public")"

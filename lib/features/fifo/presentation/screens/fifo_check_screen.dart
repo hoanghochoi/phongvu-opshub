@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
@@ -271,7 +272,7 @@ class _FifoCommandCard extends StatelessWidget {
               ),
             ),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
               children: [
                 const Icon(
                   Icons.inventory_2_outlined,
@@ -279,12 +280,24 @@ class _FifoCommandCard extends StatelessWidget {
                   color: AppColors.neutral600,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Hiển thị đã xuất kho',
-                  style: AppTextStyles.labelM.copyWith(
-                    color: AppColors.neutral700,
+                if (compact)
+                  Expanded(
+                    child: Text(
+                      'Hiển thị đã xuất kho',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.labelM.copyWith(
+                        color: AppColors.neutral700,
+                      ),
+                    ),
+                  )
+                else
+                  Text(
+                    'Hiển thị đã xuất kho',
+                    style: AppTextStyles.labelM.copyWith(
+                      color: AppColors.neutral700,
+                    ),
                   ),
-                ),
                 const SizedBox(width: 8),
                 Switch.adaptive(
                   value: includeExported,
@@ -641,6 +654,59 @@ class _FifoItemCard extends StatelessWidget {
     required this.onExportChanged,
   });
 
+  Future<void> _copyMetadata(
+    BuildContext context, {
+    required String field,
+    required String fieldLabel,
+    required String value,
+  }) async {
+    final startedAt = DateTime.now();
+    final logContext = <String, Object?>{
+      'field': field,
+      'inventoryId': item.id,
+      'valueLength': value.length,
+    };
+    await AppLogger.instance.info(
+      'FIFO',
+      'FIFO item metadata copy started',
+      context: logContext,
+    );
+    try {
+      await Clipboard.setData(ClipboardData(text: value));
+      await AppLogger.instance.info(
+        'FIFO',
+        'FIFO item metadata copy succeeded',
+        context: {
+          ...logContext,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      if (!context.mounted) return;
+      AppToast.show(
+        context,
+        SnackBar(content: Text('Đã sao chép $fieldLabel.')),
+      );
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'FIFO',
+        'FIFO item metadata copy failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {
+          ...logContext,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      if (!context.mounted) return;
+      AppToast.show(
+        context,
+        SnackBar(
+          content: Text('Chưa sao chép được $fieldLabel. Vui lòng thử lại.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = item.exported
@@ -692,14 +758,42 @@ class _FifoItemCard extends StatelessWidget {
                       spacing: 8,
                       runSpacing: 6,
                       children: [
-                        AppInfoChip(Icons.qr_code_rounded, item.serialNumber),
+                        AppInfoChip(
+                          Icons.qr_code_rounded,
+                          item.serialNumber,
+                          key: ValueKey('fifo-copy-serial-${item.id}'),
+                          tooltip: 'Sao chép serial',
+                          semanticsLabel: 'Serial ${item.serialNumber}',
+                          onTap: () => unawaited(
+                            _copyMetadata(
+                              context,
+                              field: 'serial',
+                              fieldLabel: 'serial',
+                              value: item.serialNumber,
+                            ),
+                          ),
+                        ),
                         AppInfoChip(Icons.inventory_2_outlined, item.sku),
                         AppInfoChip(
                           Icons.calendar_today_outlined,
                           item.importDate,
                         ),
                         if (item.bin.isNotEmpty)
-                          AppInfoChip(Icons.location_on_outlined, item.bin),
+                          AppInfoChip(
+                            Icons.location_on_outlined,
+                            item.bin,
+                            key: ValueKey('fifo-copy-location-${item.id}'),
+                            tooltip: 'Sao chép vị trí',
+                            semanticsLabel: 'Vị trí ${item.bin}',
+                            onTap: () => unawaited(
+                              _copyMetadata(
+                                context,
+                                field: 'location',
+                                fieldLabel: 'vị trí',
+                                value: item.bin,
+                              ),
+                            ),
+                          ),
                         if (item.zone.isNotEmpty)
                           AppInfoChip(Icons.map_outlined, item.zone),
                       ],

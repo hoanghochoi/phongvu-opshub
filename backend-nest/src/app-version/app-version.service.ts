@@ -16,6 +16,11 @@ export interface AppVersionResponse {
   latestBuild: number;
   minSupportedBuild: number;
   updateUrl: string;
+  packageUrl: string;
+  packageSha256: string;
+  packageSizeBytes: number;
+  packageType: string;
+  installerArgs: string[];
   releaseNotes: string;
   forceUpdate: boolean;
 }
@@ -96,6 +101,13 @@ export class AppVersionService implements OnApplicationBootstrap {
             env[`${prefix}APP_UPDATE_URL`],
             readString(env.APP_UPDATE_URL, ''),
           );
+    const packageUrl =
+      platform === 'web'
+        ? readString(env[`${prefix}APP_PACKAGE_URL`], updateUrl)
+        : readString(
+            env[`${prefix}APP_PACKAGE_URL`],
+            readString(env.APP_PACKAGE_URL, updateUrl),
+          );
     const forceUpdate =
       platform === 'web'
         ? readBoolean(env[`${prefix}APP_FORCE_UPDATE`], false)
@@ -113,6 +125,28 @@ export class AppVersionService implements OnApplicationBootstrap {
       latestBuild,
       minSupportedBuild,
       updateUrl,
+      packageUrl,
+      packageSha256:
+        platform === 'web'
+          ? readSha256(env[`${prefix}APP_PACKAGE_SHA256`])
+          : readSha256(
+              env[`${prefix}APP_PACKAGE_SHA256`] ?? env.APP_PACKAGE_SHA256,
+            ),
+      packageSizeBytes:
+        platform === 'web'
+          ? readNonNegativeInt(env[`${prefix}APP_PACKAGE_SIZE_BYTES`], 0)
+          : readNonNegativeInt(
+              env[`${prefix}APP_PACKAGE_SIZE_BYTES`],
+              readNonNegativeInt(env.APP_PACKAGE_SIZE_BYTES, 0),
+            ),
+      packageType: readString(
+        env[`${prefix}APP_PACKAGE_TYPE`],
+        defaultPackageType(platform),
+      ),
+      installerArgs: readList(
+        env[`${prefix}APP_INSTALLER_ARGS`],
+        defaultInstallerArgs(platform),
+      ),
       releaseNotes: readString(
         env[`${prefix}APP_RELEASE_NOTES`],
         readString(env.APP_RELEASE_NOTES, ''),
@@ -159,8 +193,50 @@ function readPositiveInt(value: string | undefined, fallback: number): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function readNonNegativeInt(
+  value: string | undefined,
+  fallback: number,
+): number {
+  const trimmed = value?.trim();
+  if (!trimmed) return fallback;
+
+  const parsed = Number(trimmed);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
 function readBoolean(value: string | undefined, fallback: boolean): boolean {
   const trimmed = value?.trim().toLowerCase();
   if (!trimmed) return fallback;
   return ['1', 'true', 'yes', 'y'].includes(trimmed);
+}
+
+function readSha256(value: string | undefined): string {
+  const trimmed = value?.trim().toLowerCase() ?? '';
+  return /^[0-9a-f]{64}$/.test(trimmed) ? trimmed : '';
+}
+
+function readList(value: string | undefined, fallback: string[]): string[] {
+  const trimmed = value?.trim();
+  if (!trimmed) return fallback;
+  return trimmed
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function defaultPackageType(platform: string): string {
+  if (platform === 'windows') return 'windowsInstaller';
+  if (platform === 'android') return 'apk';
+  if (platform === 'web') return 'web';
+  return 'unknown';
+}
+
+function defaultInstallerArgs(platform: string): string[] {
+  if (platform !== 'windows') return [];
+  return [
+    '/VERYSILENT',
+    '/SUPPRESSMSGBOXES',
+    '/NORESTART',
+    '/CLOSEAPPLICATIONS',
+  ];
 }

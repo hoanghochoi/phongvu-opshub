@@ -35,46 +35,78 @@ void main() {
     AppLogger.instance.setUploadsEnabledForTesting(true);
   });
 
-  test('keeps transaction sync running when speaker is muted', () async {
-    SharedPreferences.setMockInitialValues({
-      AppStorageKeys.shared('payment_monitor_enabled'): false,
-    });
-    final repository = _FakePaymentMonitorRepository(
-      notifications: [
-        PaymentNotification.fromJson({
-          'notificationId': 'note-1',
-          'transactionId': 'txn-1',
-          'storeCode': 'CP01',
-          'amount': 1250000,
-          'audioStatus': 'READY',
-          'audioUrl': '/payment-notifications/note-1/audio',
-          'createdAt': '2026-05-21T10:00:00.000Z',
-        }),
-      ],
-    );
-    final speaker = _FakePaymentSpeaker();
-    final provider = PaymentMonitorProvider(
-      repository,
-      speaker,
-      null,
-      retryDelay,
+  test(
+    'keeps transaction sync running without speaker polling when muted',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        AppStorageKeys.shared('payment_monitor_enabled'): false,
+      });
+      final repository = _FakePaymentMonitorRepository(
+        notifications: [
+          PaymentNotification.fromJson({
+            'notificationId': 'note-1',
+            'transactionId': 'txn-1',
+            'storeCode': 'CP01',
+            'amount': 1250000,
+            'audioStatus': 'READY',
+            'audioUrl': '/payment-notifications/note-1/audio',
+            'createdAt': '2026-05-21T10:00:00.000Z',
+          }),
+        ],
+      );
+      final speaker = _FakePaymentSpeaker();
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
+
+      expect(provider.isActive, isTrue);
+      expect(provider.isSpeakerEnabled, isFalse);
+      expect(repository.transactionFetchCount, greaterThan(0));
+      expect(repository.readyFetchCount, 0);
+      expect(repository.ackEvents, isEmpty);
+      expect(speaker.playCount, 0);
+
+      provider.dispose();
+    },
+  );
+
+  test('does not create a periodic transaction refresh timer', () async {
+    var periodicTimerCount = 0;
+    late PaymentMonitorProvider provider;
+    final repository = _FakePaymentMonitorRepository(notifications: const []);
+
+    await runZoned(
+      () async {
+        provider = PaymentMonitorProvider(
+          repository,
+          _FakePaymentSpeaker(),
+          null,
+          retryDelay,
+        );
+        await Future<void>.delayed(Duration.zero);
+        provider.syncAuth(_storeUser(), isInitialized: true);
+        await _waitUntil(
+          () => repository.transactionFetchCount > 0 && !provider.isLoading,
+        );
+      },
+      zoneSpecification: ZoneSpecification(
+        createPeriodicTimer: (self, parent, zone, duration, callback) {
+          periodicTimerCount += 1;
+          return parent.createPeriodicTimer(zone, duration, callback);
+        },
+      ),
     );
 
-    await Future<void>.delayed(Duration.zero);
-    provider.syncAuth(_storeUser(), isInitialized: true);
-    await _waitUntil(
-      () =>
-          repository.transactionFetchCount > 0 &&
-          repository.ackEvents.contains('SILENCED') &&
-          !provider.isLoading,
-    );
-
-    expect(provider.isActive, isTrue);
-    expect(provider.isSpeakerEnabled, isFalse);
-    expect(repository.transactionFetchCount, greaterThan(0));
-    expect(repository.ackEvents, contains('SILENCED'));
-    expect(speaker.playCount, 0);
-
+    expect(periodicTimerCount, 0);
     provider.dispose();
   });
 
@@ -374,12 +406,24 @@ void main() {
   );
 
   test(
-    'realtime payment event triggers lightweight transaction refresh',
+    'realtime payment event refreshes transactions and reads ready speaker audio',
     () async {
-      final repository = _FakePaymentMonitorRepository(notifications: const []);
+      final repository = _FakePaymentMonitorRepository(
+        notifications: const [],
+        notificationBatches: [
+          const [],
+          [
+            _readyNotification(
+              notificationId: 'note-1',
+              transactionId: 'txn-1',
+            ),
+          ],
+        ],
+      );
+      final speaker = _FakePaymentSpeaker();
       final provider = PaymentMonitorProvider(
         repository,
-        _FakePaymentSpeaker(),
+        speaker,
         null,
         retryDelay,
       );
@@ -406,12 +450,14 @@ void main() {
       await _waitUntil(
         () =>
             repository.transactionFetchCount > initialFetchCount &&
+            repository.ackEvents.contains('PLAYED') &&
             !provider.isLoading,
       );
 
       expect(repository.requestedIncludeTotals.first, isTrue);
       expect(repository.requestedIncludeTotals.last, isFalse);
-      expect(repository.readyFetchCount, 1);
+      expect(repository.readyFetchCount, 2);
+      expect(speaker.playCount, 1);
 
       provider.dispose();
     },
@@ -435,6 +481,7 @@ void main() {
     await _waitUntil(
       () => repository.transactionFetchCount > 0 && !provider.isLoading,
     );
+    final initialFetchCount = repository.transactionFetchCount;
 
     await provider.handleRealtimeMessageForTesting(
       jsonEncode({
@@ -442,8 +489,14 @@ void main() {
         'payload': _streamPayload('note-disabled'),
       }),
     );
+    await _waitUntil(
+      () =>
+          repository.transactionFetchCount > initialFetchCount &&
+          !provider.isLoading,
+    );
 
     expect(provider.isSpeakerEnabled, isFalse);
+    expect(repository.readyFetchCount, 0);
     expect(repository.streamDownloadCount, 0);
     expect(speaker.playCount, 0);
     expect(repository.ackEvents, contains('SILENCED'));
@@ -658,19 +711,24 @@ void main() {
         channels.add(channel);
         return channel;
       },
-      const Duration(milliseconds: 50),
       const Duration(milliseconds: 1),
     );
 
     await Future<void>.delayed(Duration.zero);
     provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
     await _waitUntil(() => channels.length == 1);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+    final initialFetchCount = repository.transactionFetchCount;
 
     await channels.single.closeFromServer();
     await _waitUntil(() => channels.length == 2);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(provider.isActive, isTrue);
     expect(channels.length, 2);
+    expect(repository.transactionFetchCount, initialFetchCount);
 
     provider.dispose();
     ApiClient().setAuthToken(null);

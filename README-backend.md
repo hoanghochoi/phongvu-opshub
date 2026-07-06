@@ -150,10 +150,14 @@ Expected responses:
   now claims `DELIVERED` before preparing audio, guarded by an advisory lock on
   `notificationId + clientId`; a second in-flight request for the same pair
   returns HTTP `409` so the client can suppress duplicate same-machine
-  playback. Ready polling is now only a backlog fallback on startup, manual
-  refresh, reconnect, or extended realtime silence; speaker backlog playback
-  still goes through `/stream`, not `/audio`. Set `PAYMENT_TTS_CONCURRENCY=2`
-  to match the recommended two Piper workers on `hoang-n8n`.
+  playback. Ready polling is limited to speaker-enabled startup/manual recovery
+  and `PAYMENT_NOTIFICATION` realtime events; speaker backlog playback still
+  goes through `/stream`, not `/audio`. The `Tiền vào` transaction list loads
+  once on entry and after explicit filter/page/refresh actions, then refreshes
+  from payment WebSocket events. It does not poll transactions on a fixed
+  interval or merely because the socket reconnects. Set
+  `PAYMENT_TTS_CONCURRENCY=2` to match the recommended two Piper workers on
+  `hoang-n8n`.
 - Keep placeholder values out of production; the Nest API validates env values on startup.
 - Keep the API behind exactly one trusted Caddy hop. Rate limits use the
   verified JWT user id first, then stable request identifiers such as

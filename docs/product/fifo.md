@@ -51,6 +51,9 @@ history where permitted.
   defaults this to 20 days.
 - Production UI shows short labels only: `Đúng FIFO`, `Sai FIFO`, `Hàng trưng
   bày chỉ định`, `Đã xuất kho`, or `Không tìm thấy`.
+- Serial và vị trí trên card kết quả nhận click chuột, touch và thao tác bàn
+  phím để sao chép trên mọi nền tảng Flutter. Thành công hoặc thất bại phải hiện
+  floating toast tiếng Việt và ghi `AppLogger` với context đã sanitize.
 - Marking an item exported sets `opshub_exported=true`; users can show exported
   items and unmark an item when it was exported by mistake.
 - Changes to sort rules, inventory freshness, or history visibility require

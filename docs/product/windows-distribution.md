@@ -4,6 +4,10 @@
 
 - OpsHub direct Windows distribution is internal-only. The primary package is
   the Inno Setup installer EXE; the portable ZIP remains a manual fallback.
+- New Windows clients update without opening the browser: `AppUpdateGate`
+  downloads the installer EXE from `/app-version.packageUrl`, verifies
+  `packageSha256` and `packageSizeBytes`, launches the Inno installer with the
+  published silent args, then exits so Setup can replace the running app.
 - Microsoft Store/MSIX packaging is a separate submission track. The manual
   `Build Windows MSIX Store Package` workflow may build a Store MSIX artifact,
   but it must not publish to `/download`, change `/app-version`, or replace the
@@ -109,6 +113,10 @@ Import-Certificate -FilePath .\opshub-codesign.cer `
 - Publish the installer EXE, portable ZIP, and `.sha256` file together.
 - Verify `/download` and `/downloads/latest.json` point to the same installer,
   portable ZIP, and checksum files after release.
+- Verify `/api/app-version?platform=windows` includes the same installer URL in
+  `updateUrl` and `packageUrl`, a 64-character lowercase SHA-256 in
+  `packageSha256`, a positive `packageSizeBytes`, `packageType` of
+  `windowsInstaller`, and silent Inno args including `/VERYSILENT`.
 - Do not rebuild or repack an already published version under the same name.
 - Scan final artifacts with Microsoft Defender before rollout.
 - If Defender, Edge, Chrome, or Safe Browsing flags the file as malware or

@@ -49,6 +49,7 @@ class AppUpdateService {
         'currentBuild': currentBuild,
         'latestBuild': info.latestBuild,
         'required': info.requiresUpdate(currentBuild),
+        'hasSelfUpdatePackage': info.hasSelfUpdatePackage,
       },
     );
 

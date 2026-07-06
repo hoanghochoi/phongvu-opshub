@@ -24,6 +24,9 @@ an app restart.
   process. A newer build or a required update can show again. On web, the
   primary action is `Tải lại`, and web metadata must not force the APK/installer
   update path.
+- Android and Windows prompt actions are handled by `UPDATE-004`: the client
+  downloads and verifies the package inside the app before handing off to the OS
+  installer instead of opening the package URL in a browser.
 - WebSocket errors never block app startup or remove the existing startup HTTP
   check.
 

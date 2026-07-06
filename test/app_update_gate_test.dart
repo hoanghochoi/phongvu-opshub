@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/features/app_update/data/app_update_realtime_connection.dart';
 import 'package:phongvu_opshub/features/app_update/data/app_update_service.dart';
+import 'package:phongvu_opshub/features/app_update/data/app_self_update_service.dart';
 import 'package:phongvu_opshub/features/app_update/domain/app_update_info.dart';
 import 'package:phongvu_opshub/features/app_update/presentation/app_update_gate.dart';
 
@@ -54,17 +55,26 @@ void main() {
     expect(find.text('Loading route'), findsOneWidget);
   });
 
-  testWidgets('required update blocks later action and opens update URL', (
+  testWidgets('required update blocks later action and starts in-app update', (
     tester,
   ) async {
-    String? openedUrl;
+    AppUpdateCheckResult? installedResult;
+    final progressEvents = <AppSelfUpdateProgress>[];
 
     await tester.pumpWidget(
       MaterialApp(
         home: _UpdateGateHarness(
           checkForUpdate: () async => _requiredUpdateResult,
           requiredUpdateOverride: true,
-          openUpdateUrl: (url) async => openedUrl = url,
+          installUpdate: (result, onProgress) async {
+            installedResult = result;
+            final progress = const AppSelfUpdateProgress(
+              stage: AppSelfUpdateStage.installing,
+              message: 'Đang mở trình cài đặt...',
+            );
+            progressEvents.add(progress);
+            onProgress(progress);
+          },
         ),
       ),
     );
@@ -74,10 +84,12 @@ void main() {
     expect(find.text('Cần cập nhật ứng dụng'), findsOneWidget);
     expect(find.text('Để sau'), findsNothing);
 
-    await tester.tap(find.text('Cập nhật'));
+    await tester.tap(find.text('Cập nhật trong app'));
     await tester.pump();
 
-    expect(openedUrl, _requiredUpdateResult.updateInfo.updateUrl);
+    expect(installedResult, _requiredUpdateResult);
+    expect(progressEvents, hasLength(1));
+    expect(find.text('Đang mở trình cài đặt...'), findsOneWidget);
     expect(find.text('Cần cập nhật ứng dụng'), findsOneWidget);
   });
 
@@ -85,13 +97,13 @@ void main() {
     tester,
   ) async {
     var reloadCount = 0;
-    String? openedUrl;
+    AppUpdateCheckResult? installedResult;
 
     await tester.pumpWidget(
       MaterialApp(
         home: _UpdateGateHarness(
           checkForUpdate: () async => _webUpdateResult,
-          openUpdateUrl: (url) async => openedUrl = url,
+          installUpdate: (result, _) async => installedResult = result,
           reloadPage: () async => reloadCount += 1,
         ),
       ),
@@ -108,7 +120,31 @@ void main() {
     await tester.pump();
 
     expect(reloadCount, 1);
-    expect(openedUrl, isNull);
+    expect(installedResult, isNull);
+  });
+
+  testWidgets('shows in-app update error without opening browser', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: _UpdateGateHarness(
+          checkForUpdate: () async => _requiredUpdateResult,
+          requiredUpdateOverride: true,
+          installUpdate: (_, _) async {
+            throw const AppSelfUpdateException('Không tải được gói cập nhật.');
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text('Cập nhật trong app'));
+    await tester.pump();
+
+    expect(find.text('Không tải được gói cập nhật.'), findsOneWidget);
+    expect(find.text('Cần cập nhật ứng dụng'), findsOneWidget);
   });
 
   testWidgets('shows update prompt when realtime event arrives', (
@@ -252,6 +288,12 @@ AppUpdateCheckResult _optionalUpdateResultForBuild(int latestBuild) {
       latestBuild: latestBuild,
       minSupportedBuild: 100000,
       updateUrl: 'https://opshub.hoanghochoi.com/downloads/app.exe',
+      packageUrl: 'https://opshub.hoanghochoi.com/downloads/app.exe',
+      packageSha256:
+          'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      packageSizeBytes: 20,
+      packageType: 'windowsInstaller',
+      installerArgs: ['/VERYSILENT'],
       releaseNotes: 'Bản cập nhật realtime',
       forceUpdate: false,
     ),
@@ -264,6 +306,12 @@ const _optionalUpdateInfo = AppUpdateInfo(
   latestBuild: 200001,
   minSupportedBuild: 100000,
   updateUrl: 'https://opshub.hoanghochoi.com/downloads/app.apk',
+  packageUrl: 'https://opshub.hoanghochoi.com/downloads/app.apk',
+  packageSha256:
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  packageSizeBytes: 20,
+  packageType: 'apk',
+  installerArgs: [],
   releaseNotes: 'Bản cập nhật kiểm thử',
   forceUpdate: false,
 );
@@ -274,6 +322,12 @@ const _requiredUpdateInfo = AppUpdateInfo(
   latestBuild: 200001,
   minSupportedBuild: 200000,
   updateUrl: 'https://opshub.hoanghochoi.com/downloads/app.exe',
+  packageUrl: 'https://opshub.hoanghochoi.com/downloads/app.exe',
+  packageSha256:
+      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+  packageSizeBytes: 20,
+  packageType: 'windowsInstaller',
+  installerArgs: ['/VERYSILENT'],
   releaseNotes: 'Bản cập nhật bắt buộc',
   forceUpdate: true,
 );
@@ -299,6 +353,11 @@ const _webUpdateResult = AppUpdateCheckResult(
     latestBuild: 200001,
     minSupportedBuild: 100000,
     updateUrl: '',
+    packageUrl: '',
+    packageSha256: '',
+    packageSizeBytes: 0,
+    packageType: 'web',
+    installerArgs: [],
     releaseNotes: 'Bản web mới',
     forceUpdate: false,
   ),
@@ -308,7 +367,7 @@ class _UpdateGateHarness extends StatefulWidget {
   const _UpdateGateHarness({
     super.key,
     required this.checkForUpdate,
-    this.openUpdateUrl,
+    this.installUpdate,
     this.reloadPage,
     this.requiredUpdateOverride,
     this.realtimeConnector,
@@ -316,7 +375,7 @@ class _UpdateGateHarness extends StatefulWidget {
   });
 
   final AppUpdateChecker checkForUpdate;
-  final AppUpdateUrlOpener? openUpdateUrl;
+  final AppUpdateInstaller? installUpdate;
   final AppUpdatePageReloader? reloadPage;
   final bool? requiredUpdateOverride;
   final AppUpdateRealtimeConnector? realtimeConnector;
@@ -337,7 +396,7 @@ class _UpdateGateHarnessState extends State<_UpdateGateHarness> {
   Widget build(BuildContext context) {
     return AppUpdateGate(
       checkForUpdate: widget.checkForUpdate,
-      openUpdateUrl: widget.openUpdateUrl,
+      installUpdate: widget.installUpdate,
       reloadPage: widget.reloadPage,
       requiredUpdateOverride: widget.requiredUpdateOverride,
       realtimeConnector: widget.realtimeConnector,

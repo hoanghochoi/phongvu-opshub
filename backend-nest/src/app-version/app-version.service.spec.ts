@@ -10,6 +10,9 @@ describe('AppVersionService', () => {
         APP_BUILD_NUMBER: '42',
         APP_MIN_SUPPORTED_BUILD: '40',
         APP_UPDATE_URL: 'https://opshub.hoanghochoi.com/downloads/app.apk',
+        APP_PACKAGE_SHA256:
+          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        APP_PACKAGE_SIZE_BYTES: '123456',
         APP_RELEASE_NOTES: 'Fixes',
         APP_FORCE_UPDATE: 'true',
       }),
@@ -19,6 +22,12 @@ describe('AppVersionService', () => {
       latestBuild: 42,
       minSupportedBuild: 40,
       updateUrl: 'https://opshub.hoanghochoi.com/downloads/app.apk',
+      packageUrl: 'https://opshub.hoanghochoi.com/downloads/app.apk',
+      packageSha256:
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      packageSizeBytes: 123456,
+      packageType: 'apk',
+      installerArgs: [],
       releaseNotes: 'Fixes',
       forceUpdate: true,
     });
@@ -36,6 +45,11 @@ describe('AppVersionService', () => {
       latestBuild: 1,
       minSupportedBuild: 1,
       updateUrl: '',
+      packageUrl: '',
+      packageSha256: '',
+      packageSizeBytes: 0,
+      packageType: 'apk',
+      installerArgs: [],
       releaseNotes: '',
       forceUpdate: false,
     });
@@ -53,6 +67,9 @@ describe('AppVersionService', () => {
           APP_WINDOWS_APP_MIN_SUPPORTED_BUILD: '43',
           APP_WINDOWS_APP_UPDATE_URL:
             'https://opshub.hoanghochoi.com/downloads/app-windows-setup.exe',
+          APP_WINDOWS_APP_PACKAGE_SHA256:
+            'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+          APP_WINDOWS_APP_PACKAGE_SIZE_BYTES: '987654',
           APP_WINDOWS_APP_RELEASE_NOTES: 'Windows fixes',
           APP_WINDOWS_APP_FORCE_UPDATE: 'true',
         },
@@ -65,6 +82,18 @@ describe('AppVersionService', () => {
       minSupportedBuild: 43,
       updateUrl:
         'https://opshub.hoanghochoi.com/downloads/app-windows-setup.exe',
+      packageUrl:
+        'https://opshub.hoanghochoi.com/downloads/app-windows-setup.exe',
+      packageSha256:
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      packageSizeBytes: 987654,
+      packageType: 'windowsInstaller',
+      installerArgs: [
+        '/VERYSILENT',
+        '/SUPPRESSMSGBOXES',
+        '/NORESTART',
+        '/CLOSEAPPLICATIONS',
+      ],
       releaseNotes: 'Windows fixes',
       forceUpdate: true,
     });
@@ -92,9 +121,46 @@ describe('AppVersionService', () => {
       latestBuild: 45,
       minSupportedBuild: 1,
       updateUrl: '',
+      packageUrl: '',
+      packageSha256: '',
+      packageSizeBytes: 0,
+      packageType: 'web',
+      installerArgs: [],
       releaseNotes: 'Web bundle refresh',
       forceUpdate: false,
     });
+  });
+
+  it('uses explicit self-update package URL and installer arguments', () => {
+    expect(
+      service.getVersion(
+        {
+          APP_WINDOWS_APP_VERSION: '1.2.6',
+          APP_WINDOWS_APP_BUILD_NUMBER: '46',
+          APP_WINDOWS_APP_UPDATE_URL:
+            'https://opshub.hoanghochoi.com/downloads/manual.exe',
+          APP_WINDOWS_APP_PACKAGE_URL:
+            'https://opshub.hoanghochoi.com/downloads/self-update.exe',
+          APP_WINDOWS_APP_PACKAGE_SHA256:
+            'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+          APP_WINDOWS_APP_PACKAGE_SIZE_BYTES: '777',
+          APP_WINDOWS_APP_INSTALLER_ARGS:
+            '/VERYSILENT,/SUPPRESSMSGBOXES,/NORESTART',
+        },
+        'windows',
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        platform: 'windows',
+        updateUrl: 'https://opshub.hoanghochoi.com/downloads/manual.exe',
+        packageUrl: 'https://opshub.hoanghochoi.com/downloads/self-update.exe',
+        packageSha256:
+          'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+        packageSizeBytes: 777,
+        packageType: 'windowsInstaller',
+        installerArgs: ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'],
+      }),
+    );
   });
 
   it('publishes Android, Windows, and web metadata for realtime clients', async () => {

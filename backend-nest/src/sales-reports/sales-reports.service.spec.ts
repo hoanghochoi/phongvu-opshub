@@ -33,6 +33,7 @@ describe('SalesReportsService', () => {
         findMany: jest.fn(),
         upsert: jest.fn().mockResolvedValue({}),
         update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       store: {
         findMany: jest.fn().mockResolvedValue([
@@ -987,12 +988,78 @@ describe('SalesReportsService', () => {
         failed: 1,
       });
       expect(erp.lookupOrderStatus).toHaveBeenCalledTimes(2);
-      expect(prisma.salesReportErpOrderCache.update).toHaveBeenCalledWith(
+      expect(prisma.salesReportErpOrderCache.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { orderCode: '2607013001' },
           data: expect.objectContaining({
             statusCheckFailureCount: { increment: 1 },
           }),
+        }),
+      );
+    } finally {
+      restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous);
+    }
+  });
+
+  it('continues status sync when a reported order is missing its cache row', async () => {
+    const { service, prisma, erp } = createHarness();
+    const previous = process.env.ERP_ORDER_STATUS_SYNC_ENABLED;
+    process.env.ERP_ORDER_STATUS_SYNC_ENABLED = 'true';
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([
+        {
+          orderCode: '2607013001',
+          storeCode: 'CP62',
+          erpLifecycleStatus: 'PENDING',
+          erpStatusCheckedAt: null,
+          erpOrderCreatedAt: new Date('2026-07-04T00:00:00Z'),
+        },
+        {
+          orderCode: '2607013002',
+          storeCode: 'CP62',
+          erpLifecycleStatus: 'PENDING',
+          erpStatusCheckedAt: null,
+          erpOrderCreatedAt: new Date('2026-07-04T00:00:00Z'),
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    prisma.salesReportErpOrderCache.updateMany.mockResolvedValueOnce({
+      count: 0,
+    });
+    erp.lookupOrderStatus.mockImplementation(async (orderCode: string) => {
+      if (orderCode === '2607013001') throw new Error('ERP unavailable');
+      return {
+        ...erpListOrderFixture(),
+        orderCode,
+        lifecycleStatus: 'COMPLETED',
+        hasReturnedFullItems: false,
+        returnedAfterTaxAmount: 0,
+        statusCheckedAt: new Date('2026-07-05T01:00:00Z'),
+      };
+    });
+
+    try {
+      await expect(service.syncErpOrderStatuses('test')).resolves.toEqual({
+        skipped: false,
+        processed: 2,
+        changed: 1,
+        failed: 1,
+      });
+      expect(prisma.salesReportErpOrderCache.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '2607013001' },
+        }),
+      );
+      expect(prisma.salesReport.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '2607013001', reportType: 'PURCHASED' },
+          data: { erpStatusCheckFailureCount: { increment: 1 } },
+        }),
+      );
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '2607013002' },
+          create: expect.objectContaining({ orderCode: '2607013002' }),
         }),
       );
     } finally {
