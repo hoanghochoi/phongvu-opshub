@@ -1,6 +1,7 @@
 class MapPaymentTransaction {
   final String id;
   final String storeId;
+  final String transactionKey;
   final int amount;
   final String content;
   final String transactionNumber;
@@ -30,6 +31,7 @@ class MapPaymentTransaction {
   const MapPaymentTransaction({
     required this.id,
     required this.storeId,
+    required this.transactionKey,
     required this.amount,
     required this.content,
     required this.transactionNumber,
@@ -134,6 +136,7 @@ class MapPaymentTransaction {
     return MapPaymentTransaction(
       id: transactionNumber.isNotEmpty ? transactionNumber : fallbackId,
       storeId: storeId,
+      transactionKey: json['transactionKey']?.toString() ?? '',
       amount: amount ?? 0,
       content: content,
       transactionNumber: transactionNumber,

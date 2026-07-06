@@ -111,8 +111,10 @@ a customer to scan and pay manually.
   old rows are not announced again on speaker-capable clients.
 - While the app is running, scoped realtime payment events refresh stored
   transactions when a new notification arrives. The app reconnects the
-  realtime socket after disconnects and keeps a 10-second fallback refresh so
-  the list and speaker path can recover from missed socket events.
+  realtime socket after disconnects. On Windows speaker-capable clients, a
+  lightweight ready-notification fallback drains only the speaker backlog after
+  realtime silence, so audio can recover from missed socket events without
+  restoring full-list background polling.
 - Failed transaction refreshes apply bounded backoff. Realtime/fallback refresh
   cannot bypass that backoff; only an explicit user refresh or filter/page
   action may retry immediately. This prevents socket bursts from amplifying
@@ -190,9 +192,9 @@ a customer to scan and pay manually.
   the same `notificationId + clientId` already has a recent
   `DELIVERED`/`STREAM_STARTED` claim, the backend returns `409` so the client
   can treat the duplicate as a no-op instead of playing over itself. Normal
-  ready polling remains only as backlog fallback on startup, manual refresh, or
-  realtime silence; it no longer downloads speaker audio through `/audio`
-  directly. The Windows client advances a local notification checkpoint and
+  ready polling remains only as backlog fallback on startup, manual refresh,
+  realtime readiness, or realtime silence; it no longer downloads speaker audio
+  through `/audio` directly. The Windows client advances a local notification checkpoint and
   skips locally terminal, queued, or in-flight notification ids before
   playback, so repeated stream events and fallback ready checks cannot overlap
   the same transaction audio on one machine.
@@ -235,7 +237,9 @@ a customer to scan and pay manually.
   reference shown in `Sao ke`, falling back to the MAP transaction number when
   no statement reference exists. Order filter is an exact match against any
   stored order in the transaction. Amount filter is exact integer amount.
-  Content filter is case-insensitive contains matching.
+  Content filter is case-insensitive contains matching for search; cross-SR
+  order editing requires the normalized content to match the transaction
+  content exactly.
 - When a statement search is run without a selected date range, the app sends
   the latest 30 Vietnam-local days by default. This keeps broad lookups such as
   order code, statement number, amount, and transfer content inside a recent
@@ -256,10 +260,14 @@ a customer to scan and pay manually.
   successful transfer status, not the raw MAP API status; the current payment
   source label is `VietinBank`. Users can edit orders inline only while the
   stored order list is `NULL`; protected rows that already have an AUTO or
-  MANUAL order can be changed only by `SUPER_ADMIN` or users in the `FIN_ACC`
-  organization/department. Users enter multiple orders one per line or
-  separated by comma/semicolon/whitespace, save/cancel in place, and see a
-  short per-row success or failure message.
+  MANUAL order can be changed by `SUPER_ADMIN`, users in the `FIN_ACC`
+  organization/department, or a statement user who found that exact row through
+  one primary global lookup field: statement number, order code, exact amount,
+  or exact transfer content. That verified lookup also allows updating a row
+  that belongs to a different SR, while date/status/showroom-only searches keep
+  edit actions limited to the user's assigned statement scope. Users enter
+  multiple orders one per line or separated by comma/semicolon/whitespace,
+  save/cancel in place, and see a short per-row success or failure message.
 - Users who can view a statement transaction can request an order update for
   that transaction only while it is still the same Vietnam-local calendar day
   as `paidAt ?? firstSeenAt`. After 00:00 UTC+7, the app disables the update

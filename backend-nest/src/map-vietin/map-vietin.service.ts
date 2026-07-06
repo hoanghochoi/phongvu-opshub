@@ -371,14 +371,29 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     );
     const canEditProtectedOrders =
       await this.canEditProtectedStatementOrders(user);
+    const actionScope =
+      rows.length > 0 ? await this.resolveStatementActionScope(user) : null;
 
     return {
       page: query.page,
       limit: query.limit,
       total,
-      list: rows.map((row) =>
-        this.toStoredTransactionDto(row, { canEditProtectedOrders }),
-      ),
+      list: rows.map((row) => {
+        const verifiedOrderLookupEdit = this.matchesStatementOrderUpdateLookup(
+          row,
+          query.verifiedOrderLookup,
+        );
+        const canUseStatementActions =
+          !actionScope ||
+          actionScope.allStores ||
+          actionScope.storeCodes.includes(row.storeCode) ||
+          verifiedOrderLookupEdit;
+        return this.toStoredTransactionDto(row, {
+          canEditProtectedOrders:
+            canEditProtectedOrders || verifiedOrderLookupEdit,
+          canUseStatements: canUseStatementActions,
+        });
+      }),
     };
   }
 
@@ -443,15 +458,51 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const id = String(transactionId || '').trim();
     if (!id) throw new BadRequestException('transactionId không hợp lệ');
     const orders = this.normalizeOrderCodes(input.orders || []);
-    const existing = await this.prisma.mapVietinTransaction.findUnique({
+    const transactionKey = String(input.transactionKey || '').trim();
+    let existing = await this.prisma.mapVietinTransaction.findUnique({
       where: { id },
     });
-    if (!existing) throw new BadRequestException('Giao dịch không hợp lệ');
-    await this.assertCanReadStatementStore(user, existing.storeCode);
+    let resolvedId = id;
+    let resolvedByTransactionKey = false;
+    if (!existing && transactionKey) {
+      existing = await this.prisma.mapVietinTransaction.findUnique({
+        where: { transactionKey },
+      });
+      if (existing) {
+        resolvedId = existing.id;
+        resolvedByTransactionKey = true;
+        this.logger.warn(
+          `Statement order update resolved stale id by transaction key: user=${this.safeUserLabel(user)} requestedTransaction=${id} resolvedTransaction=${resolvedId} store=${existing.storeCode}`,
+        );
+      }
+    }
+    if (!existing) {
+      this.logger.warn(
+        `Statement order update rejected: user=${this.safeUserLabel(user)} transaction=${id} hasTransactionKey=${Boolean(transactionKey)} reason=missing_transaction`,
+      );
+      throw new BadRequestException('Giao dịch không hợp lệ');
+    }
+    const lookup = this.normalizeStatementOrderUpdateLookup(input);
+    const canReadStore = await this.canReadStatementStore(
+      user,
+      existing.storeCode,
+    );
+    const verifiedOrderLookupEdit = this.matchesStatementOrderUpdateLookup(
+      existing,
+      lookup.hasExactField ? lookup : null,
+    );
+    if (!canReadStore && !verifiedOrderLookupEdit) {
+      this.logger.warn(
+        `Statement order update rejected: user=${this.safeUserLabel(user)} transaction=${resolvedId} store=${existing.storeCode} reason=cross_store_lookup_not_verified hasLookup=${lookup.hasExactField}`,
+      );
+      throw new ForbiddenException(
+        'Chỉ được sửa giao dịch showroom khác khi tìm chính xác bằng mã sao kê, mã đơn, số tiền hoặc nội dung chuyển khoản.',
+      );
+    }
     const pendingTransferRequest =
       await this.prisma.mapVietinStatementOrderTransferRequest.findFirst({
         where: {
-          transactionId: id,
+          transactionId: resolvedId,
           status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING,
         },
       });
@@ -463,10 +514,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const changed = !this.sameOrderList(oldOrders, orders);
     const canEditProtectedOrders =
       await this.canEditProtectedStatementOrders(user);
-    this.assertStatementOrderEditAllowed(existing, canEditProtectedOrders);
+    const canEditThisProtectedOrder =
+      canEditProtectedOrders || verifiedOrderLookupEdit;
+    this.assertStatementOrderEditAllowed(existing, canEditThisProtectedOrder);
     const now = new Date();
     const updated = await this.prisma.mapVietinTransaction.update({
-      where: { id },
+      where: { id: resolvedId },
       data: {
         orders,
         orderSource: ORDER_SOURCE_MANUAL,
@@ -479,7 +532,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     if (changed) {
       await this.prisma.mapVietinTransactionOrderAudit.create({
         data: {
-          transactionId: id,
+          transactionId: resolvedId,
           storeCode: existing.storeCode,
           oldOrders,
           newOrders: orders,
@@ -491,9 +544,11 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     }
 
     this.logger.log(
-      `Statement orders updated: user=${this.safeUserLabel(user)} transaction=${id} store=${existing.storeCode} oldCount=${oldOrders.length} newCount=${orders.length} changed=${changed} protected=${oldOrders.length > 0} finAcc=${canEditProtectedOrders}`,
+      `Statement orders updated: user=${this.safeUserLabel(user)} transaction=${resolvedId} requestedTransaction=${id} store=${existing.storeCode} oldCount=${oldOrders.length} newCount=${orders.length} changed=${changed} protected=${oldOrders.length > 0} finAcc=${canEditProtectedOrders} resolvedByTransactionKey=${resolvedByTransactionKey} crossStoreVerified=${!canReadStore && verifiedOrderLookupEdit}`,
     );
-    return this.toStoredTransactionDto(updated, { canEditProtectedOrders });
+    return this.toStoredTransactionDto(updated, {
+      canEditProtectedOrders: canEditThisProtectedOrder,
+    });
   }
 
   async createStatementOrderTransferRequest(
@@ -1030,6 +1085,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       page: input.page ?? 0,
       limit: input.limit ?? 20,
       filterSummary: filters.summary,
+      verifiedOrderLookup: this.statementOrderLookupFromFilters(filters),
     };
   }
 
@@ -1211,6 +1267,27 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return storeCodes.length === 1 ? storeCodes[0] : { in: storeCodes };
   }
 
+  private statementOrderLookupFromFilters(filters: {
+    statementNumber?: string | null;
+    order?: string | null;
+    amount?: number | null;
+    content?: string | null;
+  }) {
+    if (filters.statementNumber) {
+      return { statementNumber: filters.statementNumber };
+    }
+    if (filters.order) {
+      return { order: filters.order };
+    }
+    if (filters.amount !== null && filters.amount !== undefined) {
+      return { amount: filters.amount };
+    }
+    if (filters.content) {
+      return { content: filters.content };
+    }
+    return null;
+  }
+
   private buildStatementFilterWhere(filters: {
     statementNumber?: string | null;
     order?: string | null;
@@ -1292,12 +1369,28 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async assertCanReadStatementStore(user: any, storeCode: string) {
-    await this.assertCanUseStatements(user);
-    if (await this.hasNationalStatementScope(user)) return;
-    const stores = await this.resolveUserStores(user);
-    if (!stores.some((store) => store.storeId === storeCode)) {
+    if (!(await this.canReadStatementStore(user, storeCode))) {
       throw new ForbiddenException('Chỉ được xem giao dịch showroom được gán');
     }
+  }
+
+  private async canReadStatementStore(user: any, storeCode: string) {
+    await this.assertCanUseStatements(user);
+    if (await this.hasNationalStatementScope(user)) return true;
+    const stores = await this.resolveUserStores(user);
+    return stores.some((store) => store.storeId === storeCode);
+  }
+
+  private async resolveStatementActionScope(user: any) {
+    await this.assertCanUseStatements(user);
+    if (await this.hasNationalStatementScope(user)) {
+      return { allStores: true, storeCodes: [] as string[] };
+    }
+    const stores = await this.resolveUserStores(user);
+    return {
+      allStores: false,
+      storeCodes: stores.map((store) => store.storeId),
+    };
   }
 
   private async resolveUserStore(user: any) {
@@ -1413,6 +1506,70 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const existingOrders = this.normalizeOrderCodes(row.orders || []);
     if (existingOrders.length === 0 || canEditProtectedOrders) return;
     throw new ForbiddenException(ORDER_EDIT_FORBIDDEN_MESSAGE);
+  }
+
+  private normalizeStatementOrderUpdateLookup(
+    input: UpdateMapVietinStatementOrdersDto,
+  ) {
+    const statementNumber = this.cleanText(input.statementNumber);
+    const orderText = this.cleanText(input.order);
+    const order = orderText ? this.normalizeSingleOrderCode(orderText) : null;
+    const amount = this.normalizeStatementAmount(input.amount);
+    const content = this.cleanText(input.content);
+    return {
+      statementNumber,
+      order,
+      amount,
+      content,
+      hasExactField:
+        Boolean(statementNumber) ||
+        Boolean(order) ||
+        amount !== null ||
+        Boolean(content),
+    };
+  }
+
+  private matchesStatementOrderUpdateLookup(
+    row: {
+      transactionNumber?: string | null;
+      rawData?: Prisma.JsonValue | null;
+      amount?: number | null;
+      orders?: string[] | null;
+      content?: string | null;
+    },
+    lookup:
+      | {
+          statementNumber?: string | null;
+          order?: string | null;
+          amount?: number | null;
+          content?: string | null;
+        }
+      | null,
+  ) {
+    if (!lookup) return false;
+    if (lookup.statementNumber) {
+      const statementNumber = String(lookup.statementNumber).trim();
+      if (
+        row.transactionNumber === statementNumber ||
+        this.resolveStoredTransactionReference(row) === statementNumber
+      ) {
+        return true;
+      }
+    }
+    if (lookup.order) {
+      const order = String(lookup.order).trim();
+      const existingOrders = this.normalizeOrderCodes(row.orders || []);
+      if (existingOrders.includes(order)) return true;
+    }
+    if (lookup.amount !== null && lookup.amount !== undefined) {
+      if (Number(row.amount) === Number(lookup.amount)) return true;
+    }
+    if (lookup.content) {
+      const expectedContent = this.normalizeMatchText(lookup.content);
+      const rowContent = this.normalizeMatchText(row.content || '');
+      if (expectedContent && rowContent === expectedContent) return true;
+    }
+    return false;
   }
 
   private async canEditProtectedStatementOrders(user: any): Promise<boolean> {

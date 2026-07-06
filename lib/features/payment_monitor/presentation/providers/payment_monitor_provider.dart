@@ -69,6 +69,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
   static const _readyNotificationBatchLimit = 3;
   static const _readyNotificationMaxDrainBatches = 5;
   static const _startupNotificationLookback = Duration(minutes: 15);
+  static const _defaultSpeakerReadyFallbackInterval = Duration(seconds: 15);
+  static const _speakerReadyFallbackSilenceWindow = Duration(seconds: 30);
   static const _speakerEnabledPreferenceKey = 'payment_monitor_enabled';
   static const _clientIdPreferenceKey = 'payment_monitor_client_id';
   static const _maxAudioPlaybackAttempts = 3;
@@ -88,6 +90,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   final AppRestartService _restartService;
   final Duration _playbackRetryDelay;
   final Duration _realtimeReconnectDelay;
+  final Duration _speakerReadyFallbackInterval;
   final PaymentRealtimeConnector _realtimeConnector;
   final Set<String> _deliveryInFlightNotificationIds = {};
   final Set<String> _terminalNotificationIds = {};
@@ -100,6 +103,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   Timer? _realtimeRefreshTimer;
   Timer? _realtimeReconnectTimer;
+  Timer? _speakerReadyFallbackTimer;
   StreamSubscription<dynamic>? _realtimeSubscription;
   WebSocketChannel? _realtimeChannel;
   User? _user;
@@ -128,8 +132,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool _queuedRefreshIncludeTotal = false;
   bool _queuedRefreshDrainReadyNotifications = false;
   bool _isDrainingStreamNotifications = false;
+  bool _isDrainingReadyNotifications = false;
   bool _canReviewOrderTransfers = false;
   int _realtimeReconnectAttempt = 0;
+  DateTime? _lastRealtimeEventAt;
   final Set<String> _activeNotificationIds = {};
 
   PaymentMonitorProvider(
@@ -139,9 +145,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
     Duration playbackRetryDelay = _defaultPlaybackRetryDelay,
     PaymentRealtimeConnector? realtimeConnector,
     Duration realtimeReconnectDelay = _defaultRealtimeReconnectDelay,
+    Duration speakerReadyFallbackInterval =
+        _defaultSpeakerReadyFallbackInterval,
   ]) : _restartService = restartService ?? AppRestartService(),
        _playbackRetryDelay = playbackRetryDelay,
        _realtimeReconnectDelay = realtimeReconnectDelay,
+       _speakerReadyFallbackInterval = speakerReadyFallbackInterval,
        _realtimeConnector =
            realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri)) {
     _loadEnabledPreference();
@@ -541,11 +550,23 @@ class PaymentMonitorProvider extends ChangeNotifier {
       reason: _speakerEligibilityReason(),
     );
     _connectRealtime();
-    if (_isActive) return;
+    if (_isActive) {
+      if (speakerPlaybackEnabled) {
+        _notificationCheckpointAt ??= DateTime.now().toUtc().subtract(
+          _startupNotificationLookback,
+        );
+        _startSpeakerReadyFallback();
+      } else {
+        _stopSpeakerReadyFallback('speaker_disabled');
+        _notificationCheckpointAt = null;
+      }
+      return;
+    }
     _isActive = true;
     _notificationCheckpointAt = speakerPlaybackEnabled
         ? DateTime.now().toUtc().subtract(_startupNotificationLookback)
         : null;
+    _lastRealtimeEventAt = null;
     _loggedMonitorStarted = false;
     _deliveryInFlightNotificationIds.clear();
     _terminalNotificationIds.clear();
@@ -553,9 +574,15 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _activeNotificationIds.clear();
     _streamNotificationQueue.clear();
     _isDrainingStreamNotifications = false;
+    _isDrainingReadyNotifications = false;
     _realtimeReconnectAttempt = 0;
     _speakerError = null;
     _latestTransactions.clear();
+    if (speakerPlaybackEnabled) {
+      _startSpeakerReadyFallback();
+    } else {
+      _stopSpeakerReadyFallback('speaker_disabled');
+    }
     _poll(
       force: true,
       includeTotal: true,
@@ -579,6 +606,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _realtimeRefreshTimer = null;
     _realtimeReconnectTimer?.cancel();
     _realtimeReconnectTimer = null;
+    _stopSpeakerReadyFallback('stop_$reason');
     _disconnectRealtime(reason);
     if (!_isActive &&
         !_isLoading &&
@@ -604,7 +632,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _activeNotificationIds.clear();
     _streamNotificationQueue.clear();
     _isDrainingStreamNotifications = false;
+    _isDrainingReadyNotifications = false;
     _realtimeReconnectAttempt = 0;
+    _lastRealtimeEventAt = null;
     _latestTransactions.clear();
     _canReviewOrderTransfers = false;
     _clearRowMessages(notify: false);
@@ -648,7 +678,6 @@ class PaymentMonitorProvider extends ChangeNotifier {
       final channel = _realtimeConnector(Uri.parse(url));
       _realtimeChannel = channel;
       _realtimeKey = nextKey;
-      _realtimeReconnectAttempt = 0;
       _realtimeSubscription = channel.stream.listen(
         _handleRealtimeMessage,
         onError: (Object error, StackTrace stackTrace) {
@@ -677,10 +706,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
       unawaited(
         AppLogger.instance.info(
           'PaymentMonitorRealtime',
-          'Payment monitor realtime connected',
-          context: {'storeId': storeCode},
+          'Payment monitor realtime connection started',
+          context: {'storeId': storeCode, 'attempt': _realtimeReconnectAttempt},
         ),
       );
+      unawaited(_confirmRealtimeReady(channel, nextKey, storeCode));
     } catch (error, stackTrace) {
       unawaited(
         AppLogger.instance.error(
@@ -716,6 +746,43 @@ class PaymentMonitorProvider extends ChangeNotifier {
           },
         ),
       );
+    }
+  }
+
+  Future<void> _confirmRealtimeReady(
+    WebSocketChannel channel,
+    String connectionKey,
+    String storeCode,
+  ) async {
+    try {
+      await channel.ready;
+      if (_realtimeChannel != channel || _realtimeKey != connectionKey) {
+        return;
+      }
+      _realtimeReconnectAttempt = 0;
+      await AppLogger.instance.info(
+        'PaymentMonitorRealtime',
+        'Payment monitor realtime ready',
+        context: {
+          'storeId': storeCode,
+          'speakerPlaybackEnabled': _shouldReadPaymentSpeaker,
+        },
+      );
+      if (_shouldReadPaymentSpeaker) {
+        await _drainReadyNotificationsOnly(reason: 'realtime_ready');
+      }
+    } catch (error, stackTrace) {
+      if (_realtimeChannel != channel || _realtimeKey != connectionKey) {
+        return;
+      }
+      await AppLogger.instance.error(
+        'PaymentMonitorRealtime',
+        'Payment monitor realtime handshake failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {'storeId': storeCode, 'attempt': _realtimeReconnectAttempt},
+      );
+      _handleRealtimeClosed('ready_failed');
     }
   }
 
@@ -761,6 +828,57 @@ class PaymentMonitorProvider extends ChangeNotifier {
     return Duration(milliseconds: math.max(1, delayMs));
   }
 
+  void _startSpeakerReadyFallback() {
+    if (!_shouldReadPaymentSpeaker) {
+      _stopSpeakerReadyFallback('speaker_not_eligible');
+      return;
+    }
+    if (_speakerReadyFallbackTimer != null) return;
+    _speakerReadyFallbackTimer = Timer.periodic(
+      _speakerReadyFallbackInterval,
+      (_) => unawaited(_runSpeakerReadyFallback()),
+    );
+    unawaited(
+      AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment speaker ready fallback started',
+        context: {
+          'storeId': _requestStoreId ?? _user?.storeId,
+          'intervalMs': _speakerReadyFallbackInterval.inMilliseconds,
+          'silenceWindowMs': _speakerReadyFallbackSilenceWindow.inMilliseconds,
+        },
+      ),
+    );
+  }
+
+  void _stopSpeakerReadyFallback(String reason) {
+    final hadTimer = _speakerReadyFallbackTimer != null;
+    _speakerReadyFallbackTimer?.cancel();
+    _speakerReadyFallbackTimer = null;
+    if (!hadTimer) return;
+    unawaited(
+      AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment speaker ready fallback stopped',
+        context: {
+          'reason': reason,
+          'storeId': _requestStoreId ?? _user?.storeId,
+        },
+      ),
+    );
+  }
+
+  Future<void> _runSpeakerReadyFallback() async {
+    if (!_isActive || !_shouldReadPaymentSpeaker) return;
+    final lastRealtimeEventAt = _lastRealtimeEventAt;
+    if (lastRealtimeEventAt != null &&
+        DateTime.now().difference(lastRealtimeEventAt) <
+            _speakerReadyFallbackSilenceWindow) {
+      return;
+    }
+    await _drainReadyNotificationsOnly(reason: 'speaker_ready_fallback');
+  }
+
   void _advanceNotificationCheckpoint(
     Iterable<PaymentNotification> notifications,
   ) {
@@ -801,6 +919,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           eventStore != expectedStore) {
         return;
       }
+      _lastRealtimeEventAt = DateTime.now();
       final shouldReadSpeaker = _shouldReadPaymentSpeaker;
       final drainsReadyNotifications =
           eventType == 'PAYMENT_NOTIFICATION' && shouldReadSpeaker;
@@ -1106,7 +1225,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       );
       if (speakerPlaybackEnabled && drainReadyNotifications) {
         phase = 'ready_notifications';
-        await _drainReadyNotifications(clientId!, reason: reason);
+        await _drainReadyNotificationsWithLock(clientId!, reason: reason);
       }
 
       _lastCheckedAt = DateTime.now();
@@ -1261,23 +1380,111 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> _drainReadyNotificationsWithLock(
+    String clientId, {
+    required String reason,
+  }) async {
+    if (_isDrainingReadyNotifications) {
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment ready notification drain skipped because another drain is running',
+        context: {
+          'reason': reason,
+          'storeId': _requestStoreId ?? _user?.storeId,
+        },
+      );
+      return;
+    }
+    _isDrainingReadyNotifications = true;
+    try {
+      await _drainReadyNotifications(clientId, reason: reason);
+    } finally {
+      _isDrainingReadyNotifications = false;
+    }
+  }
+
+  Future<void> _drainReadyNotificationsOnly({required String reason}) async {
+    if (!_isActive || !_shouldReadPaymentSpeaker) return;
+    final startedAt = DateTime.now();
+    try {
+      final clientId = await _ensureClientId();
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment ready notification recovery started',
+        context: {
+          'reason': reason,
+          'storeId': _requestStoreId ?? _user?.storeId,
+          'checkpointAt': _notificationCheckpointAt?.toIso8601String(),
+        },
+      );
+      await _drainReadyNotificationsWithLock(clientId, reason: reason);
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment ready notification recovery finished',
+        context: {
+          'reason': reason,
+          'storeId': _requestStoreId ?? _user?.storeId,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'PaymentMonitor',
+        'Payment ready notification recovery failed',
+        error: error,
+        stackTrace: stackTrace,
+        upload: true,
+        context: {
+          'reason': reason,
+          'storeId': _requestStoreId ?? _user?.storeId,
+        },
+      );
+    }
+  }
+
   Future<void> updateOrders(String transactionId, String rawInput) async {
+    final existing = _findTransactionById(transactionId);
+    final transactionKey = existing?.transactionKey.trim() ?? '';
     try {
       final orders = parseStatementOrderInput(rawInput);
       await AppLogger.instance.info(
         'PaymentMonitor',
         'Payment monitor inline order save started',
-        context: {'transactionId': transactionId, 'orderCount': orders.length},
+        context: {
+          'transactionId': transactionId,
+          'hasTransactionKey': transactionKey.isNotEmpty,
+          'orderCount': orders.length,
+        },
       );
-      final updated = await _repository.updateOrders(transactionId, orders);
-      _replaceTransaction(updated);
-      _showRowMessage(transactionId, 'Đã cập nhật mã đơn hàng.', true);
+      final updated = await _repository.updateOrders(
+        transactionId,
+        orders,
+        transactionKey: transactionKey,
+      );
+      _replaceTransaction(updated, previousId: transactionId);
+      _showRowMessage(updated.id, 'Đã cập nhật mã đơn hàng.', true);
       await AppLogger.instance.info(
         'PaymentMonitor',
         'Payment monitor inline order save succeeded',
-        context: {'transactionId': transactionId, 'orderCount': orders.length},
+        context: {
+          'transactionId': transactionId,
+          'resolvedTransactionId': updated.id,
+          'hasTransactionKey': transactionKey.isNotEmpty,
+          'orderCount': orders.length,
+        },
       );
     } catch (error) {
+      final orders = _tryParseStatementOrderInput(rawInput);
+      if (orders != null &&
+          transactionKey.isNotEmpty &&
+          _isInvalidTransactionError(error) &&
+          await _retryOrderSaveAfterStatementRefresh(
+            originalTransactionId: transactionId,
+            transactionKey: transactionKey,
+            orders: orders,
+          )) {
+        return;
+      }
       _showRowMessage(
         transactionId,
         _orderInputErrorMessage(error, fallback: 'Chưa lưu được mã đơn.'),
@@ -1287,7 +1494,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'PaymentMonitor',
         'Payment monitor inline order save failed',
         error: error,
-        context: {'transactionId': transactionId},
+        context: {
+          'transactionId': transactionId,
+          'hasTransactionKey': transactionKey.isNotEmpty,
+        },
       );
     }
   }
@@ -1458,13 +1668,93 @@ class PaymentMonitorProvider extends ChangeNotifier {
     );
   }
 
-  void _replaceTransaction(MapPaymentTransaction updated) {
+  MapPaymentTransaction? _findTransactionById(String transactionId) {
+    for (final transaction in _latestTransactions) {
+      if (transaction.id == transactionId) return transaction;
+    }
+    return null;
+  }
+
+  MapPaymentTransaction? _findTransactionByKey(String transactionKey) {
+    final key = transactionKey.trim();
+    if (key.isEmpty) return null;
+    for (final transaction in _latestTransactions) {
+      if (transaction.transactionKey.trim() == key) return transaction;
+    }
+    return null;
+  }
+
+  void _replaceTransaction(
+    MapPaymentTransaction updated, {
+    String? previousId,
+  }) {
     final index = _latestTransactions.indexWhere(
-      (transaction) => transaction.id == updated.id,
+      (transaction) =>
+          transaction.id == updated.id ||
+          (previousId != null && transaction.id == previousId) ||
+          (updated.transactionKey.isNotEmpty &&
+              transaction.transactionKey == updated.transactionKey),
     );
     if (index < 0) return;
     _latestTransactions[index] = updated;
     notifyListeners();
+  }
+
+  Future<bool> _retryOrderSaveAfterStatementRefresh({
+    required String originalTransactionId,
+    required String transactionKey,
+    required List<String> orders,
+  }) async {
+    try {
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment monitor inline order save retry started',
+        context: {
+          'transactionId': originalTransactionId,
+          'hasTransactionKey': transactionKey.trim().isNotEmpty,
+        },
+      );
+      await _refreshCurrentPageAfterOrderAction(
+        reason: 'order_save_stale_transaction',
+      );
+      final refreshed = _findTransactionByKey(transactionKey);
+      if (refreshed == null || refreshed.id == originalTransactionId) {
+        await AppLogger.instance.warn(
+          'PaymentMonitor',
+          'Payment monitor inline order save retry skipped',
+          context: {
+            'transactionId': originalTransactionId,
+            'hasRefreshedTransaction': refreshed != null,
+          },
+        );
+        return false;
+      }
+      final updated = await _repository.updateOrders(
+        refreshed.id,
+        orders,
+        transactionKey: refreshed.transactionKey,
+      );
+      _replaceTransaction(updated, previousId: originalTransactionId);
+      _showRowMessage(updated.id, 'Đã cập nhật mã đơn hàng.', true);
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment monitor inline order save retry succeeded',
+        context: {
+          'transactionId': originalTransactionId,
+          'resolvedTransactionId': updated.id,
+        },
+      );
+      return true;
+    } catch (retryError, retryStackTrace) {
+      await AppLogger.instance.error(
+        'PaymentMonitor',
+        'Payment monitor inline order save retry failed',
+        error: retryError,
+        stackTrace: retryStackTrace,
+        context: {'transactionId': originalTransactionId},
+      );
+      return false;
+    }
   }
 
   String _orderInputErrorMessage(Object error, {required String fallback}) {
@@ -1475,6 +1765,19 @@ class PaymentMonitorProvider extends ChangeNotifier {
       return 'Mã đơn hàng phải gồm 14 chữ số, ngăn cách bằng dòng hoặc dấu phẩy.';
     }
     return fallback;
+  }
+
+  bool _isInvalidTransactionError(Object error) {
+    return error is api.ApiException &&
+        error.message.contains('Giao dịch không hợp lệ');
+  }
+
+  List<String>? _tryParseStatementOrderInput(String rawInput) {
+    try {
+      return parseStatementOrderInput(rawInput);
+    } catch (_) {
+      return null;
+    }
   }
 
   void _showRowMessage(String id, String text, bool success) {
@@ -1520,6 +1823,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   void dispose() {
     _realtimeRefreshTimer?.cancel();
     _realtimeReconnectTimer?.cancel();
+    _speakerReadyFallbackTimer?.cancel();
     _clearRowMessages(notify: false);
     unawaited(_realtimeSubscription?.cancel());
     unawaited(_realtimeChannel?.sink.close());

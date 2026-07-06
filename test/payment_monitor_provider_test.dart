@@ -79,36 +79,40 @@ void main() {
     },
   );
 
-  test('does not create a periodic transaction refresh timer', () async {
-    var periodicTimerCount = 0;
-    late PaymentMonitorProvider provider;
-    final repository = _FakePaymentMonitorRepository(notifications: const []);
+  test(
+    'creates a speaker-ready fallback timer without extra list polling',
+    () async {
+      var periodicTimerCount = 0;
+      late PaymentMonitorProvider provider;
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
 
-    await runZoned(
-      () async {
-        provider = PaymentMonitorProvider(
-          repository,
-          _FakePaymentSpeaker(),
-          null,
-          retryDelay,
-        );
-        await Future<void>.delayed(Duration.zero);
-        provider.syncAuth(_storeUser(), isInitialized: true);
-        await _waitUntil(
-          () => repository.transactionFetchCount > 0 && !provider.isLoading,
-        );
-      },
-      zoneSpecification: ZoneSpecification(
-        createPeriodicTimer: (self, parent, zone, duration, callback) {
-          periodicTimerCount += 1;
-          return parent.createPeriodicTimer(zone, duration, callback);
+      await runZoned(
+        () async {
+          provider = PaymentMonitorProvider(
+            repository,
+            _FakePaymentSpeaker(),
+            null,
+            retryDelay,
+          );
+          await Future<void>.delayed(Duration.zero);
+          provider.syncAuth(_storeUser(), isInitialized: true);
+          await _waitUntil(
+            () => repository.transactionFetchCount > 0 && !provider.isLoading,
+          );
         },
-      ),
-    );
+        zoneSpecification: ZoneSpecification(
+          createPeriodicTimer: (self, parent, zone, duration, callback) {
+            periodicTimerCount += 1;
+            return parent.createPeriodicTimer(zone, duration, callback);
+          },
+        ),
+      );
 
-    expect(periodicTimerCount, 0);
-    provider.dispose();
-  });
+      expect(periodicTimerCount, 1);
+      expect(repository.transactionFetchCount, 1);
+      provider.dispose();
+    },
+  );
 
   test(
     'loads transactions but skips notification polling without speaker feature',
@@ -365,6 +369,7 @@ void main() {
     await provider.updateOrders('txn-1', '26052287654321');
 
     expect(repository.savedOrderInputs.single, ['26052287654321']);
+    expect(repository.savedOrderTransactionKeys.single, 'key-txn-1');
     expect(provider.latestTransactions.single.orders, ['26052287654321']);
     expect(provider.rowMessages['txn-1']?.text, 'Đã cập nhật mã đơn hàng.');
 
@@ -692,6 +697,48 @@ void main() {
         repository.ackEvents.where((event) => event == 'STREAM_STARTED'),
         hasLength(4),
       );
+
+      provider.dispose();
+    },
+  );
+
+  test(
+    'speaker-ready fallback drains audio backlog without list refresh',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: const [],
+        notificationBatches: [
+          const [],
+          [
+            _readyNotification(
+              notificationId: 'note-fallback',
+              transactionId: 'txn-fallback',
+            ),
+          ],
+        ],
+      );
+      final speaker = _FakePaymentSpeaker();
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+        null,
+        retryDelay,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(), isInitialized: true);
+      await _waitUntil(
+        () =>
+            repository.readyFetchCount >= 2 &&
+            repository.ackEvents.contains('PLAYED'),
+      );
+
+      expect(repository.transactionFetchCount, 1);
+      expect(repository.streamDownloadCount, 1);
+      expect(speaker.playCount, 1);
 
       provider.dispose();
     },
@@ -1134,6 +1181,7 @@ MapPaymentTransaction _paymentTransaction({
 }) {
   return MapPaymentTransaction.fromJson({
     'transactionNumber': id,
+    'transactionKey': 'key-$id',
     'amount': 1250000,
     'storeId': 'CP01',
     'status': '00',
@@ -1179,6 +1227,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<bool> requestedRawAmounts = [];
   final List<String?> requestedStreamClientIds = [];
   final List<List<String>> savedOrderInputs = [];
+  final List<String?> savedOrderTransactionKeys = [];
   final List<List<String>> requestedOrderTransfers = [];
   final List<String> approvedRequestIds = [];
   final List<String> rejectedRequestIds = [];
@@ -1230,12 +1279,15 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   @override
   Future<MapPaymentTransaction> updateOrders(
     String transactionId,
-    List<String> orders,
-  ) async {
+    List<String> orders, {
+    String? transactionKey,
+  }) async {
     savedOrderInputs.add(orders);
+    savedOrderTransactionKeys.add(transactionKey);
     return updatedTransaction ??
         MapPaymentTransaction.fromJson({
           'transactionNumber': transactionId,
+          if (transactionKey != null) 'transactionKey': transactionKey,
           'amount': 1250000,
           'storeId': 'CP01',
           'status': '00',

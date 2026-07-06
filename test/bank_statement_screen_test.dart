@@ -291,8 +291,13 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
   @override
   Future<BankStatementTransaction> updateOrders(
     String transactionId,
-    List<String> orders,
-  ) async {
+    List<String> orders, {
+    String? transactionKey,
+    String? statementNumber,
+    String? amount,
+    String? order,
+    String? content,
+  }) async {
     throw UnimplementedError();
   }
 

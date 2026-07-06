@@ -81,11 +81,17 @@ class PaymentMonitorRepository {
 
   Future<MapPaymentTransaction> updateOrders(
     String transactionId,
-    List<String> orders,
-  ) async {
+    List<String> orders, {
+    String? transactionKey,
+  }) async {
+    final cleanTransactionKey = transactionKey?.trim() ?? '';
     final response = await _apiClient.patch(
       ApiConstants.adminMapVietinStatementOrdersEndpoint(transactionId),
-      body: {'orders': orders},
+      body: {
+        'orders': orders,
+        if (cleanTransactionKey.isNotEmpty)
+          'transactionKey': cleanTransactionKey,
+      },
     );
     return MapPaymentTransaction.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,

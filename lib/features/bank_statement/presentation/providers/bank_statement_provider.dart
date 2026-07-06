@@ -499,22 +499,52 @@ class BankStatementProvider extends ChangeNotifier {
   }
 
   Future<void> updateOrders(String transactionId, String rawInput) async {
+    final existing = _findTransactionById(transactionId);
+    final transactionKey = existing?.transactionKey.trim() ?? '';
     try {
       final orders = parseOrderInput(rawInput);
       await AppLogger.instance.info(
         'BankStatement',
         'Bank statement inline order save started',
-        context: {'transactionId': transactionId, 'orderCount': orders.length},
+        context: {
+          'transactionId': transactionId,
+          'hasTransactionKey': transactionKey.isNotEmpty,
+          'orderCount': orders.length,
+        },
       );
-      final updated = await _repository.updateOrders(transactionId, orders);
-      _replaceTransaction(updated);
-      _showRowMessage(transactionId, 'Đã lưu mã đơn hàng.', true);
+      final updated = await _repository.updateOrders(
+        transactionId,
+        orders,
+        transactionKey: transactionKey,
+        statementNumber: _statementNumber,
+        amount: _amount,
+        order: _order,
+        content: _content,
+      );
+      _replaceTransaction(updated, previousId: transactionId);
+      _showRowMessage(updated.id, 'Đã lưu mã đơn hàng.', true);
       await AppLogger.instance.info(
         'BankStatement',
         'Bank statement inline order save succeeded',
-        context: {'transactionId': transactionId, 'orderCount': orders.length},
+        context: {
+          'transactionId': transactionId,
+          'resolvedTransactionId': updated.id,
+          'hasTransactionKey': transactionKey.isNotEmpty,
+          'orderCount': orders.length,
+        },
       );
     } catch (error) {
+      final orders = _tryParseOrderInput(rawInput);
+      if (orders != null &&
+          transactionKey.isNotEmpty &&
+          _isInvalidTransactionError(error) &&
+          await _retryOrderSaveAfterRefresh(
+            originalTransactionId: transactionId,
+            transactionKey: transactionKey,
+            orders: orders,
+          )) {
+        return;
+      }
       final message = _orderInputErrorMessage(
         error,
         fallback: 'Chưa lưu được mã đơn.',
@@ -524,7 +554,10 @@ class BankStatementProvider extends ChangeNotifier {
         'BankStatement',
         'Bank statement inline order save failed',
         error: error,
-        context: {'transactionId': transactionId},
+        context: {
+          'transactionId': transactionId,
+          'hasTransactionKey': transactionKey.isNotEmpty,
+        },
       );
     }
   }
@@ -825,11 +858,93 @@ class BankStatementProvider extends ChangeNotifier {
     _transactions.clear();
   }
 
-  void _replaceTransaction(BankStatementTransaction updated) {
+  BankStatementTransaction? _findTransactionById(String transactionId) {
+    for (final transaction in _transactions) {
+      if (transaction.id == transactionId) return transaction;
+    }
+    return null;
+  }
+
+  BankStatementTransaction? _findTransactionByKey(String transactionKey) {
+    final key = transactionKey.trim();
+    if (key.isEmpty) return null;
+    for (final transaction in _transactions) {
+      if (transaction.transactionKey.trim() == key) return transaction;
+    }
+    return null;
+  }
+
+  void _replaceTransaction(
+    BankStatementTransaction updated, {
+    String? previousId,
+  }) {
     final visibleIndex = _transactions.indexWhere(
-      (item) => item.id == updated.id,
+      (item) =>
+          item.id == updated.id ||
+          (previousId != null && item.id == previousId) ||
+          (updated.transactionKey.isNotEmpty &&
+              item.transactionKey == updated.transactionKey),
     );
     if (visibleIndex >= 0) _transactions[visibleIndex] = updated;
+  }
+
+  Future<bool> _retryOrderSaveAfterRefresh({
+    required String originalTransactionId,
+    required String transactionKey,
+    required List<String> orders,
+  }) async {
+    try {
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement inline order save retry started',
+        context: {
+          'transactionId': originalTransactionId,
+          'hasTransactionKey': transactionKey.trim().isNotEmpty,
+        },
+      );
+      await _fetchPage(_page);
+      final refreshed = _findTransactionByKey(transactionKey);
+      if (refreshed == null || refreshed.id == originalTransactionId) {
+        await AppLogger.instance.warn(
+          'BankStatement',
+          'Bank statement inline order save retry skipped',
+          context: {
+            'transactionId': originalTransactionId,
+            'hasRefreshedTransaction': refreshed != null,
+          },
+        );
+        return false;
+      }
+      final updated = await _repository.updateOrders(
+        refreshed.id,
+        orders,
+        transactionKey: refreshed.transactionKey,
+        statementNumber: _statementNumber,
+        amount: _amount,
+        order: _order,
+        content: _content,
+      );
+      _replaceTransaction(updated, previousId: originalTransactionId);
+      _showRowMessage(updated.id, 'Đã lưu mã đơn hàng.', true);
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement inline order save retry succeeded',
+        context: {
+          'transactionId': originalTransactionId,
+          'resolvedTransactionId': updated.id,
+        },
+      );
+      return true;
+    } catch (retryError, retryStackTrace) {
+      await AppLogger.instance.error(
+        'BankStatement',
+        'Bank statement inline order save retry failed',
+        error: retryError,
+        stackTrace: retryStackTrace,
+        context: {'transactionId': originalTransactionId},
+      );
+      return false;
+    }
   }
 
   Future<void> _reviewOrderTransferRequest(
@@ -1076,6 +1191,19 @@ class BankStatementProvider extends ChangeNotifier {
       return 'Mã đơn hàng phải gồm 14 chữ số, ngăn cách bằng dòng hoặc dấu phẩy.';
     }
     return fallback;
+  }
+
+  bool _isInvalidTransactionError(Object error) {
+    return error is ApiException &&
+        error.message.contains('Giao dịch không hợp lệ');
+  }
+
+  List<String>? _tryParseOrderInput(String rawInput) {
+    try {
+      return parseOrderInput(rawInput);
+    } catch (_) {
+      return null;
+    }
   }
 
   void _showRowMessage(String id, String text, bool success) {

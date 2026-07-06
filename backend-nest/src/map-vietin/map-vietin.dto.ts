@@ -214,6 +214,31 @@ export class UpdateMapVietinStatementOrdersDto {
   @IsString({ each: true })
   @MaxLength(80, { each: true })
   orders!: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  transactionKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  statementNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  amount?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  order?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  content?: string;
 }
 
 export class CreateMapVietinStatementOrderTransferRequestDto {

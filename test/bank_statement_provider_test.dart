@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/bank_statement/data/bank_statement_repository.dart';
@@ -139,18 +140,23 @@ void main() {
       expect(repository.lastQuery?.allStores, isFalse);
       expect(repository.lastQuery?.amount, '1250000');
 
+      provider.setContent('reset filters');
+      provider.setContent('');
       provider.setOrder('26052912345678');
       await provider.search();
       expect(repository.lastQuery?.storeIds, isEmpty);
       expect(repository.lastQuery?.allStores, isFalse);
       expect(repository.lastQuery?.order, '26052912345678');
 
+      provider.setContent('reset filters');
+      provider.setContent('');
       provider.setStatementNumber('00020300000000004567');
       await provider.search();
       expect(repository.lastQuery?.storeIds, isEmpty);
       expect(repository.lastQuery?.allStores, isFalse);
       expect(repository.lastQuery?.statementNumber, '00020300000000004567');
 
+      provider.setContent('reset filters');
       provider.setContent('customer transfer');
       await provider.search();
       expect(repository.lastQuery?.storeIds, isEmpty);
@@ -254,6 +260,8 @@ void main() {
           '26052987654321',
           '26052900000000',
         ]);
+        expect(repository.lastUpdatedTransactionKey, 'key-tx-1');
+        expect(repository.lastUpdatedLookupOrder, '26052912345678');
         expect(provider.transactions.first.orders, [
           '26052987654321',
           '26052900000000',
@@ -301,6 +309,46 @@ void main() {
 
       provider.dispose();
     });
+
+    test(
+      'retries inline order save when the visible statement id is stale',
+      () async {
+        final stale = _transaction('tx-stale', const []);
+        final refreshed = _copyTransaction(stale, id: 'tx-fresh');
+        final repository = _FakeBankStatementRepository(
+          pages: [
+            [stale],
+          ],
+        );
+        repository.updateOrdersError = ApiException(
+          'Giao dịch không hợp lệ',
+          400,
+        );
+        repository.updateOrdersErrorOnce = true;
+        repository.beforeThrowingUpdateOrdersError = () {
+          repository._pages[0] = [refreshed];
+        };
+        final provider = BankStatementProvider(repository);
+        await provider.initialize(_nationalManager);
+
+        provider.setOrder('26052912345678');
+        await provider.search();
+        await provider.updateOrders('tx-stale', '26052987654321');
+
+        expect(repository.updateOrdersCount, 2);
+        expect(repository.lastUpdatedTransactionId, 'tx-fresh');
+        expect(repository.lastUpdatedTransactionKey, 'key-tx-stale');
+        expect(repository.lastUpdatedStatementNumber, isNull);
+        expect(repository.lastUpdatedAmount, isNull);
+        expect(repository.lastUpdatedLookupOrder, '26052912345678');
+        expect(repository.lastUpdatedContent, isNull);
+        expect(provider.transactions.single.id, 'tx-fresh');
+        expect(provider.transactions.single.orders, ['26052987654321']);
+        expect(provider.rowMessage('tx-fresh')?.text, 'Đã lưu mã đơn hàng.');
+
+        provider.dispose();
+      },
+    );
 
     test('loads only the current server page for broad SR searches', () async {
       final repository = _FakeBankStatementRepository(
@@ -672,10 +720,19 @@ class _FakeBankStatementRepository extends BankStatementRepository {
   BankStatementQuery? lastExportQuery;
   final List<BankStatementQuery> seenQueries = [];
   List<String> lastUpdatedOrders = const [];
+  String? lastUpdatedTransactionId;
+  String? lastUpdatedTransactionKey;
+  String? lastUpdatedStatementNumber;
+  String? lastUpdatedAmount;
+  String? lastUpdatedLookupOrder;
+  String? lastUpdatedContent;
   List<String> lastTransferRequestedOrders = const [];
   List<String> lastExportTransactionIds = const [];
   final bool canReviewOrderTransfers;
   final DateTime? notificationReadAt;
+  Object? updateOrdersError;
+  bool updateOrdersErrorOnce = false;
+  void Function()? beforeThrowingUpdateOrdersError;
   final List<BankStatementOrderTransferRequest> _pendingRequests = [];
 
   final List<List<BankStatementTransaction>> _pages;
@@ -726,10 +783,29 @@ class _FakeBankStatementRepository extends BankStatementRepository {
   @override
   Future<BankStatementTransaction> updateOrders(
     String transactionId,
-    List<String> orders,
-  ) async {
+    List<String> orders, {
+    String? transactionKey,
+    String? statementNumber,
+    String? amount,
+    String? order,
+    String? content,
+  }) async {
     updateOrdersCount += 1;
+    lastUpdatedTransactionId = transactionId;
+    lastUpdatedTransactionKey = transactionKey;
+    lastUpdatedStatementNumber = statementNumber;
+    lastUpdatedAmount = amount;
+    lastUpdatedLookupOrder = order;
+    lastUpdatedContent = content;
     lastUpdatedOrders = List.of(orders);
+    final error = updateOrdersError;
+    if (error != null) {
+      beforeThrowingUpdateOrdersError?.call();
+      if (updateOrdersErrorOnce) {
+        updateOrdersError = null;
+      }
+      throw error;
+    }
     for (var pageIndex = 0; pageIndex < _pages.length; pageIndex += 1) {
       final index = _pages[pageIndex].indexWhere(
         (row) => row.id == transactionId,
@@ -986,6 +1062,7 @@ BankStatementTransaction _transaction(String id, List<String> orders) {
 
 BankStatementTransaction _copyTransaction(
   BankStatementTransaction transaction, {
+  String? id,
   List<String>? orders,
   String? orderSource,
   bool? canEditOrders,
@@ -1002,7 +1079,7 @@ BankStatementTransaction _copyTransaction(
   bool? isOrderOffsetConfirmed,
 }) {
   return BankStatementTransaction(
-    id: transaction.id,
+    id: id ?? transaction.id,
     storeId: transaction.storeId,
     transactionKey: transaction.transactionKey,
     transactionNumber: transaction.transactionNumber,

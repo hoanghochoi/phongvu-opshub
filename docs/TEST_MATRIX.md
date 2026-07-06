@@ -62,6 +62,19 @@ Recent focused evidence:
   `/app-version`. Validation: focused Flutter update tests and focused NestJS
   app-version tests. Gap: manual Android and Windows installed-build update
   smoke remains required before release.
+- `PAYMENT-MONITOR-002`/`PAYMENT-STATEMENT-001`, 2026-07-07: WebSocket
+  reconnect now waits for the socket `ready` handshake before resetting
+  backoff, Windows speaker clients get a lightweight `/ready` fallback after
+  realtime silence without restoring full-list polling, and Sao kê inline order
+  saves send the stable `transactionKey` plus retry once after refresh when a
+  visible row id is stale. Statement users may edit/update protected or
+  cross-SR rows when the row was found by exactly one global lookup field:
+  statement number, order code, exact amount, or exact transfer content; the
+  backend re-verifies the lookup before writing audit history. Validation:
+  `flutter test --no-pub --reporter expanded test/payment_monitor_provider_test.dart test/bank_statement_provider_test.dart`,
+  `npm test -- --runInBand src/map-vietin/map-vietin.service.spec.ts`,
+  backend `npm run build`, and `flutter analyze --no-pub`. Gap: live Windows
+  speaker and production Sao kê click-through remain post-deploy manual smoke.
 - `PAYMENT-MONITOR-002`, 2026-07-06: `Tiền vào` no longer polls the stored
   transaction list every 10 seconds or on WebSocket reconnect. Initial/user
   actions still load explicitly; payment realtime events refresh the list,

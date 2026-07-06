@@ -1410,6 +1410,66 @@ describe('MapVietinService', () => {
     expect(prisma.store.findUnique).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['statement number', { statementNumber: 'MAP-CROSS' }, 'MAP-CROSS'],
+    ['order', { order: '26052912345678' }, '26052912345678'],
+    ['amount', { amount: '1250000' }, '1250000'],
+    ['transfer content', { content: 'Cross SR order fix' }, 'Cross SR order fix'],
+  ])(
+    'allows exact %s lookup across SR and marks the row editable',
+    async (_name, input, marker) => {
+      prisma.store.findUnique.mockResolvedValue({
+        id: 'store-uuid-1',
+        storeId: 'CP01',
+      });
+      prisma.mapVietinTransaction.findMany.mockResolvedValue([
+        {
+          id: 'cross-sr',
+          storeCode: 'CP02',
+          transactionKey: 'CP02:key',
+          transactionNumber: 'MAP-CROSS',
+          amount: 1250000,
+          content: 'Cross SR order fix',
+          orders: ['26052912345678'],
+          orderSource: 'AUTO',
+          orderUpdatedAt: null,
+          orderUpdatedByUserId: null,
+          orderUpdatedByEmail: null,
+          status: '00',
+          paidAt: null,
+          payerName: null,
+          payerAccount: null,
+          rawData: null,
+          firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+        },
+      ]);
+      prisma.mapVietinTransaction.count.mockResolvedValue(1);
+
+      await expect(
+        service.listStatements(
+          { role: 'MANAGER', storeId: 'store-uuid-1' },
+          { ...input, page: 0, limit: 20 },
+        ),
+      ).resolves.toMatchObject({
+        total: 1,
+        list: [
+          {
+            id: 'cross-sr',
+            storeId: 'CP02',
+            canEditOrders: true,
+            orderEditBlockedReason: null,
+          },
+        ],
+      });
+
+      const where =
+        prisma.mapVietinTransaction.findMany.mock.calls.at(-1)[0].where;
+      const serializedWhere = JSON.stringify(where);
+      expect(serializedWhere).toContain(marker);
+      expect(serializedWhere).not.toContain('storeCode');
+    },
+  );
+
   it('rejects combined primary statement filters', async () => {
     await expect(
       service.listStatements(
@@ -1940,6 +2000,174 @@ describe('MapVietinService', () => {
         }),
       }),
     );
+  });
+
+  it('resolves stale statement order updates by transaction key', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'stored-fresh',
+        storeCode: 'CP01',
+        transactionKey: 'CP01:key',
+        orders: [],
+      });
+    prisma.mapVietinTransaction.update.mockResolvedValue({
+      id: 'stored-fresh',
+      storeCode: 'CP01',
+      transactionKey: 'CP01:key',
+      transactionNumber: 'TXN-001',
+      amount: 1250000,
+      content: 'Manual fix after stale id',
+      orders: ['26052287654321'],
+      orderSource: 'MANUAL',
+      orderUpdatedAt: new Date('2026-05-21T03:00:00.000Z'),
+      orderUpdatedByUserId: 'user-1',
+      orderUpdatedByEmail: 'manager@example.com',
+      status: '00',
+      paidAt: null,
+      payerName: null,
+      payerAccount: null,
+      firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+    });
+    prisma.mapVietinTransactionOrderAudit.create.mockResolvedValue({});
+
+    await expect(
+      service.updateStatementOrders(
+        {
+          id: 'user-1',
+          email: 'manager@example.com',
+          role: 'MANAGER',
+          storeId: 'store-uuid-1',
+        },
+        'stored-stale',
+        { orders: ['26052287654321'], transactionKey: 'CP01:key' },
+      ),
+    ).resolves.toMatchObject({
+      id: 'stored-fresh',
+      orders: ['26052287654321'],
+    });
+
+    expect(prisma.mapVietinTransaction.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'stored-fresh' } }),
+    );
+    expect(prisma.mapVietinTransactionOrderAudit.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ transactionId: 'stored-fresh' }),
+      }),
+    );
+  });
+
+  it('allows users to update cross-SR protected orders with exact transfer-content proof', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue({
+      id: 'stored-cross-sr',
+      storeCode: 'CP02',
+      transactionKey: 'CP02:key',
+      transactionNumber: 'MAP-CROSS',
+      amount: 1250000,
+      content: 'Cross SR manual fix',
+      orders: ['26052912345678'],
+      orderSource: 'AUTO',
+      rawData: null,
+    });
+    prisma.mapVietinTransaction.update.mockResolvedValue({
+      id: 'stored-cross-sr',
+      storeCode: 'CP02',
+      transactionKey: 'CP02:key',
+      transactionNumber: 'MAP-CROSS',
+      amount: 1250000,
+      content: 'Cross SR manual fix',
+      orders: ['26052987654321'],
+      orderSource: 'MANUAL',
+      orderUpdatedAt: new Date('2026-05-21T03:00:00.000Z'),
+      orderUpdatedByUserId: 'user-1',
+      orderUpdatedByEmail: 'manager@example.com',
+      status: '00',
+      paidAt: null,
+      payerName: null,
+      payerAccount: null,
+      rawData: null,
+      firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+    });
+    prisma.mapVietinTransactionOrderAudit.create.mockResolvedValue({});
+
+    await expect(
+      service.updateStatementOrders(
+        {
+          id: 'user-1',
+          email: 'manager@example.com',
+          role: 'MANAGER',
+          storeId: 'store-uuid-1',
+        },
+        'stored-cross-sr',
+        {
+          orders: ['26052987654321'],
+          content: 'cross sr manual fix',
+        },
+      ),
+    ).resolves.toMatchObject({
+      id: 'stored-cross-sr',
+      storeId: 'CP02',
+      orders: ['26052987654321'],
+      canEditOrders: true,
+    });
+
+    expect(prisma.mapVietinTransaction.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'stored-cross-sr' } }),
+    );
+    expect(prisma.mapVietinTransactionOrderAudit.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          transactionId: 'stored-cross-sr',
+          storeCode: 'CP02',
+          oldOrders: ['26052912345678'],
+          newOrders: ['26052987654321'],
+        }),
+      }),
+    );
+  });
+
+  it('blocks cross-SR order updates when exact lookup proof is missing', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue({
+      id: 'stored-cross-sr',
+      storeCode: 'CP02',
+      transactionKey: 'CP02:key',
+      transactionNumber: 'MAP-CROSS',
+      amount: 1250000,
+      content: 'Cross SR manual fix',
+      orders: ['26052912345678'],
+      orderSource: 'AUTO',
+      rawData: null,
+    });
+
+    await expect(
+      service.updateStatementOrders(
+        {
+          id: 'user-1',
+          email: 'manager@example.com',
+          role: 'MANAGER',
+          storeId: 'store-uuid-1',
+        },
+        'stored-cross-sr',
+        {
+          orders: ['26052987654321'],
+        },
+      ),
+    ).rejects.toThrow(
+      'Chỉ được sửa giao dịch showroom khác khi tìm chính xác bằng mã sao kê, mã đơn, số tiền hoặc nội dung chuyển khoản.',
+    );
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
   });
 
   it('lets non-FIN statement users fill NULL orders only', async () => {

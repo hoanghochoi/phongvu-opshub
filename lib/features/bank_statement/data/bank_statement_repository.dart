@@ -147,11 +147,30 @@ class BankStatementRepository {
 
   Future<BankStatementTransaction> updateOrders(
     String transactionId,
-    List<String> orders,
-  ) async {
+    List<String> orders, {
+    String? transactionKey,
+    String? statementNumber,
+    String? amount,
+    String? order,
+    String? content,
+  }) async {
+    final cleanTransactionKey = transactionKey?.trim() ?? '';
+    final cleanStatementNumber = statementNumber?.trim() ?? '';
+    final cleanAmount = amount?.replaceAll(RegExp(r'[^0-9]'), '') ?? '';
+    final cleanOrder = order?.trim() ?? '';
+    final cleanContent = content?.trim() ?? '';
     final response = await _apiClient.patch(
       ApiConstants.adminMapVietinStatementOrdersEndpoint(transactionId),
-      body: {'orders': orders},
+      body: {
+        'orders': orders,
+        if (cleanTransactionKey.isNotEmpty)
+          'transactionKey': cleanTransactionKey,
+        if (cleanStatementNumber.isNotEmpty)
+          'statementNumber': cleanStatementNumber,
+        if (cleanAmount.isNotEmpty) 'amount': cleanAmount,
+        if (cleanOrder.isNotEmpty) 'order': cleanOrder,
+        if (cleanContent.isNotEmpty) 'content': cleanContent,
+      },
     );
     return BankStatementTransaction.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
