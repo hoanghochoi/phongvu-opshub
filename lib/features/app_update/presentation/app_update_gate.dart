@@ -647,7 +647,7 @@ class _UpdatePromptOverlay extends StatelessWidget {
                     icon: shouldReload
                         ? Icons.refresh_rounded
                         : Icons.system_update_alt_rounded,
-                    label: shouldReload ? 'Tải lại' : 'Cập nhật trong app',
+                    label: shouldReload ? 'Tải lại' : 'Cập nhật',
                     isLoading: runningUpdateAction,
                   ),
                 ],

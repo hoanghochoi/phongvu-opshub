@@ -84,7 +84,7 @@ void main() {
     expect(find.text('Cần cập nhật ứng dụng'), findsOneWidget);
     expect(find.text('Để sau'), findsNothing);
 
-    await tester.tap(find.text('Cập nhật trong app'));
+    await tester.tap(find.text('Cập nhật'));
     await tester.pump();
 
     expect(installedResult, _requiredUpdateResult);
@@ -140,7 +140,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    await tester.tap(find.text('Cập nhật trong app'));
+    await tester.tap(find.text('Cập nhật'));
     await tester.pump();
 
     expect(find.text('Không tải được gói cập nhật.'), findsOneWidget);
