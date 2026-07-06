@@ -1535,6 +1535,13 @@ Recent focused evidence:
   cached after first load. Validation: `flutter analyze --no-pub`, focused
   Flutter bank statement/header regression tests (23 tests), and
   `git diff --check`. Gap: live admin-user typing smoke remains manual.
+- PROFILE-ADMIN-001, 2026-07-06: changed `Quản lý người dùng` text search back
+  to debounced server search through `GET /admin/users?q=...`, so results come
+  from the scoped database query instead of only the users already rendered in
+  Flutter. Backend `q` now covers email/name plus store, org-node, role, scope,
+  and feature fields. Validation: focused Flutter admin-user widget test,
+  focused backend user Jest, Flutter analyze, backend build, and `git diff
+  --check`.
 - PAYMENT-STATEMENT-001, 2026-06-25: added ACC-reviewed statement order
   transfer requests. Visible statement users can request order replacement
   within 24 hours from `paidAt ?? firstSeenAt`; duplicate pending requests and
