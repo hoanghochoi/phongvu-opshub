@@ -13,6 +13,13 @@ Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
   but if they do not have `organizationNodeId` the auth/profile response returns
   `assignmentPending=true` and the app keeps them on `/assignment-pending` until
   a `SUPER_ADMIN` assigns an organization node.
+- Lv5 positions created or updated from the organization-tree UI are synced to
+  the job-role catalog in the same transaction. Assigning an older Lv5 node also
+  repairs its missing catalog row before the user relation is saved.
+- A user assigned to an Lv5 position inherits the scope of that position's
+  direct parent. Positions under a Region or Area can read data from every
+  descendant showroom; positions under a showroom remain limited to that
+  showroom.
 - The pending screen must show: `Chưa được gán phòng ban, cửa hàng. Vui lòng
   liên hệ hoang.nv1@phongvu-mna.vn - zalo: 0906581906 để được hỗ trợ.` It
   provides refresh account and logout actions.

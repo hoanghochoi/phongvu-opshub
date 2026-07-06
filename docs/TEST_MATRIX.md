@@ -45,6 +45,23 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `PROFILE-ADMIN-001`/`PERSONNEL-001`, 2026-07-06: Lv5 positions created or
+  updated from the organization-tree UI now sync their job-role catalog row in
+  the same transaction, while assignment self-heals older nodes missing that
+  row. Lv5 users inherit the direct parent's scope: positions under Region/Area
+  can read every descendant showroom through the shared store-scope helper;
+  positions under a showroom remain limited to that showroom. Admin user scope
+  and the Flutter personnel-code preview follow the same parent scope.
+  Validation: focused User/Common/Home Summary/Sales Reports Jest (4 suites,
+  96 tests), backend `npm run build`, focused Flutter admin tree test (12
+  tests), `flutter analyze --no-pub`, and `git diff --check`.
+- `HOME-DASHBOARD-002`, 2026-07-06: Khu vực `Bán hàng` thêm card
+  `Báo cáo chưa mua` giữa `Số đơn đã báo cáo` và `Số đơn chưa báo cáo`. Backend
+  trả `notPurchasedReports` từ `HomeSummaryReportFact` có
+  `reportType=NOT_PURCHASED`; Flutter log và hiển thị field này, đồng thời giữ
+  7 KPI trên một hàng ở desktop rộng. Validation: focused Home Summary Jest,
+  focused Home dashboard Flutter test, backend build, `flutter analyze
+  --no-pub`, và `git diff --check`.
 - `SALES-REPORT-001`, 2026-07-06: Hotfix backend status sync chỉ chọn các đơn
   `PURCHASED` đã được báo cáo trong `SalesReport` để gọi ERP status, không còn
   lấy batch pending/completed trực tiếp từ `SalesReportErpOrderCache` nên đơn

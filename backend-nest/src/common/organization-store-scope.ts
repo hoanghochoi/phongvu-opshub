@@ -8,6 +8,7 @@ type StoreLike = {
 
 type OrganizationNodeStoreTree = {
   id?: string | null;
+  type?: string | null;
   stores?: StoreLike[] | null;
   parent?: OrganizationNodeStoreTree | null | unknown;
   children?: OrganizationNodeStoreTree[] | null | unknown;
@@ -20,18 +21,6 @@ export function organizationNodeStoreTreeInclude(
   const includeStores = {
     orderBy: { storeId: Prisma.SortOrder.asc },
   };
-  const parentBranch = (
-    remainingDepth: number,
-  ): Prisma.OrganizationNodeInclude => ({
-    stores: includeStores,
-    ...(remainingDepth > 0
-      ? {
-          parent: {
-            include: parentBranch(remainingDepth - 1),
-          },
-        }
-      : {}),
-  });
   const childBranch = (
     remainingDepth: number,
   ): Prisma.OrganizationNodeInclude => ({
@@ -45,12 +34,30 @@ export function organizationNodeStoreTreeInclude(
         }
       : {}),
   });
+  const parentBranch = (
+    remainingDepth: number,
+  ): Prisma.OrganizationNodeInclude => ({
+    stores: includeStores,
+    ...(remainingDepth > 0
+      ? {
+          parent: {
+            include: parentBranch(remainingDepth - 1),
+          },
+        }
+      : {}),
+  });
   return {
     stores: includeStores,
     ...(depth > 0
       ? {
           parent: {
-            include: parentBranch(depth - 1),
+            include: {
+              ...parentBranch(depth - 1),
+              children: {
+                orderBy: { sortOrder: Prisma.SortOrder.asc },
+                include: childBranch(depth - 1),
+              },
+            },
           },
           children: {
             orderBy: { sortOrder: Prisma.SortOrder.asc },
@@ -98,12 +105,28 @@ export function storesForOrganizationNodeTree<
     });
   };
 
-  collectDescendantStores(root, 'root', 0);
-
-  let cursor: OrganizationNodeStoreTree | null =
+  const normalizedType = (current?: OrganizationNodeStoreTree | null) =>
+    String(current?.type || '')
+      .trim()
+      .toUpperCase();
+  const rootType = normalizedType(root);
+  const rootParent =
     root?.parent && typeof root.parent === 'object'
       ? (root.parent as OrganizationNodeStoreTree)
       : null;
+  const parentType = normalizedType(rootParent);
+  const isPositionNode = ['LV5_POSITION', 'JOB_ROLE', 'POSITION'].includes(
+    rootType,
+  );
+  const isStoreNode = ['LV4_STORE', 'SHOWROOM', 'STORE'].includes(parentType);
+
+  // A position under an area/region manages that parent's whole subtree.
+  // Store positions remain limited to their direct showroom.
+  const descendantRoot =
+    isPositionNode && rootParent && !isStoreNode ? rootParent : root;
+  collectDescendantStores(descendantRoot, 'root', 0);
+
+  let cursor: OrganizationNodeStoreTree | null = rootParent;
   for (let guard = 0; cursor && guard < 20; guard += 1) {
     for (const store of cursor.stores ?? []) {
       pushStore(store);

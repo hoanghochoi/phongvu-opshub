@@ -32,12 +32,14 @@ void main() {
         'week': {'actual': 500, 'target': null, 'percentage': null},
         'month': {'actual': 800, 'target': null, 'percentage': null},
       },
+      'notPurchasedReports': 12,
     });
 
     expect(summary.salesProgress.status, 'PARTIAL');
     expect(summary.salesProgress.missingStoreCodes, ['CP02']);
     expect(summary.salesProgress.day.percentage, 120);
     expect(summary.salesProgress.week.target, isNull);
+    expect(summary.notPurchasedReports, 12);
   });
 
   test('Compact VND formatter keeps long dashboard amounts short', () {
@@ -85,6 +87,7 @@ void main() {
             totalOrders: 42,
             totalReports: 38,
             reportedOrders: 35,
+            notPurchasedReports: 12,
             unreportedOrders: 7,
             coverageRate: 83.33,
             conversionRate: 110.53,
@@ -180,6 +183,10 @@ void main() {
         findsOneWidget,
       );
       expect(
+        find.byKey(const Key('home-summary-card-notPurchasedReports')),
+        findsOneWidget,
+      );
+      expect(
         find.byKey(const Key('home-summary-card-unreportedOrders')),
         findsOneWidget,
       );
@@ -194,6 +201,14 @@ void main() {
       expect(find.text('Tài chính'), findsOneWidget);
       expect(find.text('Tỉ lệ báo cáo'), findsWidgets);
       expect(find.text('Tỉ lệ chuyển đổi'), findsOneWidget);
+      expect(find.text('Báo cáo chưa mua'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-card-notPurchasedReports')),
+          matching: find.text('12'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Tổng số báo cáo hợp lệ'), findsNothing);
       expect(find.text('Tổng số tiền chuyển khoản'), findsOneWidget);
       expect(find.text('Tổng số sao kê'), findsOneWidget);
@@ -204,6 +219,20 @@ void main() {
       expect(find.text('Trang chủ vận hành'), findsOneWidget);
       expect(find.text('Doanh số trong ngày'), findsOneWidget);
       expect(find.text('125M VND'), findsOneWidget);
+      final salesGrid = tester.widget<Wrap>(
+        find.byKey(const Key('home-summary-grid')),
+      );
+      final salesMetricKeys = salesGrid.children
+          .map((child) => ((child as SizedBox).child! as SummaryCard).metricKey)
+          .toList();
+      expect(
+        salesMetricKeys,
+        containsAllInOrder([
+          'reportedOrders',
+          'notPurchasedReports',
+          'unreportedOrders',
+        ]),
+      );
       expect(
         find.byKey(const Key('home-summary-progress-donut')),
         findsOneWidget,
@@ -340,6 +369,53 @@ void main() {
     expect(first.dy, second.dy);
     expect(first.dx, lessThan(second.dx));
     expect(third.dy, greaterThan(first.dy));
+  });
+
+  testWidgets('Home KPI grid keeps seven sales cards on one wide row', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const summary = HomeSummary(
+      date: '2026-07-06',
+      available: true,
+      scope: 'OWN',
+      scopeLabel: 'Phạm vi cá nhân',
+      scopeDetail: 'CP01',
+      coverageLabel: 'Tỉ lệ báo cáo',
+      totalRevenue: 1000000,
+      totalOrders: 10,
+      totalReports: 8,
+      reportedOrders: 6,
+      notPurchasedReports: 3,
+      unreportedOrders: 4,
+      coverageRate: 60,
+      refreshedAt: null,
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(width: 1200, child: SummaryCardGrid(summary: summary)),
+        ),
+      ),
+    );
+
+    final first = tester.getTopLeft(
+      find.byKey(const Key('home-summary-card-revenue')),
+    );
+    final notPurchased = tester.getTopLeft(
+      find.byKey(const Key('home-summary-card-notPurchasedReports')),
+    );
+    final last = tester.getTopLeft(
+      find.byKey(const Key('home-summary-card-unreportedOrders')),
+    );
+    expect(notPurchased.dy, first.dy);
+    expect(last.dy, first.dy);
+    expect(notPurchased.dx, lessThan(last.dx));
   });
 
   testWidgets('Home KPI grid falls back to one card when extremely narrow', (

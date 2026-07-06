@@ -576,6 +576,14 @@ class SummaryCardGrid extends StatelessWidget {
         color: AppColors.success,
       ),
       SummaryCard(
+        metricKey: 'notPurchasedReports',
+        icon: Icons.person_search_outlined,
+        title: 'Báo cáo chưa mua',
+        value: _integerLabel(summary.notPurchasedReports),
+        trend: const SummaryTrend.neutral('Theo phạm vi'),
+        color: AppColors.secondary,
+      ),
+      SummaryCard(
         metricKey: 'unreportedOrders',
         icon: Icons.assignment_late_outlined,
         title: 'Số đơn chưa báo cáo',
@@ -665,7 +673,7 @@ class _SummaryMetricGrid extends StatelessWidget {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final desiredColumns = width >= 1120
-            ? 6
+            ? cards.length
             : width >= 900
             ? 3
             : width >= 320

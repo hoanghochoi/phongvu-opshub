@@ -15,6 +15,7 @@ import {
 import { GetHomeSummaryQueryDto } from './home-summary.dto';
 
 const REPORT_TYPE_PURCHASED = 'PURCHASED';
+const REPORT_TYPE_NOT_PURCHASED = 'NOT_PURCHASED';
 const COVERAGE_LABEL = 'Tỉ lệ báo cáo';
 const DEFAULT_HOME_SUMMARY_RANGE_DAYS = 30;
 
@@ -150,23 +151,35 @@ export class HomeSummaryService {
     let totalOrders = 0;
     let totalReports = 0;
     let reportedOrders = 0;
+    let notPurchasedReports = 0;
     if (salesAvailable) {
       const reportWhere = this.reportScopeWhere(scope, range);
-      const [orderCount, reportCount, reportedCodeRows] =
-        await this.prisma.$transaction([
-          this.homeSummaryOrderFact.count({ where: orderWhere }),
-          this.homeSummaryReportFact.count({ where: reportWhere }),
-          this.homeSummaryReportFact.findMany({
-            where: {
-              ...reportWhere,
-              reportType: REPORT_TYPE_PURCHASED,
-              orderCode: { not: null },
-            },
-            select: { orderCode: true },
-          }),
-        ]);
+      const [
+        orderCount,
+        reportCount,
+        notPurchasedReportCount,
+        reportedCodeRows,
+      ] = await this.prisma.$transaction([
+        this.homeSummaryOrderFact.count({ where: orderWhere }),
+        this.homeSummaryReportFact.count({ where: reportWhere }),
+        this.homeSummaryReportFact.count({
+          where: {
+            ...reportWhere,
+            reportType: REPORT_TYPE_NOT_PURCHASED,
+          },
+        }),
+        this.homeSummaryReportFact.findMany({
+          where: {
+            ...reportWhere,
+            reportType: REPORT_TYPE_PURCHASED,
+            orderCode: { not: null },
+          },
+          select: { orderCode: true },
+        }),
+      ]);
       totalOrders = orderCount;
       totalReports = reportCount;
+      notPurchasedReports = notPurchasedReportCount;
       const reportedCodes = Array.from(
         new Set(
           reportedCodeRows
@@ -264,6 +277,7 @@ export class HomeSummaryService {
       totalOrders,
       totalReports,
       reportedOrders,
+      notPurchasedReports,
       unreportedOrders,
       coverageRate,
       conversionRate,
@@ -279,7 +293,7 @@ export class HomeSummaryService {
       unavailableMessage: null,
     };
     this.logger.log(
-      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalOrders=${totalOrders} totalReports=${totalReports} reportedOrders=${reportedOrders} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
+      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalOrders=${totalOrders} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
     );
     return response;
   }
@@ -1158,6 +1172,7 @@ export class HomeSummaryService {
       totalOrders: 0,
       totalReports: 0,
       reportedOrders: 0,
+      notPurchasedReports: 0,
       unreportedOrders: 0,
       coverageRate: 0,
       conversionRate: 0,

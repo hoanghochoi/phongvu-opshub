@@ -13,6 +13,7 @@ class HomeSummary {
   final int totalOrders;
   final int totalReports;
   final int reportedOrders;
+  final int notPurchasedReports;
   final int unreportedOrders;
   final double coverageRate;
   final double conversionRate;
@@ -40,6 +41,7 @@ class HomeSummary {
     required this.totalOrders,
     required this.totalReports,
     required this.reportedOrders,
+    this.notPurchasedReports = 0,
     required this.unreportedOrders,
     required this.coverageRate,
     this.conversionRate = 0,
@@ -75,6 +77,7 @@ class HomeSummary {
       totalOrders: _intOf(json['totalOrders']),
       totalReports: _intOf(json['totalReports']),
       reportedOrders: _intOf(json['reportedOrders']),
+      notPurchasedReports: _intOf(json['notPurchasedReports']),
       unreportedOrders: _intOf(json['unreportedOrders']),
       coverageRate: _coverageOf(json['coverageRate']),
       conversionRate: _coverageOf(json['conversionRate']),
@@ -101,6 +104,7 @@ class HomeSummary {
       totalOrders > 0 ||
       totalReports > 0 ||
       reportedOrders > 0 ||
+      notPurchasedReports > 0 ||
       unreportedOrders > 0 ||
       totalTransferredAmount > 0 ||
       totalStatements > 0 ||

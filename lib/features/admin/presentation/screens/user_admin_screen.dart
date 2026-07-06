@@ -1692,8 +1692,14 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   }
 
   String _scopeForNode(AdminOrganizationNode node) {
-    if (node.type == 'LV4_STORE' || node.type == 'LV5_POSITION') {
+    if (node.type == 'LV4_STORE') {
       return 'STORE';
+    }
+    if (node.type == 'LV5_POSITION') {
+      if (_ancestorNode(node, 'LV4_STORE') != null) return 'STORE';
+      if (_ancestorNode(node, 'LV3_AREA') != null) return 'AREA';
+      if (_ancestorNode(node, 'LV2_REGION') != null) return 'REGION';
+      return 'NATIONAL';
     }
     if (node.type == 'LV3_AREA' || node.level == 3) return 'AREA';
     if (node.level == 2) return 'REGION';

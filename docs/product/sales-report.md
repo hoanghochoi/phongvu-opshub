@@ -15,8 +15,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   của Home Summary. Dashboard tách hai khu vực dùng chung bộ chọn ngày và
   scope; khi mở `Trang chủ`, khoảng ngày mặc định là hôm nay và user đổi
   thủ công nếu cần xem ngày/khoảng khác. Khu vực `Bán hàng` hiển thị doanh số,
-  tổng đơn hợp lệ, số đơn đã/chưa
-  báo cáo, `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn` và
+  tổng đơn hợp lệ, số đơn đã/chưa báo cáo, số báo cáo chưa mua,
+  `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn` và
   `Tỉ lệ chuyển đổi = tổng số đơn / tổng số báo cáo`; không còn card
   `Tổng số báo cáo hợp lệ` riêng.
 - Quyền hiển thị hai khu vực dashboard là hai tính năng riêng trong cây tổ

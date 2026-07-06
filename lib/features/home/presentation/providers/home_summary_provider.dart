@@ -385,6 +385,7 @@ class HomeSummaryProvider extends ChangeNotifier {
           'totalOrders': summary.totalOrders,
           'totalReports': summary.totalReports,
           'reportedOrders': summary.reportedOrders,
+          'notPurchasedReports': summary.notPurchasedReports,
           'unreportedOrders': summary.unreportedOrders,
           'coverageRate': summary.coverageRate,
           'conversionRate': summary.conversionRate,

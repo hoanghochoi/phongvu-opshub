@@ -1574,6 +1574,8 @@ export class UserService implements OnModuleInit {
       const created = await tx.organizationNode.create({ data });
       if (this.isStoreNodeType(created.type)) {
         await this.syncShowroomStoreFromNode(tx, created, body, null);
+      } else if (this.isLegacyPositionNodeType(created.type)) {
+        await this.syncLegacyCatalogFromOrganizationNode(tx, created);
       }
       return this.findOrganizationNodeForDto(tx, created.id);
     });
@@ -1615,6 +1617,8 @@ export class UserService implements OnModuleInit {
       });
       if (this.isStoreNodeType(updated.type)) {
         await this.syncShowroomStoreFromNode(tx, updated, body, current);
+      } else if (this.isLegacyPositionNodeType(updated.type)) {
+        await this.syncLegacyCatalogFromOrganizationNode(tx, updated);
       }
       return this.findOrganizationNodeForDto(tx, id);
     });
@@ -2833,12 +2837,9 @@ export class UserService implements OnModuleInit {
     if (this.normalizeOrganizationNodeType(node.type) !== ORG_TYPE_LV5_POSITION)
       return organizationNodeId;
     const parent = node.parentId ? byId.get(node.parentId) : null;
-    if (
-      parent &&
-      this.normalizeOrganizationNodeType(parent.type) === ORG_TYPE_LV4_STORE
-    ) {
+    if (parent) {
       this.logger.debug(
-        'Admin management scope lifted from Lv5 to showroom: admin=' +
+        'Admin management scope lifted from Lv5 to parent subtree: admin=' +
           (admin?.email || admin?.id || 'unknown') +
           ' nodeId=' +
           organizationNodeId +
@@ -5325,9 +5326,40 @@ export class UserService implements OnModuleInit {
     const departmentCode = context.departmentCode
       ? await this.resolveDepartmentCode(context.departmentCode, null)
       : null;
-    const jobRoleCode = context.jobRoleCode
-      ? await this.resolveJobRoleCode(context.jobRoleCode, null)
-      : null;
+    let jobRoleCode: string | null = null;
+    if (context.jobRoleCode) {
+      const normalizedJobRoleCode = this.normalizePersonnelCode(
+        context.jobRoleCode,
+        'Mã chức danh không hợp lệ',
+      );
+      const jobRole = normalizedJobRoleCode
+        ? await this.prisma.jobRoleDefinition.findUnique({
+            where: { code: normalizedJobRoleCode },
+          })
+        : null;
+      if (jobRole?.isActive) {
+        jobRoleCode = jobRole.code;
+      } else {
+        const selectedNode = await this.prisma.organizationNode.findUnique({
+          where: { id: context.organizationNodeId },
+        });
+        if (
+          !selectedNode ||
+          !this.isLegacyPositionNodeType(selectedNode.type) ||
+          selectedNode.isActive === false
+        ) {
+          throw new BadRequestException('Chức danh không tồn tại hoặc đã tắt');
+        }
+        await this.syncLegacyCatalogFromOrganizationNode(
+          this.prisma,
+          selectedNode,
+        );
+        jobRoleCode = normalizedJobRoleCode;
+        this.logger.log(
+          `Organization position catalog repaired for user assignment: nodeId=${selectedNode.id} jobRole=${jobRoleCode}`,
+        );
+      }
+    }
     return { departmentCode, jobRoleCode };
   }
 

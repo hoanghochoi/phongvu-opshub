@@ -122,6 +122,7 @@ export type SalesReportOperatingSummary = {
   totalOrders: number;
   totalReports: number;
   reportedOrders: number;
+  notPurchasedReports: number;
   unreportedOrders: number;
   coverageRate: number;
   conversionRate: number;

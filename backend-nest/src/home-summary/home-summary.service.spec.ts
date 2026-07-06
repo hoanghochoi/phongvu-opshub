@@ -92,7 +92,11 @@ describe('HomeSummaryService', () => {
       homeSummaryReportFact: {
         upsert: jest.fn().mockResolvedValue({}),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-        count: jest.fn().mockResolvedValue(2),
+        count: jest
+          .fn()
+          .mockImplementation(({ where }: any) =>
+            Promise.resolve(where?.reportType === 'NOT_PURCHASED' ? 1 : 2),
+          ),
         aggregate: jest.fn().mockResolvedValue({ _sum: { revenue: 12500000 } }),
         findMany: jest.fn().mockResolvedValue([{ orderCode: '2607040001' }]),
       },
@@ -165,6 +169,7 @@ describe('HomeSummaryService', () => {
       totalOrders: 2,
       totalReports: 2,
       reportedOrders: 1,
+      notPurchasedReports: 1,
       unreportedOrders: 1,
       coverageRate: 50,
       conversionRate: 100,
@@ -184,6 +189,9 @@ describe('HomeSummaryService', () => {
       { allowOwnScope: true },
     );
     expect(prisma.homeSummaryReportFact.upsert).toHaveBeenCalledTimes(2);
+    expect(prisma.homeSummaryReportFact.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({ reportType: 'NOT_PURCHASED' }),
+    });
     expect(prisma.homeSummaryOrderFact.upsert).toHaveBeenCalledTimes(2);
     expect(prisma.mapVietinTransaction.aggregate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -379,6 +387,7 @@ describe('HomeSummaryService', () => {
       scope: 'UNAVAILABLE',
       totalOrders: 0,
       totalReports: 0,
+      notPurchasedReports: 0,
       financeAvailable: false,
       totalStatements: 0,
       statementOrderRate: 0,
