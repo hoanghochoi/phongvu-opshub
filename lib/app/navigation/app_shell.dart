@@ -912,31 +912,24 @@ class _SidebarFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentYear = DateTime.now().year;
+    final footerTextStyle = AppTextStyles.caption.copyWith(
+      color: AppColors.sidebarMutedOf(context).withValues(alpha: 0.66),
+      fontWeight: FontWeight.w500,
+      height: 1.25,
+    );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (version.isNotEmpty)
-            Text(
-              'Version $version',
-              style: AppTextStyles.labelS.copyWith(
-                color: AppColors.sidebarMutedOf(context),
-              ),
-            ),
-          const SizedBox(height: 6),
-          Text(
-            'Dev: $_appDeveloperName',
-            style: AppTextStyles.labelS.copyWith(
-              color: AppColors.sidebarMutedOf(context),
-            ),
-          ),
-          const SizedBox(height: 2),
+            Text('Version $version', style: footerTextStyle),
+          const SizedBox(height: 4),
+          Text('Dev: $_appDeveloperName', style: footerTextStyle),
+          const SizedBox(height: 1),
           Text(
             '© $currentYear ${AppBrand.productionTitle}',
-            style: AppTextStyles.labelS.copyWith(
-              color: AppColors.sidebarMutedOf(context),
-            ),
+            style: footerTextStyle,
           ),
         ],
       ),
