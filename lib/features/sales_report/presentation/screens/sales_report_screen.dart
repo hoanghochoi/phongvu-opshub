@@ -25,6 +25,8 @@ import '../widgets/sales_report_workspace_header.dart';
 const _typePurchased = 'PURCHASED';
 const _typeNotPurchased = 'NOT_PURCHASED';
 
+String _countLabel(int value) => vietnameseMoneyNumberFormat.format(value);
+
 const _consultedOptions = {
   'YES': 'Có',
   'CUSTOMER_BUSY_OR_NO_NEED':
@@ -258,11 +260,13 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                   icon: Icons.analytics_outlined,
                   chips: [
                     AppStatusChip(
-                      label: '${provider.unreportedOrdersTotal} chưa báo cáo',
+                      label:
+                          '${_countLabel(provider.unreportedOrdersTotal)} chưa báo cáo',
                       color: AppColors.warning,
                     ),
                     AppStatusChip(
-                      label: '${provider.reportedOrdersTotal} đã báo cáo',
+                      label:
+                          '${_countLabel(provider.reportedOrdersTotal)} đã báo cáo',
                       color: AppColors.success,
                     ),
                   ],
@@ -509,7 +513,7 @@ class _CockpitHero extends StatelessWidget {
             child: _MetricTile(
               icon: Icons.receipt_long_outlined,
               label: 'Chờ báo cáo',
-              value: '$unreportedTotal',
+              value: _countLabel(unreportedTotal),
               helper: 'chưa báo cáo',
               color: AppColors.warning,
               backgroundColor: AppColors.warningSurface,
@@ -520,7 +524,7 @@ class _CockpitHero extends StatelessWidget {
             child: _MetricTile(
               icon: Icons.check_circle_outline_rounded,
               label: 'Hoàn tất',
-              value: '$reportedTotal',
+              value: _countLabel(reportedTotal),
               helper: 'đã báo cáo',
               color: AppColors.success,
               backgroundColor: AppColors.successSurface,
@@ -886,14 +890,14 @@ class _OrderStatusTabs extends StatelessWidget {
           Expanded(
             child: _OrderStatusTabButton(
               selected: showUnreported,
-              label: 'Chưa báo cáo ($unreportedTotal)',
+              label: 'Chưa báo cáo (${_countLabel(unreportedTotal)})',
               onTap: () => onChanged(true),
             ),
           ),
           Expanded(
             child: _OrderStatusTabButton(
               selected: !showUnreported,
-              label: 'Đã báo cáo ($reportedTotal)',
+              label: 'Đã báo cáo (${_countLabel(reportedTotal)})',
               onTap: () => onChanged(false),
             ),
           ),
@@ -1005,7 +1009,7 @@ class _OrdersColumn extends StatelessWidget {
             children: [
               Expanded(child: Text(title, style: AppTextStyles.headingS)),
               Text(
-                '$count',
+                _countLabel(count),
                 style: AppTextStyles.labelM.copyWith(
                   color: AppColors.textMutedOf(context),
                 ),
@@ -1058,30 +1062,104 @@ class _OrdersColumn extends StatelessWidget {
         ),
         if (count > limit || page > 0) ...[
           const SizedBox(height: AppLayoutTokens.formInlineGap),
-          Text(
-            'Trang ${page + 1}/$pageCount',
-            textAlign: TextAlign.center,
-            style: AppTextStyles.bodyS.copyWith(color: AppColors.neutral600),
-          ),
-          const SizedBox(height: AppLayoutTokens.formInlineGap),
-          AppActionRow(
-            maxButtonWidth: 160,
-            desktopAlignment: MainAxisAlignment.center,
-            children: [
-              AppSecondaryButton(
-                onPressed: !isLoading && canGoPrevious ? onPreviousPage : null,
-                icon: Icons.chevron_left_rounded,
-                label: 'Trước',
-              ),
-              AppSecondaryButton(
-                onPressed: !isLoading && canGoNext ? onNextPage : null,
-                icon: Icons.chevron_right_rounded,
-                label: 'Sau',
-              ),
-            ],
+          _OrdersPageControls(
+            page: page,
+            pageCount: pageCount,
+            onPreviousPage: !isLoading && canGoPrevious ? onPreviousPage : null,
+            onNextPage: !isLoading && canGoNext ? onNextPage : null,
           ),
         ],
       ],
+    );
+  }
+}
+
+class _OrdersPageControls extends StatelessWidget {
+  final int page;
+  final int pageCount;
+  final VoidCallback? onPreviousPage;
+  final VoidCallback? onNextPage;
+
+  const _OrdersPageControls({
+    required this.page,
+    required this.pageCount,
+    required this.onPreviousPage,
+    required this.onNextPage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _OrdersPageArrow(
+          tooltip: 'Trang trước',
+          icon: Icons.chevron_left_rounded,
+          onPressed: onPreviousPage,
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            'Trang ${page + 1}/$pageCount',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textSecondaryOf(context),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        _OrdersPageArrow(
+          tooltip: 'Trang sau',
+          icon: Icons.chevron_right_rounded,
+          onPressed: onNextPage,
+        ),
+      ],
+    );
+  }
+}
+
+class _OrdersPageArrow extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  const _OrdersPageArrow({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    final color = enabled
+        ? AppColors.primaryOf(context)
+        : AppColors.textMutedOf(context);
+    return SizedBox.square(
+      dimension: 44,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: enabled
+              ? AppColors.primarySurfaceOf(context)
+              : AppColors.raisedOf(context),
+          borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+          border: Border.all(
+            color: enabled
+                ? AppColors.primaryOf(context)
+                : AppColors.borderOf(context),
+          ),
+        ),
+        child: IconButton(
+          tooltip: tooltip,
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          onPressed: onPressed,
+          color: color,
+          disabledColor: color,
+          icon: Icon(icon, size: 24),
+        ),
+      ),
     );
   }
 }

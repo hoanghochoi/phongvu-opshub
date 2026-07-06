@@ -13,8 +13,8 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 - Màn hình `Báo cáo bán hàng` hiển thị cockpit 2 cột theo khoảng ngày: trái là đơn chưa báo
   cáo, phải là đơn đã báo cáo; phần card, nút và filter không cuộn theo danh
   sách; mỗi cột tự cuộn vùng list, hiển thị 20 đơn/trang, có total đếm từ DB và
-  nút chuyển trang riêng. Phía trên chỉ giữ `Báo cáo chưa mua` và
-  `Tải lại`; xuất file/danh sách thuộc màn quản trị riêng.
+  bộ chuyển trang riêng dạng compact chỉ gồm hai mũi tên. Phía trên chỉ giữ
+  `Báo cáo chưa mua` và `Tải lại`; xuất file/danh sách thuộc màn quản trị riêng.
 - Cockpit lọc theo daterange `Ngày`, `SR` và `User`; filter `SR`/`User` chỉ hiện
   trong scope quản lý. Khoảng ngày trống mặc định truy vấn 30 ngày gần nhất và
   phải hiện helper text giải thích.

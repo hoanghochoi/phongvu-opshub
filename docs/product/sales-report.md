@@ -28,7 +28,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Màn hình `Báo cáo bán hàng` là cockpit đơn hàng theo khoảng ngày: cột trái là đơn chưa báo
   cáo, cột phải là đơn đã báo cáo. Phần card, nút thao tác và filter giữ cố
   định trong viewport; chỉ vùng danh sách của từng cột được cuộn độc lập. Mỗi
-  cột hiển thị 20 đơn/trang và có nút chuyển trang riêng; số lượng ở header là total đếm từ DB
+  cột hiển thị 20 đơn/trang và có bộ chuyển trang riêng dạng compact chỉ gồm
+  hai mũi tên; số lượng ở header là total đếm từ DB
   theo scope hiện tại. User thường chỉ thấy dữ liệu của mình theo email từ
   `data.orders.creator.email`, fallback về consultant/seller/source-user
   snapshot nếu ERP không trả creator. User có vị trí quản lý như

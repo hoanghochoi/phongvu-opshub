@@ -37,7 +37,7 @@ void main() {
         featureAccess: {'SALES_REPORT': true},
       ),
     );
-    final repository = _FakeSalesReportRepository();
+    final repository = _FakeSalesReportRepository(unreportedTotal: 7998);
     final router = GoRouter(
       routes: [
         GoRoute(
@@ -81,11 +81,14 @@ void main() {
     );
     expect(find.text('2607010001'), findsOneWidget);
     expect(find.text('2607010002'), findsOneWidget);
-    expect(find.text('Trang 1/2'), findsOneWidget);
+    expect(find.text('7.998'), findsWidgets);
+    expect(find.text('Trang 1/400'), findsOneWidget);
+    expect(find.text('Trước'), findsNothing);
+    expect(find.text('Sau'), findsNothing);
     expect(find.byType(SegmentedButton<String>), findsNothing);
 
-    await tester.ensureVisible(find.text('Sau'));
-    await tester.tap(find.text('Sau'));
+    await tester.ensureVisible(find.byTooltip('Trang sau'));
+    await tester.tap(find.byTooltip('Trang sau'));
     await tester.pumpAndSettle();
 
     expect(repository.fetchOrdersCount, 2);
@@ -899,6 +902,7 @@ class _FakeAuthProvider extends AuthProvider {
 
 class _FakeSalesReportRepository extends SalesReportRepository {
   final bool managedScope;
+  final int unreportedTotal;
   bool createCalled = false;
   int fetchListCount = 0;
   int fetchOrdersCount = 0;
@@ -907,7 +911,10 @@ class _FakeSalesReportRepository extends SalesReportRepository {
   SalesReportQuery? lastListQuery;
   SalesReportOrdersQuery? lastOrdersQuery;
 
-  _FakeSalesReportRepository({this.managedScope = false}) : super(ApiClient());
+  _FakeSalesReportRepository({
+    this.managedScope = false,
+    this.unreportedTotal = 21,
+  }) : super(ApiClient());
 
   @override
   Future<List<SalesReportCategoryGroup>> fetchCategories({
@@ -1003,7 +1010,7 @@ class _FakeSalesReportRepository extends SalesReportRepository {
       'reportedPage': query.reportedPage,
       'reportedTotal': 1,
       'unreportedPage': query.unreportedPage,
-      'unreportedTotal': 21,
+      'unreportedTotal': unreportedTotal,
       'reportedOrders': [
         {
           'status': 'REPORTED',
