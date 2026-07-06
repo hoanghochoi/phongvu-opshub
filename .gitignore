@@ -78,6 +78,7 @@ deploy/*/env
 **/*service-account*.json
 **/*credentials*.json
 **/*secret*.json
+data/*.json
 
 # Backend generated/runtime artifacts
 .codex-runlogs/

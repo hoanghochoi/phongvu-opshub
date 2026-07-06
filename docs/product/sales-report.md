@@ -164,6 +164,16 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   showroom và organization node từ token/user hiện tại.
 - `ADMIN_SALES_REPORTS` được gán bằng feature theo node tổ chức. Super Admin có
   quyền toàn app theo feature resolver hiện tại.
+- OpsHub đồng bộ dữ liệu `Báo cáo bán hàng` sang BigQuery để Looker Studio đọc
+  trực tiếp từ BigQuery thay vì gọi runtime API. Sync được bật bằng
+  `SALES_REPORT_BIGQUERY_SYNC_ENABLED=true`, dùng service-account JSON nằm ngoài
+  git, full-refresh ba bảng: report fact, order item fact và payment fact. Ba
+  bảng giữ label tiếng Việt tương ứng với export admin hiện tại, đồng thời giữ
+  code gốc để lọc/đối soát. Dataset BigQuery phải tồn tại sẵn và service
+  account cần quyền chạy load job/tạo hoặc replace bảng trong dataset đó. Khi
+  bật sync, backend chạy lịch cố định 07:00 hằng ngày theo giờ Việt Nam (UTC+7).
+  Admin có `ADMIN_SALES_REPORTS` có thể gọi
+  `POST /api/sales-reports/admin/bigquery-sync` để chạy sync thủ công.
 
 ## Data Contract
 
@@ -205,13 +215,20 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   Việt.
 - Snapshot report lưu cả code, tên gốc và tên Việt để dữ liệu lịch sử không bị
   lệch nếu CSV đổi sau này.
+- BigQuery sync tạo ba bảng theo table prefix mặc định:
+  `opshub_sales_report_reports`, `opshub_sales_report_items` và
+  `opshub_sales_report_payments`. Có thể override bằng
+  `SALES_REPORT_BIGQUERY_REPORT_TABLE_ID`,
+  `SALES_REPORT_BIGQUERY_ITEM_TABLE_ID` và
+  `SALES_REPORT_BIGQUERY_PAYMENT_TABLE_ID`.
 
 ## Expected Proof
 
 - Backend: Prisma validate/generate, Nest build, tests cho category sync,
   duplicate `orderCode`, purchased re-check ERP, not-purchased no ERP call,
   scheduled ERP cache sync, durable canceled-order exclusion trên cache/report
-  rows, order cockpit cache-only list, feature guard và export CSV.
+  rows, order cockpit cache-only list, feature guard, export CSV và BigQuery
+  sync mapping.
 - Flutter: Home/Report hub entry theo feature, route guard, order check before
   submit, cockpit 2 cột chưa/đã báo cáo, lọc ngày/SR/user, phân trang 20
   đơn/cột, realtime WebSocket refresh từ cache DB, QR/barcode scan mã

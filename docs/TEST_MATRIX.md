@@ -1044,6 +1044,15 @@ Recent focused evidence:
   `flutter test --no-pub --reporter expanded test\sales_report_hub_test.dart`
   (16 tests), focused `dart analyze` on changed sales-report files, and
   `git diff --check` (CRLF warnings only).
+- `SALES-REPORT-001`, 2026-07-06: OpsHub adds outbound sales-report BigQuery
+  sync for Looker Studio. The backend full-refreshes three BigQuery tables
+  from the runtime DB: report fact, order item fact, and payment fact, using
+  Vietnamese labels aligned with the admin export while keeping raw codes for
+  filtering/reconciliation. Admins with `ADMIN_SALES_REPORTS` can trigger
+  `POST /api/sales-reports/admin/bigquery-sync`; scheduled sync runs daily at
+  07:00 Vietnam time only when `SALES_REPORT_BIGQUERY_SYNC_ENABLED=true`.
+  Validation: focused Nest
+  sales-report BigQuery sync tests and backend build.
 - `AUTH-004`/`PAYMENT-MONITOR-001`, 2026-07-01: production diagnosis found
   payment monitor clients behind Caddy sharing the default IP throttling bucket,
   causing a newly opened client to receive HTTP 429 on its first request. The

@@ -20,12 +20,16 @@ import {
   ListSalesReportOrdersDto,
   ListSalesReportsDto,
 } from './sales-reports.dto';
+import { SalesReportsBigQuerySyncService } from './sales-reports-bigquery-sync.service';
 import { SalesReportsService } from './sales-reports.service';
 
 @Controller('sales-reports')
 @UseGuards(AuthGuard('jwt'), FeatureGuard)
 export class SalesReportsController {
-  constructor(private readonly service: SalesReportsService) {}
+  constructor(
+    private readonly service: SalesReportsService,
+    private readonly bigQuerySync: SalesReportsBigQuerySyncService,
+  ) {}
 
   @Get('categories')
   @RequireFeature(FEATURE_KEYS.SALES_REPORT)
@@ -76,9 +80,15 @@ export class SalesReportsController {
         ? 'opshub-bao-cao-doanh-so.csv'
         : query.exportType === 'INSTALLMENT'
           ? 'opshub-bao-cao-tra-gop.csv'
-        : 'opshub-bao-cao-hvtc.csv';
+          : 'opshub-bao-cao-hvtc.csv';
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return csv;
+  }
+
+  @Post('admin/bigquery-sync')
+  @RequireFeature(FEATURE_KEYS.ADMIN_SALES_REPORTS)
+  syncBigQuery() {
+    return this.bigQuerySync.syncAll('manual', { force: true });
   }
 }

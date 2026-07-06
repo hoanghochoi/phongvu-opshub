@@ -73,6 +73,17 @@ Expected responses:
   managed as active organization tree nodes in OpsHub admin; `EMAIL_DOMAIN_FILE`
   is only the fallback file path when the tree is unavailable.
 - Set all `BIGQUERY_*` values and place the service-account JSON outside git.
+- For sales-report analytics in Looker Studio, set
+  `SALES_REPORT_BIGQUERY_SYNC_ENABLED=true`,
+  `SALES_REPORT_BIGQUERY_PROJECT_ID`,
+  `SALES_REPORT_BIGQUERY_DATASET_ID`, and optionally
+  `SALES_REPORT_BIGQUERY_KEY_FILE` plus table ids/prefix. OpsHub full-refreshes
+  three BigQuery tables from the runtime DB: reports, order items, and payments.
+  The dataset must already exist and the service account must be allowed to run
+  load jobs and create/replace tables in that dataset. Scheduled sync runs once
+  per day at 07:00 Vietnam time (UTC+7) when sync is enabled.
+  Admins with `ADMIN_SALES_REPORTS` can manually trigger the same sync with
+  `POST /api/sales-reports/admin/bigquery-sync`.
 - For n8n VietQR image/status integration, set `VIETQR_EXTERNAL_API_KEY` and
   send it from n8n with `x-opshub-vietqr-key` or `Authorization: Bearer <key>`.
   `GET/POST /vietqr/n8n/status` accepts `paymentId`/`id`; `check=true` compares
