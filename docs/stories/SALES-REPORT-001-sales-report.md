@@ -13,8 +13,9 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 - Màn hình `Báo cáo bán hàng` hiển thị cockpit 2 cột theo khoảng ngày: trái là đơn chưa báo
   cáo, phải là đơn đã báo cáo; phần card, nút và filter không cuộn theo danh
   sách; mỗi cột tự cuộn vùng list, hiển thị 20 đơn/trang, có total đếm từ DB và
-  bộ chuyển trang riêng dạng compact chỉ gồm hai mũi tên. Phía trên chỉ giữ
-  `Báo cáo chưa mua` và `Tải lại`; xuất file/danh sách thuộc màn quản trị riêng.
+  bộ chuyển trang riêng dạng compact chỉ gồm hai mũi tên. Phía trên giữ hai nút
+  nằm ngang `Báo cáo mua thủ công` và `Báo cáo chưa mua`, cùng `Tải lại`;
+  xuất file/danh sách thuộc màn quản trị riêng.
 - Cockpit lọc theo daterange `Ngày`, `SR` và `User`; filter `SR`/`User` chỉ hiện
   trong scope quản lý. Khoảng ngày trống mặc định truy vấn 30 ngày gần nhất và
   phải hiện helper text giải thích.
@@ -34,6 +35,8 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   cache/report trong DB.
 - Bấm đơn chưa báo cáo mở dialog báo cáo mua hàng và dùng lại luồng
   `check-order` để tự fill dữ liệu cần thiết trước khi sale nhập phần còn lại.
+- Nút `Báo cáo mua thủ công` mở form mua hàng hiện hữu để sale tự nhập hoặc
+  quét mã đơn khi đơn chưa xuất hiện trong danh sách cockpit.
 - Form `Mua hàng` yêu cầu nhập hoặc quét QR/barcode mã đơn và check ERP trước
   khi nhập/gửi báo cáo; sau khi check có thể bấm `Kiểm tra đơn khác` để đổi đơn.
 - Nếu ERP trả `confirmationStatus` hoặc `fulfillmentStatus` là `cancelled`

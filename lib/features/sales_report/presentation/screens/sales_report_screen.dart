@@ -277,6 +277,12 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                 child: _SalesReportCockpit(
                   provider: provider,
                   canSubmitReports: canSubmitReports,
+                  onPurchased: canSubmitReports
+                      ? () => _openReport(
+                          '/sales-reports/purchased',
+                          _typePurchased,
+                        )
+                      : null,
                   onNotPurchased: canSubmitReports
                       ? () => _openReport(
                           '/sales-reports/not-purchased',
@@ -299,6 +305,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 class _SalesReportCockpit extends StatefulWidget {
   final SalesReportProvider provider;
   final bool canSubmitReports;
+  final VoidCallback? onPurchased;
   final VoidCallback? onNotPurchased;
   final VoidCallback onReload;
   final void Function(DateTime? start, DateTime? end) onSelectDateRange;
@@ -307,6 +314,7 @@ class _SalesReportCockpit extends StatefulWidget {
   const _SalesReportCockpit({
     required this.provider,
     required this.canSubmitReports,
+    required this.onPurchased,
     required this.onNotPurchased,
     required this.onReload,
     required this.onSelectDateRange,
@@ -390,10 +398,36 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
         ),
         const SizedBox(height: AppLayoutTokens.cardGap),
         if (widget.canSubmitReports)
-          AppPrimaryButton(
-            onPressed: widget.onNotPurchased,
-            icon: Icons.person_search_outlined,
-            label: 'Báo cáo chưa mua',
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compactActions = constraints.maxWidth < 560;
+              return Row(
+                key: const Key('sales-report-manual-actions'),
+                children: [
+                  Expanded(
+                    child: AppPrimaryButton(
+                      onPressed: widget.onPurchased,
+                      icon: compactActions
+                          ? null
+                          : Icons.receipt_long_outlined,
+                      label: compactActions
+                          ? 'Đã mua (nhập tay)'
+                          : 'Báo cáo mua thủ công',
+                    ),
+                  ),
+                  const SizedBox(width: AppLayoutTokens.cardGap),
+                  Expanded(
+                    child: AppPrimaryButton(
+                      onPressed: widget.onNotPurchased,
+                      icon: compactActions
+                          ? null
+                          : Icons.person_search_outlined,
+                      label: compactActions ? 'Chưa mua' : 'Báo cáo chưa mua',
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         if (widget.canSubmitReports)
           const SizedBox(height: AppLayoutTokens.cardGap),

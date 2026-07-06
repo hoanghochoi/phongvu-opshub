@@ -72,7 +72,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.fetchOrdersCount, 1);
+    expect(find.text('Báo cáo mua thủ công'), findsOneWidget);
     expect(find.text('Báo cáo chưa mua'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Báo cáo mua thủ công')).dy,
+      tester.getTopLeft(find.text('Báo cáo chưa mua')).dy,
+    );
     expect(find.text('Đã báo cáo'), findsOneWidget);
     expect(find.text('Chưa báo cáo'), findsOneWidget);
     expect(
@@ -95,6 +100,15 @@ void main() {
     expect(repository.lastOrdersQuery?.reportedPage, 0);
     expect(repository.lastOrdersQuery?.unreportedPage, 1);
     expect(repository.lastOrdersQuery?.limit, 20);
+
+    await tester.ensureVisible(find.text('Báo cáo mua thủ công'));
+    await tester.tap(find.text('Báo cáo mua thủ công'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Purchased form'), findsOneWidget);
+
+    router.pop();
+    await tester.pumpAndSettle();
 
     await tester.ensureVisible(find.text('Báo cáo chưa mua'));
     await tester.tap(find.text('Báo cáo chưa mua'));
@@ -143,6 +157,12 @@ void main() {
     );
     expect(find.text('Chờ báo cáo'), findsOneWidget);
     expect(find.text('Hoàn tất'), findsOneWidget);
+    expect(find.text('Đã mua (nhập tay)'), findsOneWidget);
+    expect(find.text('Chưa mua'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Đã mua (nhập tay)')).dy,
+      tester.getTopLeft(find.text('Chưa mua')).dy,
+    );
     expect(find.text('Chưa báo cáo (21)'), findsOneWidget);
     expect(find.text('Đã báo cáo (1)'), findsOneWidget);
     expect(find.text('2607010002'), findsOneWidget);

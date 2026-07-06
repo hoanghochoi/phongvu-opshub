@@ -117,6 +117,11 @@ Recent focused evidence:
   375x812, `flutter analyze --no-pub`, focused Nest sales-report/home-summary
   Jest, full backend `npm test -- --runInBand` (52 suites, 467 tests),
   `npm run build`, và `git diff --check`.
+- `SALES-REPORT-001`, 2026-07-07: Cockpit thêm nút `Báo cáo mua thủ công` nằm
+  ngang với `Báo cáo chưa mua`. Nút mới mở lại form mua hàng hiện hữu để sale
+  tự nhập/quét và kiểm tra mã đơn qua ERP trước khi gửi; không thay đổi loại
+  báo cáo hay nới validation backend. Validation: focused Flutter sales-report
+  widget test, `flutter analyze --no-pub`, và `git diff --check`.
 - `HOME-DASHBOARD-002`/`SALES-REPORT-001`, 2026-07-06: Dashboard đưa
   `Tổng quan` lên đầu với donut báo cáo, sao kê và doanh số ngày/tuần/tháng;
   bỏ progress bar, đồng bộ chiều cao KPI và bổ sung các icon còn thiếu. Doanh

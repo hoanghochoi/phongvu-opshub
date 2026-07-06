@@ -42,11 +42,13 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   `STORE_MANAGER`, hoặc có `ADMIN_SALES_REPORTS`, xem trong phạm vi node tổ chức
   được gán, gồm các showroom/node con; Super Admin xem toàn bộ cache/report
   trong DB.
-- Cockpit dùng daterange chung `Ngày` cùng `SR`/`Nhân viên`/`Tải lại` và chỉ giữ thao
-  tác nghiệp vụ `Báo cáo chưa mua`; không lặp lại nút xuất file hay lối vào danh
-  sách. Khi không chọn khoảng ngày, UI giữ nhãn `Tất cả ngày`, hiện dòng nhắc và
-  truy vấn 30 ngày gần nhất theo contract chung. Bộ lọc `SR`/`Nhân viên` chỉ hiện với
-  scope quản lý, lấy option từ cache/report trong phạm vi user được phép xem.
+- Cockpit dùng daterange chung `Ngày` cùng `SR`/`Nhân viên`/`Tải lại` và giữ hai
+  thao tác nghiệp vụ nằm ngang nhau: `Báo cáo mua thủ công` mở form mua hàng để
+  sale tự nhập/quét mã đơn, còn `Báo cáo chưa mua` mở form khách chưa mua; không
+  lặp lại nút xuất file hay lối vào danh sách. Khi không chọn khoảng ngày, UI
+  giữ nhãn `Tất cả ngày`, hiện dòng nhắc và truy vấn 30 ngày gần nhất theo
+  contract chung. Bộ lọc `SR`/`Nhân viên` chỉ hiện với scope quản lý, lấy option
+  từ cache/report trong phạm vi user được phép xem.
 - Backend tự đồng bộ danh sách đơn từ staff-bff ERP mỗi 3 phút và khi service
   khởi động, map `creator.email` sang user nội bộ cùng showroom/node tổ chức
   được gán, rồi upsert snapshot rút gọn vào bảng cache riêng. Mapping này diễn
