@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Cron, Interval } from '@nestjs/schedule';
+import * as XLSX from 'xlsx';
 import {
   organizationNodeStoreTreeInclude,
   storesForOrganizationNodeTree,
@@ -1808,7 +1809,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     };
   }
 
-  async exportCsv(user: any, query: ExportSalesReportsDto) {
+  async exportWorkbook(user: any, query: ExportSalesReportsDto) {
     const filters = this.normalizeFilters({ ...query, page: 0, limit: 100 });
     const exportType = this.normalizeExportType(query.exportType);
     const scopeWhere = await this.resolveAdminScopeWhere(user, {
@@ -1837,11 +1838,13 @@ export class SalesReportsService implements OnApplicationBootstrap {
     this.logger.log(
       `Sales reports export completed: user=${this.safeUserLabel(user)} type=${exportType} count=${rows.length}`,
     );
-    if (exportType === EXPORT_TYPE_REVENUE) return this.buildRevenueCsv(rows);
-    if (exportType === EXPORT_TYPE_INSTALLMENT) {
-      return this.buildInstallmentCsv(rows);
+    if (exportType === EXPORT_TYPE_REVENUE) {
+      return this.buildRevenueWorkbook(rows);
     }
-    return this.buildHvtcCsv(rows);
+    if (exportType === EXPORT_TYPE_INSTALLMENT) {
+      return this.buildInstallmentWorkbook(rows);
+    }
+    return this.buildHvtcWorkbook(rows);
   }
 
   private normalizeOrderCockpitFilters(
@@ -3801,7 +3804,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     };
   }
 
-  private buildHvtcCsv(rows: any[]) {
+  private buildHvtcWorkbook(rows: any[]) {
     const headers = [
       'Ngày báo cáo',
       'Email người báo cáo',
@@ -3822,41 +3825,39 @@ export class SalesReportsService implements OnApplicationBootstrap {
       'Lý do khác khi khách chưa mua',
       'Mã showroom',
     ];
-    const lines = [headers.map((header) => this.csvCell(header)).join(',')];
+    const data: Array<Array<string | number>> = [headers];
     for (const row of rows) {
-      lines.push(
-        [
-          this.csvCell(this.csvVietnamDateTime(row.submittedAt)),
-          this.csvCell(row.createdByEmail),
-          this.csvExcelTextCell(
-            row.erpConsultantCustomId ?? row.createdByPersonnelCode,
-          ),
-          this.csvCell(row.customerName),
-          this.csvExcelTextCell(row.customerPhone),
-          this.csvCell(row.customerNeed),
-          this.csvCell(this.answerLabel(row.consultedSolutionAnswer)),
-          this.csvCell(row.consultedSolutionOtherReason),
-          this.csvCell(this.answerLabel(row.experiencedAnswer)),
-          this.csvCell(row.experiencedOtherReason),
-          this.csvCell(this.answerLabel(row.zaloAnswer)),
-          this.csvCell(row.zaloOtherReason),
-          this.csvCell(this.answerLabel(row.appDownloadAnswer)),
-          this.csvCell(row.appDownloadOtherReason),
-          this.csvCell(this.reportTypeLabel(row.reportType)),
-          this.csvCell(
-            row.notPurchasedReason
-              ? this.notPurchasedLabel(row.notPurchasedReason)
-              : '',
-          ),
-          this.csvCell(row.notPurchasedOtherReason),
-          this.csvCell(row.storeCode),
-        ].join(','),
-      );
+      data.push([
+        this.workbookText(this.csvVietnamDateTime(row.submittedAt)),
+        this.workbookText(row.createdByEmail),
+        this.workbookText(
+          row.erpConsultantCustomId ?? row.createdByPersonnelCode,
+        ),
+        this.workbookText(row.customerName),
+        this.workbookText(row.customerPhone),
+        this.workbookText(row.customerNeed),
+        this.workbookText(this.answerLabel(row.consultedSolutionAnswer)),
+        this.workbookText(row.consultedSolutionOtherReason),
+        this.workbookText(this.answerLabel(row.experiencedAnswer)),
+        this.workbookText(row.experiencedOtherReason),
+        this.workbookText(this.answerLabel(row.zaloAnswer)),
+        this.workbookText(row.zaloOtherReason),
+        this.workbookText(this.answerLabel(row.appDownloadAnswer)),
+        this.workbookText(row.appDownloadOtherReason),
+        this.workbookText(this.reportTypeLabel(row.reportType)),
+        this.workbookText(
+          row.notPurchasedReason
+            ? this.notPurchasedLabel(row.notPurchasedReason)
+            : '',
+        ),
+        this.workbookText(row.notPurchasedOtherReason),
+        this.workbookText(row.storeCode),
+      ]);
     }
-    return `\ufeff${lines.join('\n')}`;
+    return this.workbookBuffer('HVTC', data);
   }
 
-  private buildRevenueCsv(rows: any[]) {
+  private buildRevenueWorkbook(rows: any[]) {
     const summary = this.salesRevenueSummary(rows);
     const headers = [
       'Số đơn hàng duy nhất',
@@ -3874,7 +3875,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       'Số lượng dịch vụ bảo hiểm',
       'Các lý do khách không trả góp',
     ];
-    const values = [
+    const values: Array<string | number> = [
       summary.orderCountUnique,
       summary.businessRevenue,
       summary.personalRevenue,
@@ -3888,19 +3889,18 @@ export class SalesReportsService implements OnApplicationBootstrap {
       summary.printerQuantity,
       summary.accessoriesQuantity,
       summary.extendedInsuranceQuantity,
-      this.csvCompactList(
-        Array.from(summary.noInstallmentReasons.entries()).map(
-          ([reason, count]) => `${reason}: ${count}`,
+      this.workbookText(
+        this.csvCompactList(
+          Array.from(summary.noInstallmentReasons.entries()).map(
+            ([reason, count]) => `${reason}: ${count}`,
+          ),
         ),
       ),
     ];
-    return `\ufeff${[
-      headers.map((header) => this.csvCell(header)).join(','),
-      values.map((value) => this.csvCell(value)).join(','),
-    ].join('\n')}`;
+    return this.workbookBuffer('Doanh so', [headers, values]);
   }
 
-  private buildInstallmentCsv(rows: any[]) {
+  private buildInstallmentWorkbook(rows: any[]) {
     const headers = [
       'Ngày báo cáo',
       'Email người báo cáo',
@@ -3911,33 +3911,31 @@ export class SalesReportsService implements OnApplicationBootstrap {
       'Phương thức thanh toán cuối cùng',
       'Lý do không trả góp',
     ];
-    const lines = [headers.map((header) => this.csvCell(header)).join(',')];
+    const data: Array<Array<string | number>> = [headers];
     for (const row of rows.filter((item) => item.installmentNeed === true)) {
       const partnerCodes = this.cleanInstallmentPartnerCodes(
         row.installmentPartnerCodes,
       );
-      lines.push(
-        [
-          this.csvCell(this.csvVietnamDateTime(row.submittedAt)),
-          this.csvCell(row.createdByEmail),
-          this.csvCell(row.installmentLoanAmount),
-          this.csvCell(partnerCodes.join('; ')),
-          this.csvCell(
-            this.installmentApprovedCsvLabel(row.installmentApproved),
-          ),
-          this.csvCell(this.reportTypeLabel(row.reportType)),
-          this.csvCell(this.finalPaymentMethodLabel(row)),
-          this.csvCell(
-            row.installmentNoInstallmentReason
-              ? this.installmentNoInstallmentReasonLabel(
-                  row.installmentNoInstallmentReason,
-                )
-              : '',
-          ),
-        ].join(','),
-      );
+      data.push([
+        this.workbookText(this.csvVietnamDateTime(row.submittedAt)),
+        this.workbookText(row.createdByEmail),
+        this.workbookNumber(row.installmentLoanAmount),
+        this.workbookText(partnerCodes.join('; ')),
+        this.workbookText(
+          this.installmentApprovedCsvLabel(row.installmentApproved),
+        ),
+        this.workbookText(this.reportTypeLabel(row.reportType)),
+        this.workbookText(this.finalPaymentMethodLabel(row)),
+        this.workbookText(
+          row.installmentNoInstallmentReason
+            ? this.installmentNoInstallmentReasonLabel(
+                row.installmentNoInstallmentReason,
+              )
+            : '',
+        ),
+      ]);
     }
-    return `\ufeff${lines.join('\n')}`;
+    return this.workbookBuffer('Tra gop', data);
   }
 
   private salesRevenueSummary(rows: any[]) {
@@ -4572,18 +4570,38 @@ export class SalesReportsService implements OnApplicationBootstrap {
     ].filter((category) => Boolean(category.id));
   }
 
-  private csvCell(value: unknown) {
+  private workbookBuffer(
+    sheetName: string,
+    data: Array<Array<string | number>>,
+  ) {
+    const sheet = XLSX.utils.aoa_to_sheet(data);
+    sheet['!cols'] = this.workbookColumns(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, sheetName);
+    return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer;
+  }
+
+  private workbookColumns(data: Array<Array<string | number>>) {
+    const columnCount = Math.max(...data.map((row) => row.length), 0);
+    return Array.from({ length: columnCount }, (_, index) => {
+      const maxLength = Math.max(
+        ...data.map((row) => String(row[index] ?? '').length),
+        8,
+      );
+      return { wch: Math.min(Math.max(maxLength + 2, 10), 42) };
+    });
+  }
+
+  private workbookText(value: unknown) {
     return this.csvText(value)
-      .replace(/"/g, '')
-      .replace(/,/g, ';')
       .replace(/[\r\n]+/g, ' ')
       .trim();
   }
 
-  private csvExcelTextCell(value: unknown) {
-    const text = this.csvText(value).replace(/[\r\n]+/g, ' ');
-    if (!text) return '';
-    return this.csvCell(text);
+  private workbookNumber(value: unknown): string | number {
+    if (value === undefined || value === null || value === '') return '';
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : this.workbookText(value);
   }
 
   private csvReportDate(value: unknown) {

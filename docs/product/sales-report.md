@@ -73,16 +73,16 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   số không tính chúng.
 - Menu `Quản trị` hiển thị `Danh sách báo cáo bán hàng` khi user có
   `ADMIN_SALES_REPORTS`; đây là nơi duy nhất lọc danh sách và xuất file.
-- Màn hình danh sách báo cáo bán hàng của admin lọc danh sách và CSV theo loại
-  báo cáo và khoảng `Từ ngày` / `Đến ngày` dựa trên thời điểm gửi báo cáo
-  (`submittedAt`). Khi mở màn hình, bộ lọc ngày mặc định là ngày hiện tại giống
-  Trang chủ/cockpit. Người dùng chọn `Chọn khoảng ngày` để chọn cả hai mốc trong
-  một range picker rồi áp dụng một lần; nếu chủ động chọn `Tất cả ngày`, app vẫn
-  mặc định truy vấn/xuất 30 ngày gần nhất và hiện dòng nhắc nhỏ để tránh hiểu
-  nhầm.
-  Admin xuất được 3 file tiếng Việt: `HVTC` là mỗi dòng một báo cáo mua/chưa
-  mua; `Doanh số` là một dòng tổng hợp doanh thu, nhu cầu trả góp, trả góp
-  thành công và số lượng theo type ngành hàng;
+- Màn hình danh sách báo cáo bán hàng của admin lọc danh sách và file Excel
+  `.xlsx` theo loại báo cáo và khoảng `Từ ngày` / `Đến ngày` dựa trên thời điểm
+  gửi báo cáo (`submittedAt`). Khi mở màn hình, bộ lọc ngày mặc định là ngày
+  hiện tại giống Trang chủ/cockpit. Người dùng chọn `Chọn khoảng ngày` để chọn
+  cả hai mốc trong một range picker rồi áp dụng một lần; nếu chủ động chọn
+  `Tất cả ngày`, app vẫn mặc định truy vấn/xuất 30 ngày gần nhất và hiện dòng
+  nhắc nhỏ để tránh hiểu nhầm.
+  Admin xuất được 3 file Excel `.xlsx` tiếng Việt: `HVTC` là mỗi dòng một báo
+  cáo mua/chưa mua; `Doanh số` là một dòng tổng hợp doanh thu, nhu cầu trả góp,
+  trả góp thành công và số lượng theo type ngành hàng;
   `Trả góp` chỉ lấy báo cáo có `installmentNeed = true`.
 - `Mua hàng` bắt buộc nhập hoặc quét QR/barcode `Mã đơn hàng` và bấm
   `Kiểm tra đơn hàng` trước khi mở phần form còn lại. Sau khi đã kiểm tra, sale
@@ -131,7 +131,7 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   nếu Listing không có code level 1 thì sale phải chọn tay. Một báo cáo có thể
   chọn nhiều ngành hàng vì một đơn/khách có thể có
   nhiều nhu cầu; ngành đầu tiên được lưu làm ngành chính để filter/list cũ còn
-  tương thích, toàn bộ ngành được lưu trong bảng selection và xuất CSV. Nếu
+  tương thích, toàn bộ ngành được lưu trong bảng selection và xuất Excel. Nếu
   không map được ngành hàng về nhóm ngành OpsHub thì sale bắt buộc chọn trước
   khi gửi báo cáo.
   Tên nhóm gốc ngắn như `PC` chỉ được match khi ERP/Listing trả đúng giá trị
@@ -197,8 +197,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   `Phương thức thanh toán cuối cùng`, `Lý do không trả góp`.
   `Phương thức thanh toán cuối cùng` đọc từ `erpPaymentMethods`: có payment
   method installment thì ghi `Trả góp`, không có thì ghi `Trả thẳng`.
-- Giá trị trong CSV không bọc dấu nháy kép; dấu phẩy trong nội dung được đổi
-  thành dấu chấm phẩy và xuống dòng được đổi thành khoảng trắng để không vỡ cột.
+- File xuất admin dùng định dạng Excel `.xlsx` để Excel/WPS đọc tiếng Việt ổn định;
+  dấu phẩy trong nội dung được giữ nguyên trong cùng một ô.
 - `orderCode` là unique trên bảng `SalesReport`; một đơn mua hàng chỉ được báo
   cáo một lần.
 - Không có field nhập `MSNV`; backend lấy user, email, tên, mã nhân viên suy ra,
@@ -260,7 +260,7 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   ID` làm code, `Cat group name` làm tên gốc và `catGroupNameVi` làm nhãn tiếng
   Việt.
 - Snapshot report lưu cả code, tên gốc và tên Việt để dữ liệu lịch sử không bị
-  lệch nếu CSV đổi sau này.
+  lệch nếu file category source đổi sau này.
 - BigQuery sync tạo bốn bảng theo table prefix mặc định:
   `opshub_sales_report_reports`,
   `opshub_sales_report_revenue_by_store`, `opshub_sales_report_items` và
@@ -275,13 +275,13 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Backend: Prisma validate/generate, Nest build, tests cho category sync,
   duplicate `orderCode`, purchased re-check ERP, not-purchased no ERP call,
   scheduled ERP cache sync, durable canceled-order exclusion trên cache/report
-  rows, order cockpit cache-only list, feature guard, export CSV và BigQuery
-  sync mapping.
+  rows, order cockpit cache-only list, feature guard, export Excel `.xlsx` và
+  BigQuery sync mapping.
 - Flutter: Home/Report hub entry theo feature, route guard, order check before
   submit, cockpit 2 cột chưa/đã báo cáo, lọc ngày/SR/user, phân trang 20
   đơn/cột, realtime WebSocket refresh từ cache DB, QR/barcode scan mã
   đơn, auto-fill nhiều category/need/customer type từ mock ERP, checkbox
   selectors, installment partner/approval/reason validation, không gửi `MSNV`,
-  form validation và export CSV.
+  form validation và export Excel `.xlsx`.
 - Manual smoke sau deploy: cấu hình ERP env trên VPS, check một mã đơn thật,
   gửi một báo cáo mua hàng và xác nhận duplicate bị chặn.

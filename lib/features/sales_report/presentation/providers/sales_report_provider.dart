@@ -479,7 +479,7 @@ class SalesReportProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> exportCsv({
+  Future<void> exportXlsx({
     SalesReportQuery query = const SalesReportQuery(),
   }) async {
     if (_isExporting) return;
@@ -500,14 +500,14 @@ class SalesReportProvider extends ChangeNotifier {
         'Sales report export started',
         context: queryContext,
       );
-      final csvBytes = await _repository.exportCsv(effectiveQuery);
+      final workbookBytes = await _repository.exportXlsx(effectiveQuery);
       final path = await FilePicker.saveFile(
         dialogTitle: 'Lưu file báo cáo bán hàng',
         fileName:
-            'opshub_${_exportTypeFilePart(effectiveQuery.exportType)}_${_timestampForFile()}.csv',
+            'opshub_${_exportTypeFilePart(effectiveQuery.exportType)}_${_timestampForFile()}.xlsx',
         type: FileType.custom,
-        allowedExtensions: const ['csv'],
-        bytes: _ensureUtf8BomForCsv(csvBytes),
+        allowedExtensions: const ['xlsx'],
+        bytes: workbookBytes,
         lockParentWindow: true,
       );
       _successMessage = path == null ? 'Đã hủy lưu file.' : 'Đã xuất file.';
@@ -517,7 +517,7 @@ class SalesReportProvider extends ChangeNotifier {
         context: {
           ...queryContext,
           'saved': path != null,
-          'bytes': csvBytes.length,
+          'bytes': workbookBytes.length,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
@@ -851,15 +851,4 @@ class SalesReportProvider extends ChangeNotifier {
       _ => 'bao_cao_hvtc',
     };
   }
-}
-
-Uint8List _ensureUtf8BomForCsv(Uint8List bytes) {
-  const bom = [0xef, 0xbb, 0xbf];
-  if (bytes.length >= bom.length &&
-      bytes[0] == bom[0] &&
-      bytes[1] == bom[1] &&
-      bytes[2] == bom[2]) {
-    return bytes;
-  }
-  return Uint8List.fromList([...bom, ...bytes]);
 }

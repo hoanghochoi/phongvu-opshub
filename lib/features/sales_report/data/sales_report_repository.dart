@@ -69,7 +69,7 @@ class SalesReportRepository {
     return data is Map<String, dynamic> ? data : {};
   }
 
-  Future<Uint8List> exportCsv(SalesReportQuery query) async {
+  Future<Uint8List> exportXlsx(SalesReportQuery query) async {
     final bytes = await _apiClient.getBytes(
       ApiConstants.salesReportsExportEndpoint,
       queryParameters: query.toQueryParameters(),

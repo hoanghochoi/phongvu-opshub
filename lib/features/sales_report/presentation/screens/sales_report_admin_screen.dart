@@ -64,7 +64,7 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
 
   Future<void> _export(String exportType) {
     final provider = context.read<SalesReportProvider>();
-    return context.read<SalesReportProvider>().exportCsv(
+    return context.read<SalesReportProvider>().exportXlsx(
       query: _query(limit: provider.adminLimit, exportType: exportType),
     );
   }

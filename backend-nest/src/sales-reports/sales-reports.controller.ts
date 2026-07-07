@@ -6,6 +6,7 @@ import {
   Query,
   Request,
   Res,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -69,21 +70,24 @@ export class SalesReportsController {
 
   @Get('export')
   @RequireFeature(FEATURE_KEYS.ADMIN_SALES_REPORTS)
-  async exportCsv(
+  async exportWorkbook(
     @Request() req: any,
     @Query() query: ExportSalesReportsDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const csv = await this.service.exportCsv(req.user, query);
+    const workbook = await this.service.exportWorkbook(req.user, query);
     const filename =
       query.exportType === 'REVENUE'
-        ? 'opshub-bao-cao-doanh-so.csv'
+        ? 'opshub-bao-cao-doanh-so.xlsx'
         : query.exportType === 'INSTALLMENT'
-          ? 'opshub-bao-cao-tra-gop.csv'
-          : 'opshub-bao-cao-hvtc.csv';
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+          ? 'opshub-bao-cao-tra-gop.xlsx'
+          : 'opshub-bao-cao-hvtc.xlsx';
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    return csv;
+    return new StreamableFile(workbook);
   }
 
   @Post('admin/bigquery-sync')

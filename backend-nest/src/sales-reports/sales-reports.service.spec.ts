@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import * as XLSX from 'xlsx';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { SalesReportErpCanceledOrderException } from './sales-report-erp.service';
 import { SalesReportsService } from './sales-reports.service';
@@ -1602,81 +1603,79 @@ describe('SalesReportsService', () => {
     );
   });
 
-  it('exports Vietnamese HVTC CSV rows per report', async () => {
+  it('exports Vietnamese HVTC XLSX rows per report', async () => {
     const { service, prisma } = createHarness();
     prisma.salesReport.findMany.mockResolvedValueOnce([exportReportFixture()]);
 
-    const csv = await service.exportCsv(
+    const workbook = await service.exportWorkbook(
       { ...userFixture(), role: 'SUPER_ADMIN' },
       {},
     );
-    const lines = csv.replace(/^\ufeff/, '').split('\n');
+    const { rows, sheetName } = readWorkbookRows(workbook);
 
-    expect(lines[0]).toBe(
-      [
-        'Ngày báo cáo',
-        'Email người báo cáo',
-        'Mã nhân viên tư vấn ERP',
-        'Tên khách hàng',
-        'Số điện thoại khách hàng',
-        'Nhu cầu khách hàng',
-        'Kết quả tư vấn giải pháp',
-        'Lý do khác khi không tư vấn',
-        'Kết quả trải nghiệm sản phẩm',
-        'Lý do khác khi không trải nghiệm',
-        'Kết quả quét Zalo',
-        'Lý do khác khi không quét Zalo',
-        'Kết quả tải App PV',
-        'Lý do khác khi không tải App PV',
-        'Loại báo cáo',
-        'Lý do khách chưa mua',
-        'Lý do khác khi khách chưa mua',
-        'Mã showroom',
-      ].join(','),
-    );
-    expect(lines).toHaveLength(2);
-    expect(lines[1]).toContain('Nguyen; Van A');
-    expect(lines[1]).toContain('Mua hàng');
-    expect(lines[1]).toContain('Có');
-    expect(lines[1]).not.toContain('"');
-    expect(lines[0]).not.toContain('Report date');
+    expect(sheetName).toBe('HVTC');
+    expect(workbook.subarray(0, 2).toString()).toBe('PK');
+    expect(rows[0]).toEqual([
+      'Ngày báo cáo',
+      'Email người báo cáo',
+      'Mã nhân viên tư vấn ERP',
+      'Tên khách hàng',
+      'Số điện thoại khách hàng',
+      'Nhu cầu khách hàng',
+      'Kết quả tư vấn giải pháp',
+      'Lý do khác khi không tư vấn',
+      'Kết quả trải nghiệm sản phẩm',
+      'Lý do khác khi không trải nghiệm',
+      'Kết quả quét Zalo',
+      'Lý do khác khi không quét Zalo',
+      'Kết quả tải App PV',
+      'Lý do khác khi không tải App PV',
+      'Loại báo cáo',
+      'Lý do khách chưa mua',
+      'Lý do khác khi khách chưa mua',
+      'Mã showroom',
+    ]);
+    expect(rows).toHaveLength(2);
+    expect(rows[1][3]).toBe('Nguyen, Van A');
+    expect(rows[1][4]).toBe('0900000000');
+    expect(rows[1]).toContain('Mua hàng');
+    expect(rows[1]).toContain('Có');
+    expect(rows[0]).not.toContain('Report date');
   });
 
-  it('exports Vietnamese revenue summary CSV by category type', async () => {
+  it('exports Vietnamese revenue summary XLSX by category type', async () => {
     const { service, prisma } = createHarness();
     prisma.salesReport.findMany.mockResolvedValueOnce(revenueReportFixtures());
 
-    const csv = await service.exportCsv(
+    const workbook = await service.exportWorkbook(
       { ...userFixture(), role: 'SUPER_ADMIN' },
       { exportType: 'REVENUE' },
     );
-    const lines = csv.replace(/^\ufeff/, '').split('\n');
+    const { rows, sheetName } = readWorkbookRows(workbook);
 
-    expect(lines[0]).toBe(
-      [
-        'Số đơn hàng duy nhất',
-        'Tổng doanh thu khách hàng doanh nghiệp',
-        'Tổng doanh thu khách hàng cá nhân',
-        'Báo cáo có nhu cầu trả góp',
-        'Trả góp thành công (có đơn trả góp)',
-        'Số lượng laptop',
-        'Số lượng PC',
-        'Số lượng PC ráp',
-        'Số lượng Apple',
-        'Số lượng màn hình',
-        'Số lượng máy in',
-        'Số lượng phụ kiện',
-        'Số lượng dịch vụ bảo hiểm',
-        'Các lý do khách không trả góp',
-      ].join(','),
-    );
-    expect(lines[1]).toContain('2,1000,2000,2,0');
-    expect(lines[1]).toContain(',3,2,1,1,3,1,4,1,');
-    expect(lines[1]).toContain('Khách từ chối: Lãi suất/Phí trả góp cao: 1');
-    expect(lines[1]).not.toContain('"');
+    expect(sheetName).toBe('Doanh so');
+    expect(rows[0]).toEqual([
+      'Số đơn hàng duy nhất',
+      'Tổng doanh thu khách hàng doanh nghiệp',
+      'Tổng doanh thu khách hàng cá nhân',
+      'Báo cáo có nhu cầu trả góp',
+      'Trả góp thành công (có đơn trả góp)',
+      'Số lượng laptop',
+      'Số lượng PC',
+      'Số lượng PC ráp',
+      'Số lượng Apple',
+      'Số lượng màn hình',
+      'Số lượng máy in',
+      'Số lượng phụ kiện',
+      'Số lượng dịch vụ bảo hiểm',
+      'Các lý do khách không trả góp',
+    ]);
+    expect(rows[1].slice(0, 5)).toEqual([2, 1000, 2000, 2, 0]);
+    expect(rows[1].slice(5, 13)).toEqual([3, 2, 1, 1, 3, 1, 4, 1]);
+    expect(rows[1][13]).toBe('Khách từ chối: Lãi suất/Phí trả góp cao: 1');
   });
 
-  it('exports installment CSV rows only for installment reports', async () => {
+  it('exports installment XLSX rows only for installment reports', async () => {
     const { service, prisma } = createHarness();
     prisma.salesReport.findMany.mockResolvedValueOnce([
       {
@@ -1702,11 +1701,11 @@ describe('SalesReportsService', () => {
       },
     ]);
 
-    const csv = await service.exportCsv(
+    const workbook = await service.exportWorkbook(
       { ...userFixture(), role: 'SUPER_ADMIN' },
       { exportType: 'INSTALLMENT' },
     );
-    const lines = csv.replace(/^\ufeff/, '').split('\n');
+    const { rows, sheetName } = readWorkbookRows(workbook);
 
     expect(prisma.salesReport.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1718,28 +1717,33 @@ describe('SalesReportsService', () => {
     );
     expect(exportWhere).toContain('"installmentNeed":true');
     expect(exportWhere).toContain('"erpExcludedAt":null');
-    expect(lines[0]).toBe(
-      [
-        'Ngày báo cáo',
-        'Email người báo cáo',
-        'Số tiền vay trả góp',
-        'Đối tác trả góp',
-        'Kết quả duyệt hồ sơ',
-        'Loại báo cáo',
-        'Phương thức thanh toán cuối cùng',
-        'Lý do không trả góp',
-      ].join(','),
-    );
-    expect(lines).toHaveLength(3);
-    expect(lines[1]).toContain('sale@phongvu.vn,5000000,VNPAY_POS; MPOS');
-    expect(lines[1]).toContain('Đã duyệt,Mua hàng,Trả góp');
-    expect(lines[1]).toContain(
+    expect(sheetName).toBe('Tra gop');
+    expect(rows[0]).toEqual([
+      'Ngày báo cáo',
+      'Email người báo cáo',
+      'Số tiền vay trả góp',
+      'Đối tác trả góp',
+      'Kết quả duyệt hồ sơ',
+      'Loại báo cáo',
+      'Phương thức thanh toán cuối cùng',
+      'Lý do không trả góp',
+    ]);
+    expect(rows).toHaveLength(3);
+    expect(rows[1]).toEqual([
+      '29/06/2026 08:00:00',
+      'sale@phongvu.vn',
+      5000000,
+      'VNPAY_POS; MPOS',
+      'Đã duyệt',
+      'Mua hàng',
+      'Trả góp',
       'Khách chốt trả góp bình thường (Không có lý do)',
-    );
-    expect(lines[2]).toContain('2500000,PAYOO_POS,Chưa duyệt');
-    expect(lines[2]).toContain('Trả thẳng');
-    expect(lines.join('\n')).not.toContain('2606290888');
-    expect(lines[1]).not.toContain('"');
+    ]);
+    expect(rows[2][2]).toBe(2500000);
+    expect(rows[2][3]).toBe('PAYOO_POS');
+    expect(rows[2][4]).toBe('Chưa duyệt');
+    expect(rows[2][6]).toBe('Trả thẳng');
+    expect(JSON.stringify(rows)).not.toContain('2606290888');
   });
 
   it('keeps home dashboard scope options at showroom level for assigned position nodes', async () => {
@@ -2043,6 +2047,20 @@ describe('SalesReportsService', () => {
     });
   });
 });
+
+function readWorkbookRows(buffer: Buffer) {
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) throw new Error('Workbook has no sheets');
+  const sheet = workbook.Sheets[sheetName];
+  if (!sheet) throw new Error(`Workbook sheet not found: ${sheetName}`);
+  const rows = XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
+    raw: true,
+    defval: '',
+  }) as Array<Array<string | number>>;
+  return { sheetName, rows };
+}
 
 function baseInput() {
   return {

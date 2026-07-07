@@ -89,9 +89,9 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   đã sanitize, và từng sản phẩm thành từng row trong `SalesReportOrderItem`.
   Backend map thêm `categoryType` bằng `Type` trong `data/categories.csv`, ưu
   tiên category level cao nhất trong payload `categories` từ Listing.
-- Admin xuất 3 file CSV tiếng Việt: `HVTC` một dòng mỗi báo cáo mua/chưa mua
-  theo các cột hành vi khách hàng; `Doanh số` một dòng tổng hợp số đơn duy
-  nhất, doanh thu doanh nghiệp/cá nhân, tổng số báo cáo có tick
+- Admin xuất 3 file Excel `.xlsx` tiếng Việt: `HVTC` một dòng mỗi báo cáo
+  mua/chưa mua theo các cột hành vi khách hàng; `Doanh số` một dòng tổng hợp số
+  đơn duy nhất, doanh thu doanh nghiệp/cá nhân, tổng số báo cáo có tick
   `Có nhu cầu trả góp`, số đơn trả góp thành công theo payment method ERP và số
   lượng theo type laptop/PC/PC ráp/Apple/màn hình/máy in/phụ kiện/bảo hiểm mở
   rộng; lý do trả góp nằm ở cột cuối cùng của file `Doanh số`;
