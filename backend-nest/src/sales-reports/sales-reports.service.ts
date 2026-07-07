@@ -772,9 +772,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
     }
   }
 
-  @Cron('0 */20 * * * *')
+  @Cron('0 */5 * * * *')
   async handleErpOrderStatusSync() {
-    await this.syncErpOrderStatuses('scheduled_20m');
+    await this.syncErpOrderStatuses('scheduled_5m');
   }
 
   async syncErpOrderStatuses(source = 'manual') {
@@ -817,7 +817,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     );
     const pendingRecheckMinutes = this.envInt(
       'ERP_ORDER_STATUS_PENDING_RECHECK_MINUTES',
-      20,
+      5,
       1,
       1440,
     );

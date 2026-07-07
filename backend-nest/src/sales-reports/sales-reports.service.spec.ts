@@ -1426,6 +1426,87 @@ describe('SalesReportsService', () => {
     }
   });
 
+  it('uses the 5-minute default pending status re-check window', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-07-07T01:06:00Z'));
+    const { service, prisma, erp } = createHarness();
+    const previous = {
+      enabled: process.env.ERP_ORDER_STATUS_SYNC_ENABLED,
+      cache: process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED,
+      batch: process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE,
+      storeLimit: process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT,
+      pending: process.env.ERP_ORDER_STATUS_PENDING_RECHECK_MINUTES,
+    };
+    process.env.ERP_ORDER_STATUS_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE = '5';
+    process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT = '5';
+    delete process.env.ERP_ORDER_STATUS_PENDING_RECHECK_MINUTES;
+    prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce([
+        {
+          orderCode: '2607071001',
+          storeCode: 'CP62',
+          lifecycleStatus: 'PENDING',
+          statusCheckedAt: new Date('2026-07-07T01:00:00Z'),
+          statusCheckAttemptedAt: new Date('2026-07-07T01:00:30Z'),
+          statusCheckFailureCount: 0,
+          orderCreatedAt: new Date('2026-07-07T00:30:00Z'),
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    erp.lookupOrderStatus.mockResolvedValueOnce({
+      ...erpListOrderFixture(),
+      orderCode: '2607071001',
+      lifecycleStatus: 'COMPLETED',
+      hasReturnedFullItems: false,
+      returnedAfterTaxAmount: 0,
+      statusCheckedAt: new Date('2026-07-07T01:06:00Z'),
+    });
+
+    try {
+      await expect(service.syncErpOrderStatuses('test')).resolves.toEqual({
+        skipped: false,
+        processed: 1,
+        changed: 1,
+        failed: 0,
+      });
+      expect(erp.lookupOrderStatus).toHaveBeenCalledWith(
+        '2607071001',
+        'CP62',
+      );
+    } finally {
+      jest.useRealTimers();
+      restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);
+      restoreEnv('ERP_ORDER_STATUS_CACHE_SYNC_ENABLED', previous.cache);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_BATCH_SIZE', previous.batch);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_STORE_LIMIT', previous.storeLimit);
+      restoreEnv(
+        'ERP_ORDER_STATUS_PENDING_RECHECK_MINUTES',
+        previous.pending,
+      );
+    }
+  });
+
+  it('runs scheduled ERP order status sync with the 5-minute source label', async () => {
+    const { service } = createHarness();
+    const syncSpy = jest
+      .spyOn(service, 'syncErpOrderStatuses')
+      .mockResolvedValue({
+        skipped: false,
+        processed: 0,
+        changed: 0,
+        failed: 0,
+      });
+
+    await service.handleErpOrderStatusSync();
+
+    expect(syncSpy).toHaveBeenCalledWith('scheduled_5m');
+  });
+
   it('keeps refreshing the remaining orders when one ERP status lookup fails', async () => {
     const { service, prisma, erp } = createHarness();
     const previous = {

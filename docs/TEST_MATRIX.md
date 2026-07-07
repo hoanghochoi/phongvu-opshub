@@ -243,6 +243,11 @@ test\sales_report_hub_test.dart` (19 tests), `flutter analyze --no-pub`, và
   `git diff --check`. Windows app đã launch được nhưng update gate của phiên
   cài đặt hiện tại chặn kiểm tra sâu dashboard; chưa chạy live ERP, apply
   migration staging hay staging visual smoke trong lượt local này.
+- `SALES-REPORT-001`, 2026-07-08: Nhịp sync trạng thái ERP và re-check pending
+  mặc định hạ từ 20 phút xuống 5 phút để trạng thái hoàn thành lên dashboard
+  nhanh hơn, vẫn giữ batch/quota/concurrency và Redis lease hiện có. Validation:
+  focused `sales-reports.service.spec.ts`, `npm run build`, và
+  `git diff --check`.
 - `HOME-DASHBOARD-002`, 2026-07-05: Home tách KPI thành `Bán hàng` và
   `Tài chính` dùng chung ngày/scope. Bán hàng bỏ `Tổng số báo cáo hợp lệ`, đổi
   nhãn thành `Tỉ lệ báo cáo`, thêm tỉ lệ chuyển đổi theo tổng số đơn trên tổng

@@ -122,12 +122,12 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   50 đơn/ngày gần nhất (đây cũng là giới hạn cấu hình tối đa theo ERP list hiện tại). List sync chỉ cập nhật
   snapshot nhanh; đơn `PENDING` từ list không được tự coi là đã xác minh trạng
   thái chi tiết.
-- Job trạng thái chạy mỗi 20 phút, mặc định tối đa 80 đơn/lượt với concurrency
+- Job trạng thái chạy mỗi 5 phút, mặc định tối đa 80 đơn/lượt với concurrency
   2 và Redis lease. Job rà cả đơn `PENDING` trong cache chưa báo cáo lẫn đơn
   `Mua hàng` đã báo cáo, ưu tiên pending, vẫn dành quota xoay vòng cho đơn hoàn
   thành 30 ngày gần nhất để bắt hoàn trả muộn. Để không gây tải quá nhiều lên
   ERP, job có backoff theo failure count, giới hạn số đơn mỗi showroom/lượt và
-  chỉ re-check pending sau khoảng cấu hình mặc định 20 phút; lỗi một đơn chỉ
+  chỉ re-check pending sau khoảng cấu hình mặc định 5 phút; lỗi một đơn chỉ
   tăng failure count và thử lại ở lượt sau.
 - Doanh số tổng trên dashboard lấy `grandTotal` từ cache đơn hàng theo
   ngày/scope, bỏ đơn 0 VND, đơn hủy/trả toàn bộ và trừ
