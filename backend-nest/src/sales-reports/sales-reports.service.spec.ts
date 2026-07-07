@@ -210,6 +210,30 @@ describe('SalesReportsService', () => {
     );
   });
 
+  it('records the entry source for purchased reports from the synced order list', async () => {
+    const { service, prisma } = createHarness();
+
+    await service.create(userFixture(), {
+      ...baseInput(),
+      reportType: 'PURCHASED',
+      orderCode: '2606290001',
+      entrySource: 'SYNC_LIST',
+    });
+
+    expect(prisma.salesReport.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          reportType: 'PURCHASED',
+          orderCode: '2606290001',
+          rawResponses: expect.objectContaining({
+            reportType: 'PURCHASED',
+            entrySource: 'SYNC_LIST',
+          }),
+        }),
+      }),
+    );
+  });
+
   it('persists canceled exclusions when ERP lookup confirms the order was canceled', async () => {
     const { service, prisma, erp } = createHarness();
     erp.lookupOrder.mockRejectedValueOnce(
@@ -273,6 +297,53 @@ describe('SalesReportsService', () => {
         erpExclusionReason: 'ERP_ORDER_ZERO_VALUE_INTERNAL',
       },
     });
+  });
+
+  it('uses ERP createdFromSiteDisplayName as the cache store source when checking an order', async () => {
+    const { service, prisma, categories, erp } = createHarness();
+    const noStoreUser = {
+      id: 'admin-user',
+      email: 'admin@hoanghochoi.com',
+      firstName: 'Admin',
+      lastName: 'User',
+      jobRoleCode: 'SA',
+      store: null,
+      organizationNode: null,
+      organizationAssignments: [],
+    };
+    prisma.user.findUnique.mockResolvedValueOnce(noStoreUser);
+    categories.matchCategoriesFromErp.mockResolvedValueOnce([]);
+    erp.lookupOrder.mockResolvedValueOnce({
+      ...erpOrderFixture(),
+      orderCode: '26070732198240',
+      erpOrderId: '26070732198240',
+      erpTerminalName:
+        'ĐỊA ĐIỂM KINH DOANH 52 - CÔNG TY CỔ PHẦN THƯƠNG MẠI - DỊCH VỤ PHONG VŨ',
+      sanitizedSnapshot: {
+        ...erpOrderFixture().sanitizedSnapshot,
+        orderId: '26070732198240',
+        createdFromSiteDisplayName:
+          '[CP58] ĐỊA ĐIỂM KINH DOANH 52 - CÔNG TY CỔ PHẦN THƯƠNG MẠI - DỊCH VỤ PHONG VŨ',
+      },
+    });
+
+    await service.checkOrder(noStoreUser, '26070732198240');
+
+    expect(erp.lookupOrder).toHaveBeenCalledWith('26070732198240', null);
+    expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { orderCode: '26070732198240' },
+        create: expect.objectContaining({
+          orderCode: '26070732198240',
+          storeCode: 'CP58',
+          sourceUserEmail: 'admin@hoanghochoi.com',
+        }),
+        update: expect.objectContaining({
+          storeCode: 'CP58',
+          sourceUserEmail: 'admin@hoanghochoi.com',
+        }),
+      }),
+    );
   });
 
   it('reads cached ERP orders and splits reported from unreported orders', async () => {
@@ -566,7 +637,7 @@ describe('SalesReportsService', () => {
       expect(erp.listRecentOrders).toHaveBeenCalledWith(
         expect.objectContaining({
           date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-          limit: 100,
+          limit: 50,
         }),
       );
       expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
@@ -1091,6 +1162,84 @@ describe('SalesReportsService', () => {
     }
   });
 
+  it('does not overwrite a createdFromSiteDisplayName store source with weaker owner mapping', async () => {
+    const { service, prisma, erp } = createHarness();
+    const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+    delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = '1';
+    erp.listRecentOrders.mockResolvedValueOnce([
+      {
+        ...erpListOrderFixture(),
+        orderCode: '26070732198240',
+        storeCode: null,
+        storeName: null,
+        consultantEmail: null,
+        sellerEmail: null,
+        sanitizedSnapshot: {
+          orderCode: '26070732198240',
+        },
+      },
+    ]);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
+      {
+        orderCode: '26070732198240',
+        sanitizedSnapshot: {
+          orderCode: '26070732198240',
+          createdFromSiteDisplayName:
+            '[CP58] ĐỊA ĐIỂM KINH DOANH 52 - CÔNG TY CỔ PHẦN THƯƠNG MẠI - DỊCH VỤ PHONG VŨ',
+        },
+        consultantEmail: null,
+        sellerEmail: null,
+        storeCode: 'CP58',
+        organizationNodeId: null,
+        sourceUserId: 'sale-cp62',
+        sourceUserEmail: 'sale@phongvu.vn',
+      },
+    ]);
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'sale-cp62',
+        email: 'sale@phongvu.vn',
+        store: {
+          storeId: 'CP62',
+          storeName: 'Phong Vu CP62',
+          organizationNodeId: 'node-cp62',
+        },
+        organizationNode: null,
+        organizationAssignments: [],
+      },
+    ]);
+
+    try {
+      await service.syncScheduledErpOrderCache('test-preserve-created-site');
+
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '26070732198240' },
+          update: expect.objectContaining({
+            storeCode: 'CP58',
+          }),
+        }),
+      );
+      expect(
+        prisma.salesReportErpOrderCache.upsert.mock.calls[0][0].update
+          .storeCode,
+      ).not.toBe('CP62');
+    } finally {
+      if (oldEnabled === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_ENABLED = oldEnabled;
+      }
+      if (oldLookback === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = oldLookback;
+      }
+    }
+  });
+
   it('can disable the scheduled ERP order cache sync through env', async () => {
     const { service, prisma, erp } = createHarness();
     const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
@@ -1400,6 +1549,66 @@ describe('SalesReportsService', () => {
         expect.objectContaining({
           where: { orderCode: '2607013002' },
           create: expect.objectContaining({ orderCode: '2607013002' }),
+        }),
+      );
+    } finally {
+      restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);
+      restoreEnv('ERP_ORDER_STATUS_CACHE_SYNC_ENABLED', previous.cache);
+    }
+  });
+
+  it('backfills status-sync cache store from ERP createdFromSiteDisplayName', async () => {
+    const { service, prisma, erp } = createHarness();
+    const previous = {
+      enabled: process.env.ERP_ORDER_STATUS_SYNC_ENABLED,
+      cache: process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED,
+    };
+    process.env.ERP_ORDER_STATUS_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED = 'false';
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([
+        {
+          orderCode: '26070732198240',
+          storeCode: null,
+          erpLifecycleStatus: 'PENDING',
+          erpStatusCheckedAt: null,
+          erpOrderCreatedAt: new Date('2026-07-07T06:59:38Z'),
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    erp.lookupOrderStatus.mockResolvedValueOnce({
+      ...erpListOrderFixture(),
+      orderCode: '26070732198240',
+      storeCode: null,
+      storeName: null,
+      lifecycleStatus: 'COMPLETED',
+      hasReturnedFullItems: false,
+      returnedAfterTaxAmount: 0,
+      statusCheckedAt: new Date('2026-07-07T08:25:19Z'),
+      sanitizedSnapshot: {
+        orderCode: '26070732198240',
+        createdFromSiteDisplayName:
+          '[CP58] ĐỊA ĐIỂM KINH DOANH 52 - CÔNG TY CỔ PHẦN THƯƠNG MẠI - DỊCH VỤ PHONG VŨ',
+      },
+    });
+
+    try {
+      await expect(service.syncErpOrderStatuses('test')).resolves.toEqual({
+        skipped: false,
+        processed: 1,
+        changed: 1,
+        failed: 0,
+      });
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '26070732198240' },
+          create: expect.objectContaining({
+            orderCode: '26070732198240',
+            storeCode: 'CP58',
+          }),
+          update: expect.objectContaining({
+            storeCode: 'CP58',
+          }),
         }),
       );
     } finally {

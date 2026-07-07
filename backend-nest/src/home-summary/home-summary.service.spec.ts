@@ -500,6 +500,140 @@ describe('HomeSummaryService', () => {
     expect(result.scopeSalesProgress.scope).toBe('MANAGED');
   });
 
+  it('uses the selected SA for sales KPIs while finance stays on the dashboard scope', async () => {
+    const { service, prisma, salesReports } = createHarness();
+    salesReports.describeHomeSummaryScope.mockResolvedValueOnce({
+      available: true,
+      scope: 'MANAGED_SCOPE',
+      scopeLabel: 'Showroom: CP75',
+      scopeDetail: 'CP75',
+      unavailableMessage: null,
+      ownUserId: null,
+      ownEmail: null,
+      ownPersonnelCode: null,
+      allowedStoreCodes: ['CP75'],
+    });
+    prisma.salesReport.findMany.mockResolvedValue([]);
+    prisma.store.findMany.mockResolvedValue([
+      {
+        storeId: 'CP75',
+        organizationNodeId: 'node-cp75',
+      },
+    ]);
+    prisma.salesTarget.findMany.mockResolvedValue([
+      {
+        organizationNodeId: 'node-cp75',
+        targetBeforeTax: BigInt(310000000),
+      },
+    ]);
+    prisma.user.findMany.mockResolvedValue([
+      {
+        id: 'sa-1',
+        email: 'sa1@phongvu.vn',
+        firstName: 'SA',
+        lastName: 'Một',
+        jobRoleCode: 'SA',
+        areaCode: 'HCM',
+        regionCode: 'SOUTH',
+        store: {
+          storeId: 'CP75',
+          storeName: 'CP75',
+          area: {
+            code: 'HCM',
+            region: { code: 'SOUTH' },
+          },
+          organizationNode: null,
+        },
+        area: {
+          code: 'HCM',
+          region: { code: 'SOUTH' },
+        },
+        region: { code: 'SOUTH' },
+        organizationNode: null,
+        organizationAssignments: [],
+      },
+      {
+        id: 'sa-2',
+        email: 'sa2@phongvu.vn',
+        firstName: 'SA',
+        lastName: 'Hai',
+        jobRoleCode: 'SA',
+        areaCode: 'HCM',
+        regionCode: 'SOUTH',
+        store: {
+          storeId: 'CP75',
+          storeName: 'CP75',
+          area: {
+            code: 'HCM',
+            region: { code: 'SOUTH' },
+          },
+          organizationNode: null,
+        },
+        area: {
+          code: 'HCM',
+          region: { code: 'SOUTH' },
+        },
+        region: { code: 'SOUTH' },
+        organizationNode: null,
+        organizationAssignments: [],
+      },
+    ]);
+
+    const result = await service.getSummary(
+      { id: 'manager-1', email: 'manager@phongvu.vn' },
+      {
+        date: '2026-07-04',
+        scope: 'MANAGED_SCOPE',
+        organizationNodeId: 'node-cp75',
+        salesProgressUserId: 'sa-2',
+      },
+    );
+
+    expect(result.selectedSalesProgressUserId).toBe('sa-2');
+    expect(prisma.homeSummaryOrderFact.count).toHaveBeenNthCalledWith(1, {
+      where: expect.objectContaining({
+        AND: expect.arrayContaining([
+          expect.objectContaining({
+            OR: expect.arrayContaining([
+              { sourceUserId: 'sa-2' },
+              {
+                consultantCustomId: {
+                  equals: 'SA_CP75_HCM_SOUTH',
+                  mode: 'insensitive',
+                },
+              },
+            ]),
+          }),
+        ]),
+      }),
+    });
+    expect(prisma.salesReportErpOrderCache.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: expect.arrayContaining([
+            expect.objectContaining({
+              OR: expect.arrayContaining([
+                { sourceUserId: 'sa-2' },
+                {
+                  consultantCustomId: {
+                    equals: 'SA_CP75_HCM_SOUTH',
+                    mode: 'insensitive',
+                  },
+                },
+              ]),
+            }),
+          ]),
+        }),
+        select: expect.objectContaining({ lifecycleStatus: true }),
+      }),
+    );
+    expect(prisma.mapVietinTransaction.count).toHaveBeenNthCalledWith(1, {
+      where: expect.objectContaining({
+        AND: expect.arrayContaining([{ storeCode: { in: ['CP75'] } }]),
+      }),
+    });
+  });
+
   it('does not expose finance metrics when its dashboard section is disabled', async () => {
     const { service, prisma, featureService } = createHarness();
     featureService.canAccessFeature.mockImplementation(

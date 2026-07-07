@@ -401,7 +401,7 @@ describe('SalesReportErpService', () => {
         );
         expect(parsed.searchParams.get('sellerId')).toBe('1');
         expect(parsed.searchParams.get('platformId')).toBe('3');
-        expect(parsed.searchParams.get('limit')).toBe('100');
+        expect(parsed.searchParams.get('limit')).toBe('50');
         expect(parsed.searchParams.get('sort')).toBe('-createdAt');
         return jsonResponse({
           data: {

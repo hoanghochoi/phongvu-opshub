@@ -84,6 +84,7 @@ type SalesProgressBundle = {
   scope: SalesProgressResponse;
   assignees: SalesProgressAssigneeResponse[];
   selectedUserId: string | null;
+  selectedScope: SalesReportSummaryScopeDescriptor | null;
 };
 
 type HomeSummaryScopeRequest = 'AUTO' | 'ALL' | 'MANAGED_SCOPE' | 'OWN';
@@ -186,10 +187,20 @@ export class HomeSummaryService {
     }
 
     let refreshedAt = new Date();
-    const orderWhere = this.orderScopeWhere(scope, range);
     if (salesAvailable || (financeAvailable && scope.scope === 'OWN')) {
       refreshedAt = await this.syncFactsForRange(range);
     }
+    const salesProgressBundle = salesAvailable
+      ? await this.buildSalesProgressBundle(
+          user,
+          scope,
+          summaryDate,
+          range,
+          requestedSalesProgressUserId,
+        )
+      : this.emptySalesProgressBundle();
+    const salesMetricsScope = salesProgressBundle.selectedScope ?? scope;
+    const salesOrderWhere = this.orderScopeWhere(salesMetricsScope, range);
 
     let totalRevenue = 0;
     let totalOrders = 0;
@@ -199,14 +210,14 @@ export class HomeSummaryService {
     let completedRevenue = 0;
     let behaviorYesCounts = this.emptyBehaviorYesCounts();
     if (salesAvailable) {
-      const reportWhere = this.reportScopeWhere(scope, range);
+      const reportWhere = this.reportScopeWhere(salesMetricsScope, range);
       const [
         orderCount,
         reportCount,
         notPurchasedReportCount,
         reportedCodeRows,
       ] = await this.prisma.$transaction([
-        this.homeSummaryOrderFact.count({ where: orderWhere }),
+        this.homeSummaryOrderFact.count({ where: salesOrderWhere }),
         this.homeSummaryReportFact.count({ where: reportWhere }),
         this.homeSummaryReportFact.count({
           where: {
@@ -239,15 +250,15 @@ export class HomeSummaryService {
         reportedCodes.length > 0
           ? await this.homeSummaryOrderFact.count({
               where: {
-                ...orderWhere,
+                ...salesOrderWhere,
                 orderCode: { in: reportedCodes },
               },
             })
           : 0;
       [totalRevenue, completedRevenue, behaviorYesCounts] = await Promise.all([
-        this.totalCacheRevenue(scope, range),
-        this.completedRevenue(scope, range),
-        this.countBehaviorYesReports(scope, range),
+        this.totalCacheRevenue(salesMetricsScope, range),
+        this.completedRevenue(salesMetricsScope, range),
+        this.countBehaviorYesReports(salesMetricsScope, range),
       ]);
     }
 
@@ -256,11 +267,12 @@ export class HomeSummaryService {
     let totalStatementsWithOrder = 0;
     let totalStatementsWithoutOrder = 0;
     if (financeAvailable) {
+      const financeOrderWhere = this.orderScopeWhere(scope, range);
       const personalOrderCodes =
         scope.scope === 'OWN'
           ? (
               await this.homeSummaryOrderFact.findMany({
-                where: orderWhere,
+                where: financeOrderWhere,
                 select: { orderCode: true },
               })
             )
@@ -328,15 +340,6 @@ export class HomeSummaryService {
     const statementOrderRate = totalStatements
       ? Number(((totalStatementsWithOrder / totalStatements) * 100).toFixed(2))
       : 0;
-    const salesProgressBundle = salesAvailable
-      ? await this.buildSalesProgressBundle(
-          user,
-          scope,
-          summaryDate,
-          range,
-          requestedSalesProgressUserId,
-        )
-      : this.emptySalesProgressBundle();
     const response: HomeSummaryResponse = {
       date,
       startDate: range.startDate,
@@ -377,7 +380,7 @@ export class HomeSummaryService {
       unavailableMessage: null,
     };
     this.logger.log(
-      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
+      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesMetricsScope=${salesMetricsScope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
     );
     return response;
   }
@@ -1196,6 +1199,7 @@ export class HomeSummaryService {
         isSelected: assignee.userId === selectedUserId,
       })),
       selectedUserId,
+      selectedScope: personalScope,
     };
   }
 
@@ -1205,6 +1209,7 @@ export class HomeSummaryService {
       scope: this.emptySalesProgress(),
       assignees: [],
       selectedUserId: null,
+      selectedScope: null,
     };
   }
 

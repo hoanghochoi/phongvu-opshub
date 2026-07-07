@@ -9,7 +9,9 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
 
 - Dashboard tách rõ hai khu vực `Bán hàng` và `Tài chính`.
 - Cả hai khu vực cùng dùng ngày và scope ở header; đổi một bộ lọc phải tải lại
-  toàn bộ KPI trong hai khu vực.
+  toàn bộ KPI trong hai khu vực. Riêng dropdown SA trong `Tổng quan cá nhân`
+  làm các KPI `Bán hàng`/`Hành vi then chốt` đổi theo SA đã chọn, trong khi
+  `Tổng quan Cửa hàng` và `Tài chính` vẫn giữ scope showroom/node ở header.
 - `Bán hàng` chia thành hai nhóm nhỏ: `Doanh số` và `Hành vi then chốt`.
 - Nhóm `Doanh số` hiển thị `Doanh số tổng`, `Số đơn bán`,
   `Trung bình đơn hàng`, `Doanh số hoàn thành`, `Pending` và
@@ -34,7 +36,8 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   báo cáo, sao kê và doanh số. Doanh số tách thành hai card:
   `Tổng quan cá nhân` và `Tổng quan Miền/Vùng/Cửa hàng`. Card cá nhân thể hiện
   tiến độ của user/SA đang chọn; card Miền/Vùng/Cửa hàng thể hiện toàn bộ phạm
-  vi quản lý đang chọn. Mỗi card gồm khoảng chọn, tuần và tháng; vòng dừng ở
+  vi quản lý đang chọn, giống nhau cho các user trong cùng SR và không đổi khi
+  dropdown SA thay đổi. Mỗi card gồm khoảng chọn, tuần và tháng; vòng dừng ở
   100% nhưng text vẫn thể hiện vượt chỉ tiêu.
 - Grid KPI trên mobile thông thường hiển thị 2 card mỗi hàng; chỉ hạ còn 1 card
   khi vùng nội dung hẹp dưới 320 px. Bán hàng và Tài chính dùng cùng breakpoint.
@@ -49,9 +52,10 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   hiện tại để xem card cá nhân của SA đó; danh sách chọn không vượt ngoài các
   showroom thuộc Miền/Vùng/Cửa hàng đang xem. Khi danh sách SA lớn hơn 10, UI
   chuyển sang picker có ô tìm kiếm theo tên, email hoặc mã nhân viên tư vấn.
-- Tài chính đọc `MapVietinTransaction` theo cùng ngày Việt Nam và showroom
-  scope với Bán hàng. Scope cá nhân chỉ tính sao kê có mã đơn thuộc đơn hàng
-  cá nhân; chọn showroom được gán mới tính toàn showroom đó.
+- Tài chính đọc `MapVietinTransaction` theo cùng ngày Việt Nam và scope
+  showroom/node ở header. Dropdown SA không đổi số liệu Tài chính. Scope cá
+  nhân chỉ tính sao kê có mã đơn thuộc đơn hàng cá nhân; chọn showroom được gán
+  mới tính toàn showroom đó.
 - SA, Kỹ thuật, Kho và Thu ngân chỉ được chọn `Phạm vi cá nhân` hoặc từng
   showroom được gán; không được chọn vùng, miền hay toàn hệ thống.
 - Super Admin mặc định xem `Toàn hệ thống`, đồng thời được chọn từng node đang

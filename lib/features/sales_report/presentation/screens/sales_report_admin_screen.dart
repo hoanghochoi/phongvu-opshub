@@ -12,6 +12,8 @@ import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/formatting/money_formatters.dart';
+import '../../../auth/domain/entities/store_branch.dart';
+import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/sales_report.dart';
 import '../providers/sales_report_provider.dart';
@@ -28,6 +30,7 @@ class SalesReportAdminScreen extends StatefulWidget {
 class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
   bool _initialized = false;
   String _reportType = 'ALL';
+  String? _storeCode;
   DateTime? _startDate;
   DateTime? _endDate;
 
@@ -50,6 +53,7 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
       exportType: exportType,
       startDate: _startDate,
       endDate: _endDate,
+      storeIds: _storeCode == null ? const [] : [_storeCode!],
       page: page,
       limit: limit,
     );
@@ -77,9 +81,17 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
     unawaited(_reload());
   }
 
+  void _setStoreCode(String? value) {
+    setState(() => _storeCode = _normalizeStoreCode(value));
+    unawaited(_reload());
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<SalesReportProvider>();
+    final user = context.watch<AuthProvider>().user;
+    final storeOptions = _adminStoreOptionsFor(user);
+    final showStoreFilter = storeOptions.length > 1;
     return AppResponsiveContent(
       maxWidth: AppLayoutTokens.pageMaxWidth,
       child: Column(
@@ -103,46 +115,32 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
                 label: _reportTypeLabel(_reportType),
                 color: AppColors.success,
               ),
+              if (showStoreFilter)
+                AppStatusChip(
+                  label: 'SR: ${_storeFilterLabel(_storeCode, storeOptions)}',
+                  color: AppColors.neutral600,
+                ),
             ],
-            actions: [
-              SizedBox(
-                width: 168,
-                child: _ReportTypeFilter(
-                  value: _reportType,
-                  enabled: !provider.isLoadingAdminList,
-                  onChanged: (value) {
-                    setState(() => _reportType = value);
-                    unawaited(_reload());
-                  },
-                ),
-              ),
-              SizedBox(
-                width: 220,
-                child: AppDateRangeDropdown(
-                  label: 'Ngày',
-                  start: _startDate,
-                  end: _endDate,
-                  onChanged: _setDateRange,
-                  now: () => provider.currentDate,
-                ),
-              ),
-              SizedBox(
-                width: 120,
-                child: AppSecondaryButton(
-                  onPressed: provider.isLoadingAdminList ? null : _reload,
-                  icon: Icons.refresh_rounded,
-                  label: 'Tải lại',
-                  isLoading: provider.isLoadingAdminList,
-                ),
-              ),
-              SizedBox(
-                width: 132,
-                child: SalesReportExportMenuButton(
-                  isExporting: provider.isExporting,
-                  onExport: _export,
-                ),
-              ),
-            ],
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          _SalesReportAdminToolbar(
+            reportType: _reportType,
+            selectedStoreCode: _storeCode,
+            storeOptions: storeOptions,
+            showStoreFilter: showStoreFilter,
+            isLoading: provider.isLoadingAdminList,
+            isExporting: provider.isExporting,
+            startDate: _startDate,
+            endDate: _endDate,
+            now: () => provider.currentDate,
+            onReportTypeChanged: (value) {
+              setState(() => _reportType = value);
+              unawaited(_reload());
+            },
+            onStoreChanged: _setStoreCode,
+            onDateRangeChanged: _setDateRange,
+            onReload: () => _reload(),
+            onExport: _export,
           ),
           const SizedBox(height: AppLayoutTokens.cardGap),
           if (provider.errorMessage != null) ...[
@@ -207,6 +205,159 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
   }
 }
 
+class _SalesReportAdminToolbar extends StatelessWidget {
+  final String reportType;
+  final String? selectedStoreCode;
+  final List<AppFilterOption<String>> storeOptions;
+  final bool showStoreFilter;
+  final bool isLoading;
+  final bool isExporting;
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final DateTime Function() now;
+  final ValueChanged<String> onReportTypeChanged;
+  final ValueChanged<String?> onStoreChanged;
+  final void Function(DateTime? start, DateTime? end) onDateRangeChanged;
+  final Future<void> Function() onReload;
+  final SalesReportExportCallback onExport;
+
+  const _SalesReportAdminToolbar({
+    required this.reportType,
+    required this.selectedStoreCode,
+    required this.storeOptions,
+    required this.showStoreFilter,
+    required this.isLoading,
+    required this.isExporting,
+    required this.startDate,
+    required this.endDate,
+    required this.now,
+    required this.onReportTypeChanged,
+    required this.onStoreChanged,
+    required this.onDateRangeChanged,
+    required this.onReload,
+    required this.onExport,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(12),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact =
+              constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+          final filters = <Widget>[
+            _ToolbarSlot(
+              width: 168,
+              expand: compact,
+              child: _ReportTypeFilter(
+                value: reportType,
+                enabled: !isLoading,
+                onChanged: onReportTypeChanged,
+              ),
+            ),
+            if (showStoreFilter)
+              _ToolbarSlot(
+                width: 180,
+                expand: compact,
+                child: _StoreFilter(
+                  value: selectedStoreCode,
+                  enabled: !isLoading,
+                  options: storeOptions,
+                  onChanged: onStoreChanged,
+                ),
+              ),
+            _ToolbarSlot(
+              width: 220,
+              expand: compact,
+              child: AppDateRangeDropdown(
+                label: 'Ngày',
+                start: startDate,
+                end: endDate,
+                onChanged: onDateRangeChanged,
+                now: now,
+                showEmptyRangeHelperText: false,
+              ),
+            ),
+          ];
+          final actions = [
+            SizedBox(
+              width: compact ? double.infinity : 120,
+              child: AppSecondaryButton(
+                onPressed: isLoading ? null : onReload,
+                icon: Icons.refresh_rounded,
+                label: 'Tải lại',
+                isLoading: isLoading,
+              ),
+            ),
+            SizedBox(
+              width: compact ? double.infinity : 132,
+              child: SalesReportExportMenuButton(
+                isExporting: isExporting,
+                onExport: onExport,
+              ),
+            ),
+          ];
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var index = 0; index < filters.length; index++) ...[
+                  if (index > 0)
+                    const SizedBox(height: AppLayoutTokens.formInlineGap),
+                  filters[index],
+                ],
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                AppActionRow(children: actions),
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Wrap(
+                  spacing: AppLayoutTokens.formInlineGap,
+                  runSpacing: AppLayoutTokens.formInlineGap,
+                  children: filters,
+                ),
+              ),
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  actions.first,
+                  const SizedBox(width: AppLayoutTokens.formInlineGap),
+                  actions.last,
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ToolbarSlot extends StatelessWidget {
+  final double width;
+  final bool expand;
+  final Widget child;
+
+  const _ToolbarSlot({
+    required this.width,
+    required this.expand,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(width: expand ? double.infinity : width, child: child);
+  }
+}
+
 String _reportTypeLabel(String value) {
   return switch (value) {
     'PURCHASED' => 'Mua hàng',
@@ -246,6 +397,83 @@ class _ReportTypeFilter extends StatelessWidget {
       ),
     );
   }
+}
+
+class _StoreFilter extends StatelessWidget {
+  final String? value;
+  final bool enabled;
+  final List<AppFilterOption<String>> options;
+  final ValueChanged<String?> onChanged;
+
+  const _StoreFilter({
+    required this.value,
+    required this.enabled,
+    required this.options,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AbsorbPointer(
+      absorbing: !enabled,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.55,
+        child: AppSearchableFilterDropdown<String>(
+          label: 'SR',
+          value: value,
+          allLabel: 'Tất cả SR',
+          icon: Icons.storefront_outlined,
+          options: options,
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+List<AppFilterOption<String>> _adminStoreOptionsFor(User? user) {
+  final seen = <String>{};
+  final options = <AppFilterOption<String>>[];
+
+  void addStore(String? rawCode, String? rawName) {
+    final storeCode = _normalizeStoreCode(rawCode);
+    if (storeCode == null || seen.contains(storeCode)) return;
+    seen.add(storeCode);
+    final storeName = rawName?.trim() ?? '';
+    options.add(
+      AppFilterOption<String>(
+        value: storeCode,
+        label: storeCode,
+        subtitle: storeName.isEmpty || storeName.toUpperCase() == storeCode
+            ? null
+            : storeName,
+      ),
+    );
+  }
+
+  for (final store in user?.assignedStores ?? const <StoreBranch>[]) {
+    addStore(store.storeId, store.storeName);
+  }
+  addStore(user?.storeId, user?.storeName);
+  options.sort((a, b) => a.value.compareTo(b.value));
+  return options;
+}
+
+String? _normalizeStoreCode(String? value) {
+  final text = value?.trim().toUpperCase();
+  return text == null || text.isEmpty ? null : text;
+}
+
+String _storeFilterLabel(
+  String? selectedStoreCode,
+  List<AppFilterOption<String>> options,
+) {
+  final selected = _normalizeStoreCode(selectedStoreCode);
+  if (selected == null) return 'Tất cả SR';
+  for (final option in options) {
+    if (option.value == selected) return option.label;
+  }
+  return selected;
 }
 
 class _SalesReportAdminTile extends StatelessWidget {

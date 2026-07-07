@@ -186,7 +186,10 @@ class SalesReportProvider extends ChangeNotifier {
     }
   }
 
-  Future<SalesReportOrderCheck?> checkOrder(String orderCode) async {
+  Future<SalesReportOrderCheck?> checkOrder(
+    String orderCode, {
+    String? entrySource,
+  }) async {
     if (_isCheckingOrder) return null;
     _isCheckingOrder = true;
     _errorMessage = null;
@@ -197,7 +200,10 @@ class SalesReportProvider extends ChangeNotifier {
       await AppLogger.instance.info(
         'SalesReport',
         'Sales report order check started',
-        context: {'orderLength': orderCode.trim().length},
+        context: {
+          if (entrySource != null) 'entrySource': entrySource,
+          'orderLength': orderCode.trim().length,
+        },
       );
       final result = await _repository.checkOrder(orderCode);
       _checkedOrder = result;
@@ -207,6 +213,7 @@ class SalesReportProvider extends ChangeNotifier {
         'Sales report order check succeeded',
         context: {
           'orderLength': result.orderCode.length,
+          if (entrySource != null) 'entrySource': entrySource,
           'hasCategory': result.categoryGroup != null,
           'categoryCount': result.categoryGroups.length,
           'itemCount': result.items.length,
@@ -224,6 +231,7 @@ class SalesReportProvider extends ChangeNotifier {
         error: error,
         context: {
           'orderLength': orderCode.trim().length,
+          if (entrySource != null) 'entrySource': entrySource,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
@@ -352,6 +360,8 @@ class SalesReportProvider extends ChangeNotifier {
           'categoryGroupCount': input.categoryGroupIds.length,
           'hasOrder': (input.orderCode ?? '').trim().isNotEmpty,
           'orderLength': (input.orderCode ?? '').trim().length,
+          'orderSuffix': _orderSuffix(input.orderCode),
+          'entrySource': input.entrySource,
           'hasCustomerName': (input.customerName ?? '').trim().isNotEmpty,
           'hasPhone': (input.customerPhone ?? '').trim().isNotEmpty,
           'customerType': input.customerType,
@@ -371,6 +381,9 @@ class SalesReportProvider extends ChangeNotifier {
         'Sales report submit succeeded',
         context: {
           'type': input.reportType,
+          'entrySource': input.entrySource,
+          'orderLength': (input.orderCode ?? '').trim().length,
+          'orderSuffix': _orderSuffix(input.orderCode),
           'categoryGroupId': input.categoryGroupId,
           'categoryGroupCount': input.categoryGroupIds.length,
           'hasCustomerName': (input.customerName ?? '').trim().isNotEmpty,
@@ -392,6 +405,9 @@ class SalesReportProvider extends ChangeNotifier {
         error: error,
         context: {
           'type': input.reportType,
+          'entrySource': input.entrySource,
+          'orderLength': (input.orderCode ?? '').trim().length,
+          'orderSuffix': _orderSuffix(input.orderCode),
           'categoryGroupId': input.categoryGroupId,
           'categoryGroupCount': input.categoryGroupIds.length,
           'hasCustomerName': (input.customerName ?? '').trim().isNotEmpty,
@@ -585,6 +601,8 @@ class SalesReportProvider extends ChangeNotifier {
       'limit': query.limit,
       'hasOrderCode': (query.orderCode ?? '').trim().isNotEmpty,
       'hasCategoryGroup': (query.categoryGroupId ?? '').trim().isNotEmpty,
+      'hasStoreFilter': query.storeIds.isNotEmpty,
+      'storeFilterCount': query.storeIds.length,
       'hasStartDate': query.startDate != null,
       'hasEndDate': query.endDate != null,
       'defaultRecentDateRange': defaultRecentDateRange,
@@ -637,6 +655,12 @@ class SalesReportProvider extends ChangeNotifier {
     final today = currentDate;
     _ordersStartDate = today;
     _ordersEndDate = today;
+  }
+
+  String? _orderSuffix(String? value) {
+    final text = value?.trim();
+    if (text == null || text.isEmpty) return null;
+    return text.length <= 4 ? text : text.substring(text.length - 4);
   }
 
   String? _cleanFilter(String? value) {

@@ -1036,13 +1036,13 @@ void main() {
   });
 
   testWidgets(
-    'Home dashboard reloads personal sales progress for selected SA',
+    'Home dashboard reloads sales KPIs for selected SA but keeps store overview',
     (tester) async {
       final authProvider = _FakeAuthProvider(_managerUser());
       final repository = _FakeHomeSummaryRepository(
-        summary: _managerSalesProgressSummary('sa-1'),
+        summary: _managerSalesProgressSummary('sa-1', includeFinance: true),
         salesProgressUserSummaries: {
-          'sa-2': _managerSalesProgressSummary('sa-2'),
+          'sa-2': _managerSalesProgressSummary('sa-2', includeFinance: true),
         },
         scopeOptions: const [
           HomeSummaryScopeOptionDto(
@@ -1078,10 +1078,29 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('SA Một - CP75'), findsOneWidget);
-
-      await tester.tap(
-        find.byKey(const Key('home-sales-progress-assignee-dropdown')),
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-card-revenue')),
+          matching: find.text('125M VND'),
+        ),
+        findsOneWidget,
       );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-card-totalTransferredAmount')),
+          matching: find.text('98M VND'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Đã đạt: 60M VND'), findsOneWidget);
+      expect(find.text('Chỉ tiêu: 120M VND'), findsOneWidget);
+
+      final assigneeDropdown = find.byKey(
+        const Key('home-sales-progress-assignee-dropdown'),
+      );
+      await tester.ensureVisible(assigneeDropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(assigneeDropdown);
       await tester.pumpAndSettle();
       await tester.tap(find.text('SA Hai - CP75').last);
       await tester.pumpAndSettle();
@@ -1089,6 +1108,29 @@ void main() {
       expect(repository.requestedSalesProgressUserIds, contains('sa-2'));
       expect(summaryProvider.selectedSalesProgressUserId, 'sa-2');
       expect(find.text('SA Hai - CP75'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-card-revenue')),
+          matching: find.text('80M VND'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-card-totalOrders')),
+          matching: find.text('18'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-card-totalTransferredAmount')),
+          matching: find.text('98M VND'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Đã đạt: 60M VND'), findsOneWidget);
+      expect(find.text('Chỉ tiêu: 120M VND'), findsOneWidget);
     },
   );
 
@@ -1242,6 +1284,7 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
 HomeSummary _managerSalesProgressSummary(
   String selectedUserId, {
   List<HomeSalesProgressAssignee>? assignees,
+  bool includeFinance = false,
 }) {
   final resolvedAssignees =
       assignees ??
@@ -1259,6 +1302,7 @@ HomeSummary _managerSalesProgressSummary(
           isSelected: selectedUserId == 'sa-2',
         ),
       ];
+  final isFirstSa = selectedUserId == 'sa-1';
   return HomeSummary(
     date: '2026-07-04',
     available: true,
@@ -1266,12 +1310,27 @@ HomeSummary _managerSalesProgressSummary(
     scopeLabel: 'Showroom: CP75',
     scopeDetail: 'CP75',
     coverageLabel: 'Tỉ lệ báo cáo',
-    totalRevenue: 125000000,
-    totalOrders: 42,
-    totalReports: 38,
-    reportedOrders: 35,
-    unreportedOrders: 7,
-    coverageRate: 83.33,
+    totalRevenue: isFirstSa ? 125000000 : 80000000,
+    totalOrders: isFirstSa ? 42 : 18,
+    totalReports: isFirstSa ? 38 : 15,
+    reportedOrders: isFirstSa ? 35 : 12,
+    notPurchasedReports: isFirstSa ? 3 : 1,
+    unreportedOrders: isFirstSa ? 7 : 6,
+    averageOrderValue: isFirstSa ? 2976190 : 4444444,
+    completedRevenue: isFirstSa ? 100000000 : 70000000,
+    pendingRevenue: isFirstSa ? 25000000 : 10000000,
+    coverageRate: isFirstSa ? 83.33 : 66.67,
+    conversionRate: isFirstSa ? 110.53 : 120,
+    consultedSolutionRate: isFirstSa ? 80 : 60,
+    experiencedRate: isFirstSa ? 75 : 55,
+    zaloRate: isFirstSa ? 50 : 45,
+    appDownloadRate: isFirstSa ? 40 : 35,
+    financeAvailable: includeFinance,
+    totalTransferredAmount: includeFinance ? 98000000 : 0,
+    totalStatements: includeFinance ? 40 : 0,
+    totalStatementsWithOrder: includeFinance ? 32 : 0,
+    totalStatementsWithoutOrder: includeFinance ? 8 : 0,
+    statementOrderRate: includeFinance ? 80 : 0,
     salesProgress: HomeSalesProgress(
       status: 'AVAILABLE',
       scope: 'PERSONAL_SA',

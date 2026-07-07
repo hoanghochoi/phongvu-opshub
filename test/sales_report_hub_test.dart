@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
+import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provider.dart';
 import 'package:phongvu_opshub/features/sales_report/data/sales_report_repository.dart';
@@ -491,6 +492,7 @@ void main() {
 
     expect(repository.createCalled, isTrue);
     expect(repository.lastInput?.customerName, 'Nguyễn Văn A');
+    expect(repository.lastInput?.entrySource, isNull);
     expect(position.pixels, 0);
   });
 
@@ -671,6 +673,59 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Chọn khoảng ngày'), findsOneWidget);
     expect(find.byTooltip('Chọn ngày'), findsNothing);
+  });
+
+  testWidgets('Báo cáo bán hàng admin filters by assigned SR', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'admin-1',
+        email: 'lead@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-area-hcm',
+        assignedStores: [
+          StoreBranch(id: 'store-1', storeId: 'CP01', storeName: 'PV CP01'),
+          StoreBranch(id: 'store-2', storeId: 'CP02', storeName: 'PV CP02'),
+        ],
+        featureAccess: {'ADMIN_SALES_REPORTS': true},
+      ),
+    );
+    final repository = _FakeSalesReportRepository();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(
+              repository,
+              now: () => DateTime(2026, 7, 4, 9),
+            ),
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(body: SalesReportAdminScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.lastListQuery?.storeIds, isEmpty);
+    expect(
+      find.widgetWithText(OutlinedButton, 'SR: Tất cả SR'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'SR: Tất cả SR'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, 'CP02'));
+    await tester.pumpAndSettle();
+
+    expect(repository.fetchListCount, 2);
+    expect(repository.lastListQuery?.storeIds, ['CP02']);
+    expect(find.widgetWithText(OutlinedButton, 'SR: CP02'), findsOneWidget);
   });
 
   testWidgets('Sales report export menu emits selected export type', (

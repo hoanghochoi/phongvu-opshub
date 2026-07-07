@@ -165,12 +165,16 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 
   Future<void> _openReport(String route, String reportType) async {
     final user = context.read<AuthProvider>().user;
+    final entrySource = reportType == _typePurchased
+        ? salesReportEntrySourceManual
+        : null;
     await AppLogger.instance.info(
       'SalesReport',
       'Sales report hub action selected',
       context: {
         'route': route,
         'reportType': reportType,
+        if (entrySource != null) 'entrySource': entrySource,
         'userId': user?.id,
         'storeId': user?.storeId,
       },
@@ -208,6 +212,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       'SalesReport',
       'Sales report order selected from cockpit',
       context: {
+        'entrySource': salesReportEntrySourceSyncList,
         'orderLength': order.orderCode.length,
         'userId': user?.id,
         'storeId': user?.storeId,
@@ -228,6 +233,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
               value: provider,
               child: SalesReportFormScreen.purchased(
                 initialOrderCode: order.orderCode,
+                entrySource: salesReportEntrySourceSyncList,
                 closeOnSuccess: true,
               ),
             ),
@@ -1314,11 +1320,13 @@ class _PaymentBadge extends StatelessWidget {
 class SalesReportFormScreen extends StatefulWidget {
   final String reportType;
   final String? initialOrderCode;
+  final String? entrySource;
   final bool closeOnSuccess;
 
   const SalesReportFormScreen.purchased({
     super.key,
     this.initialOrderCode,
+    this.entrySource = salesReportEntrySourceManual,
     this.closeOnSuccess = false,
   }) : reportType = _typePurchased;
 
@@ -1326,7 +1334,8 @@ class SalesReportFormScreen extends StatefulWidget {
     super.key,
     this.closeOnSuccess = false,
   }) : reportType = _typeNotPurchased,
-       initialOrderCode = null;
+       initialOrderCode = null,
+       entrySource = null;
 
   @override
   State<SalesReportFormScreen> createState() => _SalesReportFormScreenState();
@@ -1490,6 +1499,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     }
     final result = await context.read<SalesReportProvider>().checkOrder(
       orderCode,
+      entrySource: widget.entrySource,
     );
     if (!mounted || result == null) return;
     setState(() {
@@ -1594,6 +1604,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     final input = SalesReportInput(
       reportType: _reportType,
       orderCode: _isPurchased ? _orderController.text : null,
+      entrySource: _isPurchased ? widget.entrySource : null,
       customerName: _nameController.text,
       customerPhone: _phoneController.text,
       categoryGroupId: _primaryCategoryGroupId,

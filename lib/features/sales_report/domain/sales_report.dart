@@ -1,3 +1,6 @@
+const salesReportEntrySourceManual = 'MANUAL_ENTRY';
+const salesReportEntrySourceSyncList = 'SYNC_LIST';
+
 class SalesReportCategoryGroup {
   final String id;
   final String catGroupName;
@@ -311,6 +314,7 @@ class SalesReportFilterOption {
 class SalesReportInput {
   final String reportType;
   final String? orderCode;
+  final String? entrySource;
   final String? customerName;
   final String? customerPhone;
   final String categoryGroupId;
@@ -340,6 +344,7 @@ class SalesReportInput {
   const SalesReportInput({
     required this.reportType,
     required this.orderCode,
+    required this.entrySource,
     required this.customerName,
     required this.customerPhone,
     required this.categoryGroupId,
@@ -376,6 +381,7 @@ class SalesReportInput {
     return {
       'reportType': reportType,
       if (clean(orderCode) != null) 'orderCode': clean(orderCode),
+      if (clean(entrySource) != null) 'entrySource': clean(entrySource),
       if (clean(customerName) != null) 'customerName': clean(customerName),
       if (clean(customerPhone) != null) 'customerPhone': clean(customerPhone),
       'categoryGroupId': categoryGroupId,

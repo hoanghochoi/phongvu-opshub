@@ -14,6 +14,11 @@ import {
 
 export const SALES_REPORT_TYPES = ['PURCHASED', 'NOT_PURCHASED'] as const;
 
+export const SALES_REPORT_ENTRY_SOURCES = [
+  'MANUAL_ENTRY',
+  'SYNC_LIST',
+] as const;
+
 export const SALES_REPORT_EXPORT_TYPES = [
   'HVTC',
   'REVENUE',
@@ -114,6 +119,11 @@ export class CreateSalesReportDto {
   @IsString()
   @MaxLength(80)
   orderCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(SALES_REPORT_ENTRY_SOURCES)
+  entrySource?: string;
 
   @IsOptional()
   @IsString()

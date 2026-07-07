@@ -41,6 +41,7 @@ import {
   ListSalesReportsDto,
   NOT_PURCHASED_REASON_CODES,
   PROMOTION_CODES,
+  SALES_REPORT_ENTRY_SOURCES,
   SALES_REPORT_EXPORT_TYPES,
   SALES_REPORT_TYPES,
   YES_NO_REASON_CODES,
@@ -54,8 +55,8 @@ const EXPORT_TYPE_REVENUE = 'REVENUE';
 const EXPORT_TYPE_INSTALLMENT = 'INSTALLMENT';
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_ORDER_COCKPIT_LIMIT = 20;
-const DEFAULT_ORDER_CACHE_SYNC_LIMIT = 100;
-const MAX_ORDER_CACHE_SYNC_LIMIT = 200;
+const DEFAULT_ORDER_CACHE_SYNC_LIMIT = 50;
+const MAX_ORDER_CACHE_SYNC_LIMIT = 50;
 const ORDER_CACHE_SYNC_INTERVAL_MS = 60 * 1000;
 const SALES_REPORT_ORDERS_UPDATED_CHANNEL = 'SALES_REPORT_ORDERS_UPDATED';
 const MAX_ORDER_CACHE_SYNC_LOOKBACK_DAYS = 7;
@@ -1284,6 +1285,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
       order.lifecycleStatus,
       grandTotal,
     );
+    const storeCode = this.normalizeStoreCode(
+      this.authoritativeStoreCodeForCache(order.sanitizedSnapshot) ??
+        order.storeCode,
+    );
+    const storeName = this.optionalText(order.storeName, 120);
     const cacheData = {
       paymentStatus: this.optionalText(order.paymentStatus, 80),
       confirmationStatus: this.optionalText(order.confirmationStatus, 80),
@@ -1297,6 +1303,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
       fetchedAt: order.fetchedAt,
       sanitizedSnapshot: order.sanitizedSnapshot as Prisma.InputJsonValue,
       ...(grandTotal === null ? {} : { grandTotal }),
+      ...(storeCode ? { storeCode } : {}),
+      ...(storeName ? { storeName } : {}),
       ...(exclusion.excludedAt
         ? {
             excludedAt: exclusion.excludedAt,
@@ -1586,6 +1594,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       reportType === REPORT_TYPE_PURCHASED
         ? this.normalizeOrderCode(body.orderCode)
         : null;
+    const entrySource = this.normalizeEntrySource(reportType, body.entrySource);
     this.validateCreateBody(reportType, orderCode, body);
     const categoryIds = this.normalizeCategoryGroupIds(body);
     const promotionCodes = this.normalizePromotionCodes(body.promotionCodes);
@@ -1612,7 +1621,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const installment = this.normalizeInstallmentSelection(body);
 
     this.logger.log(
-      `Sales report create started: user=${this.safeUserLabel(user)} type=${reportType} primaryCategory=${primaryCategory.id} categoryCount=${categories.length} hasOrder=${Boolean(orderCode)} hasCustomerName=${Boolean(customerName)} customerType=${customerType} hasInstallmentNeed=${installment.need} promotionCount=${promotionCodes.length}`,
+      `Sales report create started: user=${this.safeUserLabel(user)} type=${reportType} entrySource=${entrySource} primaryCategory=${primaryCategory.id} categoryCount=${categories.length} hasOrder=${Boolean(orderCode)} ${this.orderLogPart(orderCode)} hasCustomerName=${Boolean(customerName)} customerType=${customerType} hasInstallmentNeed=${installment.need} promotionCount=${promotionCodes.length}`,
     );
     try {
       if (erpOrder) {
@@ -1678,6 +1687,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
           ...(erpOrder ? this.erpCreateData(erpOrder) : {}),
           rawResponses: {
             reportType,
+            entrySource,
             answerLabels: {
               consultedSolution: this.answerLabel(body.consultedSolutionAnswer),
               experienced: this.answerLabel(body.experiencedAnswer),
@@ -1755,7 +1765,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         },
       });
       this.logger.log(
-        `Sales report create succeeded: id=${report.id} user=${this.safeUserLabel(user)} type=${reportType} durationMs=${Date.now() - startedAt}`,
+        `Sales report create succeeded: id=${report.id} user=${this.safeUserLabel(user)} type=${reportType} entrySource=${entrySource} store=${report.storeCode || 'none'} ${this.orderLogPart(orderCode)} durationMs=${Date.now() - startedAt}`,
       );
       return this.toReportDto(report);
     } catch (error) {
@@ -1766,7 +1776,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         throw new BadRequestException('Đơn hàng này đã được báo cáo mua hàng.');
       }
       this.logger.error(
-        `Sales report create failed: user=${this.safeUserLabel(user)} type=${reportType} durationMs=${Date.now() - startedAt} error=${String(error)}`,
+        `Sales report create failed: user=${this.safeUserLabel(user)} type=${reportType} entrySource=${entrySource} ${this.orderLogPart(orderCode)} durationMs=${Date.now() - startedAt} error=${String(error)}`,
       );
       throw error;
     }
@@ -1995,6 +2005,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
           where: { orderCode: { in: orderCodes } },
           select: {
             orderCode: true,
+            sanitizedSnapshot: true,
             paymentStatus: true,
             confirmationStatus: true,
             fulfillmentStatus: true,
@@ -2063,10 +2074,15 @@ export class SalesReportsService implements OnApplicationBootstrap {
         );
       const isNew = orderCode ? !existingCodes.has(orderCode) : false;
       if (owner) ownerMappedCount += 1;
-      if (order.storeCode || owner?.storeCode) storeMappedCount += 1;
       const mappedStoreCode = this.normalizeStoreCode(
-        order.storeCode ?? owner?.storeCode,
+        this.authoritativeStoreCodeForCache(
+          order.sanitizedSnapshot,
+          existingRow?.sanitizedSnapshot,
+        ) ??
+          order.storeCode ??
+          owner?.storeCode,
       );
+      if (mappedStoreCode) storeMappedCount += 1;
       const mappedStore = mappedStoreCode
         ? storeByCode.get(mappedStoreCode)
         : null;
@@ -2315,7 +2331,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
       sellerId: null,
       sellerName: null,
       sellerEmail: null,
-      storeCode: context.storeCode,
+      storeCode:
+        this.authoritativeStoreCodeForCache(erpOrder.sanitizedSnapshot) ??
+        context.storeCode,
       storeName: context.storeName,
       sanitizedSnapshot: erpOrder.sanitizedSnapshot,
       fetchedAt: erpOrder.fetchedAt,
@@ -2383,8 +2401,15 @@ export class SalesReportsService implements OnApplicationBootstrap {
         : 0;
     const grandTotal = this.numberValue(order.grandTotal);
     const exclusion = this.orderExclusionState(lifecycleStatus, grandTotal);
+    const sourceOfTruthStoreCode = this.authoritativeStoreCodeForCache(
+      order.sanitizedSnapshot,
+      options.existingCacheRow?.sanitizedSnapshot,
+    );
     const storeCode = this.normalizeStoreCode(
-      order.storeCode ?? syncOwner?.storeCode ?? context.storeCode,
+      sourceOfTruthStoreCode ??
+        order.storeCode ??
+        syncOwner?.storeCode ??
+        context.storeCode,
     );
     const store = storeCode ? storeByCode.get(storeCode) : null;
     const data = {
@@ -4374,6 +4399,24 @@ export class SalesReportsService implements OnApplicationBootstrap {
       .replace(/\s+/g, '');
   }
 
+  private normalizeEntrySource(reportType: string, value: unknown) {
+    if (reportType !== REPORT_TYPE_PURCHASED) return 'NOT_APPLICABLE';
+    const normalized = String(value || '')
+      .trim()
+      .toUpperCase();
+    if (!normalized) return 'UNKNOWN';
+    if (SALES_REPORT_ENTRY_SOURCES.includes(normalized as any)) {
+      return normalized;
+    }
+    throw new BadRequestException('Nguồn gửi báo cáo không hợp lệ.');
+  }
+
+  private orderLogPart(orderCode: string | null) {
+    const normalized = this.normalizeOrderCode(orderCode);
+    if (!normalized) return 'orderLength=0 orderSuffix=none';
+    return `orderLength=${normalized.length} orderSuffix=${normalized.slice(-4)}`;
+  }
+
   private normalizeEnum<T extends readonly string[]>(
     value: unknown,
     allowed: T,
@@ -4441,6 +4484,31 @@ export class SalesReportsService implements OnApplicationBootstrap {
     if (match) return match[0];
     const cleaned = text.replace(/[^A-Z0-9_]/g, '');
     return cleaned ? cleaned.slice(0, 40) : null;
+  }
+
+  private authoritativeStoreCodeForCache(
+    snapshot: unknown,
+    existingSnapshot?: unknown,
+  ) {
+    return (
+      this.storeCodeFromCreatedFromSiteDisplayName(snapshot) ??
+      this.storeCodeFromCreatedFromSiteDisplayName(existingSnapshot)
+    );
+  }
+
+  private storeCodeFromCreatedFromSiteDisplayName(snapshot: unknown) {
+    const value =
+      snapshot && typeof snapshot === 'object'
+        ? (snapshot as Record<string, unknown>).createdFromSiteDisplayName
+        : null;
+    const text = String(value || '')
+      .trim()
+      .toUpperCase();
+    if (!text) return null;
+    const bracketMatch = text.match(/^\[([^\]]+)\]/);
+    if (bracketMatch) return this.normalizeStoreCode(bracketMatch[1]);
+    const leadingMatch = text.match(/^([A-Z]{2,3}\d{1,4})(?=$|[^A-Z0-9])/);
+    return leadingMatch ? this.normalizeStoreCode(leadingMatch[1]) : null;
   }
 
   private storeCodeWhere(storeCodes: string[]) {

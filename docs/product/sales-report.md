@@ -14,7 +14,10 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   nó hiển thị dashboard tổng quan theo scope lấy dữ liệu từ fact tables riêng
   của Home Summary. Dashboard tách hai khu vực dùng chung bộ chọn ngày và
   scope; khi mở `Trang chủ`, khoảng ngày mặc định là hôm nay và user đổi
-  thủ công nếu cần xem ngày/khoảng khác. Khu vực `Bán hàng` chia thành nhóm
+  thủ công nếu cần xem ngày/khoảng khác. Riêng khi tài khoản quản lý chọn SA
+  trong `Tổng quan cá nhân`, các KPI `Bán hàng` và `Hành vi then chốt` dùng
+  scope cá nhân của SA đó; `Tổng quan Cửa hàng` và `Tài chính` vẫn giữ theo
+  showroom/node đang chọn ở header. Khu vực `Bán hàng` chia thành nhóm
   `Doanh số` và `Hành vi then chốt`. Nhóm `Doanh số` hiển thị doanh số tổng
   từ cache đơn hàng sau khi loại đơn 0 VND, đơn hủy/trả toàn bộ và trừ giá trị
   trả một phần, số đơn bán, trung bình đơn hàng, doanh số hoàn thành, pending và
@@ -51,13 +54,17 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   định chọn ngày hiện tại và request đầu tiên gửi cùng ngày bắt đầu/kết thúc,
   đồng bộ với Trang chủ. Bộ lọc `SR`/`Nhân viên` chỉ hiện với scope quản lý,
   lấy option từ cache/report trong phạm vi user được phép xem.
-- Backend tự đồng bộ danh sách đơn từ staff-bff ERP mỗi 3 phút và khi service
-  khởi động, map `creator.email` sang user nội bộ cùng showroom/node tổ chức
-  được gán, rồi upsert snapshot rút gọn vào bảng cache riêng. Mapping này diễn
-  ra ngay trong sync nền, không phụ thuộc sale bấm kiểm tra đơn; lần sync thiếu
-  dữ liệu cũng không được xóa mapping user/showroom đã lưu. Nếu cache cũ đã có
-  user nhưng thiếu showroom/node, lần sync sau sẽ bổ sung lại showroom/node từ
-  user nội bộ rồi phát sự kiện realtime. Flutter không kích hoạt ERP sync;
+- Backend tự đồng bộ danh sách đơn từ staff-bff ERP mỗi 1 phút và khi service
+  khởi động, mặc định lấy 50 đơn/ngày gần nhất theo giới hạn hiện tại của ERP list. `createdFromSiteDisplayName`
+  trong payload ERP dạng `[CP58] ...` là nguồn showroom ưu tiên để ghi
+  `storeCode` ngay trong lần sync/list hoặc lookup đầu tiên; các sync phía sau
+  không được ghi đè showroom này bằng context user/owner yếu hơn. Backend vẫn
+  map `creator.email` sang user nội bộ cùng showroom/node tổ chức được gán, rồi
+  upsert snapshot rút gọn vào bảng cache riêng. Mapping này diễn ra ngay trong
+  sync nền, không phụ thuộc sale bấm kiểm tra đơn; lần sync thiếu dữ liệu cũng
+  không được xóa mapping user/showroom đã lưu. Nếu cache cũ đã có user nhưng
+  thiếu showroom/node, lần sync sau sẽ bổ sung lại showroom/node từ user nội bộ
+  rồi phát sự kiện realtime. Flutter không kích hoạt ERP sync;
   client đọc dữ liệu từ cache DB khi mở màn hình hoặc bấm `Tải lại`, và tự
   refresh qua WebSocket khi backend báo có đơn mới hoặc mapping cache vừa được
   bổ sung trong scope liên quan.
@@ -67,6 +74,11 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Nếu sale dùng `Báo cáo mua thủ công` và nhập trùng `orderCode` đang nằm trong
   cache cockpit hiện tại, backend vẫn match theo mã đơn để chuyển đơn đó sang đã
   báo cáo, không phụ thuộc metadata ngày/showroom của report thủ công.
+- Khi gửi báo cáo mua hàng, app gửi metadata nguồn thao tác: `MANUAL_ENTRY` cho
+  nút `Báo cáo mua thủ công`, `SYNC_LIST` cho đơn mở từ danh sách cockpit đã
+  sync. Backend log source này cùng report id, showroom và định danh mã đơn đã
+  sanitize, đồng thời lưu vào `rawResponses.entrySource` để truy vết sau này mà
+  không cần suy luận bằng timestamp cache.
 - Đơn ERP có `grandTotal <= 0` là đơn vận hành nội bộ, không cần sale báo cáo.
   Backend gắn exclusion bền vững cho cache/report cùng mã đơn, cockpit không
   trả các đơn này ở cột chưa báo cáo hoặc đã báo cáo, và các KPI báo cáo/doanh
@@ -74,12 +86,14 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Menu `Quản trị` hiển thị `Danh sách báo cáo bán hàng` khi user có
   `ADMIN_SALES_REPORTS`; đây là nơi duy nhất lọc danh sách và xuất file.
 - Màn hình danh sách báo cáo bán hàng của admin lọc danh sách và file Excel
-  `.xlsx` theo loại báo cáo và khoảng `Từ ngày` / `Đến ngày` dựa trên thời điểm
-  gửi báo cáo (`submittedAt`). Khi mở màn hình, bộ lọc ngày mặc định là ngày
-  hiện tại giống Trang chủ/cockpit. Người dùng chọn `Chọn khoảng ngày` để chọn
-  cả hai mốc trong một range picker rồi áp dụng một lần; nếu chủ động chọn
-  `Tất cả ngày`, app vẫn mặc định truy vấn/xuất 30 ngày gần nhất và hiện dòng
-  nhắc nhỏ để tránh hiểu nhầm.
+  `.xlsx` theo loại báo cáo, SR và khoảng `Từ ngày` / `Đến ngày` dựa trên thời
+  điểm gửi báo cáo (`submittedAt`). Khi user được gán nhiều SR, bộ lọc `SR` cho
+  chọn từng showroom hoặc `Tất cả SR`; trạng thái `Tất cả SR` gửi query trong
+  phạm vi được gán, còn chọn một SR thì gửi `storeIds` tương ứng. Khi mở màn
+  hình, bộ lọc ngày mặc định là ngày hiện tại giống Trang chủ/cockpit. Người
+  dùng chọn `Chọn khoảng ngày` để chọn cả hai mốc trong một range picker rồi áp
+  dụng một lần; nếu chủ động chọn `Tất cả ngày`, app vẫn mặc định truy vấn/xuất
+  30 ngày gần nhất và hiện dòng nhắc nhỏ để tránh hiểu nhầm.
   Admin xuất được 3 file Excel `.xlsx` tiếng Việt: `HVTC` là mỗi dòng một báo
   cáo mua/chưa mua; `Doanh số` là một dòng tổng hợp doanh thu, nhu cầu trả góp,
   trả góp thành công và số lượng theo type ngành hàng;
@@ -102,7 +116,7 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   tiếng Việt; đơn trả một phần giữ report và trừ
   `returnedQuantity × unitAfterTaxPrice` của request đã hoàn tất.
 - Job danh sách đơn ERP chạy mỗi 1 phút và khi service khởi động, mặc định lấy
-  100 đơn/ngày gần nhất (có thể cấu hình tối đa 200). List sync chỉ cập nhật
+  50 đơn/ngày gần nhất (đây cũng là giới hạn cấu hình tối đa theo ERP list hiện tại). List sync chỉ cập nhật
   snapshot nhanh; đơn `PENDING` từ list không được tự coi là đã xác minh trạng
   thái chi tiết.
 - Job trạng thái chạy mỗi 20 phút, mặc định tối đa 80 đơn/lượt với concurrency
@@ -119,7 +133,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   khi có trả một phần. Riêng tiến độ chỉ tiêu dùng giá trị trước VAT theo công thức
   `round(max(grandTotal - returnedAfterTaxAmount, 0) / 1.08)`. Home hiển thị
   hai card tiến độ: `Tổng quan cá nhân` cho user/SA đang chọn và
-  `Tổng quan Miền/Vùng/Cửa hàng` cho toàn bộ scope quản lý hiện tại. Store
+  `Tổng quan Miền/Vùng/Cửa hàng` cho toàn bộ scope quản lý hiện tại. Card
+  `Tổng quan Cửa hàng` luôn giữ scope showroom/node, giống nhau cho các user
+  trong cùng SR và không đổi khi dropdown SA thay đổi. Store
   manager/tài khoản quản lý theo node chỉ được chọn SA thuộc scope đang xem để
   xem card cá nhân; nếu danh sách SA lớn hơn 10, picker có ô tìm kiếm theo tên,
   email hoặc mã nhân viên tư vấn. Menu `Quản trị` có `Quản lý doanh số` theo
@@ -136,7 +152,7 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   khi gửi báo cáo.
   Tên nhóm gốc ngắn như `PC` chỉ được match khi ERP/Listing trả đúng giá trị
   đó, không được match substring trong tên sản phẩm/dịch vụ như `... PC miễn
-  phí`.
+phí`.
 - Nhu cầu khách hàng và các câu hỏi hành vi tư vấn/trải nghiệm/Zalo/App đều là
   trường bắt buộc. `Tên khách hàng` là trường bắt buộc trên cả 2 báo cáo; với
   báo cáo mua hàng app tự điền nếu ERP trả về tên khách, sale vẫn có thể nhập
@@ -257,7 +273,7 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   số lượng, user/SR liên quan để client tự lọc và gọi lại API scoped, không đẩy
   chi tiết đơn hàng qua websocket.
 - `SalesReportCategoryGroup` đồng bộ từ `data/categories.csv`, dùng `Cat group
-  ID` làm code, `Cat group name` làm tên gốc và `catGroupNameVi` làm nhãn tiếng
+ID` làm code, `Cat group name` làm tên gốc và `catGroupNameVi` làm nhãn tiếng
   Việt.
 - Snapshot report lưu cả code, tên gốc và tên Việt để dữ liệu lịch sử không bị
   lệch nếu file category source đổi sau này.

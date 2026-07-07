@@ -63,9 +63,11 @@ a customer to scan and pay manually.
 
 ## Payment Monitor
 
-- Khu vực `Tài chính` trên dashboard Home dùng cùng ngày và scope với khu vực
-  `Bán hàng`; khi mở `Trang chủ`, khoảng ngày mặc định là hôm nay rồi user đổi
-  thủ công nếu cần. Khu vực này tổng hợp trực tiếp từ `MapVietinTransaction`:
+- Khu vực `Tài chính` trên dashboard Home dùng ngày và scope đang chọn ở
+  header; khi mở `Trang chủ`, khoảng ngày mặc định là hôm nay rồi user đổi thủ
+  công nếu cần. Dropdown SA trong `Tổng quan cá nhân` chỉ đổi KPI Bán hàng/Hành
+  vi, không đổi số liệu Tài chính. Khu vực này tổng hợp trực tiếp từ
+  `MapVietinTransaction`:
   tổng số tiền chuyển
   khoản, tổng số sao kê, tổng sao kê có/chưa có đơn hàng và
   `Tỉ lệ sao kê có đơn hàng = sao kê có đơn / tổng sao kê`. Scope toàn hệ thống

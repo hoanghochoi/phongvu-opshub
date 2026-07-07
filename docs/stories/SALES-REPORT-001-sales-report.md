@@ -20,14 +20,17 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   trong scope quản lý. Khi mở màn hình, daterange mặc định là ngày hiện tại
   giống Trang chủ và request đầu tiên gửi ngày bắt đầu/kết thúc cùng ngày đó.
 - Backend tự đồng bộ danh sách đơn ERP từ staff-bff theo ngày mỗi 1 phút và khi
-  service khởi động, mặc định 100 đơn/ngày gần nhất (có thể cấu hình tối đa
-  200), rồi upsert snapshot rút gọn vào bảng cache riêng. Ngay trong lần sync,
-  backend map `creator.email` sang user nội bộ và showroom/node được gán;
-  payload sync thiếu dữ liệu không được xóa mapping đã lưu. Cache cũ đã có user
-  nhưng thiếu showroom/node sẽ được backfill lại từ user nội bộ trong lần sync
-  sau. Flutter không kích hoạt ERP sync; client đọc cache DB khi mở màn hình
-  hoặc bấm `Tải lại`, và refresh realtime qua WebSocket khi backend báo có đơn
-  mới hoặc mapping vừa được bổ sung trong scope liên quan.
+  service khởi động, mặc định 50 đơn/ngày gần nhất (giới hạn cấu hình tối đa
+  cũng là 50 theo contract hiện tại của ERP list), rồi upsert snapshot rút gọn vào bảng cache riêng. Ngay trong
+  lần sync/list hoặc lookup đầu tiên, backend phải lấy showroom từ
+  `createdFromSiteDisplayName` của ERP dạng `[CP58] ...` để ghi `storeCode`;
+  các sync phía sau không được ghi đè showroom này bằng context user/owner yếu
+  hơn. Backend vẫn map `creator.email` sang user nội bộ và showroom/node được
+  gán; payload sync thiếu dữ liệu không được xóa mapping đã lưu. Cache cũ đã có
+  user nhưng thiếu showroom/node sẽ được backfill lại từ user nội bộ trong lần
+  sync sau. Flutter không kích hoạt ERP sync; client đọc cache DB khi mở màn
+  hình hoặc bấm `Tải lại`, và refresh realtime qua WebSocket khi backend báo có
+  đơn mới hoặc mapping vừa được bổ sung trong scope liên quan.
 - User thường chỉ thấy đơn/report của mình theo
   `data.orders.creator.email`, fallback về consultant/seller/source-user
   snapshot nếu ERP không trả creator. STORE_MANAGER hoặc chức danh quản lý theo
@@ -100,7 +103,9 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   `Đối tác trả góp`, `Kết quả duyệt hồ sơ`, `Loại báo cáo`,
   `Phương thức thanh toán cuối cùng`, `Lý do không trả góp`.
 - Admin có `ADMIN_SALES_REPORTS` theo node tổ chức xem/query/export báo cáo
-  trong phạm vi được gán; Super Admin thấy toàn app.
+  trong phạm vi được gán; Super Admin thấy toàn app. Nếu admin được gán nhiều
+  SR, danh sách quản trị có bộ lọc `SR` để xem từng showroom hoặc `Tất cả SR`;
+  filter list và export dùng cùng `storeIds`.
 - OpsHub sync dữ liệu báo cáo sang BigQuery bằng bốn bảng
   report/revenue-by-store/item/payment để Looker Studio đọc từ BigQuery. Bảng
   doanh số BigQuery có một row cho mỗi cửa hàng/showroom, không sync một dòng

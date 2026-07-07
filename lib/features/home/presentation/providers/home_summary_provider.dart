@@ -350,7 +350,7 @@ class HomeSummaryProvider extends ChangeNotifier {
 
     await AppLogger.instance.info(
       'HomeSummary',
-      'Home summary sales progress assignee changed',
+      'Home summary sales KPI assignee changed',
       context: {
         'userId': _user?.id,
         'previousSalesProgressUserId': previousUserId,
@@ -358,6 +358,8 @@ class HomeSummaryProvider extends ChangeNotifier {
         'scopeFilter': _selectedScope,
         'requestScope': _requestScopeForSelectedScope,
         'organizationNodeId': _organizationNodeIdForSelectedScope,
+        'affectsSalesKpis': true,
+        'financeKeepsScopeFilter': true,
       },
     );
     await loadSummary(reason: 'sales_progress_assignee_change');
