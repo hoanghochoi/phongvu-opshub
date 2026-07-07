@@ -2,7 +2,16 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../core/logging/app_logger.dart';
 import '../theme/app_radius.dart';
+
+typedef AppRefreshLogContextBuilder = Map<String, Object?> Function();
+
+class AppRefreshCallbacks {
+  AppRefreshCallbacks._();
+
+  static Future<void> noop() async {}
+}
 
 class AppLayoutTokens {
   AppLayoutTokens._();
@@ -71,6 +80,11 @@ class AppResponsiveContent extends StatelessWidget {
   final double maxWidth;
   final EdgeInsets? padding;
   final Alignment alignment;
+  final RefreshCallback? onRefresh;
+  final Key? refreshIndicatorKey;
+  final String? refreshLogSource;
+  final AppRefreshLogContextBuilder? refreshLogContext;
+  final ScrollNotificationPredicate? refreshNotificationPredicate;
 
   const AppResponsiveContent({
     super.key,
@@ -78,6 +92,11 @@ class AppResponsiveContent extends StatelessWidget {
     this.maxWidth = AppLayoutTokens.contentMaxWidth,
     this.padding,
     this.alignment = Alignment.topCenter,
+    this.onRefresh,
+    this.refreshIndicatorKey,
+    this.refreshLogSource,
+    this.refreshLogContext,
+    this.refreshNotificationPredicate,
   });
 
   @override
@@ -92,7 +111,7 @@ class AppResponsiveContent extends StatelessWidget {
         final effectivePadding =
             padding ?? AppLayoutTokens.pagePaddingFor(availableWidth);
         final effectiveMaxWidth = math.min(maxWidth, availableWidth);
-        return Align(
+        final content = Align(
           alignment: alignment,
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: effectiveMaxWidth),
@@ -101,6 +120,14 @@ class AppResponsiveContent extends StatelessWidget {
               child: Padding(padding: effectivePadding, child: child),
             ),
           ),
+        );
+        return _AppRefreshWrapper(
+          refreshIndicatorKey: refreshIndicatorKey,
+          onRefresh: onRefresh,
+          logSource: refreshLogSource,
+          logContext: refreshLogContext,
+          notificationPredicate: refreshNotificationPredicate,
+          child: content,
         );
       },
     );
@@ -112,7 +139,13 @@ class AppResponsiveScrollView extends StatelessWidget {
   final double maxWidth;
   final EdgeInsets? padding;
   final ScrollController? controller;
+  final ScrollPhysics? physics;
   final ScrollViewKeyboardDismissBehavior keyboardDismissBehavior;
+  final RefreshCallback? onRefresh;
+  final Key? refreshIndicatorKey;
+  final String? refreshLogSource;
+  final AppRefreshLogContextBuilder? refreshLogContext;
+  final ScrollNotificationPredicate? refreshNotificationPredicate;
 
   const AppResponsiveScrollView({
     super.key,
@@ -120,7 +153,13 @@ class AppResponsiveScrollView extends StatelessWidget {
     this.maxWidth = AppLayoutTokens.contentMaxWidth,
     this.padding,
     this.controller,
+    this.physics,
     this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
+    this.onRefresh,
+    this.refreshIndicatorKey,
+    this.refreshLogSource,
+    this.refreshLogContext,
+    this.refreshNotificationPredicate,
   });
 
   @override
@@ -135,8 +174,11 @@ class AppResponsiveScrollView extends StatelessWidget {
         final effectivePadding =
             padding ?? AppLayoutTokens.pagePaddingFor(availableWidth);
         final effectiveMaxWidth = math.min(maxWidth, availableWidth);
-        return SingleChildScrollView(
+        final scrollView = SingleChildScrollView(
           controller: controller,
+          physics: onRefresh == null
+              ? physics
+              : _alwaysScrollablePhysics(physics),
           keyboardDismissBehavior: keyboardDismissBehavior,
           padding: effectivePadding,
           child: Center(
@@ -146,8 +188,102 @@ class AppResponsiveScrollView extends StatelessWidget {
             ),
           ),
         );
+        return _AppRefreshWrapper(
+          refreshIndicatorKey: refreshIndicatorKey,
+          onRefresh: onRefresh,
+          logSource: refreshLogSource,
+          logContext: refreshLogContext,
+          notificationPredicate: refreshNotificationPredicate,
+          child: scrollView,
+        );
       },
     );
+  }
+}
+
+ScrollPhysics _alwaysScrollablePhysics(ScrollPhysics? physics) {
+  if (physics == null) return const AlwaysScrollableScrollPhysics();
+  return AlwaysScrollableScrollPhysics(parent: physics);
+}
+
+class _AppRefreshWrapper extends StatelessWidget {
+  final Widget child;
+  final RefreshCallback? onRefresh;
+  final Key? refreshIndicatorKey;
+  final String? logSource;
+  final AppRefreshLogContextBuilder? logContext;
+  final ScrollNotificationPredicate? notificationPredicate;
+
+  const _AppRefreshWrapper({
+    required this.child,
+    required this.onRefresh,
+    required this.refreshIndicatorKey,
+    required this.logSource,
+    required this.logContext,
+    required this.notificationPredicate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final refresh = onRefresh;
+    if (refresh == null) return child;
+    return RefreshIndicator(
+      key: refreshIndicatorKey,
+      onRefresh: () => _runRefresh(refresh),
+      notificationPredicate: notificationPredicate ?? _verticalRefreshOnly,
+      child: child,
+    );
+  }
+
+  bool _verticalRefreshOnly(ScrollNotification notification) {
+    return notification.metrics.axis == Axis.vertical;
+  }
+
+  Future<void> _runRefresh(RefreshCallback refresh) async {
+    final source = logSource;
+    final startedAt = DateTime.now();
+    if (source != null) {
+      await AppLogger.instance.info(
+        source,
+        'Pull refresh started',
+        context: _safeLogContext(),
+      );
+    }
+    try {
+      await refresh();
+      if (source != null) {
+        await AppLogger.instance.info(
+          source,
+          'Pull refresh succeeded',
+          context: {
+            ...?_safeLogContext(),
+            'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+          },
+        );
+      }
+    } catch (error, stackTrace) {
+      if (source != null) {
+        await AppLogger.instance.error(
+          source,
+          'Pull refresh failed',
+          error: error,
+          stackTrace: stackTrace,
+          context: {
+            ...?_safeLogContext(),
+            'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+          },
+        );
+      }
+      rethrow;
+    }
+  }
+
+  Map<String, Object?>? _safeLogContext() {
+    try {
+      return logContext?.call();
+    } catch (error) {
+      return {'logContextError': error.toString()};
+    }
   }
 }
 

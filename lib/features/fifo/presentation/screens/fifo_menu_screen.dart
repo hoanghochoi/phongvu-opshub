@@ -94,6 +94,15 @@ class _FifoMenuScreenState extends State<FifoMenuScreen> {
     );
 
     return AppResponsiveScrollView(
+      onRefresh: context.read<AuthProvider>().refreshUserData,
+      refreshLogSource: 'FIFO',
+      refreshLogContext: () => {
+        'visibleActions': actions.length,
+        'hiddenActions': hiddenCount,
+        'canUseFifo': canUseFifo,
+        'canImportInventory': canImportInventory,
+        'canViewHistory': canViewHistory,
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

@@ -213,6 +213,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('home-summary-page')), findsOneWidget);
+      expect(
+        find.byKey(const Key('home-summary-pull-refresh')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('home-summary-header')), findsOneWidget);
       expect(find.byKey(const Key('home-summary-toolbar')), findsNothing);
       expect(find.byKey(const Key('home-summary-grid')), findsOneWidget);
@@ -515,7 +519,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final summary = _managerSalesProgressSummary('sa-1');
+    final summary = _managerSalesProgressSummary('sa-1', includeFinance: true);
     final summaryProvider = HomeSummaryProvider(
       _FakeHomeSummaryRepository(summary: summary),
     );
@@ -536,15 +540,30 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(
-      tester.getSize(find.byKey(const Key('home-sales-progress-panel'))).width,
-      greaterThanOrEqualTo(420),
+    final reportPanel = find.byKey(const Key('home-report-progress-panel'));
+    final statementPanel = find.byKey(
+      const Key('home-statement-progress-panel'),
     );
+    final personalPanel = find.byKey(const Key('home-sales-progress-panel'));
+    final scopePanel = find.byKey(const Key('home-scope-sales-progress-panel'));
+    final reportTopLeft = tester.getTopLeft(reportPanel);
+    final statementTopLeft = tester.getTopLeft(statementPanel);
+    final personalTopLeft = tester.getTopLeft(personalPanel);
+    final scopeTopLeft = tester.getTopLeft(scopePanel);
+    expect(statementTopLeft.dy, reportTopLeft.dy);
+    expect(personalTopLeft.dy, reportTopLeft.dy);
+    expect(scopeTopLeft.dy, reportTopLeft.dy);
+    expect(reportTopLeft.dx, lessThan(statementTopLeft.dx));
+    expect(statementTopLeft.dx, lessThan(personalTopLeft.dx));
+    expect(personalTopLeft.dx, lessThan(scopeTopLeft.dx));
+    final combinedSmallWidth =
+        tester.getSize(reportPanel).width +
+        tester.getSize(statementPanel).width +
+        16;
+    expect(combinedSmallWidth, closeTo(tester.getSize(personalPanel).width, 1));
     expect(
-      tester
-          .getSize(find.byKey(const Key('home-scope-sales-progress-panel')))
-          .width,
-      greaterThanOrEqualTo(420),
+      tester.getSize(personalPanel).width,
+      closeTo(tester.getSize(scopePanel).width, 1),
     );
     final scopeMonthActual = tester.widget<Text>(
       find.byKey(const Key('home-scope-sales-progress-month-actual-label')),
@@ -1040,7 +1059,7 @@ void main() {
     (tester) async {
       final authProvider = _FakeAuthProvider(_managerUser());
       final repository = _FakeHomeSummaryRepository(
-        summary: _managerSalesProgressSummary('sa-1', includeFinance: true),
+        summary: _managerSalesProgressSummary(null, includeFinance: true),
         salesProgressUserSummaries: {
           'sa-2': _managerSalesProgressSummary('sa-2', includeFinance: true),
         },
@@ -1077,11 +1096,14 @@ void main() {
         find.byKey(const Key('home-sales-progress-assignee-dropdown')),
         findsOneWidget,
       );
-      expect(find.text('SA Một - CP75'), findsOneWidget);
+      expect(summaryProvider.selectedSalesProgressUserId, isNull);
+      expect(repository.requestedSalesProgressUserIds, contains(null));
+      expect(find.text('Chưa chọn SA'), findsOneWidget);
+      expect(find.text('Chọn SA để hiển thị chỉ số'), findsOneWidget);
       expect(
         find.descendant(
           of: find.byKey(const Key('home-summary-card-revenue')),
-          matching: find.text('125M VND'),
+          matching: find.text('171M VND'),
         ),
         findsOneWidget,
       );
@@ -1139,7 +1161,7 @@ void main() {
   ) async {
     final authProvider = _FakeAuthProvider(_managerUser());
     final repository = _FakeHomeSummaryRepository(
-      summary: _managerLongSalesProgressSummary('sa-01'),
+      summary: _managerLongSalesProgressSummary(null),
       salesProgressUserSummaries: {
         'sa-12': _managerLongSalesProgressSummary('sa-12'),
       },
@@ -1172,6 +1194,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Chưa chọn SA'), findsOneWidget);
     await tester.tap(
       find.byKey(const Key('home-sales-progress-assignee-dropdown')),
     );
@@ -1282,7 +1305,7 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
 }
 
 HomeSummary _managerSalesProgressSummary(
-  String selectedUserId, {
+  String? selectedUserId, {
   List<HomeSalesProgressAssignee>? assignees,
   bool includeFinance = false,
 }) {
@@ -1302,7 +1325,35 @@ HomeSummary _managerSalesProgressSummary(
           isSelected: selectedUserId == 'sa-2',
         ),
       ];
+  final isUnselected = selectedUserId == null;
   final isFirstSa = selectedUserId == 'sa-1';
+  final personalProgress = isUnselected
+      ? const HomeSalesProgress.notApplicable()
+      : HomeSalesProgress(
+          status: 'AVAILABLE',
+          scope: 'PERSONAL_SA',
+          missingStoreCodes: const [],
+          day: const HomeSalesProgressPeriod(
+            actual: 1000000,
+            target: 2000000,
+            percentage: 50,
+          ),
+          range: HomeSalesProgressPeriod(
+            actual: selectedUserId == 'sa-1' ? 1000000 : 2000000,
+            target: 2000000,
+            percentage: selectedUserId == 'sa-1' ? 50 : 100,
+          ),
+          week: const HomeSalesProgressPeriod(
+            actual: 5000000,
+            target: 10000000,
+            percentage: 50,
+          ),
+          month: const HomeSalesProgressPeriod(
+            actual: 20000000,
+            target: 40000000,
+            percentage: 50,
+          ),
+        );
   return HomeSummary(
     date: '2026-07-04',
     available: true,
@@ -1310,52 +1361,31 @@ HomeSummary _managerSalesProgressSummary(
     scopeLabel: 'Showroom: CP75',
     scopeDetail: 'CP75',
     coverageLabel: 'Tỉ lệ báo cáo',
-    totalRevenue: isFirstSa ? 125000000 : 80000000,
-    totalOrders: isFirstSa ? 42 : 18,
-    totalReports: isFirstSa ? 38 : 15,
-    reportedOrders: isFirstSa ? 35 : 12,
-    notPurchasedReports: isFirstSa ? 3 : 1,
-    unreportedOrders: isFirstSa ? 7 : 6,
-    averageOrderValue: isFirstSa ? 2976190 : 4444444,
-    completedRevenue: isFirstSa ? 100000000 : 70000000,
-    pendingRevenue: isFirstSa ? 25000000 : 10000000,
-    coverageRate: isFirstSa ? 83.33 : 66.67,
-    conversionRate: isFirstSa ? 110.53 : 120,
-    consultedSolutionRate: isFirstSa ? 80 : 60,
-    experiencedRate: isFirstSa ? 75 : 55,
-    zaloRate: isFirstSa ? 50 : 45,
-    appDownloadRate: isFirstSa ? 40 : 35,
+    totalRevenue: isUnselected ? 171000000 : (isFirstSa ? 125000000 : 80000000),
+    totalOrders: isUnselected ? 60 : (isFirstSa ? 42 : 18),
+    totalReports: isUnselected ? 53 : (isFirstSa ? 38 : 15),
+    reportedOrders: isUnselected ? 47 : (isFirstSa ? 35 : 12),
+    notPurchasedReports: isUnselected ? 4 : (isFirstSa ? 3 : 1),
+    unreportedOrders: isUnselected ? 13 : (isFirstSa ? 7 : 6),
+    averageOrderValue: isUnselected ? 2850000 : (isFirstSa ? 2976190 : 4444444),
+    completedRevenue: isUnselected
+        ? 170000000
+        : (isFirstSa ? 100000000 : 70000000),
+    pendingRevenue: isUnselected ? 1000000 : (isFirstSa ? 25000000 : 10000000),
+    coverageRate: isUnselected ? 78.33 : (isFirstSa ? 83.33 : 66.67),
+    conversionRate: isUnselected ? 113.21 : (isFirstSa ? 110.53 : 120),
+    consultedSolutionRate: isUnselected ? 74 : (isFirstSa ? 80 : 60),
+    experiencedRate: isUnselected ? 68 : (isFirstSa ? 75 : 55),
+    zaloRate: isUnselected ? 48 : (isFirstSa ? 50 : 45),
+    appDownloadRate: isUnselected ? 38 : (isFirstSa ? 40 : 35),
     financeAvailable: includeFinance,
     totalTransferredAmount: includeFinance ? 98000000 : 0,
     totalStatements: includeFinance ? 40 : 0,
     totalStatementsWithOrder: includeFinance ? 32 : 0,
     totalStatementsWithoutOrder: includeFinance ? 8 : 0,
     statementOrderRate: includeFinance ? 80 : 0,
-    salesProgress: HomeSalesProgress(
-      status: 'AVAILABLE',
-      scope: 'PERSONAL_SA',
-      missingStoreCodes: const [],
-      day: const HomeSalesProgressPeriod(
-        actual: 1000000,
-        target: 2000000,
-        percentage: 50,
-      ),
-      range: HomeSalesProgressPeriod(
-        actual: selectedUserId == 'sa-1' ? 1000000 : 2000000,
-        target: 2000000,
-        percentage: selectedUserId == 'sa-1' ? 50 : 100,
-      ),
-      week: const HomeSalesProgressPeriod(
-        actual: 5000000,
-        target: 10000000,
-        percentage: 50,
-      ),
-      month: const HomeSalesProgressPeriod(
-        actual: 20000000,
-        target: 40000000,
-        percentage: 50,
-      ),
-    ),
+    salesProgress: personalProgress,
+    personalSalesProgress: personalProgress,
     scopeSalesProgress: const HomeSalesProgress(
       status: 'AVAILABLE',
       scope: 'MANAGED',
@@ -1387,7 +1417,7 @@ HomeSummary _managerSalesProgressSummary(
   );
 }
 
-HomeSummary _managerLongSalesProgressSummary(String selectedUserId) {
+HomeSummary _managerLongSalesProgressSummary(String? selectedUserId) {
   return _managerSalesProgressSummary(
     selectedUserId,
     assignees: [

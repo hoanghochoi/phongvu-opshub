@@ -437,6 +437,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
                     children: [
                       _FeatureList(
                         features: _features,
+                        onRefresh: _load,
                         onEdit: _openFeatureEditor,
                         onDelete: (feature) => feature.isSystem
                             ? null
@@ -452,6 +453,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
                           setState(() => _nodeFeatureFilter = value);
                           await _load();
                         },
+                        onRefresh: _load,
                         onAdd: () => _openNodeAssignmentEditor(),
                         onEdit: _editNodeAssignmentGroup,
                         onToggle: _toggleNodeAssignment,
@@ -466,6 +468,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
                           setState(() => _ruleFeatureFilter = value);
                           await _load();
                         },
+                        onRefresh: _load,
                         onEdit: _openRuleEditor,
                         onDelete: _deleteRule,
                       ),
@@ -480,11 +483,13 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
 
 class _FeatureList extends StatelessWidget {
   final List<AdminFeatureDefinition> features;
+  final RefreshCallback onRefresh;
   final void Function(AdminFeatureDefinition feature) onEdit;
   final VoidCallback? Function(AdminFeatureDefinition feature) onDelete;
 
   const _FeatureList({
     required this.features,
+    required this.onRefresh,
     required this.onEdit,
     required this.onDelete,
   });
@@ -500,7 +505,11 @@ class _FeatureList extends StatelessWidget {
     }
     return AppResponsiveContent(
       padding: EdgeInsets.zero,
+      onRefresh: onRefresh,
+      refreshLogSource: 'AdminFeatures',
+      refreshLogContext: () => {'tab': 'features', 'count': features.length},
       child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: AppLayoutTokens.pagePaddingFor(
           MediaQuery.sizeOf(context).width,
         ),
@@ -603,6 +612,7 @@ class _NodeAssignmentList extends StatelessWidget {
   final List<AdminFeatureDefinition> features;
   final String? featureFilter;
   final ValueChanged<String?> onFilterChanged;
+  final RefreshCallback onRefresh;
   final VoidCallback onAdd;
   final void Function(AdminNodeFeatureAssignment assignment) onEdit;
   final void Function(AdminNodeFeatureAssignment assignment, bool enabled)
@@ -614,6 +624,7 @@ class _NodeAssignmentList extends StatelessWidget {
     required this.features,
     required this.featureFilter,
     required this.onFilterChanged,
+    required this.onRefresh,
     required this.onAdd,
     required this.onEdit,
     required this.onToggle,
@@ -624,6 +635,13 @@ class _NodeAssignmentList extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppResponsiveContent(
       padding: EdgeInsets.zero,
+      onRefresh: onRefresh,
+      refreshLogSource: 'AdminFeatures',
+      refreshLogContext: () => {
+        'tab': 'node_assignments',
+        'count': assignments.length,
+        'featureFilter': featureFilter,
+      },
       child: Column(
         children: [
           Padding(
@@ -672,6 +690,7 @@ class _NodeAssignmentList extends StatelessWidget {
                     icon: Icons.account_tree_outlined,
                   )
                 : ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: AppLayoutTokens.pagePaddingFor(
                       MediaQuery.sizeOf(context).width,
                     ).copyWith(top: 0),
@@ -786,6 +805,7 @@ class _RuleList extends StatelessWidget {
   final String? featureFilter;
   final String Function(String code) featureTitle;
   final ValueChanged<String?> onFilterChanged;
+  final RefreshCallback onRefresh;
   final void Function(AdminFeatureRule rule) onEdit;
   final void Function(AdminFeatureRule rule) onDelete;
 
@@ -795,6 +815,7 @@ class _RuleList extends StatelessWidget {
     required this.featureFilter,
     required this.featureTitle,
     required this.onFilterChanged,
+    required this.onRefresh,
     required this.onEdit,
     required this.onDelete,
   });
@@ -803,6 +824,13 @@ class _RuleList extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppResponsiveContent(
       padding: EdgeInsets.zero,
+      onRefresh: onRefresh,
+      refreshLogSource: 'AdminFeatures',
+      refreshLogContext: () => {
+        'tab': 'legacy_rules',
+        'count': rules.length,
+        'featureFilter': featureFilter,
+      },
       child: Column(
         children: [
           Padding(
@@ -836,6 +864,7 @@ class _RuleList extends StatelessWidget {
                     icon: Icons.rule_folder_outlined,
                   )
                 : ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: AppLayoutTokens.pagePaddingFor(
                       MediaQuery.sizeOf(context).width,
                     ).copyWith(top: 0),

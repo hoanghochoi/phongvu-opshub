@@ -736,6 +736,24 @@ class _VietQrScreenState extends State<VietQrScreen> {
     }
   }
 
+  Future<void> _refreshScreen() async {
+    final user = context.read<AuthProvider>().user;
+    final tasks = <Future<void>>[];
+    final historyScope = _historyScopeForUser(user);
+    if (historyScope.isNotEmpty) {
+      tasks.add(_loadHistory(historyScope));
+    }
+    final storeSignature = _storeOptionsSignature;
+    if (user?.isSuperAdmin == true && storeSignature != null) {
+      tasks.add(_loadAccessibleStoreOptions(user!, storeSignature));
+    }
+    if (_transfer != null && !_hasConfirmedPayment) {
+      tasks.add(_checkPayment(showFeedback: true));
+    }
+    if (tasks.isEmpty) return;
+    await Future.wait(tasks);
+  }
+
   void _stopPaymentPolling() {
     _isCheckingPayment = false;
   }
@@ -1491,6 +1509,14 @@ class _VietQrScreenState extends State<VietQrScreen> {
           child: AppResponsiveScrollView(
             maxWidth: AppLayoutTokens.pageMaxWidth,
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            onRefresh: _refreshScreen,
+            refreshLogSource: 'VietQR',
+            refreshLogContext: () => {
+              'hasTransfer': _transfer != null,
+              'hasConfirmedPayment': _hasConfirmedPayment,
+              'historyCount': _historyEntries.length,
+              'storeOptionCount': storeOptions.length,
+            },
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

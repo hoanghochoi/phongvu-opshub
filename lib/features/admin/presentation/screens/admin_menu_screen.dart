@@ -138,6 +138,12 @@ class AdminMenuScreen extends StatelessWidget {
         administrationActions.isNotEmpty || fifoActions.isNotEmpty;
 
     return AppResponsiveScrollView(
+      onRefresh: context.read<AuthProvider>().refreshUserData,
+      refreshLogSource: 'Admin',
+      refreshLogContext: () => {
+        'administrationActionCount': administrationActions.length,
+        'fifoActionCount': fifoActions.length,
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

@@ -94,6 +94,15 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
     final showStoreFilter = storeOptions.length > 1;
     return AppResponsiveContent(
       maxWidth: AppLayoutTokens.pageMaxWidth,
+      onRefresh: () => _reload(page: provider.adminPage),
+      refreshLogSource: 'SalesReport',
+      refreshLogContext: () => {
+        'screen': 'admin',
+        'page': provider.adminPage,
+        'itemCount': provider.adminItems.length,
+        'reportType': _reportType,
+        'hasStoreFilter': _storeCode != null,
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -117,7 +126,8 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
               ),
               if (showStoreFilter)
                 AppStatusChip(
-                  label: 'SR: ${_storeFilterLabel(_storeCode, storeOptions)}',
+                  label:
+                      'Showroom: ${_storeFilterLabel(_storeCode, storeOptions)}',
                   color: AppColors.neutral600,
                 ),
             ],
@@ -163,6 +173,7 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
                   )
                 : ListView.separated(
                     key: const Key('sales-report-admin-list'),
+                    physics: const AlwaysScrollableScrollPhysics(),
                     primary: false,
                     padding: const EdgeInsets.only(
                       bottom: AppLayoutTokens.cardGap,
@@ -419,9 +430,9 @@ class _StoreFilter extends StatelessWidget {
       child: Opacity(
         opacity: enabled ? 1 : 0.55,
         child: AppSearchableFilterDropdown<String>(
-          label: 'SR',
+          label: 'Showroom',
           value: value,
-          allLabel: 'Tất cả SR',
+          allLabel: 'Tất cả showroom',
           icon: Icons.storefront_outlined,
           options: options,
           onChanged: onChanged,

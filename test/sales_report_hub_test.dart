@@ -714,18 +714,23 @@ void main() {
 
     expect(repository.lastListQuery?.storeIds, isEmpty);
     expect(
-      find.widgetWithText(OutlinedButton, 'SR: Tất cả SR'),
+      find.widgetWithText(OutlinedButton, 'Showroom: Tất cả showroom'),
       findsOneWidget,
     );
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'SR: Tất cả SR'));
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Showroom: Tất cả showroom'),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ListTile, 'CP02'));
     await tester.pumpAndSettle();
 
     expect(repository.fetchListCount, 2);
     expect(repository.lastListQuery?.storeIds, ['CP02']);
-    expect(find.widgetWithText(OutlinedButton, 'SR: CP02'), findsOneWidget);
+    expect(
+      find.widgetWithText(OutlinedButton, 'Showroom: CP02'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Sales report export menu emits selected export type', (

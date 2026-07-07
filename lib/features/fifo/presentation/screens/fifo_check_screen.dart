@@ -114,6 +114,13 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
     await _search();
   }
 
+  Future<void> _refreshScreen() async {
+    await _loadRecentSearches();
+    if (_controller.text.trim().isNotEmpty) {
+      await _search();
+    }
+  }
+
   Future<void> _rememberRecentSearch(String rawQuery) async {
     final query = _normalizeRecentSearch(rawQuery);
     if (query.isEmpty) return;
@@ -181,6 +188,13 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
       builder: (context, provider, _) {
         return AppResponsiveContent(
           maxWidth: AppLayoutTokens.pageMaxWidth,
+          onRefresh: _refreshScreen,
+          refreshLogSource: 'FIFO',
+          refreshLogContext: () => {
+            'hasQuery': _controller.text.trim().isNotEmpty,
+            'hasResult': provider.result != null,
+            'recentSearchCount': _recentSearches.length,
+          },
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -522,6 +536,7 @@ class _SkuResultList extends StatelessWidget {
     }
 
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       itemCount: result.items.length + 1,
       itemBuilder: (context, index) {
@@ -573,6 +588,7 @@ class _SerialResult extends StatelessWidget {
     };
 
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       children: [
         AppSurfaceCard(

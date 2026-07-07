@@ -571,6 +571,13 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
   @override
   Widget build(BuildContext context) {
     return AppResponsiveScrollView(
+      onRefresh: () => _load(reason: 'pull_refresh', logOpenEditor: false),
+      refreshLogSource: 'HelpContentAdmin',
+      refreshLogContext: () => {
+        'pageCount': _pages.length,
+        'hasSelection': _selectedKey != null,
+        'isCreating': _isCreating,
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

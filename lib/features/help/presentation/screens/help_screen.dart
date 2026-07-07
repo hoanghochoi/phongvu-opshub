@@ -200,6 +200,13 @@ class _HelpScreenState extends State<HelpScreen> {
   @override
   Widget build(BuildContext context) {
     final pageContent = AppResponsiveScrollView(
+      onRefresh: () => _load(reason: 'pull_refresh'),
+      refreshLogSource: 'HelpScreen',
+      refreshLogContext: () => {
+        'embeddedInShell': widget.embeddedInShell,
+        'pageCount': _pages.length,
+        'hasSelection': _selectedKey != null,
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

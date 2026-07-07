@@ -35,9 +35,15 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
 - Khối `Tổng quan` đứng trước KPI, bỏ progress bar và dùng donut cho tiến độ
   báo cáo, sao kê và doanh số. Doanh số tách thành hai card:
   `Tổng quan cá nhân` và `Tổng quan Miền/Vùng/Cửa hàng`. Card cá nhân thể hiện
-  tiến độ của user/SA đang chọn; card Miền/Vùng/Cửa hàng thể hiện toàn bộ phạm
-  vi quản lý đang chọn, giống nhau cho các user trong cùng SR và không đổi khi
-  dropdown SA thay đổi. Mỗi card gồm khoảng chọn, tuần và tháng; vòng dừng ở
+  tiến độ của user/SA đang chọn; với tài khoản quản lý, mặc định là `Chưa chọn
+  SA`, card hiển thị hướng dẫn `Chọn SA để hiển thị chỉ số` và các KPI
+  `Bán hàng`/`Hành vi then chốt` vẫn giữ toàn bộ scope showroom/node ở header.
+  Scope `Toàn hệ thống` vẫn hiển thị card `Tổng quan cá nhân` ở trạng thái chưa
+  chọn thay vì ẩn card. Card Miền/Vùng/Cửa hàng thể hiện toàn bộ phạm vi quản
+  lý đang chọn, giống nhau cho các user trong cùng SR và không đổi khi dropdown
+  SA thay đổi. Trên desktop đủ rộng, bốn card tổng quan nằm một hàng: `Tiến độ
+  báo cáo` + `Tiến độ sao kê` gộp bằng một phần ba chiều ngang, hai card doanh
+  số mỗi card một phần ba. Mỗi card gồm khoảng chọn, tuần và tháng; vòng dừng ở
   100% nhưng text vẫn thể hiện vượt chỉ tiêu.
 - Grid KPI trên mobile thông thường hiển thị 2 card mỗi hàng; chỉ hạ còn 1 card
   khi vùng nội dung hẹp dưới 320 px. Bán hàng và Tài chính dùng cùng breakpoint.
@@ -52,6 +58,8 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   hiện tại để xem card cá nhân của SA đó; danh sách chọn không vượt ngoài các
   showroom thuộc Miền/Vùng/Cửa hàng đang xem. Khi danh sách SA lớn hơn 10, UI
   chuyển sang picker có ô tìm kiếm theo tên, email hoặc mã nhân viên tư vấn.
+- Trên mobile, người dùng kéo mạnh xuống ở Trang chủ để tải lại dashboard theo
+  bộ lọc hiện tại; thao tác này dùng cùng luồng refresh/log với nút tải lại.
 - Tài chính đọc `MapVietinTransaction` theo cùng ngày Việt Nam và scope
   showroom/node ở header. Dropdown SA không đổi số liệu Tài chính. Scope cá
   nhân chỉ tính sao kê có mã đơn thuộc đơn hàng cá nhân; chọn showroom được gán

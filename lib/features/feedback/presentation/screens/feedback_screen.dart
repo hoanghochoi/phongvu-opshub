@@ -309,6 +309,14 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       child: AppResponsiveScrollView(
         maxWidth: AppLayoutTokens.formMaxWidth,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        onRefresh: AppRefreshCallbacks.noop,
+        refreshLogSource: 'Feedback',
+        refreshLogContext: () => {
+          'functionLength': _functionController.text.trim().length,
+          'descriptionLength': _descriptionController.text.trim().length,
+          'imageCount': _images.length,
+          'isSubmitting': _isSubmitting,
+        },
         child: AppFormColumn(
           spacing: AppLayoutTokens.sectionGap,
           children: [

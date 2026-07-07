@@ -177,6 +177,13 @@ class _PersonnelCatalogAdminScreenState
       length: 2,
       initialIndex: _tabIndex,
       child: AppResponsiveScrollView(
+        onRefresh: _load,
+        refreshLogSource: 'AdminPersonnel',
+        refreshLogContext: () => {
+          'departmentCount': _departments.length,
+          'jobRoleCount': _jobRoles.length,
+          'tabIndex': _tabIndex,
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

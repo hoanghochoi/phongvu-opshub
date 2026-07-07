@@ -254,6 +254,12 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     final provider = context.watch<SalesReportProvider>();
     return AppResponsiveContent(
       maxWidth: AppLayoutTokens.pageMaxWidth,
+      onRefresh: provider.loadOrderCockpit,
+      refreshLogSource: 'SalesReport',
+      refreshLogContext: () => {
+        'hasCockpit': provider.orderCockpit != null,
+        'isLoadingOrders': provider.isLoadingOrders,
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1057,6 +1063,7 @@ class _OrdersColumn extends StatelessWidget {
                   key: Key(
                     'sales-report-${title == 'Chưa báo cáo' ? 'unreported' : 'reported'}-list',
                   ),
+                  physics: const AlwaysScrollableScrollPhysics(),
                   primary: false,
                   padding: const EdgeInsets.only(
                     bottom: AppLayoutTokens.cardGap,
@@ -1736,6 +1743,13 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
         controller: _scrollController,
         maxWidth: AppLayoutTokens.formMaxWidth,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        onRefresh: AppRefreshCallbacks.noop,
+        refreshLogSource: 'SalesReport',
+        refreshLogContext: () => {
+          'reportType': _reportType,
+          'isSubmitting': provider.isSubmitting,
+          'hasCheckedOrder': provider.checkedOrder != null,
+        },
         child: AppFormColumn(
           spacing: AppLayoutTokens.formSectionGap,
           children: [

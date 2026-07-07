@@ -758,6 +758,12 @@ export class HomeSummaryService {
     }
   }
 
+  private personalStoreGuard(scope: SalesReportSummaryScopeDescriptor) {
+    if (scope.scope !== 'OWN') return null;
+    const storeCodes = this.normalizedStoreCodes(scope.allowedStoreCodes);
+    return storeCodes.length > 0 ? { storeCode: { in: storeCodes } } : null;
+  }
+
   private reportScopeWhere(
     scope: SalesReportSummaryScopeDescriptor,
     dateRange: DateRange,
@@ -786,7 +792,13 @@ export class HomeSummaryService {
         },
       });
     }
-    return { AND: [base, { OR: or }] };
+    if (or.length === 0) {
+      return { AND: [base, { id: '__NO_PERSONAL_REPORT_FACT__' }] };
+    }
+    const filters: Record<string, unknown>[] = [base, { OR: or }];
+    const storeGuard = this.personalStoreGuard(scope);
+    if (storeGuard) filters.push(storeGuard);
+    return { AND: filters };
   }
 
   private orderScopeWhere(
@@ -822,7 +834,13 @@ export class HomeSummaryService {
         { sellerId: { equals: scope.ownPersonnelCode, mode: 'insensitive' } },
       );
     }
-    return { AND: [base, { OR: or }] };
+    if (or.length === 0) {
+      return { AND: [base, { id: '__NO_PERSONAL_ORDER_FACT__' }] };
+    }
+    const filters: Record<string, unknown>[] = [base, { OR: or }];
+    const storeGuard = this.personalStoreGuard(scope);
+    if (storeGuard) filters.push(storeGuard);
+    return { AND: filters };
   }
 
   private orderCacheRevenueWhere(
@@ -857,7 +875,18 @@ export class HomeSummaryService {
         { sellerId: { equals: scope.ownPersonnelCode, mode: 'insensitive' } },
       );
     }
-    return { AND: [base, { OR: or }] };
+    if (or.length === 0) {
+      return { AND: [base, { id: '__NO_PERSONAL_ORDER_CACHE__' }] };
+    }
+    const filters: Prisma.SalesReportErpOrderCacheWhereInput[] = [
+      base,
+      { OR: or },
+    ];
+    const storeGuard = this.personalStoreGuard(scope);
+    if (storeGuard) {
+      filters.push(storeGuard as Prisma.SalesReportErpOrderCacheWhereInput);
+    }
+    return { AND: filters };
   }
 
   private financeScopeWhere(
@@ -1168,8 +1197,7 @@ export class HomeSummaryService {
       this.salesProgressAssigneesForScope(user, scope),
     ]);
     const selectedAssignee =
-      this.selectSalesProgressAssignee(assignees, user, requestedUserId) ??
-      null;
+      this.selectSalesProgressAssignee(assignees, requestedUserId) ?? null;
     const personalScope = selectedAssignee
       ? this.salesProgressScopeForAssignee(selectedAssignee)
       : scope.scope === 'OWN'
@@ -1199,7 +1227,7 @@ export class HomeSummaryService {
         isSelected: assignee.userId === selectedUserId,
       })),
       selectedUserId,
-      selectedScope: personalScope,
+      selectedScope: selectedAssignee ? personalScope : null,
     };
   }
 
@@ -1239,10 +1267,8 @@ export class HomeSummaryService {
     user: any,
     scope: SalesReportSummaryScopeDescriptor,
   ): Promise<SalesProgressAssignee[]> {
-    if (scope.scope !== 'MANAGED_SCOPE') return [];
-    const allowedStoreCodes = this.normalizedStoreCodes(
-      scope.allowedStoreCodes,
-    );
+    if (scope.scope !== 'MANAGED_SCOPE' && scope.scope !== 'ALL') return [];
+    const allowedStoreCodes = await this.salesProgressAssigneeStoreCodes(scope);
     if (allowedStoreCodes.length === 0) return [];
     const allowed = new Set(allowedStoreCodes);
     const users = await this.prisma.user.findMany({
@@ -1290,6 +1316,24 @@ export class HomeSummaryService {
     return assignees;
   }
 
+  private async salesProgressAssigneeStoreCodes(
+    scope: SalesReportSummaryScopeDescriptor,
+  ) {
+    const scopedStoreCodes = this.normalizedStoreCodes(scope.allowedStoreCodes);
+    if (scope.scope !== 'ALL' || scopedStoreCodes.length > 0) {
+      return scopedStoreCodes;
+    }
+    const stores = await this.prisma.store.findMany({
+      where: {
+        organizationNodeId: { not: null },
+        organizationNode: { isActive: true },
+      },
+      orderBy: { storeId: 'asc' },
+      select: { storeId: true },
+    });
+    return this.normalizedStoreCodes(stores.map((store) => store.storeId));
+  }
+
   private salesProgressAssigneeFromUser(
     candidate: any,
     allowed: Set<string>,
@@ -1330,7 +1374,6 @@ export class HomeSummaryService {
 
   private selectSalesProgressAssignee(
     assignees: SalesProgressAssignee[],
-    user: any,
     requestedUserId: string | null,
   ) {
     if (assignees.length === 0) return null;
@@ -1339,14 +1382,7 @@ export class HomeSummaryService {
       const found = assignees.find((assignee) => assignee.userId === requested);
       if (found) return found;
     }
-    const currentUserId = this.optionalText(user?.id, 80);
-    if (currentUserId) {
-      const current = assignees.find(
-        (assignee) => assignee.userId === currentUserId,
-      );
-      if (current) return current;
-    }
-    return assignees[0];
+    return null;
   }
 
   private salesProgressScopeForAssignee(
@@ -1485,7 +1521,10 @@ export class HomeSummaryService {
     if (own.length === 0) {
       return { AND: [base, { id: '__NO_PERSONAL_REPORT__' }] };
     }
-    return { AND: [base, { OR: own }] };
+    const filters: Prisma.SalesReportWhereInput[] = [base, { OR: own }];
+    const storeGuard = this.personalStoreGuard(scope);
+    if (storeGuard) filters.push(storeGuard as Prisma.SalesReportWhereInput);
+    return { AND: filters };
   }
 
   private salesReportBehaviorWhere(
@@ -1515,7 +1554,13 @@ export class HomeSummaryService {
         },
       });
     }
-    return { AND: [base, { OR: own }] };
+    if (own.length === 0) {
+      return { AND: [base, { id: '__NO_PERSONAL_BEHAVIOR_REPORT__' }] };
+    }
+    const filters: Prisma.SalesReportWhereInput[] = [base, { OR: own }];
+    const storeGuard = this.personalStoreGuard(scope);
+    if (storeGuard) filters.push(storeGuard as Prisma.SalesReportWhereInput);
+    return { AND: filters };
   }
 
   private salesProgressRanges(summaryDate: Date) {

@@ -308,6 +308,12 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
   Widget build(BuildContext context) {
     return AppResponsiveScrollView(
       maxWidth: AppLayoutTokens.formMaxWidth,
+      onRefresh: AppRefreshCallbacks.noop,
+      refreshLogSource: 'WarrantyUpload',
+      refreshLogContext: () => {
+        'imageCount': _images.length,
+        'hasReceipt': _receiptController.text.trim().isNotEmpty,
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

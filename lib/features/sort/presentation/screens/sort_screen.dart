@@ -110,6 +110,13 @@ class _SortScreenState extends State<SortScreen> {
       builder: (context, provider, child) {
         return AppResponsiveContent(
           maxWidth: AppLayoutTokens.pageMaxWidth,
+          onRefresh: AppRefreshCallbacks.noop,
+          refreshLogSource: 'Sort',
+          refreshLogContext: () => {
+            'hasInput': _controller.text.trim().isNotEmpty,
+            'hasResult': provider.skuGroups?.isNotEmpty == true,
+            'isLoading': provider.isLoading,
+          },
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -273,6 +280,7 @@ class _SortResultPanel extends StatelessWidget {
         const SizedBox(height: AppLayoutTokens.cardGap),
         Expanded(
           child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
             itemCount: groups.length,
             itemBuilder: (context, index) {
               final group = groups[index];

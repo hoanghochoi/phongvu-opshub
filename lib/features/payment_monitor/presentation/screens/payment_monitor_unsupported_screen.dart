@@ -37,6 +37,12 @@ class _PaymentMonitorUnsupportedScreenState
   Widget build(BuildContext context) {
     return AppResponsiveScrollView(
       maxWidth: AppLayoutTokens.formMaxWidth,
+      onRefresh: _logUnsupportedAccess,
+      refreshLogSource: 'PaymentMonitor',
+      refreshLogContext: () => {
+        'platform': defaultTargetPlatform.name,
+        'isWeb': kIsWeb,
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

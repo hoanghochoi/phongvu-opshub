@@ -303,6 +303,13 @@ class _OrganizationTreeAdminScreenState
         currentUser?.canUseFeature('ADMIN_FEATURES') == true;
     final selected = _selectedNode;
     return AppResponsiveContent(
+      onRefresh: _load,
+      refreshLogSource: 'AdminOrganization',
+      refreshLogContext: () => {
+        'nodeCount': _nodes.length,
+        'hasSelection': selected != null,
+        'hasSearch': _treeSearchQuery.trim().isNotEmpty,
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -620,6 +627,7 @@ class _OrganizationTreeList extends StatelessWidget {
     }
     final hasSearch = searchQuery.trim().isNotEmpty;
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       children: [
         if (hasSearch)
           Padding(

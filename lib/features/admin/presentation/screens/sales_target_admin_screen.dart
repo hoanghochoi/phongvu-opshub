@@ -194,6 +194,13 @@ class _SalesTargetAdminScreenState extends State<SalesTargetAdminScreen> {
   @override
   Widget build(BuildContext context) {
     return AppResponsiveScrollView(
+      onRefresh: _load,
+      refreshLogSource: 'SalesTargetAdmin',
+      refreshLogContext: () => {
+        'month': _monthKey,
+        'itemCount': _items.length,
+        'isLoading': _loading,
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

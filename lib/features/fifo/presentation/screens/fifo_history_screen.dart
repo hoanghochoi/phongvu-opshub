@@ -360,6 +360,7 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
     return RefreshIndicator(
       onRefresh: () async => onRefresh(),
       child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: logs.length + (hasMore ? 1 : 0),
         itemBuilder: (context, index) {

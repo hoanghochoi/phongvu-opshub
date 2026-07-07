@@ -74,6 +74,14 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
     super.dispose();
   }
 
+  Future<void> _refreshScreen() async {
+    final provider = context.read<BankStatementProvider>();
+    await Future.wait([
+      provider.refreshCurrentPage(),
+      provider.loadPendingOrderTransferRequests(silent: true),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<BankStatementProvider>();
@@ -81,6 +89,14 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
 
     return SelectionArea(
       child: AppResponsiveContent(
+        onRefresh: _refreshScreen,
+        refreshLogSource: 'BankStatement',
+        refreshLogContext: () => {
+          'page': provider.page,
+          'transactionCount': provider.transactions.length,
+          'hasSearched': provider.hasSearched,
+          'canSearch': provider.canSearch,
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -148,6 +164,7 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
       );
     }
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: provider.transactions.length,
       itemBuilder: (context, index) {
         return _StatementCard(

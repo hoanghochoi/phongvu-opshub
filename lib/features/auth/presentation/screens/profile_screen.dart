@@ -225,6 +225,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _refreshProfile() async {
+    final authProvider = context.read<AuthProvider>();
+    await authProvider.refreshUserData();
+    if (!mounted) return;
+    final user = authProvider.user;
+    setState(() {
+      _firstNameController.text = user?.name ?? '';
+      _lastNameController.text = user?.lastName ?? '';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
@@ -236,6 +247,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isLoading = context.watch<AuthProvider>().isLoading;
 
     return AppResponsiveScrollView(
+      onRefresh: _refreshProfile,
+      refreshLogSource: _logSource,
+      refreshLogContext: () => {
+        'hasUser': user != null,
+        'hasAvatar': avatarUrl != null,
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

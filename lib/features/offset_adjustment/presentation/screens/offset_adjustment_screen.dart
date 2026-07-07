@@ -49,6 +49,14 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
     super.dispose();
   }
 
+  Future<void> _refreshScreen() async {
+    final provider = context.read<OffsetAdjustmentProvider>();
+    await Future.wait([
+      provider.search(page: provider.page),
+      provider.loadPendingTotal(),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<OffsetAdjustmentProvider>();
@@ -61,8 +69,26 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
         final compact = width < 520;
         return SelectionArea(
           child: compact
-              ? AppResponsiveScrollView(child: _workspace(provider, compact))
-              : AppResponsiveContent(child: _workspace(provider, compact)),
+              ? AppResponsiveScrollView(
+                  onRefresh: _refreshScreen,
+                  refreshLogSource: 'OffsetAdjustment',
+                  refreshLogContext: () => {
+                    'page': provider.page,
+                    'itemCount': provider.items.length,
+                    'hasSearched': provider.hasSearched,
+                  },
+                  child: _workspace(provider, compact),
+                )
+              : AppResponsiveContent(
+                  onRefresh: _refreshScreen,
+                  refreshLogSource: 'OffsetAdjustment',
+                  refreshLogContext: () => {
+                    'page': provider.page,
+                    'itemCount': provider.items.length,
+                    'hasSearched': provider.hasSearched,
+                  },
+                  child: _workspace(provider, compact),
+                ),
         );
       },
     );
@@ -142,7 +168,9 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
     }
     return ListView.builder(
       shrinkWrap: shrinkWrap,
-      physics: shrinkWrap ? const NeverScrollableScrollPhysics() : null,
+      physics: shrinkWrap
+          ? const NeverScrollableScrollPhysics()
+          : const AlwaysScrollableScrollPhysics(),
       itemCount: provider.items.length,
       itemBuilder: (context, index) {
         final item = provider.items[index];

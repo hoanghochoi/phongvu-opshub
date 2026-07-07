@@ -47,36 +47,52 @@ class _HomeScreenState extends State<HomeScreen> {
       hasSummaryProvider: homeSummaryProvider != null,
     );
 
-    return AppResponsiveScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (homeSummaryProvider == null) ...[
-            _HomeCommandPanel(user: user),
-            const SizedBox(height: AppLayoutTokens.sectionGap),
-          ],
-          if (homeSummaryProvider != null)
-            HomeSummaryPage(
-              provider: homeSummaryProvider,
-              headerAction: canUsePaymentSpeaker
-                  ? const _HomeSpeakerStatusButton()
-                  : null,
-            )
-          else
-            _LegacyHomeBody(
-              workspaceCount: workspaceCount,
-              onOpenOperations: () => _openOperations(context, workspaceCount),
-            ),
-          if (homeSummaryProvider != null && workspaceCount > 0) ...[
-            const SizedBox(height: AppLayoutTokens.cardGap),
-            HomeOperationsShortcutCard(
-              actions: _quickToolsFor(context, user, workspaceCount),
-            ),
-          ],
-          const SizedBox(height: 20),
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (homeSummaryProvider == null) ...[
+          _HomeCommandPanel(user: user),
+          const SizedBox(height: AppLayoutTokens.sectionGap),
         ],
-      ),
+        if (homeSummaryProvider != null)
+          HomeSummaryPage(
+            provider: homeSummaryProvider,
+            headerAction: canUsePaymentSpeaker
+                ? const _HomeSpeakerStatusButton()
+                : null,
+          )
+        else
+          _LegacyHomeBody(
+            workspaceCount: workspaceCount,
+            onOpenOperations: () => _openOperations(context, workspaceCount),
+          ),
+        if (homeSummaryProvider != null && workspaceCount > 0) ...[
+          const SizedBox(height: AppLayoutTokens.cardGap),
+          HomeOperationsShortcutCard(
+            actions: _quickToolsFor(context, user, workspaceCount),
+          ),
+        ],
+        const SizedBox(height: 20),
+      ],
     );
+    final scrollView = AppResponsiveScrollView(
+      physics: homeSummaryProvider == null
+          ? null
+          : const AlwaysScrollableScrollPhysics(),
+      onRefresh: homeSummaryProvider == null
+          ? null
+          : homeSummaryProvider.canRefresh
+          ? homeSummaryProvider.refreshNow
+          : AppRefreshCallbacks.noop,
+      refreshIndicatorKey: const Key('home-summary-pull-refresh'),
+      refreshLogSource: 'Home',
+      refreshLogContext: () => {
+        'hasSummaryProvider': homeSummaryProvider != null,
+        'canRefreshSummary': homeSummaryProvider?.canRefresh == true,
+      },
+      child: content,
+    );
+    return scrollView;
   }
 
   void _openOperations(BuildContext context, int workspaceCount) {

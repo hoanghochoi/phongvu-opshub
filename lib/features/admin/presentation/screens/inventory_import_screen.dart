@@ -183,6 +183,13 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
 
     return AppResponsiveScrollView(
       maxWidth: 980,
+      onRefresh: AppRefreshCallbacks.noop,
+      refreshLogSource: 'InventoryImport',
+      refreshLogContext: () => {
+        'hasSelectedFile': _selectedFile != null,
+        'isUploading': _isUploading,
+        'hasResult': _result != null,
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

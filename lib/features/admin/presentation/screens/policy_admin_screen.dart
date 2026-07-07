@@ -233,6 +233,14 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
     return DefaultTabController(
       length: 3,
       child: AppResponsiveContent(
+        onRefresh: _load,
+        refreshLogSource: 'AdminPolicies',
+        refreshLogContext: () => {
+          'policyCount': _policies.length,
+          'ruleCount': _rules.length,
+          'settingCount': _settings.length,
+          'policyFilter': _rulePolicyFilter,
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

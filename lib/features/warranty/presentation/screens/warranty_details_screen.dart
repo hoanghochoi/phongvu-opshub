@@ -371,6 +371,12 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
 
           if (warrantyProvider.isLoading) {
             return AppResponsiveScrollView(
+              onRefresh: _loadDetails,
+              refreshLogSource: 'Warranty',
+              refreshLogContext: () => {
+                'receiptNumber': widget.receiptNumber,
+                'state': 'loading',
+              },
               child: _WarrantyDetailLayout(
                 receiptNumber: widget.receiptNumber,
                 imageCount: imageCount,
@@ -386,6 +392,12 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
 
           if (warrantyProvider.errorMessage != null) {
             return AppResponsiveScrollView(
+              onRefresh: _loadDetails,
+              refreshLogSource: 'Warranty',
+              refreshLogContext: () => {
+                'receiptNumber': widget.receiptNumber,
+                'state': 'error',
+              },
               child: _WarrantyDetailLayout(
                 receiptNumber: widget.receiptNumber,
                 imageCount: imageCount,
@@ -405,6 +417,12 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
 
           if (details == null) {
             return AppResponsiveScrollView(
+              onRefresh: _loadDetails,
+              refreshLogSource: 'Warranty',
+              refreshLogContext: () => {
+                'receiptNumber': widget.receiptNumber,
+                'state': 'empty',
+              },
               child: _WarrantyDetailLayout(
                 receiptNumber: widget.receiptNumber,
                 imageCount: imageCount,
@@ -420,6 +438,13 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
           }
 
           return AppResponsiveScrollView(
+            onRefresh: _loadDetails,
+            refreshLogSource: 'Warranty',
+            refreshLogContext: () => {
+              'receiptNumber': widget.receiptNumber,
+              'state': 'details',
+              'imageCount': imageCount,
+            },
             child: _WarrantyDetailLayout(
               receiptNumber: widget.receiptNumber,
               imageCount: imageCount,

@@ -34,6 +34,12 @@ class _OperationsScreenState extends State<OperationsScreen> {
     _logOperationsResolved(visibleCount, sections.length, user);
 
     return AppResponsiveScrollView(
+      onRefresh: context.read<AuthProvider>().refreshUserData,
+      refreshLogSource: 'Operations',
+      refreshLogContext: () => {
+        'visibleActions': visibleCount,
+        'sectionCount': sections.length,
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

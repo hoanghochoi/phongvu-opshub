@@ -42,6 +42,13 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
     final speakerSelectionNotice = monitor.speakerSelectionNotice;
 
     return AppResponsiveContent(
+      onRefresh: monitor.refreshNow,
+      refreshLogSource: 'PaymentMonitor',
+      refreshLogContext: () => {
+        'transactionCount': monitor.latestTransactions.length,
+        'isLoading': monitor.isLoading,
+        'hasMonitorScope': monitor.hasMonitorScope,
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -197,6 +204,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                               )
                             : const _EmptyTransactions()
                       : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
                           itemCount: monitor.latestTransactions.length,
                           itemBuilder: (context, index) {
                             final transaction =

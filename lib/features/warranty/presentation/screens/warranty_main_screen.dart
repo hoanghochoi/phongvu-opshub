@@ -28,6 +28,9 @@ class WarrantyMainScreen extends StatelessWidget {
     ];
 
     return AppResponsiveScrollView(
+      onRefresh: AppRefreshCallbacks.noop,
+      refreshLogSource: 'Warranty',
+      refreshLogContext: () => {'actionCount': actions.length},
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

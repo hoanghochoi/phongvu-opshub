@@ -500,6 +500,162 @@ describe('HomeSummaryService', () => {
     expect(result.scopeSalesProgress.scope).toBe('MANAGED');
   });
 
+  it('keeps managed sales KPIs on the dashboard scope until an SA is selected', async () => {
+    const { service, prisma, salesReports } = createHarness();
+    salesReports.describeHomeSummaryScope.mockResolvedValueOnce({
+      available: true,
+      scope: 'MANAGED_SCOPE',
+      scopeLabel: 'Showroom: CP75',
+      scopeDetail: 'CP75',
+      unavailableMessage: null,
+      ownUserId: null,
+      ownEmail: null,
+      ownPersonnelCode: null,
+      allowedStoreCodes: ['CP75'],
+    });
+    prisma.salesReport.findMany.mockResolvedValue([]);
+    prisma.store.findMany.mockResolvedValue([
+      {
+        storeId: 'CP75',
+        organizationNodeId: 'node-cp75',
+      },
+    ]);
+    prisma.salesTarget.findMany.mockResolvedValue([
+      {
+        organizationNodeId: 'node-cp75',
+        targetBeforeTax: BigInt(310000000),
+      },
+    ]);
+    prisma.user.findMany.mockResolvedValue([
+      {
+        id: 'sa-1',
+        email: 'sa1@phongvu.vn',
+        firstName: 'SA',
+        lastName: 'Một',
+        jobRoleCode: 'SA',
+        areaCode: 'HCM',
+        regionCode: 'SOUTH',
+        store: {
+          storeId: 'CP75',
+          storeName: 'CP75',
+          area: {
+            code: 'HCM',
+            region: { code: 'SOUTH' },
+          },
+          organizationNode: null,
+        },
+        area: {
+          code: 'HCM',
+          region: { code: 'SOUTH' },
+        },
+        region: { code: 'SOUTH' },
+        organizationNode: null,
+        organizationAssignments: [],
+      },
+    ]);
+
+    const result = await service.getSummary(
+      { id: 'manager-1', email: 'manager@phongvu.vn' },
+      {
+        date: '2026-07-04',
+        scope: 'MANAGED_SCOPE',
+        organizationNodeId: 'node-cp75',
+      },
+    );
+
+    expect(result.selectedSalesProgressUserId).toBeNull();
+    expect(result.personalSalesProgress.status).toBe('NOT_APPLICABLE');
+    expect(result.salesProgressAssignees).toEqual([
+      expect.objectContaining({
+        userId: 'sa-1',
+        isSelected: false,
+        storeCodes: ['CP75'],
+      }),
+    ]);
+    expect(prisma.homeSummaryOrderFact.count).toHaveBeenNthCalledWith(1, {
+      where: expect.objectContaining({
+        AND: expect.arrayContaining([{ storeCode: { in: ['CP75'] } }]),
+      }),
+    });
+    expect(
+      JSON.stringify(prisma.homeSummaryOrderFact.count.mock.calls[0][0].where),
+    ).not.toContain('sa-1');
+  });
+
+  it('offers SA assignees on all-system scope without selecting one by default', async () => {
+    const { service, prisma, salesReports } = createHarness();
+    salesReports.describeHomeSummaryScope.mockResolvedValueOnce({
+      available: true,
+      scope: 'ALL',
+      scopeLabel: 'Toàn hệ thống',
+      scopeDetail: 'Tất cả showroom',
+      unavailableMessage: null,
+      ownUserId: null,
+      ownEmail: null,
+      ownPersonnelCode: null,
+      allowedStoreCodes: [],
+    });
+    prisma.salesReport.findMany.mockResolvedValue([]);
+    prisma.store.findMany.mockResolvedValue([
+      {
+        storeId: 'CP75',
+        organizationNodeId: 'node-cp75',
+      },
+    ]);
+    prisma.salesTarget.findMany.mockResolvedValue([
+      {
+        organizationNodeId: 'node-cp75',
+        targetBeforeTax: BigInt(310000000),
+      },
+    ]);
+    prisma.user.findMany.mockResolvedValue([
+      {
+        id: 'sa-1',
+        email: 'sa1@phongvu.vn',
+        firstName: 'SA',
+        lastName: 'Một',
+        jobRoleCode: 'SA',
+        areaCode: 'HCM',
+        regionCode: 'SOUTH',
+        store: {
+          storeId: 'CP75',
+          storeName: 'CP75',
+          area: {
+            code: 'HCM',
+            region: { code: 'SOUTH' },
+          },
+          organizationNode: null,
+        },
+        area: {
+          code: 'HCM',
+          region: { code: 'SOUTH' },
+        },
+        region: { code: 'SOUTH' },
+        organizationNode: null,
+        organizationAssignments: [],
+      },
+    ]);
+
+    const result = await service.getSummary(
+      { id: 'admin-1', email: 'admin@phongvu.vn', role: 'SUPER_ADMIN' },
+      {
+        date: '2026-07-04',
+        scope: 'ALL',
+      },
+    );
+
+    expect(result.selectedSalesProgressUserId).toBeNull();
+    expect(result.personalSalesProgress.status).toBe('NOT_APPLICABLE');
+    expect(result.scopeSalesProgress.scope).toBe('ALL');
+    expect(result.salesProgressAssignees).toEqual([
+      expect.objectContaining({
+        userId: 'sa-1',
+        isSelected: false,
+        storeCodes: ['CP75'],
+      }),
+    ]);
+  });
+
   it('uses the selected SA for sales KPIs while finance stays on the dashboard scope', async () => {
     const { service, prisma, salesReports } = createHarness();
     salesReports.describeHomeSummaryScope.mockResolvedValueOnce({

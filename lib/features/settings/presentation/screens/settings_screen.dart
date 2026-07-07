@@ -167,6 +167,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final themeMode = context.watch<ThemeProvider>().mode;
 
     return AppResponsiveScrollView(
+      onRefresh: _loadStartupSetting,
+      refreshLogSource: _logSource,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

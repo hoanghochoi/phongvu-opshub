@@ -16,6 +16,9 @@ import '../../../../core/formatting/money_formatters.dart';
 import '../../domain/home_summary.dart';
 import '../providers/home_summary_provider.dart';
 
+const _unselectedSalesProgressAssigneeValue =
+    '__home_summary_unselected_sales_assignee__';
+
 class HomeSummaryPage extends StatelessWidget {
   const HomeSummaryPage({super.key, required this.provider, this.headerAction});
 
@@ -966,74 +969,87 @@ class ReportProgressPanel extends StatelessWidget {
         ? 0.0
         : (summary.reportedOrders / summary.totalOrders) * 100;
     final missingPercent = math.max(0.0, 100 - reportedPercent);
+    final reportPanel = summary.salesAvailable
+        ? _ProgressDonutPanel(
+            panelKey: const Key('home-report-progress-panel'),
+            title: 'Tiến độ báo cáo',
+            percentage: summary.coverageRate,
+            color: AppColors.success,
+            legend: _ReportProgressLegend(
+              reportedOrders: summary.reportedOrders,
+              reportedPercent: reportedPercent,
+              unreportedOrders: summary.unreportedOrders,
+              missingPercent: missingPercent,
+            ),
+          )
+        : null;
+    final statementPanel = summary.financeAvailable
+        ? _ProgressDonutPanel(
+            panelKey: const Key('home-statement-progress-panel'),
+            title: 'Tiến độ sao kê',
+            percentage: summary.statementOrderRate,
+            color: AppColors.info,
+            legend: Column(
+              children: [
+                _ReportLegendRow(
+                  label: 'Có đơn hàng',
+                  value:
+                      '${_integerLabel(summary.totalStatementsWithOrder)} sao kê',
+                  color: AppColors.success,
+                ),
+                const SizedBox(height: 8),
+                _ReportLegendRow(
+                  label: 'Chưa có đơn',
+                  value:
+                      '${_integerLabel(summary.totalStatementsWithoutOrder)} sao kê',
+                  color: AppColors.error,
+                ),
+              ],
+            ),
+          )
+        : null;
+    final personalPanel =
+        summary.salesAvailable &&
+            (summary.personalSalesProgress.isApplicable ||
+                summary.salesProgressAssignees.isNotEmpty)
+        ? _SalesProgressPanel(
+            panelKey: const Key('home-sales-progress-panel'),
+            title: 'Tổng quan cá nhân',
+            progress: summary.personalSalesProgress,
+            rangeLabel: summary.startDate == summary.endDate
+                ? 'Ngày'
+                : 'Khoảng chọn',
+            keyPrefix: 'home-sales-progress',
+            color: AppColors.violet600,
+            assignees: summary.salesProgressAssignees,
+            selectedAssigneeId: summary.selectedSalesProgressUserId,
+            emptyMessage: summary.selectedSalesProgressUserId == null
+                ? 'Chọn SA để hiển thị chỉ số'
+                : null,
+            onAssigneeChanged: provider.isLoading || provider.isRefreshing
+                ? null
+                : (userId) =>
+                      unawaited(provider.setSelectedSalesProgressUser(userId)),
+          )
+        : null;
+    final scopePanel =
+        summary.salesAvailable && summary.scopeSalesProgress.isApplicable
+        ? _SalesProgressPanel(
+            panelKey: const Key('home-scope-sales-progress-panel'),
+            title: _scopeSalesProgressTitle(summary),
+            progress: summary.scopeSalesProgress,
+            rangeLabel: summary.startDate == summary.endDate
+                ? 'Ngày'
+                : 'Khoảng chọn',
+            keyPrefix: 'home-scope-sales-progress',
+            color: AppColors.primary,
+          )
+        : null;
     final panels = <Widget>[
-      if (summary.salesAvailable)
-        _ProgressDonutPanel(
-          panelKey: const Key('home-report-progress-panel'),
-          title: 'Tiến độ báo cáo',
-          percentage: summary.coverageRate,
-          color: AppColors.success,
-          legend: _ReportProgressLegend(
-            reportedOrders: summary.reportedOrders,
-            reportedPercent: reportedPercent,
-            unreportedOrders: summary.unreportedOrders,
-            missingPercent: missingPercent,
-          ),
-        ),
-      if (summary.financeAvailable)
-        _ProgressDonutPanel(
-          panelKey: const Key('home-statement-progress-panel'),
-          title: 'Tiến độ sao kê',
-          percentage: summary.statementOrderRate,
-          color: AppColors.info,
-          legend: Column(
-            children: [
-              _ReportLegendRow(
-                label: 'Có đơn hàng',
-                value:
-                    '${_integerLabel(summary.totalStatementsWithOrder)} sao kê',
-                color: AppColors.success,
-              ),
-              const SizedBox(height: 8),
-              _ReportLegendRow(
-                label: 'Chưa có đơn',
-                value:
-                    '${_integerLabel(summary.totalStatementsWithoutOrder)} sao kê',
-                color: AppColors.error,
-              ),
-            ],
-          ),
-        ),
-      if (summary.salesAvailable && summary.personalSalesProgress.isApplicable)
-        _SalesProgressPanel(
-          panelKey: const Key('home-sales-progress-panel'),
-          title: 'Tổng quan cá nhân',
-          progress: summary.personalSalesProgress,
-          rangeLabel: summary.startDate == summary.endDate
-              ? 'Ngày'
-              : 'Khoảng chọn',
-          keyPrefix: 'home-sales-progress',
-          color: AppColors.violet600,
-          assignees: summary.salesProgressAssignees.length > 1
-              ? summary.salesProgressAssignees
-              : const [],
-          selectedAssigneeId: summary.selectedSalesProgressUserId,
-          onAssigneeChanged: provider.isLoading || provider.isRefreshing
-              ? null
-              : (userId) =>
-                    unawaited(provider.setSelectedSalesProgressUser(userId)),
-        ),
-      if (summary.salesAvailable && summary.scopeSalesProgress.isApplicable)
-        _SalesProgressPanel(
-          panelKey: const Key('home-scope-sales-progress-panel'),
-          title: _scopeSalesProgressTitle(summary),
-          progress: summary.scopeSalesProgress,
-          rangeLabel: summary.startDate == summary.endDate
-              ? 'Ngày'
-              : 'Khoảng chọn',
-          keyPrefix: 'home-scope-sales-progress',
-          color: AppColors.primary,
-        ),
+      if (reportPanel != null) reportPanel,
+      if (statementPanel != null) statementPanel,
+      if (personalPanel != null) personalPanel,
+      if (scopePanel != null) scopePanel,
     ];
 
     return AppSurfaceCard(
@@ -1053,10 +1069,37 @@ class ReportProgressPanel extends StatelessWidget {
             builder: (context, constraints) {
               if (panels.isEmpty) return const SizedBox.shrink();
               final gap = 16.0;
+              if (constraints.maxWidth >= 1040 &&
+                  reportPanel != null &&
+                  statementPanel != null &&
+                  personalPanel != null &&
+                  scopePanel != null) {
+                return SizedBox(
+                  height: 330,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(child: reportPanel),
+                            SizedBox(width: gap),
+                            Expanded(child: statementPanel),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: gap),
+                      Expanded(child: personalPanel),
+                      SizedBox(width: gap),
+                      Expanded(child: scopePanel),
+                    ],
+                  ),
+                );
+              }
               final hasSalesProgressPanels =
                   summary.salesAvailable &&
-                  (summary.personalSalesProgress.isApplicable ||
-                      summary.scopeSalesProgress.isApplicable);
+                  (personalPanel != null || scopePanel != null);
               final minReadablePanelWidth = hasSalesProgressPanels
                   ? 420.0
                   : 280.0;
@@ -1201,6 +1244,7 @@ class _SalesProgressPanel extends StatelessWidget {
     required this.color,
     this.assignees = const [],
     this.selectedAssigneeId,
+    this.emptyMessage,
     this.onAssigneeChanged,
   });
 
@@ -1212,10 +1256,16 @@ class _SalesProgressPanel extends StatelessWidget {
   final Color color;
   final List<HomeSalesProgressAssignee> assignees;
   final String? selectedAssigneeId;
+  final String? emptyMessage;
   final ValueChanged<String?>? onAssigneeChanged;
 
   @override
   Widget build(BuildContext context) {
+    final resolvedEmptyMessage = emptyMessage?.trim();
+    final showEmptyPrompt =
+        !progress.isApplicable &&
+        resolvedEmptyMessage != null &&
+        resolvedEmptyMessage.isNotEmpty;
     return Container(
       key: panelKey,
       padding: const EdgeInsets.all(14),
@@ -1238,43 +1288,67 @@ class _SalesProgressPanel extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 10),
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: _SalesProgressPeriodView(
-                    keyPrefix: keyPrefix,
-                    keySuffix: 'range',
-                    label: rangeLabel,
-                    period: progress.range,
-                    color: color,
+          if (showEmptyPrompt)
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.person_search_rounded, size: 28, color: color),
+                      const SizedBox(height: 8),
+                      Text(
+                        resolvedEmptyMessage,
+                        key: const Key('home-sales-progress-empty-guidance'),
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.bodyS.copyWith(
+                          color: AppColors.textMutedOf(context),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _SalesProgressPeriodView(
-                    keyPrefix: keyPrefix,
-                    keySuffix: 'week',
-                    label: 'Tuần',
-                    period: progress.week,
-                    color: color,
+              ),
+            )
+          else
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _SalesProgressPeriodView(
+                      keyPrefix: keyPrefix,
+                      keySuffix: 'range',
+                      label: rangeLabel,
+                      period: progress.range,
+                      color: color,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _SalesProgressPeriodView(
-                    keyPrefix: keyPrefix,
-                    keySuffix: 'month',
-                    label: 'Tháng',
-                    period: progress.month,
-                    color: color,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _SalesProgressPeriodView(
+                      keyPrefix: keyPrefix,
+                      keySuffix: 'week',
+                      label: 'Tuần',
+                      period: progress.week,
+                      color: color,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _SalesProgressPeriodView(
+                      keyPrefix: keyPrefix,
+                      keySuffix: 'month',
+                      label: 'Tháng',
+                      period: progress.month,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          if (!progress.hasTarget) ...[
+          if (!showEmptyPrompt && !progress.hasTarget) ...[
             const SizedBox(height: 8),
             Text(
               progress.missingStoreCodes.isEmpty
@@ -1307,15 +1381,16 @@ class _SalesProgressAssigneeDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selected = assignees.where((assignee) {
-      return assignee.userId == selectedAssigneeId || assignee.isSelected;
-    }).firstOrNull;
-    final selectedValue = selected ?? assignees.first;
-    final value = selectedValue.userId;
+    final selected = selectedAssigneeId == null
+        ? null
+        : assignees
+              .where((assignee) => assignee.userId == selectedAssigneeId)
+              .firstOrNull;
+    final value = selected?.userId ?? _unselectedSalesProgressAssigneeValue;
     if (assignees.length > searchThreshold) {
       return _SalesProgressAssigneeSearchButton(
         assignees: assignees,
-        selectedAssignee: selectedValue,
+        selectedAssignee: selected,
         onChanged: onChanged,
       );
     }
@@ -1338,8 +1413,28 @@ class _SalesProgressAssigneeDropdown extends StatelessWidget {
           style: AppTextStyles.labelS.copyWith(
             color: AppColors.textPrimaryOf(context),
           ),
-          onChanged: onChanged,
+          onChanged: onChanged == null
+              ? null
+              : (value) => onChanged!(
+                  value == _unselectedSalesProgressAssigneeValue ? null : value,
+                ),
           items: [
+            DropdownMenuItem<String>(
+              value: _unselectedSalesProgressAssigneeValue,
+              child: Row(
+                children: [
+                  const Icon(Icons.person_off_outlined, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Chưa chọn SA',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             for (final assignee in assignees)
               DropdownMenuItem<String>(
                 value: assignee.userId,
@@ -1378,7 +1473,7 @@ class _SalesProgressAssigneeSearchButton extends StatelessWidget {
   });
 
   final List<HomeSalesProgressAssignee> assignees;
-  final HomeSalesProgressAssignee selectedAssignee;
+  final HomeSalesProgressAssignee? selectedAssignee;
   final ValueChanged<String?>? onChanged;
 
   @override
@@ -1403,9 +1498,11 @@ class _SalesProgressAssigneeSearchButton extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _SalesProgressAssigneeDropdown._assigneeLabel(
-                    selectedAssignee,
-                  ),
+                  selectedAssignee == null
+                      ? 'Chưa chọn SA'
+                      : _SalesProgressAssigneeDropdown._assigneeLabel(
+                          selectedAssignee!,
+                        ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.labelS.copyWith(
@@ -1429,14 +1526,19 @@ class _SalesProgressAssigneeSearchButton extends StatelessWidget {
       builder: (context) {
         return _SalesProgressAssigneeSearchDialog(
           assignees: assignees,
-          selectedAssigneeId: selectedAssignee.userId,
+          selectedAssigneeId: selectedAssignee?.userId,
         );
       },
     );
-    if (selectedUserId == null || selectedUserId == selectedAssignee.userId) {
+    if (selectedUserId == null) return;
+    final nextUserId = selectedUserId == _unselectedSalesProgressAssigneeValue
+        ? null
+        : selectedUserId;
+    if (nextUserId == selectedAssignee?.userId ||
+        (nextUserId == null && selectedAssignee == null)) {
       return;
     }
-    onChanged?.call(selectedUserId);
+    onChanged?.call(nextUserId);
   }
 }
 
@@ -1447,7 +1549,7 @@ class _SalesProgressAssigneeSearchDialog extends StatefulWidget {
   });
 
   final List<HomeSalesProgressAssignee> assignees;
-  final String selectedAssigneeId;
+  final String? selectedAssigneeId;
 
   @override
   State<_SalesProgressAssigneeSearchDialog> createState() =>
@@ -1468,6 +1570,7 @@ class _SalesProgressAssigneeSearchDialogState
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredAssignees();
+    final noAssigneeSelected = widget.selectedAssigneeId == null;
     return Dialog(
       key: const Key('home-sales-progress-assignee-search-dialog'),
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -1511,6 +1614,25 @@ class _SalesProgressAssigneeSearchDialogState
                 onChanged: (value) => setState(() => _query = value),
               ),
               const SizedBox(height: 12),
+              ListTile(
+                key: const Key('home-sales-progress-assignee-option-none'),
+                dense: true,
+                leading: Icon(
+                  noAssigneeSelected
+                      ? Icons.check_circle_rounded
+                      : Icons.person_off_outlined,
+                  color: noAssigneeSelected
+                      ? AppColors.success
+                      : AppColors.textMutedOf(context),
+                ),
+                title: const Text('Chưa chọn SA'),
+                subtitle: const Text('Chọn SA để hiển thị chỉ số'),
+                onTap: () => Navigator.of(
+                  context,
+                ).pop(_unselectedSalesProgressAssigneeValue),
+              ),
+              Divider(height: 1, color: AppColors.subtleBorderOf(context)),
+              const SizedBox(height: 4),
               Flexible(
                 child: filtered.isEmpty
                     ? Center(
@@ -1765,25 +1887,34 @@ class _ReportLegendRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 96,
-          child: Text(
-            label,
-            style: AppTextStyles.labelS.copyWith(
-              color: AppColors.textPrimaryOf(context),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 180;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: compact ? 72 : 96,
+              child: Text(
+                label,
+                maxLines: compact ? 2 : 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.labelS.copyWith(
+                  color: AppColors.textPrimaryOf(context),
+                ),
+              ),
             ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: AppTextStyles.labelS.copyWith(color: color),
-          ),
-        ),
-      ],
+            Expanded(
+              child: Text(
+                value,
+                maxLines: compact ? 3 : 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.labelS.copyWith(color: color),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

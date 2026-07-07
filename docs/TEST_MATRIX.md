@@ -45,6 +45,17 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `HOME-DASHBOARD-002`, 2026-07-08: `Tổng quan` desktop giữ đủ 4 card trên
+  một hàng khi đủ rộng, với `Tiến độ báo cáo` + `Tiến độ sao kê` gộp bằng một
+  phần ba chiều ngang và hai card doanh số mỗi card một phần ba. `Tổng quan cá
+  nhân` mặc định `Chưa chọn SA`, hiển thị hướng dẫn chọn SA và không tự lọc KPI
+  `Bán hàng` khỏi scope showroom/node; chỉ khi chọn SA thì backend nhận
+  `salesProgressUserId` và toàn bộ KPI bán hàng/hành vi chuyển sang scope cá
+  nhân có guard theo showroom của SA. Scope `Toàn hệ thống` vẫn trả danh sách
+  SA để UI hiển thị card cá nhân ở trạng thái chưa chọn. Home mobile có
+  pull-to-refresh dùng cùng luồng tải lại/log hiện tại. Validation: focused
+  Home Summary Jest/controller/dto, focused Home dashboard Flutter widget test,
+  Nest build, `flutter analyze --no-pub`, `git diff --check`.
 - `SALES-REPORT-001`, 2026-07-07: Báo cáo mua hàng gửi metadata nguồn thao tác
   `MANUAL_ENTRY` hoặc `SYNC_LIST`; backend log source này kèm report id/showroom
   và định danh mã đơn đã sanitize, đồng thời lưu `rawResponses.entrySource` để

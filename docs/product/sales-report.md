@@ -14,9 +14,11 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   nó hiển thị dashboard tổng quan theo scope lấy dữ liệu từ fact tables riêng
   của Home Summary. Dashboard tách hai khu vực dùng chung bộ chọn ngày và
   scope; khi mở `Trang chủ`, khoảng ngày mặc định là hôm nay và user đổi
-  thủ công nếu cần xem ngày/khoảng khác. Riêng khi tài khoản quản lý chọn SA
-  trong `Tổng quan cá nhân`, các KPI `Bán hàng` và `Hành vi then chốt` dùng
-  scope cá nhân của SA đó; `Tổng quan Cửa hàng` và `Tài chính` vẫn giữ theo
+  thủ công nếu cần xem ngày/khoảng khác. `Tổng quan cá nhân` mặc định là
+  `Chưa chọn SA`; khi chưa chọn thủ công, các KPI `Bán hàng` và
+  `Hành vi then chốt` vẫn giữ toàn bộ scope showroom/node ở header. Khi tài
+  khoản quản lý chọn SA trong `Tổng quan cá nhân`, các KPI này mới dùng scope
+  cá nhân của SA đó; `Tổng quan Cửa hàng` và `Tài chính` vẫn giữ theo
   showroom/node đang chọn ở header. Khu vực `Bán hàng` chia thành nhóm
   `Doanh số` và `Hành vi then chốt`. Nhóm `Doanh số` hiển thị doanh số tổng
   từ cache đơn hàng sau khi loại đơn 0 VND, đơn hủy/trả toàn bộ và trừ giá trị
@@ -133,12 +135,18 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   khi có trả một phần. Riêng tiến độ chỉ tiêu dùng giá trị trước VAT theo công thức
   `round(max(grandTotal - returnedAfterTaxAmount, 0) / 1.08)`. Home hiển thị
   hai card tiến độ: `Tổng quan cá nhân` cho user/SA đang chọn và
-  `Tổng quan Miền/Vùng/Cửa hàng` cho toàn bộ scope quản lý hiện tại. Card
-  `Tổng quan Cửa hàng` luôn giữ scope showroom/node, giống nhau cho các user
-  trong cùng SR và không đổi khi dropdown SA thay đổi. Store
+  `Tổng quan Miền/Vùng/Cửa hàng` cho toàn bộ scope quản lý hiện tại. Với tài
+  khoản quản lý, card cá nhân cho phép trạng thái chưa chọn SA, hiển thị
+  `Chưa chọn SA` và hướng dẫn `Chọn SA để hiển thị chỉ số`; scope toàn hệ thống
+  vẫn hiển thị card cá nhân ở trạng thái này. Trên desktop đủ rộng, bốn card
+  tổng quan nằm trên một hàng, trong đó `Tiến độ báo cáo` + `Tiến độ sao kê`
+  gộp bằng một phần ba chiều ngang, hai card doanh số mỗi card một phần ba.
+  Card `Tổng quan Cửa hàng` luôn giữ scope showroom/node, giống nhau cho các
+  user trong cùng SR và không đổi khi dropdown SA thay đổi. Store
   manager/tài khoản quản lý theo node chỉ được chọn SA thuộc scope đang xem để
   xem card cá nhân; nếu danh sách SA lớn hơn 10, picker có ô tìm kiếm theo tên,
-  email hoặc mã nhân viên tư vấn. Menu `Quản trị` có `Quản lý doanh số` theo
+  email hoặc mã nhân viên tư vấn. Trên mobile, kéo mạnh xuống ở Trang chủ tải
+  lại dashboard theo bộ lọc hiện tại. Menu `Quản trị` có `Quản lý doanh số` theo
   feature `ADMIN_SALES_TARGETS`; chỉ tiêu lưu theo SR/tháng ở giá trị trước VAT.
 - ERP/Listing chỉ được tự điền ngành hàng khi map được về nhóm ngành OpsHub:
   chỉ lấy `result.products[].categories[]` có `level = 1` và dùng đúng `code`

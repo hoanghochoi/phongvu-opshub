@@ -651,6 +651,13 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     final canResetPassword =
         currentRole == 'SUPER_ADMIN' || User.isAdminRole(currentRole);
     return AppResponsiveContent(
+      onRefresh: () => _load(reloadMetadata: true),
+      refreshLogSource: 'Admin',
+      refreshLogContext: () => {
+        'userCount': _users.length,
+        'reloadMetadata': true,
+        'hasQuery': _searchController.text.trim().isNotEmpty,
+      },
       child: Column(
         children: [
           AppSurfaceCard(
@@ -732,6 +739,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                     onAction: _resetFilters,
                   )
                 : ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     itemCount: _users.length,
                     separatorBuilder: (context, index) =>
                         const SizedBox(height: AppLayoutTokens.cardGap),
