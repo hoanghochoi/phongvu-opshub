@@ -1610,7 +1610,7 @@ class _SalesProgressAssigneeSearchDialogState
                 autofocus: true,
                 textInputAction: TextInputAction.search,
                 dense: true,
-                hintText: 'Tìm theo tên, email hoặc mã nhân viên',
+                hintText: 'Tìm theo tên hoặc email',
                 onChanged: (value) => setState(() => _query = value),
               ),
               const SizedBox(height: 12),
@@ -1702,7 +1702,6 @@ class _SalesProgressAssigneeSearchDialogState
             [
               assignee.label,
               assignee.email,
-              assignee.personnelCode,
               assignee.storeCodes.join(' '),
             ].whereType<String>().join(' '),
           );
@@ -1715,7 +1714,6 @@ class _SalesProgressAssigneeSearchDialogState
     final parts = [
       if (assignee.storeCodes.isNotEmpty) assignee.storeCodes.join(', '),
       if (assignee.email?.isNotEmpty == true) assignee.email!,
-      if (assignee.personnelCode?.isNotEmpty == true) assignee.personnelCode!,
     ];
     return parts.join(' - ');
   }

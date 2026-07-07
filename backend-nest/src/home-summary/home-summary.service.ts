@@ -68,7 +68,6 @@ type SalesProgressAssigneeResponse = {
   userId: string;
   label: string;
   email: string | null;
-  personnelCode: string | null;
   storeCodes: string[];
   isSelected: boolean;
   isCurrentUser: boolean;
@@ -764,6 +763,10 @@ export class HomeSummaryService {
     return storeCodes.length > 0 ? { storeCode: { in: storeCodes } } : null;
   }
 
+  private personalEmail(scope: SalesReportSummaryScopeDescriptor) {
+    return this.normalizeEmail(scope.ownEmail);
+  }
+
   private reportScopeWhere(
     scope: SalesReportSummaryScopeDescriptor,
     dateRange: DateRange,
@@ -777,25 +780,14 @@ export class HomeSummaryService {
         AND: [base, { storeCode: { in: scope.allowedStoreCodes } }],
       };
     }
-    const or: Record<string, unknown>[] = [];
-    if (scope.ownUserId) or.push({ createdByUserId: scope.ownUserId });
-    if (scope.ownEmail) {
-      or.push({
-        createdByEmail: { equals: scope.ownEmail, mode: 'insensitive' },
-      });
-    }
-    if (scope.ownPersonnelCode) {
-      or.push({
-        createdByPersonnelCode: {
-          equals: scope.ownPersonnelCode,
-          mode: 'insensitive',
-        },
-      });
-    }
-    if (or.length === 0) {
+    const email = this.personalEmail(scope);
+    if (!email) {
       return { AND: [base, { id: '__NO_PERSONAL_REPORT_FACT__' }] };
     }
-    const filters: Record<string, unknown>[] = [base, { OR: or }];
+    const filters: Record<string, unknown>[] = [
+      base,
+      { createdByEmail: { equals: email, mode: 'insensitive' } },
+    ];
     const storeGuard = this.personalStoreGuard(scope);
     if (storeGuard) filters.push(storeGuard);
     return { AND: filters };
@@ -814,29 +806,16 @@ export class HomeSummaryService {
         AND: [base, { storeCode: { in: scope.allowedStoreCodes } }],
       };
     }
-    const or: Record<string, unknown>[] = [];
-    if (scope.ownUserId) or.push({ sourceUserId: scope.ownUserId });
-    if (scope.ownEmail) {
-      or.push(
-        { sourceUserEmail: { equals: scope.ownEmail, mode: 'insensitive' } },
-        { consultantEmail: { equals: scope.ownEmail, mode: 'insensitive' } },
-        { sellerEmail: { equals: scope.ownEmail, mode: 'insensitive' } },
-      );
-    }
-    if (scope.ownPersonnelCode) {
-      or.push(
-        {
-          consultantCustomId: {
-            equals: scope.ownPersonnelCode,
-            mode: 'insensitive',
-          },
-        },
-        { sellerId: { equals: scope.ownPersonnelCode, mode: 'insensitive' } },
-      );
-    }
-    if (or.length === 0) {
+    const email = this.personalEmail(scope);
+    if (!email) {
       return { AND: [base, { id: '__NO_PERSONAL_ORDER_FACT__' }] };
     }
+    const or: Record<string, unknown>[] = [
+      { sourceUserEmail: { equals: email, mode: 'insensitive' } },
+      { consultantEmail: { equals: email, mode: 'insensitive' } },
+      { sellerEmail: { equals: email, mode: 'insensitive' } },
+      { reportCreatedByEmail: { equals: email, mode: 'insensitive' } },
+    ];
     const filters: Record<string, unknown>[] = [base, { OR: or }];
     const storeGuard = this.personalStoreGuard(scope);
     if (storeGuard) filters.push(storeGuard);
@@ -855,29 +834,15 @@ export class HomeSummaryService {
     if (scope.scope === 'MANAGED_SCOPE') {
       return { AND: [base, { storeCode: { in: scope.allowedStoreCodes } }] };
     }
-    const or: Prisma.SalesReportErpOrderCacheWhereInput[] = [];
-    if (scope.ownUserId) or.push({ sourceUserId: scope.ownUserId });
-    if (scope.ownEmail) {
-      or.push(
-        { sourceUserEmail: { equals: scope.ownEmail, mode: 'insensitive' } },
-        { consultantEmail: { equals: scope.ownEmail, mode: 'insensitive' } },
-        { sellerEmail: { equals: scope.ownEmail, mode: 'insensitive' } },
-      );
-    }
-    if (scope.ownPersonnelCode) {
-      or.push(
-        {
-          consultantCustomId: {
-            equals: scope.ownPersonnelCode,
-            mode: 'insensitive',
-          },
-        },
-        { sellerId: { equals: scope.ownPersonnelCode, mode: 'insensitive' } },
-      );
-    }
-    if (or.length === 0) {
+    const email = this.personalEmail(scope);
+    if (!email) {
       return { AND: [base, { id: '__NO_PERSONAL_ORDER_CACHE__' }] };
     }
+    const or: Prisma.SalesReportErpOrderCacheWhereInput[] = [
+      { sourceUserEmail: { equals: email, mode: 'insensitive' } },
+      { consultantEmail: { equals: email, mode: 'insensitive' } },
+      { sellerEmail: { equals: email, mode: 'insensitive' } },
+    ];
     const filters: Prisma.SalesReportErpOrderCacheWhereInput[] = [
       base,
       { OR: or },
@@ -1221,7 +1186,6 @@ export class HomeSummaryService {
         userId: assignee.userId,
         label: assignee.label,
         email: assignee.email,
-        personnelCode: assignee.personnelCode,
         storeCodes: assignee.storeCodes,
         isCurrentUser: assignee.isCurrentUser,
         isSelected: assignee.userId === selectedUserId,
@@ -1344,29 +1308,19 @@ export class HomeSummaryService {
       storeSources.map((store) => store?.storeId),
     ).filter((code) => allowed.has(code));
     if (storeCodes.length === 0) return null;
-    const primaryStore =
-      storeSources.find((store) =>
-        allowed.has(this.normalizeStoreCode(store?.storeId) ?? ''),
-      ) ?? storeSources[0];
     const userId = this.optionalText(candidate?.id, 80);
     if (!userId) return null;
     const email = this.normalizeEmail(candidate?.email);
     const firstName = this.optionalText(candidate?.firstName, 80);
     const lastName = this.optionalText(candidate?.lastName, 80);
     const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
-    const personnelCode = this.personnelCodeFor(candidate, primaryStore);
     return {
       userId,
       firstName,
       lastName,
       email,
-      personnelCode,
       storeCodes,
-      label:
-        fullName ||
-        email ||
-        personnelCode ||
-        `Nhân viên ${storeCodes.join(', ')}`,
+      label: fullName || email || `Nhân viên ${storeCodes.join(', ')}`,
       isCurrentUser: userId === this.optionalText(currentUser?.id, 80),
       isSelected: false,
     };
@@ -1394,9 +1348,9 @@ export class HomeSummaryService {
       scopeLabel: 'Tổng quan cá nhân',
       scopeDetail: assignee.storeCodes.join(', '),
       unavailableMessage: null,
-      ownUserId: assignee.userId,
+      ownUserId: null,
       ownEmail: assignee.email,
-      ownPersonnelCode: assignee.personnelCode,
+      ownPersonnelCode: null,
       allowedStoreCodes: assignee.storeCodes,
     };
   }
@@ -1428,36 +1382,6 @@ export class HomeSummaryService {
       }
     }
     return stores;
-  }
-
-  private personnelCodeFor(user: any, store: any) {
-    const jobRoleCode = String(user?.jobRoleCode || '')
-      .trim()
-      .toUpperCase();
-    if (!jobRoleCode) return null;
-    const storeCode = String(store?.storeId || 'STORE')
-      .trim()
-      .toUpperCase();
-    const area =
-      store?.area?.abbreviation ||
-      store?.area?.code ||
-      user?.area?.abbreviation ||
-      user?.areaCode ||
-      'NATIONAL';
-    const region =
-      store?.area?.region?.abbreviation ||
-      store?.area?.region?.code ||
-      user?.region?.abbreviation ||
-      user?.regionCode ||
-      'NATIONAL';
-    return [jobRoleCode, storeCode, area, region]
-      .map((part) =>
-        String(part || 'NATIONAL')
-          .trim()
-          .toUpperCase()
-          .replace(/[^A-Z0-9_]/g, '_'),
-      )
-      .join('_');
   }
 
   private normalizedStoreCodes(values: Array<string | null | undefined>) {
@@ -1497,31 +1421,14 @@ export class HomeSummaryService {
     if (scope.scope === 'MANAGED_SCOPE') {
       return { AND: [base, { storeCode: { in: scope.allowedStoreCodes } }] };
     }
-    const own: Prisma.SalesReportWhereInput[] = [];
-    if (scope.ownUserId) own.push({ createdByUserId: scope.ownUserId });
-    if (scope.ownEmail) {
-      own.push({
-        createdByEmail: { equals: scope.ownEmail, mode: 'insensitive' },
-      });
-    }
-    if (scope.ownPersonnelCode) {
-      own.push({
-        createdByPersonnelCode: {
-          equals: scope.ownPersonnelCode,
-          mode: 'insensitive',
-        },
-      });
-      own.push({
-        erpConsultantCustomId: {
-          equals: scope.ownPersonnelCode,
-          mode: 'insensitive',
-        },
-      });
-    }
-    if (own.length === 0) {
+    const email = this.personalEmail(scope);
+    if (!email) {
       return { AND: [base, { id: '__NO_PERSONAL_REPORT__' }] };
     }
-    const filters: Prisma.SalesReportWhereInput[] = [base, { OR: own }];
+    const filters: Prisma.SalesReportWhereInput[] = [
+      base,
+      { createdByEmail: { equals: email, mode: 'insensitive' } },
+    ];
     const storeGuard = this.personalStoreGuard(scope);
     if (storeGuard) filters.push(storeGuard as Prisma.SalesReportWhereInput);
     return { AND: filters };
@@ -1539,25 +1446,14 @@ export class HomeSummaryService {
     if (scope.scope === 'MANAGED_SCOPE') {
       return { AND: [base, { storeCode: { in: scope.allowedStoreCodes } }] };
     }
-    const own: Prisma.SalesReportWhereInput[] = [];
-    if (scope.ownUserId) own.push({ createdByUserId: scope.ownUserId });
-    if (scope.ownEmail) {
-      own.push({
-        createdByEmail: { equals: scope.ownEmail, mode: 'insensitive' },
-      });
-    }
-    if (scope.ownPersonnelCode) {
-      own.push({
-        createdByPersonnelCode: {
-          equals: scope.ownPersonnelCode,
-          mode: 'insensitive',
-        },
-      });
-    }
-    if (own.length === 0) {
+    const email = this.personalEmail(scope);
+    if (!email) {
       return { AND: [base, { id: '__NO_PERSONAL_BEHAVIOR_REPORT__' }] };
     }
-    const filters: Prisma.SalesReportWhereInput[] = [base, { OR: own }];
+    const filters: Prisma.SalesReportWhereInput[] = [
+      base,
+      { createdByEmail: { equals: email, mode: 'insensitive' } },
+    ];
     const storeGuard = this.personalStoreGuard(scope);
     if (storeGuard) filters.push(storeGuard as Prisma.SalesReportWhereInput);
     return { AND: filters };

@@ -271,7 +271,7 @@ describe('HomeSummaryService', () => {
     );
   });
 
-  it('subtracts completed returns before removing VAT from achieved sales', async () => {
+  it('calculates SA progress from completed reports instead of order cache revenue', async () => {
     const { service, prisma } = createHarness();
     prisma.salesReport.findMany
       .mockResolvedValueOnce([])
@@ -305,8 +305,12 @@ describe('HomeSummaryService', () => {
       { date: '2026-07-04' },
     );
 
+    expect(result.totalRevenue).toBe(16500000);
     expect(result.completedRevenue).toBe(972000);
     expect(result.salesProgress.day.actual).toBe(900000);
+    expect(result.salesProgress.day.actual).not.toBe(
+      Math.round(result.totalRevenue / 1.08),
+    );
     expect(prisma.salesReport.findMany).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
@@ -751,10 +755,15 @@ describe('HomeSummaryService', () => {
         AND: expect.arrayContaining([
           expect.objectContaining({
             OR: expect.arrayContaining([
-              { sourceUserId: 'sa-2' },
               {
-                consultantCustomId: {
-                  equals: 'SA_CP75_HCM_SOUTH',
+                sourceUserEmail: {
+                  equals: 'sa2@phongvu.vn',
+                  mode: 'insensitive',
+                },
+              },
+              {
+                reportCreatedByEmail: {
+                  equals: 'sa2@phongvu.vn',
                   mode: 'insensitive',
                 },
               },
@@ -769,10 +778,21 @@ describe('HomeSummaryService', () => {
           AND: expect.arrayContaining([
             expect.objectContaining({
               OR: expect.arrayContaining([
-                { sourceUserId: 'sa-2' },
                 {
-                  consultantCustomId: {
-                    equals: 'SA_CP75_HCM_SOUTH',
+                  sourceUserEmail: {
+                    equals: 'sa2@phongvu.vn',
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  consultantEmail: {
+                    equals: 'sa2@phongvu.vn',
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  sellerEmail: {
+                    equals: 'sa2@phongvu.vn',
                     mode: 'insensitive',
                   },
                 },
@@ -783,6 +803,54 @@ describe('HomeSummaryService', () => {
         select: expect.objectContaining({ lifecycleStatus: true }),
       }),
     );
+    const selectedSaWhereClauses = JSON.stringify({
+      orderCounts: prisma.homeSummaryOrderFact.count.mock.calls.map(
+        ([args]: any[]) => args.where,
+      ),
+      reportCounts: prisma.homeSummaryReportFact.count.mock.calls.map(
+        ([args]: any[]) => args.where,
+      ),
+      orderCache: prisma.salesReportErpOrderCache.findMany.mock.calls.map(
+        ([args]: any[]) => args.where,
+      ),
+      salesReports: prisma.salesReport.findMany.mock.calls.map(
+        ([args]: any[]) => args.where,
+      ),
+      behaviorCounts: prisma.salesReport.count.mock.calls.map(
+        ([args]: any[]) => args.where,
+      ),
+    });
+    expect(selectedSaWhereClauses).not.toContain('SA_CP75_HCM_SOUTH');
+    expect(selectedSaWhereClauses).not.toContain('sourceUserId');
+    expect(selectedSaWhereClauses).not.toContain('createdByUserId');
+    expect(selectedSaWhereClauses).not.toContain('reportCreatedByUserId');
+    expect(selectedSaWhereClauses).not.toContain('consultantCustomId');
+    expect(selectedSaWhereClauses).not.toContain('sellerId');
+    expect(selectedSaWhereClauses).not.toContain('createdByPersonnelCode');
+    expect(selectedSaWhereClauses).toContain('sa2@phongvu.vn');
+    const selectedSaReportQueries = prisma.salesReport.findMany.mock.calls
+      .map(([args]: any[]) => args.where)
+      .filter((where: any) => JSON.stringify(where).includes('sa2@phongvu.vn'));
+    expect(selectedSaReportQueries.length).toBeGreaterThan(0);
+    for (const where of selectedSaReportQueries) {
+      expect(where).toEqual(
+        expect.objectContaining({
+          AND: expect.arrayContaining([
+            expect.objectContaining({
+              erpLifecycleStatus: {
+                in: ['COMPLETED', 'COMPLETED_PARTIAL_RETURN'],
+              },
+            }),
+            {
+              createdByEmail: {
+                equals: 'sa2@phongvu.vn',
+                mode: 'insensitive',
+              },
+            },
+          ]),
+        }),
+      );
+    }
     expect(prisma.mapVietinTransaction.count).toHaveBeenNthCalledWith(1, {
       where: expect.objectContaining({
         AND: expect.arrayContaining([{ storeCode: { in: ['CP75'] } }]),

@@ -18,7 +18,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   `Chưa chọn SA`; khi chưa chọn thủ công, các KPI `Bán hàng` và
   `Hành vi then chốt` vẫn giữ toàn bộ scope showroom/node ở header. Khi tài
   khoản quản lý chọn SA trong `Tổng quan cá nhân`, các KPI này mới dùng scope
-  cá nhân của SA đó; `Tổng quan Cửa hàng` và `Tài chính` vẫn giữ theo
+  cá nhân của SA đó, định danh SA bằng email và không dùng mã nhân viên/generated
+  code để lọc; `Tổng quan Cửa hàng` và `Tài chính` vẫn giữ theo
   showroom/node đang chọn ở header. Khu vực `Bán hàng` chia thành nhóm
   `Doanh số` và `Hành vi then chốt`. Nhóm `Doanh số` hiển thị doanh số tổng
   từ cache đơn hàng sau khi loại đơn 0 VND, đơn hủy/trả toàn bộ và trừ giá trị
@@ -144,8 +145,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   Card `Tổng quan Cửa hàng` luôn giữ scope showroom/node, giống nhau cho các
   user trong cùng SR và không đổi khi dropdown SA thay đổi. Store
   manager/tài khoản quản lý theo node chỉ được chọn SA thuộc scope đang xem để
-  xem card cá nhân; nếu danh sách SA lớn hơn 10, picker có ô tìm kiếm theo tên,
-  email hoặc mã nhân viên tư vấn. Trên mobile, kéo mạnh xuống ở Trang chủ tải
+  xem card cá nhân; tiến độ SA chỉ cộng đơn ERP đã hoàn thành từ báo cáo mua
+  hàng, không lấy doanh số cache. Nếu danh sách SA lớn hơn 10, picker có ô tìm
+  kiếm theo tên hoặc email. Trên mobile, kéo mạnh xuống ở Trang chủ tải
   lại dashboard theo bộ lọc hiện tại. Menu `Quản trị` có `Quản lý doanh số` theo
   feature `ADMIN_SALES_TARGETS`; chỉ tiêu lưu theo SR/tháng ở giá trị trước VAT.
 - ERP/Listing chỉ được tự điền ngành hàng khi map được về nhóm ngành OpsHub:
@@ -225,8 +227,9 @@ phí`.
   dấu phẩy trong nội dung được giữ nguyên trong cùng một ô.
 - `orderCode` là unique trên bảng `SalesReport`; một đơn mua hàng chỉ được báo
   cáo một lần.
-- Không có field nhập `MSNV`; backend lấy user, email, tên, mã nhân viên suy ra,
-  showroom và organization node từ token/user hiện tại.
+- Không có field nhập `MSNV`; backend lấy user, email, tên, showroom và
+  organization node từ token/user hiện tại. Home Summary dùng email để định danh
+  SA khi lọc scope cá nhân, không dùng mã nhân viên suy ra.
 - `ADMIN_SALES_REPORTS` được gán bằng feature theo node tổ chức. Super Admin có
   quyền toàn app theo feature resolver hiện tại.
 - OpsHub đồng bộ dữ liệu `Báo cáo bán hàng` sang BigQuery để Looker Studio đọc

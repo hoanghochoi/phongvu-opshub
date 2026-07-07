@@ -45,7 +45,6 @@ void main() {
           'userId': 'sa-1',
           'label': 'SA Một',
           'email': 'sa1@phongvu.vn',
-          'personnelCode': 'SA_CP75_HCM_SOUTH',
           'storeCodes': ['CP75'],
           'isSelected': true,
           'isCurrentUser': false,

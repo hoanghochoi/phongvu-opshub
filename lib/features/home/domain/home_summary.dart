@@ -217,7 +217,6 @@ class HomeSalesProgressAssignee {
     required this.userId,
     required this.label,
     this.email,
-    this.personnelCode,
     this.storeCodes = const [],
     this.isSelected = false,
     this.isCurrentUser = false,
@@ -226,7 +225,6 @@ class HomeSalesProgressAssignee {
   final String userId;
   final String label;
   final String? email;
-  final String? personnelCode;
   final List<String> storeCodes;
   final bool isSelected;
   final bool isCurrentUser;
@@ -236,7 +234,6 @@ class HomeSalesProgressAssignee {
       userId: HomeSummary._stringOf(json['userId']),
       label: HomeSummary._stringOf(json['label']),
       email: HomeSummary._nullableStringOf(json['email']),
-      personnelCode: HomeSummary._nullableStringOf(json['personnelCode']),
       storeCodes: (json['storeCodes'] as List? ?? const [])
           .map((item) => item.toString().trim())
           .where((item) => item.isNotEmpty)
