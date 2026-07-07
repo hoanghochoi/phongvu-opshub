@@ -69,6 +69,7 @@ class HomeSummaryProvider extends ChangeNotifier {
   DateTime? _selectedStartDate;
   DateTime? _selectedEndDate;
   String _selectedScope = HomeSummaryScopeFilters.auto;
+  String? _selectedSalesProgressUserId;
   List<HomeSummaryScopeOption> _scopeOptions = const [];
   bool _isLoading = false;
   bool _isRefreshing = false;
@@ -81,11 +82,14 @@ class HomeSummaryProvider extends ChangeNotifier {
   DateTime? get selectedStartDate => _selectedStartDate;
   DateTime? get selectedEndDate => _selectedEndDate;
   String get selectedScope => _selectedScope;
+  String? get selectedSalesProgressUserId => _selectedSalesProgressUserId;
   bool get isLoading => _isLoading;
   bool get isRefreshing => _isRefreshing;
   bool get isInitialLoading => _isLoading && _summary == null;
   bool get canRefresh => !_isLoading && !_isRefreshing && _user != null;
   String? get errorMessage => _errorMessage;
+  List<HomeSalesProgressAssignee> get salesProgressAssignees =>
+      _summary?.salesProgressAssignees ?? const [];
   List<HomeSummaryScopeOption> get scopeOptions {
     if (_scopeOptions.isNotEmpty) return _scopeOptions;
     return _fallbackScopeOptions(_user, _summary);
@@ -105,12 +109,17 @@ class HomeSummaryProvider extends ChangeNotifier {
           requestScope: HomeSummaryScopeFilters.all,
         ),
       );
-    } else if (user?.canUseFeature('ADMIN_SALES_REPORTS') == true) {
+    } else if (user?.canUseFeature('ADMIN_SALES_REPORTS') == true ||
+        (user?.hasMultipleAssignedStores == true &&
+            user?.canUseFeature('SALES_REPORT') == true)) {
       options.add(
-        const HomeSummaryScopeOption(
+        HomeSummaryScopeOption(
           value: HomeSummaryScopeFilters.managed,
-          label: 'Showroom được gán',
+          label: user?.hasMultipleAssignedStores == true
+              ? 'Tất cả SR được gán'
+              : 'Showroom được gán',
           requestScope: HomeSummaryScopeFilters.managed,
+          storeCount: user?.assignedStores.length,
         ),
       );
     }
@@ -170,6 +179,7 @@ class HomeSummaryProvider extends ChangeNotifier {
           _isRefreshing) {
         _summary = null;
         _scopeOptions = const [];
+        _selectedSalesProgressUserId = null;
         _errorMessage = null;
         _isLoading = false;
         _isRefreshing = false;
@@ -182,6 +192,7 @@ class HomeSummaryProvider extends ChangeNotifier {
       _resetSelectedDateRangeToToday();
       _scopeOptions = const [];
       _selectedScope = _defaultScopeFor(user, const []);
+      _selectedSalesProgressUserId = null;
       _summary = null;
       _errorMessage = null;
       _isLoading = true;
@@ -306,7 +317,9 @@ class HomeSummaryProvider extends ChangeNotifier {
     final nextScope = _normalizeScope(value);
     if (_selectedScope == nextScope) return;
     final previousScope = _selectedScope;
+    final previousSalesProgressUserId = _selectedSalesProgressUserId;
     _selectedScope = nextScope;
+    _selectedSalesProgressUserId = null;
     notifyListeners();
     final selectedOption = _scopeOptionFor(nextScope);
 
@@ -317,6 +330,7 @@ class HomeSummaryProvider extends ChangeNotifier {
         'userId': _user?.id,
         'previousScope': previousScope,
         'nextScope': _selectedScope,
+        'previousSalesProgressUserId': previousSalesProgressUserId,
         'requestScope': selectedOption?.requestScope,
         'organizationNodeId': selectedOption?.organizationNodeId,
         'startDate': formattedSelectedStartDate,
@@ -325,6 +339,28 @@ class HomeSummaryProvider extends ChangeNotifier {
       },
     );
     await loadSummary(reason: 'scope_change');
+  }
+
+  Future<void> setSelectedSalesProgressUser(String? userId) async {
+    final nextUserId = _normalizeOptionalId(userId);
+    if (_selectedSalesProgressUserId == nextUserId) return;
+    final previousUserId = _selectedSalesProgressUserId;
+    _selectedSalesProgressUserId = nextUserId;
+    notifyListeners();
+
+    await AppLogger.instance.info(
+      'HomeSummary',
+      'Home summary sales progress assignee changed',
+      context: {
+        'userId': _user?.id,
+        'previousSalesProgressUserId': previousUserId,
+        'nextSalesProgressUserId': _selectedSalesProgressUserId,
+        'scopeFilter': _selectedScope,
+        'requestScope': _requestScopeForSelectedScope,
+        'organizationNodeId': _organizationNodeIdForSelectedScope,
+      },
+    );
+    await loadSummary(reason: 'sales_progress_assignee_change');
   }
 
   Future<void> loadSummary({required String reason}) async {
@@ -351,6 +387,7 @@ class HomeSummaryProvider extends ChangeNotifier {
         'scopeFilter': _selectedScope,
         'requestScope': _requestScopeForSelectedScope,
         'organizationNodeId': _organizationNodeIdForSelectedScope,
+        'salesProgressUserId': _selectedSalesProgressUserId,
         'reason': reason,
         'cached': hadCachedSummary,
       },
@@ -362,10 +399,12 @@ class HomeSummaryProvider extends ChangeNotifier {
         endDate: formattedSelectedEndDate,
         scope: _requestScopeForSelectedScope,
         organizationNodeId: _organizationNodeIdForSelectedScope,
+        salesProgressUserId: _selectedSalesProgressUserId,
       );
       if (requestToken != _requestToken) return;
 
       _summary = summary;
+      _selectedSalesProgressUserId = summary.selectedSalesProgressUserId;
       _errorMessage = null;
       await AppLogger.instance.info(
         'HomeSummary',
@@ -379,6 +418,8 @@ class HomeSummaryProvider extends ChangeNotifier {
           'scopeFilter': _selectedScope,
           'requestScope': _requestScopeForSelectedScope,
           'organizationNodeId': _organizationNodeIdForSelectedScope,
+          'selectedSalesProgressUserId': _selectedSalesProgressUserId,
+          'salesProgressAssigneeCount': summary.salesProgressAssignees.length,
           'available': summary.available,
           'scope': summary.scope,
           'totalRevenue': summary.totalRevenue,
@@ -418,6 +459,7 @@ class HomeSummaryProvider extends ChangeNotifier {
           'scopeFilter': _selectedScope,
           'requestScope': _requestScopeForSelectedScope,
           'organizationNodeId': _organizationNodeIdForSelectedScope,
+          'salesProgressUserId': _selectedSalesProgressUserId,
           'reason': reason,
           'message': error.message,
         },
@@ -438,6 +480,7 @@ class HomeSummaryProvider extends ChangeNotifier {
           'scopeFilter': _selectedScope,
           'requestScope': _requestScopeForSelectedScope,
           'organizationNodeId': _organizationNodeIdForSelectedScope,
+          'salesProgressUserId': _selectedSalesProgressUserId,
           'reason': reason,
         },
         upload: true,
@@ -523,6 +566,11 @@ class HomeSummaryProvider extends ChangeNotifier {
       return normalized;
     }
     return HomeSummaryScopeFilters.auto;
+  }
+
+  static String? _normalizeOptionalId(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
   }
 
   static String _defaultScopeFor(

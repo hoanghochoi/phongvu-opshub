@@ -47,6 +47,11 @@ void main() {
   testWidgets('date range dropdown applies both dates from one picker', (
     tester,
   ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
     DateTime? selectedStart;
     DateTime? selectedEnd;
 
@@ -83,6 +88,11 @@ void main() {
 
     final dialogFinder = find.byType(DateRangePickerDialog);
     expect(dialogFinder, findsOneWidget);
+    final pickerSurface = find.descendant(
+      of: find.byType(Dialog),
+      matching: find.byType(AnimatedContainer),
+    );
+    expect(tester.getSize(pickerSurface), const Size(620, 680));
 
     Navigator.of(tester.element(dialogFinder)).pop(
       DateTimeRange(start: DateTime(2026, 6, 25), end: DateTime(2026, 7, 4)),

@@ -32,6 +32,26 @@ void main() {
         'week': {'actual': 500, 'target': null, 'percentage': null},
         'month': {'actual': 800, 'target': null, 'percentage': null},
       },
+      'scopeSalesProgress': {
+        'status': 'AVAILABLE',
+        'scope': 'MANAGED',
+        'missingStoreCodes': [],
+        'day': {'actual': 200, 'target': 400, 'percentage': 50},
+        'week': {'actual': 500, 'target': 1000, 'percentage': 50},
+        'month': {'actual': 800, 'target': 1600, 'percentage': 50},
+      },
+      'salesProgressAssignees': [
+        {
+          'userId': 'sa-1',
+          'label': 'SA Một',
+          'email': 'sa1@phongvu.vn',
+          'personnelCode': 'SA_CP75_HCM_SOUTH',
+          'storeCodes': ['CP75'],
+          'isSelected': true,
+          'isCurrentUser': false,
+        },
+      ],
+      'selectedSalesProgressUserId': 'sa-1',
       'notPurchasedReports': 12,
       'averageOrderValue': 2500000,
       'completedRevenue': 90000000,
@@ -43,6 +63,10 @@ void main() {
     });
 
     expect(summary.salesProgress.status, 'PARTIAL');
+    expect(summary.personalSalesProgress.status, 'PARTIAL');
+    expect(summary.scopeSalesProgress.scope, 'MANAGED');
+    expect(summary.salesProgressAssignees.single.label, 'SA Một');
+    expect(summary.selectedSalesProgressUserId, 'sa-1');
     expect(summary.salesProgress.missingStoreCodes, ['CP02']);
     expect(summary.salesProgress.day.percentage, 120);
     expect(summary.salesProgress.week.target, isNull);
@@ -140,6 +164,31 @@ void main() {
               month: HomeSalesProgressPeriod(
                 actual: 1200000000,
                 target: 3000000000,
+                percentage: 40,
+              ),
+            ),
+            scopeSalesProgress: const HomeSalesProgress(
+              status: 'AVAILABLE',
+              scope: 'MANAGED',
+              missingStoreCodes: [],
+              day: HomeSalesProgressPeriod(
+                actual: 200000000,
+                target: 300000000,
+                percentage: 66.67,
+              ),
+              range: HomeSalesProgressPeriod(
+                actual: 200000000,
+                target: 300000000,
+                percentage: 66.67,
+              ),
+              week: HomeSalesProgressPeriod(
+                actual: 900000000,
+                target: 1400000000,
+                percentage: 64.29,
+              ),
+              month: HomeSalesProgressPeriod(
+                actual: 2400000000,
+                target: 6000000000,
                 percentage: 40,
               ),
             ),
@@ -318,15 +367,29 @@ void main() {
         find.byKey(const Key('home-sales-progress-range')),
         findsOneWidget,
       );
+      expect(find.text('Tổng quan cá nhân'), findsOneWidget);
+      expect(find.text('Tổng quan Cửa hàng'), findsOneWidget);
       expect(find.byKey(const Key('home-sales-progress-week')), findsOneWidget);
       expect(
         find.byKey(const Key('home-sales-progress-month')),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const Key('home-scope-sales-progress-range')),
+        findsOneWidget,
+      );
+      expect(
+        tester.getSize(
+          find.byKey(const Key('home-sales-progress-range-donut')),
+        ),
+        const Size.square(68),
+      );
       expect(find.textContaining('Đã đạt:'), findsWidgets);
       expect(find.textContaining('Chỉ tiêu:'), findsWidgets);
       expect(find.text('Đã đạt: 1,2B VND'), findsOneWidget);
       expect(find.text('Chỉ tiêu: 3B VND'), findsOneWidget);
+      expect(find.text('Đã đạt: 2,4B VND'), findsOneWidget);
+      expect(find.text('Chỉ tiêu: 6B VND'), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(find.text('Tổng quan'), findsOneWidget);
       expect(
@@ -650,6 +713,106 @@ void main() {
     expect(find.text('5M VND'), findsOneWidget);
   });
 
+  testWidgets(
+    'Home dashboard lets super admin select organization node scope',
+    (tester) async {
+      final authProvider = _FakeAuthProvider(_superAdminUser());
+      final repository = _FakeHomeSummaryRepository(
+        summary: HomeSummary(
+          date: '2026-07-04',
+          available: true,
+          scope: 'ALL',
+          scopeLabel: 'Toàn hệ thống',
+          scopeDetail: 'Tổng hợp toàn hệ thống',
+          coverageLabel: 'Tỉ lệ báo cáo',
+          totalRevenue: 125000000,
+          totalOrders: 42,
+          totalReports: 38,
+          reportedOrders: 35,
+          unreportedOrders: 7,
+          coverageRate: 83.33,
+          refreshedAt: DateTime.parse('2026-07-04T03:15:00.000Z'),
+        ),
+        scopeOptions: const [
+          HomeSummaryScopeOptionDto(
+            value: 'ALL',
+            label: 'Toàn hệ thống',
+            scope: 'ALL',
+            isDefault: true,
+          ),
+          HomeSummaryScopeOptionDto(
+            value: 'NODE:org-area-hcm',
+            label: 'Vùng: Hồ Chí Minh',
+            scope: 'MANAGED_SCOPE',
+            organizationNodeId: 'org-area-hcm',
+            organizationNodeType: 'LV3_AREA',
+            storeCount: 2,
+          ),
+          HomeSummaryScopeOptionDto(
+            value: 'NODE:org-store-cp75',
+            label: 'Showroom: CP75',
+            scope: 'MANAGED_SCOPE',
+            organizationNodeId: 'org-store-cp75',
+            organizationNodeType: 'LV4_STORE',
+            storeCount: 1,
+          ),
+          HomeSummaryScopeOptionDto(
+            value: 'OWN',
+            label: 'Phạm vi cá nhân',
+            scope: 'OWN',
+          ),
+        ],
+        nodeSummaries: {
+          'org-area-hcm': HomeSummary(
+            date: '2026-07-04',
+            available: true,
+            scope: 'MANAGED_SCOPE',
+            scopeLabel: 'Vùng: Hồ Chí Minh',
+            scopeDetail: '2 showroom được chọn',
+            coverageLabel: 'Tỉ lệ báo cáo',
+            totalRevenue: 15000000,
+            totalOrders: 5,
+            totalReports: 4,
+            reportedOrders: 4,
+            unreportedOrders: 1,
+            coverageRate: 80,
+            refreshedAt: DateTime.parse('2026-07-04T03:20:00.000Z'),
+          ),
+        },
+      );
+      final summaryProvider = HomeSummaryProvider(repository);
+      addTearDown(summaryProvider.dispose);
+      summaryProvider.syncAuth(authProvider.user, isInitialized: true);
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+            ChangeNotifierProvider<HomeSummaryProvider>.value(
+              value: summaryProvider,
+            ),
+          ],
+          child: const MaterialApp(home: HomeScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(summaryProvider.selectedScope, 'ALL');
+      expect(find.text('Toàn hệ thống'), findsWidgets);
+
+      await tester.tap(find.byKey(const Key('home-summary-scope-pill')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Vùng: Hồ Chí Minh').last);
+      await tester.pumpAndSettle();
+
+      expect(summaryProvider.selectedScope, 'NODE:org-area-hcm');
+      expect(repository.requestedScopes, contains('MANAGED_SCOPE'));
+      expect(repository.requestedNodeIds, contains('org-area-hcm'));
+      expect(find.text('Vùng: Hồ Chí Minh'), findsWidgets);
+      expect(find.text('15M VND'), findsOneWidget);
+    },
+  );
+
   testWidgets('Home dashboard scope dropdown selects assigned child node', (
     tester,
   ) async {
@@ -736,6 +899,217 @@ void main() {
     expect(repository.requestedNodeIds, contains('org-store-cp75'));
     expect(find.text('9M VND'), findsOneWidget);
   });
+
+  testWidgets('Home dashboard defaults to aggregate assigned showroom scope', (
+    tester,
+  ) async {
+    final authProvider = _FakeAuthProvider(_managerUser());
+    final repository = _FakeHomeSummaryRepository(
+      summary: HomeSummary(
+        date: '2026-07-04',
+        available: true,
+        scope: 'MANAGED_SCOPE',
+        scopeLabel: 'Tất cả SR được gán',
+        scopeDetail: 'CP75, CP62',
+        coverageLabel: 'Tỉ lệ báo cáo',
+        totalRevenue: 22000000,
+        totalOrders: 8,
+        totalReports: 7,
+        reportedOrders: 7,
+        unreportedOrders: 1,
+        coverageRate: 87.5,
+        refreshedAt: DateTime.parse('2026-07-04T03:15:00.000Z'),
+      ),
+      scopeOptions: const [
+        HomeSummaryScopeOptionDto(
+          value: 'MANAGED_SCOPE',
+          label: 'Tất cả SR được gán',
+          scope: 'MANAGED_SCOPE',
+          storeCount: 2,
+          isDefault: true,
+        ),
+        HomeSummaryScopeOptionDto(
+          value: 'NODE:org-store-cp75',
+          label: 'Showroom: CP75',
+          scope: 'MANAGED_SCOPE',
+          organizationNodeId: 'org-store-cp75',
+          organizationNodeType: 'LV4_STORE',
+          storeCount: 1,
+        ),
+        HomeSummaryScopeOptionDto(
+          value: 'NODE:org-store-cp62',
+          label: 'Showroom: CP62',
+          scope: 'MANAGED_SCOPE',
+          organizationNodeId: 'org-store-cp62',
+          organizationNodeType: 'LV4_STORE',
+          storeCount: 1,
+        ),
+        HomeSummaryScopeOptionDto(
+          value: 'OWN',
+          label: 'Phạm vi cá nhân',
+          scope: 'OWN',
+        ),
+      ],
+    );
+    final summaryProvider = HomeSummaryProvider(repository);
+    addTearDown(summaryProvider.dispose);
+    summaryProvider.syncAuth(authProvider.user, isInitialized: true);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<HomeSummaryProvider>.value(
+            value: summaryProvider,
+          ),
+        ],
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(summaryProvider.selectedScope, 'MANAGED_SCOPE');
+    expect(repository.requestedScopes, contains('MANAGED_SCOPE'));
+    expect(repository.requestedNodeIds, contains(null));
+    expect(find.text('Tất cả SR được gán'), findsWidgets);
+    expect(find.text('22M VND'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('home-summary-scope-pill')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Showroom: CP75'), findsWidgets);
+    expect(find.text('Showroom: CP62'), findsWidgets);
+    expect(find.text('Phạm vi cá nhân'), findsWidgets);
+  });
+
+  testWidgets(
+    'Home dashboard reloads personal sales progress for selected SA',
+    (tester) async {
+      final authProvider = _FakeAuthProvider(_managerUser());
+      final repository = _FakeHomeSummaryRepository(
+        summary: _managerSalesProgressSummary('sa-1'),
+        salesProgressUserSummaries: {
+          'sa-2': _managerSalesProgressSummary('sa-2'),
+        },
+        scopeOptions: const [
+          HomeSummaryScopeOptionDto(
+            value: 'NODE:org-store-cp75',
+            label: 'Showroom: CP75',
+            scope: 'MANAGED_SCOPE',
+            organizationNodeId: 'org-store-cp75',
+            organizationNodeType: 'LV4_STORE',
+            storeCount: 1,
+            isDefault: true,
+          ),
+        ],
+      );
+      final summaryProvider = HomeSummaryProvider(repository);
+      addTearDown(summaryProvider.dispose);
+      summaryProvider.syncAuth(authProvider.user, isInitialized: true);
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+            ChangeNotifierProvider<HomeSummaryProvider>.value(
+              value: summaryProvider,
+            ),
+          ],
+          child: const MaterialApp(home: HomeScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('home-sales-progress-assignee-dropdown')),
+        findsOneWidget,
+      );
+      expect(find.text('SA Một - CP75'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const Key('home-sales-progress-assignee-dropdown')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('SA Hai - CP75').last);
+      await tester.pumpAndSettle();
+
+      expect(repository.requestedSalesProgressUserIds, contains('sa-2'));
+      expect(summaryProvider.selectedSalesProgressUserId, 'sa-2');
+      expect(find.text('SA Hai - CP75'), findsOneWidget);
+    },
+  );
+
+  testWidgets('Home dashboard uses searchable SA picker for long lists', (
+    tester,
+  ) async {
+    final authProvider = _FakeAuthProvider(_managerUser());
+    final repository = _FakeHomeSummaryRepository(
+      summary: _managerLongSalesProgressSummary('sa-01'),
+      salesProgressUserSummaries: {
+        'sa-12': _managerLongSalesProgressSummary('sa-12'),
+      },
+      scopeOptions: const [
+        HomeSummaryScopeOptionDto(
+          value: 'NODE:org-store-cp75',
+          label: 'Showroom: CP75',
+          scope: 'MANAGED_SCOPE',
+          organizationNodeId: 'org-store-cp75',
+          organizationNodeType: 'LV4_STORE',
+          storeCount: 1,
+          isDefault: true,
+        ),
+      ],
+    );
+    final summaryProvider = HomeSummaryProvider(repository);
+    addTearDown(summaryProvider.dispose);
+    summaryProvider.syncAuth(authProvider.user, isInitialized: true);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<HomeSummaryProvider>.value(
+            value: summaryProvider,
+          ),
+        ],
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const Key('home-sales-progress-assignee-dropdown')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('home-sales-progress-assignee-search-dialog')),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const Key('home-sales-progress-assignee-search-input')),
+      '12',
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('home-sales-progress-assignee-option-sa-12')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('home-sales-progress-assignee-option-sa-01')),
+      findsNothing,
+    );
+
+    await tester.tap(
+      find.byKey(const Key('home-sales-progress-assignee-option-sa-12')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.requestedSalesProgressUserIds, contains('sa-12'));
+    expect(summaryProvider.selectedSalesProgressUserId, 'sa-12');
+    expect(find.text('SA 12 - CP75'), findsOneWidget);
+  });
 }
 
 HomeSummary _homeSummary() {
@@ -769,14 +1143,17 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
   final HomeSummary summary;
   final Map<String, HomeSummary> scopedSummaries;
   final Map<String, HomeSummary> nodeSummaries;
+  final Map<String, HomeSummary> salesProgressUserSummaries;
   final List<HomeSummaryScopeOptionDto> scopeOptions;
   final List<String?> requestedScopes = [];
   final List<String?> requestedNodeIds = [];
+  final List<String?> requestedSalesProgressUserIds = [];
 
   _FakeHomeSummaryRepository({
     required this.summary,
     this.scopedSummaries = const {},
     this.nodeSummaries = const {},
+    this.salesProgressUserSummaries = const {},
     this.scopeOptions = const [],
   }) : super(ApiClient());
 
@@ -787,9 +1164,15 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
     String? endDate,
     String? scope,
     String? organizationNodeId,
+    String? salesProgressUserId,
   }) async {
     requestedScopes.add(scope);
     requestedNodeIds.add(organizationNodeId);
+    requestedSalesProgressUserIds.add(salesProgressUserId);
+    if (salesProgressUserId != null &&
+        salesProgressUserSummaries.containsKey(salesProgressUserId)) {
+      return salesProgressUserSummaries[salesProgressUserId]!;
+    }
     if (organizationNodeId != null &&
         nodeSummaries.containsKey(organizationNodeId)) {
       return nodeSummaries[organizationNodeId]!;
@@ -801,6 +1184,111 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
   Future<List<HomeSummaryScopeOptionDto>> fetchScopeOptions() async {
     return scopeOptions;
   }
+}
+
+HomeSummary _managerSalesProgressSummary(
+  String selectedUserId, {
+  List<HomeSalesProgressAssignee>? assignees,
+}) {
+  final resolvedAssignees =
+      assignees ??
+      [
+        HomeSalesProgressAssignee(
+          userId: 'sa-1',
+          label: 'SA Một',
+          storeCodes: const ['CP75'],
+          isSelected: selectedUserId == 'sa-1',
+        ),
+        HomeSalesProgressAssignee(
+          userId: 'sa-2',
+          label: 'SA Hai',
+          storeCodes: const ['CP75'],
+          isSelected: selectedUserId == 'sa-2',
+        ),
+      ];
+  return HomeSummary(
+    date: '2026-07-04',
+    available: true,
+    scope: 'MANAGED_SCOPE',
+    scopeLabel: 'Showroom: CP75',
+    scopeDetail: 'CP75',
+    coverageLabel: 'Tỉ lệ báo cáo',
+    totalRevenue: 125000000,
+    totalOrders: 42,
+    totalReports: 38,
+    reportedOrders: 35,
+    unreportedOrders: 7,
+    coverageRate: 83.33,
+    salesProgress: HomeSalesProgress(
+      status: 'AVAILABLE',
+      scope: 'PERSONAL_SA',
+      missingStoreCodes: const [],
+      day: const HomeSalesProgressPeriod(
+        actual: 1000000,
+        target: 2000000,
+        percentage: 50,
+      ),
+      range: HomeSalesProgressPeriod(
+        actual: selectedUserId == 'sa-1' ? 1000000 : 2000000,
+        target: 2000000,
+        percentage: selectedUserId == 'sa-1' ? 50 : 100,
+      ),
+      week: const HomeSalesProgressPeriod(
+        actual: 5000000,
+        target: 10000000,
+        percentage: 50,
+      ),
+      month: const HomeSalesProgressPeriod(
+        actual: 20000000,
+        target: 40000000,
+        percentage: 50,
+      ),
+    ),
+    scopeSalesProgress: const HomeSalesProgress(
+      status: 'AVAILABLE',
+      scope: 'MANAGED',
+      missingStoreCodes: [],
+      day: HomeSalesProgressPeriod(
+        actual: 3000000,
+        target: 6000000,
+        percentage: 50,
+      ),
+      range: HomeSalesProgressPeriod(
+        actual: 3000000,
+        target: 6000000,
+        percentage: 50,
+      ),
+      week: HomeSalesProgressPeriod(
+        actual: 15000000,
+        target: 30000000,
+        percentage: 50,
+      ),
+      month: HomeSalesProgressPeriod(
+        actual: 60000000,
+        target: 120000000,
+        percentage: 50,
+      ),
+    ),
+    salesProgressAssignees: resolvedAssignees,
+    selectedSalesProgressUserId: selectedUserId,
+    refreshedAt: DateTime.parse('2026-07-04T03:15:00.000Z'),
+  );
+}
+
+HomeSummary _managerLongSalesProgressSummary(String selectedUserId) {
+  return _managerSalesProgressSummary(
+    selectedUserId,
+    assignees: [
+      for (var index = 1; index <= 12; index += 1)
+        HomeSalesProgressAssignee(
+          userId: 'sa-${index.toString().padLeft(2, '0')}',
+          label: 'SA ${index.toString().padLeft(2, '0')}',
+          storeCodes: const ['CP75'],
+          isSelected:
+              selectedUserId == 'sa-${index.toString().padLeft(2, '0')}',
+        ),
+    ],
+  );
 }
 
 User _staffUser() {

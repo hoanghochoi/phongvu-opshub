@@ -233,6 +233,36 @@ void main() {
     },
   );
 
+  testWidgets('mobile drawer shows app metadata footer', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_shellUser);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: const MaterialApp(
+          home: AppShell(
+            location: '/home',
+            child: _RouteMarker(label: 'home-route-marker'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Mở menu'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Version 2026.07.03.87'), findsOneWidget);
+    expect(find.text('Dev: Hoàng Học Hỏi'), findsOneWidget);
+    expect(find.textContaining('© '), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Android system back returns to the previous shell route', (
     tester,
   ) async {

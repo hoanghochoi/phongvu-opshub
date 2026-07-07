@@ -25,4 +25,9 @@ export class GetHomeSummaryQueryDto {
   @IsString()
   @MaxLength(80)
   organizationNodeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  salesProgressUserId?: string;
 }

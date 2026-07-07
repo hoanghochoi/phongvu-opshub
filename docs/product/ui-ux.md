@@ -54,9 +54,11 @@ visual systems that make the app feel assembled from unrelated screens.
   mobile; do not render a second notification bell in the mobile app bar.
   Account/profile entry belongs to the bottom `Tài khoản` destination; do not
   duplicate the account avatar in the app bar when the screen content already
-  shows user identity. Desktop top bar account area shows the avatar plus two
-  compact lines for staff name and SR, with the text block matching the avatar
-  height and truncating long values; tablet keeps the account avatar compact.
+  shows user identity. Mobile drawer keeps the same app metadata footer as the
+  desktop sidebar: version, developer credit, and copyright pinned below the
+  scrollable menu. Desktop top bar account area shows the avatar plus two compact
+  lines for staff name and SR, with the text block matching the avatar height and
+  truncating long values; tablet keeps the account avatar compact.
   The shell top bar owns destination titles; feature content should use
   task/status-specific headings instead of repeating the same destination label
   in a header card. The mobile `Thông báo` destination opens the

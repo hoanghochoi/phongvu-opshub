@@ -154,6 +154,7 @@ class _AppShellState extends State<AppShell> {
               drawerDestinations: sidebarDestinations,
               destinations: mobileDestinations,
               activeDestination: activeDestination,
+              version: _version,
               onNavigate: _navigate,
               onSupport: () => _showSupportDialog(context),
               child: widget.child,
@@ -567,6 +568,7 @@ class _MobileShell extends StatelessWidget {
   final List<AppNavDestination> drawerDestinations;
   final List<AppNavDestination> destinations;
   final AppNavDestination activeDestination;
+  final String version;
   final ValueChanged<AppNavDestination> onNavigate;
   final VoidCallback onSupport;
   final Widget child;
@@ -576,6 +578,7 @@ class _MobileShell extends StatelessWidget {
     required this.drawerDestinations,
     required this.destinations,
     required this.activeDestination,
+    required this.version,
     required this.onNavigate,
     required this.onSupport,
     required this.child,
@@ -589,6 +592,7 @@ class _MobileShell extends StatelessWidget {
       drawer: _MobileNavigationDrawer(
         location: location,
         destinations: drawerDestinations,
+        version: version,
         onNavigate: onNavigate,
       ),
       appBar: AppBar(
@@ -670,11 +674,13 @@ class _MobileNavigationDrawer extends StatelessWidget {
   const _MobileNavigationDrawer({
     required this.location,
     required this.destinations,
+    required this.version,
     required this.onNavigate,
   });
 
   final String location;
   final List<AppNavDestination> destinations;
+  final String version;
   final ValueChanged<AppNavDestination> onNavigate;
 
   @override
@@ -683,61 +689,75 @@ class _MobileNavigationDrawer extends StatelessWidget {
     return Drawer(
       backgroundColor: AppColors.sidebarSurfaceOf(context),
       child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                const AppLogo(size: 42, borderRadius: AppRadius.md),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        AppBrand.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.labelL.copyWith(
-                          color: AppColors.sidebarTextOf(context),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+              child: Row(
+                children: [
+                  const AppLogo(size: 42, borderRadius: AppRadius.md),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          AppBrand.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.labelL.copyWith(
+                            color: AppColors.sidebarTextOf(context),
+                          ),
                         ),
-                      ),
-                      Text(
-                        AppBrand.slogan,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        Text(
+                          AppBrand.slogan,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.labelS.copyWith(
+                            color: AppColors.sidebarMutedOf(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                key: const ValueKey('mobile-drawer-list'),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                children: [
+                  for (final section in sections) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 14, 4, 6),
+                      child: Text(
+                        section.label,
                         style: AppTextStyles.labelS.copyWith(
                           color: AppColors.sidebarMutedOf(context),
                         ),
                       ),
+                    ),
+                    for (final destination in section.destinations) ...[
+                      _MobileDrawerItem(
+                        destination: destination,
+                        selected: AppNavModel.isSelected(destination, location),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          onNavigate(destination);
+                        },
+                      ),
+                      const SizedBox(height: 4),
                     ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            for (final section in sections) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(4, 14, 4, 6),
-                child: Text(
-                  section.label,
-                  style: AppTextStyles.labelS.copyWith(
-                    color: AppColors.sidebarMutedOf(context),
-                  ),
-                ),
+                  ],
+                ],
               ),
-              for (final destination in section.destinations) ...[
-                _MobileDrawerItem(
-                  destination: destination,
-                  selected: AppNavModel.isSelected(destination, location),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    onNavigate(destination);
-                  },
-                ),
-                const SizedBox(height: 4),
-              ],
-            ],
+            ),
+            _SidebarFooter(
+              version: version,
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
+            ),
           ],
         ),
       ),
@@ -905,9 +925,13 @@ class _DesktopSidebar extends StatelessWidget {
 }
 
 class _SidebarFooter extends StatelessWidget {
-  const _SidebarFooter({required this.version});
+  const _SidebarFooter({
+    required this.version,
+    this.padding = const EdgeInsets.fromLTRB(16, 6, 16, 14),
+  });
 
   final String version;
+  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
@@ -918,7 +942,7 @@ class _SidebarFooter extends StatelessWidget {
       height: 1.25,
     );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
+      padding: padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

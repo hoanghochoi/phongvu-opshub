@@ -44,6 +44,10 @@ describe('SalesReportsService', () => {
           },
         ]),
       },
+      organizationNode: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
       $transaction: jest.fn((value: any) =>
         Array.isArray(value) ? Promise.all(value) : value(prisma),
       ),
@@ -227,9 +231,9 @@ describe('SalesReportsService', () => {
       .mockResolvedValueOnce([
         { ...exportReportFixture(), orderCode: '2607010001' },
       ]);
-    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
-      erpOrderCacheFixture('2607010002'),
-    ]);
+    prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce([erpOrderCacheFixture('2607010002')])
+      .mockResolvedValueOnce([erpOrderCacheFixture('2607010002')]);
 
     const result = await service.orderCockpit(userFixture(), {
       startDate: '2026-06-25',
@@ -266,7 +270,7 @@ describe('SalesReportsService', () => {
       }),
     );
     const cacheFindArgs =
-      prisma.salesReportErpOrderCache.findMany.mock.calls[0][0];
+      prisma.salesReportErpOrderCache.findMany.mock.calls[1][0];
     expect(cacheFindArgs).toEqual(
       expect.objectContaining({
         skip: 0,
@@ -280,6 +284,60 @@ describe('SalesReportsService', () => {
     expect(
       JSON.stringify(prisma.salesReport.findMany.mock.calls[1][0].where),
     ).toContain('"erpExcludedAt":null');
+  });
+
+  it('maps manual purchased reports to cached cockpit orders by order code', async () => {
+    const { service, prisma } = createHarness();
+    const manager = storeManagerFixture('CP67');
+    prisma.user.findUnique.mockResolvedValue(manager);
+    const cachedOrder = {
+      ...erpOrderCacheFixture('2607077777'),
+      storeCode: 'CP67',
+      storeName: 'CP67',
+      consultantEmail: 'sale.cp67@phongvu.vn',
+      sourceUserEmail: 'sale.cp67@phongvu.vn',
+      orderCreatedAt: new Date('2026-07-07T02:00:00Z'),
+    };
+    const manualReport = {
+      ...exportReportFixture(),
+      orderCode: '2607077777',
+      storeCode: 'CP46',
+      storeName: 'CP46',
+      erpOrderCreatedAt: new Date('2026-07-06T02:00:00Z'),
+      submittedAt: new Date('2026-07-08T02:00:00Z'),
+    };
+    prisma.salesReport.count.mockResolvedValueOnce(1);
+    prisma.salesReportErpOrderCache.count.mockResolvedValueOnce(0);
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([{ orderCode: '2607077777' }])
+      .mockResolvedValueOnce([manualReport])
+      .mockResolvedValueOnce([]);
+    prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce([cachedOrder])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([cachedOrder]);
+
+    const result = await service.orderCockpit(
+      { id: manager.id, email: manager.email, role: 'USER' },
+      { date: '2026-07-07', storeCode: 'CP67' },
+    );
+
+    expect(result.reportedOrders).toHaveLength(1);
+    expect(result.reportedOrders[0].orderCode).toBe('2607077777');
+    expect(result.unreportedOrders).toHaveLength(0);
+    const reportedCodeWhere = JSON.stringify(
+      prisma.salesReport.findMany.mock.calls[0][0].where,
+    );
+    const reportedListWhere = JSON.stringify(
+      prisma.salesReport.findMany.mock.calls[1][0].where,
+    );
+    expect(reportedCodeWhere).toContain('"in":["2607077777"]');
+    expect(reportedListWhere).toContain('"in":["2607077777"]');
+    expect(
+      JSON.stringify(
+        prisma.salesReportErpOrderCache.count.mock.calls[0][0].where,
+      ),
+    ).toContain('"notIn":["2607077777"]');
   });
 
   it('rejects an order cockpit date range whose end is before its start', async () => {
@@ -300,9 +358,9 @@ describe('SalesReportsService', () => {
     prisma.salesReport.findMany
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
-    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
-      erpOrderCacheFixture('2607010002'),
-    ]);
+    prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce([erpOrderCacheFixture('2607010002')])
+      .mockResolvedValueOnce([erpOrderCacheFixture('2607010002')]);
 
     const result = await service.orderCockpit(
       { ...userFixture(), role: 'SUPER_ADMIN' },
@@ -325,7 +383,7 @@ describe('SalesReportsService', () => {
       }),
     );
     const cacheFindArgs =
-      prisma.salesReportErpOrderCache.findMany.mock.calls[0][0];
+      prisma.salesReportErpOrderCache.findMany.mock.calls[1][0];
     expect(cacheFindArgs).toEqual(
       expect.objectContaining({
         skip: 20,
@@ -344,9 +402,13 @@ describe('SalesReportsService', () => {
     prisma.salesReport.findMany
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
-    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
-      { ...erpOrderCacheFixture('2607010003'), storeCode: 'CP01' },
-    ]);
+    prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce([
+        { ...erpOrderCacheFixture('2607010003'), storeCode: 'CP01' },
+      ])
+      .mockResolvedValueOnce([
+        { ...erpOrderCacheFixture('2607010003'), storeCode: 'CP01' },
+      ]);
 
     const result = await service.orderCockpit(
       { id: manager.id, email: manager.email, role: 'USER' },
@@ -363,7 +425,7 @@ describe('SalesReportsService', () => {
       }),
     );
     const cacheFindArgs =
-      prisma.salesReportErpOrderCache.findMany.mock.calls[0][0];
+      prisma.salesReportErpOrderCache.findMany.mock.calls[1][0];
     const cacheWhere = JSON.stringify(cacheFindArgs.where);
     expect(cacheWhere).toContain('"storeCode":"CP01"');
     expect(cacheWhere).not.toContain('consultantEmail');
@@ -388,6 +450,9 @@ describe('SalesReportsService', () => {
         },
       ]);
     prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce([
+        { ...erpOrderCacheFixture('2607010003'), storeCode: 'CP01' },
+      ])
       .mockResolvedValueOnce([
         { ...erpOrderCacheFixture('2607010003'), storeCode: 'CP01' },
       ])
@@ -448,7 +513,7 @@ describe('SalesReportsService', () => {
       expect(erp.listRecentOrders).toHaveBeenCalledWith(
         expect.objectContaining({
           date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-          limit: 50,
+          limit: 100,
         }),
       );
       expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
@@ -537,6 +602,81 @@ describe('SalesReportsService', () => {
           erpFulfillmentStatus: 'DELIVERED',
           erpStatusCheckedAt: verifiedAt,
           erpStatusCheckFailureCount: 0,
+        }),
+      });
+    } finally {
+      if (oldEnabled === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_ENABLED = oldEnabled;
+      }
+      if (oldLookback === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = oldLookback;
+      }
+    }
+  });
+
+  it('keeps pending status retry metadata when list sync refreshes the row', async () => {
+    const { service, prisma, erp } = createHarness();
+    const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+    delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = '1';
+    const attemptedAt = new Date('2026-07-07T01:10:00Z');
+    const listCheckedAt = new Date('2026-07-07T01:20:00Z');
+    erp.listRecentOrders.mockResolvedValueOnce([
+      {
+        ...erpListOrderFixture(),
+        lifecycleStatus: 'PENDING',
+        statusCheckedAt: listCheckedAt,
+        fetchedAt: listCheckedAt,
+      },
+    ]);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
+      {
+        orderCode: '2607010002',
+        paymentStatus: 'fully_paid',
+        confirmationStatus: 'active',
+        fulfillmentStatus: 'PROCESSING',
+        lifecycleStatus: 'PENDING',
+        hasReturnedFullItems: false,
+        returnedAfterTaxAmount: 0,
+        statusCheckedAt: new Date('2026-07-07T01:00:00Z'),
+        statusCheckAttemptedAt: attemptedAt,
+        statusCheckFailureCount: 2,
+        excludedAt: null,
+        exclusionReason: null,
+        consultantEmail: 'sale@phongvu.vn',
+        sellerEmail: null,
+        storeCode: 'CP62',
+        organizationNodeId: 'node-cp62',
+        sourceUserId: 'user-1',
+        sourceUserEmail: 'sale@phongvu.vn',
+      },
+    ]);
+
+    try {
+      await service.syncScheduledErpOrderCache('test-preserve-pending-retry');
+
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '2607010002' },
+          update: expect.objectContaining({
+            lifecycleStatus: 'PENDING',
+            statusCheckedAt: listCheckedAt,
+            statusCheckAttemptedAt: attemptedAt,
+            statusCheckFailureCount: 2,
+          }),
+        }),
+      );
+      expect(prisma.salesReport.updateMany).toHaveBeenCalledWith({
+        where: { orderCode: '2607010002', reportType: 'PURCHASED' },
+        data: expect.objectContaining({
+          erpLifecycleStatus: 'PENDING',
+          erpStatusCheckedAt: listCheckedAt,
+          erpStatusCheckFailureCount: 2,
         }),
       });
     } finally {
@@ -866,12 +1006,16 @@ describe('SalesReportsService', () => {
     const { service, prisma, erp } = createHarness();
     const previous = {
       enabled: process.env.ERP_ORDER_STATUS_SYNC_ENABLED,
+      cache: process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED,
       batch: process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE,
       concurrency: process.env.ERP_ORDER_STATUS_SYNC_CONCURRENCY,
+      storeLimit: process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT,
     };
     process.env.ERP_ORDER_STATUS_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED = 'false';
     process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE = '50';
     process.env.ERP_ORDER_STATUS_SYNC_CONCURRENCY = '2';
+    process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT = '50';
     const row = (index: number, lifecycleStatus: string) => ({
       orderCode: String(2607012000 + index),
       storeCode: 'CP62',
@@ -941,15 +1085,97 @@ describe('SalesReportsService', () => {
       expect(prisma.salesReportErpOrderCache.findMany).not.toHaveBeenCalled();
     } finally {
       restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);
+      restoreEnv('ERP_ORDER_STATUS_CACHE_SYNC_ENABLED', previous.cache);
       restoreEnv('ERP_ORDER_STATUS_SYNC_BATCH_SIZE', previous.batch);
       restoreEnv('ERP_ORDER_STATUS_SYNC_CONCURRENCY', previous.concurrency);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_STORE_LIMIT', previous.storeLimit);
+    }
+  });
+
+  it('syncs pending cache order statuses with per-store quota', async () => {
+    const { service, prisma, erp } = createHarness();
+    const previous = {
+      enabled: process.env.ERP_ORDER_STATUS_SYNC_ENABLED,
+      cache: process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED,
+      batch: process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE,
+      storeLimit: process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT,
+    };
+    process.env.ERP_ORDER_STATUS_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE = '5';
+    process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT = '2';
+    const cacheRow = (orderCode: string) => ({
+      orderCode,
+      storeCode: 'CP62',
+      lifecycleStatus: 'PENDING',
+      statusCheckedAt: new Date('2026-07-07T01:00:00Z'),
+      statusCheckAttemptedAt: null,
+      statusCheckFailureCount: 0,
+      orderCreatedAt: new Date('2026-07-07T00:30:00Z'),
+    });
+    prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce([
+        cacheRow('2607071001'),
+        cacheRow('2607071002'),
+        cacheRow('2607071003'),
+      ])
+      .mockResolvedValueOnce([]);
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    erp.lookupOrderStatus.mockImplementation(async (orderCode: string) => ({
+      ...erpListOrderFixture(),
+      orderCode,
+      lifecycleStatus: 'COMPLETED',
+      hasReturnedFullItems: false,
+      returnedAfterTaxAmount: 0,
+      statusCheckedAt: new Date('2026-07-07T02:00:00Z'),
+    }));
+
+    try {
+      await expect(service.syncErpOrderStatuses('test')).resolves.toEqual({
+        skipped: false,
+        processed: 2,
+        changed: 2,
+        failed: 0,
+      });
+      expect(erp.lookupOrderStatus).toHaveBeenCalledTimes(2);
+      expect(erp.lookupOrderStatus).toHaveBeenNthCalledWith(
+        1,
+        '2607071001',
+        'CP62',
+      );
+      expect(erp.lookupOrderStatus).toHaveBeenNthCalledWith(
+        2,
+        '2607071002',
+        'CP62',
+      );
+      expect(prisma.salesReportErpOrderCache.findMany).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          where: expect.objectContaining({
+            lifecycleStatus: 'PENDING',
+            statusCheckFailureCount: { lt: 5 },
+          }),
+          take: 20,
+        }),
+      );
+    } finally {
+      restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);
+      restoreEnv('ERP_ORDER_STATUS_CACHE_SYNC_ENABLED', previous.cache);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_BATCH_SIZE', previous.batch);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_STORE_LIMIT', previous.storeLimit);
     }
   });
 
   it('keeps refreshing the remaining orders when one ERP status lookup fails', async () => {
     const { service, prisma, erp } = createHarness();
-    const previous = process.env.ERP_ORDER_STATUS_SYNC_ENABLED;
+    const previous = {
+      enabled: process.env.ERP_ORDER_STATUS_SYNC_ENABLED,
+      cache: process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED,
+    };
     process.env.ERP_ORDER_STATUS_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED = 'false';
     prisma.salesReport.findMany
       .mockResolvedValueOnce([
         {
@@ -997,14 +1223,19 @@ describe('SalesReportsService', () => {
         }),
       );
     } finally {
-      restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);
+      restoreEnv('ERP_ORDER_STATUS_CACHE_SYNC_ENABLED', previous.cache);
     }
   });
 
   it('continues status sync when a reported order is missing its cache row', async () => {
     const { service, prisma, erp } = createHarness();
-    const previous = process.env.ERP_ORDER_STATUS_SYNC_ENABLED;
+    const previous = {
+      enabled: process.env.ERP_ORDER_STATUS_SYNC_ENABLED,
+      cache: process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED,
+    };
     process.env.ERP_ORDER_STATUS_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED = 'false';
     prisma.salesReport.findMany
       .mockResolvedValueOnce([
         {
@@ -1063,7 +1294,8 @@ describe('SalesReportsService', () => {
         }),
       );
     } finally {
-      restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);
+      restoreEnv('ERP_ORDER_STATUS_CACHE_SYNC_ENABLED', previous.cache);
     }
   });
 
@@ -1317,7 +1549,7 @@ describe('SalesReportsService', () => {
         'Số đơn hàng duy nhất',
         'Tổng doanh thu khách hàng doanh nghiệp',
         'Tổng doanh thu khách hàng cá nhân',
-        'Nhu cầu trả góp (cả có và không)',
+        'Báo cáo có nhu cầu trả góp',
         'Trả góp thành công (có đơn trả góp)',
         'Số lượng laptop',
         'Số lượng PC',
@@ -1330,7 +1562,7 @@ describe('SalesReportsService', () => {
         'Các lý do khách không trả góp',
       ].join(','),
     );
-    expect(lines[1]).toContain('2,1000,2000,3,0');
+    expect(lines[1]).toContain('2,1000,2000,2,0');
     expect(lines[1]).toContain(',3,2,1,1,3,1,4,1,');
     expect(lines[1]).toContain('Khách từ chối: Lãi suất/Phí trả góp cao: 1');
     expect(lines[1]).not.toContain('"');
@@ -1442,6 +1674,94 @@ describe('SalesReportsService', () => {
     );
   });
 
+  it('offers all and active organization node dashboard scopes to super admin', async () => {
+    const { service, prisma } = createHarness();
+    const { domainNode, regionNode, areaNode, storeNode, inactiveStoreNode } =
+      organizationTreeFixture();
+    prisma.organizationNode.findMany.mockResolvedValueOnce([domainNode]);
+
+    const options = await service.listHomeSummaryScopeOptions(
+      {
+        ...adminSalesUser(),
+        id: 'super-1',
+        role: 'SUPER_ADMIN',
+        featureAccess: {
+          [FEATURE_KEYS.ADMIN_SALES_REPORTS]: true,
+          [FEATURE_KEYS.SALES_REPORT]: true,
+        },
+      },
+      { allowOwnScope: true },
+    );
+
+    expect(prisma.organizationNode.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { isActive: true, parentId: null },
+      }),
+    );
+    expect(options.map((option) => option.value)).toEqual([
+      'ALL',
+      `NODE:${regionNode.id}`,
+      `NODE:${areaNode.id}`,
+      `NODE:${storeNode.id}`,
+      'OWN',
+    ]);
+    expect(options[0]).toMatchObject({
+      label: 'Toàn hệ thống',
+      isDefault: true,
+    });
+    expect(options).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'Miền: Miền Nam',
+          organizationNodeType: 'LV2_REGION',
+          storeCount: 1,
+        }),
+        expect.objectContaining({
+          label: 'Vùng: Hồ Chí Minh',
+          organizationNodeType: 'LV3_AREA',
+          storeCount: 1,
+        }),
+        expect.objectContaining({
+          label: 'Showroom: CP75',
+          organizationNodeType: 'LV4_STORE',
+          storeCount: 1,
+        }),
+      ]),
+    );
+    expect(options.map((option) => option.organizationNodeId)).not.toContain(
+      domainNode.id,
+    );
+    expect(options.map((option) => option.organizationNodeId)).not.toContain(
+      inactiveStoreNode.id,
+    );
+  });
+
+  it('resolves selected organization node dashboard scope for super admin', async () => {
+    const { service, prisma } = createHarness();
+    const { areaNode } = organizationTreeFixture();
+    prisma.organizationNode.findUnique.mockResolvedValueOnce(areaNode);
+
+    await expect(
+      service.describeHomeSummaryScope(
+        { ...adminSalesUser(), role: 'SUPER_ADMIN' },
+        'MANAGED_SCOPE',
+        areaNode.id,
+        { allowOwnScope: true },
+      ),
+    ).resolves.toMatchObject({
+      available: true,
+      scope: 'MANAGED_SCOPE',
+      scopeLabel: 'Vùng: Hồ Chí Minh',
+      allowedStoreCodes: ['CP75'],
+    });
+
+    expect(prisma.organizationNode.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: areaNode.id },
+      }),
+    );
+  });
+
   it.each(['SA', 'TECH', 'WAREHOUSE', 'CASH'])(
     'offers personal and assigned-showroom dashboard scopes to %s',
     async (jobRoleCode) => {
@@ -1492,6 +1812,61 @@ describe('SalesReportsService', () => {
       });
     },
   );
+
+  it('offers an aggregate assigned-SR dashboard scope for multi-showroom staff', async () => {
+    const { service, prisma } = createHarness();
+    const { cp46StoreNode, cp46PositionNode, cp67StoreNode, cp67PositionNode } =
+      multiShowroomAssignmentFixture();
+    const user = {
+      ...userFixture(),
+      jobRoleCode: 'SA',
+      store: null,
+      organizationNode: cp46PositionNode,
+      organizationAssignments: [
+        {
+          organizationNodeId: cp46PositionNode.id,
+          organizationNode: cp46PositionNode,
+          isPrimary: true,
+        },
+        {
+          organizationNodeId: cp67PositionNode.id,
+          organizationNode: cp67PositionNode,
+          isPrimary: false,
+        },
+      ],
+    };
+    prisma.user.findUnique.mockResolvedValue(user);
+
+    const options = await service.listHomeSummaryScopeOptions(user, {
+      allowOwnScope: true,
+    });
+
+    expect(options.map((option) => option.value)).toEqual([
+      'MANAGED_SCOPE',
+      `NODE:${cp46StoreNode.id}`,
+      `NODE:${cp67StoreNode.id}`,
+      'OWN',
+    ]);
+    expect(options[0]).toMatchObject({
+      label: 'Tất cả SR được gán',
+      scope: 'MANAGED_SCOPE',
+      organizationNodeId: null,
+      storeCount: 2,
+      isDefault: true,
+    });
+
+    await expect(
+      service.describeHomeSummaryScope(user, 'MANAGED_SCOPE', null, {
+        allowOwnScope: true,
+      }),
+    ).resolves.toMatchObject({
+      available: true,
+      scope: 'MANAGED_SCOPE',
+      scopeLabel: 'Tất cả SR được gán',
+      scopeDetail: 'CP46, CP67',
+      allowedStoreCodes: ['CP46', 'CP67'],
+    });
+  });
 
   it('rejects broad managed scope for personal-or-showroom dashboard roles', async () => {
     const { service, prisma } = createHarness();
@@ -1636,6 +2011,104 @@ function organizationNodeFixture() {
   };
   storeNode.children = [positionNode];
   return { storeNode, positionNode };
+}
+
+function multiShowroomAssignmentFixture() {
+  const cp46StoreNode: any = {
+    id: 'node-cp46',
+    type: 'LV4_STORE',
+    displayName: 'CP46',
+    businessCode: 'CP46',
+    stores: [{ storeId: 'CP46', storeName: 'CP46' }],
+    parent: null,
+    children: [],
+  };
+  const cp67StoreNode: any = {
+    id: 'node-cp67',
+    type: 'LV4_STORE',
+    displayName: 'CP67',
+    businessCode: 'CP67',
+    stores: [{ storeId: 'CP67', storeName: 'CP67' }],
+    parent: null,
+    children: [],
+  };
+  const cp46PositionNode = {
+    id: 'node-cp46-sa',
+    type: 'LV5_POSITION',
+    displayName: 'SA CP46',
+    stores: [],
+    parent: cp46StoreNode,
+    children: [],
+  };
+  const cp67PositionNode = {
+    id: 'node-cp67-sa',
+    type: 'LV5_POSITION',
+    displayName: 'SA CP67',
+    stores: [],
+    parent: cp67StoreNode,
+    children: [],
+  };
+  cp46StoreNode.children = [cp46PositionNode];
+  cp67StoreNode.children = [cp67PositionNode];
+  return { cp46StoreNode, cp46PositionNode, cp67StoreNode, cp67PositionNode };
+}
+
+function organizationTreeFixture() {
+  const storeNode: any = {
+    id: 'org-store-cp75',
+    type: 'LV4_STORE',
+    displayName: 'CP75',
+    businessCode: 'CP75',
+    isActive: true,
+    stores: [{ storeId: 'CP75', storeName: 'CP75' }],
+    parent: null,
+    children: [],
+  };
+  const inactiveStoreNode: any = {
+    id: 'org-store-cp00',
+    type: 'LV4_STORE',
+    displayName: 'CP00',
+    businessCode: 'CP00',
+    isActive: false,
+    stores: [],
+    parent: null,
+    children: [],
+  };
+  const areaNode: any = {
+    id: 'org-area-hcm',
+    type: 'LV3_AREA',
+    displayName: 'Hồ Chí Minh',
+    businessCode: 'HCM',
+    isActive: true,
+    stores: [],
+    parent: null,
+    children: [storeNode, inactiveStoreNode],
+  };
+  const regionNode: any = {
+    id: 'org-region-south',
+    type: 'LV2_REGION',
+    displayName: 'Miền Nam',
+    businessCode: 'MIEN_NAM',
+    isActive: true,
+    stores: [],
+    parent: null,
+    children: [areaNode],
+  };
+  const domainNode: any = {
+    id: 'org-domain',
+    type: 'LV0_DOMAIN',
+    displayName: 'Phong Vũ',
+    businessCode: 'PHONGVU',
+    isActive: true,
+    stores: [],
+    parent: null,
+    children: [regionNode],
+  };
+  storeNode.parent = areaNode;
+  inactiveStoreNode.parent = areaNode;
+  areaNode.parent = regionNode;
+  regionNode.parent = domainNode;
+  return { domainNode, regionNode, areaNode, storeNode, inactiveStoreNode };
 }
 
 function storeManagerFixture(storeCode: string) {
@@ -1926,6 +2399,7 @@ function revenueReportFixtures() {
       orderCode: '2606290002',
       customerType: 'PERSONAL',
       erpGrandTotal: 2000,
+      installmentNeed: false,
       items: [itemFixture('Laptop văn phòng', 'laptop', 2)],
     },
     {

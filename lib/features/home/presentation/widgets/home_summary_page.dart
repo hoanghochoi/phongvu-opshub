@@ -9,6 +9,7 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
+import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/formatting/money_formatters.dart';
@@ -126,7 +127,7 @@ class HomeSummaryPage extends StatelessWidget {
     }
 
     return [
-      ReportProgressPanel(summary: summary),
+      ReportProgressPanel(summary: summary, provider: provider),
       const SizedBox(height: AppLayoutTokens.sectionGap),
       if (summary.salesAvailable) ...[
         const _SummarySectionHeader(
@@ -950,9 +951,14 @@ class SummaryTrend {
 enum SummaryTrendTone { success, warning, neutral }
 
 class ReportProgressPanel extends StatelessWidget {
-  const ReportProgressPanel({super.key, required this.summary});
+  const ReportProgressPanel({
+    super.key,
+    required this.summary,
+    required this.provider,
+  });
 
   final HomeSummary summary;
+  final HomeSummaryProvider provider;
 
   @override
   Widget build(BuildContext context) {
@@ -998,12 +1004,35 @@ class ReportProgressPanel extends StatelessWidget {
             ],
           ),
         ),
-      if (summary.salesAvailable && summary.salesProgress.isApplicable)
+      if (summary.salesAvailable && summary.personalSalesProgress.isApplicable)
         _SalesProgressPanel(
-          progress: summary.salesProgress,
+          panelKey: const Key('home-sales-progress-panel'),
+          title: 'Tổng quan cá nhân',
+          progress: summary.personalSalesProgress,
           rangeLabel: summary.startDate == summary.endDate
               ? 'Ngày'
               : 'Khoảng chọn',
+          keyPrefix: 'home-sales-progress',
+          color: AppColors.violet600,
+          assignees: summary.salesProgressAssignees.length > 1
+              ? summary.salesProgressAssignees
+              : const [],
+          selectedAssigneeId: summary.selectedSalesProgressUserId,
+          onAssigneeChanged: provider.isLoading || provider.isRefreshing
+              ? null
+              : (userId) =>
+                    unawaited(provider.setSelectedSalesProgressUser(userId)),
+        ),
+      if (summary.salesAvailable && summary.scopeSalesProgress.isApplicable)
+        _SalesProgressPanel(
+          panelKey: const Key('home-scope-sales-progress-panel'),
+          title: _scopeSalesProgressTitle(summary),
+          progress: summary.scopeSalesProgress,
+          rangeLabel: summary.startDate == summary.endDate
+              ? 'Ngày'
+              : 'Khoảng chọn',
+          keyPrefix: 'home-scope-sales-progress',
+          color: AppColors.primary,
         ),
     ];
 
@@ -1032,10 +1061,10 @@ class ReportProgressPanel extends StatelessWidget {
                   (constraints.maxWidth - gap * math.max(0, columns - 1)) /
                   math.max(1, columns);
               final height = constraints.maxWidth >= 980
-                  ? 258.0
+                  ? 300.0
                   : constraints.maxWidth >= 620
-                  ? 248.0
-                  : 238.0;
+                  ? 292.0
+                  : 300.0;
               return Wrap(
                 spacing: gap,
                 runSpacing: gap,
@@ -1049,6 +1078,23 @@ class ReportProgressPanel extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static String _scopeSalesProgressTitle(HomeSummary summary) {
+    final scope = summary.scope.trim().toUpperCase();
+    final label = summary.resolvedScopeLabel.toLowerCase();
+    if (scope == 'ALL') {
+      return 'Tổng quan toàn hệ thống';
+    }
+    if (scope == 'OWN') return 'Tổng quan Cửa hàng';
+    if (label.contains('miền')) return 'Tổng quan Miền';
+    if (label.contains('vùng')) return 'Tổng quan Vùng';
+    if (label.contains('showroom') ||
+        label.contains('cửa hàng') ||
+        label.contains('sr')) {
+      return 'Tổng quan Cửa hàng';
+    }
+    return 'Tổng quan Miền/Vùng/Cửa hàng';
   }
 }
 
@@ -1135,30 +1181,51 @@ class _ProgressDonut extends StatelessWidget {
 }
 
 class _SalesProgressPanel extends StatelessWidget {
-  const _SalesProgressPanel({required this.progress, required this.rangeLabel});
+  const _SalesProgressPanel({
+    required this.panelKey,
+    required this.title,
+    required this.progress,
+    required this.rangeLabel,
+    required this.keyPrefix,
+    required this.color,
+    this.assignees = const [],
+    this.selectedAssigneeId,
+    this.onAssigneeChanged,
+  });
 
+  final Key panelKey;
+  final String title;
   final HomeSalesProgress progress;
   final String rangeLabel;
+  final String keyPrefix;
+  final Color color;
+  final List<HomeSalesProgressAssignee> assignees;
+  final String? selectedAssigneeId;
+  final ValueChanged<String?>? onAssigneeChanged;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      key: const Key('home-sales-progress-panel'),
+      key: panelKey,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.violet600.withValues(alpha: 0.04),
-        border: Border.all(color: AppColors.violet600.withValues(alpha: 0.16)),
+        color: color.withValues(alpha: 0.04),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
         borderRadius: AppRadius.allMd,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            'Tiến độ doanh số',
-            textAlign: TextAlign.center,
-            style: AppTextStyles.labelM,
-          ),
+          Text(title, textAlign: TextAlign.center, style: AppTextStyles.labelM),
+          if (assignees.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _SalesProgressAssigneeDropdown(
+              assignees: assignees,
+              selectedAssigneeId: selectedAssigneeId,
+              onChanged: onAssigneeChanged,
+            ),
+          ],
           const SizedBox(height: 10),
           Expanded(
             child: Row(
@@ -1166,25 +1233,31 @@ class _SalesProgressPanel extends StatelessWidget {
               children: [
                 Expanded(
                   child: _SalesProgressPeriodView(
+                    keyPrefix: keyPrefix,
                     keySuffix: 'range',
                     label: rangeLabel,
                     period: progress.range,
+                    color: color,
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _SalesProgressPeriodView(
+                    keyPrefix: keyPrefix,
                     keySuffix: 'week',
                     label: 'Tuần',
                     period: progress.week,
+                    color: color,
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _SalesProgressPeriodView(
+                    keyPrefix: keyPrefix,
                     keySuffix: 'month',
                     label: 'Tháng',
                     period: progress.month,
+                    color: color,
                   ),
                 ),
               ],
@@ -1208,28 +1281,344 @@ class _SalesProgressPanel extends StatelessWidget {
   }
 }
 
+class _SalesProgressAssigneeDropdown extends StatelessWidget {
+  const _SalesProgressAssigneeDropdown({
+    required this.assignees,
+    required this.selectedAssigneeId,
+    required this.onChanged,
+  });
+
+  static const int searchThreshold = 10;
+
+  final List<HomeSalesProgressAssignee> assignees;
+  final String? selectedAssigneeId;
+  final ValueChanged<String?>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = assignees.where((assignee) {
+      return assignee.userId == selectedAssigneeId || assignee.isSelected;
+    }).firstOrNull;
+    final selectedValue = selected ?? assignees.first;
+    final value = selectedValue.userId;
+    if (assignees.length > searchThreshold) {
+      return _SalesProgressAssigneeSearchButton(
+        assignees: assignees,
+        selectedAssignee: selectedValue,
+        onChanged: onChanged,
+      );
+    }
+    return Container(
+      key: const Key('home-sales-progress-assignee-dropdown'),
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: AppColors.cardOf(context).withValues(alpha: 0.7),
+        border: Border.all(color: AppColors.borderOf(context)),
+        borderRadius: AppRadius.allSm,
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          icon: const Icon(Icons.expand_more_rounded, size: 18),
+          dropdownColor: AppColors.overlayOf(context),
+          borderRadius: AppRadius.allMd,
+          style: AppTextStyles.labelS.copyWith(
+            color: AppColors.textPrimaryOf(context),
+          ),
+          onChanged: onChanged,
+          items: [
+            for (final assignee in assignees)
+              DropdownMenuItem<String>(
+                value: assignee.userId,
+                child: Row(
+                  children: [
+                    const Icon(Icons.person_search_rounded, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _assigneeLabel(assignee),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _assigneeLabel(HomeSalesProgressAssignee assignee) {
+    final stores = assignee.storeCodes.join(', ');
+    if (stores.isEmpty) return assignee.label;
+    return '${assignee.label} - $stores';
+  }
+}
+
+class _SalesProgressAssigneeSearchButton extends StatelessWidget {
+  const _SalesProgressAssigneeSearchButton({
+    required this.assignees,
+    required this.selectedAssignee,
+    required this.onChanged,
+  });
+
+  final List<HomeSalesProgressAssignee> assignees;
+  final HomeSalesProgressAssignee selectedAssignee;
+  final ValueChanged<String?>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      key: const Key('home-sales-progress-assignee-dropdown'),
+      color: AppColors.cardOf(context).withValues(alpha: 0.7),
+      borderRadius: AppRadius.allSm,
+      child: InkWell(
+        onTap: onChanged == null ? null : () => _openSearch(context),
+        borderRadius: AppRadius.allSm,
+        child: Container(
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.borderOf(context)),
+            borderRadius: AppRadius.allSm,
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.person_search_rounded, size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _SalesProgressAssigneeDropdown._assigneeLabel(
+                    selectedAssignee,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelS.copyWith(
+                    color: AppColors.textPrimaryOf(context),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.search_rounded, size: 17),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSearch(BuildContext context) async {
+    final selectedUserId = await showDialog<String>(
+      context: context,
+      barrierColor: AppColors.shadow.withValues(alpha: 0.48),
+      builder: (context) {
+        return _SalesProgressAssigneeSearchDialog(
+          assignees: assignees,
+          selectedAssigneeId: selectedAssignee.userId,
+        );
+      },
+    );
+    if (selectedUserId == null || selectedUserId == selectedAssignee.userId) {
+      return;
+    }
+    onChanged?.call(selectedUserId);
+  }
+}
+
+class _SalesProgressAssigneeSearchDialog extends StatefulWidget {
+  const _SalesProgressAssigneeSearchDialog({
+    required this.assignees,
+    required this.selectedAssigneeId,
+  });
+
+  final List<HomeSalesProgressAssignee> assignees;
+  final String selectedAssigneeId;
+
+  @override
+  State<_SalesProgressAssigneeSearchDialog> createState() =>
+      _SalesProgressAssigneeSearchDialogState();
+}
+
+class _SalesProgressAssigneeSearchDialogState
+    extends State<_SalesProgressAssigneeSearchDialog> {
+  final TextEditingController _controller = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _filteredAssignees();
+    return Dialog(
+      key: const Key('home-sales-progress-assignee-search-dialog'),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      backgroundColor: AppColors.cardOf(context),
+      shape: RoundedRectangleBorder(borderRadius: AppRadius.allMd),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 560),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Chọn SA',
+                      style: AppTextStyles.labelM.copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Đóng',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              AppTextInput(
+                key: const Key('home-sales-progress-assignee-search-input'),
+                controller: _controller,
+                label: 'Tìm nhân viên',
+                icon: Icons.search_rounded,
+                autofocus: true,
+                textInputAction: TextInputAction.search,
+                dense: true,
+                hintText: 'Tìm theo tên, email hoặc mã nhân viên',
+                onChanged: (value) => setState(() => _query = value),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: filtered.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Text(
+                            'Không tìm thấy SA phù hợp.',
+                            style: AppTextStyles.bodyS.copyWith(
+                              color: AppColors.textMutedOf(context),
+                            ),
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, _) => Divider(
+                          height: 1,
+                          color: AppColors.subtleBorderOf(context),
+                        ),
+                        itemBuilder: (context, index) {
+                          final assignee = filtered[index];
+                          final selected =
+                              assignee.userId == widget.selectedAssigneeId;
+                          return ListTile(
+                            key: Key(
+                              'home-sales-progress-assignee-option-${assignee.userId}',
+                            ),
+                            dense: true,
+                            leading: Icon(
+                              selected
+                                  ? Icons.check_circle_rounded
+                                  : Icons.person_outline_rounded,
+                              color: selected
+                                  ? AppColors.success
+                                  : AppColors.textMutedOf(context),
+                            ),
+                            title: Text(
+                              assignee.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              _assigneeSubtitle(assignee),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            onTap: () =>
+                                Navigator.of(context).pop(assignee.userId),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<HomeSalesProgressAssignee> _filteredAssignees() {
+    final query = _normalize(_query);
+    if (query.isEmpty) return widget.assignees;
+    return widget.assignees
+        .where((assignee) {
+          final haystack = _normalize(
+            [
+              assignee.label,
+              assignee.email,
+              assignee.personnelCode,
+              assignee.storeCodes.join(' '),
+            ].whereType<String>().join(' '),
+          );
+          return haystack.contains(query);
+        })
+        .toList(growable: false);
+  }
+
+  static String _assigneeSubtitle(HomeSalesProgressAssignee assignee) {
+    final parts = [
+      if (assignee.storeCodes.isNotEmpty) assignee.storeCodes.join(', '),
+      if (assignee.email?.isNotEmpty == true) assignee.email!,
+      if (assignee.personnelCode?.isNotEmpty == true) assignee.personnelCode!,
+    ];
+    return parts.join(' - ');
+  }
+
+  static String _normalize(String value) {
+    return value.trim().toLowerCase();
+  }
+}
+
 class _SalesProgressPeriodView extends StatelessWidget {
   const _SalesProgressPeriodView({
+    required this.keyPrefix,
     required this.keySuffix,
     required this.label,
     required this.period,
+    required this.color,
   });
 
+  final String keyPrefix;
   final String keySuffix;
   final String label;
   final HomeSalesProgressPeriod period;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      key: Key('home-sales-progress-$keySuffix'),
+      key: Key('$keyPrefix-$keySuffix'),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           _ProgressDonut(
+            key: Key('$keyPrefix-$keySuffix-donut'),
             percentage: period.percentage,
-            color: AppColors.violet600,
-            dimension: 54,
+            color: color,
+            dimension: 68,
           ),
           const SizedBox(height: 6),
           Text(
@@ -1305,6 +1694,14 @@ class ReportCoverageDonut extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+extension _FirstOrNullHomeSummaryWidgets<T> on Iterable<T> {
+  T? get firstOrNull {
+    final iterator = this.iterator;
+    if (!iterator.moveNext()) return null;
+    return iterator.current;
   }
 }
 

@@ -19,15 +19,15 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 - Cockpit lọc theo daterange `Ngày`, `SR` và `User`; filter `SR`/`User` chỉ hiện
   trong scope quản lý. Khi mở màn hình, daterange mặc định là ngày hiện tại
   giống Trang chủ và request đầu tiên gửi ngày bắt đầu/kết thúc cùng ngày đó.
-- Backend tự đồng bộ danh sách đơn ERP từ staff-bff theo ngày mỗi 3 phút và khi
-  service khởi động, mặc định 50 đơn, rồi upsert snapshot rút gọn vào bảng
-  cache riêng. Ngay trong lần sync, backend map `creator.email` sang user nội
-  bộ và showroom/node được gán; payload sync thiếu dữ liệu không được xóa
-  mapping đã lưu. Cache cũ đã có user nhưng thiếu showroom/node sẽ được
-  backfill lại từ user nội bộ trong lần sync sau. Flutter không kích hoạt ERP
-  sync; client đọc cache DB khi mở màn hình hoặc bấm `Tải lại`, và refresh
-  realtime qua WebSocket khi backend báo có đơn mới hoặc mapping vừa được bổ
-  sung trong scope liên quan.
+- Backend tự đồng bộ danh sách đơn ERP từ staff-bff theo ngày mỗi 1 phút và khi
+  service khởi động, mặc định 100 đơn/ngày gần nhất (có thể cấu hình tối đa
+  200), rồi upsert snapshot rút gọn vào bảng cache riêng. Ngay trong lần sync,
+  backend map `creator.email` sang user nội bộ và showroom/node được gán;
+  payload sync thiếu dữ liệu không được xóa mapping đã lưu. Cache cũ đã có user
+  nhưng thiếu showroom/node sẽ được backfill lại từ user nội bộ trong lần sync
+  sau. Flutter không kích hoạt ERP sync; client đọc cache DB khi mở màn hình
+  hoặc bấm `Tải lại`, và refresh realtime qua WebSocket khi backend báo có đơn
+  mới hoặc mapping vừa được bổ sung trong scope liên quan.
 - User thường chỉ thấy đơn/report của mình theo
   `data.orders.creator.email`, fallback về consultant/seller/source-user
   snapshot nếu ERP không trả creator. STORE_MANAGER hoặc chức danh quản lý theo
@@ -37,6 +37,9 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   `check-order` để tự fill dữ liệu cần thiết trước khi sale nhập phần còn lại.
 - Nút `Báo cáo mua thủ công` mở form mua hàng hiện hữu để sale tự nhập hoặc
   quét mã đơn khi đơn chưa xuất hiện trong danh sách cockpit.
+- Nếu report thủ công có `orderCode` trùng đơn đang nằm trong cache cockpit theo
+  filter hiện tại, cockpit phải tính đơn đó là đã báo cáo và loại khỏi cột chưa
+  báo cáo sau khi reload.
 - Form `Mua hàng` yêu cầu nhập hoặc quét QR/barcode mã đơn và check ERP trước
   khi nhập/gửi báo cáo; sau khi check có thể bấm `Kiểm tra đơn khác` để đổi đơn.
 - Nếu ERP trả `confirmationStatus` hoặc `fulfillmentStatus` là `cancelled`
@@ -67,10 +70,11 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 - Check/submit lưu trạng thái vòng đời ERP và dữ liệu hoàn trả. Pending được
   giữ trong tiến độ nhưng chưa tính doanh số; hủy/trả toàn bộ bị loại; trả một
   phần trừ giá trị trả trước khi bỏ VAT 8%.
-- Backend rà trạng thái mỗi 20 phút, tối đa 50 đơn với concurrency 2: ưu tiên
-  pending và vẫn dành quota cho đơn completed 30 ngày gần nhất để bắt hoàn trả
-  muộn. Redis lease ngăn nhiều replica chạy trùng; lỗi từng đơn được retry ở
-  lượt sau.
+- Backend rà trạng thái mỗi 20 phút, mặc định tối đa 80 đơn với concurrency 2:
+  rà cả pending trong cache chưa báo cáo và pending đã báo cáo, vẫn dành quota
+  cho đơn completed 30 ngày gần nhất để bắt hoàn trả muộn. Redis lease ngăn
+  nhiều replica chạy trùng; quota theo showroom, backoff theo failure count và
+  khoảng re-check pending mặc định 20 phút giúp tránh dồn tải lên ERP.
 - Form `Chưa mua hàng` không gọi ERP, bắt buộc ngành hàng và lý do chưa mua.
 - Cả 2 form có tick `Có nhu cầu trả góp`. Khi tick, sale phải chọn một hoặc
   nhiều đối tác trong list: `VNPAY - POS`, `PAYOO - POS`,
@@ -84,10 +88,10 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   tiên category level cao nhất trong payload `categories` từ Listing.
 - Admin xuất 3 file CSV tiếng Việt: `HVTC` một dòng mỗi báo cáo mua/chưa mua
   theo các cột hành vi khách hàng; `Doanh số` một dòng tổng hợp số đơn duy
-  nhất, doanh thu doanh nghiệp/cá nhân, tổng số nhu cầu trả góp lấy từ báo cáo
-  bán hàng, số đơn trả góp thành công theo payment method ERP và số lượng theo
-  type laptop/PC/PC ráp/Apple/màn hình/máy in/phụ kiện/bảo hiểm mở rộng; lý do
-  trả góp nằm ở cột cuối cùng của file `Doanh số`;
+  nhất, doanh thu doanh nghiệp/cá nhân, tổng số báo cáo có tick
+  `Có nhu cầu trả góp`, số đơn trả góp thành công theo payment method ERP và số
+  lượng theo type laptop/PC/PC ráp/Apple/màn hình/máy in/phụ kiện/bảo hiểm mở
+  rộng; lý do trả góp nằm ở cột cuối cùng của file `Doanh số`;
   `Trả góp` chỉ lấy các row có `installmentNeed = true`, gồm các cột tiếng Việt
   `Ngày báo cáo`, `Email người báo cáo`, `Số tiền vay trả góp`,
   `Đối tác trả góp`, `Kết quả duyệt hồ sơ`, `Loại báo cáo`,

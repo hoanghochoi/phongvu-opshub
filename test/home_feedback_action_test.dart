@@ -437,6 +437,7 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
     String? endDate,
     String? scope,
     String? organizationNodeId,
+    String? salesProgressUserId,
   }) async {
     return summary;
   }

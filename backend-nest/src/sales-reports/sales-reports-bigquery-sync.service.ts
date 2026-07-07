@@ -277,9 +277,24 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
         writeDisposition: 'WRITE_TRUNCATE',
         schema: { fields: schema },
       } as any);
-      await (job as any).promise();
+      await this.waitForBigQueryJob(job);
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  }
+
+  private async waitForBigQueryJob(job: any) {
+    if (!job) return;
+    if (typeof job.promise === 'function') {
+      await job.promise();
+      return;
+    }
+    if (typeof job.getMetadata === 'function') {
+      const [metadata] = await job.getMetadata();
+      const error = metadata?.status?.errorResult;
+      if (error) {
+        throw new Error(error.message || JSON.stringify(error));
+      }
     }
   }
 
@@ -402,9 +417,12 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
     for (const row of reports) {
       const summary = this.revenueSummaryForStore(summaries, row);
       summary.reportCount += 1;
-      summary.installmentNeedTotalCount += 1;
+      const hasInstallmentNeed = row.installmentNeed === true;
+      if (hasInstallmentNeed) {
+        summary.installmentNeedTotalCount += 1;
+      }
 
-      if (row.installmentNoInstallmentReason) {
+      if (hasInstallmentNeed && row.installmentNoInstallmentReason) {
         const reasonCode = this.text(row.installmentNoInstallmentReason);
         if (reasonCode && reasonCode !== 'NORMAL_INSTALLMENT') {
           const label = this.installmentNoInstallmentReasonLabel(reasonCode);

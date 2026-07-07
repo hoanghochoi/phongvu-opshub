@@ -158,7 +158,7 @@ describe('SalesReportsBigQuerySyncService', () => {
     expect(revenueRows[1]).toMatchObject({
       store_code: 'CP02',
       sales_report_count: 1,
-      installment_need_total_count: 1,
+      installment_need_total_count: 0,
       successful_installment_order_count: 0,
       order_count_unique: 1,
       business_revenue: 0,

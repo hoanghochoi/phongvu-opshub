@@ -29,8 +29,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Các vị trí SA, Kỹ thuật, Kho và Thu ngân luôn mặc định ở `Phạm vi cá nhân`,
   đồng thời được chọn từng showroom gắn với node được phân công để theo dõi
   tiến độ showroom. Các vị trí này không được chọn vùng, miền hoặc toàn hệ
-  thống. Vị trí quản lý tiếp tục dùng phạm vi node được gán; Super Admin có
-  phạm vi toàn hệ thống.
+  thống. Vị trí quản lý tiếp tục dùng phạm vi node được gán; Super Admin mặc
+  định xem toàn hệ thống và có thể chọn từng node active có showroom bên dưới
+  như Miền, Vùng hoặc Showroom.
 - Màn hình `Báo cáo bán hàng` là cockpit đơn hàng theo khoảng ngày: cột trái là đơn chưa báo
   cáo, cột phải là đơn đã báo cáo. Phần card, nút thao tác và filter giữ cố
   định trong viewport; chỉ vùng danh sách của từng cột được cuộn độc lập. Mỗi
@@ -63,6 +64,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Khi sale bấm một đơn chưa báo cáo, app mở form báo cáo mua hàng trong dialog,
   tự kiểm tra lại mã đơn qua luồng `check-order` hiện tại rồi fill tên khách,
   nhu cầu, loại khách, ngành hàng và thông tin đơn cần thiết.
+- Nếu sale dùng `Báo cáo mua thủ công` và nhập trùng `orderCode` đang nằm trong
+  cache cockpit hiện tại, backend vẫn match theo mã đơn để chuyển đơn đó sang đã
+  báo cáo, không phụ thuộc metadata ngày/showroom của report thủ công.
 - Menu `Quản trị` hiển thị `Danh sách báo cáo bán hàng` khi user có
   `ADMIN_SALES_REPORTS`; đây là nơi duy nhất lọc danh sách và xuất file.
 - Màn hình danh sách báo cáo bán hàng của admin lọc danh sách và CSV theo loại
@@ -93,20 +97,29 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   được báo cáo nhưng chưa cộng doanh số; đơn trả toàn bộ bị chặn bằng thông báo
   tiếng Việt; đơn trả một phần giữ report và trừ
   `returnedQuantity × unitAfterTaxPrice` của request đã hoàn tất.
-- Job trạng thái chạy mỗi 20 phút, tối đa 50 đơn/lượt với concurrency 2 và
-  Redis lease. Job chỉ rà các đơn `Mua hàng` đã được báo cáo trong OpsHub; không
-  quét toàn bộ đơn chưa báo cáo trong cache ERP để tránh backlog lớn khi đơn
-  pending nhiều ngày. Mặc định dành 40 slot cho pending đã báo cáo cũ nhất, 10
-  slot rà xoay vòng đơn đã báo cáo hoàn thành trong 30 ngày, rồi bù slot thừa
-  cho nhóm còn lại. Lỗi một đơn chỉ tăng failure count và thử lại ở lượt sau.
+- Job danh sách đơn ERP chạy mỗi 1 phút và khi service khởi động, mặc định lấy
+  100 đơn/ngày gần nhất (có thể cấu hình tối đa 200). List sync chỉ cập nhật
+  snapshot nhanh; đơn `PENDING` từ list không được tự coi là đã xác minh trạng
+  thái chi tiết.
+- Job trạng thái chạy mỗi 20 phút, mặc định tối đa 80 đơn/lượt với concurrency
+  2 và Redis lease. Job rà cả đơn `PENDING` trong cache chưa báo cáo lẫn đơn
+  `Mua hàng` đã báo cáo, ưu tiên pending, vẫn dành quota xoay vòng cho đơn hoàn
+  thành 30 ngày gần nhất để bắt hoàn trả muộn. Để không gây tải quá nhiều lên
+  ERP, job có backoff theo failure count, giới hạn số đơn mỗi showroom/lượt và
+  chỉ re-check pending sau khoảng cấu hình mặc định 20 phút; lỗi một đơn chỉ
+  tăng failure count và thử lại ở lượt sau.
 - Doanh số tổng trên dashboard lấy `grandTotal` từ cache đơn hàng theo
   ngày/scope, bỏ đơn hủy/trả toàn bộ và trừ `returnedAfterTaxAmount` khi có trả
   một phần. Doanh số hoàn thành chỉ cộng báo cáo mua hàng có trạng thái ERP
   hoàn thành, cũng trừ `returnedAfterTaxAmount` khi có trả một phần. Riêng tiến
   độ chỉ tiêu dùng giá trị trước VAT theo công thức
-  `round(max(grandTotal - returnedAfterTaxAmount, 0) / 1.08)`. Menu
-  `Quản trị` có `Quản lý doanh số` theo feature `ADMIN_SALES_TARGETS`; chỉ
-  tiêu lưu theo SR/tháng ở giá trị trước VAT.
+  `round(max(grandTotal - returnedAfterTaxAmount, 0) / 1.08)`. Home hiển thị
+  hai card tiến độ: `Tổng quan cá nhân` cho user/SA đang chọn và
+  `Tổng quan Miền/Vùng/Cửa hàng` cho toàn bộ scope quản lý hiện tại. Store
+  manager/tài khoản quản lý theo node chỉ được chọn SA thuộc scope đang xem để
+  xem card cá nhân; nếu danh sách SA lớn hơn 10, picker có ô tìm kiếm theo tên,
+  email hoặc mã nhân viên tư vấn. Menu `Quản trị` có `Quản lý doanh số` theo
+  feature `ADMIN_SALES_TARGETS`; chỉ tiêu lưu theo SR/tháng ở giá trị trước VAT.
 - ERP/Listing chỉ được tự điền ngành hàng khi map được về nhóm ngành OpsHub:
   chỉ lấy `result.products[].categories[]` có `level = 1` và dùng đúng `code`
   khớp `Cat group ID` trong `data/categories.csv`. Không dùng category level
@@ -169,8 +182,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   cáo, email người báo cáo, mã nhân viên tư vấn ERP, tên/số điện thoại/nhu cầu
   khách hàng, các câu trả lời hành vi, loại báo cáo, lý do chưa mua và showroom.
 - File `Doanh số` xuất một dòng tổng hợp theo bộ lọc hiện tại: số đơn hàng duy
-  nhất, doanh thu doanh nghiệp/cá nhân, tổng số nhu cầu trả góp lấy từ báo cáo
-  bán hàng, số đơn trả góp thành công theo payment method ERP, số lượng laptop,
+  nhất, doanh thu doanh nghiệp/cá nhân, tổng số báo cáo có tick
+  `Có nhu cầu trả góp`, số đơn trả góp thành công theo payment method ERP,
+  số lượng laptop,
   PC, PC ráp, Apple chỉ tính Macbook/iPhone/iPad, màn hình, máy in, phụ kiện,
   dịch vụ bảo hiểm; các lý do khách không trả góp nằm ở cột cuối cùng.
 - File `Trả góp` xuất một dòng cho mỗi báo cáo có nhu cầu trả góp, gồm:
@@ -229,8 +243,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   `orderCode` cũng được gắn `erpExcludedAt`/`erpExclusionReason` để loại khỏi
   các query báo cáo phía sau mà không cần suy luận lại từ ERP theo từng màn.
   API cockpit đếm total chưa báo cáo trực tiếp trên cache DB, loại trừ các
-  `orderCode` đã có báo cáo mua hàng trong cùng ngày/scope và các row đã bị
-  exclude bền vững, rồi trả từng trang 20 đơn cho client. Backend publish sự kiện
+  `orderCode` đã có báo cáo mua hàng hoặc được match từ report thủ công trong
+  cache cockpit hiện tại, cùng các row đã bị exclude bền vững, rồi trả từng
+  trang 20 đơn cho client. Backend publish sự kiện
   `SALES_REPORT_ORDERS_UPDATED` qua Redis/WebSocket sau sync khi có đơn mới
   hoặc cache cũ vừa được backfill user/showroom/node; payload chỉ chứa ngày,
   số lượng, user/SR liên quan để client tự lọc và gọi lại API scoped, không đẩy

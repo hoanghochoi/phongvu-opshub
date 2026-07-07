@@ -212,7 +212,7 @@ export class SalesReportErpService {
   }) {
     const startedAt = Date.now();
     const date = this.normalizeDateOnly(input.date);
-    const limit = Math.max(1, Math.min(100, Number(input.limit ?? 50)));
+    const limit = Math.max(1, Math.min(200, Number(input.limit ?? 100)));
     this.logger.log(
       `Sales report ERP order list sync started: date=${date} limit=${limit} store=${input.storeCode || 'none'}`,
     );

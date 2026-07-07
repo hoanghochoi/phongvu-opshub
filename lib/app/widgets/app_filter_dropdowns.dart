@@ -1,7 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/utils/date_range_defaults.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
 import '../theme/app_text_styles.dart';
 import 'app_inputs.dart';
 import 'app_layout.dart';
@@ -566,6 +570,7 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
       initialDateRange: DateTimeRange(start: initialStart, end: initialEnd),
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
+      currentDate: today,
       helpText: 'Chọn khoảng ngày',
       cancelText: 'Hủy',
       confirmText: 'Áp dụng',
@@ -573,6 +578,53 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
       fieldStartLabelText: 'Từ ngày',
       fieldEndLabelText: 'Đến ngày',
       errorInvalidRangeText: 'Ngày kết thúc phải sau ngày bắt đầu',
+      barrierColor: AppColors.shadow.withValues(alpha: 0.48),
+      builder: (dialogContext, child) {
+        final mediaQuery = MediaQuery.of(dialogContext);
+        final compactSize = _compactDateRangePickerSize(mediaQuery.size);
+        final theme = Theme.of(dialogContext);
+        final pickerTheme = theme.datePickerTheme.copyWith(
+          rangePickerBackgroundColor: AppColors.overlayOf(dialogContext),
+          rangePickerElevation: 24,
+          rangePickerShadowColor: AppColors.shadow.withValues(alpha: 0.28),
+          rangePickerSurfaceTintColor: AppColors.transparent,
+          rangePickerShape: RoundedRectangleBorder(
+            borderRadius: AppRadius.allXxl,
+            side: BorderSide(color: AppColors.borderOf(dialogContext)),
+          ),
+          rangePickerHeaderBackgroundColor: AppColors.primarySurfaceOf(
+            dialogContext,
+          ),
+          rangePickerHeaderForegroundColor: AppColors.textPrimaryOf(
+            dialogContext,
+          ),
+          rangePickerHeaderHeadlineStyle: AppTextStyles.headingS,
+          rangePickerHeaderHelpStyle: AppTextStyles.labelS,
+          rangeSelectionBackgroundColor: AppColors.primaryOf(
+            dialogContext,
+          ).withValues(alpha: 0.18),
+          todayBorder: BorderSide(
+            color: AppColors.primaryOf(dialogContext),
+            width: 1.4,
+          ),
+          cancelButtonStyle: TextButton.styleFrom(
+            foregroundColor: AppColors.textSecondaryOf(dialogContext),
+            textStyle: AppTextStyles.labelM,
+          ),
+          confirmButtonStyle: TextButton.styleFrom(
+            foregroundColor: AppColors.primaryOf(dialogContext),
+            textStyle: AppTextStyles.labelM,
+          ),
+        );
+
+        return MediaQuery(
+          data: mediaQuery.copyWith(size: compactSize),
+          child: Theme(
+            data: theme.copyWith(datePickerTheme: pickerTheme),
+            child: child!,
+          ),
+        );
+      },
     );
     if (picked == null || !mounted) return;
     final start = _dateOnly(picked.start);
@@ -582,6 +634,23 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
     setState(() => _errorText = null);
     widget.onChanged(start, end);
   }
+}
+
+Size _compactDateRangePickerSize(Size viewport) {
+  final horizontalMargin = viewport.width < 600 ? 16.0 : 48.0;
+  final verticalMargin = viewport.height < 700 ? 24.0 : 48.0;
+  final availableWidth = math.max(0.0, viewport.width - horizontalMargin);
+  final availableHeight = math.max(0.0, viewport.height - verticalMargin);
+  final maxWidth = viewport.width < 600 ? viewport.width : 620.0;
+  final width = math.min(
+    viewport.width,
+    math.max(304.0, math.min(maxWidth, availableWidth)),
+  );
+  final height = math.min(
+    viewport.height,
+    math.max(520.0, math.min(680.0, availableHeight)),
+  );
+  return Size(width, height);
 }
 
 class _DatePresetTile extends StatelessWidget {

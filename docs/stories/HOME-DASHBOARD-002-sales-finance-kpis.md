@@ -31,8 +31,11 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   có đơn hàng, tổng sao kê chưa có đơn hàng và tỉ lệ sao kê có đơn hàng.
 - `Tỉ lệ sao kê có đơn hàng = tổng sao kê có đơn / tổng số sao kê`.
 - Khối `Tổng quan` đứng trước KPI, bỏ progress bar và dùng donut cho tiến độ
-  báo cáo, sao kê và doanh số. Doanh số gồm ngày lớn bên trái, tuần/tháng xếp
-  bên phải; vòng dừng ở 100% nhưng text vẫn thể hiện vượt chỉ tiêu.
+  báo cáo, sao kê và doanh số. Doanh số tách thành hai card:
+  `Tổng quan cá nhân` và `Tổng quan Miền/Vùng/Cửa hàng`. Card cá nhân thể hiện
+  tiến độ của user/SA đang chọn; card Miền/Vùng/Cửa hàng thể hiện toàn bộ phạm
+  vi quản lý đang chọn. Mỗi card gồm khoảng chọn, tuần và tháng; vòng dừng ở
+  100% nhưng text vẫn thể hiện vượt chỉ tiêu.
 - Grid KPI trên mobile thông thường hiển thị 2 card mỗi hàng; chỉ hạ còn 1 card
   khi vùng nội dung hẹp dưới 320 px. Bán hàng và Tài chính dùng cùng breakpoint.
 - Doanh số thực đạt chỉ cộng báo cáo mua hàng có trạng thái ERP hoàn thành;
@@ -41,11 +44,19 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
 - Chỉ tiêu lưu theo SR/tháng. Ngày và tuần được phân bổ theo số ngày nằm trong
   tháng; thiếu chỉ tiêu ở bất kỳ SR nào thì vẫn hiện thực đạt nhưng không tính
   phần trăm.
+- Với `Tổng quan cá nhân`, SA nhận phần chỉ tiêu SR chia cho số SA active tại
+  SR. Store manager hoặc tài khoản quản lý theo node được chọn SA trong phạm vi
+  hiện tại để xem card cá nhân của SA đó; danh sách chọn không vượt ngoài các
+  showroom thuộc Miền/Vùng/Cửa hàng đang xem. Khi danh sách SA lớn hơn 10, UI
+  chuyển sang picker có ô tìm kiếm theo tên, email hoặc mã nhân viên tư vấn.
 - Tài chính đọc `MapVietinTransaction` theo cùng ngày Việt Nam và showroom
   scope với Bán hàng. Scope cá nhân chỉ tính sao kê có mã đơn thuộc đơn hàng
   cá nhân; chọn showroom được gán mới tính toàn showroom đó.
 - SA, Kỹ thuật, Kho và Thu ngân chỉ được chọn `Phạm vi cá nhân` hoặc từng
   showroom được gán; không được chọn vùng, miền hay toàn hệ thống.
+- Super Admin mặc định xem `Toàn hệ thống`, đồng thời được chọn từng node đang
+  hoạt động có showroom bên dưới như Miền, Vùng hoặc Showroom để xem dashboard
+  theo phạm vi cụ thể.
 - Quyền xem `Bán hàng` và `Tài chính` là hai tính năng riêng trong cây tổ chức.
   Super Admin tick tính năng nào tại node thì backend và UI mới trả/hiện khu vực
   tương ứng; quyền này độc lập với quyền mở màn hình `Sao kê`.

@@ -290,6 +290,14 @@ describe('HomeSummaryService', () => {
           erpGrandTotal: 1080000,
           erpReturnedAfterTaxAmount: 108000,
         },
+      ])
+      .mockResolvedValueOnce([
+        {
+          erpOrderCreatedAt: new Date('2026-07-04T02:00:00Z'),
+          submittedAt: new Date('2026-07-04T02:10:00Z'),
+          erpGrandTotal: 1080000,
+          erpReturnedAfterTaxAmount: 108000,
+        },
       ]);
 
     const result = await service.getSummary(
@@ -320,7 +328,7 @@ describe('HomeSummaryService', () => {
     prisma.salesReport.findMany
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
-    prisma.store.findMany.mockResolvedValueOnce([
+    prisma.store.findMany.mockResolvedValue([
       {
         storeId: 'CP01',
         organizationNodeId: 'node-cp01',
@@ -330,7 +338,7 @@ describe('HomeSummaryService', () => {
         organizationNodeId: 'node-cp02',
       },
     ]);
-    prisma.salesTarget.findMany.mockResolvedValueOnce([
+    prisma.salesTarget.findMany.mockResolvedValue([
       {
         organizationNodeId: 'node-cp01',
         targetBeforeTax: BigInt(300000000),
@@ -374,6 +382,122 @@ describe('HomeSummaryService', () => {
       week: { target: 74193548 },
       month: { target: 460000000 },
     });
+    expect(result.scopeSalesProgress).toMatchObject({
+      status: 'AVAILABLE',
+      scope: 'MANAGED',
+      month: { target: 610000000 },
+    });
+  });
+
+  it('lets a managed dashboard select an SA for personal sales progress', async () => {
+    const { service, prisma, salesReports } = createHarness();
+    salesReports.describeHomeSummaryScope.mockResolvedValueOnce({
+      available: true,
+      scope: 'MANAGED_SCOPE',
+      scopeLabel: 'Showroom: CP75',
+      scopeDetail: 'CP75',
+      unavailableMessage: null,
+      ownUserId: null,
+      ownEmail: null,
+      ownPersonnelCode: null,
+      allowedStoreCodes: ['CP75'],
+    });
+    prisma.salesReport.findMany.mockResolvedValue([]);
+    prisma.store.findMany.mockResolvedValue([
+      {
+        storeId: 'CP75',
+        organizationNodeId: 'node-cp75',
+      },
+    ]);
+    prisma.salesTarget.findMany.mockResolvedValue([
+      {
+        organizationNodeId: 'node-cp75',
+        targetBeforeTax: BigInt(310000000),
+      },
+    ]);
+    prisma.user.findMany.mockResolvedValue([
+      {
+        id: 'sa-1',
+        email: 'sa1@phongvu.vn',
+        firstName: 'SA',
+        lastName: 'Một',
+        jobRoleCode: 'SA',
+        areaCode: 'HCM',
+        regionCode: 'SOUTH',
+        store: {
+          storeId: 'CP75',
+          storeName: 'CP75',
+          area: {
+            code: 'HCM',
+            region: { code: 'SOUTH' },
+          },
+          organizationNode: null,
+        },
+        area: {
+          code: 'HCM',
+          region: { code: 'SOUTH' },
+        },
+        region: { code: 'SOUTH' },
+        organizationNode: null,
+        organizationAssignments: [],
+      },
+      {
+        id: 'sa-2',
+        email: 'sa2@phongvu.vn',
+        firstName: 'SA',
+        lastName: 'Hai',
+        jobRoleCode: 'SA',
+        areaCode: 'HCM',
+        regionCode: 'SOUTH',
+        store: {
+          storeId: 'CP75',
+          storeName: 'CP75',
+          area: {
+            code: 'HCM',
+            region: { code: 'SOUTH' },
+          },
+          organizationNode: null,
+        },
+        area: {
+          code: 'HCM',
+          region: { code: 'SOUTH' },
+        },
+        region: { code: 'SOUTH' },
+        organizationNode: null,
+        organizationAssignments: [],
+      },
+    ]);
+
+    const result = await service.getSummary(
+      { id: 'manager-1', email: 'manager@phongvu.vn' },
+      {
+        date: '2026-07-04',
+        scope: 'MANAGED_SCOPE',
+        organizationNodeId: 'node-cp75',
+        salesProgressUserId: 'sa-2',
+      },
+    );
+
+    expect(result.salesProgressAssignees).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          userId: 'sa-1',
+          label: 'SA Một',
+          isSelected: false,
+          storeCodes: ['CP75'],
+        }),
+        expect.objectContaining({
+          userId: 'sa-2',
+          label: 'SA Hai',
+          isSelected: true,
+          storeCodes: ['CP75'],
+        }),
+      ]),
+    );
+    expect(result.selectedSalesProgressUserId).toBe('sa-2');
+    expect(result.salesProgress.scope).toBe('PERSONAL_SA');
+    expect(result.personalSalesProgress.scope).toBe('PERSONAL_SA');
+    expect(result.scopeSalesProgress.scope).toBe('MANAGED');
   });
 
   it('does not expose finance metrics when its dashboard section is disabled', async () => {

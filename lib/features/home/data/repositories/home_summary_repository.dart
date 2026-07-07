@@ -50,6 +50,7 @@ class HomeSummaryRepository {
     String? endDate,
     String? scope,
     String? organizationNodeId,
+    String? salesProgressUserId,
   }) async {
     final queryParameters = <String, String>{};
     final normalizedDate = date?.trim();
@@ -73,6 +74,11 @@ class HomeSummaryRepository {
     final normalizedNodeId = organizationNodeId?.trim();
     if (normalizedNodeId != null && normalizedNodeId.isNotEmpty) {
       queryParameters['organizationNodeId'] = normalizedNodeId;
+    }
+    final normalizedSalesProgressUserId = salesProgressUserId?.trim();
+    if (normalizedSalesProgressUserId != null &&
+        normalizedSalesProgressUserId.isNotEmpty) {
+      queryParameters['salesProgressUserId'] = normalizedSalesProgressUserId;
     }
     final response = await _apiClient.get(
       ApiConstants.homeSummaryEndpoint,

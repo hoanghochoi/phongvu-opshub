@@ -32,6 +32,10 @@ class HomeSummary {
   final int totalStatementsWithoutOrder;
   final double statementOrderRate;
   final HomeSalesProgress salesProgress;
+  final HomeSalesProgress personalSalesProgress;
+  final HomeSalesProgress scopeSalesProgress;
+  final List<HomeSalesProgressAssignee> salesProgressAssignees;
+  final String? selectedSalesProgressUserId;
   final DateTime? refreshedAt;
   final String? unavailableMessage;
 
@@ -67,13 +71,21 @@ class HomeSummary {
     this.totalStatementsWithoutOrder = 0,
     this.statementOrderRate = 0,
     this.salesProgress = const HomeSalesProgress.notApplicable(),
+    HomeSalesProgress? personalSalesProgress,
+    this.scopeSalesProgress = const HomeSalesProgress.notApplicable(),
+    this.salesProgressAssignees = const [],
+    this.selectedSalesProgressUserId,
     required this.refreshedAt,
     this.unavailableMessage,
   }) : startDate = startDate ?? date,
-       endDate = endDate ?? date;
+       endDate = endDate ?? date,
+       personalSalesProgress = personalSalesProgress ?? salesProgress;
 
   factory HomeSummary.fromJson(Map<String, dynamic> json) {
     final date = _stringOf(json['date']);
+    final personalSalesProgress = HomeSalesProgress.fromJson(
+      json['personalSalesProgress'] ?? json['salesProgress'],
+    );
     return HomeSummary(
       date: date,
       startDate: _stringOf(json['startDate']).isEmpty
@@ -111,7 +123,20 @@ class HomeSummary {
       totalStatementsWithOrder: _intOf(json['totalStatementsWithOrder']),
       totalStatementsWithoutOrder: _intOf(json['totalStatementsWithoutOrder']),
       statementOrderRate: _coverageOf(json['statementOrderRate']),
-      salesProgress: HomeSalesProgress.fromJson(json['salesProgress']),
+      salesProgress: personalSalesProgress,
+      personalSalesProgress: personalSalesProgress,
+      scopeSalesProgress: HomeSalesProgress.fromJson(
+        json['scopeSalesProgress'],
+      ),
+      salesProgressAssignees:
+          (json['salesProgressAssignees'] as List? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .map(HomeSalesProgressAssignee.fromJson)
+              .where((option) => option.userId.isNotEmpty)
+              .toList(growable: false),
+      selectedSalesProgressUserId: _nullableStringOf(
+        json['selectedSalesProgressUserId'],
+      ),
       refreshedAt: _dateTimeOf(json['refreshedAt']),
       unavailableMessage: _nullableStringOf(json['unavailableMessage']),
     );
@@ -134,7 +159,8 @@ class HomeSummary {
       totalStatements > 0 ||
       totalStatementsWithOrder > 0 ||
       totalStatementsWithoutOrder > 0 ||
-      salesProgress.isApplicable;
+      personalSalesProgress.isApplicable ||
+      scopeSalesProgress.isApplicable;
 
   String get resolvedScopeLabel {
     final value = scopeLabel.trim();
@@ -183,6 +209,41 @@ class HomeSummary {
     final text = value?.toString().trim();
     if (text == null || text.isEmpty) return null;
     return DateTime.tryParse(text);
+  }
+}
+
+class HomeSalesProgressAssignee {
+  const HomeSalesProgressAssignee({
+    required this.userId,
+    required this.label,
+    this.email,
+    this.personnelCode,
+    this.storeCodes = const [],
+    this.isSelected = false,
+    this.isCurrentUser = false,
+  });
+
+  final String userId;
+  final String label;
+  final String? email;
+  final String? personnelCode;
+  final List<String> storeCodes;
+  final bool isSelected;
+  final bool isCurrentUser;
+
+  factory HomeSalesProgressAssignee.fromJson(Map<String, dynamic> json) {
+    return HomeSalesProgressAssignee(
+      userId: HomeSummary._stringOf(json['userId']),
+      label: HomeSummary._stringOf(json['label']),
+      email: HomeSummary._nullableStringOf(json['email']),
+      personnelCode: HomeSummary._nullableStringOf(json['personnelCode']),
+      storeCodes: (json['storeCodes'] as List? ?? const [])
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false),
+      isSelected: json['isSelected'] == true,
+      isCurrentUser: json['isCurrentUser'] == true,
+    );
   }
 }
 

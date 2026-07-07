@@ -45,6 +45,32 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`, 2026-07-07: Mobile AppShell drawer now pins the same app metadata
+  footer as desktop sidebar: version, developer credit, and copyright below the
+  scrollable menu. Validation: `flutter test --no-pub --reporter expanded
+  test\app_shell_route_viewport_test.dart`.
+- `SALES-REPORT-001`, 2026-07-07: Cockpit match report mua thủ công theo
+  `orderCode` với cache đơn trong filter hiện tại, nên đơn thủ công trùng mã sẽ
+  chuyển khỏi cột chưa báo cáo sau khi reload dù metadata ngày/showroom của
+  report không trùng hoàn toàn cache row. Validation: focused
+  SalesReportsService Jest, Nest build, `git diff --check`.
+- `SALES-REPORT-001`, 2026-07-07: ERP order cache list sync đổi sang mỗi 1
+  phút, default batch 100 đơn/ngày và cho phép cấu hình đến 200. Status sync
+  mở rộng từ reported-only sang cả đơn pending trong cache chưa báo cáo, dùng
+  Redis lease, concurrency, quota theo showroom, backoff theo failure count và
+  không reset retry metadata khi list sync refresh đơn `PENDING`. Validation:
+  focused SalesReportsService Jest và Nest build.
+- `HOME-DASHBOARD-002`, 2026-07-07: Tiến độ doanh số trên Home tách thành
+  `Tổng quan cá nhân` và `Tổng quan Miền/Vùng/Cửa hàng`; backend trả thêm
+  `personalSalesProgress`, `scopeSalesProgress`, danh sách SA hợp lệ trong
+  scope hiện tại và `salesProgressUserId` để store manager/tài khoản quản lý
+  chọn SA; danh sách trên 10 SA dùng picker có tìm kiếm. Super Admin giữ option
+  `Toàn hệ thống` và nhận thêm từng node active có showroom bên dưới để lọc
+  dashboard như RM/AM. Tiến độ cá nhân cũng nhận báo cáo theo
+  `erpConsultantCustomId` để giảm lệch với doanh số cá nhân từ ERP order cache.
+  Validation: focused Home Summary Jest, Nest build, focused
+  Home/date-range/feedback Flutter widget tests, `flutter analyze --no-pub`,
+  formatter check, và `git diff --check`.
 - `PAYMENT-MONITOR-002`/`PAYMENT-STATEMENT-001`/`SALES-REPORT-001`,
   2026-07-07: `Tiền vào`, `Sao kê`, and `Cấn trừ` now keep pagination/list
   state controls in the filter card footer, `Sao kê` keeps select-all/selected
@@ -1153,8 +1179,8 @@ Recent focused evidence:
   07:00 Vietnam time only when `SALES_REPORT_BIGQUERY_SYNC_ENABLED=true`.
   Validation: focused Nest
   sales-report BigQuery sync tests and backend build.
-- `SALES-REPORT-001`, 2026-07-07: `Doanh số` export adds total installment-need
-  count from sales reports and successful-installment order count from ERP
+- `SALES-REPORT-001`, 2026-07-07: `Doanh số` export chỉ cộng các báo cáo có
+  tick `Có nhu cầu trả góp` và số đơn trả góp thành công từ ERP
   payment methods, then moves installment reasons to the final column. BigQuery
   sync now also writes `revenue_by_store`, with one revenue summary row per
   store/showroom instead of one all-store total row. Validation: focused Nest

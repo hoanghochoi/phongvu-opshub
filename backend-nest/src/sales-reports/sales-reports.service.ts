@@ -53,8 +53,9 @@ const EXPORT_TYPE_REVENUE = 'REVENUE';
 const EXPORT_TYPE_INSTALLMENT = 'INSTALLMENT';
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_ORDER_COCKPIT_LIMIT = 20;
-const DEFAULT_ORDER_CACHE_SYNC_LIMIT = 50;
-const ORDER_CACHE_SYNC_INTERVAL_MS = 3 * 60 * 1000;
+const DEFAULT_ORDER_CACHE_SYNC_LIMIT = 100;
+const MAX_ORDER_CACHE_SYNC_LIMIT = 200;
+const ORDER_CACHE_SYNC_INTERVAL_MS = 60 * 1000;
 const SALES_REPORT_ORDERS_UPDATED_CHANNEL = 'SALES_REPORT_ORDERS_UPDATED';
 const MAX_ORDER_CACHE_SYNC_LOOKBACK_DAYS = 7;
 const INSTALLMENT_SUCCESS = 'SUCCESS';
@@ -103,6 +104,33 @@ type SalesReportOrderSyncOwner = {
   storeCode: string | null;
   storeName: string | null;
   organizationNodeId: string | null;
+};
+
+type ErpOrderStatusSyncCandidateSource =
+  | 'cache_pending'
+  | 'cache_completed'
+  | 'reported_pending'
+  | 'reported_completed';
+
+type ErpOrderStatusSyncCandidate = {
+  orderCode: string;
+  storeCode: string | null;
+  lifecycleStatus: string;
+  statusCheckedAt: Date | null;
+  statusCheckAttemptedAt: Date | null;
+  statusCheckFailureCount: number;
+  orderCreatedAt: Date | null;
+  source: ErpOrderStatusSyncCandidateSource;
+};
+
+type ErpOrderStatusSyncSelection = {
+  selected: ErpOrderStatusSyncCandidate[];
+  cachePending: number;
+  cacheCompleted: number;
+  reportedPending: number;
+  reportedCompleted: number;
+  skippedBackoff: number;
+  skippedStoreQuota: number;
 };
 
 export type SalesReportOperatingSummaryScope =
@@ -299,7 +327,12 @@ export class SalesReportsService implements OnApplicationBootstrap {
     }
 
     if (personalOrStoreView) {
-      if (requestedScope === 'ALL' || requestedScope === 'MANAGED_SCOPE') {
+      if (requestedScope === 'MANAGED_SCOPE') {
+        return this.describeAssignedStoresHomeSummaryScope(user, {
+          requireMultiple: true,
+        });
+      }
+      if (requestedScope === 'ALL') {
         return this.unavailableHomeSummaryScope(
           'Vui lòng chọn phạm vi cá nhân hoặc một showroom được gán.',
         );
@@ -329,30 +362,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         };
       }
       try {
-        const stores = await this.resolveUserStores(user);
-        const allowedStoreCodes = stores
-          .map((store) => this.normalizeStoreCode(store?.storeId))
-          .filter((value): value is string => Boolean(value));
-        return {
-          available: allowedStoreCodes.length > 0,
-          scope: allowedStoreCodes.length > 0 ? 'MANAGED_SCOPE' : 'UNAVAILABLE',
-          scopeLabel:
-            allowedStoreCodes.length > 0
-              ? 'Showroom được gán'
-              : 'Chưa sẵn sàng',
-          scopeDetail:
-            allowedStoreCodes.length > 0
-              ? this.describeStoreScope(stores)
-              : null,
-          unavailableMessage:
-            allowedStoreCodes.length > 0
-              ? null
-              : 'Tài khoản chưa được gán showroom để xem tổng quan vận hành.',
-          ownUserId: null,
-          ownEmail: null,
-          ownPersonnelCode: null,
-          allowedStoreCodes,
-        };
+        return await this.describeAssignedStoresHomeSummaryScope(user);
       } catch (error) {
         this.logger.warn(
           `Home summary managed scope resolution failed: user=${this.safeUserLabel(user)} error=${String(error)}`,
@@ -438,15 +448,27 @@ export class SalesReportsService implements OnApplicationBootstrap {
 
     if (personalOrStoreView) {
       if (!canUseOwnScope) return scopeOptions;
-      pushOption({
-        value: 'OWN',
-        label: 'Phạm vi cá nhân',
-        scope: 'OWN',
-        organizationNodeId: null,
-        organizationNodeType: null,
-        storeCount: null,
-        isDefault: true,
-      });
+      const assignedStores = await this.safeResolveHomeSummaryStores(
+        user,
+        'personal_scope_options',
+      );
+      const aggregateScopeOption = this.assignedStoresHomeSummaryScopeOption(
+        assignedStores,
+        true,
+      );
+      if (aggregateScopeOption) {
+        pushOption(aggregateScopeOption);
+      } else {
+        pushOption({
+          value: 'OWN',
+          label: 'Phạm vi cá nhân',
+          scope: 'OWN',
+          organizationNodeId: null,
+          organizationNodeType: null,
+          storeCount: null,
+          isDefault: true,
+        });
+      }
       const assignments = await this.resolveHomeSummaryAssignments(user);
       assignments.forEach((assignment: any) => {
         for (const option of this.homeSummaryNodeOptions(
@@ -461,6 +483,17 @@ export class SalesReportsService implements OnApplicationBootstrap {
           }
         }
       });
+      if (aggregateScopeOption) {
+        pushOption({
+          value: 'OWN',
+          label: 'Phạm vi cá nhân',
+          scope: 'OWN',
+          organizationNodeId: null,
+          organizationNodeType: null,
+          storeCount: null,
+          isDefault: false,
+        });
+      }
       return scopeOptions;
     }
 
@@ -477,14 +510,31 @@ export class SalesReportsService implements OnApplicationBootstrap {
         storeCount: null,
         isDefault: true,
       });
+      const rootNodes = await this.findAllHomeSummaryRootNodes();
+      for (const root of rootNodes) {
+        for (const option of this.homeSummaryNodeOptions(root, false)) {
+          if (option.organizationNodeType === 'LV0_DOMAIN') continue;
+          pushOption(option);
+        }
+      }
     }
 
     if (adminView && !isSuperAdminRole(user?.role)) {
+      const assignedStores = await this.safeResolveHomeSummaryStores(
+        user,
+        'admin_scope_options',
+      );
+      const aggregateScopeOption = this.assignedStoresHomeSummaryScopeOption(
+        assignedStores,
+        true,
+      );
+      if (aggregateScopeOption) pushOption(aggregateScopeOption);
       const assignments = await this.resolveHomeSummaryAssignments(user);
       assignments.forEach((assignment: any, assignmentIndex: number) => {
         for (const option of this.homeSummaryNodeOptions(
           assignment?.organizationNode,
-          assignment?.isPrimary === true || assignmentIndex === 0,
+          !aggregateScopeOption &&
+            (assignment?.isPrimary === true || assignmentIndex === 0),
         )) {
           pushOption(option);
         }
@@ -549,6 +599,82 @@ export class SalesReportsService implements OnApplicationBootstrap {
       ownPersonnelCode: null,
       allowedStoreCodes,
     };
+  }
+
+  private async describeAssignedStoresHomeSummaryScope(
+    user: any,
+    options: { requireMultiple?: boolean } = {},
+  ): Promise<SalesReportSummaryScopeDescriptor> {
+    const stores = await this.safeResolveHomeSummaryStores(
+      user,
+      'summary_scope',
+    );
+    const allowedStoreCodes = this.homeSummaryStoreCodes(stores);
+    if (allowedStoreCodes.length === 0) {
+      return this.unavailableHomeSummaryScope(
+        'Tài khoản chưa được gán showroom để xem tổng quan vận hành.',
+      );
+    }
+    if (options.requireMultiple === true && allowedStoreCodes.length <= 1) {
+      return this.unavailableHomeSummaryScope(
+        'Vui lòng chọn phạm vi cá nhân hoặc một showroom được gán.',
+      );
+    }
+    return {
+      available: true,
+      scope: 'MANAGED_SCOPE',
+      scopeLabel:
+        allowedStoreCodes.length > 1
+          ? 'Tất cả SR được gán'
+          : 'Showroom được gán',
+      scopeDetail: this.describeStoreScope(stores),
+      unavailableMessage: null,
+      ownUserId: null,
+      ownEmail: null,
+      ownPersonnelCode: null,
+      allowedStoreCodes,
+    };
+  }
+
+  private async safeResolveHomeSummaryStores(user: any, source: string) {
+    try {
+      return await this.resolveUserStores(user);
+    } catch (error) {
+      this.logger.warn(
+        `Home summary assigned store resolution failed: user=${this.safeUserLabel(user)} source=${source} error=${String(error)}`,
+      );
+      return [];
+    }
+  }
+
+  private assignedStoresHomeSummaryScopeOption(
+    stores: any[],
+    isDefault: boolean,
+  ): HomeSummaryScopeOption | null {
+    const storeCodes = this.homeSummaryStoreCodes(stores);
+    if (storeCodes.length <= 1) return null;
+    return {
+      value: 'MANAGED_SCOPE',
+      label: 'Tất cả SR được gán',
+      scope: 'MANAGED_SCOPE',
+      organizationNodeId: null,
+      organizationNodeType: null,
+      storeCount: storeCodes.length,
+      isDefault,
+    };
+  }
+
+  private homeSummaryStoreCodes(stores: any[]) {
+    const seen = new Set<string>();
+    const storeCodes: string[] = [];
+    for (const store of stores) {
+      const storeCode = this.normalizeStoreCode(store?.storeId);
+      if (storeCode && !seen.has(storeCode)) {
+        seen.add(storeCode);
+        storeCodes.push(storeCode);
+      }
+    }
+    return storeCodes;
   }
 
   onApplicationBootstrap() {
@@ -648,7 +774,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     }
     const batchSize = this.envInt(
       'ERP_ORDER_STATUS_SYNC_BATCH_SIZE',
-      50,
+      80,
       1,
       200,
     );
@@ -664,8 +790,40 @@ export class SalesReportsService implements OnApplicationBootstrap {
       1,
       180,
     );
-    const pendingLimit = Math.max(1, Math.floor(batchSize * 0.8));
-    const completedLimit = Math.max(0, batchSize - pendingLimit);
+    const cacheSyncEnabled = this.envFlag(
+      'ERP_ORDER_STATUS_CACHE_SYNC_ENABLED',
+      true,
+    );
+    const cacheLookbackDays = this.envInt(
+      'ERP_ORDER_STATUS_CACHE_LOOKBACK_DAYS',
+      2,
+      1,
+      14,
+    );
+    const pendingRecheckMinutes = this.envInt(
+      'ERP_ORDER_STATUS_PENDING_RECHECK_MINUTES',
+      20,
+      1,
+      1440,
+    );
+    const completedRecheckHours = this.envInt(
+      'ERP_ORDER_STATUS_COMPLETED_RECHECK_HOURS',
+      24,
+      1,
+      168,
+    );
+    const storeLimit = this.envInt(
+      'ERP_ORDER_STATUS_SYNC_STORE_LIMIT',
+      20,
+      1,
+      200,
+    );
+    const maxFailureCount = this.envInt(
+      'ERP_ORDER_STATUS_MAX_FAILURE_COUNT',
+      5,
+      1,
+      50,
+    );
     let leaseToken: string | null = null;
     if (this.redisService) {
       try {
@@ -690,77 +848,19 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const startedAt = Date.now();
     try {
       this.logger.log(
-        `ERP order status sync started: source=${source} reportedOnly=true batchSize=${batchSize} pendingLimit=${pendingLimit} completedLimit=${completedLimit} concurrency=${concurrency}`,
+        `ERP order status sync started: source=${source} cacheEnabled=${cacheSyncEnabled} batchSize=${batchSize} concurrency=${concurrency} storeLimit=${storeLimit} pendingRecheckMinutes=${pendingRecheckMinutes} completedRecheckHours=${completedRecheckHours} maxFailureCount=${maxFailureCount}`,
       );
-      const completedCutoff = new Date(
-        Date.now() - lookbackDays * 24 * 60 * 60 * 1000,
-      );
-      const pendingRows = await this.prisma.salesReport.findMany({
-        where: {
-          reportType: REPORT_TYPE_PURCHASED,
-          orderCode: { not: null },
-          erpLifecycleStatus: 'PENDING',
-        },
-        orderBy: [{ erpStatusCheckedAt: 'asc' }, { submittedAt: 'asc' }],
-        take: batchSize,
-        select: {
-          orderCode: true,
-          storeCode: true,
-          erpLifecycleStatus: true,
-          erpStatusCheckedAt: true,
-          erpOrderCreatedAt: true,
-        },
+      const selection = await this.selectErpStatusSyncCandidates({
+        batchSize,
+        cacheSyncEnabled,
+        cacheLookbackDays,
+        completedLookbackDays: lookbackDays,
+        pendingRecheckMinutes,
+        completedRecheckHours,
+        storeLimit,
+        maxFailureCount,
       });
-      const completedRows =
-        completedLimit > 0
-          ? await this.prisma.salesReport.findMany({
-              where: {
-                reportType: REPORT_TYPE_PURCHASED,
-                orderCode: { not: null },
-                erpLifecycleStatus: {
-                  in: ['COMPLETED', 'COMPLETED_PARTIAL_RETURN'],
-                },
-                erpOrderCreatedAt: { gte: completedCutoff },
-              },
-              orderBy: [{ erpStatusCheckedAt: 'asc' }, { submittedAt: 'asc' }],
-              take: batchSize,
-              select: {
-                orderCode: true,
-                storeCode: true,
-                erpLifecycleStatus: true,
-                erpStatusCheckedAt: true,
-                erpOrderCreatedAt: true,
-              },
-            })
-          : [];
-      const selectedPending = pendingRows
-        .slice(0, pendingLimit)
-        .map((row) => this.reportedOrderStatusSyncRow(row));
-      const selectedCompleted = completedRows
-        .slice(0, completedLimit)
-        .map((row) => this.reportedOrderStatusSyncRow(row));
-      let remaining =
-        batchSize - selectedPending.length - selectedCompleted.length;
-      if (remaining > 0) {
-        selectedPending.push(
-          ...pendingRows
-            .slice(selectedPending.length, selectedPending.length + remaining)
-            .map((row) => this.reportedOrderStatusSyncRow(row)),
-        );
-        remaining =
-          batchSize - selectedPending.length - selectedCompleted.length;
-      }
-      if (remaining > 0) {
-        selectedCompleted.push(
-          ...completedRows
-            .slice(
-              selectedCompleted.length,
-              selectedCompleted.length + remaining,
-            )
-            .map((row) => this.reportedOrderStatusSyncRow(row)),
-        );
-      }
-      const selected = [...selectedPending, ...selectedCompleted];
+      const selected = selection.selected;
       let cursor = 0;
       let changed = 0;
       let failed = 0;
@@ -786,7 +886,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
             failed += 1;
             await this.recordErpStatusSyncFailure(row.orderCode);
             this.logger.warn(
-              `ERP order status refresh failed: orderLength=${row.orderCode.length} errorType=${this.errorType(error)}`,
+              `ERP order status refresh failed: orderLength=${row.orderCode.length} sourceBucket=${row.source} errorType=${this.errorType(error)}`,
             );
           }
         }
@@ -808,7 +908,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         });
       }
       this.logger.log(
-        `ERP order status sync succeeded: source=${source} reportedOnly=true selected=${selected.length} pending=${selectedPending.length} completed=${selectedCompleted.length} changed=${changed} failed=${failed} concurrency=${concurrency} durationMs=${Date.now() - startedAt}`,
+        `ERP order status sync succeeded: source=${source} cacheEnabled=${cacheSyncEnabled} selected=${selected.length} cachePending=${selection.cachePending} reportedPending=${selection.reportedPending} cacheCompleted=${selection.cacheCompleted} reportedCompleted=${selection.reportedCompleted} skippedBackoff=${selection.skippedBackoff} skippedStoreQuota=${selection.skippedStoreQuota} changed=${changed} failed=${failed} concurrency=${concurrency} durationMs=${Date.now() - startedAt}`,
       );
       return {
         skipped: false,
@@ -833,20 +933,326 @@ export class SalesReportsService implements OnApplicationBootstrap {
     }
   }
 
-  private reportedOrderStatusSyncRow(row: {
-    orderCode: string | null;
-    storeCode: string | null;
-    erpLifecycleStatus: string;
-    erpStatusCheckedAt: Date | null;
-    erpOrderCreatedAt: Date | null;
-  }) {
+  private async selectErpStatusSyncCandidates(input: {
+    batchSize: number;
+    cacheSyncEnabled: boolean;
+    cacheLookbackDays: number;
+    completedLookbackDays: number;
+    pendingRecheckMinutes: number;
+    completedRecheckHours: number;
+    storeLimit: number;
+    maxFailureCount: number;
+  }): Promise<ErpOrderStatusSyncSelection> {
+    const now = new Date();
+    const pendingLimit = Math.max(1, Math.floor(input.batchSize * 0.8));
+    const completedLimit = Math.max(0, input.batchSize - pendingLimit);
+    const cacheCutoff = new Date(
+      now.getTime() - input.cacheLookbackDays * 24 * 60 * 60 * 1000,
+    );
+    const completedCutoff = new Date(
+      now.getTime() - input.completedLookbackDays * 24 * 60 * 60 * 1000,
+    );
+    const selection: ErpOrderStatusSyncSelection = {
+      selected: [],
+      cachePending: 0,
+      cacheCompleted: 0,
+      reportedPending: 0,
+      reportedCompleted: 0,
+      skippedBackoff: 0,
+      skippedStoreQuota: 0,
+    };
+    const seenOrderCodes = new Set<string>();
+    const storeCounts = new Map<string, number>();
+    const pendingCandidates: ErpOrderStatusSyncCandidate[] = [];
+    const completedCandidates: ErpOrderStatusSyncCandidate[] = [];
+
+    if (input.cacheSyncEnabled) {
+      const cachePendingRows =
+        await this.prisma.salesReportErpOrderCache.findMany({
+          where: {
+            excludedAt: null,
+            lifecycleStatus: 'PENDING',
+            statusCheckFailureCount: { lt: input.maxFailureCount },
+            ...this.orderCacheStatusSyncDateWhere(cacheCutoff),
+          },
+          orderBy: [
+            { statusCheckAttemptedAt: 'asc' },
+            { statusCheckedAt: 'asc' },
+            { orderCreatedAt: 'desc' },
+          ],
+          take: input.batchSize * 4,
+          select: {
+            orderCode: true,
+            storeCode: true,
+            lifecycleStatus: true,
+            statusCheckedAt: true,
+            statusCheckAttemptedAt: true,
+            statusCheckFailureCount: true,
+            orderCreatedAt: true,
+          },
+        });
+      for (const row of cachePendingRows) {
+        const candidate = this.cacheOrderStatusSyncRow(row, 'cache_pending');
+        if (candidate) pendingCandidates.push(candidate);
+      }
+    }
+
+    const pendingRows = await this.prisma.salesReport.findMany({
+      where: {
+        reportType: REPORT_TYPE_PURCHASED,
+        orderCode: { not: null },
+        erpLifecycleStatus: 'PENDING',
+        erpStatusCheckFailureCount: { lt: input.maxFailureCount },
+      },
+      orderBy: [{ erpStatusCheckedAt: 'asc' }, { submittedAt: 'asc' }],
+      take: input.batchSize,
+      select: {
+        orderCode: true,
+        storeCode: true,
+        erpLifecycleStatus: true,
+        erpStatusCheckedAt: true,
+        erpStatusCheckFailureCount: true,
+        erpOrderCreatedAt: true,
+      },
+    });
+    for (const row of pendingRows) {
+      const candidate = this.reportedOrderStatusSyncRow(
+        row,
+        'reported_pending',
+      );
+      if (candidate) pendingCandidates.push(candidate);
+    }
+
+    if (input.cacheSyncEnabled) {
+      const cacheCompletedRows =
+        await this.prisma.salesReportErpOrderCache.findMany({
+          where: {
+            excludedAt: null,
+            lifecycleStatus: { in: ['COMPLETED', 'COMPLETED_PARTIAL_RETURN'] },
+            statusCheckFailureCount: { lt: input.maxFailureCount },
+            ...this.orderCacheStatusSyncDateWhere(completedCutoff),
+          },
+          orderBy: [
+            { statusCheckAttemptedAt: 'asc' },
+            { statusCheckedAt: 'asc' },
+            { orderCreatedAt: 'desc' },
+          ],
+          take: input.batchSize * 2,
+          select: {
+            orderCode: true,
+            storeCode: true,
+            lifecycleStatus: true,
+            statusCheckedAt: true,
+            statusCheckAttemptedAt: true,
+            statusCheckFailureCount: true,
+            orderCreatedAt: true,
+          },
+        });
+      for (const row of cacheCompletedRows) {
+        const candidate = this.cacheOrderStatusSyncRow(row, 'cache_completed');
+        if (candidate) completedCandidates.push(candidate);
+      }
+    }
+
+    const completedRows = await this.prisma.salesReport.findMany({
+      where: {
+        reportType: REPORT_TYPE_PURCHASED,
+        orderCode: { not: null },
+        erpLifecycleStatus: {
+          in: ['COMPLETED', 'COMPLETED_PARTIAL_RETURN'],
+        },
+        erpOrderCreatedAt: { gte: completedCutoff },
+        erpStatusCheckFailureCount: { lt: input.maxFailureCount },
+      },
+      orderBy: [{ erpStatusCheckedAt: 'asc' }, { submittedAt: 'asc' }],
+      take: input.batchSize,
+      select: {
+        orderCode: true,
+        storeCode: true,
+        erpLifecycleStatus: true,
+        erpStatusCheckedAt: true,
+        erpStatusCheckFailureCount: true,
+        erpOrderCreatedAt: true,
+      },
+    });
+    for (const row of completedRows) {
+      const candidate = this.reportedOrderStatusSyncRow(
+        row,
+        'reported_completed',
+      );
+      if (candidate) completedCandidates.push(candidate);
+    }
+
+    const tryAddCandidate = (candidate: ErpOrderStatusSyncCandidate) => {
+      if (selection.selected.length >= input.batchSize) return false;
+      const orderCode = this.normalizeOrderCode(candidate.orderCode);
+      if (!orderCode || seenOrderCodes.has(orderCode)) return false;
+      if (
+        !this.isErpStatusSyncCandidateDue(candidate, {
+          now,
+          pendingRecheckMinutes: input.pendingRecheckMinutes,
+          completedRecheckHours: input.completedRecheckHours,
+          maxFailureCount: input.maxFailureCount,
+        })
+      ) {
+        selection.skippedBackoff += 1;
+        return false;
+      }
+      const storeKey =
+        this.normalizeStoreCode(candidate.storeCode) ?? 'unknown';
+      const storeCount = storeCounts.get(storeKey) ?? 0;
+      if (storeCount >= input.storeLimit) {
+        selection.skippedStoreQuota += 1;
+        return false;
+      }
+      const normalized = { ...candidate, orderCode };
+      selection.selected.push(normalized);
+      seenOrderCodes.add(orderCode);
+      storeCounts.set(storeKey, storeCount + 1);
+      if (normalized.source === 'cache_pending') selection.cachePending += 1;
+      if (normalized.source === 'cache_completed') {
+        selection.cacheCompleted += 1;
+      }
+      if (normalized.source === 'reported_pending') {
+        selection.reportedPending += 1;
+      }
+      if (normalized.source === 'reported_completed') {
+        selection.reportedCompleted += 1;
+      }
+      return true;
+    };
+
+    let pendingCursor = 0;
+    let completedCursor = 0;
+    const takeFromPending = (limit: number) => {
+      let added = 0;
+      while (
+        pendingCursor < pendingCandidates.length &&
+        added < limit &&
+        selection.selected.length < input.batchSize
+      ) {
+        if (tryAddCandidate(pendingCandidates[pendingCursor])) added += 1;
+        pendingCursor += 1;
+      }
+    };
+    const takeFromCompleted = (limit: number) => {
+      let added = 0;
+      while (
+        completedCursor < completedCandidates.length &&
+        added < limit &&
+        selection.selected.length < input.batchSize
+      ) {
+        if (tryAddCandidate(completedCandidates[completedCursor])) added += 1;
+        completedCursor += 1;
+      }
+    };
+
+    takeFromPending(pendingLimit);
+    takeFromCompleted(completedLimit);
+    takeFromPending(input.batchSize - selection.selected.length);
+    takeFromCompleted(input.batchSize - selection.selected.length);
+
+    return selection;
+  }
+
+  private cacheOrderStatusSyncRow(
+    row: {
+      orderCode: string;
+      storeCode: string | null;
+      lifecycleStatus: string;
+      statusCheckedAt: Date | null;
+      statusCheckAttemptedAt: Date | null;
+      statusCheckFailureCount: number | null;
+      orderCreatedAt: Date | null;
+    },
+    source: Extract<
+      ErpOrderStatusSyncCandidateSource,
+      'cache_pending' | 'cache_completed'
+    >,
+  ): ErpOrderStatusSyncCandidate | null {
+    const orderCode = this.normalizeOrderCode(row.orderCode);
+    if (!orderCode) return null;
     return {
-      orderCode: row.orderCode ?? '',
-      storeCode: row.storeCode,
+      orderCode,
+      storeCode: this.normalizeStoreCode(row.storeCode),
+      lifecycleStatus:
+        this.normalizePersistedErpLifecycleStatus(row.lifecycleStatus) ??
+        'PENDING',
+      statusCheckedAt: row.statusCheckedAt,
+      statusCheckAttemptedAt: row.statusCheckAttemptedAt,
+      statusCheckFailureCount: this.toNonNegativeInt(
+        row.statusCheckFailureCount,
+      ),
+      orderCreatedAt: row.orderCreatedAt,
+      source,
+    };
+  }
+
+  private reportedOrderStatusSyncRow(
+    row: {
+      orderCode: string | null;
+      storeCode: string | null;
+      erpLifecycleStatus: string;
+      erpStatusCheckedAt: Date | null;
+      erpStatusCheckFailureCount?: number | null;
+      erpOrderCreatedAt: Date | null;
+    },
+    source: Extract<
+      ErpOrderStatusSyncCandidateSource,
+      'reported_pending' | 'reported_completed'
+    >,
+  ): ErpOrderStatusSyncCandidate | null {
+    const orderCode = this.normalizeOrderCode(row.orderCode);
+    if (!orderCode) return null;
+    return {
+      orderCode,
+      storeCode: this.normalizeStoreCode(row.storeCode),
       lifecycleStatus: row.erpLifecycleStatus,
       statusCheckedAt: row.erpStatusCheckedAt,
+      statusCheckAttemptedAt: row.erpStatusCheckedAt,
+      statusCheckFailureCount: this.toNonNegativeInt(
+        row.erpStatusCheckFailureCount,
+      ),
       orderCreatedAt: row.erpOrderCreatedAt,
+      source,
     };
+  }
+
+  private orderCacheStatusSyncDateWhere(
+    cutoff: Date,
+  ): Prisma.SalesReportErpOrderCacheWhereInput {
+    return {
+      OR: [
+        { orderCreatedAt: { gte: cutoff } },
+        { AND: [{ orderCreatedAt: null }, { fetchedAt: { gte: cutoff } }] },
+      ],
+    };
+  }
+
+  private isErpStatusSyncCandidateDue(
+    candidate: ErpOrderStatusSyncCandidate,
+    input: {
+      now: Date;
+      pendingRecheckMinutes: number;
+      completedRecheckHours: number;
+      maxFailureCount: number;
+    },
+  ) {
+    const failureCount = this.toNonNegativeInt(
+      candidate.statusCheckFailureCount,
+    );
+    if (failureCount >= input.maxFailureCount) return false;
+    if (!candidate.statusCheckAttemptedAt) return true;
+    const baseMinutes = candidate.source.includes('completed')
+      ? input.completedRecheckHours * 60
+      : input.pendingRecheckMinutes;
+    const backoffMultiplier =
+      failureCount > 0 ? Math.min(64, 2 ** (failureCount - 1)) : 1;
+    const dueAfterMinutes = Math.min(24 * 60, baseMinutes * backoffMultiplier);
+    return (
+      input.now.getTime() - candidate.statusCheckAttemptedAt.getTime() >=
+      dueAfterMinutes * 60 * 1000
+    );
   }
 
   private async persistScheduledErpStatus(order: SalesReportErpOrderListItem) {
@@ -946,19 +1352,39 @@ export class SalesReportsService implements OnApplicationBootstrap {
       baseOrderScopeWhere,
       this.orderCockpitCacheFilterWhere(filters),
     );
-    const reportedWhere = this.andWhere(
-      reportScopeWhere,
-      this.visibleSalesReportWhere(),
-      this.reportedOrderDateWhere(filters.dateRange),
-      {
-        reportType: REPORT_TYPE_PURCHASED,
-        orderCode: { not: null },
-      },
-    );
     const cacheDateScopeWhere = this.andOrderCacheWhere(
       orderScopeWhere,
       this.visibleOrderCacheWhere(),
       this.orderCacheDateWhere(filters.dateRange),
+    );
+    const scopedCacheCodeRows =
+      await this.prisma.salesReportErpOrderCache.findMany({
+        where: cacheDateScopeWhere,
+        select: { orderCode: true },
+        take: 10_000,
+      });
+    const scopedCacheCodes = Array.from(
+      new Set(
+        scopedCacheCodeRows
+          .map((row: any) => this.normalizeOrderCode(row.orderCode))
+          .filter(Boolean),
+      ),
+    );
+    const reportDateScopeWhere = this.andWhere(
+      reportScopeWhere,
+      this.reportedOrderDateWhere(filters.dateRange),
+    );
+    const reportedWhere = this.andWhere(
+      this.visibleSalesReportWhere(),
+      {
+        reportType: REPORT_TYPE_PURCHASED,
+        orderCode: { not: null },
+      },
+      scopedCacheCodes.length > 0
+        ? {
+            OR: [reportDateScopeWhere, { orderCode: { in: scopedCacheCodes } }],
+          }
+        : reportDateScopeWhere,
     );
     const baseReportedWhere = this.andWhere(
       baseReportScopeWhere,
@@ -975,7 +1401,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       this.orderCacheDateWhere(filters.dateRange),
     );
     const reportedCodeRows = await this.prisma.salesReport.findMany({
-      where: baseReportedWhere,
+      where: reportedWhere,
       select: { orderCode: true },
     });
     const reportedCodes = Array.from(
@@ -1051,7 +1477,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     );
 
     this.logger.log(
-      `Sales report order cockpit loaded from cache: user=${this.safeUserLabel(user)} startDate=${filters.startDate} endDate=${filters.endDate} admin=${adminView} hasStoreFilter=${Boolean(filters.storeCode)} hasUserFilter=${Boolean(filters.userEmail)} storeOptionCount=${filterOptions.stores.length} userOptionCount=${filterOptions.users.length} reported=${reportedOrders.length}/${reportedTotal} unreported=${unreportedOrders.length}/${unreportedTotal} reportedPage=${filters.reportedPage} unreportedPage=${filters.unreportedPage} limit=${filters.limit}`,
+      `Sales report order cockpit loaded from cache: user=${this.safeUserLabel(user)} startDate=${filters.startDate} endDate=${filters.endDate} admin=${adminView} hasStoreFilter=${Boolean(filters.storeCode)} hasUserFilter=${Boolean(filters.userEmail)} scopedCacheCodes=${scopedCacheCodes.length} reportedCodeMatches=${reportedCodes.length} storeOptionCount=${filterOptions.stores.length} userOptionCount=${filterOptions.users.length} reported=${reportedOrders.length}/${reportedTotal} unreported=${unreportedOrders.length}/${unreportedTotal} reportedPage=${filters.reportedPage} unreportedPage=${filters.unreportedPage} limit=${filters.limit}`,
     );
     return {
       // Giữ `date` trong response để client cũ tiếp tục đọc được ngày cuối.
@@ -1854,6 +2280,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
       incomingLifecycleStatus === 'PENDING' &&
       existingLifecycleStatus != null &&
       this.isVerifiedErpLifecycleStatus(existingLifecycleStatus);
+    const preservePendingStatusAttempt =
+      options.preserveVerifiedLifecycle === true &&
+      incomingLifecycleStatus === 'PENDING' &&
+      !preserveVerifiedLifecycle;
     const lifecycleStatus = preserveVerifiedLifecycle
       ? existingLifecycleStatus
       : incomingLifecycleStatus;
@@ -1877,10 +2307,15 @@ export class SalesReportsService implements OnApplicationBootstrap {
       : incomingStatusCheckedAt;
     const statusCheckAttemptedAt = preserveVerifiedLifecycle
       ? (options.existingCacheRow?.statusCheckAttemptedAt ?? statusCheckedAt)
-      : statusCheckedAt;
-    const statusCheckFailureCount = preserveVerifiedLifecycle
-      ? this.toNonNegativeInt(options.existingCacheRow?.statusCheckFailureCount)
-      : 0;
+      : preservePendingStatusAttempt
+        ? (options.existingCacheRow?.statusCheckAttemptedAt ?? null)
+        : statusCheckedAt;
+    const statusCheckFailureCount =
+      preserveVerifiedLifecycle || preservePendingStatusAttempt
+        ? this.toNonNegativeInt(
+            options.existingCacheRow?.statusCheckFailureCount,
+          )
+        : 0;
     const exclusion = this.orderExclusionState(lifecycleStatus);
     const storeCode = this.normalizeStoreCode(
       order.storeCode ?? syncOwner?.storeCode ?? context.storeCode,
@@ -1974,7 +2409,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         erpHasReturnedFullItems: hasReturnedFullItems,
         erpReturnedAfterTaxAmount: returnedAfterTaxAmount,
         erpStatusCheckedAt: statusCheckedAt,
-        erpStatusCheckFailureCount: 0,
+        erpStatusCheckFailureCount: statusCheckFailureCount,
         erpFetchedAt: order.fetchedAt,
       },
     });
@@ -2881,6 +3316,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const visited = new Set<string>();
     const visit = (node: any, depth: number) => {
       if (!node || depth > 20) return;
+      if (node.isActive === false) return;
       const nodeId = this.optionalText(node.id, 80);
       if (!nodeId || visited.has(nodeId)) return;
       visited.add(nodeId);
@@ -2916,6 +3352,19 @@ export class SalesReportsService implements OnApplicationBootstrap {
     if (!organizationNode?.findUnique) return null;
     return organizationNode.findUnique({
       where: { id: organizationNodeId },
+      include: organizationNodeStoreTreeInclude(),
+    });
+  }
+
+  private async findAllHomeSummaryRootNodes() {
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) return [];
+    return organizationNode.findMany({
+      where: { isActive: true, parentId: null },
+      orderBy: [
+        { sortOrder: Prisma.SortOrder.asc },
+        { displayName: Prisma.SortOrder.asc },
+      ],
       include: organizationNodeStoreTreeInclude(),
     });
   }
@@ -3315,7 +3764,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       'Số đơn hàng duy nhất',
       'Tổng doanh thu khách hàng doanh nghiệp',
       'Tổng doanh thu khách hàng cá nhân',
-      'Nhu cầu trả góp (cả có và không)',
+      'Báo cáo có nhu cầu trả góp',
       'Trả góp thành công (có đơn trả góp)',
       'Số lượng laptop',
       'Số lượng PC',
@@ -3398,8 +3847,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const noInstallmentReasons = new Map<string, number>();
     let installmentNeedTotalCount = 0;
     for (const row of rows) {
-      installmentNeedTotalCount += 1;
-      if (row.installmentNoInstallmentReason) {
+      const hasInstallmentNeed = row.installmentNeed === true;
+      if (hasInstallmentNeed) {
+        installmentNeedTotalCount += 1;
+      }
+      if (hasInstallmentNeed && row.installmentNoInstallmentReason) {
         const reasonCode = String(row.installmentNoInstallmentReason);
         if (reasonCode !== 'NORMAL_INSTALLMENT') {
           const label = this.installmentNoInstallmentReasonLabel(reasonCode);
@@ -3748,7 +4200,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       'ERP_ORDER_CACHE_SYNC_LIMIT',
       DEFAULT_ORDER_CACHE_SYNC_LIMIT,
       1,
-      100,
+      MAX_ORDER_CACHE_SYNC_LIMIT,
     );
   }
 

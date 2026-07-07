@@ -35,6 +35,10 @@ type HomeSummaryResponse = SalesReportOperatingSummary & {
   endDate: string;
   unavailableMessage: string | null;
   salesProgress: SalesProgressResponse;
+  personalSalesProgress: SalesProgressResponse;
+  scopeSalesProgress: SalesProgressResponse;
+  salesProgressAssignees: SalesProgressAssigneeResponse[];
+  selectedSalesProgressUserId: string | null;
   averageOrderValue: number;
   completedRevenue: number;
   pendingRevenue: number;
@@ -58,6 +62,28 @@ type SalesProgressResponse = {
   day: SalesProgressPeriod;
   week: SalesProgressPeriod;
   month: SalesProgressPeriod;
+};
+
+type SalesProgressAssigneeResponse = {
+  userId: string;
+  label: string;
+  email: string | null;
+  personnelCode: string | null;
+  storeCodes: string[];
+  isSelected: boolean;
+  isCurrentUser: boolean;
+};
+
+type SalesProgressAssignee = SalesProgressAssigneeResponse & {
+  firstName: string | null;
+  lastName: string | null;
+};
+
+type SalesProgressBundle = {
+  personal: SalesProgressResponse;
+  scope: SalesProgressResponse;
+  assignees: SalesProgressAssigneeResponse[];
+  selectedUserId: string | null;
 };
 
 type HomeSummaryScopeRequest = 'AUTO' | 'ALL' | 'MANAGED_SCOPE' | 'OWN';
@@ -106,8 +132,12 @@ export class HomeSummaryService {
     const date = range.endDate;
     const requestedScope = this.parseScopeParam(query.scope);
     const summaryDate = this.parseDateOnly(date) ?? new Date();
+    const requestedSalesProgressUserId = this.optionalText(
+      query.salesProgressUserId,
+      80,
+    );
     this.logger.log(
-      `Home summary load started: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope}`,
+      `Home summary load started: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} salesProgressUserId=${requestedSalesProgressUserId || 'none'}`,
     );
     const { salesAvailable, financeAvailable } =
       await this.resolveSectionAccess(user);
@@ -298,9 +328,15 @@ export class HomeSummaryService {
     const statementOrderRate = totalStatements
       ? Number(((totalStatementsWithOrder / totalStatements) * 100).toFixed(2))
       : 0;
-    const salesProgress = salesAvailable
-      ? await this.buildSalesProgress(user, scope, summaryDate, range)
-      : this.emptySalesProgress();
+    const salesProgressBundle = salesAvailable
+      ? await this.buildSalesProgressBundle(
+          user,
+          scope,
+          summaryDate,
+          range,
+          requestedSalesProgressUserId,
+        )
+      : this.emptySalesProgressBundle();
     const response: HomeSummaryResponse = {
       date,
       startDate: range.startDate,
@@ -332,12 +368,16 @@ export class HomeSummaryService {
       totalStatementsWithOrder,
       totalStatementsWithoutOrder,
       statementOrderRate,
-      salesProgress,
+      salesProgress: salesProgressBundle.personal,
+      personalSalesProgress: salesProgressBundle.personal,
+      scopeSalesProgress: salesProgressBundle.scope,
+      salesProgressAssignees: salesProgressBundle.assignees,
+      selectedSalesProgressUserId: salesProgressBundle.selectedUserId,
       refreshedAt,
       unavailableMessage: null,
     };
     this.logger.log(
-      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
+      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
     );
     return response;
   }
@@ -1105,6 +1145,293 @@ export class HomeSummaryService {
     return total ? Number(((count / total) * 100).toFixed(2)) : 0;
   }
 
+  private async buildSalesProgressBundle(
+    user: any,
+    scope: SalesReportSummaryScopeDescriptor,
+    summaryDate: Date,
+    selectedRange: DateRange,
+    requestedUserId: string | null,
+  ): Promise<SalesProgressBundle> {
+    const scopeProgressScope = this.scopeSalesProgressScope(scope);
+    const [scopeProgress, assignees] = await Promise.all([
+      scopeProgressScope
+        ? this.buildSalesProgress(
+            user,
+            scopeProgressScope,
+            summaryDate,
+            selectedRange,
+          )
+        : Promise.resolve(this.emptySalesProgress()),
+      this.salesProgressAssigneesForScope(user, scope),
+    ]);
+    const selectedAssignee =
+      this.selectSalesProgressAssignee(assignees, user, requestedUserId) ??
+      null;
+    const personalScope = selectedAssignee
+      ? this.salesProgressScopeForAssignee(selectedAssignee)
+      : scope.scope === 'OWN'
+        ? scope
+        : null;
+    const personalProgress = personalScope
+      ? await this.buildSalesProgress(
+          selectedAssignee
+            ? { id: selectedAssignee.userId, jobRoleCode: 'SA' }
+            : user,
+          personalScope,
+          summaryDate,
+          selectedRange,
+        )
+      : this.emptySalesProgress();
+    const selectedUserId = selectedAssignee?.userId ?? null;
+    return {
+      personal: personalProgress,
+      scope: scopeProgress,
+      assignees: assignees.map((assignee) => ({
+        userId: assignee.userId,
+        label: assignee.label,
+        email: assignee.email,
+        personnelCode: assignee.personnelCode,
+        storeCodes: assignee.storeCodes,
+        isCurrentUser: assignee.isCurrentUser,
+        isSelected: assignee.userId === selectedUserId,
+      })),
+      selectedUserId,
+    };
+  }
+
+  private emptySalesProgressBundle(): SalesProgressBundle {
+    return {
+      personal: this.emptySalesProgress(),
+      scope: this.emptySalesProgress(),
+      assignees: [],
+      selectedUserId: null,
+    };
+  }
+
+  private scopeSalesProgressScope(
+    scope: SalesReportSummaryScopeDescriptor,
+  ): SalesReportSummaryScopeDescriptor | null {
+    if (scope.scope === 'ALL') return scope;
+    if (scope.scope === 'MANAGED_SCOPE') return scope;
+    const allowedStoreCodes = this.normalizedStoreCodes(
+      scope.allowedStoreCodes,
+    );
+    if (scope.scope !== 'OWN' || allowedStoreCodes.length === 0) return null;
+    return {
+      available: true,
+      scope: 'MANAGED_SCOPE',
+      scopeLabel: 'Cửa hàng',
+      scopeDetail: scope.scopeDetail,
+      unavailableMessage: null,
+      ownUserId: null,
+      ownEmail: null,
+      ownPersonnelCode: null,
+      allowedStoreCodes,
+    };
+  }
+
+  private async salesProgressAssigneesForScope(
+    user: any,
+    scope: SalesReportSummaryScopeDescriptor,
+  ): Promise<SalesProgressAssignee[]> {
+    if (scope.scope !== 'MANAGED_SCOPE') return [];
+    const allowedStoreCodes = this.normalizedStoreCodes(
+      scope.allowedStoreCodes,
+    );
+    if (allowedStoreCodes.length === 0) return [];
+    const allowed = new Set(allowedStoreCodes);
+    const users = await this.prisma.user.findMany({
+      where: { status: 'yes', jobRoleCode: 'SA' },
+      include: {
+        store: {
+          include: {
+            area: { include: { region: true } },
+            organizationNode: true,
+          },
+        },
+        area: { include: { region: true } },
+        region: true,
+        organizationNode: {
+          include: organizationNodeStoreTreeInclude(),
+        },
+        organizationAssignments: {
+          where: { isActive: true },
+          orderBy: [
+            { isPrimary: Prisma.SortOrder.desc },
+            { createdAt: Prisma.SortOrder.asc },
+          ],
+          include: {
+            organizationNode: {
+              include: organizationNodeStoreTreeInclude(),
+            },
+          },
+        },
+      },
+    });
+    const assignees = users
+      .map((candidate: any) =>
+        this.salesProgressAssigneeFromUser(candidate, allowed, user),
+      )
+      .filter(
+        (value: SalesProgressAssignee | null): value is SalesProgressAssignee =>
+          value != null,
+      )
+      .sort((left, right) => {
+        if (left.isCurrentUser !== right.isCurrentUser) {
+          return left.isCurrentUser ? -1 : 1;
+        }
+        return left.label.localeCompare(right.label, 'vi');
+      });
+    return assignees;
+  }
+
+  private salesProgressAssigneeFromUser(
+    candidate: any,
+    allowed: Set<string>,
+    currentUser: any,
+  ): SalesProgressAssignee | null {
+    const storeSources = this.storeSourcesForUser(candidate);
+    const storeCodes = this.normalizedStoreCodes(
+      storeSources.map((store) => store?.storeId),
+    ).filter((code) => allowed.has(code));
+    if (storeCodes.length === 0) return null;
+    const primaryStore =
+      storeSources.find((store) =>
+        allowed.has(this.normalizeStoreCode(store?.storeId) ?? ''),
+      ) ?? storeSources[0];
+    const userId = this.optionalText(candidate?.id, 80);
+    if (!userId) return null;
+    const email = this.normalizeEmail(candidate?.email);
+    const firstName = this.optionalText(candidate?.firstName, 80);
+    const lastName = this.optionalText(candidate?.lastName, 80);
+    const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
+    const personnelCode = this.personnelCodeFor(candidate, primaryStore);
+    return {
+      userId,
+      firstName,
+      lastName,
+      email,
+      personnelCode,
+      storeCodes,
+      label:
+        fullName ||
+        email ||
+        personnelCode ||
+        `Nhân viên ${storeCodes.join(', ')}`,
+      isCurrentUser: userId === this.optionalText(currentUser?.id, 80),
+      isSelected: false,
+    };
+  }
+
+  private selectSalesProgressAssignee(
+    assignees: SalesProgressAssignee[],
+    user: any,
+    requestedUserId: string | null,
+  ) {
+    if (assignees.length === 0) return null;
+    const requested = this.optionalText(requestedUserId, 80);
+    if (requested) {
+      const found = assignees.find((assignee) => assignee.userId === requested);
+      if (found) return found;
+    }
+    const currentUserId = this.optionalText(user?.id, 80);
+    if (currentUserId) {
+      const current = assignees.find(
+        (assignee) => assignee.userId === currentUserId,
+      );
+      if (current) return current;
+    }
+    return assignees[0];
+  }
+
+  private salesProgressScopeForAssignee(
+    assignee: SalesProgressAssignee,
+  ): SalesReportSummaryScopeDescriptor {
+    return {
+      available: true,
+      scope: 'OWN',
+      scopeLabel: 'Tổng quan cá nhân',
+      scopeDetail: assignee.storeCodes.join(', '),
+      unavailableMessage: null,
+      ownUserId: assignee.userId,
+      ownEmail: assignee.email,
+      ownPersonnelCode: assignee.personnelCode,
+      allowedStoreCodes: assignee.storeCodes,
+    };
+  }
+
+  private storeSourcesForUser(user: any) {
+    const stores: any[] = [];
+    const pushStore = (store?: any | null) => {
+      const storeCode = this.normalizeStoreCode(store?.storeId);
+      if (!storeCode) return;
+      if (
+        stores.some(
+          (existing) =>
+            this.normalizeStoreCode(existing?.storeId) === storeCode,
+        )
+      ) {
+        return;
+      }
+      stores.push(store);
+    };
+    pushStore(user?.store);
+    for (const store of storesForOrganizationNodeTree(user?.organizationNode)) {
+      pushStore(store);
+    }
+    for (const assignment of user?.organizationAssignments ?? []) {
+      for (const store of storesForOrganizationNodeTree(
+        assignment?.organizationNode,
+      )) {
+        pushStore(store);
+      }
+    }
+    return stores;
+  }
+
+  private personnelCodeFor(user: any, store: any) {
+    const jobRoleCode = String(user?.jobRoleCode || '')
+      .trim()
+      .toUpperCase();
+    if (!jobRoleCode) return null;
+    const storeCode = String(store?.storeId || 'STORE')
+      .trim()
+      .toUpperCase();
+    const area =
+      store?.area?.abbreviation ||
+      store?.area?.code ||
+      user?.area?.abbreviation ||
+      user?.areaCode ||
+      'NATIONAL';
+    const region =
+      store?.area?.region?.abbreviation ||
+      store?.area?.region?.code ||
+      user?.region?.abbreviation ||
+      user?.regionCode ||
+      'NATIONAL';
+    return [jobRoleCode, storeCode, area, region]
+      .map((part) =>
+        String(part || 'NATIONAL')
+          .trim()
+          .toUpperCase()
+          .replace(/[^A-Z0-9_]/g, '_'),
+      )
+      .join('_');
+  }
+
+  private normalizedStoreCodes(values: Array<string | null | undefined>) {
+    const seen = new Set<string>();
+    const normalized: string[] = [];
+    for (const value of values) {
+      const code = this.normalizeStoreCode(value);
+      if (code && !seen.has(code)) {
+        seen.add(code);
+        normalized.push(code);
+      }
+    }
+    return normalized;
+  }
+
   private salesProgressReportWhere(
     scope: SalesReportSummaryScopeDescriptor,
     range: DateRange,
@@ -1143,6 +1470,15 @@ export class HomeSummaryService {
           mode: 'insensitive',
         },
       });
+      own.push({
+        erpConsultantCustomId: {
+          equals: scope.ownPersonnelCode,
+          mode: 'insensitive',
+        },
+      });
+    }
+    if (own.length === 0) {
+      return { AND: [base, { id: '__NO_PERSONAL_REPORT__' }] };
     }
     return { AND: [base, { OR: own }] };
   }
@@ -1391,6 +1727,10 @@ export class HomeSummaryService {
       totalStatementsWithoutOrder: 0,
       statementOrderRate: 0,
       salesProgress: this.emptySalesProgress(),
+      personalSalesProgress: this.emptySalesProgress(),
+      scopeSalesProgress: this.emptySalesProgress(),
+      salesProgressAssignees: [],
+      selectedSalesProgressUserId: null,
       refreshedAt,
       unavailableMessage,
     };
