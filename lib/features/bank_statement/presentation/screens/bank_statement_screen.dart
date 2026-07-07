@@ -257,7 +257,6 @@ class _StatementHeader extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 900;
           final leading = Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -281,106 +280,10 @@ class _StatementHeader extends StatelessWidget {
           );
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: compact
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      leading,
-                      const SizedBox(height: 10),
-                      _StatementHeaderControls(
-                        provider: provider,
-                        compact: true,
-                      ),
-                    ],
-                  )
-                : Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: leading),
-                      const SizedBox(width: AppLayoutTokens.formInlineGap),
-                      _StatementHeaderControls(
-                        provider: provider,
-                        compact: false,
-                      ),
-                    ],
-                  ),
+            child: leading,
           );
         },
       ),
-    );
-  }
-}
-
-class _StatementHeaderControls extends StatelessWidget {
-  final BankStatementProvider provider;
-  final bool compact;
-
-  const _StatementHeaderControls({
-    required this.provider,
-    required this.compact,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final selectControl = Row(
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        Checkbox(
-          value: provider.allVisibleSelected,
-          visualDensity: VisualDensity.compact,
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          onChanged: provider.transactions.isEmpty
-              ? null
-              : (value) => provider.toggleAllVisible(value == true),
-        ),
-        Expanded(
-          child: Text(
-            '${provider.selectedIds.length} chọn / ${provider.total} giao dịch',
-            style: AppTextStyles.labelM,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-    final pageControl = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: 'Trang trước',
-          visualDensity: VisualDensity.compact,
-          onPressed: provider.canGoPrevious ? provider.previousPage : null,
-          icon: const Icon(Icons.chevron_left_rounded),
-        ),
-        Text('Trang ${provider.page + 1}'),
-        IconButton(
-          tooltip: 'Trang sau',
-          visualDensity: VisualDensity.compact,
-          onPressed: provider.canGoNext ? provider.nextPage : null,
-          icon: const Icon(Icons.chevron_right_rounded),
-        ),
-      ],
-    );
-
-    return Material(
-      color: AppColors.transparent,
-      child: compact
-          ? Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(width: 220, child: selectControl),
-                pageControl,
-              ],
-            )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(width: 220, child: selectControl),
-                const SizedBox(width: 8),
-                pageControl,
-              ],
-            ),
     );
   }
 }
@@ -519,6 +422,8 @@ class _FilterPanelState extends State<_FilterPanel> {
                   const SizedBox(height: _filterGap),
                   _FilterActionButtons(provider: widget.provider),
                 ],
+                const Divider(height: 22),
+                _StatementListControls(provider: widget.provider),
               ],
             ),
           );
@@ -621,8 +526,101 @@ class _FilterPanelState extends State<_FilterPanel> {
                   ),
                 ],
               ),
+              const SizedBox(height: _filterGap),
+              _StatementListControls(provider: widget.provider),
             ],
           ),
+        );
+      },
+    );
+  }
+}
+
+class _StatementListControls extends StatelessWidget {
+  final BankStatementProvider provider;
+
+  const _StatementListControls({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedVisibleCount = provider.transactions
+        .where((item) => provider.selectedIds.contains(item.id))
+        .length;
+    final partiallySelected =
+        selectedVisibleCount > 0 && !provider.allVisibleSelected;
+    final selectionControl = Row(
+      children: [
+        Checkbox(
+          tristate: true,
+          value: partiallySelected ? null : provider.allVisibleSelected,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          onChanged: provider.transactions.isEmpty
+              ? null
+              : (value) => provider.toggleAllVisible(value == true),
+        ),
+        Expanded(
+          child: Text(
+            '${provider.selectedIds.length} chọn / ${provider.total} giao dịch',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+            style: AppTextStyles.labelM,
+          ),
+        ),
+      ],
+    );
+    final pageControls = Row(
+      children: [
+        IconButton(
+          tooltip: 'Trang trước',
+          onPressed: provider.canGoPrevious ? provider.previousPage : null,
+          icon: const Icon(Icons.chevron_left_rounded),
+        ),
+        Expanded(
+          child: Center(
+            child: Text(
+              'Trang ${provider.page + 1} - ${provider.total} giao dịch',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+              style: AppTextStyles.labelM,
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Trang sau',
+          onPressed: provider.canGoNext ? provider.nextPage : null,
+          icon: const Icon(Icons.chevron_right_rounded),
+        ),
+        IconButton(
+          tooltip: 'Làm mới',
+          onPressed:
+              provider.hasSearched && provider.canSearch && !provider.isLoading
+              ? provider.refreshCurrentPage
+              : null,
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 620) {
+          return Column(
+            children: [
+              selectionControl,
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
+              pageControls,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            SizedBox(width: 260, child: selectionControl),
+            const SizedBox(width: AppLayoutTokens.formInlineGap),
+            Expanded(child: pageControls),
+          ],
         );
       },
     );

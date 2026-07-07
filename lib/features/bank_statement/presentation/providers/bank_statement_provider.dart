@@ -324,6 +324,15 @@ class BankStatementProvider extends ChangeNotifier {
     await _fetchPage(_page - 1);
   }
 
+  Future<void> refreshCurrentPage() async {
+    if (!canSearch || _isLoading) return;
+    if (!_hasSearched) {
+      await search();
+      return;
+    }
+    await _fetchPage(_page);
+  }
+
   void toggleSelected(String id, bool selected) {
     if (selected) {
       _selectedIds.add(id);

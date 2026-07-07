@@ -45,6 +45,7 @@ void main() {
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Yêu cầu xử lý'), findsOneWidget);
+    expect(find.text('Trang 1 - 1 hồ sơ'), findsOneWidget);
     expect(find.text('Cấn trừ đơn'), findsWidgets);
     expect(find.text('CP01'), findsWidgets);
     expect(find.text('2607020001 -> 2607020002'), findsOneWidget);
@@ -74,6 +75,7 @@ void main() {
     );
     expect(find.byKey(const Key('offset-adjustment-toolbar')), findsNothing);
     expect(find.text('Bộ lọc cấn trừ'), findsOneWidget);
+    expect(find.text('Trang 1 - 1 hồ sơ'), findsOneWidget);
     expect(find.text('Mã đơn'), findsNothing);
     expect(find.text('2607020001 -> 2607020002'), findsOneWidget);
 

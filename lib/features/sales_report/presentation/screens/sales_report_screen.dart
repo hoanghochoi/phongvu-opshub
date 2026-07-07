@@ -27,6 +27,11 @@ const _typeNotPurchased = 'NOT_PURCHASED';
 
 String _countLabel(int value) => vietnameseMoneyNumberFormat.format(value);
 
+String? _cleanOrderLabel(String? value) {
+  final text = value?.trim();
+  return text == null || text.isEmpty ? null : text;
+}
+
 const _consultedOptions = {
   'YES': 'Có',
   'CUSTOMER_BUSY_OR_NO_NEED':
@@ -237,66 +242,35 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final compactViewport =
-        MediaQuery.sizeOf(context).width < AppLayoutTokens.compactBreakpoint;
     final canSubmitReports = context.select<AuthProvider, bool>(
       (auth) => auth.user?.canUseFeature('SALES_REPORT') == true,
     );
     final provider = context.watch<SalesReportProvider>();
     return AppResponsiveContent(
       maxWidth: AppLayoutTokens.pageMaxWidth,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final shortViewport =
-              constraints.hasBoundedHeight && constraints.maxHeight < 680;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (!compactViewport && !shortViewport) ...[
-                SalesReportWorkspaceHeader(
-                  key: const Key('sales-report-workspace-header'),
-                  title: 'Đơn cần báo cáo',
-                  subtitle: '',
-                  icon: Icons.analytics_outlined,
-                  chips: [
-                    AppStatusChip(
-                      label:
-                          '${_countLabel(provider.unreportedOrdersTotal)} chưa báo cáo',
-                      color: AppColors.warning,
-                    ),
-                    AppStatusChip(
-                      label:
-                          '${_countLabel(provider.reportedOrdersTotal)} đã báo cáo',
-                      color: AppColors.success,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppLayoutTokens.cardGap),
-              ],
-              Expanded(
-                child: _SalesReportCockpit(
-                  provider: provider,
-                  canSubmitReports: canSubmitReports,
-                  onPurchased: canSubmitReports
-                      ? () => _openReport(
-                          '/sales-reports/purchased',
-                          _typePurchased,
-                        )
-                      : null,
-                  onNotPurchased: canSubmitReports
-                      ? () => _openReport(
-                          '/sales-reports/not-purchased',
-                          _typeNotPurchased,
-                        )
-                      : null,
-                  onReload: () => provider.loadOrderCockpit(),
-                  onSelectDateRange: _setOrdersDateRange,
-                  onOrderTap: canSubmitReports ? _openPurchasedDialog : null,
-                ),
-              ),
-            ],
-          );
-        },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _SalesReportCockpit(
+              provider: provider,
+              canSubmitReports: canSubmitReports,
+              onPurchased: canSubmitReports
+                  ? () =>
+                        _openReport('/sales-reports/purchased', _typePurchased)
+                  : null,
+              onNotPurchased: canSubmitReports
+                  ? () => _openReport(
+                      '/sales-reports/not-purchased',
+                      _typeNotPurchased,
+                    )
+                  : null,
+              onReload: () => provider.loadOrderCockpit(),
+              onSelectDateRange: _setOrdersDateRange,
+              onOrderTap: canSubmitReports ? _openPurchasedDialog : null,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -407,9 +381,7 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
                   Expanded(
                     child: AppPrimaryButton(
                       onPressed: widget.onPurchased,
-                      icon: compactActions
-                          ? null
-                          : Icons.receipt_long_outlined,
+                      icon: compactActions ? null : Icons.receipt_long_outlined,
                       label: compactActions
                           ? 'Đã mua (nhập tay)'
                           : 'Báo cáo mua thủ công',
@@ -1208,11 +1180,12 @@ class _OrderCockpitTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final money = formatVndAmount(order.grandTotal);
     final reporter =
-        order.consultantName ?? order.sellerName ?? order.consultantCustomId;
+        _cleanOrderLabel(order.sellerName) ??
+        _cleanOrderLabel(order.consultantName) ??
+        _cleanOrderLabel(order.consultantCustomId);
     final subtitle = [
-      if ((order.storeCode ?? '').trim().isNotEmpty) order.storeCode,
-      if ((order.terminalName ?? '').trim().isNotEmpty) order.terminalName,
-      if ((reporter ?? '').trim().isNotEmpty) reporter,
+      _cleanOrderLabel(order.storeCode),
+      reporter,
     ].whereType<String>().join(' • ');
     final meta = [
       if (money.isNotEmpty) money,

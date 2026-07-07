@@ -194,6 +194,10 @@ visual systems that make the app feel assembled from unrelated screens.
   when a compact button would be easier to scan. If export uses the current
   filters, place `Xuất file` next to `Tìm` instead of separating it into a
   lower list toolbar.
+- Finance list screens such as `Tiền vào`, `Sao kê`, and `Cấn trừ` keep page
+  size, select-all/selected count when supported, page arrows, and refresh in
+  the filter card footer. Page headers should stay focused on title/status
+  chips, not own pagination controls.
 - Dialogs are reserved for confirmations, detail views, and large editors. If a
   UI only narrows or sorts a list, it is a filter and must stay dropdown-based.
 

@@ -18,6 +18,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../data/repositories/help_content_repository.dart';
 import '../../domain/help_content_page.dart';
+import '../../domain/help_content_tree.dart';
 
 typedef HelpContentPublicLoader = Future<HelpContentPublicSnapshot> Function();
 
@@ -70,9 +71,10 @@ class _HelpScreenState extends State<HelpScreen> {
     try {
       final snapshot = await _loader();
       if (!mounted) return;
-      final pages = snapshot.pages
-          .where((page) => page.isPublished)
-          .toList(growable: false);
+      final pages = helpPagesInTreeOrder(
+        snapshot.pages.where((page) => page.isPublished),
+      );
+      final treeStats = helpContentTreeStats(pages);
       final selectedKey = _resolveSelectedKey(pages);
       setState(() {
         _pages = pages;
@@ -86,6 +88,9 @@ class _HelpScreenState extends State<HelpScreen> {
         context: {
           'reason': reason,
           'pageCount': pages.length,
+          'rootPageCount': treeStats.rootCount,
+          'childPageCount': treeStats.childCount,
+          'orphanPageCount': treeStats.orphanCount,
           'selectedKey': selectedKey,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
@@ -291,6 +296,7 @@ class _HelpScreenState extends State<HelpScreen> {
         );
         final contentCard = _HelpContentCard(
           page: _selectedPage!,
+          parentTitle: helpPageParentTitle(_selectedPage!, _pages),
           markdown: _resolvedMarkdown(_selectedPage!),
           onLinkTap: _handleLink,
         );
@@ -421,7 +427,7 @@ class _HelpNavigationCard extends StatelessWidget {
             _HelpNavigationItem(
               page: page,
               selected: page.key == selectedKey,
-              depth: _depthOf(page, pages),
+              depth: helpPageDepth(page, pages),
               onTap: () => onSelectPage(page),
             ),
             if (page != pages.last)
@@ -430,19 +436,6 @@ class _HelpNavigationCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  static int _depthOf(HelpContentPage page, List<HelpContentPage> pages) {
-    final lookup = {for (final item in pages) item.key: item};
-    var depth = 0;
-    var parentKey = page.parentKey;
-    final visited = <String>{page.key};
-    while (parentKey != null && lookup[parentKey] != null && depth < 6) {
-      if (!visited.add(parentKey)) break;
-      depth += 1;
-      parentKey = lookup[parentKey]?.parentKey;
-    }
-    return depth;
   }
 }
 
@@ -511,11 +504,13 @@ class _HelpNavigationItem extends StatelessWidget {
 class _HelpContentCard extends StatelessWidget {
   const _HelpContentCard({
     required this.page,
+    required this.parentTitle,
     required this.markdown,
     required this.onLinkTap,
   });
 
   final HelpContentPage page;
+  final String? parentTitle;
   final String markdown;
   final Future<void> Function(String) onLinkTap;
 
@@ -528,9 +523,7 @@ class _HelpContentCard extends StatelessWidget {
           Text(page.title, style: AppTextStyles.headingM),
           const SizedBox(height: 6),
           Text(
-            page.parentKey == null
-                ? 'Trang gốc'
-                : 'Thuộc mục ${page.parentKey}',
+            parentTitle == null ? 'Trang gốc' : 'Thuộc mục $parentTitle',
             style: AppTextStyles.bodyS.copyWith(
               color: AppColors.textSecondaryOf(context),
             ),

@@ -75,7 +75,6 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
         _OffsetHeader(
           key: const Key('offset-adjustment-header'),
           provider: provider,
-          onRefresh: provider.isLoading ? null : () => provider.search(),
         ),
         const SizedBox(height: AppLayoutTokens.cardGap),
         _ActionBar(onCreate: _showCreateDialog),
@@ -287,9 +286,8 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
 
 class _OffsetHeader extends StatelessWidget {
   final OffsetAdjustmentProvider provider;
-  final VoidCallback? onRefresh;
 
-  const _OffsetHeader({super.key, required this.provider, this.onRefresh});
+  const _OffsetHeader({super.key, required this.provider});
 
   @override
   Widget build(BuildContext context) {
@@ -318,7 +316,6 @@ class _OffsetHeader extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 680;
           final titleBlock = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -382,65 +379,13 @@ class _OffsetHeader extends StatelessWidget {
               Expanded(child: titleBlock),
             ],
           );
-          final controls = Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            alignment: compact ? WrapAlignment.start : WrapAlignment.end,
-            children: [
-              IconButton.filledTonal(
-                tooltip: 'Tải lại',
-                onPressed: onRefresh,
-                icon: const Icon(Icons.refresh_rounded),
-              ),
-              _OffsetHeaderPagination(provider: provider),
-            ],
-          );
 
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: compact
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [titleRow, const SizedBox(height: 10), controls],
-                  )
-                : Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: titleRow),
-                      const SizedBox(width: AppLayoutTokens.formInlineGap),
-                      Flexible(child: controls),
-                    ],
-                  ),
+            child: titleRow,
           );
         },
       ),
-    );
-  }
-}
-
-class _OffsetHeaderPagination extends StatelessWidget {
-  final OffsetAdjustmentProvider provider;
-
-  const _OffsetHeaderPagination({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: 'Trang trước',
-          onPressed: provider.canGoPrevious ? provider.previousPage : null,
-          icon: const Icon(Icons.chevron_left_rounded),
-        ),
-        Text('${provider.page + 1}'),
-        IconButton(
-          tooltip: 'Trang sau',
-          onPressed: provider.canGoNext ? provider.nextPage : null,
-          icon: const Icon(Icons.chevron_right_rounded),
-        ),
-      ],
     );
   }
 }
@@ -568,8 +513,6 @@ class _FilterPanelState extends State<_FilterPanel> {
                     ),
                   ),
                 ),
-                const SizedBox(height: gap),
-                _FilterActions(provider: widget.provider),
                 if (_isExpanded) ...[
                   const Divider(height: 22),
                   _storeFilter(),
@@ -589,7 +532,13 @@ class _FilterPanelState extends State<_FilterPanel> {
                     onChanged: widget.provider.setDateRange,
                     showEmptyRangeHelperText: false,
                   ),
+                  const SizedBox(height: gap),
+                  _OffsetLimitDropdown(provider: widget.provider),
                 ],
+                const SizedBox(height: gap),
+                _FilterActions(provider: widget.provider),
+                const SizedBox(height: gap),
+                _OffsetListControls(provider: widget.provider),
               ],
             );
           }
@@ -603,7 +552,7 @@ class _FilterPanelState extends State<_FilterPanel> {
               : 1;
           final fieldWidth =
               (constraints.maxWidth - (gap * (columns - 1))) / columns;
-          return Wrap(
+          final filters = Wrap(
             spacing: gap,
             runSpacing: gap,
             crossAxisAlignment: WrapCrossAlignment.center,
@@ -625,8 +574,19 @@ class _FilterPanelState extends State<_FilterPanel> {
               ),
               SizedBox(
                 width: fieldWidth,
+                child: _OffsetLimitDropdown(provider: widget.provider),
+              ),
+              SizedBox(
+                width: fieldWidth,
                 child: _FilterActions(provider: widget.provider),
               ),
+            ],
+          );
+          return Column(
+            children: [
+              filters,
+              const SizedBox(height: gap),
+              _OffsetListControls(provider: widget.provider),
             ],
           );
         },
@@ -743,6 +703,76 @@ class _FilterPanelState extends State<_FilterPanel> {
       label: 'Số tiền',
       icon: Icons.payments_outlined,
       onChanged: widget.provider.setAmount,
+    );
+  }
+}
+
+class _OffsetLimitDropdown extends StatelessWidget {
+  final OffsetAdjustmentProvider provider;
+
+  const _OffsetLimitDropdown({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSelectField<int>(
+      value: provider.limit,
+      label: 'Số dòng',
+      icon: Icons.format_list_numbered_rounded,
+      items: const [10, 20, 50, 100]
+          .map(
+            (value) =>
+                DropdownMenuItem(value: value, child: Text('$value dòng')),
+          )
+          .toList(),
+      onChanged: (value) {
+        if (value != null) provider.setLimit(value);
+      },
+    );
+  }
+}
+
+class _OffsetListControls extends StatelessWidget {
+  final OffsetAdjustmentProvider provider;
+
+  const _OffsetListControls({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        IconButton(
+          tooltip: 'Trang trước',
+          onPressed: !provider.isLoading && provider.canGoPrevious
+              ? provider.previousPage
+              : null,
+          icon: const Icon(Icons.chevron_left_rounded),
+        ),
+        Expanded(
+          child: Center(
+            child: Text(
+              'Trang ${provider.page + 1} - ${provider.total} hồ sơ',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+              style: AppTextStyles.labelM,
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Trang sau',
+          onPressed: !provider.isLoading && provider.canGoNext
+              ? provider.nextPage
+              : null,
+          icon: const Icon(Icons.chevron_right_rounded),
+        ),
+        IconButton(
+          tooltip: 'Làm mới',
+          onPressed: provider.isLoading
+              ? null
+              : () => provider.search(page: provider.page),
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+      ],
     );
   }
 }

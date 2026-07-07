@@ -45,6 +45,20 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `PAYMENT-MONITOR-002`/`PAYMENT-STATEMENT-001`/`SALES-REPORT-001`,
+  2026-07-07: `Tiền vào`, `Sao kê`, and `Cấn trừ` now keep pagination/list
+  state controls in the filter card footer, `Sao kê` keeps select-all/selected
+  export state there, `Tiền vào` warns Windows speaker operators to keep the
+  machine awake, and the sales-report cockpit removes the duplicate summary
+  header plus long ERP business-location text from order cards. Validation:
+  focused Flutter widget tests for the four affected screens, `flutter analyze
+  --no-pub`, formatter check, and `git diff --check`.
+- `HELP-001`, 2026-07-07: Mục lục runtime Help được sắp theo cây ổn định
+  thay vì phụ thuộc thứ tự flat list từ API/DB: trang mẹ hiển thị trước, các
+  trang con nằm ngay dưới mẹ theo `sortOrder`, trang gốc kế tiếp đứng sau; dòng
+  quan hệ cha trong public Help dùng tên mục cha thay vì key kỹ thuật.
+  Validation: focused Help widget test với dữ liệu trả về lộn thứ tự,
+  focused Help analyze, full `flutter analyze --no-pub`, và `git diff --check`.
 - `HOME-DASHBOARD-002`, 2026-07-07: Khu vực `Bán hàng` trên Trang chủ tách
   thành nhóm `Doanh số` và `Hành vi then chốt`. Backend trả doanh số tổng từ
   cache đơn hàng sau khi loại hủy/trả toàn bộ và trừ trả một phần, trung bình

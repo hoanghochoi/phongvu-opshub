@@ -36,7 +36,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   định trong viewport; chỉ vùng danh sách của từng cột được cuộn độc lập. Mỗi
   cột hiển thị 20 đơn/trang và có bộ chuyển trang riêng dạng compact chỉ gồm
   hai mũi tên; số lượng ở header là total đếm từ DB
-  theo scope hiện tại. User thường chỉ thấy dữ liệu của mình theo email từ
+  theo scope hiện tại. Card đơn chỉ hiển thị mã SR và tên nhân viên bán hàng;
+  không lặp tên pháp nhân hoặc chuỗi `Địa điểm kinh doanh` dài từ ERP. User thường chỉ thấy dữ liệu của mình theo email từ
   `data.orders.creator.email`, fallback về consultant/seller/source-user
   snapshot nếu ERP không trả creator. User có vị trí quản lý như
   `STORE_MANAGER`, hoặc có `ADMIN_SALES_REPORTS`, xem trong phạm vi node tổ chức

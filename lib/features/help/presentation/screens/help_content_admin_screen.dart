@@ -19,6 +19,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../data/repositories/help_content_repository.dart';
 import '../../domain/help_content_page.dart';
+import '../../domain/help_content_tree.dart';
 
 class HelpContentAdminScreen extends StatefulWidget {
   const HelpContentAdminScreen({super.key, this.repository});
@@ -98,7 +99,8 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
       final snapshot = await _repository.fetchAdminSnapshot();
       if (!mounted) return;
 
-      final pages = snapshot.pages;
+      final pages = helpPagesInTreeOrder(snapshot.pages);
+      final treeStats = helpContentTreeStats(pages);
       final resolvedKey = _resolvePreferredKey(pages, preferredKey);
       setState(() {
         _pages = pages;
@@ -121,6 +123,9 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
         context: {
           'reason': reason,
           'pageCount': pages.length,
+          'rootPageCount': treeStats.rootCount,
+          'childPageCount': treeStats.childCount,
+          'orphanPageCount': treeStats.orphanCount,
           'publicCount': pages
               .where((page) => page.visibility == HelpPageVisibility.public)
               .length,
@@ -866,7 +871,8 @@ class _HelpContentPageListCard extends StatelessWidget {
                   _HelpContentPageListItem(
                     page: page,
                     selected: !isCreating && page.key == selectedKey,
-                    depth: _depthOf(page, pages),
+                    depth: helpPageDepth(page, pages),
+                    parentTitle: helpPageParentTitle(page, pages),
                     onTap: () => onSelectPage(page),
                   ),
                   if (page != pages.last)
@@ -878,19 +884,6 @@ class _HelpContentPageListCard extends StatelessWidget {
       ),
     );
   }
-
-  static int _depthOf(HelpContentPage page, List<HelpContentPage> pages) {
-    final lookup = {for (final item in pages) item.key: item};
-    var depth = 0;
-    var parentKey = page.parentKey;
-    final visited = <String>{page.key};
-    while (parentKey != null && lookup[parentKey] != null && depth < 6) {
-      if (!visited.add(parentKey)) break;
-      depth += 1;
-      parentKey = lookup[parentKey]?.parentKey;
-    }
-    return depth;
-  }
 }
 
 class _HelpContentPageListItem extends StatelessWidget {
@@ -898,12 +891,14 @@ class _HelpContentPageListItem extends StatelessWidget {
     required this.page,
     required this.selected,
     required this.depth,
+    required this.parentTitle,
     required this.onTap,
   });
 
   final HelpContentPage page;
   final bool selected;
   final int depth;
+  final String? parentTitle;
   final VoidCallback onTap;
 
   @override
@@ -951,9 +946,9 @@ class _HelpContentPageListItem extends StatelessWidget {
                     Text(page.title, style: AppTextStyles.labelL),
                     const SizedBox(height: 4),
                     Text(
-                      page.parentKey == null
+                      parentTitle == null
                           ? '${page.key} • Trang gốc'
-                          : '${page.key} • Thuộc ${page.parentKey}',
+                          : '${page.key} • Thuộc $parentTitle',
                       style: AppTextStyles.bodyS.copyWith(
                         color: AppColors.textSecondaryOf(context),
                       ),

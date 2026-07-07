@@ -28,6 +28,9 @@ void main() {
   });
 
   testWidgets('Báo cáo opens a two-column order cockpit', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
     final authProvider = _FakeAuthProvider(
       const User(
         id: 'user-1',
@@ -72,6 +75,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.fetchOrdersCount, 1);
+    expect(
+      find.byKey(const Key('sales-report-workspace-header')),
+      findsNothing,
+    );
+    expect(find.text('Đơn cần báo cáo'), findsNothing);
     expect(find.text('Báo cáo mua thủ công'), findsOneWidget);
     expect(find.text('Báo cáo chưa mua'), findsOneWidget);
     expect(
@@ -86,6 +94,8 @@ void main() {
     );
     expect(find.text('2607010001'), findsOneWidget);
     expect(find.text('2607010002'), findsOneWidget);
+    expect(find.text('CP62 • Sale CP62'), findsOneWidget);
+    expect(find.textContaining('ĐỊA ĐIỂM KINH DOANH'), findsNothing);
     expect(find.text('7.998'), findsWidgets);
     expect(find.text('Trang 1/400'), findsOneWidget);
     expect(find.text('Trước'), findsNothing);
@@ -1036,6 +1046,8 @@ class _FakeSalesReportRepository extends SalesReportRepository {
           'customerName': 'Nguyễn Văn A',
           'grandTotal': 1200000,
           'storeCode': 'CP62',
+          'terminalName':
+              'CP62 - ĐỊA ĐIỂM KINH DOANH 62 - CÔNG TY CỔ PHẦN THƯƠNG MẠI',
           'reportedAt': '2026-07-01T02:30:00.000Z',
         },
       ],
@@ -1046,7 +1058,10 @@ class _FakeSalesReportRepository extends SalesReportRepository {
           'customerName': 'Trần Thị B',
           'grandTotal': 2500000,
           'storeCode': 'CP62',
-          'consultantName': 'Sale CP62',
+          'terminalName':
+              'CP62 - ĐỊA ĐIỂM KINH DOANH 62 - CÔNG TY CỔ PHẦN THƯƠNG MẠI',
+          'consultantName': 'Tư vấn CP62',
+          'sellerName': 'Sale CP62',
         },
       ],
     });

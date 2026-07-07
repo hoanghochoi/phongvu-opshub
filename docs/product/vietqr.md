@@ -132,7 +132,10 @@ a customer to scan and pay manually.
   appends the full TTS WAV immediately so there is no configured gap before the
   first spoken word. If combined audio is unavailable, the Windows local-cue
   fallback also plays the cue at `80%` while keeping voice playback at `100%`.
-  Android, web, and other unsupported platforms do not start the speaker path.
+  The speaker card warns Windows operators to keep the machine awake and the
+  screen on while using audio, because sleep/off-screen states can interrupt
+  playback. Android, web, and other unsupported platforms do not start the
+  speaker path.
 - Turning off `Đọc loa tiền vào` mutes only the speaker path. The PC keeps
   syncing transactions from realtime/fallback refreshes, and muted
   notifications are recorded as `SILENCED` so they are not played later as

@@ -26,20 +26,6 @@ void main() {
           loader: () async => HelpContentPublicSnapshot(
             pages: const [
               HelpContentPage(
-                id: 'page-guide',
-                key: 'guide',
-                title: 'Hướng dẫn sử dụng',
-                fileName: 'index.md',
-                parentKey: null,
-                sortOrder: 0,
-                markdown: '# Chào mừng\nNội dung trang gốc',
-                isPublished: true,
-                seededFromDocsAt: null,
-                updatedAt: null,
-                updatedByUserId: null,
-                updatedByEmail: null,
-              ),
-              HelpContentPage(
                 id: 'page-getting-started',
                 key: 'getting-started',
                 title: 'Bắt đầu sử dụng',
@@ -54,6 +40,20 @@ void main() {
                 updatedByEmail: null,
               ),
               HelpContentPage(
+                id: 'page-home',
+                key: 'home',
+                title: 'Trang chủ',
+                fileName: 'home.md',
+                parentKey: 'guide',
+                sortOrder: 1,
+                markdown: '# Trang chủ\nTổng quan vận hành',
+                isPublished: true,
+                seededFromDocsAt: null,
+                updatedAt: null,
+                updatedByUserId: null,
+                updatedByEmail: null,
+              ),
+              HelpContentPage(
                 id: 'page-roadmap',
                 key: 'roadmap',
                 title: 'Roadmap',
@@ -61,6 +61,20 @@ void main() {
                 parentKey: null,
                 sortOrder: 1,
                 markdown: '# Roadmap\nNhững gì sắp tới',
+                isPublished: true,
+                seededFromDocsAt: null,
+                updatedAt: null,
+                updatedByUserId: null,
+                updatedByEmail: null,
+              ),
+              HelpContentPage(
+                id: 'page-guide',
+                key: 'guide',
+                title: 'Hướng dẫn sử dụng',
+                fileName: 'index.md',
+                parentKey: null,
+                sortOrder: 0,
+                markdown: '# Chào mừng\nNội dung trang gốc',
                 isPublished: true,
                 seededFromDocsAt: null,
                 updatedAt: null,
@@ -85,11 +99,36 @@ void main() {
       find.byKey(const Key('help-nav-item-getting-started')),
       findsOneWidget,
     );
+    expect(find.byKey(const Key('help-nav-item-home')), findsOneWidget);
+    expect(find.byKey(const Key('help-nav-item-roadmap')), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byKey(const Key('help-nav-item-guide'))).dy,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const Key('help-nav-item-getting-started')))
+            .dy,
+      ),
+    );
+    expect(
+      tester
+          .getTopLeft(find.byKey(const Key('help-nav-item-getting-started')))
+          .dy,
+      lessThan(
+        tester.getTopLeft(find.byKey(const Key('help-nav-item-home'))).dy,
+      ),
+    );
+    expect(
+      tester.getTopLeft(find.byKey(const Key('help-nav-item-home'))).dy,
+      lessThan(
+        tester.getTopLeft(find.byKey(const Key('help-nav-item-roadmap'))).dy,
+      ),
+    );
 
     await tester.tap(find.byKey(const Key('help-nav-item-getting-started')));
     await tester.pumpAndSettle();
 
     expect(find.text('Bắt đầu sử dụng'), findsWidgets);
+    expect(find.text('Thuộc mục Hướng dẫn sử dụng'), findsOneWidget);
     expect(find.text('Làm quen với OpsHub'), findsOneWidget);
     expect(find.text('Nội dung trang gốc'), findsNothing);
 

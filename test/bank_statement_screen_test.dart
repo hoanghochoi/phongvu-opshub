@@ -77,6 +77,8 @@ void main() {
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Giao dịch cần rà soát'), findsOneWidget);
+    expect(find.text('0 chọn / 2 giao dịch'), findsOneWidget);
+    expect(find.text('Trang 1 - 2 giao dịch'), findsOneWidget);
     expect(find.textContaining('Tra cứu giao dịch VietinBank'), findsNothing);
     expect(find.text('Chờ Kế toán xác nhận'), findsOneWidget);
     expect(find.text('Đã cấn trừ'), findsOneWidget);

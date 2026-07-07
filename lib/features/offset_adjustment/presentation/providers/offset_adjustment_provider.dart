@@ -191,6 +191,16 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setLimit(int value) {
+    if (_limit == value) return;
+    _limit = value;
+    _page = 0;
+    if (_hasSearched) {
+      unawaited(search(page: 0));
+    }
+    notifyListeners();
+  }
+
   Future<void> search({int? page}) async {
     if (_isLoading) return;
     _isLoading = true;

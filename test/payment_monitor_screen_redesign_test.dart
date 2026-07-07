@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'helpers/legacy_widget_finders.dart';
@@ -29,45 +30,55 @@ void main() {
   });
 
   testWidgets('renders content-only payment monitor workspace', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1200, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    try {
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    final repository = _WidgetPaymentMonitorRepository();
-    final provider = PaymentMonitorProvider(
-      repository,
-      _FakePaymentSpeaker(),
-      null,
-      const Duration(milliseconds: 1),
-      null,
-      const Duration(minutes: 5),
-    );
-    addTearDown(provider.dispose);
+      final repository = _WidgetPaymentMonitorRepository();
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        const Duration(milliseconds: 1),
+        null,
+        const Duration(minutes: 5),
+      );
+      addTearDown(provider.dispose);
 
-    await tester.runAsync(() async {
-      await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_paymentUser, isInitialized: true);
-      await _waitUntil(() => repository.fetchCount > 0 && !provider.isLoading);
-    });
+      await tester.runAsync(() async {
+        await Future<void>.delayed(Duration.zero);
+        provider.syncAuth(_paymentUser, isInitialized: true);
+        await _waitUntil(
+          () => repository.fetchCount > 0 && !provider.isLoading,
+        );
+      });
 
-    await tester.pumpWidget(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider<AuthProvider>.value(
-            value: _FakeAuthProvider(_paymentUser),
-          ),
-          ChangeNotifierProvider<PaymentMonitorProvider>.value(value: provider),
-        ],
-        child: const MaterialApp(home: PaymentMonitorScreen()),
-      ),
-    );
-    await tester.pump();
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(
+              value: _FakeAuthProvider(_paymentUser),
+            ),
+            ChangeNotifierProvider<PaymentMonitorProvider>.value(
+              value: provider,
+            ),
+          ],
+          child: const MaterialApp(home: PaymentMonitorScreen()),
+        ),
+      );
+      await tester.pump();
 
-    expect(find.byKey(const Key('payment-monitor-header')), findsNothing);
-    expect(find.byType(Scaffold), findsNothing);
-    expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.text('Giao dịch tiền vào'), findsOneWidget);
-    expect(find.textContaining('1.250.000'), findsWidgets);
-    expect(repository.requestedStoreIds.last, 'CP01');
+      expect(find.byKey(const Key('payment-monitor-header')), findsNothing);
+      expect(find.byType(Scaffold), findsNothing);
+      expect(findsLegacyGradientHeader(), findsNothing);
+      expect(find.text('Giao dịch tiền vào'), findsOneWidget);
+      expect(find.textContaining('không để Windows sleep'), findsOneWidget);
+      expect(find.textContaining('1.250.000'), findsWidgets);
+      expect(repository.requestedStoreIds.last, 'CP01');
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 }
 

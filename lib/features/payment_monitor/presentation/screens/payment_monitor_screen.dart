@@ -88,6 +88,8 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                       alignment: Alignment.centerLeft,
                       child: _SyncStatusPill(monitor: monitor),
                     ),
+                    const SizedBox(height: 10),
+                    const _SpeakerPowerWarning(),
                   ],
                   if (!canUsePaymentSpeaker &&
                       speakerSelectionNotice != null) ...[
@@ -278,6 +280,43 @@ class _SyncStatusPill extends StatelessWidget {
       label: label,
       color: color,
       isLoading: monitor.isLoading,
+    );
+  }
+}
+
+class _SpeakerPowerWarning extends StatelessWidget {
+  const _SpeakerPowerWarning();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.warningSurface.withValues(alpha: 0.56),
+        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.22)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(
+              Icons.power_settings_new_rounded,
+              size: 18,
+              color: AppColors.warning,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Khi cần đọc loa, giữ máy mở màn hình và không để Windows sleep để không bỏ lỡ giao dịch.',
+                style: AppTextStyles.bodyS.copyWith(
+                  color: AppColors.textSecondaryOf(context),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
