@@ -62,6 +62,7 @@ const INSTALLMENT_SUCCESS = 'SUCCESS';
 const INSTALLMENT_FAILED = 'FAILED';
 const ERP_ORDER_CANCELED_EXCLUSION_REASON = 'ERP_ORDER_CANCELLED';
 const ERP_ORDER_RETURNED_EXCLUSION_REASON = 'ERP_ORDER_RETURNED_FULL';
+const ERP_ORDER_ZERO_VALUE_EXCLUSION_REASON = 'ERP_ORDER_ZERO_VALUE_INTERNAL';
 const ERP_STATUS_SYNC_LOCK_KEY = 'opshub:sales-report:erp-status-sync';
 const MANAGED_SALES_REPORT_JOB_ROLE_CODES = new Set([
   'STORE_MANAGER',
@@ -131,6 +132,11 @@ type ErpOrderStatusSyncSelection = {
   reportedCompleted: number;
   skippedBackoff: number;
   skippedStoreQuota: number;
+};
+
+type ErpOrderCachePersistResult = {
+  excluded: boolean;
+  exclusionReason: string | null;
 };
 
 export type SalesReportOperatingSummaryScope =
@@ -709,6 +715,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       let syncedCount = 0;
       let newOrderCount = 0;
       let mappedOrderCount = 0;
+      let excludedOrderCount = 0;
       const updatedDates = new Set<string>();
       const storeCodes = new Set<string>();
       const recipientUserIds = new Set<string>();
@@ -721,13 +728,18 @@ export class SalesReportsService implements OnApplicationBootstrap {
         syncedCount += result.count;
         newOrderCount += result.newOrderCount;
         mappedOrderCount += result.mappedOrderCount;
-        if (result.newOrderCount > 0 || result.mappedOrderCount > 0) {
+        excludedOrderCount += result.excludedOrderCount;
+        if (
+          result.newOrderCount > 0 ||
+          result.mappedOrderCount > 0 ||
+          result.excludedOrderCount > 0
+        ) {
           updatedDates.add(date);
         }
         result.storeCodes.forEach((code) => storeCodes.add(code));
         result.recipientUserIds.forEach((id) => recipientUserIds.add(id));
       }
-      if (newOrderCount > 0 || mappedOrderCount > 0) {
+      if (newOrderCount > 0 || mappedOrderCount > 0 || excludedOrderCount > 0) {
         await this.publishOrderCacheUpdated({
           source,
           dates: Array.from(updatedDates),
@@ -738,13 +750,14 @@ export class SalesReportsService implements OnApplicationBootstrap {
         });
       }
       this.logger.log(
-        `Sales report scheduled ERP order sync succeeded: source=${source} dates=${dates.join(',')} count=${syncedCount} newOrderCount=${newOrderCount} mappedOrderCount=${mappedOrderCount} limit=${limit} durationMs=${Date.now() - startedAt}`,
+        `Sales report scheduled ERP order sync succeeded: source=${source} dates=${dates.join(',')} count=${syncedCount} newOrderCount=${newOrderCount} mappedOrderCount=${mappedOrderCount} excludedOrderCount=${excludedOrderCount} limit=${limit} durationMs=${Date.now() - startedAt}`,
       );
       return {
         skipped: false,
         count: syncedCount,
         newOrderCount,
         mappedOrderCount,
+        excludedOrderCount,
         dates,
       };
     } catch (error) {
@@ -863,6 +876,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       const selected = selection.selected;
       let cursor = 0;
       let changed = 0;
+      let excluded = 0;
       let failed = 0;
       const changedStores = new Set<string>();
       const changedDates = new Set<string>();
@@ -874,8 +888,14 @@ export class SalesReportsService implements OnApplicationBootstrap {
               row.orderCode,
               row.storeCode,
             );
-            await this.persistScheduledErpStatus(next);
-            if (next.lifecycleStatus !== row.lifecycleStatus) {
+            const persistResult = await this.persistScheduledErpStatus(next);
+            if (persistResult.excluded) {
+              excluded += 1;
+            }
+            if (
+              next.lifecycleStatus !== row.lifecycleStatus ||
+              persistResult.excluded
+            ) {
               changed += 1;
               if (row.storeCode) changedStores.add(row.storeCode);
               if (row.orderCreatedAt) {
@@ -908,7 +928,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         });
       }
       this.logger.log(
-        `ERP order status sync succeeded: source=${source} cacheEnabled=${cacheSyncEnabled} selected=${selected.length} cachePending=${selection.cachePending} reportedPending=${selection.reportedPending} cacheCompleted=${selection.cacheCompleted} reportedCompleted=${selection.reportedCompleted} skippedBackoff=${selection.skippedBackoff} skippedStoreQuota=${selection.skippedStoreQuota} changed=${changed} failed=${failed} concurrency=${concurrency} durationMs=${Date.now() - startedAt}`,
+        `ERP order status sync succeeded: source=${source} cacheEnabled=${cacheSyncEnabled} selected=${selected.length} cachePending=${selection.cachePending} reportedPending=${selection.reportedPending} cacheCompleted=${selection.cacheCompleted} reportedCompleted=${selection.reportedCompleted} skippedBackoff=${selection.skippedBackoff} skippedStoreQuota=${selection.skippedStoreQuota} changed=${changed} excluded=${excluded} failed=${failed} concurrency=${concurrency} durationMs=${Date.now() - startedAt}`,
       );
       return {
         skipped: false,
@@ -1255,8 +1275,14 @@ export class SalesReportsService implements OnApplicationBootstrap {
     );
   }
 
-  private async persistScheduledErpStatus(order: SalesReportErpOrderListItem) {
-    const exclusion = this.orderExclusionState(order.lifecycleStatus);
+  private async persistScheduledErpStatus(
+    order: SalesReportErpOrderListItem,
+  ): Promise<ErpOrderCachePersistResult> {
+    const grandTotal = this.numberValue(order.grandTotal);
+    const exclusion = this.orderExclusionState(
+      order.lifecycleStatus,
+      grandTotal,
+    );
     const cacheData = {
       paymentStatus: this.optionalText(order.paymentStatus, 80),
       confirmationStatus: this.optionalText(order.confirmationStatus, 80),
@@ -1269,6 +1295,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       statusCheckFailureCount: 0,
       fetchedAt: order.fetchedAt,
       sanitizedSnapshot: order.sanitizedSnapshot as Prisma.InputJsonValue,
+      ...(grandTotal === null ? {} : { grandTotal }),
       ...(exclusion.excludedAt
         ? {
             excludedAt: exclusion.excludedAt,
@@ -1306,6 +1333,15 @@ export class SalesReportsService implements OnApplicationBootstrap {
         },
       }),
     ]);
+    if (exclusion.excludedAt) {
+      this.logger.warn(
+        `Sales report scheduled ERP excluded order persisted: orderLength=${order.orderCode.length} lifecycleStatus=${order.lifecycleStatus} reason=${exclusion.exclusionReason}`,
+      );
+    }
+    return {
+      excluded: Boolean(exclusion.excludedAt),
+      exclusionReason: exclusion.exclusionReason,
+    };
   }
 
   private async recordErpStatusSyncFailure(orderCode: string) {
@@ -1518,7 +1554,12 @@ export class SalesReportsService implements OnApplicationBootstrap {
       orderCode ?? '',
     );
     await this.attachCategoryTypes(erpOrder);
-    await this.upsertErpOrderCacheFromOrder(user, context, erpOrder);
+    const cacheResult = await this.upsertErpOrderCacheFromOrder(
+      user,
+      context,
+      erpOrder,
+    );
+    this.assertOrderCachePersistResultReportable(cacheResult);
     const matchedCategories = await this.categories.matchCategoriesFromErp(
       erpOrder.categoryCandidates,
     );
@@ -1574,7 +1615,12 @@ export class SalesReportsService implements OnApplicationBootstrap {
     );
     try {
       if (erpOrder) {
-        await this.upsertErpOrderCacheFromOrder(user, context, erpOrder);
+        const cacheResult = await this.upsertErpOrderCacheFromOrder(
+          user,
+          context,
+          erpOrder,
+        );
+        this.assertOrderCachePersistResultReportable(cacheResult);
       }
       const report = await this.prisma.salesReport.create({
         data: {
@@ -1996,6 +2042,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     let storeMappedCount = 0;
     let newOrderCount = 0;
     let mappedOrderCount = 0;
+    let excludedOrderCount = 0;
     const storeCodes = new Set<string>();
     const recipientUserIds = new Set<string>();
     for (const order of orders) {
@@ -2012,7 +2059,6 @@ export class SalesReportsService implements OnApplicationBootstrap {
           ownerByEmail,
         );
       const isNew = orderCode ? !existingCodes.has(orderCode) : false;
-      if (isNew) newOrderCount += 1;
       if (owner) ownerMappedCount += 1;
       if (order.storeCode || owner?.storeCode) storeMappedCount += 1;
       const mappedStoreCode = this.normalizeStoreCode(
@@ -2035,14 +2081,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
           (!existingRow?.sourceUserId && owner?.id) ||
           (!existingRow?.sourceUserEmail && owner?.email),
         );
-      if (mappingBackfilled) mappedOrderCount += 1;
-      if ((isNew || mappingBackfilled) && owner?.id) {
-        recipientUserIds.add(owner.id);
-      }
-      if ((isNew || mappingBackfilled) && mappedStoreCode) {
-        storeCodes.add(mappedStoreCode);
-      }
-      await this.upsertErpOrderCacheItem(
+      const cacheResult = await this.upsertErpOrderCacheItem(
         null,
         context,
         order,
@@ -2050,14 +2089,35 @@ export class SalesReportsService implements OnApplicationBootstrap {
         owner,
         { existingCacheRow: existingRow, preserveVerifiedLifecycle: true },
       );
+      const becameExcluded =
+        cacheResult.excluded && !Boolean(existingRow?.excludedAt);
+      const visibleNew = isNew && !cacheResult.excluded;
+      const visibleMappingBackfilled =
+        mappingBackfilled && !cacheResult.excluded;
+      if (visibleNew) newOrderCount += 1;
+      if (visibleMappingBackfilled) mappedOrderCount += 1;
+      if (becameExcluded) excludedOrderCount += 1;
+      if (
+        (visibleNew || visibleMappingBackfilled || becameExcluded) &&
+        owner?.id
+      ) {
+        recipientUserIds.add(owner.id);
+      }
+      if (
+        (visibleNew || visibleMappingBackfilled || becameExcluded) &&
+        mappedStoreCode
+      ) {
+        storeCodes.add(mappedStoreCode);
+      }
     }
     this.logger.log(
-      `Sales report ERP order cache mapping completed: source=${input.source} orders=${orders.length} newOrderCount=${newOrderCount} mappedOrderCount=${mappedOrderCount} ownerMapped=${ownerMappedCount} storeMapped=${storeMappedCount} missingStore=${orders.length - storeMappedCount}`,
+      `Sales report ERP order cache mapping completed: source=${input.source} orders=${orders.length} newOrderCount=${newOrderCount} mappedOrderCount=${mappedOrderCount} excludedOrderCount=${excludedOrderCount} ownerMapped=${ownerMappedCount} storeMapped=${storeMappedCount} missingStore=${orders.length - storeMappedCount}`,
     );
     return {
       count: orders.length,
       newOrderCount,
       mappedOrderCount,
+      excludedOrderCount,
       storeCodes: Array.from(storeCodes),
       recipientUserIds: Array.from(recipientUserIds),
     };
@@ -2222,9 +2282,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
     user: any,
     context: Awaited<ReturnType<SalesReportsService['resolveUserSnapshot']>>,
     erpOrder: SalesReportErpOrder,
-  ) {
+  ): Promise<ErpOrderCachePersistResult> {
     const orderCache = (this.prisma as any).salesReportErpOrderCache;
-    if (!orderCache?.upsert) return;
+    if (!orderCache?.upsert) {
+      return { excluded: false, exclusionReason: null };
+    }
     const item: SalesReportErpOrderListItem = {
       orderCode: erpOrder.orderCode,
       erpOrderId: erpOrder.erpOrderId,
@@ -2255,7 +2317,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       sanitizedSnapshot: erpOrder.sanitizedSnapshot,
       fetchedAt: erpOrder.fetchedAt,
     };
-    await this.upsertErpOrderCacheItem(user, context, item, new Map());
+    return this.upsertErpOrderCacheItem(user, context, item, new Map());
   }
 
   private async upsertErpOrderCacheItem(
@@ -2268,9 +2330,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
       existingCacheRow?: any | null;
       preserveVerifiedLifecycle?: boolean;
     } = {},
-  ) {
+  ): Promise<ErpOrderCachePersistResult> {
     const orderCode = this.normalizeOrderCode(order.orderCode);
-    if (!orderCode) return;
+    if (!orderCode) return { excluded: false, exclusionReason: null };
     const incomingLifecycleStatus = this.normalizedErpLifecycleStatus(order);
     const existingLifecycleStatus = this.normalizePersistedErpLifecycleStatus(
       options.existingCacheRow?.lifecycleStatus,
@@ -2316,7 +2378,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
             options.existingCacheRow?.statusCheckFailureCount,
           )
         : 0;
-    const exclusion = this.orderExclusionState(lifecycleStatus);
+    const grandTotal = this.numberValue(order.grandTotal);
+    const exclusion = this.orderExclusionState(lifecycleStatus, grandTotal);
     const storeCode = this.normalizeStoreCode(
       order.storeCode ?? syncOwner?.storeCode ?? context.storeCode,
     );
@@ -2343,7 +2406,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       excludedAt: exclusion.excludedAt,
       exclusionReason: exclusion.exclusionReason,
       terminalName: this.optionalText(order.terminalName, 120),
-      grandTotal: order.grandTotal,
+      grandTotal,
       customerName: this.optionalText(order.customerName, 120),
       customerPhone: this.optionalText(order.customerPhone, 30),
       customerType: this.optionalText(order.customerType, 40),
@@ -2423,6 +2486,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
         `Sales report excluded order persisted: orderLength=${orderCode.length} lifecycleStatus=${lifecycleStatus} reason=${exclusion.exclusionReason}`,
       );
     }
+    return {
+      excluded: Boolean(exclusion.excludedAt),
+      exclusionReason: exclusion.exclusionReason,
+    };
   }
 
   private async storesByCode(storeCodes: string[]) {
@@ -3000,9 +3067,16 @@ export class SalesReportsService implements OnApplicationBootstrap {
       `Sales report excluded order blocked from cache: orderLength=${orderCode.length} reason=${existing.exclusionReason || 'none'}`,
     );
     throw new BadRequestException(
-      existing.exclusionReason === ERP_ORDER_RETURNED_EXCLUSION_REASON
-        ? 'Đơn đã hoàn trả toàn bộ, không thể báo cáo mua hàng.'
-        : 'Đơn đã bị hủy.',
+      this.excludedOrderMessage(existing.exclusionReason),
+    );
+  }
+
+  private assertOrderCachePersistResultReportable(
+    result: ErpOrderCachePersistResult,
+  ) {
+    if (!result.excluded) return;
+    throw new BadRequestException(
+      this.excludedOrderMessage(result.exclusionReason),
     );
   }
 
@@ -3014,7 +3088,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return { excludedAt: null };
   }
 
-  private orderExclusionState(lifecycleStatus: string) {
+  private orderExclusionState(
+    lifecycleStatus: string,
+    grandTotal?: number | null,
+  ) {
     if (lifecycleStatus === 'RETURNED_FULL') {
       return {
         excludedAt: new Date(),
@@ -3022,12 +3099,33 @@ export class SalesReportsService implements OnApplicationBootstrap {
       };
     }
     if (lifecycleStatus !== 'CANCELLED') {
+      if (this.isZeroValueOrder(grandTotal)) {
+        return {
+          excludedAt: new Date(),
+          exclusionReason: ERP_ORDER_ZERO_VALUE_EXCLUSION_REASON,
+        };
+      }
       return { excludedAt: null, exclusionReason: null };
     }
     return {
       excludedAt: new Date(),
       exclusionReason: ERP_ORDER_CANCELED_EXCLUSION_REASON,
     };
+  }
+
+  private isZeroValueOrder(grandTotal: unknown) {
+    const amount = this.numberValue(grandTotal);
+    return amount !== null && amount <= 0;
+  }
+
+  private excludedOrderMessage(reason: string | null | undefined) {
+    if (reason === ERP_ORDER_RETURNED_EXCLUSION_REASON) {
+      return 'Đơn đã hoàn trả toàn bộ, không thể báo cáo mua hàng.';
+    }
+    if (reason === ERP_ORDER_ZERO_VALUE_EXCLUSION_REASON) {
+      return 'Đơn 0 VND là đơn vận hành nội bộ, không cần báo cáo.';
+    }
+    return 'Đơn đã bị hủy.';
   }
 
   private normalizedErpLifecycleStatus(order: SalesReportErpOrderListItem) {

@@ -136,6 +136,24 @@ describe('SalesReportsService', () => {
     expect(erp.lookupOrder).not.toHaveBeenCalled();
   });
 
+  it('blocks cached zero-value ERP orders before ERP lookup', async () => {
+    const { service, prisma, erp } = createHarness();
+    prisma.salesReportErpOrderCache.findUnique.mockResolvedValueOnce({
+      excludedAt: new Date('2026-07-07T01:00:00Z'),
+      exclusionReason: 'ERP_ORDER_ZERO_VALUE_INTERNAL',
+    });
+
+    await expect(
+      service.create(userFixture(), {
+        ...baseInput(),
+        reportType: 'PURCHASED',
+        orderCode: '2607070000',
+      }),
+    ).rejects.toThrow('Đơn 0 VND là đơn vận hành nội bộ, không cần báo cáo.');
+
+    expect(erp.lookupOrder).not.toHaveBeenCalled();
+  });
+
   it('requires customer need and explicit behavior answers before lookup', async () => {
     const { service, categories, erp } = createHarness();
 
@@ -218,6 +236,40 @@ describe('SalesReportsService', () => {
       data: {
         erpExcludedAt: expect.any(Date),
         erpExclusionReason: 'ERP_ORDER_CANCELLED',
+      },
+    });
+  });
+
+  it('persists and blocks zero-value ERP orders after ERP lookup', async () => {
+    const { service, prisma, erp } = createHarness();
+    erp.lookupOrder.mockResolvedValueOnce({
+      ...erpOrderFixture(),
+      orderCode: '2607070000',
+      erpOrderId: '2607070000',
+      erpGrandTotal: 0,
+      sanitizedSnapshot: { orderId: '2607070000', grandTotal: 0 },
+    });
+
+    await expect(
+      service.checkOrder(userFixture(), '2607070000'),
+    ).rejects.toThrow('Đơn 0 VND là đơn vận hành nội bộ, không cần báo cáo.');
+
+    expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { orderCode: '2607070000' },
+        create: expect.objectContaining({
+          orderCode: '2607070000',
+          grandTotal: 0,
+          exclusionReason: 'ERP_ORDER_ZERO_VALUE_INTERNAL',
+          excludedAt: expect.any(Date),
+        }),
+      }),
+    );
+    expect(prisma.salesReport.updateMany).toHaveBeenCalledWith({
+      where: { orderCode: '2607070000' },
+      data: {
+        erpExcludedAt: expect.any(Date),
+        erpExclusionReason: 'ERP_ORDER_ZERO_VALUE_INTERNAL',
       },
     });
   });
@@ -727,6 +779,62 @@ describe('SalesReportsService', () => {
         data: {
           erpExcludedAt: expect.any(Date),
           erpExclusionReason: 'ERP_ORDER_CANCELLED',
+        },
+      });
+    } finally {
+      if (oldEnabled === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_ENABLED = oldEnabled;
+      }
+      if (oldLookback === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = oldLookback;
+      }
+    }
+  });
+
+  it('scheduled sync excludes zero-value ERP orders without counting them as reportable new orders', async () => {
+    const { service, prisma, erp } = createHarness();
+    const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+    delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = '1';
+    erp.listRecentOrders.mockResolvedValueOnce([
+      {
+        ...erpListOrderFixture(),
+        orderCode: '2607070000',
+        erpOrderId: '2607070000',
+        grandTotal: 0,
+        sanitizedSnapshot: { orderCode: '2607070000', grandTotal: 0 },
+      },
+    ]);
+
+    try {
+      const result = await service.syncScheduledErpOrderCache('test-zero');
+
+      expect(result).toMatchObject({
+        count: 1,
+        newOrderCount: 0,
+        excludedOrderCount: 1,
+      });
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '2607070000' },
+          create: expect.objectContaining({
+            orderCode: '2607070000',
+            grandTotal: 0,
+            exclusionReason: 'ERP_ORDER_ZERO_VALUE_INTERNAL',
+            excludedAt: expect.any(Date),
+          }),
+        }),
+      );
+      expect(prisma.salesReport.updateMany).toHaveBeenCalledWith({
+        where: { orderCode: '2607070000' },
+        data: {
+          erpExcludedAt: expect.any(Date),
+          erpExclusionReason: 'ERP_ORDER_ZERO_VALUE_INTERNAL',
         },
       });
     } finally {

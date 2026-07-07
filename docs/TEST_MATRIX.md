@@ -1185,6 +1185,14 @@ Recent focused evidence:
   sync now also writes `revenue_by_store`, with one revenue summary row per
   store/showroom instead of one all-store total row. Validation: focused Nest
   sales-report export/BigQuery sync tests and backend build.
+- `SALES-REPORT-001`, 2026-07-07: đơn ERP có `grandTotal <= 0` được xem là đơn
+  vận hành nội bộ và bị loại khỏi báo cáo. Backend persist
+  `excludedAt`/`exclusionReason = ERP_ORDER_ZERO_VALUE_INTERNAL` trên
+  `SalesReportErpOrderCache`, đánh dấu report mua hàng cùng `orderCode` bằng
+  `erpExcludedAt`/`erpExclusionReason`, không tính các đơn này là đơn mới cần
+  báo cáo trong sync nền, và chặn check/submit thủ công bằng copy tiếng Việt.
+  Validation: focused Nest sales-report service and Home Summary specs, backend
+  build, and `git diff --check`.
 - `AUTH-004`/`PAYMENT-MONITOR-001`, 2026-07-01: production diagnosis found
   payment monitor clients behind Caddy sharing the default IP throttling bucket,
   causing a newly opened client to receive HTTP 429 on its first request. The

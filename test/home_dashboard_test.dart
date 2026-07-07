@@ -507,6 +507,59 @@ void main() {
     expect(third.dy, greaterThan(first.dy));
   });
 
+  testWidgets('Home overview gives sales progress cards readable width', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final summary = _managerSalesProgressSummary('sa-1');
+    final summaryProvider = HomeSummaryProvider(
+      _FakeHomeSummaryRepository(summary: summary),
+    );
+    addTearDown(summaryProvider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 1180,
+            child: ReportProgressPanel(
+              summary: summary,
+              provider: summaryProvider,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(const Key('home-sales-progress-panel'))).width,
+      greaterThanOrEqualTo(420),
+    );
+    expect(
+      tester
+          .getSize(find.byKey(const Key('home-scope-sales-progress-panel')))
+          .width,
+      greaterThanOrEqualTo(420),
+    );
+    final scopeMonthActual = tester.widget<Text>(
+      find.byKey(const Key('home-scope-sales-progress-month-actual-label')),
+    );
+    final scopeMonthTarget = tester.widget<Text>(
+      find.byKey(const Key('home-scope-sales-progress-month-target-label')),
+    );
+    expect(scopeMonthActual.overflow, isNot(TextOverflow.ellipsis));
+    expect(scopeMonthTarget.overflow, isNot(TextOverflow.ellipsis));
+    expect(scopeMonthActual.maxLines, 2);
+    expect(scopeMonthTarget.maxLines, 2);
+    expect(find.text('Đã đạt: 60M VND'), findsOneWidget);
+    expect(find.text('Chỉ tiêu: 120M VND'), findsOneWidget);
+  });
+
   testWidgets('Home KPI grid keeps revenue cards on one wide row', (
     tester,
   ) async {

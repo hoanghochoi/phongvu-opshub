@@ -16,8 +16,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   scope; khi mở `Trang chủ`, khoảng ngày mặc định là hôm nay và user đổi
   thủ công nếu cần xem ngày/khoảng khác. Khu vực `Bán hàng` chia thành nhóm
   `Doanh số` và `Hành vi then chốt`. Nhóm `Doanh số` hiển thị doanh số tổng
-  từ cache đơn hàng sau khi loại đơn hủy/trả toàn bộ và trừ giá trị trả một
-  phần, số đơn bán, trung bình đơn hàng, doanh số hoàn thành, pending và
+  từ cache đơn hàng sau khi loại đơn 0 VND, đơn hủy/trả toàn bộ và trừ giá trị
+  trả một phần, số đơn bán, trung bình đơn hàng, doanh số hoàn thành, pending và
   `Tỉ lệ chuyển đổi = tổng số đơn / tổng số báo cáo`. Nhóm
   `Hành vi then chốt` hiển thị số khách chưa mua, số đơn chưa báo cáo,
   `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn`, cùng các tỉ lệ
@@ -67,6 +67,10 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Nếu sale dùng `Báo cáo mua thủ công` và nhập trùng `orderCode` đang nằm trong
   cache cockpit hiện tại, backend vẫn match theo mã đơn để chuyển đơn đó sang đã
   báo cáo, không phụ thuộc metadata ngày/showroom của report thủ công.
+- Đơn ERP có `grandTotal <= 0` là đơn vận hành nội bộ, không cần sale báo cáo.
+  Backend gắn exclusion bền vững cho cache/report cùng mã đơn, cockpit không
+  trả các đơn này ở cột chưa báo cáo hoặc đã báo cáo, và các KPI báo cáo/doanh
+  số không tính chúng.
 - Menu `Quản trị` hiển thị `Danh sách báo cáo bán hàng` khi user có
   `ADMIN_SALES_REPORTS`; đây là nơi duy nhất lọc danh sách và xuất file.
 - Màn hình danh sách báo cáo bán hàng của admin lọc danh sách và CSV theo loại
@@ -109,10 +113,10 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   chỉ re-check pending sau khoảng cấu hình mặc định 20 phút; lỗi một đơn chỉ
   tăng failure count và thử lại ở lượt sau.
 - Doanh số tổng trên dashboard lấy `grandTotal` từ cache đơn hàng theo
-  ngày/scope, bỏ đơn hủy/trả toàn bộ và trừ `returnedAfterTaxAmount` khi có trả
-  một phần. Doanh số hoàn thành chỉ cộng báo cáo mua hàng có trạng thái ERP
-  hoàn thành, cũng trừ `returnedAfterTaxAmount` khi có trả một phần. Riêng tiến
-  độ chỉ tiêu dùng giá trị trước VAT theo công thức
+  ngày/scope, bỏ đơn 0 VND, đơn hủy/trả toàn bộ và trừ
+  `returnedAfterTaxAmount` khi có trả một phần. Doanh số hoàn thành chỉ cộng báo
+  cáo mua hàng có trạng thái ERP hoàn thành, cũng trừ `returnedAfterTaxAmount`
+  khi có trả một phần. Riêng tiến độ chỉ tiêu dùng giá trị trước VAT theo công thức
   `round(max(grandTotal - returnedAfterTaxAmount, 0) / 1.08)`. Home hiển thị
   hai card tiến độ: `Tổng quan cá nhân` cho user/SA đang chọn và
   `Tổng quan Miền/Vùng/Cửa hàng` cho toàn bộ scope quản lý hiện tại. Store
@@ -238,10 +242,12 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   `[CH1001] ...`,
   `creator.email` từ `data.orders.creator.email`, người tư vấn/người bán nếu
   ERP trả về, tổng tiền, phương thức thanh toán, metadata lần sync nền và
-  snapshot đã sanitize. Nếu ERP xác nhận order hủy, cache row được gắn
-  `excludedAt`/`exclusionReason = ERP_ORDER_CANCELLED`; mọi report mua hàng cùng
-  `orderCode` cũng được gắn `erpExcludedAt`/`erpExclusionReason` để loại khỏi
-  các query báo cáo phía sau mà không cần suy luận lại từ ERP theo từng màn.
+  snapshot đã sanitize. Nếu ERP xác nhận order hủy, trả toàn bộ, hoặc có
+  `grandTotal <= 0`, cache row được gắn `excludedAt`/`exclusionReason`
+  tương ứng (`ERP_ORDER_CANCELLED`, `ERP_ORDER_RETURNED_FULL`,
+  `ERP_ORDER_ZERO_VALUE_INTERNAL`); mọi report mua hàng cùng `orderCode` cũng
+  được gắn `erpExcludedAt`/`erpExclusionReason` để loại khỏi các query báo cáo
+  phía sau mà không cần suy luận lại từ ERP theo từng màn.
   API cockpit đếm total chưa báo cáo trực tiếp trên cache DB, loại trừ các
   `orderCode` đã có báo cáo mua hàng hoặc được match từ report thủ công trong
   cache cockpit hiện tại, cùng các row đã bị exclude bền vững, rồi trả từng

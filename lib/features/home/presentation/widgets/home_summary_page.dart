@@ -1051,12 +1051,23 @@ class ReportProgressPanel extends StatelessWidget {
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 980
+              if (panels.isEmpty) return const SizedBox.shrink();
+              final gap = 16.0;
+              final hasSalesProgressPanels =
+                  summary.salesAvailable &&
+                  (summary.personalSalesProgress.isApplicable ||
+                      summary.scopeSalesProgress.isApplicable);
+              final minReadablePanelWidth = hasSalesProgressPanels
+                  ? 420.0
+                  : 280.0;
+              final fullRowWidth =
+                  panels.length * minReadablePanelWidth +
+                  gap * math.max(0, panels.length - 1);
+              final columns = constraints.maxWidth >= fullRowWidth
                   ? panels.length
-                  : constraints.maxWidth >= 620
+                  : constraints.maxWidth >= 720
                   ? math.min(2, panels.length)
                   : 1;
-              final gap = 16.0;
               final width =
                   (constraints.maxWidth - gap * math.max(0, columns - 1)) /
                   math.max(1, columns);
@@ -1630,20 +1641,20 @@ class _SalesProgressPeriodView extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
+            key: Key('$keyPrefix-$keySuffix-actual-label'),
             'Đã đạt: ${formatCompactVndAmount(period.actual)}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
             textAlign: TextAlign.center,
             style: AppTextStyles.caption.copyWith(
               color: AppColors.textMutedOf(context),
             ),
           ),
           Text(
+            key: Key('$keyPrefix-$keySuffix-target-label'),
             period.target == null
                 ? 'Chỉ tiêu: Chưa thiết lập'
                 : 'Chỉ tiêu: ${formatCompactVndAmount(period.target!)}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
             textAlign: TextAlign.center,
             style: AppTextStyles.caption.copyWith(
               color: AppColors.textMutedOf(context),

@@ -40,6 +40,9 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 - Nếu report thủ công có `orderCode` trùng đơn đang nằm trong cache cockpit theo
   filter hiện tại, cockpit phải tính đơn đó là đã báo cáo và loại khỏi cột chưa
   báo cáo sau khi reload.
+- Đơn ERP có `grandTotal <= 0` là đơn vận hành nội bộ, không tính là đơn cần
+  báo cáo; backend phải persist exclusion để reload vẫn không hiện ở cột chưa
+  báo cáo/đã báo cáo và không tính vào KPI.
 - Form `Mua hàng` yêu cầu nhập hoặc quét QR/barcode mã đơn và check ERP trước
   khi nhập/gửi báo cáo; sau khi check có thể bấm `Kiểm tra đơn khác` để đổi đơn.
 - Nếu ERP trả `confirmationStatus` hoặc `fulfillmentStatus` là `cancelled`
@@ -68,8 +71,8 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   `Học sinh - Sinh viên`, `CTKM khác`.
 - Backend re-check ERP khi submit và chặn duplicate `orderCode`.
 - Check/submit lưu trạng thái vòng đời ERP và dữ liệu hoàn trả. Pending được
-  giữ trong tiến độ nhưng chưa tính doanh số; hủy/trả toàn bộ bị loại; trả một
-  phần trừ giá trị trả trước khi bỏ VAT 8%.
+  giữ trong tiến độ nhưng chưa tính doanh số; đơn 0 VND, hủy/trả toàn bộ bị
+  loại; trả một phần trừ giá trị trả trước khi bỏ VAT 8%.
 - Backend rà trạng thái mỗi 20 phút, mặc định tối đa 80 đơn với concurrency 2:
   rà cả pending trong cache chưa báo cáo và pending đã báo cáo, vẫn dành quota
   cho đơn completed 30 ngày gần nhất để bắt hoàn trả muộn. Redis lease ngăn

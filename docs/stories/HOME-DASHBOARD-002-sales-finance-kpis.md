@@ -15,7 +15,7 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   `Trung bình đơn hàng`, `Doanh số hoàn thành`, `Pending` và
   `Tỉ lệ chuyển đổi`.
 - `Doanh số tổng` lấy tổng giá trị đơn trong cache theo ngày/scope đang chọn,
-  không cộng đơn hủy/trả toàn bộ và trừ giá trị trả một phần.
+  không cộng đơn 0 VND, đơn hủy/trả toàn bộ và trừ giá trị trả một phần.
 - `Trung bình đơn hàng = Doanh số tổng / Số đơn bán`.
 - `Doanh số hoàn thành` chỉ cộng các báo cáo mua hàng có trạng thái ERP đã
   sync là hoàn thành; đơn trả một phần trừ giá trị trả trước khi cộng.
@@ -39,8 +39,8 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
 - Grid KPI trên mobile thông thường hiển thị 2 card mỗi hàng; chỉ hạ còn 1 card
   khi vùng nội dung hẹp dưới 320 px. Bán hàng và Tài chính dùng cùng breakpoint.
 - Doanh số thực đạt chỉ cộng báo cáo mua hàng có trạng thái ERP hoàn thành;
-  đơn hủy/trả toàn bộ không tính, trả một phần trừ giá trị hàng trả rồi mới
-  quy đổi về trước VAT 8%.
+  đơn 0 VND, đơn hủy/trả toàn bộ không tính, trả một phần trừ giá trị hàng trả
+  rồi mới quy đổi về trước VAT 8%.
 - Chỉ tiêu lưu theo SR/tháng. Ngày và tuần được phân bổ theo số ngày nằm trong
   tháng; thiếu chỉ tiêu ở bất kỳ SR nào thì vẫn hiện thực đạt nhưng không tính
   phần trăm.
