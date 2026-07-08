@@ -52,6 +52,85 @@ class HomeSummaryRepository {
     String? organizationNodeId,
     String? salesProgressUserId,
   }) async {
+    final queryParameters = _buildSummaryQueryParameters(
+      date: date,
+      startDate: startDate,
+      endDate: endDate,
+      scope: scope,
+      organizationNodeId: organizationNodeId,
+      salesProgressUserId: salesProgressUserId,
+    );
+    final response = await _apiClient.get(
+      ApiConstants.homeSummaryEndpoint,
+      queryParameters: queryParameters,
+    );
+    final data = jsonDecode(response.body);
+    if (data is! Map<String, dynamic>) {
+      throw ParseException(
+        'Dữ liệu dashboard chưa đúng định dạng. Vui lòng thử lại.',
+      );
+    }
+    return HomeSummary.fromJson(data);
+  }
+
+  Future<HomeSalesBehaviorDetails> fetchSalesBehaviorDetails({
+    String? date,
+    String? startDate,
+    String? endDate,
+    String? scope,
+    String? organizationNodeId,
+    String? salesProgressUserId,
+    int? limit,
+  }) async {
+    final queryParameters = _buildSummaryQueryParameters(
+      date: date,
+      startDate: startDate,
+      endDate: endDate,
+      scope: scope,
+      organizationNodeId: organizationNodeId,
+      salesProgressUserId: salesProgressUserId,
+    );
+    if (limit != null && limit > 0) {
+      queryParameters['limit'] = limit.toString();
+    }
+    final response = await _apiClient.get(
+      ApiConstants.homeSummaryDetailsEndpoint,
+      queryParameters: queryParameters,
+    );
+    final data = jsonDecode(response.body);
+    if (data is! Map<String, dynamic>) {
+      throw ParseException(
+        'Dữ liệu chi tiết báo cáo chưa đúng định dạng. Vui lòng thử lại.',
+      );
+    }
+    return HomeSalesBehaviorDetails.fromJson(data);
+  }
+
+  Future<List<HomeSummaryScopeOptionDto>> fetchScopeOptions() async {
+    final response = await _apiClient.get(
+      ApiConstants.homeSummaryScopeOptionsEndpoint,
+    );
+    final data = jsonDecode(response.body);
+    if (data is! List) {
+      throw ParseException(
+        'Dữ liệu phạm vi dashboard chưa đúng định dạng. Vui lòng thử lại.',
+      );
+    }
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(HomeSummaryScopeOptionDto.fromJson)
+        .where((option) => option.value.isNotEmpty && option.label.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Map<String, String> _buildSummaryQueryParameters({
+    String? date,
+    String? startDate,
+    String? endDate,
+    String? scope,
+    String? organizationNodeId,
+    String? salesProgressUserId,
+  }) {
     final queryParameters = <String, String>{};
     final normalizedDate = date?.trim();
     if (normalizedDate != null && normalizedDate.isNotEmpty) {
@@ -80,33 +159,6 @@ class HomeSummaryRepository {
         normalizedSalesProgressUserId.isNotEmpty) {
       queryParameters['salesProgressUserId'] = normalizedSalesProgressUserId;
     }
-    final response = await _apiClient.get(
-      ApiConstants.homeSummaryEndpoint,
-      queryParameters: queryParameters,
-    );
-    final data = jsonDecode(response.body);
-    if (data is! Map<String, dynamic>) {
-      throw ParseException(
-        'Dữ liệu dashboard chưa đúng định dạng. Vui lòng thử lại.',
-      );
-    }
-    return HomeSummary.fromJson(data);
-  }
-
-  Future<List<HomeSummaryScopeOptionDto>> fetchScopeOptions() async {
-    final response = await _apiClient.get(
-      ApiConstants.homeSummaryScopeOptionsEndpoint,
-    );
-    final data = jsonDecode(response.body);
-    if (data is! List) {
-      throw ParseException(
-        'Dữ liệu phạm vi dashboard chưa đúng định dạng. Vui lòng thử lại.',
-      );
-    }
-    return data
-        .whereType<Map<String, dynamic>>()
-        .map(HomeSummaryScopeOptionDto.fromJson)
-        .where((option) => option.value.isNotEmpty && option.label.isNotEmpty)
-        .toList(growable: false);
+    return queryParameters;
   }
 }

@@ -1,4 +1,12 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class GetHomeSummaryQueryDto {
   @IsOptional()
@@ -30,4 +38,13 @@ export class GetHomeSummaryQueryDto {
   @IsString()
   @MaxLength(80)
   salesProgressUserId?: string;
+}
+
+export class GetHomeSummaryDetailsQueryDto extends GetHomeSummaryQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limit?: number;
 }

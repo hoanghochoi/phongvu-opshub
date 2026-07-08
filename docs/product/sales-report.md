@@ -28,7 +28,11 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   `Hành vi then chốt` hiển thị số khách chưa mua, số đơn chưa báo cáo,
   `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn`, cùng các tỉ lệ
   `Có`/tổng báo cáo cho tư vấn 3 giải pháp, trải nghiệm, Zalo OA và tải App;
-  không còn card `Tổng số báo cáo hợp lệ` riêng.
+  không còn card `Tổng số báo cáo hợp lệ` riêng. Bấm phần chữ của card
+  `Số khách chưa mua` hoặc `Số đơn chưa báo cáo` mở modal chi tiết theo cùng
+  ngày/scope/SA đang chọn; bảng hỗ trợ cuộn dọc và ngang trên màn nhỏ. Bảng
+  khách chưa mua gồm Tên SA, Tên khách hàng, Loại khách hàng, Ngành hàng và Lý
+  do không mua. Bảng đơn chưa báo cáo gồm Tên SA, Mã đơn hàng và Thời gian bán.
 - Quyền hiển thị hai khu vực dashboard là hai tính năng riêng trong cây tổ
   chức: `Dashboard - Bán hàng` và `Dashboard - Tài chính`. Super Admin bật/tắt
   từng tính năng tại node; backend và app cùng ẩn khu vực không được cấp.

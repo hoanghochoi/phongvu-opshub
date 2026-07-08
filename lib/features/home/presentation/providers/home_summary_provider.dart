@@ -282,6 +282,80 @@ class HomeSummaryProvider extends ChangeNotifier {
     await loadSummary(reason: 'manual_refresh');
   }
 
+  Future<HomeSalesBehaviorDetails> fetchSalesBehaviorDetails({
+    required String source,
+    int limit = 200,
+  }) async {
+    final user = _user;
+    if (user == null) {
+      throw ApiException('Vui lòng đăng nhập lại để xem chi tiết báo cáo.');
+    }
+
+    await AppLogger.instance.info(
+      'HomeSummary',
+      'Home sales behavior details load started',
+      context: {
+        'userId': user.id,
+        'source': source,
+        'startDate': formattedSelectedStartDate,
+        'endDate': formattedSelectedEndDate,
+        'scopeFilter': _selectedScope,
+        'requestScope': _requestScopeForSelectedScope,
+        'organizationNodeId': _organizationNodeIdForSelectedScope,
+        'salesProgressUserId': _selectedSalesProgressUserId,
+        'limit': limit,
+      },
+    );
+
+    try {
+      final details = await _repository.fetchSalesBehaviorDetails(
+        startDate: formattedSelectedStartDate,
+        endDate: formattedSelectedEndDate,
+        scope: _requestScopeForSelectedScope,
+        organizationNodeId: _organizationNodeIdForSelectedScope,
+        salesProgressUserId: _selectedSalesProgressUserId,
+        limit: limit,
+      );
+      await AppLogger.instance.info(
+        'HomeSummary',
+        'Home sales behavior details load succeeded',
+        context: {
+          'userId': user.id,
+          'source': source,
+          'scope': details.scope,
+          'selectedSalesProgressUserId': details.selectedSalesProgressUserId,
+          'notPurchasedRows': details.notPurchasedReports.length,
+          'notPurchasedTotal': details.notPurchasedTotal,
+          'unreportedRows': details.unreportedOrders.length,
+          'unreportedTotal': details.unreportedTotal,
+          'limit': details.limit,
+        },
+      );
+      return details;
+    } on ApiException catch (error) {
+      await AppLogger.instance.warn(
+        'HomeSummary',
+        'Home sales behavior details load failed',
+        context: {
+          'userId': user.id,
+          'source': source,
+          'message': error.message,
+        },
+      );
+      rethrow;
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'HomeSummary',
+        'Home sales behavior details load failed unexpectedly',
+        error: error,
+        stackTrace: stackTrace,
+        context: {'userId': user.id, 'source': source},
+        upload: true,
+      );
+      throw ApiException('Chưa tải được chi tiết báo cáo. Vui lòng thử lại.');
+    }
+  }
+
   Future<void> setSelectedDate(DateTime value) async {
     await setSelectedDateRange(value, value);
   }

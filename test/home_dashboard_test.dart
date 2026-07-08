@@ -432,6 +432,129 @@ void main() {
     },
   );
 
+  testWidgets('Home behavior cards open detail tables in modal', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1024, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final summary = HomeSummary(
+      date: '2026-07-04',
+      available: true,
+      scope: 'OWN',
+      scopeLabel: 'Phạm vi cá nhân',
+      scopeDetail: 'CP75',
+      coverageLabel: 'Tỉ lệ báo cáo',
+      totalRevenue: 1000000,
+      totalOrders: 2,
+      totalReports: 2,
+      reportedOrders: 1,
+      notPurchasedReports: 1,
+      unreportedOrders: 1,
+      coverageRate: 50,
+      refreshedAt: DateTime.parse('2026-07-04T03:15:00.000Z'),
+    );
+    final details = HomeSalesBehaviorDetails(
+      startDate: '2026-07-04',
+      endDate: '2026-07-04',
+      scope: 'OWN',
+      scopeLabel: 'Phạm vi cá nhân',
+      selectedSalesProgressUserId: null,
+      limit: 200,
+      notPurchasedTotal: 1,
+      unreportedTotal: 1,
+      notPurchasedReports: [
+        HomeNotPurchasedReportDetail(
+          id: 'report-2',
+          submittedAt: DateTime(2026, 7, 4, 9),
+          salesName: 'SA Một',
+          customerName: 'Nguyễn Văn A',
+          customerTypeLabel: 'Doanh nghiệp',
+          categoryName: 'Linh kiện máy tính',
+          notPurchasedReasonLabel: 'Phân vân giá',
+        ),
+      ],
+      unreportedOrders: [
+        HomeUnreportedOrderDetail(
+          orderCode: '2607040002',
+          soldAt: DateTime(2026, 7, 4, 10, 30),
+          salesName: 'SA Hai',
+        ),
+      ],
+    );
+    final repository = _FakeHomeSummaryRepository(
+      summary: summary,
+      salesBehaviorDetails: details,
+    );
+    final summaryProvider = HomeSummaryProvider(repository);
+    addTearDown(summaryProvider.dispose);
+    summaryProvider.syncAuth(_staffUser(), isInitialized: true);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SizedBox(
+              width: 920,
+              child: HomeSummaryPage(provider: summaryProvider),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final notPurchasedTitle = find.byKey(
+      const Key('home-summary-card-notPurchasedReports-title-action'),
+    );
+    await tester.ensureVisible(notPurchasedTitle);
+    await tester.pumpAndSettle();
+    await tester.tap(notPurchasedTitle);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('home-sales-behavior-details-dialog')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('home-not-purchased-details-table')),
+      findsOneWidget,
+    );
+    expect(find.text('Tên SA'), findsOneWidget);
+    expect(find.text('Tên khách hàng'), findsOneWidget);
+    expect(find.text('Loại khách hàng'), findsOneWidget);
+    expect(find.text('Ngành hàng'), findsOneWidget);
+    expect(find.text('Lý do không mua'), findsOneWidget);
+    expect(find.text('SA Một'), findsOneWidget);
+    expect(find.text('Nguyễn Văn A'), findsOneWidget);
+    expect(find.text('Doanh nghiệp'), findsOneWidget);
+    expect(find.text('Linh kiện máy tính'), findsOneWidget);
+    expect(find.text('Phân vân giá'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Đóng'));
+    await tester.pumpAndSettle();
+    final unreportedValue = find.byKey(
+      const Key('home-summary-card-unreportedOrders-value-action'),
+    );
+    await tester.ensureVisible(unreportedValue);
+    await tester.pumpAndSettle();
+    await tester.tap(unreportedValue);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('home-unreported-orders-details-table')),
+      findsOneWidget,
+    );
+    expect(find.text('Mã đơn hàng'), findsOneWidget);
+    expect(find.text('Thời gian bán'), findsOneWidget);
+    expect(find.text('SA Hai'), findsOneWidget);
+    expect(find.text('2607040002'), findsOneWidget);
+    expect(find.text('04/07/2026 10:30'), findsOneWidget);
+    expect(repository.requestedDetailLimits, [200, 200]);
+  });
+
   testWidgets('Quick tool icon and text block share the same vertical center', (
     tester,
   ) async {
@@ -1262,9 +1385,11 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
   final Map<String, HomeSummary> nodeSummaries;
   final Map<String, HomeSummary> salesProgressUserSummaries;
   final List<HomeSummaryScopeOptionDto> scopeOptions;
+  final HomeSalesBehaviorDetails? salesBehaviorDetails;
   final List<String?> requestedScopes = [];
   final List<String?> requestedNodeIds = [];
   final List<String?> requestedSalesProgressUserIds = [];
+  final List<int?> requestedDetailLimits = [];
 
   _FakeHomeSummaryRepository({
     required this.summary,
@@ -1272,6 +1397,7 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
     this.nodeSummaries = const {},
     this.salesProgressUserSummaries = const {},
     this.scopeOptions = const [],
+    this.salesBehaviorDetails,
   }) : super(ApiClient());
 
   @override
@@ -1300,6 +1426,35 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
   @override
   Future<List<HomeSummaryScopeOptionDto>> fetchScopeOptions() async {
     return scopeOptions;
+  }
+
+  @override
+  Future<HomeSalesBehaviorDetails> fetchSalesBehaviorDetails({
+    String? date,
+    String? startDate,
+    String? endDate,
+    String? scope,
+    String? organizationNodeId,
+    String? salesProgressUserId,
+    int? limit,
+  }) async {
+    requestedScopes.add(scope);
+    requestedNodeIds.add(organizationNodeId);
+    requestedSalesProgressUserIds.add(salesProgressUserId);
+    requestedDetailLimits.add(limit);
+    return salesBehaviorDetails ??
+        HomeSalesBehaviorDetails(
+          startDate: startDate ?? date ?? summary.startDate,
+          endDate: endDate ?? date ?? summary.endDate,
+          scope: scope ?? summary.scope,
+          scopeLabel: summary.resolvedScopeLabel,
+          selectedSalesProgressUserId: salesProgressUserId,
+          limit: limit ?? 200,
+          notPurchasedTotal: 0,
+          unreportedTotal: 0,
+          notPurchasedReports: const [],
+          unreportedOrders: const [],
+        );
   }
 }
 

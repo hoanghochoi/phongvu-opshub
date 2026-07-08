@@ -326,3 +326,109 @@ class HomeSalesProgressPeriod {
     );
   }
 }
+
+class HomeSalesBehaviorDetails {
+  const HomeSalesBehaviorDetails({
+    required this.startDate,
+    required this.endDate,
+    required this.scope,
+    required this.scopeLabel,
+    required this.selectedSalesProgressUserId,
+    required this.limit,
+    required this.notPurchasedTotal,
+    required this.unreportedTotal,
+    required this.notPurchasedReports,
+    required this.unreportedOrders,
+  });
+
+  final String startDate;
+  final String endDate;
+  final String scope;
+  final String scopeLabel;
+  final String? selectedSalesProgressUserId;
+  final int limit;
+  final int notPurchasedTotal;
+  final int unreportedTotal;
+  final List<HomeNotPurchasedReportDetail> notPurchasedReports;
+  final List<HomeUnreportedOrderDetail> unreportedOrders;
+
+  factory HomeSalesBehaviorDetails.fromJson(Map<String, dynamic> json) {
+    return HomeSalesBehaviorDetails(
+      startDate: HomeSummary._stringOf(json['startDate']),
+      endDate: HomeSummary._stringOf(json['endDate']),
+      scope: HomeSummary._stringOf(json['scope']),
+      scopeLabel: HomeSummary._stringOf(json['scopeLabel']),
+      selectedSalesProgressUserId: HomeSummary._nullableStringOf(
+        json['selectedSalesProgressUserId'],
+      ),
+      limit: HomeSummary._intOf(json['limit']),
+      notPurchasedTotal: HomeSummary._intOf(json['notPurchasedTotal']),
+      unreportedTotal: HomeSummary._intOf(json['unreportedTotal']),
+      notPurchasedReports: (json['notPurchasedReports'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(HomeNotPurchasedReportDetail.fromJson)
+          .toList(growable: false),
+      unreportedOrders: (json['unreportedOrders'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(HomeUnreportedOrderDetail.fromJson)
+          .where((item) => item.orderCode.isNotEmpty)
+          .toList(growable: false),
+    );
+  }
+}
+
+class HomeNotPurchasedReportDetail {
+  const HomeNotPurchasedReportDetail({
+    required this.id,
+    required this.submittedAt,
+    required this.salesName,
+    required this.customerName,
+    required this.customerTypeLabel,
+    required this.categoryName,
+    required this.notPurchasedReasonLabel,
+  });
+
+  final String id;
+  final DateTime? submittedAt;
+  final String? salesName;
+  final String? customerName;
+  final String? customerTypeLabel;
+  final String? categoryName;
+  final String? notPurchasedReasonLabel;
+
+  factory HomeNotPurchasedReportDetail.fromJson(Map<String, dynamic> json) {
+    return HomeNotPurchasedReportDetail(
+      id: HomeSummary._stringOf(json['id']),
+      submittedAt: HomeSummary._dateTimeOf(json['submittedAt']),
+      salesName: HomeSummary._nullableStringOf(json['salesName']),
+      customerName: HomeSummary._nullableStringOf(json['customerName']),
+      customerTypeLabel: HomeSummary._nullableStringOf(
+        json['customerTypeLabel'],
+      ),
+      categoryName: HomeSummary._nullableStringOf(json['categoryName']),
+      notPurchasedReasonLabel: HomeSummary._nullableStringOf(
+        json['notPurchasedReasonLabel'],
+      ),
+    );
+  }
+}
+
+class HomeUnreportedOrderDetail {
+  const HomeUnreportedOrderDetail({
+    required this.orderCode,
+    required this.soldAt,
+    required this.salesName,
+  });
+
+  final String orderCode;
+  final DateTime? soldAt;
+  final String? salesName;
+
+  factory HomeUnreportedOrderDetail.fromJson(Map<String, dynamic> json) {
+    return HomeUnreportedOrderDetail(
+      orderCode: HomeSummary._stringOf(json['orderCode']),
+      soldAt: HomeSummary._dateTimeOf(json['soldAt']),
+      salesName: HomeSummary._nullableStringOf(json['salesName']),
+    );
+  }
+}

@@ -271,6 +271,86 @@ describe('HomeSummaryService', () => {
     );
   });
 
+  it('returns behavior detail rows for home dashboard cards', async () => {
+    const { service, prisma } = createHarness();
+    prisma.homeSummaryReportFact.findMany
+      .mockResolvedValueOnce([{ orderCode: '2607040001' }])
+      .mockResolvedValueOnce([{ salesReportId: 'report-2' }]);
+    prisma.homeSummaryOrderFact.count.mockReset();
+    prisma.homeSummaryOrderFact.count.mockResolvedValue(1);
+    prisma.homeSummaryOrderFact.findMany.mockResolvedValue([
+      {
+        orderCode: '2607040002',
+        orderCreatedAt: new Date('2026-07-04T05:00:00Z'),
+        fetchedAt: new Date('2026-07-04T05:10:00Z'),
+        consultantName: 'SA Hai',
+        consultantEmail: 'sa2@phongvu.vn',
+        sellerName: null,
+        sellerEmail: null,
+        sourceUserEmail: 'sa2@phongvu.vn',
+      },
+    ]);
+    prisma.salesReport.findMany.mockResolvedValue([
+      {
+        id: 'report-2',
+        submittedAt: new Date('2026-07-04T03:00:00Z'),
+        createdByName: 'SA Một',
+        createdByEmail: 'sa1@phongvu.vn',
+        customerName: 'Nguyễn Văn A',
+        customerType: 'BUSINESS',
+        categoryGroupName: 'Computer components',
+        categoryGroupNameVi: 'Linh kiện máy tính',
+        notPurchasedReason: 'OTHER',
+        notPurchasedOtherReason: 'Chờ chương trình khuyến mãi',
+      },
+    ]);
+
+    const result = await service.getBehaviorDetails(
+      { id: 'manager-1', email: 'manager@phongvu.vn' },
+      { startDate: '2026-07-04', endDate: '2026-07-04', limit: 50 },
+    );
+
+    expect(result).toMatchObject({
+      startDate: '2026-07-04',
+      endDate: '2026-07-04',
+      limit: 50,
+      notPurchasedTotal: 1,
+      unreportedTotal: 1,
+      notPurchasedReports: [
+        {
+          salesName: 'SA Một',
+          customerName: 'Nguyễn Văn A',
+          customerTypeLabel: 'Doanh nghiệp',
+          categoryName: 'Linh kiện máy tính',
+          notPurchasedReasonLabel: 'Khác: Chờ chương trình khuyến mãi',
+        },
+      ],
+      unreportedOrders: [
+        {
+          orderCode: '2607040002',
+          salesName: 'SA Hai',
+          soldAt: new Date('2026-07-04T05:00:00Z'),
+        },
+      ],
+    });
+    expect(prisma.homeSummaryOrderFact.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: expect.arrayContaining([
+            expect.any(Object),
+            { orderCode: { notIn: ['2607040001'] } },
+          ]),
+        }),
+        take: 50,
+      }),
+    );
+    expect(prisma.salesReport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ['report-2'] } },
+      }),
+    );
+  });
+
   it('calculates SA progress from completed reports instead of order cache revenue', async () => {
     const { service, prisma } = createHarness();
     prisma.salesReport.findMany

@@ -1,5 +1,8 @@
 import { ValidationPipe } from '@nestjs/common';
-import { GetHomeSummaryQueryDto } from './home-summary.dto';
+import {
+  GetHomeSummaryDetailsQueryDto,
+  GetHomeSummaryQueryDto,
+} from './home-summary.dto';
 
 describe('GetHomeSummaryQueryDto', () => {
   function createPipe() {
@@ -32,7 +35,48 @@ describe('GetHomeSummaryQueryDto', () => {
       ),
     ).rejects.toMatchObject({
       response: {
-        message: expect.arrayContaining(['property unexpected should not exist']),
+        message: expect.arrayContaining([
+          'property unexpected should not exist',
+        ]),
+        statusCode: 400,
+      },
+    });
+  });
+
+  it('accepts bounded detail limits for dashboard detail tables', async () => {
+    const pipe = createPipe();
+
+    await expect(
+      pipe.transform(
+        { startDate: '2026-07-04', endDate: '2026-07-04', limit: '200' },
+        {
+          type: 'query',
+          metatype: GetHomeSummaryDetailsQueryDto,
+          data: '',
+        },
+      ),
+    ).resolves.toMatchObject({
+      startDate: '2026-07-04',
+      endDate: '2026-07-04',
+      limit: 200,
+    });
+  });
+
+  it('rejects oversized dashboard detail limits', async () => {
+    const pipe = createPipe();
+
+    await expect(
+      pipe.transform(
+        { limit: '501' },
+        {
+          type: 'query',
+          metatype: GetHomeSummaryDetailsQueryDto,
+          data: '',
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        message: expect.arrayContaining(['limit must not be greater than 500']),
         statusCode: 400,
       },
     });

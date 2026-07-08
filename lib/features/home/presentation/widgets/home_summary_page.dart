@@ -146,7 +146,7 @@ class HomeSummaryPage extends StatelessWidget {
         const SizedBox(height: 14),
         const _SummarySubsectionHeader(title: 'Hành vi then chốt'),
         const SizedBox(height: 8),
-        SalesBehaviorSummaryCardGrid(summary: summary),
+        SalesBehaviorSummaryCardGrid(summary: summary, provider: provider),
       ],
       if (summary.financeAvailable) ...[
         const SizedBox(height: AppLayoutTokens.sectionGap),
@@ -622,9 +622,14 @@ class SummaryCardGrid extends StatelessWidget {
 }
 
 class SalesBehaviorSummaryCardGrid extends StatelessWidget {
-  const SalesBehaviorSummaryCardGrid({super.key, required this.summary});
+  const SalesBehaviorSummaryCardGrid({
+    super.key,
+    required this.summary,
+    required this.provider,
+  });
 
   final HomeSummary summary;
+  final HomeSummaryProvider provider;
 
   @override
   Widget build(BuildContext context) {
@@ -636,6 +641,12 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
         value: _integerLabel(summary.notPurchasedReports),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
         color: AppColors.secondary,
+        textTapTooltip: 'Xem chi tiết khách chưa mua',
+        onTextTap: () => _openSalesBehaviorDetailsDialog(
+          context,
+          provider,
+          _SalesBehaviorDetailTab.notPurchased,
+        ),
       ),
       SummaryCard(
         metricKey: 'unreportedOrders',
@@ -646,6 +657,12 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
             ? const SummaryTrend.warning('cần xử lý')
             : const SummaryTrend.success('đã đủ'),
         color: AppColors.warning,
+        textTapTooltip: 'Xem chi tiết đơn chưa báo cáo',
+        onTextTap: () => _openSalesBehaviorDetailsDialog(
+          context,
+          provider,
+          _SalesBehaviorDetailTab.unreported,
+        ),
       ),
       SummaryCard(
         metricKey: 'coverageRate',
@@ -804,6 +821,8 @@ class SummaryCard extends StatelessWidget {
     required this.value,
     required this.trend,
     required this.color,
+    this.onTextTap,
+    this.textTapTooltip,
   });
 
   final String metricKey;
@@ -812,10 +831,40 @@ class SummaryCard extends StatelessWidget {
   final String value;
   final SummaryTrend trend;
   final Color color;
+  final VoidCallback? onTextTap;
+  final String? textTapTooltip;
 
   @override
   Widget build(BuildContext context) {
     final trendColor = trend.color;
+    final lowerText = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.headingM.copyWith(
+            color: AppColors.textPrimaryOf(context),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(trend.icon, size: 15, color: trendColor),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                trend.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.captionBold.copyWith(color: trendColor),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
     return AppSurfaceCard(
       key: Key('home-summary-card-$metricKey'),
       borderColor: color.withValues(alpha: 0.20),
@@ -841,45 +890,417 @@ class SummaryCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelM.copyWith(
-                    color: AppColors.textPrimaryOf(context),
+                child: _SummaryCardTextAction(
+                  key: Key('home-summary-card-$metricKey-title-action'),
+                  onTap: onTextTap,
+                  tooltip: textTapTooltip,
+                  child: Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.labelM.copyWith(
+                      color: AppColors.textPrimaryOf(context),
+                    ),
                   ),
                 ),
               ),
             ],
           ),
           const Spacer(),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.headingM.copyWith(
-              color: AppColors.textPrimaryOf(context),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(trend.icon, size: 15, color: trendColor),
-              const SizedBox(width: 5),
-              Flexible(
-                child: Text(
-                  trend.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.captionBold.copyWith(color: trendColor),
-                ),
-              ),
-            ],
+          _SummaryCardTextAction(
+            key: Key('home-summary-card-$metricKey-value-action'),
+            onTap: onTextTap,
+            tooltip: textTapTooltip,
+            child: lowerText,
           ),
         ],
       ),
     );
   }
+}
+
+class _SummaryCardTextAction extends StatelessWidget {
+  const _SummaryCardTextAction({
+    super.key,
+    required this.child,
+    required this.onTap,
+    required this.tooltip,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    if (onTap == null) return child;
+    final action = Semantics(
+      button: true,
+      child: Material(
+        color: AppColors.transparent,
+        borderRadius: AppRadius.allSm,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadius.allSm,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+            child: child,
+          ),
+        ),
+      ),
+    );
+    if (tooltip == null) return action;
+    return Tooltip(message: tooltip!, child: action);
+  }
+}
+
+enum _SalesBehaviorDetailTab { notPurchased, unreported }
+
+void _openSalesBehaviorDetailsDialog(
+  BuildContext context,
+  HomeSummaryProvider provider,
+  _SalesBehaviorDetailTab initialTab,
+) {
+  unawaited(
+    showDialog<void>(
+      context: context,
+      barrierColor: AppColors.shadow.withValues(alpha: 0.48),
+      builder: (context) => _SalesBehaviorDetailsDialog(
+        provider: provider,
+        initialTab: initialTab,
+      ),
+    ),
+  );
+}
+
+class _SalesBehaviorDetailsDialog extends StatefulWidget {
+  const _SalesBehaviorDetailsDialog({
+    required this.provider,
+    required this.initialTab,
+  });
+
+  final HomeSummaryProvider provider;
+  final _SalesBehaviorDetailTab initialTab;
+
+  @override
+  State<_SalesBehaviorDetailsDialog> createState() =>
+      _SalesBehaviorDetailsDialogState();
+}
+
+class _SalesBehaviorDetailsDialogState
+    extends State<_SalesBehaviorDetailsDialog> {
+  late _SalesBehaviorDetailTab _selectedTab;
+  late Future<HomeSalesBehaviorDetails> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTab = widget.initialTab;
+    _future = widget.provider.fetchSalesBehaviorDetails(
+      source: _selectedTab == _SalesBehaviorDetailTab.notPurchased
+          ? 'not_purchased_card'
+          : 'unreported_orders_card',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenSize = MediaQuery.sizeOf(context);
+    final maxWidth = math.min(math.max(screenSize.width - 24, 0.0), 980.0);
+    final maxHeight = math.min(math.max(screenSize.height - 24, 0.0), 720.0);
+    return Dialog(
+      key: const Key('home-sales-behavior-details-dialog'),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      backgroundColor: AppColors.cardOf(context),
+      shape: RoundedRectangleBorder(borderRadius: AppRadius.allMd),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Chi tiết Hành vi then chốt',
+                      style: AppTextStyles.headingS.copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Đóng',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              FutureBuilder<HomeSalesBehaviorDetails>(
+                future: _future,
+                builder: (context, snapshot) {
+                  final details = snapshot.data;
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _DetailTabPill(
+                        key: const Key('home-sales-behavior-tab-not-purchased'),
+                        label: 'Khách chưa mua',
+                        count: details?.notPurchasedTotal,
+                        selected:
+                            _selectedTab ==
+                            _SalesBehaviorDetailTab.notPurchased,
+                        onTap: () => setState(
+                          () => _selectedTab =
+                              _SalesBehaviorDetailTab.notPurchased,
+                        ),
+                      ),
+                      _DetailTabPill(
+                        key: const Key('home-sales-behavior-tab-unreported'),
+                        label: 'Đơn chưa báo cáo',
+                        count: details?.unreportedTotal,
+                        selected:
+                            _selectedTab == _SalesBehaviorDetailTab.unreported,
+                        onTap: () => setState(
+                          () =>
+                              _selectedTab = _SalesBehaviorDetailTab.unreported,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: FutureBuilder<HomeSalesBehaviorDetails>(
+                  future: _future,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const AppStatePanel.loading(
+                        title: 'Đang tải chi tiết',
+                        message:
+                            'Hệ thống đang lấy danh sách theo phạm vi hiện tại.',
+                      );
+                    }
+                    if (snapshot.hasError || !snapshot.hasData) {
+                      return AppStatePanel.error(
+                        title: 'Chưa tải được chi tiết',
+                        message:
+                            'Kiểm tra kết nối rồi thử mở lại bảng chi tiết.',
+                      );
+                    }
+                    return _SalesBehaviorDetailsTable(
+                      details: snapshot.data!,
+                      selectedTab: _selectedTab,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailTabPill extends StatelessWidget {
+  const _DetailTabPill({
+    super.key,
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final int? count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected
+        ? AppColors.primaryOf(context)
+        : AppColors.neutral700;
+    return Material(
+      color: selected
+          ? AppColors.primaryOf(context).withValues(alpha: 0.10)
+          : AppColors.chipBackground,
+      borderRadius: AppRadius.allSm,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.allSm,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text(
+            count == null ? label : '$label (${_integerLabel(count!)})',
+            style: AppTextStyles.labelS.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SalesBehaviorDetailsTable extends StatelessWidget {
+  const _SalesBehaviorDetailsTable({
+    required this.details,
+    required this.selectedTab,
+  });
+
+  final HomeSalesBehaviorDetails details;
+  final _SalesBehaviorDetailTab selectedTab;
+
+  @override
+  Widget build(BuildContext context) {
+    final isNotPurchased = selectedTab == _SalesBehaviorDetailTab.notPurchased;
+    final rowCount = isNotPurchased
+        ? details.notPurchasedReports.length
+        : details.unreportedOrders.length;
+    final total = isNotPurchased
+        ? details.notPurchasedTotal
+        : details.unreportedTotal;
+    if (rowCount == 0) {
+      return const AppStatePanel.empty(
+        title: 'Chưa có dòng chi tiết',
+        message: 'Không có báo cáo phù hợp với phạm vi và ngày đang xem.',
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          _detailCountLabel(rowCount, total),
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.textMutedOf(context),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Scrollbar(
+            child: SingleChildScrollView(
+              child: Scrollbar(
+                notificationPredicate: (notification) =>
+                    notification.metrics.axis == Axis.horizontal,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: isNotPurchased ? 860 : 560,
+                    ),
+                    child: isNotPurchased
+                        ? _NotPurchasedDetailsDataTable(
+                            rows: details.notPurchasedReports,
+                          )
+                        : _UnreportedOrdersDetailsDataTable(
+                            rows: details.unreportedOrders,
+                          ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NotPurchasedDetailsDataTable extends StatelessWidget {
+  const _NotPurchasedDetailsDataTable({required this.rows});
+
+  final List<HomeNotPurchasedReportDetail> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return DataTable(
+      key: const Key('home-not-purchased-details-table'),
+      headingTextStyle: AppTextStyles.labelS.copyWith(
+        color: AppColors.textPrimaryOf(context),
+        fontWeight: FontWeight.w800,
+      ),
+      dataTextStyle: AppTextStyles.bodyS.copyWith(
+        color: AppColors.textPrimaryOf(context),
+      ),
+      columns: const [
+        DataColumn(label: Text('Tên SA')),
+        DataColumn(label: Text('Tên khách hàng')),
+        DataColumn(label: Text('Loại khách hàng')),
+        DataColumn(label: Text('Ngành hàng')),
+        DataColumn(label: Text('Lý do không mua')),
+      ],
+      rows: [
+        for (final row in rows)
+          DataRow(
+            cells: [
+              DataCell(Text(_valueOrEmpty(row.salesName))),
+              DataCell(Text(_valueOrEmpty(row.customerName))),
+              DataCell(Text(_valueOrEmpty(row.customerTypeLabel))),
+              DataCell(Text(_valueOrEmpty(row.categoryName))),
+              DataCell(Text(_valueOrEmpty(row.notPurchasedReasonLabel))),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+class _UnreportedOrdersDetailsDataTable extends StatelessWidget {
+  const _UnreportedOrdersDetailsDataTable({required this.rows});
+
+  final List<HomeUnreportedOrderDetail> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return DataTable(
+      key: const Key('home-unreported-orders-details-table'),
+      headingTextStyle: AppTextStyles.labelS.copyWith(
+        color: AppColors.textPrimaryOf(context),
+        fontWeight: FontWeight.w800,
+      ),
+      dataTextStyle: AppTextStyles.bodyS.copyWith(
+        color: AppColors.textPrimaryOf(context),
+      ),
+      columns: const [
+        DataColumn(label: Text('Tên SA')),
+        DataColumn(label: Text('Mã đơn hàng')),
+        DataColumn(label: Text('Thời gian bán')),
+      ],
+      rows: [
+        for (final row in rows)
+          DataRow(
+            cells: [
+              DataCell(Text(_valueOrEmpty(row.salesName))),
+              DataCell(Text(row.orderCode)),
+              DataCell(Text(_dateTimeLabel(row.soldAt))),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+String _detailCountLabel(int visible, int total) {
+  if (visible >= total) return 'Hiển thị ${_integerLabel(visible)} dòng.';
+  return 'Hiển thị ${_integerLabel(visible)}/${_integerLabel(total)} dòng gần nhất.';
+}
+
+String _dateTimeLabel(DateTime? value) {
+  if (value == null) return 'Chưa có thông tin';
+  return DateFormat('dd/MM/yyyy HH:mm').format(value.toLocal());
+}
+
+String _valueOrEmpty(String? value) {
+  final text = value?.trim();
+  return text == null || text.isEmpty ? 'Chưa có thông tin' : text;
 }
 
 class SummaryTrend {

@@ -45,6 +45,14 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `HOME-DASHBOARD-002`, 2026-07-08: Card `Số khách chưa mua` và
+  `Số đơn chưa báo cáo` trong nhóm `Hành vi then chốt` mở modal chi tiết khi
+  bấm phần chữ. Modal dùng cùng ngày/scope/SA đang chọn, có bảng cuộn dọc và
+  ngang cho màn nhỏ; khách chưa mua hiển thị Tên SA, Tên khách hàng, Loại khách
+  hàng, Ngành hàng, Lý do không mua; đơn chưa báo cáo hiển thị Tên SA, Mã đơn
+  hàng, Thời gian bán. Validation: focused Home Summary
+  service/controller/dto Jest, Nest build, focused Home dashboard Flutter
+  widget test, `flutter analyze --no-pub`, `git diff --check`.
 - `HOME-DASHBOARD-002`, 2026-07-08: `Tổng quan` desktop giữ đủ 4 card trên
   một hàng khi đủ rộng, với `Tiến độ báo cáo` + `Tiến độ sao kê` gộp bằng một
   phần ba chiều ngang và hai card doanh số mỗi card một phần ba. `Tổng quan cá

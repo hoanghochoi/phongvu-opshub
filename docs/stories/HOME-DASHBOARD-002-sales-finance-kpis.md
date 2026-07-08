@@ -25,6 +25,11 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
 - Nhóm `Hành vi then chốt` hiển thị `Số khách chưa mua`,
   `Số đơn chưa báo cáo`, `Tỉ lệ báo cáo`, `Tỉ lệ 3 giải pháp`,
   `Tỉ lệ trải nghiệm`, `Tỉ lệ Zalo OA` và `Tỉ lệ tải App`.
+- Bấm vào phần chữ của card `Số khách chưa mua` hoặc `Số đơn chưa báo cáo` mở
+  modal chi tiết theo cùng ngày/scope/SA đang chọn. Modal phù hợp desktop,
+  tablet, mobile và cho phép cuộn dọc/ngang khi màn hình nhỏ. Bảng khách chưa
+  mua có Tên SA, Tên khách hàng, Loại khách hàng, Ngành hàng, Lý do không mua;
+  bảng đơn chưa báo cáo có Tên SA, Mã đơn hàng, Thời gian bán.
 - `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn hợp lệ`.
 - `Tỉ lệ chuyển đổi = tổng số đơn / tổng số báo cáo`.
 - Các tỉ lệ hành vi tính bằng số báo cáo có câu trả lời `Có` (`YES`) chia cho

@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { FeatureService } from '../feature/feature.service';
@@ -12,12 +17,33 @@ import {
   SalesReportSummaryScopeDescriptor,
   SalesReportsService,
 } from '../sales-reports/sales-reports.service';
-import { GetHomeSummaryQueryDto } from './home-summary.dto';
+import {
+  GetHomeSummaryDetailsQueryDto,
+  GetHomeSummaryQueryDto,
+} from './home-summary.dto';
 
 const REPORT_TYPE_PURCHASED = 'PURCHASED';
 const REPORT_TYPE_NOT_PURCHASED = 'NOT_PURCHASED';
 const COVERAGE_LABEL = 'Tỉ lệ báo cáo';
 const DEFAULT_HOME_SUMMARY_RANGE_DAYS = 30;
+const DEFAULT_HOME_SUMMARY_DETAIL_LIMIT = 200;
+
+const NOT_PURCHASED_LABELS: Record<string, string> = {
+  NOT_SOLD: 'Chưa kinh doanh',
+  SERVICE: 'Dịch vụ',
+  CUSTOMER_BROWSING: 'Khách tham khảo',
+  NO_DEMO_STOCK: 'Không có hàng trải nghiệm',
+  NO_AVAILABLE_STOCK: 'Không có sẵn hàng',
+  PRICE_HESITATION: 'Phân vân giá',
+  COMPARE_COMPETITOR: 'So sánh đối thủ',
+  SPEC_NOT_COMPATIBLE: 'Thông số kỹ thuật chưa tương thích',
+  OTHER: 'Khác',
+};
+
+const CUSTOMER_TYPE_LABELS: Record<string, string> = {
+  BUSINESS: 'Doanh nghiệp',
+  PERSONAL: 'Cá nhân',
+};
 
 type DateRange = {
   start: Date;
@@ -96,6 +122,37 @@ type HomeSummaryScopeOptionResponse = {
   organizationNodeType: string | null;
   storeCount: number | null;
   isDefault: boolean;
+};
+
+type HomeSummaryNotPurchasedDetail = {
+  id: string;
+  submittedAt: Date;
+  salesName: string | null;
+  customerName: string | null;
+  customerType: string | null;
+  customerTypeLabel: string | null;
+  categoryName: string | null;
+  notPurchasedReason: string | null;
+  notPurchasedReasonLabel: string | null;
+};
+
+type HomeSummaryUnreportedOrderDetail = {
+  orderCode: string;
+  soldAt: Date | null;
+  salesName: string | null;
+};
+
+type HomeSummaryBehaviorDetailsResponse = {
+  startDate: string;
+  endDate: string;
+  scope: string;
+  scopeLabel: string;
+  selectedSalesProgressUserId: string | null;
+  limit: number;
+  notPurchasedTotal: number;
+  unreportedTotal: number;
+  notPurchasedReports: HomeSummaryNotPurchasedDetail[];
+  unreportedOrders: HomeSummaryUnreportedOrderDetail[];
 };
 
 type SalesBehaviorYesCounts = {
@@ -380,6 +437,163 @@ export class HomeSummaryService {
     };
     this.logger.log(
       `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesMetricsScope=${salesMetricsScope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
+    );
+    return response;
+  }
+
+  async getBehaviorDetails(
+    user: any,
+    query: GetHomeSummaryDetailsQueryDto,
+  ): Promise<HomeSummaryBehaviorDetailsResponse> {
+    const startedAt = Date.now();
+    const range = this.parseSummaryRange(query);
+    const requestedScope = this.parseScopeParam(query.scope);
+    const limit = this.normalizeDetailLimit(query.limit);
+    const requestedSalesProgressUserId = this.optionalText(
+      query.salesProgressUserId,
+      80,
+    );
+    this.logger.log(
+      `Home summary behavior details load started: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} salesProgressUserId=${requestedSalesProgressUserId || 'none'} limit=${limit}`,
+    );
+
+    const { salesAvailable } = await this.resolveSectionAccess(user);
+    if (!salesAvailable) {
+      this.logger.warn(
+        `Home summary behavior details rejected: user=${this.safeUserLabel(user)} reason=no_sales_dashboard_access durationMs=${Date.now() - startedAt}`,
+      );
+      throw new ForbiddenException(
+        'Bạn chưa có quyền xem chi tiết bán hàng trên dashboard.',
+      );
+    }
+
+    const scope = await this.salesReports.describeHomeSummaryScope(
+      user,
+      requestedScope,
+      this.optionalText(query.organizationNodeId, 80),
+      { allowOwnScope: true },
+    );
+    if (!scope.available) {
+      this.logger.warn(
+        `Home summary behavior details unavailable: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} message=${scope.unavailableMessage || 'none'} durationMs=${Date.now() - startedAt}`,
+      );
+      throw new ForbiddenException(
+        scope.unavailableMessage ||
+          'Tài khoản hiện chưa có phạm vi dữ liệu để xem chi tiết.',
+      );
+    }
+
+    const selectedSalesScope = await this.resolveSelectedSalesMetricsScope(
+      user,
+      scope,
+      requestedSalesProgressUserId,
+    );
+    const salesMetricsScope = selectedSalesScope.scope;
+    const reportWhere = this.reportScopeWhere(salesMetricsScope, range);
+    const salesOrderWhere = this.orderScopeWhere(salesMetricsScope, range);
+    const notPurchasedFactWhere = {
+      ...reportWhere,
+      reportType: REPORT_TYPE_NOT_PURCHASED,
+    };
+    const reportedCodeRows = await this.homeSummaryReportFact.findMany({
+      where: {
+        ...reportWhere,
+        reportType: REPORT_TYPE_PURCHASED,
+        orderCode: { not: null },
+      },
+      select: { orderCode: true },
+    });
+    const reportedCodes = Array.from(
+      new Set(
+        reportedCodeRows
+          .map((row: { orderCode: string | null }) =>
+            this.normalizeOrderCode(row.orderCode),
+          )
+          .filter((value: string | null): value is string => Boolean(value)),
+      ),
+    );
+    const unreportedWhere =
+      reportedCodes.length > 0
+        ? { AND: [salesOrderWhere, { orderCode: { notIn: reportedCodes } }] }
+        : salesOrderWhere;
+
+    const [
+      notPurchasedTotal,
+      notPurchasedFacts,
+      unreportedTotal,
+      unreportedOrders,
+    ] = await this.prisma.$transaction([
+      this.homeSummaryReportFact.count({ where: notPurchasedFactWhere }),
+      this.homeSummaryReportFact.findMany({
+        where: notPurchasedFactWhere,
+        orderBy: [{ submittedAt: 'desc' }],
+        take: limit,
+        select: { salesReportId: true },
+      }),
+      this.homeSummaryOrderFact.count({ where: unreportedWhere }),
+      this.homeSummaryOrderFact.findMany({
+        where: unreportedWhere,
+        orderBy: [
+          { orderCreatedAt: 'desc' },
+          { fetchedAt: 'desc' },
+          { updatedAt: 'desc' },
+        ],
+        take: limit,
+        select: {
+          orderCode: true,
+          orderCreatedAt: true,
+          fetchedAt: true,
+          consultantName: true,
+          consultantEmail: true,
+          sellerName: true,
+          sellerEmail: true,
+          sourceUserEmail: true,
+        },
+      }),
+    ]);
+    const reportIds = notPurchasedFacts
+      .map((row: { salesReportId: string | null }) =>
+        this.optionalText(row.salesReportId, 80),
+      )
+      .filter((value: string | null): value is string => Boolean(value));
+    const notPurchasedReports =
+      reportIds.length === 0
+        ? []
+        : await this.prisma.salesReport.findMany({
+            where: { id: { in: reportIds } },
+            orderBy: { submittedAt: 'desc' },
+            select: {
+              id: true,
+              submittedAt: true,
+              createdByName: true,
+              createdByEmail: true,
+              customerName: true,
+              customerType: true,
+              categoryGroupName: true,
+              categoryGroupNameVi: true,
+              notPurchasedReason: true,
+              notPurchasedOtherReason: true,
+            },
+          });
+
+    const response: HomeSummaryBehaviorDetailsResponse = {
+      startDate: range.startDate,
+      endDate: range.endDate,
+      scope: salesMetricsScope.scope,
+      scopeLabel: salesMetricsScope.scopeLabel,
+      selectedSalesProgressUserId: selectedSalesScope.selectedUserId,
+      limit,
+      notPurchasedTotal,
+      unreportedTotal,
+      notPurchasedReports: notPurchasedReports.map((row: any) =>
+        this.toHomeNotPurchasedDetail(row),
+      ),
+      unreportedOrders: unreportedOrders.map((row: any) =>
+        this.toHomeUnreportedOrderDetail(row),
+      ),
+    };
+    this.logger.log(
+      `Home summary behavior details load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scope=${salesMetricsScope.scope} selectedSalesProgressUserId=${selectedSalesScope.selectedUserId || 'none'} notPurchased=${response.notPurchasedReports.length}/${notPurchasedTotal} unreported=${response.unreportedOrders.length}/${unreportedTotal} limit=${limit} durationMs=${Date.now() - startedAt}`,
     );
     return response;
   }
@@ -1142,6 +1356,25 @@ export class HomeSummaryService {
     return total ? Number(((count / total) * 100).toFixed(2)) : 0;
   }
 
+  private async resolveSelectedSalesMetricsScope(
+    user: any,
+    scope: SalesReportSummaryScopeDescriptor,
+    requestedUserId: string | null,
+  ): Promise<{
+    scope: SalesReportSummaryScopeDescriptor;
+    selectedUserId: string | null;
+  }> {
+    const requested = this.optionalText(requestedUserId, 80);
+    if (!requested) return { scope, selectedUserId: null };
+    const assignees = await this.salesProgressAssigneesForScope(user, scope);
+    const selected = this.selectSalesProgressAssignee(assignees, requested);
+    if (!selected) return { scope, selectedUserId: null };
+    return {
+      scope: this.salesProgressScopeForAssignee(selected),
+      selectedUserId: selected.userId,
+    };
+  }
+
   private async buildSalesProgressBundle(
     user: any,
     scope: SalesReportSummaryScopeDescriptor,
@@ -1778,6 +2011,63 @@ export class HomeSummaryService {
     const text = String(value || '').trim();
     if (!text) return null;
     return text.slice(0, maxLength);
+  }
+
+  private normalizeDetailLimit(value?: number | null) {
+    const parsed = Number(value ?? DEFAULT_HOME_SUMMARY_DETAIL_LIMIT);
+    if (!Number.isFinite(parsed)) return DEFAULT_HOME_SUMMARY_DETAIL_LIMIT;
+    return Math.min(500, Math.max(1, Math.floor(parsed)));
+  }
+
+  private toHomeNotPurchasedDetail(row: any): HomeSummaryNotPurchasedDetail {
+    const customerType = this.optionalText(row.customerType, 40);
+    const reason = this.optionalText(row.notPurchasedReason, 80);
+    return {
+      id: String(row.id),
+      submittedAt: row.submittedAt,
+      salesName: this.displayPersonName(row.createdByName, row.createdByEmail),
+      customerName: this.optionalText(row.customerName, 160),
+      customerType,
+      customerTypeLabel: customerType
+        ? this.customerTypeLabel(customerType)
+        : null,
+      categoryName:
+        this.optionalText(row.categoryGroupNameVi, 160) ??
+        this.optionalText(row.categoryGroupName, 160),
+      notPurchasedReason: reason,
+      notPurchasedReasonLabel: this.notPurchasedReasonLabel(
+        reason,
+        row.notPurchasedOtherReason,
+      ),
+    };
+  }
+
+  private toHomeUnreportedOrderDetail(
+    row: any,
+  ): HomeSummaryUnreportedOrderDetail {
+    return {
+      orderCode: this.normalizeOrderCode(row.orderCode) ?? '',
+      soldAt: row.orderCreatedAt ?? row.fetchedAt ?? null,
+      salesName: this.displayPersonName(
+        row.consultantName ?? row.sellerName,
+        row.consultantEmail ?? row.sellerEmail ?? row.sourceUserEmail,
+      ),
+    };
+  }
+
+  private displayPersonName(name: unknown, email: unknown) {
+    return this.optionalText(name, 120) ?? this.normalizeEmail(email) ?? null;
+  }
+
+  private customerTypeLabel(code: string) {
+    return CUSTOMER_TYPE_LABELS[code] ?? code;
+  }
+
+  private notPurchasedReasonLabel(code: string | null, other: unknown) {
+    if (!code) return null;
+    const label = NOT_PURCHASED_LABELS[code] ?? code;
+    const otherText = this.optionalText(other, 240);
+    return code === 'OTHER' && otherText ? `${label}: ${otherText}` : label;
   }
 
   private safeUserLabel(user: any) {
