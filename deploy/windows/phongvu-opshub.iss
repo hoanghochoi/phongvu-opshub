@@ -66,7 +66,7 @@ Name: "{group}\{#AppName}"; Filename: "{app}\phongvu_opshub.exe"
 Name: "{userdesktop}\{#AppName}"; Filename: "{app}\phongvu_opshub.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\phongvu_opshub.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent; Check: ShouldLaunchApp
+Filename: "{app}\phongvu_opshub.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall; Check: ShouldLaunchApp
 
 [Code]
 function WaveOutGetNumDevs(): Integer;
@@ -260,9 +260,39 @@ begin
   end;
 end;
 
+function OpsHubRelaunchRequested(): Boolean;
+var
+  Index: Integer;
+  Argument: String;
+begin
+  Result := False;
+  for Index := 1 to ParamCount do
+  begin
+    Argument := UpperCase(ParamStr(Index));
+    if (Argument = '/OPSHUBRELAUNCH') or (Argument = '/OPSHUBRELAUNCH=1') then
+    begin
+      Result := True;
+      Exit;
+    end;
+  end;
+end;
+
 function ShouldLaunchApp(): Boolean;
 begin
   Result := not VcRedistNeedsRestart;
   if not Result then
+  begin
     Log('Skipping postinstall app launch because Microsoft Visual C++ Redistributable x64 requested a restart.');
+    Exit;
+  end;
+
+  if WizardSilent and not OpsHubRelaunchRequested() then
+  begin
+    Result := False;
+    Log('Skipping postinstall app launch because setup is silent and /OPSHUBRELAUNCH=1 was not provided.');
+    Exit;
+  end;
+
+  if WizardSilent then
+    Log('Silent postinstall app launch requested by /OPSHUBRELAUNCH=1.');
 end;

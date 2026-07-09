@@ -614,9 +614,7 @@ class _UpdatePromptOverlay extends StatelessWidget {
                       ),
                       if (!shouldReload) ...[
                         const SizedBox(height: 10),
-                        Text(
-                          'Sau khi cập nhật xong, hãy mở lại ứng dụng để dùng phiên bản mới.',
-                        ),
+                        Text(_postInstallInstruction(updateInfo.platform)),
                       ],
                       if (updateInfo.releaseNotes.isNotEmpty) ...[
                         const SizedBox(height: 12),
@@ -663,5 +661,16 @@ class _UpdatePromptOverlay extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _postInstallInstruction(String platform) {
+    final normalized = platform.toLowerCase();
+    if (normalized == 'windows') {
+      return 'Sau khi cài xong, OpsHub sẽ tự mở lại. Nếu Windows yêu cầu khởi động lại, hãy mở OpsHub sau khi máy sẵn sàng.';
+    }
+    if (normalized == 'android') {
+      return 'Sau khi Android cài xong, hãy mở lại OpsHub nếu hệ thống chưa tự quay lại ứng dụng.';
+    }
+    return 'Sau khi cập nhật xong, hãy mở lại ứng dụng để dùng phiên bản mới.';
   }
 }

@@ -39,7 +39,10 @@ void main() {
 
       expect(installRequest, isNotNull);
       expect(installRequest!.filePath, endsWith('opshub.exe'));
-      expect(installRequest!.installerArgs, ['/VERYSILENT']);
+      expect(installRequest!.installerArgs, [
+        '/VERYSILENT',
+        '/OPSHUBRELAUNCH=1',
+      ]);
       expect(
         progress.map((item) => item.stage),
         contains(AppSelfUpdateStage.downloading),
@@ -47,6 +50,32 @@ void main() {
       expect(progress.last.stage, AppSelfUpdateStage.installing);
       expect(await File(installRequest!.filePath).readAsBytes(), bytes);
     });
+
+    test(
+      'uses relaunch default when Windows installer args are absent',
+      () async {
+        final bytes = 'fake installer bytes'.codeUnits;
+        AppUpdateInstallRequest? installRequest;
+        final service = AppSelfUpdateService(
+          httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
+          tempDirectoryProvider: () async => tempDir,
+          installer: (request) async => installRequest = request,
+        );
+
+        await service.downloadAndInstall(
+          _resultFor(bytes, installerArgs: const <String>[]),
+        );
+
+        expect(installRequest, isNotNull);
+        expect(installRequest!.installerArgs, [
+          '/VERYSILENT',
+          '/SUPPRESSMSGBOXES',
+          '/NORESTART',
+          '/CLOSEAPPLICATIONS',
+          '/OPSHUBRELAUNCH=1',
+        ]);
+      },
+    );
 
     test('stops when checksum does not match', () async {
       final bytes = 'fake installer bytes'.codeUnits;
@@ -80,7 +109,11 @@ void main() {
   });
 }
 
-AppUpdateCheckResult _resultFor(List<int> bytes, {String? sha256Override}) {
+AppUpdateCheckResult _resultFor(
+  List<int> bytes, {
+  String? sha256Override,
+  List<String>? installerArgs,
+}) {
   final digest = sha256.convert(bytes).toString();
   return AppUpdateCheckResult(
     currentVersion: '2026.07.01.1',
@@ -95,7 +128,7 @@ AppUpdateCheckResult _resultFor(List<int> bytes, {String? sha256Override}) {
       packageSha256: sha256Override ?? digest,
       packageSizeBytes: bytes.length,
       packageType: 'windowsInstaller',
-      installerArgs: ['/VERYSILENT'],
+      installerArgs: installerArgs ?? ['/VERYSILENT', '/OPSHUBRELAUNCH=1'],
       releaseNotes: 'Test build',
       forceUpdate: false,
     ),

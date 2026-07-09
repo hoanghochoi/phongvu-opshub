@@ -238,5 +238,6 @@ function defaultInstallerArgs(platform: string): string[] {
     '/SUPPRESSMSGBOXES',
     '/NORESTART',
     '/CLOSEAPPLICATIONS',
+    '/OPSHUBRELAUNCH=1',
   ];
 }

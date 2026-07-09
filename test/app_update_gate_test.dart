@@ -85,7 +85,7 @@ void main() {
     expect(find.text('Để sau'), findsNothing);
     expect(
       find.text(
-        'Sau khi cập nhật xong, hãy mở lại ứng dụng để dùng phiên bản mới.',
+        'Sau khi cài xong, OpsHub sẽ tự mở lại. Nếu Windows yêu cầu khởi động lại, hãy mở OpsHub sau khi máy sẵn sàng.',
       ),
       findsOneWidget,
     );
@@ -305,7 +305,7 @@ AppUpdateCheckResult _optionalUpdateResultForBuild(int latestBuild) {
           'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
       packageSizeBytes: 20,
       packageType: 'windowsInstaller',
-      installerArgs: ['/VERYSILENT'],
+      installerArgs: ['/VERYSILENT', '/OPSHUBRELAUNCH=1'],
       releaseNotes: 'Bản cập nhật realtime',
       forceUpdate: false,
     ),
@@ -339,7 +339,7 @@ const _requiredUpdateInfo = AppUpdateInfo(
       'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
   packageSizeBytes: 20,
   packageType: 'windowsInstaller',
-  installerArgs: ['/VERYSILENT'],
+  installerArgs: ['/VERYSILENT', '/OPSHUBRELAUNCH=1'],
   releaseNotes: 'Bản cập nhật bắt buộc',
   forceUpdate: true,
 );

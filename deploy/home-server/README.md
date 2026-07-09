@@ -199,8 +199,10 @@ images, or app-version metadata.
 New Android and Windows clients use `/app-version` package metadata to update
 inside the app: they download `packageUrl`, verify `packageSha256` and
 `packageSizeBytes`, then open the OS installer. Windows uses silent Inno Setup
-args from `APP_WINDOWS_APP_INSTALLER_ARGS`; Android still uses the system
-Package Installer confirmation screen for self-hosted APKs.
+args from `APP_WINDOWS_APP_INSTALLER_ARGS`; include `/OPSHUBRELAUNCH=1` so
+self-update launches OpsHub again after the silent installer completes. Android
+still uses the system Package Installer confirmation screen for self-hosted
+APKs.
 
 Required GitHub repository secrets:
 

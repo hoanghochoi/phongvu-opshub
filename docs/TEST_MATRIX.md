@@ -152,8 +152,9 @@ test\app_shell_route_viewport_test.dart`.
 - `UPDATE-004`, 2026-07-06: Android/Windows update prompt now starts an
   in-app self-update flow instead of opening the browser: client downloads
   `packageUrl`, verifies SHA-256/size, logs progress/failure via `AppLogger`,
-  Windows launches the Inno installer with silent args, and Android opens the
-  system Package Installer through a FileProvider after package/signature
+  Windows launches the Inno installer with silent args and `/OPSHUBRELAUNCH=1`
+  so OpsHub opens again after silent install, and Android opens the system
+  Package Installer through a FileProvider after package/signature
   checks. Deploy workflows now publish and verify package metadata on
   `/app-version`. Validation: focused Flutter update tests and focused NestJS
   app-version tests. Gap: manual Android and Windows installed-build update
@@ -1539,6 +1540,13 @@ windows --debug --no-pub`, and `flutter build apk --debug --no-pub`. Gap:
 
 ## Recent Evidence
 
+- UPDATE-004, 2026-07-09: Windows self-update now publishes
+  `/OPSHUBRELAUNCH=1` in installer args and the Inno script only relaunches
+  OpsHub during silent install when that flag is present. Validation:
+  focused Flutter update tests (17), focused NestJS app-version tests (7),
+  `flutter analyze --no-pub`, backend `npm run build`, Windows debug build,
+  Inno Setup 6.7.0 compile-check, focused TS Prettier check, and
+  `git diff --check`. Gap: live installed self-update smoke remains pending.
 - UI-UX-001, 2026-07-03: Redesign audit baseline now has a status addendum so
   the 30/06/2026 score is not mistaken for the current migration state. The
   addendum points acceptance tracking to the gap map and this matrix, records

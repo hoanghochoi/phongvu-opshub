@@ -27,6 +27,14 @@ class AppSelfUpdateService {
   static const _androidChannel = MethodChannel('phongvu_opshub/app_update');
   static const _connectTimeout = Duration(seconds: 30);
   static const _chunkTimeout = Duration(minutes: 5);
+  static const _windowsRelaunchArg = '/OPSHUBRELAUNCH=1';
+  static const _defaultWindowsInstallerArgs = [
+    '/VERYSILENT',
+    '/SUPPRESSMSGBOXES',
+    '/NORESTART',
+    '/CLOSEAPPLICATIONS',
+    _windowsRelaunchArg,
+  ];
 
   final http.Client _httpClient;
   final AppUpdatePackageInstaller _installer;
@@ -85,7 +93,7 @@ class AppSelfUpdateService {
           platform: info.platform,
           packageType: info.packageType,
           filePath: file.path,
-          installerArgs: info.installerArgs,
+          installerArgs: _installerArgsFor(info),
         ),
       );
       await AppLogger.instance.info(
@@ -248,12 +256,7 @@ class AppSelfUpdateService {
     if (request.platform == 'windows' || Platform.isWindows) {
       final args = request.installerArgs.isNotEmpty
           ? request.installerArgs
-          : const [
-              '/VERYSILENT',
-              '/SUPPRESSMSGBOXES',
-              '/NORESTART',
-              '/CLOSEAPPLICATIONS',
-            ];
+          : _defaultWindowsInstallerArgs;
       await Process.start(
         request.filePath,
         args,
@@ -294,14 +297,33 @@ class AppSelfUpdateService {
   }
 
   static Map<String, Object?> _logContext(AppUpdateCheckResult result) {
+    final updateInfo = result.updateInfo;
     return {
-      'platform': result.updateInfo.platform,
+      'platform': updateInfo.platform,
       'currentBuild': result.currentBuild,
-      'latestBuild': result.updateInfo.latestBuild,
-      'packageType': result.updateInfo.packageType,
-      'packageSizeBytes': result.updateInfo.packageSizeBytes,
-      'hasSha256': result.updateInfo.packageSha256.isNotEmpty,
+      'latestBuild': updateInfo.latestBuild,
+      'packageType': updateInfo.packageType,
+      'packageSizeBytes': updateInfo.packageSizeBytes,
+      'hasSha256': updateInfo.packageSha256.isNotEmpty,
+      'windowsRelaunchRequested': updateInfo.platform.toLowerCase() == 'windows'
+          ? _hasWindowsRelaunchArg(_installerArgsFor(updateInfo))
+          : null,
     };
+  }
+
+  static List<String> _installerArgsFor(AppUpdateInfo info) {
+    if (info.platform.toLowerCase() != 'windows') return info.installerArgs;
+    return info.installerArgs.isNotEmpty
+        ? info.installerArgs
+        : _defaultWindowsInstallerArgs;
+  }
+
+  static bool _hasWindowsRelaunchArg(List<String> args) {
+    return args.any((arg) {
+      final normalized = arg.trim().toUpperCase();
+      return normalized == '/OPSHUBRELAUNCH' ||
+          normalized == _windowsRelaunchArg;
+    });
   }
 
   static void _emit(

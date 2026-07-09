@@ -534,7 +534,7 @@ jobs:
           windows_package_sha256="$(ssh opshub-vps "sha256sum '/srv/opshub/downloads/${{ needs.prepare.outputs.windows_installer_name }}' | awk '{print \$1}'")"
           android_package_size_bytes="$(ssh opshub-vps "stat -c%s '/srv/opshub/downloads/${{ needs.prepare.outputs.apk_name }}'")"
           windows_package_size_bytes="$(ssh opshub-vps "stat -c%s '/srv/opshub/downloads/${{ needs.prepare.outputs.windows_installer_name }}'")"
-          windows_installer_args="/VERYSILENT,/SUPPRESSMSGBOXES,/NORESTART,/CLOSEAPPLICATIONS"
+          windows_installer_args="/VERYSILENT,/SUPPRESSMSGBOXES,/NORESTART,/CLOSEAPPLICATIONS,/OPSHUBRELAUNCH=1"
           ssh opshub-vps \
             "REMOTE_RELEASE_DIR='$remote_release_dir' \
              CLIENT_STAGING_DIR='$client_staging_dir' \
@@ -823,6 +823,9 @@ jobs:
             if (windows.packageType !== 'windowsInstaller') throw new Error('Windows packageType must be windowsInstaller');
             if (!Array.isArray(windows.installerArgs) || !windows.installerArgs.includes('/VERYSILENT')) {
               throw new Error('Windows installerArgs must include /VERYSILENT');
+            }
+            if (!windows.installerArgs.includes('/OPSHUBRELAUNCH=1')) {
+              throw new Error('Windows installerArgs must include /OPSHUBRELAUNCH=1');
             }
             if (web.platform !== 'web') throw new Error('Web app-version did not report platform=web');
             if (String(web.updateUrl || '') !== '') throw new Error('Web updateUrl must be empty');

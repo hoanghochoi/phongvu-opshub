@@ -93,6 +93,7 @@ describe('AppVersionService', () => {
         '/SUPPRESSMSGBOXES',
         '/NORESTART',
         '/CLOSEAPPLICATIONS',
+        '/OPSHUBRELAUNCH=1',
       ],
       releaseNotes: 'Windows fixes',
       forceUpdate: true,
