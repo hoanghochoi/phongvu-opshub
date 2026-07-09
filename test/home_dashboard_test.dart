@@ -55,6 +55,20 @@ void main() {
       'averageOrderValue': 2500000,
       'completedRevenue': 90000000,
       'pendingRevenue': 35000000,
+      'businessCustomerRevenue': 60000000,
+      'personalCustomerRevenue': 65000000,
+      'examScorePromotionCount': 3,
+      'studentPromotionCount': 4,
+      'installmentNeedCount': 5,
+      'successfulInstallmentCount': 2,
+      'extendedInsuranceQuantity': 7,
+      'laptopQuantity': 8,
+      'pcQuantity': 9,
+      'assembledPcQuantity': 1,
+      'appleQuantity': 6,
+      'monitorQuantity': 10,
+      'printerQuantity': 11,
+      'accessoriesQuantity': 12,
       'consultedSolutionRate': 75,
       'experiencedRate': 50,
       'zaloRate': 25,
@@ -73,6 +87,20 @@ void main() {
     expect(summary.averageOrderValue, 2500000);
     expect(summary.completedRevenue, 90000000);
     expect(summary.pendingRevenue, 35000000);
+    expect(summary.businessCustomerRevenue, 60000000);
+    expect(summary.personalCustomerRevenue, 65000000);
+    expect(summary.examScorePromotionCount, 3);
+    expect(summary.studentPromotionCount, 4);
+    expect(summary.installmentNeedCount, 5);
+    expect(summary.successfulInstallmentCount, 2);
+    expect(summary.extendedInsuranceQuantity, 7);
+    expect(summary.laptopQuantity, 8);
+    expect(summary.pcQuantity, 9);
+    expect(summary.assembledPcQuantity, 1);
+    expect(summary.appleQuantity, 6);
+    expect(summary.monitorQuantity, 10);
+    expect(summary.printerQuantity, 11);
+    expect(summary.accessoriesQuantity, 12);
     expect(summary.consultedSolutionRate, 75);
     expect(summary.experiencedRate, 50);
     expect(summary.zaloRate, 25);
@@ -129,6 +157,20 @@ void main() {
             averageOrderValue: 2500000,
             completedRevenue: 100000000,
             pendingRevenue: 25000000,
+            businessCustomerRevenue: 60000000,
+            personalCustomerRevenue: 65000000,
+            examScorePromotionCount: 3,
+            studentPromotionCount: 4,
+            installmentNeedCount: 5,
+            successfulInstallmentCount: 2,
+            extendedInsuranceQuantity: 7,
+            laptopQuantity: 8,
+            pcQuantity: 9,
+            assembledPcQuantity: 1,
+            appleQuantity: 6,
+            monitorQuantity: 10,
+            printerQuantity: 11,
+            accessoriesQuantity: 12,
             coverageRate: 83.33,
             conversionRate: 110.53,
             consultedSolutionRate: 75,
@@ -227,6 +269,10 @@ void main() {
         find.byKey(const Key('home-sales-behavior-summary-grid')),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const Key('home-main-kpi-summary-grid')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('home-summary-date-range')), findsOneWidget);
       expect(
         find.byKey(const Key('home-summary-refresh-button')),
@@ -288,6 +334,7 @@ void main() {
       expect(structuredChildren[0], isA<HomeSummaryHeader>());
       expect(find.text('Bán hàng'), findsOneWidget);
       expect(find.text('Doanh số'), findsOneWidget);
+      expect(find.text('KPI chính'), findsOneWidget);
       expect(find.text('Hành vi then chốt'), findsOneWidget);
       expect(find.text('Tài chính'), findsOneWidget);
       expect(find.text('Tỉ lệ báo cáo'), findsWidgets);
@@ -297,6 +344,20 @@ void main() {
       expect(find.text('Trung bình đơn hàng'), findsOneWidget);
       expect(find.text('Doanh số hoàn thành'), findsOneWidget);
       expect(find.text('Pending'), findsOneWidget);
+      expect(find.text('Doanh số khách hàng doanh nghiệp'), findsOneWidget);
+      expect(find.text('Doanh số khách hàng cá nhân'), findsOneWidget);
+      expect(find.text('Số lượng CTKM đổi điểm thi'), findsOneWidget);
+      expect(find.text('Số lượng CTKM HSSV'), findsOneWidget);
+      expect(find.text('Số lượng nhu cầu trả góp'), findsOneWidget);
+      expect(find.text('Số lượng trả góp thành công'), findsOneWidget);
+      expect(find.text('Số lượng bảo hiểm mở rộng'), findsOneWidget);
+      expect(find.text('Số lượng laptop'), findsOneWidget);
+      expect(find.text('Số lượng PC bộ'), findsOneWidget);
+      expect(find.text('Số lượng PC ráp'), findsOneWidget);
+      expect(find.text('Số lượng Apple'), findsOneWidget);
+      expect(find.text('Số lượng màn hình'), findsOneWidget);
+      expect(find.text('Số lượng máy in'), findsOneWidget);
+      expect(find.text('Số lượng phụ kiện'), findsOneWidget);
       expect(find.text('Số khách chưa mua'), findsOneWidget);
       expect(find.text('Tỉ lệ 3 giải pháp'), findsOneWidget);
       expect(find.text('Tỉ lệ trải nghiệm'), findsOneWidget);
@@ -323,6 +384,31 @@ void main() {
       expect(find.text('100M VND'), findsOneWidget);
       expect(find.text('25M VND'), findsWidgets);
       expect(find.text('2,5M VND'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const Key('home-summary-card-businessCustomerRevenue'),
+          ),
+          matching: find.text('60M VND'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const Key('home-summary-card-personalCustomerRevenue'),
+          ),
+          matching: find.text('65M VND'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-card-appleQuantity')),
+          matching: find.text('6'),
+        ),
+        findsOneWidget,
+      );
       final salesGrid = tester.widget<Wrap>(
         find.byKey(const Key('home-summary-grid')),
       );
@@ -356,6 +442,31 @@ void main() {
           'experiencedRate',
           'zaloRate',
           'appDownloadRate',
+        ]),
+      );
+      final mainKpiGrid = tester.widget<Wrap>(
+        find.byKey(const Key('home-main-kpi-summary-grid')),
+      );
+      final mainKpiMetricKeys = mainKpiGrid.children
+          .map((child) => ((child as SizedBox).child! as SummaryCard).metricKey)
+          .toList();
+      expect(
+        mainKpiMetricKeys,
+        containsAllInOrder([
+          'businessCustomerRevenue',
+          'personalCustomerRevenue',
+          'examScorePromotionCount',
+          'studentPromotionCount',
+          'installmentNeedCount',
+          'successfulInstallmentCount',
+          'extendedInsuranceQuantity',
+          'laptopQuantity',
+          'pcQuantity',
+          'assembledPcQuantity',
+          'appleQuantity',
+          'monitorQuantity',
+          'printerQuantity',
+          'accessoriesQuantity',
         ]),
       );
       expect(
@@ -746,6 +857,84 @@ void main() {
     expect(notPurchased.dy, first.dy);
     expect(last.dy, first.dy);
     expect(notPurchased.dx, lessThan(last.dx));
+  });
+
+  testWidgets('Home main KPI grid keeps requested two desktop rows', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const summary = HomeSummary(
+      date: '2026-07-06',
+      available: true,
+      scope: 'OWN',
+      scopeLabel: 'Phạm vi cá nhân',
+      scopeDetail: 'CP01',
+      coverageLabel: 'Tỉ lệ báo cáo',
+      totalRevenue: 1000000,
+      totalOrders: 10,
+      totalReports: 8,
+      reportedOrders: 6,
+      unreportedOrders: 4,
+      businessCustomerRevenue: 600000,
+      personalCustomerRevenue: 400000,
+      examScorePromotionCount: 1,
+      studentPromotionCount: 2,
+      installmentNeedCount: 3,
+      successfulInstallmentCount: 4,
+      extendedInsuranceQuantity: 5,
+      laptopQuantity: 6,
+      pcQuantity: 7,
+      assembledPcQuantity: 1,
+      appleQuantity: 8,
+      monitorQuantity: 9,
+      printerQuantity: 10,
+      accessoriesQuantity: 11,
+      coverageRate: 60,
+      refreshedAt: null,
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 1200,
+            child: MainKpiSummaryCardGrid(summary: summary),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const Key('home-main-kpi-summary-grid-row-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('home-main-kpi-summary-grid-row-2')),
+      findsOneWidget,
+    );
+
+    final business = tester.getTopLeft(
+      find.byKey(const Key('home-summary-card-businessCustomerRevenue')),
+    );
+    final successfulInstallment = tester.getTopLeft(
+      find.byKey(const Key('home-summary-card-successfulInstallmentCount')),
+    );
+    final insurance = tester.getTopLeft(
+      find.byKey(const Key('home-summary-card-extendedInsuranceQuantity')),
+    );
+    final accessories = tester.getTopLeft(
+      find.byKey(const Key('home-summary-card-accessoriesQuantity')),
+    );
+
+    expect(successfulInstallment.dy, business.dy);
+    expect(successfulInstallment.dx, greaterThan(business.dx));
+    expect(insurance.dy, greaterThan(business.dy));
+    expect(accessories.dy, insurance.dy);
+    expect(accessories.dx, greaterThan(insurance.dx));
   });
 
   testWidgets('Home KPI grid falls back to one card when extremely narrow', (

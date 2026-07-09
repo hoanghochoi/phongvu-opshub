@@ -185,6 +185,24 @@ describe('HomeSummaryService', () => {
         ownPersonnelCode: 'PV001',
         allowedStoreCodes: ['CP75'],
       }),
+      summarizeSalesRevenueRows: jest.fn().mockReturnValue({
+        orderCountUnique: 2,
+        businessRevenue: 12500000,
+        personalRevenue: 4000000,
+        noInstallmentReasons: new Map(),
+        installmentNeedTotalCount: 2,
+        examScorePromotionCount: 1,
+        studentPromotionCount: 1,
+        successfulInstallmentOrderCount: 1,
+        laptopQuantity: 2,
+        pcQuantity: 1,
+        assembledPcQuantity: 1,
+        appleQuantity: 1,
+        monitorQuantity: 3,
+        printerQuantity: 1,
+        accessoriesQuantity: 4,
+        extendedInsuranceQuantity: 1,
+      }),
     };
     const featureService = {
       canAccessFeature: jest.fn().mockResolvedValue(true),
@@ -219,6 +237,20 @@ describe('HomeSummaryService', () => {
       averageOrderValue: 8250000,
       completedRevenue: 12500000,
       pendingRevenue: 4000000,
+      businessCustomerRevenue: 12500000,
+      personalCustomerRevenue: 4000000,
+      examScorePromotionCount: 1,
+      studentPromotionCount: 1,
+      installmentNeedCount: 2,
+      successfulInstallmentCount: 1,
+      extendedInsuranceQuantity: 1,
+      laptopQuantity: 2,
+      pcQuantity: 1,
+      assembledPcQuantity: 1,
+      appleQuantity: 1,
+      monitorQuantity: 3,
+      printerQuantity: 1,
+      accessoriesQuantity: 4,
       coverageRate: 50,
       conversionRate: 100,
       consultedSolutionRate: 50,
@@ -258,6 +290,7 @@ describe('HomeSummaryService', () => {
         where: expect.objectContaining({ consultedSolutionAnswer: 'YES' }),
       }),
     );
+    expect(salesReports.summarizeSalesRevenueRows).toHaveBeenCalled();
     expect(prisma.mapVietinTransaction.aggregate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -912,7 +945,11 @@ describe('HomeSummaryService', () => {
       .map(([args]: any[]) => args.where)
       .filter((where: any) => JSON.stringify(where).includes('sa2@phongvu.vn'));
     expect(selectedSaReportQueries.length).toBeGreaterThan(0);
-    for (const where of selectedSaReportQueries) {
+    const selectedSaProgressReportQueries = selectedSaReportQueries.filter(
+      (where: any) => JSON.stringify(where).includes('erpLifecycleStatus'),
+    );
+    expect(selectedSaProgressReportQueries.length).toBeGreaterThan(0);
+    for (const where of selectedSaProgressReportQueries) {
       expect(where).toEqual(
         expect.objectContaining({
           AND: expect.arrayContaining([
@@ -931,6 +968,23 @@ describe('HomeSummaryService', () => {
         }),
       );
     }
+    const selectedSaMainKpiQuery = selectedSaReportQueries.find(
+      (where: any) =>
+        JSON.stringify(where).includes('erpExcludedAt') &&
+        !JSON.stringify(where).includes('erpLifecycleStatus'),
+    );
+    expect(selectedSaMainKpiQuery).toEqual(
+      expect.objectContaining({
+        AND: expect.arrayContaining([
+          {
+            createdByEmail: {
+              equals: 'sa2@phongvu.vn',
+              mode: 'insensitive',
+            },
+          },
+        ]),
+      }),
+    );
     expect(prisma.mapVietinTransaction.count).toHaveBeenNthCalledWith(1, {
       where: expect.objectContaining({
         AND: expect.arrayContaining([{ storeCode: { in: ['CP75'] } }]),

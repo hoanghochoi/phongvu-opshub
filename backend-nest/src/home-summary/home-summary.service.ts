@@ -68,6 +68,20 @@ type HomeSummaryResponse = SalesReportOperatingSummary & {
   averageOrderValue: number;
   completedRevenue: number;
   pendingRevenue: number;
+  businessCustomerRevenue: number;
+  personalCustomerRevenue: number;
+  examScorePromotionCount: number;
+  studentPromotionCount: number;
+  installmentNeedCount: number;
+  successfulInstallmentCount: number;
+  extendedInsuranceQuantity: number;
+  laptopQuantity: number;
+  pcQuantity: number;
+  assembledPcQuantity: number;
+  appleQuantity: number;
+  monitorQuantity: number;
+  printerQuantity: number;
+  accessoriesQuantity: number;
   consultedSolutionRate: number;
   experiencedRate: number;
   zaloRate: number;
@@ -160,6 +174,23 @@ type SalesBehaviorYesCounts = {
   experienced: number;
   zalo: number;
   appDownload: number;
+};
+
+type HomeSalesMainKpiSummary = {
+  businessCustomerRevenue: number;
+  personalCustomerRevenue: number;
+  examScorePromotionCount: number;
+  studentPromotionCount: number;
+  installmentNeedCount: number;
+  successfulInstallmentCount: number;
+  extendedInsuranceQuantity: number;
+  laptopQuantity: number;
+  pcQuantity: number;
+  assembledPcQuantity: number;
+  appleQuantity: number;
+  monitorQuantity: number;
+  printerQuantity: number;
+  accessoriesQuantity: number;
 };
 
 @Injectable()
@@ -264,6 +295,7 @@ export class HomeSummaryService {
     let reportedOrders = 0;
     let notPurchasedReports = 0;
     let completedRevenue = 0;
+    let mainKpis = this.emptyMainKpis();
     let behaviorYesCounts = this.emptyBehaviorYesCounts();
     if (salesAvailable) {
       const reportWhere = this.reportScopeWhere(salesMetricsScope, range);
@@ -311,11 +343,13 @@ export class HomeSummaryService {
               },
             })
           : 0;
-      [totalRevenue, completedRevenue, behaviorYesCounts] = await Promise.all([
-        this.totalCacheRevenue(salesMetricsScope, range),
-        this.completedRevenue(salesMetricsScope, range),
-        this.countBehaviorYesReports(salesMetricsScope, range),
-      ]);
+      [totalRevenue, completedRevenue, behaviorYesCounts, mainKpis] =
+        await Promise.all([
+          this.totalCacheRevenue(salesMetricsScope, range),
+          this.completedRevenue(salesMetricsScope, range),
+          this.countBehaviorYesReports(salesMetricsScope, range),
+          this.buildSalesMainKpis(salesMetricsScope, range),
+        ]);
     }
 
     let totalStatements = 0;
@@ -414,6 +448,7 @@ export class HomeSummaryService {
       averageOrderValue,
       completedRevenue,
       pendingRevenue,
+      ...mainKpis,
       coverageRate,
       conversionRate,
       consultedSolutionRate,
@@ -436,7 +471,7 @@ export class HomeSummaryService {
       unavailableMessage: null,
     };
     this.logger.log(
-      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesMetricsScope=${salesMetricsScope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
+      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesMetricsScope=${salesMetricsScope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} businessCustomerRevenue=${mainKpis.businessCustomerRevenue} personalCustomerRevenue=${mainKpis.personalCustomerRevenue} installmentNeedCount=${mainKpis.installmentNeedCount} successfulInstallmentCount=${mainKpis.successfulInstallmentCount} laptopQuantity=${mainKpis.laptopQuantity} pcQuantity=${mainKpis.pcQuantity} assembledPcQuantity=${mainKpis.assembledPcQuantity} appleQuantity=${mainKpis.appleQuantity} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
     );
     return response;
   }
@@ -1356,6 +1391,75 @@ export class HomeSummaryService {
     return total ? Number(((count / total) * 100).toFixed(2)) : 0;
   }
 
+  private async buildSalesMainKpis(
+    scope: SalesReportSummaryScopeDescriptor,
+    range: DateRange,
+  ): Promise<HomeSalesMainKpiSummary> {
+    const rows = await this.prisma.salesReport.findMany({
+      where: this.salesReportMainKpiWhere(scope, range),
+      select: {
+        id: true,
+        reportType: true,
+        orderCode: true,
+        erpOrderId: true,
+        customerType: true,
+        erpGrandTotal: true,
+        erpPaymentMethods: true,
+        promotionCodes: true,
+        installmentNeed: true,
+        installmentNoInstallmentReason: true,
+        items: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            name: true,
+            productTypeName: true,
+            productGroupName: true,
+            categoryType: true,
+            quantity: true,
+            finalSellPrice: true,
+            rowTotal: true,
+          },
+        },
+      },
+    });
+    const summary = this.salesReports.summarizeSalesRevenueRows(rows);
+    return {
+      businessCustomerRevenue: summary.businessRevenue,
+      personalCustomerRevenue: summary.personalRevenue,
+      examScorePromotionCount: summary.examScorePromotionCount,
+      studentPromotionCount: summary.studentPromotionCount,
+      installmentNeedCount: summary.installmentNeedTotalCount,
+      successfulInstallmentCount: summary.successfulInstallmentOrderCount,
+      extendedInsuranceQuantity: summary.extendedInsuranceQuantity,
+      laptopQuantity: summary.laptopQuantity,
+      pcQuantity: summary.pcQuantity,
+      assembledPcQuantity: summary.assembledPcQuantity,
+      appleQuantity: summary.appleQuantity,
+      monitorQuantity: summary.monitorQuantity,
+      printerQuantity: summary.printerQuantity,
+      accessoriesQuantity: summary.accessoriesQuantity,
+    };
+  }
+
+  private emptyMainKpis(): HomeSalesMainKpiSummary {
+    return {
+      businessCustomerRevenue: 0,
+      personalCustomerRevenue: 0,
+      examScorePromotionCount: 0,
+      studentPromotionCount: 0,
+      installmentNeedCount: 0,
+      successfulInstallmentCount: 0,
+      extendedInsuranceQuantity: 0,
+      laptopQuantity: 0,
+      pcQuantity: 0,
+      assembledPcQuantity: 0,
+      appleQuantity: 0,
+      monitorQuantity: 0,
+      printerQuantity: 0,
+      accessoriesQuantity: 0,
+    };
+  }
+
   private async resolveSelectedSalesMetricsScope(
     user: any,
     scope: SalesReportSummaryScopeDescriptor,
@@ -1692,6 +1796,31 @@ export class HomeSummaryService {
     return { AND: filters };
   }
 
+  private salesReportMainKpiWhere(
+    scope: SalesReportSummaryScopeDescriptor,
+    range: DateRange,
+  ): Prisma.SalesReportWhereInput {
+    const base: Prisma.SalesReportWhereInput = {
+      erpExcludedAt: null,
+      ...this.reportedOrderDateWhere(range),
+    };
+    if (scope.scope === 'ALL') return base;
+    if (scope.scope === 'MANAGED_SCOPE') {
+      return { AND: [base, { storeCode: { in: scope.allowedStoreCodes } }] };
+    }
+    const email = this.personalEmail(scope);
+    if (!email) {
+      return { AND: [base, { id: '__NO_PERSONAL_MAIN_KPI_REPORT__' }] };
+    }
+    const filters: Prisma.SalesReportWhereInput[] = [
+      base,
+      { createdByEmail: { equals: email, mode: 'insensitive' } },
+    ];
+    const storeGuard = this.personalStoreGuard(scope);
+    if (storeGuard) filters.push(storeGuard as Prisma.SalesReportWhereInput);
+    return { AND: filters };
+  }
+
   private salesProgressRanges(summaryDate: Date) {
     const local = new Date(summaryDate.getTime() + 7 * 60 * 60 * 1000);
     const year = local.getUTCFullYear();
@@ -1892,6 +2021,7 @@ export class HomeSummaryService {
       averageOrderValue: 0,
       completedRevenue: 0,
       pendingRevenue: 0,
+      ...this.emptyMainKpis(),
       coverageRate: 0,
       conversionRate: 0,
       consultedSolutionRate: 0,

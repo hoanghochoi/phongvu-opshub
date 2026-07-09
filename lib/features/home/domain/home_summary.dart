@@ -18,6 +18,20 @@ class HomeSummary {
   final int averageOrderValue;
   final int completedRevenue;
   final int pendingRevenue;
+  final int businessCustomerRevenue;
+  final int personalCustomerRevenue;
+  final int examScorePromotionCount;
+  final int studentPromotionCount;
+  final int installmentNeedCount;
+  final int successfulInstallmentCount;
+  final int extendedInsuranceQuantity;
+  final int laptopQuantity;
+  final int pcQuantity;
+  final int assembledPcQuantity;
+  final int appleQuantity;
+  final int monitorQuantity;
+  final int printerQuantity;
+  final int accessoriesQuantity;
   final double coverageRate;
   final double conversionRate;
   final double consultedSolutionRate;
@@ -57,6 +71,20 @@ class HomeSummary {
     this.averageOrderValue = 0,
     this.completedRevenue = 0,
     this.pendingRevenue = 0,
+    this.businessCustomerRevenue = 0,
+    this.personalCustomerRevenue = 0,
+    this.examScorePromotionCount = 0,
+    this.studentPromotionCount = 0,
+    this.installmentNeedCount = 0,
+    this.successfulInstallmentCount = 0,
+    this.extendedInsuranceQuantity = 0,
+    this.laptopQuantity = 0,
+    this.pcQuantity = 0,
+    this.assembledPcQuantity = 0,
+    this.appleQuantity = 0,
+    this.monitorQuantity = 0,
+    this.printerQuantity = 0,
+    this.accessoriesQuantity = 0,
     required this.coverageRate,
     this.conversionRate = 0,
     this.consultedSolutionRate = 0,
@@ -108,6 +136,20 @@ class HomeSummary {
       averageOrderValue: _intOf(json['averageOrderValue']),
       completedRevenue: _intOf(json['completedRevenue']),
       pendingRevenue: _intOf(json['pendingRevenue']),
+      businessCustomerRevenue: _intOf(json['businessCustomerRevenue']),
+      personalCustomerRevenue: _intOf(json['personalCustomerRevenue']),
+      examScorePromotionCount: _intOf(json['examScorePromotionCount']),
+      studentPromotionCount: _intOf(json['studentPromotionCount']),
+      installmentNeedCount: _intOf(json['installmentNeedCount']),
+      successfulInstallmentCount: _intOf(json['successfulInstallmentCount']),
+      extendedInsuranceQuantity: _intOf(json['extendedInsuranceQuantity']),
+      laptopQuantity: _intOf(json['laptopQuantity']),
+      pcQuantity: _intOf(json['pcQuantity']),
+      assembledPcQuantity: _intOf(json['assembledPcQuantity']),
+      appleQuantity: _intOf(json['appleQuantity']),
+      monitorQuantity: _intOf(json['monitorQuantity']),
+      printerQuantity: _intOf(json['printerQuantity']),
+      accessoriesQuantity: _intOf(json['accessoriesQuantity']),
       coverageRate: _coverageOf(json['coverageRate']),
       conversionRate: _coverageOf(json['conversionRate']),
       consultedSolutionRate: _coverageOf(json['consultedSolutionRate']),
@@ -155,6 +197,20 @@ class HomeSummary {
       averageOrderValue > 0 ||
       completedRevenue > 0 ||
       pendingRevenue > 0 ||
+      businessCustomerRevenue > 0 ||
+      personalCustomerRevenue > 0 ||
+      examScorePromotionCount > 0 ||
+      studentPromotionCount > 0 ||
+      installmentNeedCount > 0 ||
+      successfulInstallmentCount > 0 ||
+      extendedInsuranceQuantity > 0 ||
+      laptopQuantity > 0 ||
+      pcQuantity > 0 ||
+      assembledPcQuantity > 0 ||
+      appleQuantity > 0 ||
+      monitorQuantity > 0 ||
+      printerQuantity > 0 ||
+      accessoriesQuantity > 0 ||
       totalTransferredAmount > 0 ||
       totalStatements > 0 ||
       totalStatementsWithOrder > 0 ||

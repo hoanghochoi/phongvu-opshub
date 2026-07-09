@@ -1965,6 +1965,22 @@ describe('SalesReportsService', () => {
     expect(rows[1][13]).toBe('Khách từ chối: Lãi suất/Phí trả góp cao: 1');
   });
 
+  it('summarizes promotion counts for Home main KPIs', () => {
+    const { service } = createHarness();
+
+    const summary = service.summarizeSalesRevenueRows([
+      { ...exportReportFixture(), promotionCodes: ['EXAM_SCORE_EXCHANGE'] },
+      { ...exportReportFixture(), promotionCodes: ['STUDENT'] },
+      {
+        ...exportReportFixture(),
+        promotionCodes: ['EXAM_SCORE_EXCHANGE', 'STUDENT'],
+      },
+    ]);
+
+    expect(summary.examScorePromotionCount).toBe(2);
+    expect(summary.studentPromotionCount).toBe(2);
+  });
+
   it('exports installment XLSX rows only for installment reports', async () => {
     const { service, prisma } = createHarness();
     prisma.salesReport.findMany.mockResolvedValueOnce([

@@ -144,6 +144,10 @@ class HomeSummaryPage extends StatelessWidget {
         const SizedBox(height: 8),
         SummaryCardGrid(summary: summary),
         const SizedBox(height: 14),
+        const _SummarySubsectionHeader(title: 'KPI chính'),
+        const SizedBox(height: 8),
+        MainKpiSummaryCardGrid(summary: summary),
+        const SizedBox(height: 14),
         const _SummarySubsectionHeader(title: 'Hành vi then chốt'),
         const SizedBox(height: 8),
         SalesBehaviorSummaryCardGrid(summary: summary, provider: provider),
@@ -621,6 +625,158 @@ class SummaryCardGrid extends StatelessWidget {
   }
 }
 
+class MainKpiSummaryCardGrid extends StatelessWidget {
+  const MainKpiSummaryCardGrid({super.key, required this.summary});
+
+  final HomeSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final firstRow = [
+      SummaryCard(
+        metricKey: 'businessCustomerRevenue',
+        icon: Icons.business_center_outlined,
+        title: 'Doanh số khách hàng doanh nghiệp',
+        value: formatCompactVndAmount(summary.businessCustomerRevenue),
+        trend: const SummaryTrend.neutral('Theo báo cáo'),
+        color: AppColors.success,
+      ),
+      SummaryCard(
+        metricKey: 'personalCustomerRevenue',
+        icon: Icons.person_outline_rounded,
+        title: 'Doanh số khách hàng cá nhân',
+        value: formatCompactVndAmount(summary.personalCustomerRevenue),
+        trend: const SummaryTrend.neutral('Theo báo cáo'),
+        color: AppColors.primary,
+      ),
+      SummaryCard(
+        metricKey: 'examScorePromotionCount',
+        icon: Icons.redeem_outlined,
+        title: 'Số lượng CTKM đổi điểm thi',
+        value: _integerLabel(summary.examScorePromotionCount),
+        trend: const SummaryTrend.neutral('Theo báo cáo'),
+        color: AppColors.secondary,
+      ),
+      SummaryCard(
+        metricKey: 'studentPromotionCount',
+        icon: Icons.school_outlined,
+        title: 'Số lượng CTKM HSSV',
+        value: _integerLabel(summary.studentPromotionCount),
+        trend: const SummaryTrend.neutral('Theo báo cáo'),
+        color: AppColors.info,
+      ),
+      SummaryCard(
+        metricKey: 'installmentNeedCount',
+        icon: Icons.request_quote_outlined,
+        title: 'Số lượng nhu cầu trả góp',
+        value: _integerLabel(summary.installmentNeedCount),
+        trend: const SummaryTrend.neutral('Theo báo cáo'),
+        color: AppColors.warning,
+      ),
+      SummaryCard(
+        metricKey: 'successfulInstallmentCount',
+        icon: Icons.verified_user_outlined,
+        title: 'Số lượng trả góp thành công',
+        value: _integerLabel(summary.successfulInstallmentCount),
+        trend: const SummaryTrend.success('Có đơn trả góp'),
+        color: AppColors.success,
+      ),
+    ];
+    final secondRow = [
+      SummaryCard(
+        metricKey: 'extendedInsuranceQuantity',
+        icon: Icons.health_and_safety_outlined,
+        title: 'Số lượng bảo hiểm mở rộng',
+        value: _integerLabel(summary.extendedInsuranceQuantity),
+        trend: const SummaryTrend.neutral('Theo số lượng'),
+        color: AppColors.secondary,
+      ),
+      SummaryCard(
+        metricKey: 'laptopQuantity',
+        icon: Icons.laptop_mac_outlined,
+        title: 'Số lượng laptop',
+        value: _integerLabel(summary.laptopQuantity),
+        trend: const SummaryTrend.neutral('Theo số lượng'),
+        color: AppColors.primary,
+      ),
+      SummaryCard(
+        metricKey: 'pcQuantity',
+        icon: Icons.desktop_windows_outlined,
+        title: 'Số lượng PC bộ',
+        value: _integerLabel(summary.pcQuantity),
+        trend: const SummaryTrend.neutral('Theo số lượng'),
+        color: AppColors.info,
+      ),
+      SummaryCard(
+        metricKey: 'assembledPcQuantity',
+        icon: Icons.memory_outlined,
+        title: 'Số lượng PC ráp',
+        value: _integerLabel(summary.assembledPcQuantity),
+        trend: const SummaryTrend.neutral('Theo bộ ráp'),
+        color: AppColors.warning,
+      ),
+      SummaryCard(
+        metricKey: 'appleQuantity',
+        icon: Icons.devices_other_outlined,
+        title: 'Số lượng Apple',
+        value: _integerLabel(summary.appleQuantity),
+        trend: const SummaryTrend.neutral('iPhone/MacBook/iPad'),
+        color: AppColors.success,
+      ),
+      SummaryCard(
+        metricKey: 'monitorQuantity',
+        icon: Icons.monitor_outlined,
+        title: 'Số lượng màn hình',
+        value: _integerLabel(summary.monitorQuantity),
+        trend: const SummaryTrend.neutral('Theo số lượng'),
+        color: AppColors.primary,
+      ),
+      SummaryCard(
+        metricKey: 'printerQuantity',
+        icon: Icons.print_outlined,
+        title: 'Số lượng máy in',
+        value: _integerLabel(summary.printerQuantity),
+        trend: const SummaryTrend.neutral('Theo số lượng'),
+        color: AppColors.secondary,
+      ),
+      SummaryCard(
+        metricKey: 'accessoriesQuantity',
+        icon: Icons.cable_outlined,
+        title: 'Số lượng phụ kiện',
+        value: _integerLabel(summary.accessoriesQuantity),
+        trend: const SummaryTrend.neutral('Theo số lượng'),
+        color: AppColors.info,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 1120) {
+          return Column(
+            children: [
+              _SummaryMetricGrid(
+                gridKey: const Key('home-main-kpi-summary-grid-row-1'),
+                cards: firstRow,
+                wideColumnCount: firstRow.length,
+              ),
+              const SizedBox(height: AppLayoutTokens.cardGap),
+              _SummaryMetricGrid(
+                gridKey: const Key('home-main-kpi-summary-grid-row-2'),
+                cards: secondRow,
+                wideColumnCount: secondRow.length,
+              ),
+            ],
+          );
+        }
+        return _SummaryMetricGrid(
+          gridKey: const Key('home-main-kpi-summary-grid'),
+          cards: [...firstRow, ...secondRow],
+        );
+      },
+    );
+  }
+}
+
 class SalesBehaviorSummaryCardGrid extends StatelessWidget {
   const SalesBehaviorSummaryCardGrid({
     super.key,
@@ -773,10 +929,15 @@ class FinanceSummaryCardGrid extends StatelessWidget {
 }
 
 class _SummaryMetricGrid extends StatelessWidget {
-  const _SummaryMetricGrid({required this.gridKey, required this.cards});
+  const _SummaryMetricGrid({
+    required this.gridKey,
+    required this.cards,
+    this.wideColumnCount,
+  });
 
   final Key gridKey;
   final List<SummaryCard> cards;
+  final int? wideColumnCount;
 
   @override
   Widget build(BuildContext context) {
@@ -784,7 +945,7 @@ class _SummaryMetricGrid extends StatelessWidget {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final desiredColumns = width >= 1120
-            ? cards.length
+            ? (wideColumnCount ?? cards.length)
             : width >= 900
             ? 3
             : width >= 320

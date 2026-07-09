@@ -21,10 +21,15 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   cá nhân của SA đó, định danh SA bằng email và không dùng mã nhân viên/generated
   code để lọc; `Tổng quan Cửa hàng` và `Tài chính` vẫn giữ theo
   showroom/node đang chọn ở header. Khu vực `Bán hàng` chia thành nhóm
-  `Doanh số` và `Hành vi then chốt`. Nhóm `Doanh số` hiển thị doanh số tổng
-  từ cache đơn hàng sau khi loại đơn 0 VND, đơn hủy/trả toàn bộ và trừ giá trị
-  trả một phần, số đơn bán, trung bình đơn hàng, doanh số hoàn thành, pending và
-  `Tỉ lệ chuyển đổi = tổng số đơn / tổng số báo cáo`. Nhóm
+  `Doanh số`, `KPI chính` và `Hành vi then chốt`. Nhóm `Doanh số` hiển thị
+  doanh số tổng từ cache đơn hàng sau khi loại đơn 0 VND, đơn hủy/trả toàn bộ
+  và trừ giá trị trả một phần, số đơn bán, trung bình đơn hàng, doanh số hoàn
+  thành, pending và
+  `Tỉ lệ chuyển đổi = tổng số đơn / tổng số báo cáo`. Nhóm `KPI chính`
+  hiển thị doanh số khách hàng doanh nghiệp, doanh số khách hàng cá nhân,
+  số lượng CTKM đổi điểm thi, CTKM học sinh - sinh viên, nhu cầu trả góp,
+  trả góp thành công, bảo hiểm mở rộng, laptop, PC bộ, PC ráp,
+  Apple (iPhone, MacBook, iPad), màn hình, máy in và phụ kiện. Nhóm
   `Hành vi then chốt` hiển thị số khách chưa mua, số đơn chưa báo cáo,
   `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn`, cùng các tỉ lệ
   `Có`/tổng báo cáo cho tư vấn 3 giải pháp, trải nghiệm, Zalo OA và tải App;

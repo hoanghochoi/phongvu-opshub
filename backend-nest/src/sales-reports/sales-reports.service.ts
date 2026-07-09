@@ -3883,7 +3883,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private buildRevenueWorkbook(rows: any[]) {
-    const summary = this.salesRevenueSummary(rows);
+    const summary = this.summarizeSalesRevenueRows(rows);
     const headers = [
       'Số đơn hàng duy nhất',
       'Tổng doanh thu khách hàng doanh nghiệp',
@@ -3963,11 +3963,20 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return this.workbookBuffer('Tra gop', data);
   }
 
-  private salesRevenueSummary(rows: any[]) {
+  summarizeSalesRevenueRows(rows: any[]) {
     const uniquePurchased = new Map<string, any>();
     const noInstallmentReasons = new Map<string, number>();
     let installmentNeedTotalCount = 0;
+    let examScorePromotionCount = 0;
+    let studentPromotionCount = 0;
     for (const row of rows) {
+      const promotionCodes = this.cleanPromotionCodes(row.promotionCodes);
+      if (promotionCodes.includes('EXAM_SCORE_EXCHANGE')) {
+        examScorePromotionCount += 1;
+      }
+      if (promotionCodes.includes('STUDENT')) {
+        studentPromotionCount += 1;
+      }
       const hasInstallmentNeed = row.installmentNeed === true;
       if (hasInstallmentNeed) {
         installmentNeedTotalCount += 1;
@@ -3995,6 +4004,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
       personalRevenue: 0,
       noInstallmentReasons,
       installmentNeedTotalCount,
+      examScorePromotionCount,
+      studentPromotionCount,
       successfulInstallmentOrderCount: 0,
       laptopQuantity: 0,
       pcQuantity: 0,

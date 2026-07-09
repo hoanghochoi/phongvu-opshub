@@ -45,6 +45,17 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `HOME-DASHBOARD-002`, 2026-07-09: Khu vực `Bán hàng` trên Trang chủ thêm
+  nhóm `KPI chính`, hiển thị hai dòng desktop theo danh sách KPI: doanh số
+  khách hàng doanh nghiệp/cá nhân, CTKM đổi điểm thi, CTKM HSSV, nhu cầu trả
+  góp, trả góp thành công, bảo hiểm mở rộng, laptop, PC bộ, PC ráp, Apple
+  (iPhone, MacBook, iPad), màn hình, máy in và phụ kiện. Backend mở rộng
+  `GET /home/summary` bằng các field KPI chính, dùng cùng hàm tổng hợp với
+  export `Doanh số` cho revenue/category/installment và cùng scope/ngày/SA của
+  các KPI bán hàng hiện tại; Flutter parse, log và render field mới.
+  Validation: focused Home Summary/Sales Reports Jest (66 tests), focused Home
+  dashboard Flutter widget test, backend `npm run build`,
+  `flutter analyze --no-pub`, và `git diff --check`.
 - `HOME-DASHBOARD-002`, 2026-07-08: Card `Số khách chưa mua` và
   `Số đơn chưa báo cáo` trong nhóm `Hành vi then chốt` mở modal chi tiết khi
   bấm phần chữ. Modal dùng cùng ngày/scope/SA đang chọn, có bảng cuộn dọc và

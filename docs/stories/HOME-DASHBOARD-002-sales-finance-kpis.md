@@ -12,10 +12,17 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   toàn bộ KPI trong hai khu vực. Riêng dropdown SA trong `Tổng quan cá nhân`
   làm các KPI `Bán hàng`/`Hành vi then chốt` đổi theo SA đã chọn, trong khi
   `Tổng quan Cửa hàng` và `Tài chính` vẫn giữ scope showroom/node ở header.
-- `Bán hàng` chia thành hai nhóm nhỏ: `Doanh số` và `Hành vi then chốt`.
+- `Bán hàng` chia thành ba nhóm nhỏ: `Doanh số`, `KPI chính` và
+  `Hành vi then chốt`.
 - Nhóm `Doanh số` hiển thị `Doanh số tổng`, `Số đơn bán`,
   `Trung bình đơn hàng`, `Doanh số hoàn thành`, `Pending` và
   `Tỉ lệ chuyển đổi`.
+- Nhóm `KPI chính` hiển thị hai dòng trên desktop: dòng 1 gồm doanh số khách
+  hàng doanh nghiệp, doanh số khách hàng cá nhân, số lượng CTKM đổi điểm thi,
+  số lượng CTKM HSSV, số lượng nhu cầu trả góp và số lượng trả góp thành công;
+  dòng 2 gồm số lượng bảo hiểm mở rộng, laptop, PC bộ, PC ráp, Apple
+  (iPhone, MacBook, iPad), màn hình, máy in và phụ kiện. Tablet/mobile được
+  wrap theo breakpoint dashboard hiện có để không vỡ layout.
 - `Doanh số tổng` lấy tổng giá trị đơn trong cache theo ngày/scope đang chọn,
   không cộng đơn 0 VND, đơn hủy/trả toàn bộ và trừ giá trị trả một phần.
 - `Trung bình đơn hàng = Doanh số tổng / Số đơn bán`.
