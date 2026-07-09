@@ -323,20 +323,52 @@ describe('HomeSummaryService', () => {
         sourceUserEmail: 'sa2@phongvu.vn',
       },
     ]);
-    prisma.salesReport.findMany.mockResolvedValue([
-      {
-        id: 'report-2',
-        submittedAt: new Date('2026-07-04T03:00:00Z'),
-        createdByName: 'SA Một',
-        createdByEmail: 'sa1@phongvu.vn',
-        customerName: 'Nguyễn Văn A',
-        customerType: 'BUSINESS',
-        categoryGroupName: 'Computer components',
-        categoryGroupNameVi: 'Linh kiện máy tính',
-        notPurchasedReason: 'OTHER',
-        notPurchasedOtherReason: 'Chờ chương trình khuyến mãi',
-      },
-    ]);
+    prisma.salesReport.count.mockResolvedValueOnce(2);
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'report-3',
+          submittedAt: new Date('2026-07-04T04:00:00Z'),
+          storeCode: 'CP75',
+          createdByName: 'SA Ba',
+          createdByEmail: 'sa3@phongvu.vn',
+          orderCode: '2607040003',
+          erpOrderId: null,
+          erpPaymentMethods: [],
+          installmentStatus: 'SUCCESS',
+          installmentFailureReason: null,
+          installmentNoInstallmentReason: 'NORMAL_INSTALLMENT',
+          installmentPartnerCodes: ['MIRAE_ASSET'],
+        },
+        {
+          id: 'report-4',
+          submittedAt: new Date('2026-07-04T04:30:00Z'),
+          storeCode: 'CP62',
+          createdByName: 'SA Bốn',
+          createdByEmail: 'sa4@phongvu.vn',
+          orderCode: null,
+          erpOrderId: null,
+          erpPaymentMethods: ['INSTALLMENT'],
+          installmentStatus: 'FAILED',
+          installmentFailureReason: null,
+          installmentNoInstallmentReason: 'HIGH_INTEREST_OR_FEE',
+          installmentPartnerCodes: ['MPOS'],
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'report-2',
+          submittedAt: new Date('2026-07-04T03:00:00Z'),
+          createdByName: 'SA Một',
+          createdByEmail: 'sa1@phongvu.vn',
+          customerName: 'Nguyễn Văn A',
+          customerType: 'BUSINESS',
+          categoryGroupName: 'Computer components',
+          categoryGroupNameVi: 'Linh kiện máy tính',
+          notPurchasedReason: 'OTHER',
+          notPurchasedOtherReason: 'Chờ chương trình khuyến mãi',
+        },
+      ]);
 
     const result = await service.getBehaviorDetails(
       { id: 'manager-1', email: 'manager@phongvu.vn' },
@@ -349,6 +381,7 @@ describe('HomeSummaryService', () => {
       limit: 50,
       notPurchasedTotal: 1,
       unreportedTotal: 1,
+      installmentNeedTotal: 2,
       notPurchasedReports: [
         {
           salesName: 'SA Một',
@@ -363,6 +396,24 @@ describe('HomeSummaryService', () => {
           orderCode: '2607040002',
           salesName: 'SA Hai',
           soldAt: new Date('2026-07-04T05:00:00Z'),
+        },
+      ],
+      installmentNeedReports: [
+        {
+          storeCode: 'CP75',
+          salesName: 'SA Ba',
+          orderCode: '2607040003',
+          installmentPartnerLabels: ['Mirae Asset'],
+          successful: true,
+          note: '2607040003',
+        },
+        {
+          storeCode: 'CP62',
+          salesName: 'SA Bốn',
+          orderCode: null,
+          installmentPartnerLabels: ['MPOS'],
+          successful: false,
+          note: 'Khách từ chối: Lãi suất/Phí trả góp cao',
         },
       ],
     });

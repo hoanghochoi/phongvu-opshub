@@ -3889,7 +3889,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       'Tổng doanh thu khách hàng doanh nghiệp',
       'Tổng doanh thu khách hàng cá nhân',
       'Báo cáo có nhu cầu trả góp',
-      'Trả góp thành công (có đơn trả góp)',
+      'Trả góp thành công (theo báo cáo bán hàng)',
       'Số lượng laptop',
       'Số lượng PC',
       'Số lượng PC ráp',
@@ -3966,6 +3966,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
   summarizeSalesRevenueRows(rows: any[]) {
     const uniquePurchased = new Map<string, any>();
     const noInstallmentReasons = new Map<string, number>();
+    const successfulInstallmentOrderKeys = new Set<string>();
     let installmentNeedTotalCount = 0;
     let examScorePromotionCount = 0;
     let studentPromotionCount = 0;
@@ -3995,6 +3996,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
       const key = String(
         row.orderCode ?? row.erpOrderId ?? row.id ?? '',
       ).trim();
+      if (hasInstallmentNeed && key && this.isReportedInstallmentSuccess(row)) {
+        successfulInstallmentOrderKeys.add(key);
+      }
       if (key && !uniquePurchased.has(key)) uniquePurchased.set(key, row);
     }
 
@@ -4006,7 +4010,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       installmentNeedTotalCount,
       examScorePromotionCount,
       studentPromotionCount,
-      successfulInstallmentOrderCount: 0,
+      successfulInstallmentOrderCount: successfulInstallmentOrderKeys.size,
       laptopQuantity: 0,
       pcQuantity: 0,
       assembledPcQuantity: 0,
@@ -4024,10 +4028,6 @@ export class SalesReportsService implements OnApplicationBootstrap {
       } else {
         summary.personalRevenue += revenue;
       }
-      if (this.hasInstallmentPayment(row)) {
-        summary.successfulInstallmentOrderCount += 1;
-      }
-
       const componentQuantities = new Map<string, number>();
       for (const item of Array.isArray(row.items) ? row.items : []) {
         const type = this.normalizeSalesCategoryType(item?.categoryType);
@@ -4592,6 +4592,19 @@ export class SalesReportsService implements OnApplicationBootstrap {
 
   private finalPaymentMethodLabel(row: any) {
     return this.hasInstallmentPayment(row) ? 'Trả góp' : 'Trả thẳng';
+  }
+
+  private isReportedInstallmentSuccess(row: any) {
+    const status = String(row?.installmentStatus || '')
+      .trim()
+      .toUpperCase();
+    if (status === INSTALLMENT_SUCCESS) return true;
+    if (status === INSTALLMENT_FAILED) return false;
+    return (
+      String(row?.installmentNoInstallmentReason || '')
+        .trim()
+        .toUpperCase() === 'NORMAL_INSTALLMENT'
+    );
   }
 
   private hasInstallmentPayment(row: any) {

@@ -34,9 +34,7 @@ void main() {
     await tester.pumpWidget(_buildApp(repository));
     await tester.pumpAndSettle();
 
-    final header = find.byKey(const Key('offset-adjustment-header'));
-    expect(header, findsOneWidget);
-    expect(tester.getSize(header).height, lessThan(120));
+    expect(find.byKey(const Key('offset-adjustment-header')), findsNothing);
     expect(
       find.byKey(const Key('offset-adjustment-filter-card')),
       findsOneWidget,
@@ -44,7 +42,7 @@ void main() {
     expect(find.byKey(const Key('offset-adjustment-toolbar')), findsNothing);
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.text('Yêu cầu xử lý'), findsOneWidget);
+    expect(find.text('Yêu cầu xử lý'), findsNothing);
     expect(find.text('Trang 1 - 1 hồ sơ'), findsOneWidget);
     expect(find.text('Cấn trừ đơn'), findsWidgets);
     expect(find.text('CP01'), findsWidgets);
@@ -68,7 +66,7 @@ void main() {
     await tester.pumpWidget(_buildApp(repository));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('offset-adjustment-header')), findsOneWidget);
+    expect(find.byKey(const Key('offset-adjustment-header')), findsNothing);
     expect(
       find.byKey(const Key('offset-adjustment-filter-card')),
       findsOneWidget,

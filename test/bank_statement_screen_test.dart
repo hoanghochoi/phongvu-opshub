@@ -70,13 +70,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final header = find.byKey(const Key('bank-statement-header'));
-    expect(header, findsOneWidget);
-    expect(tester.getSize(header).height, lessThan(170));
+    expect(find.byKey(const Key('bank-statement-header')), findsNothing);
     expect(find.byKey(const Key('bank-statement-toolbar')), findsNothing);
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.text('Giao dịch cần rà soát'), findsOneWidget);
+    expect(find.text('Giao dịch cần rà soát'), findsNothing);
     expect(find.text('0 chọn / 2 giao dịch'), findsOneWidget);
     expect(find.text('Trang 1 - 2 giao dịch'), findsOneWidget);
     expect(find.textContaining('Tra cứu giao dịch VietinBank'), findsNothing);
@@ -88,6 +86,42 @@ void main() {
     expect(appNotificationsProvider.totalCount, 1);
 
     appNotificationsProvider.dispose();
+  });
+
+  testWidgets('opens with missing-order filter from Home shortcut', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final repository = _WidgetBankStatementRepository();
+    final provider = BankStatementProvider(
+      repository,
+      notificationReadStore: _FakeNotificationReadStore(),
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: _FakeAuthProvider(_accUser),
+          ),
+          ChangeNotifierProvider<BankStatementProvider>.value(value: provider),
+        ],
+        child: const MaterialApp(
+          home: BankStatementScreen(
+            initialOrderStatus: 'MISSING_ORDER',
+            autoSearch: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(provider.orderStatus, 'MISSING_ORDER');
+    expect(provider.hasSearched, isTrue);
+    expect(repository.fetchStatementsCount, 1);
+    expect(repository.lastQuery?.orderStatus, 'MISSING_ORDER');
   });
 
   testWidgets('shows accounting bell through AppShell', (tester) async {
@@ -234,6 +268,9 @@ class _FakeAuthProvider extends AuthProvider {
 class _WidgetBankStatementRepository extends BankStatementRepository {
   _WidgetBankStatementRepository() : super(ApiClient());
 
+  int fetchStatementsCount = 0;
+  BankStatementQuery? lastQuery;
+
   @override
   Future<List<StoreBranch>> fetchStores() async {
     return const [
@@ -243,6 +280,8 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
 
   @override
   Future<BankStatementPage> fetchStatements(BankStatementQuery query) async {
+    fetchStatementsCount += 1;
+    lastQuery = query;
     final rows = [_pendingTransaction, _offsetTransaction];
     return BankStatementPage(
       transactions: rows,

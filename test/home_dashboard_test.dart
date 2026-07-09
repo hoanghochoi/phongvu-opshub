@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:phongvu_opshub/core/formatting/money_formatters.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -315,10 +316,16 @@ void main() {
       );
       expect(
         find.byKey(const Key('home-summary-card-reportedOrders')),
-        findsNothing,
+        findsOneWidget,
       );
       expect(
         find.byKey(const Key('home-summary-card-notPurchasedReports')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(
+          const Key('home-summary-card-notPurchasedReports-detail-icon'),
+        ),
         findsOneWidget,
       );
       expect(
@@ -359,6 +366,7 @@ void main() {
       expect(find.text('Số lượng máy in'), findsOneWidget);
       expect(find.text('Số lượng phụ kiện'), findsOneWidget);
       expect(find.text('Số khách chưa mua'), findsOneWidget);
+      expect(find.text('Báo cáo đã mua'), findsOneWidget);
       expect(find.text('Tỉ lệ 3 giải pháp'), findsOneWidget);
       expect(find.text('Tỉ lệ trải nghiệm'), findsOneWidget);
       expect(find.text('Tỉ lệ Zalo OA'), findsOneWidget);
@@ -437,6 +445,7 @@ void main() {
         containsAllInOrder([
           'notPurchasedReports',
           'unreportedOrders',
+          'reportedOrders',
           'coverageRate',
           'consultedSolutionRate',
           'experiencedRate',
@@ -576,6 +585,7 @@ void main() {
       limit: 200,
       notPurchasedTotal: 1,
       unreportedTotal: 1,
+      installmentNeedTotal: 2,
       notPurchasedReports: [
         HomeNotPurchasedReportDetail(
           id: 'report-2',
@@ -592,6 +602,28 @@ void main() {
           orderCode: '2607040002',
           soldAt: DateTime(2026, 7, 4, 10, 30),
           salesName: 'SA Hai',
+        ),
+      ],
+      installmentNeedReports: [
+        HomeInstallmentNeedDetail(
+          id: 'report-3',
+          submittedAt: DateTime(2026, 7, 4, 11),
+          storeCode: 'CP75',
+          salesName: 'SA Ba',
+          orderCode: '2607040003',
+          installmentPartnerLabels: const ['Mirae Asset'],
+          successful: true,
+          note: '2607040003',
+        ),
+        HomeInstallmentNeedDetail(
+          id: 'report-4',
+          submittedAt: DateTime(2026, 7, 4, 12),
+          storeCode: 'CP62',
+          salesName: 'SA Bốn',
+          orderCode: null,
+          installmentPartnerLabels: const ['MPOS'],
+          successful: false,
+          note: 'Khách từ chối: Lãi suất/Phí trả góp cao',
         ),
       ],
     );
@@ -663,8 +695,144 @@ void main() {
     expect(find.text('SA Hai'), findsOneWidget);
     expect(find.text('2607040002'), findsOneWidget);
     expect(find.text('04/07/2026 10:30'), findsOneWidget);
-    expect(repository.requestedDetailLimits, [200, 200]);
+
+    await tester.tap(find.byTooltip('Đóng'));
+    await tester.pumpAndSettle();
+    final installmentNeedTitle = find.byKey(
+      const Key('home-summary-card-installmentNeedCount-title-action'),
+    );
+    await tester.ensureVisible(installmentNeedTitle);
+    await tester.pumpAndSettle();
+    await tester.tap(installmentNeedTitle);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('home-installment-need-details-dialog')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('home-installment-need-details-table')),
+      findsOneWidget,
+    );
+    expect(find.text('SR'), findsOneWidget);
+    expect(find.text('Đối tác trả góp'), findsOneWidget);
+    expect(find.text('Thành công'), findsOneWidget);
+    expect(find.text('Ghi chú'), findsOneWidget);
+    expect(find.text('CP75'), findsOneWidget);
+    expect(find.text('SA Ba'), findsOneWidget);
+    expect(find.text('Mirae Asset'), findsOneWidget);
+    expect(find.text('2607040003'), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
+    expect(find.text('CP62'), findsOneWidget);
+    expect(find.text('SA Bốn'), findsOneWidget);
+    expect(find.text('MPOS'), findsOneWidget);
+    expect(find.text('Không'), findsOneWidget);
+    expect(
+      find.text('Khách từ chối: Lãi suất/Phí trả góp cao'),
+      findsOneWidget,
+    );
+    expect(repository.requestedDetailLimits, [200, 200, 200]);
   });
+
+  testWidgets(
+    'Home route cards open admin sales and missing-order statements',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final summaryProvider = HomeSummaryProvider(
+        _FakeHomeSummaryRepository(
+          summary: HomeSummary(
+            date: '2026-07-04',
+            available: true,
+            scope: 'MANAGED_SCOPE',
+            scopeLabel: 'Showroom: CP75',
+            scopeDetail: 'CP75',
+            coverageLabel: 'Tỉ lệ báo cáo',
+            totalRevenue: 1000000,
+            totalOrders: 3,
+            totalReports: 3,
+            reportedOrders: 2,
+            notPurchasedReports: 1,
+            unreportedOrders: 1,
+            installmentNeedCount: 1,
+            coverageRate: 66.67,
+            financeAvailable: true,
+            totalTransferredAmount: 3000000,
+            totalStatements: 4,
+            totalStatementsWithOrder: 2,
+            totalStatementsWithoutOrder: 2,
+            statementOrderRate: 50,
+            refreshedAt: DateTime.parse('2026-07-04T03:15:00.000Z'),
+          ),
+        ),
+      );
+      addTearDown(summaryProvider.dispose);
+      summaryProvider.syncAuth(_managerFinanceUser(), isInitialized: true);
+
+      late final GoRouter router;
+      router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => Scaffold(
+              body: SingleChildScrollView(
+                child: SizedBox(
+                  width: 1120,
+                  child: HomeSummaryPage(provider: summaryProvider),
+                ),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/admin/sales-reports',
+            builder: (context, state) =>
+                const Scaffold(body: Text('Admin Sales Reports Route')),
+          ),
+          GoRoute(
+            path: '/bank-statement',
+            builder: (context, state) => Scaffold(
+              body: Text(
+                'Bank Statement ${state.uri.queryParameters['orderStatus']} '
+                '${state.uri.queryParameters['autoSearch']}',
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+
+      final reportedAction = find.byKey(
+        const Key('home-summary-card-reportedOrders-title-action'),
+      );
+      await tester.ensureVisible(reportedAction);
+      await tester.pumpAndSettle();
+      await tester.tap(reportedAction);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Admin Sales Reports Route'), findsOneWidget);
+
+      router.go('/');
+      await tester.pumpAndSettle();
+
+      final statementAction = find.byKey(
+        const Key('home-summary-card-totalStatementsWithoutOrder-title-action'),
+      );
+      await tester.ensureVisible(statementAction);
+      await tester.pumpAndSettle();
+      await tester.tap(statementAction);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bank Statement MISSING_ORDER true'), findsOneWidget);
+
+      router.dispose();
+    },
+  );
 
   testWidgets('Quick tool icon and text block share the same vertical center', (
     tester,
@@ -897,12 +1065,17 @@ void main() {
       refreshedAt: null,
     );
 
+    final repository = _FakeHomeSummaryRepository(summary: summary);
+    final provider = HomeSummaryProvider(repository);
+    addTearDown(provider.dispose);
+    provider.syncAuth(_staffUser(), isInitialized: true);
+
     await tester.pumpWidget(
-      const MaterialApp(
+      MaterialApp(
         home: Scaffold(
           body: SizedBox(
             width: 1200,
-            child: MainKpiSummaryCardGrid(summary: summary),
+            child: MainKpiSummaryCardGrid(summary: summary, provider: provider),
           ),
         ),
       ),
@@ -1641,8 +1814,10 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
           limit: limit ?? 200,
           notPurchasedTotal: 0,
           unreportedTotal: 0,
+          installmentNeedTotal: 0,
           notPurchasedReports: const [],
           unreportedOrders: const [],
+          installmentNeedReports: const [],
         );
   }
 }
@@ -1819,5 +1994,19 @@ User _managerUser() {
       StoreBranch(id: 'store-62', storeId: 'CP62', storeName: 'CP62'),
     ],
     featureAccess: {'ADMIN_SALES_REPORTS': true},
+  );
+}
+
+User _managerFinanceUser() {
+  return const User(
+    id: 'manager-finance-1',
+    email: 'manager-finance@phongvu.vn',
+    name: 'Store Manager',
+    role: 'USER',
+    organizationNodeId: 'org-store-cp75',
+    assignedStores: [
+      StoreBranch(id: 'store-75', storeId: 'CP75', storeName: 'CP75'),
+    ],
+    featureAccess: {'ADMIN_SALES_REPORTS': true, 'BANK_STATEMENTS': true},
   );
 }

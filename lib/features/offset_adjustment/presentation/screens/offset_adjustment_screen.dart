@@ -98,11 +98,6 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _OffsetHeader(
-          key: const Key('offset-adjustment-header'),
-          provider: provider,
-        ),
-        const SizedBox(height: AppLayoutTokens.cardGap),
         _ActionBar(onCreate: _showCreateDialog),
         const SizedBox(height: 10),
         _FilterPanel(
@@ -309,112 +304,6 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
 
   void _showSnack(BuildContext context, String message) {
     AppToast.show(context, SnackBar(content: Text(message)));
-  }
-}
-
-class _OffsetHeader extends StatelessWidget {
-  final OffsetAdjustmentProvider provider;
-
-  const _OffsetHeader({super.key, required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    final scopeLabel = provider.canReview
-        ? provider.selectedStoreIds.isEmpty
-              ? 'Tất cả showroom'
-              : '${provider.selectedStoreIds.length} showroom'
-        : provider.stores.length <= 1
-        ? 'Showroom được gán'
-        : '${provider.stores.length} showroom được gán';
-    final statusLabel = provider.hasSearched
-        ? '${provider.items.length}/${provider.total} hồ sơ'
-        : 'Chưa tải dữ liệu';
-    final pendingLabel = provider.canReview
-        ? '${provider.pendingTotal} chờ Kế toán'
-        : 'Gửi yêu cầu';
-    final filterStatusLabel = provider.status == 'ALL'
-        ? 'Tất cả trạng thái'
-        : OffsetAdjustmentStatus.label(provider.status);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: AppColors.subtleBorderOf(context)),
-        ),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final titleBlock = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Yêu cầu xử lý', style: AppTextStyles.headingS),
-              const SizedBox(height: AppLayoutTokens.cardGap),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  AppStatusChip(
-                    label: scopeLabel,
-                    color: AppColors.teal600,
-                    backgroundColor: AppColors.selected,
-                  ),
-                  AppStatusChip(
-                    label: statusLabel,
-                    color: AppColors.neutral700,
-                    backgroundColor: AppColors.neutral100,
-                  ),
-                  AppStatusChip(
-                    label: pendingLabel,
-                    color: provider.canReview && provider.pendingTotal > 0
-                        ? AppColors.warning
-                        : AppColors.primary,
-                    backgroundColor:
-                        provider.canReview && provider.pendingTotal > 0
-                        ? AppColors.warningSurface
-                        : AppColors.primarySurface,
-                  ),
-                  AppStatusChip(
-                    label: filterStatusLabel,
-                    color: provider.status == OffsetAdjustmentStatus.pending
-                        ? AppColors.warning
-                        : AppColors.neutral700,
-                    backgroundColor: provider.status == 'ALL'
-                        ? AppColors.neutral100
-                        : AppColors.warningSurface,
-                  ),
-                ],
-              ),
-            ],
-          );
-          final titleRow = Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.selected,
-                  borderRadius: BorderRadius.circular(
-                    AppLayoutTokens.cardRadius,
-                  ),
-                ),
-                child: const Icon(
-                  Icons.swap_horiz_rounded,
-                  color: AppColors.teal600,
-                ),
-              ),
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Expanded(child: titleBlock),
-            ],
-          );
-
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: titleRow,
-          );
-        },
-      ),
-    );
   }
 }
 

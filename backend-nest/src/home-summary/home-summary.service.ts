@@ -27,6 +27,8 @@ const REPORT_TYPE_NOT_PURCHASED = 'NOT_PURCHASED';
 const COVERAGE_LABEL = 'Tỉ lệ báo cáo';
 const DEFAULT_HOME_SUMMARY_RANGE_DAYS = 30;
 const DEFAULT_HOME_SUMMARY_DETAIL_LIMIT = 200;
+const INSTALLMENT_SUCCESS = 'SUCCESS';
+const INSTALLMENT_FAILED = 'FAILED';
 
 const NOT_PURCHASED_LABELS: Record<string, string> = {
   NOT_SOLD: 'Chưa kinh doanh',
@@ -43,6 +45,28 @@ const NOT_PURCHASED_LABELS: Record<string, string> = {
 const CUSTOMER_TYPE_LABELS: Record<string, string> = {
   BUSINESS: 'Doanh nghiệp',
   PERSONAL: 'Cá nhân',
+};
+
+const INSTALLMENT_PARTNER_LABELS: Record<string, string> = {
+  VNPAY_POS: 'VNPAY - POS',
+  PAYOO_POS: 'PAYOO - POS',
+  HOMECREDIT_CTTC: 'HomeCredit - CTTC',
+  SHINHAN_CTTC: 'Shinhan - CTTC',
+  HDSAISON_CTTC: 'HDSaison - CTTC',
+  AEON_FINANCE_CTTC: 'AEON Finance - CTTC',
+  MIRAE_ASSET: 'Mirae Asset',
+  MPOS: 'MPOS',
+};
+
+const INSTALLMENT_NO_INSTALLMENT_REASON_LABELS: Record<string, string> = {
+  NORMAL_INSTALLMENT: 'Khách chốt trả góp bình thường (Không có lý do)',
+  BAD_CREDIT_HISTORY: 'Rớt hồ sơ: Tín dụng xấu (Nợ cũ, CIC...)',
+  APPRAISAL_OR_INFO_ERROR: 'Rớt hồ sơ: Lỗi thẩm định/Thông tin',
+  HIGH_INTEREST_OR_FEE: 'Khách từ chối: Lãi suất/Phí trả góp cao',
+  MISSING_DOCUMENT_OR_CARD: 'Khách từ chối: Không đủ điều kiện giấy tờ/thẻ',
+  PRICE_COMPETITOR_COMPARISON:
+    'Khách từ chối: Giá cao/So sánh đối thủ (TGDĐ, FPT, CPS...)',
+  BROWSING_OR_COME_BACK_LATER: 'Khách từ chối: Chỉ tham khảo/Hẹn quay lại',
 };
 
 type DateRange = {
@@ -156,6 +180,17 @@ type HomeSummaryUnreportedOrderDetail = {
   salesName: string | null;
 };
 
+type HomeSummaryInstallmentNeedDetail = {
+  id: string;
+  submittedAt: Date;
+  storeCode: string | null;
+  salesName: string | null;
+  orderCode: string | null;
+  installmentPartnerLabels: string[];
+  successful: boolean;
+  note: string | null;
+};
+
 type HomeSummaryBehaviorDetailsResponse = {
   startDate: string;
   endDate: string;
@@ -165,8 +200,10 @@ type HomeSummaryBehaviorDetailsResponse = {
   limit: number;
   notPurchasedTotal: number;
   unreportedTotal: number;
+  installmentNeedTotal: number;
   notPurchasedReports: HomeSummaryNotPurchasedDetail[];
   unreportedOrders: HomeSummaryUnreportedOrderDetail[];
+  installmentNeedReports: HomeSummaryInstallmentNeedDetail[];
 };
 
 type SalesBehaviorYesCounts = {
@@ -530,6 +567,12 @@ export class HomeSummaryService {
       ...reportWhere,
       reportType: REPORT_TYPE_NOT_PURCHASED,
     };
+    const installmentNeedWhere: Prisma.SalesReportWhereInput = {
+      AND: [
+        this.salesReportMainKpiWhere(salesMetricsScope, range),
+        { installmentNeed: true },
+      ],
+    };
     const reportedCodeRows = await this.homeSummaryReportFact.findMany({
       where: {
         ...reportWhere,
@@ -557,6 +600,8 @@ export class HomeSummaryService {
       notPurchasedFacts,
       unreportedTotal,
       unreportedOrders,
+      installmentNeedTotal,
+      installmentNeedReports,
     ] = await this.prisma.$transaction([
       this.homeSummaryReportFact.count({ where: notPurchasedFactWhere }),
       this.homeSummaryReportFact.findMany({
@@ -583,6 +628,25 @@ export class HomeSummaryService {
           sellerName: true,
           sellerEmail: true,
           sourceUserEmail: true,
+        },
+      }),
+      this.prisma.salesReport.count({ where: installmentNeedWhere }),
+      this.prisma.salesReport.findMany({
+        where: installmentNeedWhere,
+        orderBy: [{ submittedAt: 'desc' }],
+        take: limit,
+        select: {
+          id: true,
+          submittedAt: true,
+          storeCode: true,
+          createdByName: true,
+          createdByEmail: true,
+          orderCode: true,
+          erpOrderId: true,
+          installmentStatus: true,
+          installmentFailureReason: true,
+          installmentNoInstallmentReason: true,
+          installmentPartnerCodes: true,
         },
       }),
     ]);
@@ -620,15 +684,19 @@ export class HomeSummaryService {
       limit,
       notPurchasedTotal,
       unreportedTotal,
+      installmentNeedTotal,
       notPurchasedReports: notPurchasedReports.map((row: any) =>
         this.toHomeNotPurchasedDetail(row),
       ),
       unreportedOrders: unreportedOrders.map((row: any) =>
         this.toHomeUnreportedOrderDetail(row),
       ),
+      installmentNeedReports: installmentNeedReports.map((row: any) =>
+        this.toHomeInstallmentNeedDetail(row),
+      ),
     };
     this.logger.log(
-      `Home summary behavior details load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scope=${salesMetricsScope.scope} selectedSalesProgressUserId=${selectedSalesScope.selectedUserId || 'none'} notPurchased=${response.notPurchasedReports.length}/${notPurchasedTotal} unreported=${response.unreportedOrders.length}/${unreportedTotal} limit=${limit} durationMs=${Date.now() - startedAt}`,
+      `Home summary behavior details load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scope=${salesMetricsScope.scope} selectedSalesProgressUserId=${selectedSalesScope.selectedUserId || 'none'} notPurchased=${response.notPurchasedReports.length}/${notPurchasedTotal} unreported=${response.unreportedOrders.length}/${unreportedTotal} installmentNeed=${response.installmentNeedReports.length}/${installmentNeedTotal} limit=${limit} durationMs=${Date.now() - startedAt}`,
     );
     return response;
   }
@@ -1404,9 +1472,9 @@ export class HomeSummaryService {
         erpOrderId: true,
         customerType: true,
         erpGrandTotal: true,
-        erpPaymentMethods: true,
         promotionCodes: true,
         installmentNeed: true,
+        installmentStatus: true,
         installmentNoInstallmentReason: true,
         items: {
           orderBy: { createdAt: 'asc' },
@@ -2185,6 +2253,32 @@ export class HomeSummaryService {
     };
   }
 
+  private toHomeInstallmentNeedDetail(
+    row: any,
+  ): HomeSummaryInstallmentNeedDetail {
+    const orderCode =
+      this.normalizeOrderCode(row.orderCode) ??
+      this.normalizeOrderCode(row.erpOrderId);
+    const successful = this.isReportedInstallmentSuccess(row);
+    const failureNote =
+      this.optionalText(row.installmentFailureReason, 240) ??
+      this.installmentNoInstallmentReasonLabel(
+        this.optionalText(row.installmentNoInstallmentReason, 80),
+      );
+    return {
+      id: String(row.id),
+      submittedAt: row.submittedAt,
+      storeCode: this.normalizeStoreCode(row.storeCode),
+      salesName: this.displayPersonName(row.createdByName, row.createdByEmail),
+      orderCode,
+      installmentPartnerLabels: this.installmentPartnerLabels(
+        row.installmentPartnerCodes,
+      ),
+      successful,
+      note: successful ? orderCode : failureNote,
+    };
+  }
+
   private displayPersonName(name: unknown, email: unknown) {
     return this.optionalText(name, 120) ?? this.normalizeEmail(email) ?? null;
   }
@@ -2198,6 +2292,36 @@ export class HomeSummaryService {
     const label = NOT_PURCHASED_LABELS[code] ?? code;
     const otherText = this.optionalText(other, 240);
     return code === 'OTHER' && otherText ? `${label}: ${otherText}` : label;
+  }
+
+  private installmentPartnerLabels(value: unknown) {
+    const raw = Array.isArray(value) ? value : [];
+    return raw
+      .map((item) =>
+        String(item || '')
+          .trim()
+          .toUpperCase(),
+      )
+      .filter((code) => code.length > 0)
+      .map((code) => INSTALLMENT_PARTNER_LABELS[code] ?? code);
+  }
+
+  private installmentNoInstallmentReasonLabel(code: string | null) {
+    if (!code) return null;
+    return INSTALLMENT_NO_INSTALLMENT_REASON_LABELS[code] ?? code;
+  }
+
+  private isReportedInstallmentSuccess(row: any) {
+    const status = String(row?.installmentStatus || '')
+      .trim()
+      .toUpperCase();
+    if (status === INSTALLMENT_SUCCESS) return true;
+    if (status === INSTALLMENT_FAILED) return false;
+    return (
+      String(row?.installmentNoInstallmentReason || '')
+        .trim()
+        .toUpperCase() === 'NORMAL_INSTALLMENT'
+    );
   }
 
   private safeUserLabel(user: any) {

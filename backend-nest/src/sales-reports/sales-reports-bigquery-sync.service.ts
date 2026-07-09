@@ -8,6 +8,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_TABLE_PREFIX = 'opshub_sales_report';
 const DEFAULT_MAX_ROWS = 100_000;
+const INSTALLMENT_SUCCESS = 'SUCCESS';
+const INSTALLMENT_FAILED = 'FAILED';
 
 const ANSWER_LABELS: Record<string, string> = {
   YES: 'Có',
@@ -103,7 +105,7 @@ type RevenueByStoreSummary = {
   areaCode: string;
   reportCount: number;
   installmentNeedTotalCount: number;
-  successfulInstallmentOrderCount: number;
+  successfulInstallmentOrderKeys: Set<string>;
   orderKeys: Set<string>;
   businessRevenue: number;
   personalRevenue: number;
@@ -435,6 +437,13 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
 
       if (this.text(row.reportType) !== 'PURCHASED') continue;
       const orderKey = this.text(row.orderCode || row.erpOrderId || row.id);
+      if (
+        hasInstallmentNeed &&
+        orderKey &&
+        this.isReportedInstallmentSuccess(row)
+      ) {
+        summary.successfulInstallmentOrderKeys.add(orderKey);
+      }
       if (!orderKey || summary.orderKeys.has(orderKey)) continue;
       summary.orderKeys.add(orderKey);
 
@@ -444,10 +453,6 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
       } else {
         summary.personalRevenue += revenue;
       }
-      if (this.hasInstallmentPayment(row)) {
-        summary.successfulInstallmentOrderCount += 1;
-      }
-
       const componentQuantities = new Map<string, number>();
       for (const item of Array.isArray(row.items) ? row.items : []) {
         const type = this.normalizeSalesCategoryType(item?.categoryType);
@@ -489,7 +494,7 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
         sales_report_count: summary.reportCount,
         installment_need_total_count: summary.installmentNeedTotalCount,
         successful_installment_order_count:
-          summary.successfulInstallmentOrderCount,
+          summary.successfulInstallmentOrderKeys.size,
         order_count_unique: summary.orderKeys.size,
         business_revenue: summary.businessRevenue,
         personal_revenue: summary.personalRevenue,
@@ -529,7 +534,7 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
         areaCode: this.text(row.areaCode),
         reportCount: 0,
         installmentNeedTotalCount: 0,
-        successfulInstallmentOrderCount: 0,
+        successfulInstallmentOrderKeys: new Set<string>(),
         orderKeys: new Set<string>(),
         businessRevenue: 0,
         personalRevenue: 0,
@@ -734,6 +739,16 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
 
   private finalPaymentMethodLabel(row: any) {
     return this.hasInstallmentPayment(row) ? 'Trả góp' : 'Trả thẳng';
+  }
+
+  private isReportedInstallmentSuccess(row: any) {
+    const status = this.text(row?.installmentStatus).toUpperCase();
+    if (status === INSTALLMENT_SUCCESS) return true;
+    if (status === INSTALLMENT_FAILED) return false;
+    return (
+      this.text(row?.installmentNoInstallmentReason).toUpperCase() ===
+      'NORMAL_INSTALLMENT'
+    );
   }
 
   private hasInstallmentPayment(row: any) {

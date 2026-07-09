@@ -31,13 +31,22 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   trả góp thành công, bảo hiểm mở rộng, laptop, PC bộ, PC ráp,
   Apple (iPhone, MacBook, iPad), màn hình, máy in và phụ kiện. Nhóm
   `Hành vi then chốt` hiển thị số khách chưa mua, số đơn chưa báo cáo,
-  `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn`, cùng các tỉ lệ
+  báo cáo đã mua, `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn`, cùng các tỉ lệ
   `Có`/tổng báo cáo cho tư vấn 3 giải pháp, trải nghiệm, Zalo OA và tải App;
   không còn card `Tổng số báo cáo hợp lệ` riêng. Bấm phần chữ của card
   `Số khách chưa mua` hoặc `Số đơn chưa báo cáo` mở modal chi tiết theo cùng
   ngày/scope/SA đang chọn; bảng hỗ trợ cuộn dọc và ngang trên màn nhỏ. Bảng
   khách chưa mua gồm Tên SA, Tên khách hàng, Loại khách hàng, Ngành hàng và Lý
   do không mua. Bảng đơn chưa báo cáo gồm Tên SA, Mã đơn hàng và Thời gian bán.
+  Card `Báo cáo đã mua` chỉ mở route `/admin/sales-reports` khi user có quyền
+  `ADMIN_SALES_REPORTS` như Store Manager trở lên; user không có quyền chỉ xem
+  số liệu. Card `Số lượng nhu cầu trả góp` mở modal chi tiết gồm SR, Tên SA,
+  Đối tác trả góp, Thành công và Ghi chú; Thành công dùng trạng thái trả góp do
+  bán hàng báo cáo (`installmentStatus = SUCCESS`, fallback dữ liệu cũ
+  `NORMAL_INSTALLMENT`), không suy từ ERP payment method. Ghi chú là mã đơn
+  hàng nếu thành công hoặc lý do thất bại/không trả góp nếu chưa thành công.
+  Các card có route hoặc modal hiển thị icon detail nhỏ ở góc trên bên phải
+  nhưng vẫn giữ layout card.
 - Quyền hiển thị hai khu vực dashboard là hai tính năng riêng trong cây tổ
   chức: `Dashboard - Bán hàng` và `Dashboard - Tài chính`. Super Admin bật/tắt
   từng tính năng tại node; backend và app cùng ẩn khu vực không được cấp.
@@ -108,7 +117,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   30 ngày gần nhất và hiện dòng nhắc nhỏ để tránh hiểu nhầm.
   Admin xuất được 3 file Excel `.xlsx` tiếng Việt: `HVTC` là mỗi dòng một báo
   cáo mua/chưa mua; `Doanh số` là một dòng tổng hợp doanh thu, nhu cầu trả góp,
-  trả góp thành công và số lượng theo type ngành hàng;
+  trả góp thành công theo trạng thái báo cáo bán hàng và số lượng theo type
+  ngành hàng;
   `Trả góp` chỉ lấy báo cáo có `installmentNeed = true`.
 - `Mua hàng` bắt buộc nhập hoặc quét QR/barcode `Mã đơn hàng` và bấm
   `Kiểm tra đơn hàng` trước khi mở phần form còn lại. Sau khi đã kiểm tra, sale
@@ -222,8 +232,8 @@ phí`.
   khách hàng, các câu trả lời hành vi, loại báo cáo, lý do chưa mua và showroom.
 - File `Doanh số` xuất một dòng tổng hợp theo bộ lọc hiện tại: số đơn hàng duy
   nhất, doanh thu doanh nghiệp/cá nhân, tổng số báo cáo có tick
-  `Có nhu cầu trả góp`, số đơn trả góp thành công theo payment method ERP,
-  số lượng laptop,
+  `Có nhu cầu trả góp`, số đơn trả góp thành công theo `installmentStatus` của
+  báo cáo bán hàng (fallback dữ liệu cũ `NORMAL_INSTALLMENT`), số lượng laptop,
   PC, PC ráp, Apple chỉ tính Macbook/iPhone/iPad, màn hình, máy in, phụ kiện,
   dịch vụ bảo hiểm; các lý do khách không trả góp nằm ở cột cuối cùng.
 - File `Trả góp` xuất một dòng cho mỗi báo cáo có nhu cầu trả góp, gồm:

@@ -260,6 +260,12 @@ a customer to scan and pay manually.
   `Chờ xác nhận` means the transaction has a pending ACC order-transfer
   request. `Giao dịch cấn trừ` means ACC approved an order-transfer request and
   the transaction order source is `OFFSET`.
+- From Home `Tài chính`, clicking the text of `Tổng sao kê chưa có đơn hàng`
+  opens `/bank-statement?orderStatus=MISSING_ORDER&autoSearch=true`, applies
+  the `Chưa có đơn hàng` filter, and searches immediately within the user's
+  statement scope. The `Sao kê` screen starts directly at the filter/list
+  workspace; it no longer shows the old header card titled
+  `Giao dịch cần rà soát`.
 - Statement rows show transaction details beside a compact order area. The row
   summary uses short readable pills for payment source, SR code, amount, and
   successful transfer status, not the raw MAP API status; the current payment

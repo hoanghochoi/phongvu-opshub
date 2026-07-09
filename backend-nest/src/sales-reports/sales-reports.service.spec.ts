@@ -1474,20 +1474,14 @@ describe('SalesReportsService', () => {
         changed: 1,
         failed: 0,
       });
-      expect(erp.lookupOrderStatus).toHaveBeenCalledWith(
-        '2607071001',
-        'CP62',
-      );
+      expect(erp.lookupOrderStatus).toHaveBeenCalledWith('2607071001', 'CP62');
     } finally {
       jest.useRealTimers();
       restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);
       restoreEnv('ERP_ORDER_STATUS_CACHE_SYNC_ENABLED', previous.cache);
       restoreEnv('ERP_ORDER_STATUS_SYNC_BATCH_SIZE', previous.batch);
       restoreEnv('ERP_ORDER_STATUS_SYNC_STORE_LIMIT', previous.storeLimit);
-      restoreEnv(
-        'ERP_ORDER_STATUS_PENDING_RECHECK_MINUTES',
-        previous.pending,
-      );
+      restoreEnv('ERP_ORDER_STATUS_PENDING_RECHECK_MINUTES', previous.pending);
     }
   });
 
@@ -1949,7 +1943,7 @@ describe('SalesReportsService', () => {
       'Tổng doanh thu khách hàng doanh nghiệp',
       'Tổng doanh thu khách hàng cá nhân',
       'Báo cáo có nhu cầu trả góp',
-      'Trả góp thành công (có đơn trả góp)',
+      'Trả góp thành công (theo báo cáo bán hàng)',
       'Số lượng laptop',
       'Số lượng PC',
       'Số lượng PC ráp',
@@ -1960,7 +1954,7 @@ describe('SalesReportsService', () => {
       'Số lượng dịch vụ bảo hiểm',
       'Các lý do khách không trả góp',
     ]);
-    expect(rows[1].slice(0, 5)).toEqual([2, 1000, 2000, 2, 0]);
+    expect(rows[1].slice(0, 5)).toEqual([2, 1000, 2000, 2, 1]);
     expect(rows[1].slice(5, 13)).toEqual([3, 2, 1, 1, 3, 1, 4, 1]);
     expect(rows[1][13]).toBe('Khách từ chối: Lãi suất/Phí trả góp cao: 1');
   });

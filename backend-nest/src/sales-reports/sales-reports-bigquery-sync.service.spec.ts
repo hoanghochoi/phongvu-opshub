@@ -141,7 +141,7 @@ describe('SalesReportsBigQuerySyncService', () => {
       consulted_solution_label: 'Có',
       customer_type_label: 'Doanh nghiệp',
       promotion_labels: 'Học sinh - Sinh viên',
-      final_payment_method_label: 'Trả góp',
+      final_payment_method_label: 'Trả thẳng',
       erp_grand_total: 1080000,
       revenue_before_vat: 1000000,
     });
@@ -245,7 +245,7 @@ function salesReportFixture() {
     erpReturnedAfterTaxAmount: 0,
     erpTerminalName: 'CP01',
     erpGrandTotal: 1080000,
-    erpPaymentMethods: ['cash', 'installment'],
+    erpPaymentMethods: ['cash', 'bank_transfer'],
     erpCustomerType: 'BUSINESS',
     erpPlatformId: 3,
     erpConsultantCustomId: 'SA001',

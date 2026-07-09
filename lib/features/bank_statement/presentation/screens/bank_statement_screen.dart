@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -13,6 +15,7 @@ import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../notifications/presentation/providers/app_notifications_provider.dart';
 import '../../domain/bank_statement_transaction.dart';
@@ -35,7 +38,14 @@ String _formatStatementDateTime(DateTime? value) {
 }
 
 class BankStatementScreen extends StatefulWidget {
-  const BankStatementScreen({super.key});
+  const BankStatementScreen({
+    super.key,
+    this.initialOrderStatus,
+    this.autoSearch = false,
+  });
+
+  final String? initialOrderStatus;
+  final bool autoSearch;
 
   @override
   State<BankStatementScreen> createState() => _BankStatementScreenState();
@@ -56,9 +66,32 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = context.read<AuthProvider>().user;
-      context.read<BankStatementProvider>().initialize(user);
+      unawaited(_initializeFromRoute());
     });
+  }
+
+  Future<void> _initializeFromRoute() async {
+    final user = context.read<AuthProvider>().user;
+    final provider = context.read<BankStatementProvider>();
+    await provider.initialize(user);
+    final initialOrderStatus = widget.initialOrderStatus?.trim().toUpperCase();
+    if (initialOrderStatus == null ||
+        !_orderStatusItems.any((item) => item.value == initialOrderStatus)) {
+      return;
+    }
+    provider.setOrderStatus(initialOrderStatus);
+    await AppLogger.instance.info(
+      'BankStatement',
+      'Bank statement route filter applied',
+      context: {
+        'orderStatus': initialOrderStatus,
+        'autoSearch': widget.autoSearch,
+        'source': 'home_finance_card',
+      },
+    );
+    if (widget.autoSearch) {
+      await provider.search();
+    }
   }
 
   @override
@@ -100,8 +133,6 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _StatementHeader(provider: provider),
-            const SizedBox(height: AppLayoutTokens.cardGap),
             _FilterPanel(
               provider: provider,
               statementNumberController: _statementNumberController,
@@ -199,109 +230,6 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
     }
     sync(_amountController, _amountFocus, formattedAmount);
     sync(_contentController, _contentFocus, provider.content ?? '');
-  }
-}
-
-class _StatementHeader extends StatelessWidget {
-  final BankStatementProvider provider;
-
-  const _StatementHeader({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    final scopeLabel = provider.allStores
-        ? 'Tất cả showroom'
-        : provider.selectedStoreIds.isNotEmpty
-        ? '${provider.selectedStoreIds.length} showroom'
-        : 'Showroom được gán';
-    final filterLabel = provider.canSearch
-        ? 'Sẵn sàng tìm'
-        : 'Chọn 1 bộ lọc chính';
-    final pendingCount = provider.pendingOrderTransferUnreadCount;
-    final titleBlock = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Giao dịch cần rà soát', style: AppTextStyles.headingS),
-        const SizedBox(height: AppLayoutTokens.cardGap),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            AppStatusChip(
-              label: scopeLabel,
-              color: AppColors.info,
-              backgroundColor: AppColors.infoSurface,
-            ),
-            AppStatusChip(
-              label: '${provider.total} giao dịch',
-              color: AppColors.neutral700,
-              backgroundColor: AppColors.neutral100,
-            ),
-            AppStatusChip(
-              label: '${provider.selectedIds.length} đã chọn',
-              color: AppColors.success,
-              backgroundColor: AppColors.successSurface,
-            ),
-            AppStatusChip(
-              label: pendingCount > 0
-                  ? '$pendingCount chờ Kế toán'
-                  : 'Không có yêu cầu mới',
-              color: pendingCount > 0
-                  ? AppColors.warning
-                  : AppColors.neutral700,
-              backgroundColor: pendingCount > 0
-                  ? AppColors.warningSurface
-                  : AppColors.neutral100,
-            ),
-            AppStatusChip(
-              label: filterLabel,
-              color: provider.canSearch ? AppColors.primary : AppColors.warning,
-              backgroundColor: provider.canSearch
-                  ? AppColors.primarySurface
-                  : AppColors.warningSurface,
-            ),
-          ],
-        ),
-      ],
-    );
-
-    return DecoratedBox(
-      key: const Key('bank-statement-header'),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: AppColors.subtleBorderOf(context)),
-        ),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final leading = Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.infoSurface,
-                  borderRadius: BorderRadius.circular(
-                    AppLayoutTokens.cardRadius,
-                  ),
-                ),
-                child: const Icon(
-                  Icons.receipt_long_rounded,
-                  color: AppColors.info,
-                ),
-              ),
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Expanded(child: titleBlock),
-            ],
-          );
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: leading,
-          );
-        },
-      ),
-    );
   }
 }
 

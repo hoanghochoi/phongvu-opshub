@@ -30,19 +30,32 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   sync là hoàn thành; đơn trả một phần trừ giá trị trả trước khi cộng.
 - `Pending = Doanh số tổng - Doanh số hoàn thành`, không âm.
 - Nhóm `Hành vi then chốt` hiển thị `Số khách chưa mua`,
-  `Số đơn chưa báo cáo`, `Tỉ lệ báo cáo`, `Tỉ lệ 3 giải pháp`,
+  `Số đơn chưa báo cáo`, `Báo cáo đã mua`, `Tỉ lệ báo cáo`, `Tỉ lệ 3 giải pháp`,
   `Tỉ lệ trải nghiệm`, `Tỉ lệ Zalo OA` và `Tỉ lệ tải App`.
 - Bấm vào phần chữ của card `Số khách chưa mua` hoặc `Số đơn chưa báo cáo` mở
   modal chi tiết theo cùng ngày/scope/SA đang chọn. Modal phù hợp desktop,
   tablet, mobile và cho phép cuộn dọc/ngang khi màn hình nhỏ. Bảng khách chưa
   mua có Tên SA, Tên khách hàng, Loại khách hàng, Ngành hàng, Lý do không mua;
   bảng đơn chưa báo cáo có Tên SA, Mã đơn hàng, Thời gian bán.
+- Store Manager trở lên có quyền `ADMIN_SALES_REPORTS` bấm phần chữ của card
+  `Báo cáo đã mua` để mở `Quản trị/Báo cáo bán hàng`; user không có quyền này
+  chỉ xem số liệu.
+- Bấm phần chữ của card `Số lượng nhu cầu trả góp` mở modal chi tiết gồm SR,
+  Tên SA, Đối tác trả góp, Thành công và Ghi chú. Thành công hiển thị tick khi
+  báo cáo bán hàng ghi nhận `installmentStatus = SUCCESS` (fallback dữ liệu cũ
+  `NORMAL_INSTALLMENT`), không suy từ ERP payment method; Ghi chú hiển thị mã
+  đơn hàng nếu thành công hoặc lý do thất bại/không trả góp nếu chưa thành
+  công.
+- Card có route hoặc modal phải có icon detail nhỏ ở góc trên bên phải và
+  không làm đổi chiều cao/layout card hiện tại.
 - `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn hợp lệ`.
 - `Tỉ lệ chuyển đổi = tổng số đơn / tổng số báo cáo`.
 - Các tỉ lệ hành vi tính bằng số báo cáo có câu trả lời `Có` (`YES`) chia cho
   tổng số báo cáo trong cùng ngày/scope.
 - `Tài chính` hiển thị tổng số tiền chuyển khoản, tổng số sao kê, tổng sao kê
   có đơn hàng, tổng sao kê chưa có đơn hàng và tỉ lệ sao kê có đơn hàng.
+- User có quyền `Sao kê` bấm phần chữ của `Tổng sao kê chưa có đơn hàng` để mở
+  màn `/bank-statement` với filter `Chưa có đơn hàng` và tự tìm kiếm ngay.
 - `Tỉ lệ sao kê có đơn hàng = tổng sao kê có đơn / tổng số sao kê`.
 - Khối `Tổng quan` đứng trước KPI, bỏ progress bar và dùng donut cho tiến độ
   báo cáo, sao kê và doanh số. Doanh số tách thành hai card:

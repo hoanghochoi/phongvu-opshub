@@ -350,7 +350,12 @@ class AppRouter {
                   create: (_) => BankStatementProvider(
                     BankStatementRepository(ApiClient()),
                   ),
-                  child: const BankStatementScreen(),
+                  child: BankStatementScreen(
+                    initialOrderStatus:
+                        state.uri.queryParameters['orderStatus'],
+                    autoSearch:
+                        state.uri.queryParameters['autoSearch'] == 'true',
+                  ),
                 ),
               ),
             ),
@@ -471,7 +476,8 @@ class AppRouter {
 
   @visibleForTesting
   static bool canUseRouteForTesting(User? user, String location) {
-    final routeFeature = _featureForRoute(location);
+    final routePath = Uri.tryParse(location)?.path ?? location.split('?').first;
+    final routeFeature = _featureForRoute(routePath);
     if (routeFeature == null) return true;
     return _canUseRouteFeature(user, routeFeature);
   }

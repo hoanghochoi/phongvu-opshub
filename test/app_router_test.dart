@@ -119,6 +119,36 @@ void main() {
     expect(AppRouter.canUseRouteForTesting(staff, '/reports'), isFalse);
   });
 
+  test('bank statement query route still requires statement access', () {
+    const statementUser = User(
+      email: 'statement@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-store',
+      featureAccess: {'BANK_STATEMENTS': true},
+    );
+    const staff = User(
+      email: 'staff@phongvu.vn',
+      role: 'USER',
+      organizationNodeId: 'org-store',
+      featureAccess: {'FIFO': true},
+    );
+
+    expect(
+      AppRouter.canUseRouteForTesting(
+        statementUser,
+        '/bank-statement?orderStatus=MISSING_ORDER&autoSearch=true',
+      ),
+      isTrue,
+    );
+    expect(
+      AppRouter.canUseRouteForTesting(
+        staff,
+        '/bank-statement?orderStatus=MISSING_ORDER&autoSearch=true',
+      ),
+      isFalse,
+    );
+  });
+
   test('warranty detail route requires WARRANTY access', () {
     const warrantyUser = User(
       email: 'warranty@phongvu.vn',

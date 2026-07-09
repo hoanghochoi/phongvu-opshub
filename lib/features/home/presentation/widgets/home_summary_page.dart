@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -13,6 +14,7 @@ import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/formatting/money_formatters.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../domain/home_summary.dart';
 import '../providers/home_summary_provider.dart';
 
@@ -146,7 +148,7 @@ class HomeSummaryPage extends StatelessWidget {
         const SizedBox(height: 14),
         const _SummarySubsectionHeader(title: 'KPI chính'),
         const SizedBox(height: 8),
-        MainKpiSummaryCardGrid(summary: summary),
+        MainKpiSummaryCardGrid(summary: summary, provider: provider),
         const SizedBox(height: 14),
         const _SummarySubsectionHeader(title: 'Hành vi then chốt'),
         const SizedBox(height: 8),
@@ -161,7 +163,7 @@ class HomeSummaryPage extends StatelessWidget {
           color: AppColors.success,
         ),
         const SizedBox(height: 10),
-        FinanceSummaryCardGrid(summary: summary),
+        FinanceSummaryCardGrid(summary: summary, provider: provider),
       ],
     ];
   }
@@ -626,9 +628,14 @@ class SummaryCardGrid extends StatelessWidget {
 }
 
 class MainKpiSummaryCardGrid extends StatelessWidget {
-  const MainKpiSummaryCardGrid({super.key, required this.summary});
+  const MainKpiSummaryCardGrid({
+    super.key,
+    required this.summary,
+    required this.provider,
+  });
 
   final HomeSummary summary;
+  final HomeSummaryProvider provider;
 
   @override
   Widget build(BuildContext context) {
@@ -672,6 +679,8 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         value: _integerLabel(summary.installmentNeedCount),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
         color: AppColors.warning,
+        textTapTooltip: 'Xem chi tiết nhu cầu trả góp',
+        onTextTap: () => _openInstallmentNeedDetailsDialog(context, provider),
       ),
       SummaryCard(
         metricKey: 'successfulInstallmentCount',
@@ -821,6 +830,20 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
         ),
       ),
       SummaryCard(
+        metricKey: 'reportedOrders',
+        icon: Icons.fact_check_outlined,
+        title: 'Báo cáo đã mua',
+        value: _integerLabel(summary.reportedOrders),
+        trend: const SummaryTrend.success('đã ghi nhận'),
+        color: AppColors.success,
+        textTapTooltip: provider.canOpenSalesReportAdmin
+            ? 'Mở Quản trị/Báo cáo bán hàng'
+            : null,
+        onTextTap: provider.canOpenSalesReportAdmin
+            ? () => _openSalesReportAdmin(context, provider)
+            : null,
+      ),
+      SummaryCard(
         metricKey: 'coverageRate',
         icon: Icons.percent_rounded,
         title: summary.resolvedCoverageLabel,
@@ -870,9 +893,14 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
 }
 
 class FinanceSummaryCardGrid extends StatelessWidget {
-  const FinanceSummaryCardGrid({super.key, required this.summary});
+  const FinanceSummaryCardGrid({
+    super.key,
+    required this.summary,
+    required this.provider,
+  });
 
   final HomeSummary summary;
+  final HomeSummaryProvider provider;
 
   @override
   Widget build(BuildContext context) {
@@ -910,6 +938,12 @@ class FinanceSummaryCardGrid extends StatelessWidget {
             ? const SummaryTrend.warning('cần xử lý')
             : const SummaryTrend.success('đã đủ'),
         color: AppColors.warning,
+        textTapTooltip: provider.canOpenBankStatement
+            ? 'Mở Sao kê với bộ lọc chưa có đơn hàng'
+            : null,
+        onTextTap: provider.canOpenBankStatement
+            ? () => _openMissingOrderStatements(context, provider)
+            : null,
       ),
       SummaryCard(
         metricKey: 'statementOrderRate',
@@ -1065,6 +1099,20 @@ class SummaryCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onTextTap != null) ...[
+                const SizedBox(width: 4),
+                _SummaryCardTextAction(
+                  key: Key('home-summary-card-$metricKey-detail-action'),
+                  onTap: onTextTap,
+                  tooltip: textTapTooltip,
+                  child: Icon(
+                    Icons.open_in_new_rounded,
+                    key: Key('home-summary-card-$metricKey-detail-icon'),
+                    size: 15,
+                    color: AppColors.textMutedOf(context),
+                  ),
+                ),
+              ],
             ],
           ),
           const Spacer(),
@@ -1113,6 +1161,57 @@ class _SummaryCardTextAction extends StatelessWidget {
     if (tooltip == null) return action;
     return Tooltip(message: tooltip!, child: action);
   }
+}
+
+void _openSalesReportAdmin(BuildContext context, HomeSummaryProvider provider) {
+  unawaited(
+    AppLogger.instance.info(
+      'Home',
+      'Home reported sales card routed to admin sales reports',
+      context: {
+        'source': 'reported_orders_card',
+        'route': '/admin/sales-reports',
+        'startDate': provider.formattedSelectedStartDate,
+        'endDate': provider.formattedSelectedEndDate,
+        'scopeFilter': provider.selectedScope,
+      },
+    ),
+  );
+  context.go('/admin/sales-reports');
+}
+
+void _openMissingOrderStatements(
+  BuildContext context,
+  HomeSummaryProvider provider,
+) {
+  const route = '/bank-statement?orderStatus=MISSING_ORDER&autoSearch=true';
+  unawaited(
+    AppLogger.instance.info(
+      'Home',
+      'Home finance card routed to missing-order statements',
+      context: {
+        'source': 'total_statements_without_order_card',
+        'route': route,
+        'startDate': provider.formattedSelectedStartDate,
+        'endDate': provider.formattedSelectedEndDate,
+        'scopeFilter': provider.selectedScope,
+      },
+    ),
+  );
+  context.go(route);
+}
+
+void _openInstallmentNeedDetailsDialog(
+  BuildContext context,
+  HomeSummaryProvider provider,
+) {
+  unawaited(
+    showDialog<void>(
+      context: context,
+      barrierColor: AppColors.shadow.withValues(alpha: 0.48),
+      builder: (context) => _InstallmentNeedDetailsDialog(provider: provider),
+    ),
+  );
 }
 
 enum _SalesBehaviorDetailTab { notPurchased, unreported }
@@ -1256,6 +1355,94 @@ class _SalesBehaviorDetailsDialogState
                     return _SalesBehaviorDetailsTable(
                       details: snapshot.data!,
                       selectedTab: _selectedTab,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InstallmentNeedDetailsDialog extends StatefulWidget {
+  const _InstallmentNeedDetailsDialog({required this.provider});
+
+  final HomeSummaryProvider provider;
+
+  @override
+  State<_InstallmentNeedDetailsDialog> createState() =>
+      _InstallmentNeedDetailsDialogState();
+}
+
+class _InstallmentNeedDetailsDialogState
+    extends State<_InstallmentNeedDetailsDialog> {
+  late Future<HomeSalesBehaviorDetails> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = widget.provider.fetchSalesBehaviorDetails(
+      source: 'installment_need_card',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenSize = MediaQuery.sizeOf(context);
+    final maxWidth = math.min(math.max(screenSize.width - 24, 0.0), 960.0);
+    final maxHeight = math.min(math.max(screenSize.height - 24, 0.0), 680.0);
+    return Dialog(
+      key: const Key('home-installment-need-details-dialog'),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      backgroundColor: AppColors.cardOf(context),
+      shape: RoundedRectangleBorder(borderRadius: AppRadius.allMd),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Chi tiết nhu cầu trả góp',
+                      style: AppTextStyles.headingS.copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Đóng',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: FutureBuilder<HomeSalesBehaviorDetails>(
+                  future: _future,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const AppStatePanel.loading(
+                        title: 'Đang tải chi tiết',
+                        message: 'Hệ thống đang lấy danh sách nhu cầu trả góp.',
+                      );
+                    }
+                    if (snapshot.hasError || !snapshot.hasData) {
+                      return AppStatePanel.error(
+                        title: 'Chưa tải được chi tiết',
+                        message:
+                            'Kiểm tra kết nối rồi thử mở lại bảng chi tiết.',
+                      );
+                    }
+                    return _InstallmentNeedDetailsTable(
+                      details: snapshot.data!,
                     );
                   },
                 ),
@@ -1442,6 +1629,111 @@ class _UnreportedOrdersDetailsDataTable extends StatelessWidget {
               DataCell(Text(_valueOrEmpty(row.salesName))),
               DataCell(Text(row.orderCode)),
               DataCell(Text(_dateTimeLabel(row.soldAt))),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+class _InstallmentNeedDetailsTable extends StatelessWidget {
+  const _InstallmentNeedDetailsTable({required this.details});
+
+  final HomeSalesBehaviorDetails details;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = details.installmentNeedReports;
+    if (rows.isEmpty) {
+      return const AppStatePanel.empty(
+        title: 'Chưa có dòng chi tiết',
+        message: 'Không có nhu cầu trả góp trong phạm vi và ngày đang xem.',
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          _detailCountLabel(rows.length, details.installmentNeedTotal),
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.textMutedOf(context),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Scrollbar(
+            child: SingleChildScrollView(
+              child: Scrollbar(
+                notificationPredicate: (notification) =>
+                    notification.metrics.axis == Axis.horizontal,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minWidth: 820),
+                    child: _InstallmentNeedDetailsDataTable(rows: rows),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InstallmentNeedDetailsDataTable extends StatelessWidget {
+  const _InstallmentNeedDetailsDataTable({required this.rows});
+
+  final List<HomeInstallmentNeedDetail> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return DataTable(
+      key: const Key('home-installment-need-details-table'),
+      headingTextStyle: AppTextStyles.labelS.copyWith(
+        color: AppColors.textPrimaryOf(context),
+        fontWeight: FontWeight.w800,
+      ),
+      dataTextStyle: AppTextStyles.bodyS.copyWith(
+        color: AppColors.textPrimaryOf(context),
+      ),
+      columns: const [
+        DataColumn(label: Text('SR')),
+        DataColumn(label: Text('Tên SA')),
+        DataColumn(label: Text('Đối tác trả góp')),
+        DataColumn(label: Text('Thành công')),
+        DataColumn(label: Text('Ghi chú')),
+      ],
+      rows: [
+        for (final row in rows)
+          DataRow(
+            cells: [
+              DataCell(Text(_valueOrEmpty(row.storeCode))),
+              DataCell(Text(_valueOrEmpty(row.salesName))),
+              DataCell(
+                Text(
+                  row.installmentPartnerLabels.isEmpty
+                      ? 'Chưa có thông tin'
+                      : row.installmentPartnerLabels.join(', '),
+                ),
+              ),
+              DataCell(
+                row.successful
+                    ? const Icon(
+                        Icons.check_circle_rounded,
+                        color: AppColors.success,
+                        size: 18,
+                      )
+                    : Text(
+                        'Không',
+                        style: AppTextStyles.bodyS.copyWith(
+                          color: AppColors.error,
+                        ),
+                      ),
+              ),
+              DataCell(Text(_valueOrEmpty(row.note))),
             ],
           ),
       ],

@@ -87,6 +87,9 @@ class HomeSummaryProvider extends ChangeNotifier {
   bool get isRefreshing => _isRefreshing;
   bool get isInitialLoading => _isLoading && _summary == null;
   bool get canRefresh => !_isLoading && !_isRefreshing && _user != null;
+  bool get canOpenSalesReportAdmin =>
+      _user?.canUseFeature('ADMIN_SALES_REPORTS') == true;
+  bool get canOpenBankStatement => _user?.canUseBankStatements == true;
   String? get errorMessage => _errorMessage;
   List<HomeSalesProgressAssignee> get salesProgressAssignees =>
       _summary?.salesProgressAssignees ?? const [];
@@ -328,6 +331,8 @@ class HomeSummaryProvider extends ChangeNotifier {
           'notPurchasedTotal': details.notPurchasedTotal,
           'unreportedRows': details.unreportedOrders.length,
           'unreportedTotal': details.unreportedTotal,
+          'installmentNeedRows': details.installmentNeedReports.length,
+          'installmentNeedTotal': details.installmentNeedTotal,
           'limit': details.limit,
         },
       );

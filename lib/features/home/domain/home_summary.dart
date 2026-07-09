@@ -393,8 +393,10 @@ class HomeSalesBehaviorDetails {
     required this.limit,
     required this.notPurchasedTotal,
     required this.unreportedTotal,
+    required this.installmentNeedTotal,
     required this.notPurchasedReports,
     required this.unreportedOrders,
+    required this.installmentNeedReports,
   });
 
   final String startDate;
@@ -405,8 +407,10 @@ class HomeSalesBehaviorDetails {
   final int limit;
   final int notPurchasedTotal;
   final int unreportedTotal;
+  final int installmentNeedTotal;
   final List<HomeNotPurchasedReportDetail> notPurchasedReports;
   final List<HomeUnreportedOrderDetail> unreportedOrders;
+  final List<HomeInstallmentNeedDetail> installmentNeedReports;
 
   factory HomeSalesBehaviorDetails.fromJson(Map<String, dynamic> json) {
     return HomeSalesBehaviorDetails(
@@ -420,6 +424,7 @@ class HomeSalesBehaviorDetails {
       limit: HomeSummary._intOf(json['limit']),
       notPurchasedTotal: HomeSummary._intOf(json['notPurchasedTotal']),
       unreportedTotal: HomeSummary._intOf(json['unreportedTotal']),
+      installmentNeedTotal: HomeSummary._intOf(json['installmentNeedTotal']),
       notPurchasedReports: (json['notPurchasedReports'] as List? ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(HomeNotPurchasedReportDetail.fromJson)
@@ -429,6 +434,11 @@ class HomeSalesBehaviorDetails {
           .map(HomeUnreportedOrderDetail.fromJson)
           .where((item) => item.orderCode.isNotEmpty)
           .toList(growable: false),
+      installmentNeedReports:
+          (json['installmentNeedReports'] as List? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .map(HomeInstallmentNeedDetail.fromJson)
+              .toList(growable: false),
     );
   }
 }
@@ -485,6 +495,45 @@ class HomeUnreportedOrderDetail {
       orderCode: HomeSummary._stringOf(json['orderCode']),
       soldAt: HomeSummary._dateTimeOf(json['soldAt']),
       salesName: HomeSummary._nullableStringOf(json['salesName']),
+    );
+  }
+}
+
+class HomeInstallmentNeedDetail {
+  const HomeInstallmentNeedDetail({
+    required this.id,
+    required this.submittedAt,
+    required this.storeCode,
+    required this.salesName,
+    required this.orderCode,
+    required this.installmentPartnerLabels,
+    required this.successful,
+    required this.note,
+  });
+
+  final String id;
+  final DateTime? submittedAt;
+  final String? storeCode;
+  final String? salesName;
+  final String? orderCode;
+  final List<String> installmentPartnerLabels;
+  final bool successful;
+  final String? note;
+
+  factory HomeInstallmentNeedDetail.fromJson(Map<String, dynamic> json) {
+    return HomeInstallmentNeedDetail(
+      id: HomeSummary._stringOf(json['id']),
+      submittedAt: HomeSummary._dateTimeOf(json['submittedAt']),
+      storeCode: HomeSummary._nullableStringOf(json['storeCode']),
+      salesName: HomeSummary._nullableStringOf(json['salesName']),
+      orderCode: HomeSummary._nullableStringOf(json['orderCode']),
+      installmentPartnerLabels:
+          (json['installmentPartnerLabels'] as List? ?? const [])
+              .map((item) => item.toString().trim())
+              .where((item) => item.isNotEmpty)
+              .toList(growable: false),
+      successful: json['successful'] == true || json['successful'] == 'true',
+      note: HomeSummary._nullableStringOf(json['note']),
     );
   }
 }

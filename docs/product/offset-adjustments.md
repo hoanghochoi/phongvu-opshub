@@ -7,6 +7,8 @@ that must be reviewed by ACC before being treated as complete.
 
 - Staff opens `Cấn trừ` from the home feature list when the
   `OFFSET_ADJUSTMENTS` feature or matching admin policy is allowed.
+- The `Cấn trừ` screen starts directly with the create-action row, filter card,
+  and list; it no longer shows the former header card titled `Yêu cầu xử lý`.
 - SR users create and edit only their own showroom requests. ACC, FIN_ACC, and
   SUPER_ADMIN reviewers can view requests across SRs, filter by SR, and review
   submitted requests. ACC/FIN_ACC can be resolved from either the user's

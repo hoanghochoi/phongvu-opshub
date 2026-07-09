@@ -45,6 +45,18 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `HOME-DASHBOARD-002`, `PAYMENT-STATEMENT-001`, `OFFSET-ADJUSTMENT-001`,
+  2026-07-09: Home thêm card `Báo cáo đã mua` trong `Hành vi then chốt`; user
+  có `ADMIN_SALES_REPORTS` bấm chữ để mở `/admin/sales-reports`. Card
+  `Số lượng nhu cầu trả góp` mở modal chi tiết SR, Tên SA, Đối tác trả góp,
+  Thành công và Ghi chú. Các card có route/modal có icon detail nhỏ ở góc phải
+  mà không đổi layout card. Home `Tài chính` cho phép bấm
+  `Tổng sao kê chưa có đơn hàng` để mở `/bank-statement` với filter
+  `MISSING_ORDER` và auto-search. Màn `Sao kê` bỏ header
+  `Giao dịch cần rà soát`; màn `Cấn trừ` bỏ card `Yêu cầu xử lý`.
+  Validation: focused Home dashboard, AppRouter, Sao kê screen, Cấn trừ screen
+  Flutter tests; focused Home Summary Jest; Nest build; `flutter analyze`;
+  `git diff --check`.
 - `HOME-DASHBOARD-002`, 2026-07-09: Khu vực `Bán hàng` trên Trang chủ thêm
   nhóm `KPI chính`, hiển thị hai dòng desktop theo danh sách KPI: doanh số
   khách hàng doanh nghiệp/cá nhân, CTKM đổi điểm thi, CTKM HSSV, nhu cầu trả
@@ -1249,11 +1261,12 @@ FIFO Menu` now has bottom nav active on `Tác vụ`, `Mobile v2 / Profile` has
   Validation: focused Nest
   sales-report BigQuery sync tests and backend build.
 - `SALES-REPORT-001`, 2026-07-07: `Doanh số` export chỉ cộng các báo cáo có
-  tick `Có nhu cầu trả góp` và số đơn trả góp thành công từ ERP
-  payment methods, then moves installment reasons to the final column. BigQuery
-  sync now also writes `revenue_by_store`, with one revenue summary row per
-  store/showroom instead of one all-store total row. Validation: focused Nest
-  sales-report export/BigQuery sync tests and backend build.
+  tick `Có nhu cầu trả góp` và số đơn trả góp thành công theo trạng thái báo cáo
+  bán hàng (`installmentStatus`, fallback `NORMAL_INSTALLMENT`), then moves
+  installment reasons to the final column. BigQuery sync now also writes
+  `revenue_by_store`, with one revenue summary row per store/showroom instead
+  of one all-store total row. Validation: focused Nest sales-report
+  export/BigQuery sync tests and backend build.
 - `SALES-REPORT-001`, 2026-07-07: đơn ERP có `grandTotal <= 0` được xem là đơn
   vận hành nội bộ và bị loại khỏi báo cáo. Backend persist
   `excludedAt`/`exclusionReason = ERP_ORDER_ZERO_VALUE_INTERNAL` trên
