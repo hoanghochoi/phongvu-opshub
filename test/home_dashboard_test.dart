@@ -370,26 +370,27 @@ void main() {
       expect(find.text('Tài chính'), findsOneWidget);
       expect(find.text('Tỉ lệ báo cáo'), findsWidgets);
       expect(find.text('Tỉ lệ chuyển đổi'), findsOneWidget);
-      expect(find.text('Doanh số tổng'), findsOneWidget);
-      expect(find.text('Số đơn bán'), findsOneWidget);
+      expect(find.text('Giá trị bán'), findsOneWidget);
+      expect(find.text('Đơn bán'), findsOneWidget);
       expect(find.text('Trung bình đơn hàng'), findsOneWidget);
-      expect(find.text('Doanh số hoàn thành'), findsOneWidget);
+      expect(find.text('Hoàn thành'), findsOneWidget);
       expect(find.text('Pending'), findsOneWidget);
-      expect(find.text('Doanh số khách hàng doanh nghiệp'), findsOneWidget);
-      expect(find.text('Doanh số khách hàng cá nhân'), findsOneWidget);
-      expect(find.text('Số lượng CTKM đổi điểm thi'), findsOneWidget);
-      expect(find.text('Số lượng CTKM HSSV'), findsOneWidget);
-      expect(find.text('Số lượng nhu cầu trả góp'), findsOneWidget);
-      expect(find.text('Số lượng trả góp thành công'), findsOneWidget);
-      expect(find.text('Số lượng bảo hiểm mở rộng'), findsOneWidget);
-      expect(find.text('Số lượng laptop'), findsOneWidget);
-      expect(find.text('Số lượng PC bộ'), findsOneWidget);
-      expect(find.text('Số lượng PC ráp'), findsOneWidget);
-      expect(find.text('Số lượng Apple'), findsOneWidget);
-      expect(find.text('Số lượng màn hình'), findsOneWidget);
-      expect(find.text('Số lượng máy in'), findsOneWidget);
-      expect(find.text('Số lượng phụ kiện'), findsOneWidget);
-      expect(find.text('Số khách chưa mua'), findsOneWidget);
+      expect(find.text('Khách doanh nghiệp'), findsOneWidget);
+      expect(find.text('Khách cá nhân'), findsOneWidget);
+      expect(find.text('CTKM đổi điểm thi'), findsOneWidget);
+      expect(find.text('CTKM HSSV'), findsOneWidget);
+      expect(find.text('Nhu cầu trả góp'), findsOneWidget);
+      expect(find.text('Trả góp thành công'), findsOneWidget);
+      expect(find.text('Bảo hiểm mở rộng'), findsOneWidget);
+      expect(find.text('Laptop'), findsOneWidget);
+      expect(find.text('PC bộ'), findsOneWidget);
+      expect(find.text('PC ráp'), findsOneWidget);
+      expect(find.text('Apple'), findsOneWidget);
+      expect(find.text('Màn hình'), findsOneWidget);
+      expect(find.text('Máy in'), findsOneWidget);
+      expect(find.text('Phụ kiện'), findsOneWidget);
+      expect(find.text('Khách chưa mua'), findsOneWidget);
+      expect(find.text('Đơn chưa báo cáo'), findsOneWidget);
       expect(find.text('Báo cáo đã mua'), findsOneWidget);
       expect(find.text('Tỉ lệ 3 giải pháp'), findsOneWidget);
       expect(find.text('Tỉ lệ trải nghiệm'), findsOneWidget);
@@ -404,10 +405,20 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Tổng số báo cáo hợp lệ'), findsNothing);
-      expect(find.text('Tổng số tiền chuyển khoản'), findsOneWidget);
-      expect(find.text('Tổng số sao kê'), findsOneWidget);
-      expect(find.text('Tổng sao kê có đơn hàng'), findsOneWidget);
-      expect(find.text('Tổng sao kê chưa có đơn hàng'), findsOneWidget);
+      expect(find.text('Doanh số tổng'), findsNothing);
+      expect(find.text('Số đơn bán'), findsNothing);
+      expect(find.text('Doanh số hoàn thành'), findsNothing);
+      expect(find.text('Doanh số khách hàng doanh nghiệp'), findsNothing);
+      expect(find.text('Số lượng laptop'), findsNothing);
+      expect(find.text('Số khách chưa mua'), findsNothing);
+      expect(find.text('Tổng số tiền chuyển khoản'), findsNothing);
+      expect(find.text('Tổng số sao kê'), findsNothing);
+      expect(find.text('Tổng sao kê có đơn hàng'), findsNothing);
+      expect(find.text('Tổng sao kê chưa có đơn hàng'), findsNothing);
+      expect(find.text('Tiền chuyển khoản'), findsOneWidget);
+      expect(find.text('Sao kê'), findsOneWidget);
+      expect(find.text('Sao kê có đơn hàng'), findsOneWidget);
+      expect(find.text('Sao kê chưa có đơn hàng'), findsOneWidget);
       expect(find.text('Tỉ lệ sao kê có đơn hàng'), findsOneWidget);
       expect(find.text('98M VND'), findsOneWidget);
       expect(find.textContaining('Chào buổi'), findsOneWidget);
@@ -442,12 +453,10 @@ void main() {
         ),
         findsOneWidget,
       );
-      final salesGrid = tester.widget<Wrap>(
-        find.byKey(const Key('home-summary-grid')),
+      final salesMetricKeys = _gridMetricKeys(
+        tester,
+        const Key('home-summary-grid'),
       );
-      final salesMetricKeys = salesGrid.children
-          .map((child) => ((child as SizedBox).child! as SummaryCard).metricKey)
-          .toList();
       expect(
         salesMetricKeys,
         containsAllInOrder([
@@ -459,12 +468,10 @@ void main() {
           'conversionRate',
         ]),
       );
-      final behaviorGrid = tester.widget<Wrap>(
-        find.byKey(const Key('home-sales-behavior-summary-grid')),
+      final behaviorMetricKeys = _gridMetricKeys(
+        tester,
+        const Key('home-sales-behavior-summary-grid'),
       );
-      final behaviorMetricKeys = behaviorGrid.children
-          .map((child) => ((child as SizedBox).child! as SummaryCard).metricKey)
-          .toList();
       expect(
         behaviorMetricKeys,
         containsAllInOrder([
@@ -478,12 +485,10 @@ void main() {
           'appDownloadRate',
         ]),
       );
-      final mainKpiGrid = tester.widget<Wrap>(
-        find.byKey(const Key('home-main-kpi-summary-grid')),
+      final mainKpiMetricKeys = _gridMetricKeys(
+        tester,
+        const Key('home-main-kpi-summary-grid'),
       );
-      final mainKpiMetricKeys = mainKpiGrid.children
-          .map((child) => ((child as SizedBox).child! as SummaryCard).metricKey)
-          .toList();
       expect(
         mainKpiMetricKeys,
         containsAllInOrder([
@@ -1045,7 +1050,7 @@ void main() {
     expect(find.text('Chỉ tiêu: 120M VND'), findsOneWidget);
   });
 
-  testWidgets('Home KPI grid keeps revenue cards on one wide row', (
+  testWidgets('Home KPI grid scales desktop columns to card count', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 800);
@@ -1081,18 +1086,28 @@ void main() {
     final first = tester.getTopLeft(
       find.byKey(const Key('home-summary-card-revenue')),
     );
-    final notPurchased = tester.getTopLeft(
+    final completedRevenue = tester.getTopLeft(
       find.byKey(const Key('home-summary-card-completedRevenue')),
     );
-    final last = tester.getTopLeft(
+    final pendingRevenue = tester.getTopLeft(
+      find.byKey(const Key('home-summary-card-pendingRevenue')),
+    );
+    final conversionRate = tester.getTopLeft(
       find.byKey(const Key('home-summary-card-conversionRate')),
     );
-    expect(notPurchased.dy, first.dy);
-    expect(last.dy, first.dy);
-    expect(notPurchased.dx, lessThan(last.dx));
+    expect(
+      tester.getSize(find.byKey(const Key('home-summary-card-revenue'))).width,
+      closeTo(190, 1),
+    );
+    expect(completedRevenue.dy, first.dy);
+    expect(completedRevenue.dx, greaterThan(first.dx));
+    expect(pendingRevenue.dy, first.dy);
+    expect(pendingRevenue.dx, greaterThan(completedRevenue.dx));
+    expect(conversionRate.dy, first.dy);
+    expect(conversionRate.dx, greaterThan(pendingRevenue.dx));
   });
 
-  testWidgets('Home main KPI grid keeps requested two desktop rows', (
+  testWidgets('Home main KPI grid uses at most seven desktop columns', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 800);
@@ -1146,36 +1161,45 @@ void main() {
       ),
     );
 
+    expect(find.byKey(const Key('home-main-kpi-summary-grid')), findsOneWidget);
     expect(
       find.byKey(const Key('home-main-kpi-summary-grid-row-1')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.byKey(const Key('home-main-kpi-summary-grid-row-2')),
-      findsOneWidget,
+      findsNothing,
     );
 
     final business = tester.getTopLeft(
       find.byKey(const Key('home-summary-card-businessCustomerRevenue')),
     );
-    final successfulInstallment = tester.getTopLeft(
-      find.byKey(const Key('home-summary-card-successfulInstallmentCount')),
-    );
     final insurance = tester.getTopLeft(
       find.byKey(const Key('home-summary-card-extendedInsuranceQuantity')),
+    );
+    final laptop = tester.getTopLeft(
+      find.byKey(const Key('home-summary-card-laptopQuantity')),
     );
     final accessories = tester.getTopLeft(
       find.byKey(const Key('home-summary-card-accessoriesQuantity')),
     );
 
-    expect(successfulInstallment.dy, business.dy);
-    expect(successfulInstallment.dx, greaterThan(business.dx));
-    expect(insurance.dy, greaterThan(business.dy));
-    expect(accessories.dy, insurance.dy);
-    expect(accessories.dx, greaterThan(insurance.dx));
+    expect(
+      tester
+          .getSize(
+            find.byKey(const Key('home-summary-card-businessCustomerRevenue')),
+          )
+          .width,
+      closeTo(161, 1),
+    );
+    expect(insurance.dy, business.dy);
+    expect(insurance.dx, greaterThan(business.dx));
+    expect(laptop.dy, greaterThan(business.dy));
+    expect(accessories.dy, laptop.dy);
+    expect(accessories.dx, greaterThan(laptop.dx));
   });
 
-  testWidgets('Home KPI grid falls back to one card when extremely narrow', (
+  testWidgets('Home KPI grid keeps two columns on narrow mobile width', (
     tester,
   ) async {
     const summary = HomeSummary(
@@ -1208,7 +1232,8 @@ void main() {
     final second = tester.getTopLeft(
       find.byKey(const Key('home-summary-card-totalOrders')),
     );
-    expect(second.dy, greaterThan(first.dy));
+    expect(second.dy, first.dy);
+    expect(second.dx, greaterThan(first.dx));
   });
 
   testWidgets('Home dashboard shows neutral unavailable state from scope API', (
@@ -1766,6 +1791,18 @@ void main() {
     expect(summaryProvider.selectedSalesProgressUserId, 'sa-12');
     expect(find.text('SA 12 - CP75'), findsOneWidget);
   });
+}
+
+List<String> _gridMetricKeys(WidgetTester tester, Key gridKey) {
+  return tester
+      .widgetList<SummaryCard>(
+        find.descendant(
+          of: find.byKey(gridKey),
+          matching: find.byType(SummaryCard),
+        ),
+      )
+      .map((card) => card.metricKey)
+      .toList(growable: false);
 }
 
 HomeSummary _homeSummary() {
