@@ -2501,11 +2501,22 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     let withOrders = 0;
     let withoutOrders = 0;
     let manualProtected = 0;
+    let duplicateStatementSkipped = 0;
     for (const raw of rows) {
       if (!raw || typeof raw !== 'object') continue;
       const row = raw as MapTransactionRow;
       const normalized = this.normalizeTransaction(storeCode, row);
       if (!normalized) continue;
+      const existingStatement = this.isEfastMapTransactionRow(row)
+        ? await this.findExistingTransactionByStatement(
+            normalized.transactionKey,
+            row,
+          )
+        : null;
+      if (existingStatement) {
+        duplicateStatementSkipped += 1;
+        continue;
+      }
       if (normalized.orders.length > 0) {
         withOrders += 1;
       } else {
@@ -2554,13 +2565,49 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           });
       }
     }
-    if (created > 0) {
+    if (created > 0 || duplicateStatementSkipped > 0) {
       const storeLabel = storeCode || 'null';
       this.logger.log(
-        `MAP sync order extraction: store=${storeLabel} created=${created} withOrders=${withOrders} withoutOrders=${withoutOrders} manualProtected=${manualProtected}`,
+        `MAP sync order extraction: store=${storeLabel} created=${created} withOrders=${withOrders} withoutOrders=${withoutOrders} manualProtected=${manualProtected} duplicateStatementSkipped=${duplicateStatementSkipped}`,
       );
     }
     return created;
+  }
+
+  private async findExistingTransactionByStatement(
+    transactionKey: string,
+    row: MapTransactionRow,
+  ) {
+    const identifiers = this.statementIdentifiersForRow(row);
+    if (identifiers.length === 0) return null;
+    const referenceWhere = identifiers.flatMap((identifier) => [
+      { transactionNumber: identifier },
+      {
+        rawData: {
+          path: ['txnReference'],
+          equals: identifier,
+        },
+      },
+      {
+        rawData: {
+          path: ['trxId'],
+          equals: identifier,
+        },
+      },
+      {
+        rawData: {
+          path: ['trxRefNo'],
+          equals: identifier,
+        },
+      },
+    ]);
+    return this.prisma.mapVietinTransaction.findFirst({
+      where: {
+        transactionKey: { not: transactionKey },
+        OR: referenceWhere,
+      },
+      select: { id: true, transactionKey: true, storeCode: true },
+    });
   }
 
   private async persistGlobalTransactions(
@@ -2735,6 +2782,25 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return this.readText(row, 'source') === 'VIETIN_EFAST';
   }
 
+  private statementIdentifiersForRow(row: MapTransactionRow) {
+    const seen = new Set<string>();
+    const output: string[] = [];
+    const candidates = [
+      this.readFirstText(row, this.transactionNumberKeys),
+      this.readFirstText(row, this.transactionReferenceKeys),
+      this.readText(row, 'trxId'),
+      this.readText(row, 'trxRefNo'),
+      this.readText(row, 'numberOrder'),
+    ];
+    for (const candidate of candidates) {
+      const value = this.cleanText(candidate);
+      if (!value || seen.has(value)) continue;
+      seen.add(value);
+      output.push(value);
+    }
+    return output;
+  }
+
   private normalizeEfastTransactionDate(value: string) {
     const text = this.cleanText(value);
     if (!text) return '';
@@ -2747,6 +2813,16 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         ? ` ${isoMatch[4]}:${isoMatch[5] || '00'}:${isoMatch[6] || '00'}`
         : '';
       return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}${time}`;
+    }
+    const dmyDashMatch =
+      /^(\d{2})-(\d{2})-(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(
+        text,
+      );
+    if (dmyDashMatch) {
+      const time = dmyDashMatch[4]
+        ? ` ${dmyDashMatch[4]}:${dmyDashMatch[5] || '00'}:${dmyDashMatch[6] || '00'}`
+        : '';
+      return `${dmyDashMatch[1]}/${dmyDashMatch[2]}/${dmyDashMatch[3]}${time}`;
     }
     return text;
   }
@@ -3149,21 +3225,53 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const raw = this.readFirstText(row, this.transactionTimeKeys);
     if (!raw) return null;
     const match =
-      /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(
+      /^(\d{2})[/-](\d{2})[/-](\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(
         raw,
       );
-    if (!match) {
-      const parsed = new Date(raw);
-      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    if (match) {
+      return this.vietnamDatePartsToUtc({
+        year: Number(match[3]),
+        month: Number(match[2]),
+        day: Number(match[1]),
+        hour: Number(match[4] || '0'),
+        minute: Number(match[5] || '0'),
+        second: Number(match[6] || '0'),
+      });
     }
+    const isoMatch =
+      /^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(
+        raw,
+      );
+    if (isoMatch) {
+      return this.vietnamDatePartsToUtc({
+        year: Number(isoMatch[1]),
+        month: Number(isoMatch[2]),
+        day: Number(isoMatch[3]),
+        hour: Number(isoMatch[4] || '0'),
+        minute: Number(isoMatch[5] || '0'),
+        second: Number(isoMatch[6] || '0'),
+      });
+    }
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private vietnamDatePartsToUtc(input: {
+    year: number;
+    month: number;
+    day: number;
+    hour: number;
+    minute: number;
+    second: number;
+  }) {
     return new Date(
       Date.UTC(
-        Number(match[3]),
-        Number(match[2]) - 1,
-        Number(match[1]),
-        Number(match[4] || '0') - 7,
-        Number(match[5] || '0'),
-        Number(match[6] || '0'),
+        input.year,
+        input.month - 1,
+        input.day,
+        input.hour - VIETNAM_UTC_OFFSET_HOURS,
+        input.minute,
+        input.second,
       ),
     );
   }
@@ -3403,10 +3511,11 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private formatMapDate(value: Date) {
+    const vietnamDate = new Date(this.vietnamTimeMs(value));
     return [
-      String(value.getDate()).padStart(2, '0'),
-      String(value.getMonth() + 1).padStart(2, '0'),
-      value.getFullYear(),
+      String(vietnamDate.getUTCDate()).padStart(2, '0'),
+      String(vietnamDate.getUTCMonth() + 1).padStart(2, '0'),
+      vietnamDate.getUTCFullYear(),
     ].join('/');
   }
 

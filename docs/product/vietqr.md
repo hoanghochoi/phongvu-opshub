@@ -420,7 +420,10 @@ Optional MAP endpoint overrides are available through:
 When enabled, the eFAST adapter logs in through `/api/v1/account/login`, reads
 `/api/v1/account/history` for credit rows only, and maps each row `pmtId` to
 `Store.transferAccountNumber`. The configured eFAST bank accounts are only the
-history-query sources and are preserved in raw data for audit. Rows with a
+history-query sources and are preserved in raw data for audit. eFAST history
+queries use the Vietnam business date (UTC+7), and rows whose `trxId` or
+`trxRefNo` already exists as a stored MAP statement/reference are skipped before
+creating a transaction or payment notification. Rows with a
 missing `pmtId` are stored with `storeCode=null` instead of being quarantined;
 Super Admin, Finance-node users, and `phongvu.vn` users can review them. A
 scoped user who finds one of these rows by statement number, order, amount, or

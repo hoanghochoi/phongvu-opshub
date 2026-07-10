@@ -75,6 +75,7 @@ describe('MapVietinService', () => {
       mapVietinTransaction: {
         findMany: jest.fn(),
         count: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn(),
         upsert: jest.fn(),
         update: jest.fn(),
@@ -530,7 +531,7 @@ describe('MapVietinService', () => {
               pmtId: '18PVICU',
               amount: 1250000,
               remark: 'Khach chuyen tien 26052112345678',
-              tranDate: '21/05/2026 10:00:00',
+              tranDate: '21-05-2026 10:00:00',
               dorc: 'C',
               corresponsiveName: 'NGUYEN VAN A',
               corresponsiveAccount: '9704361234567890',
@@ -575,15 +576,85 @@ describe('MapVietinService', () => {
           storeCode: 'CP01',
           transactionNumber: 'TRX-001',
           amount: 1250000,
+          paidAt: new Date('2026-05-21T03:00:00.000Z'),
           payerName: 'NGUYEN VAN A',
           payerAccount: '9704361234567890',
           rawData: expect.objectContaining({
             virtualAccount: '18PVICU',
             efastCreditAccountNo: '123456789012',
+            tranTime: '21/05/2026 10:00:00',
           }),
         }),
       }),
     );
+  });
+
+  it('skips eFAST rows when the statement id already exists from MAP', async () => {
+    process.env.VIETIN_EFAST_USERNAME = 'efast-user';
+    process.env.VIETIN_EFAST_PASSWORD = 'efast-pass';
+    process.env.VIETIN_EFAST_BANK_ACCOUNTS = '123456789012';
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: '18PVICU' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: { code: '1', message: 'LOGON_SUCCESS' },
+          sessionId: 'efast-session-id',
+          corpUser: { cifno: '1234561361' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: { code: '1', message: 'SUCCESS' },
+          currentPage: 0,
+          nextPage: 0,
+          transactions: [
+            {
+              trxId: 'MAP-STATEMENT-001',
+              trxRefNo: 'MAP-REF-001',
+              pmtId: '18PVICU',
+              amount: 1250000,
+              remark: 'Khach chuyen tien 26052112345678',
+              tranDate: '21-05-2026 10:00:00',
+              dorc: 'C',
+            },
+          ],
+        }),
+      );
+    prisma.mapVietinTransaction.findFirst.mockResolvedValue({
+      id: 'existing-map-transaction',
+      transactionKey: 'CP01:existing-map',
+      storeCode: 'CP01',
+    });
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(service.syncEfastTransactions()).resolves.toEqual({
+      created: 0,
+      quarantined: 0,
+      fetched: 1,
+      creditRows: 1,
+    });
+
+    expect(prisma.mapVietinTransaction.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          transactionKey: expect.objectContaining({ not: expect.any(String) }),
+          OR: expect.arrayContaining([
+            { transactionNumber: 'MAP-STATEMENT-001' },
+            {
+              rawData: {
+                path: ['txnReference'],
+                equals: 'MAP-REF-001',
+              },
+            },
+          ]),
+        }),
+      }),
+    );
+    expect(prisma.mapVietinTransaction.findUnique).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransaction.upsert).not.toHaveBeenCalled();
+    expect(paymentNotifications.createForTransaction).not.toHaveBeenCalled();
   });
 
   it('stores eFAST credit rows with null store when pmtId is missing', async () => {
@@ -719,6 +790,12 @@ describe('MapVietinService', () => {
     await expect(service.syncConfiguredStores()).resolves.toBeUndefined();
 
     expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it('formats provider sync dates in Vietnam time', () => {
+    expect(
+      (service as any).formatMapDate(new Date('2026-07-10T18:07:00.000Z')),
+    ).toBe('11/07/2026');
   });
 
   it('uses a 3000-5000ms random delay for scheduled MAP history sync', () => {

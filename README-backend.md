@@ -115,7 +115,11 @@ Expected responses:
   reads `/api/v1/account/history` for credit rows only, uses each row `pmtId`
   as the showroom virtual account to match `Store.transferAccountNumber`, and
   keeps the configured bank account only as the eFAST history source/audit
-  field. Rows with missing `pmtId` are still stored with `storeCode=null` so
+  field. eFAST sync uses the Vietnam business date (UTC+7) for provider
+  history queries and skips rows whose `trxId`/`trxRefNo` statement reference
+  already exists in stored MAP data, so it does not create duplicate statement
+  rows or payment notifications. Rows with missing `pmtId` are still stored
+  with `storeCode=null` so
   Super Admin, Finance-node users, and `phongvu.vn` users can review them; a
   user who finds that row by statement number, order, amount, or transfer
   content can update the order code, and the row is then assigned to that

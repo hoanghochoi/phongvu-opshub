@@ -45,6 +45,11 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `PAYMENT-MONITOR-001`/`PAYMENT-STATEMENT-001`, 2026-07-11: eFAST sync dùng
+  ngày nghiệp vụ UTC+7 khi gọi history, parse chắc `DD-MM-YYYY`/`DD/MM/YYYY`
+  theo giờ Việt Nam, và bỏ qua row eFAST nếu `trxId`/`trxRefNo` đã tồn tại
+  trong dữ liệu MAP để không tạo trùng sao kê hoặc notification. Validation:
+  focused MAP/eFAST service Jest, Nest build, và `git diff --check`.
 - `PAYMENT-MONITOR-001`/`PAYMENT-STATEMENT-001`, 2026-07-10: eFAST sync
   tách khỏi nhịp MAP, chạy scheduler riêng random 50-60 giây/lần từ
   08:00-22:00 UTC+7 và 30 phút/lần từ 22:01-07:59 ngày hôm sau. Runtime giới
