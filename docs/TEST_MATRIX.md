@@ -171,6 +171,11 @@ test\app_shell_route_viewport_test.dart`.
   `/app-version`. Validation: focused Flutter update tests and focused NestJS
   app-version tests. Gap: manual Android and Windows installed-build update
   smoke remains required before release.
+- `UPDATE-004`, 2026-07-10: `AppUpdateGate` now automatically starts the
+  self-update action when startup/realtime/resume metadata checks find a newer
+  Android, Windows, or web build. The visible gate stays on screen to show
+  progress or retryable errors, and automatic install is skipped with a log when
+  package metadata is incomplete. Validation: focused Flutter update gate tests.
 - `PAYMENT-MONITOR-002`/`PAYMENT-STATEMENT-001`, 2026-07-07: WebSocket
   reconnect now waits for the socket `ready` handshake before resetting
   backoff, Windows speaker clients get a lightweight `/ready` fallback after
@@ -1560,6 +1565,11 @@ windows --debug --no-pub`, and `flutter build apk --debug --no-pub`. Gap:
   `flutter analyze --no-pub`, backend `npm run build`, Windows debug build,
   Inno Setup 6.7.0 compile-check, focused TS Prettier check, and
   `git diff --check`. Gap: live installed self-update smoke remains pending.
+- UPDATE-004, 2026-07-10: Startup/realtime/resume update checks now auto-start
+  the web reload or Android/Windows self-update flow without requiring the user
+  to press `Cập nhật`; the overlay remains for progress and errors. Validation:
+  focused Flutter update gate tests. Gap: live installed Android/Windows
+  auto-update smoke remains pending.
 - UI-UX-001, 2026-07-03: Redesign audit baseline now has a status addendum so
   the 30/06/2026 score is not mistaken for the current migration state. The
   addendum points acceptance tracking to the gap map and this matrix, records

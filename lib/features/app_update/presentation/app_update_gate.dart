@@ -33,6 +33,7 @@ class AppUpdateGate extends StatefulWidget {
     this.requiredUpdateOverride,
     this.realtimeConnector,
     this.realtimeEnabled = true,
+    this.autoStartUpdates = true,
   });
 
   final Widget child;
@@ -42,6 +43,7 @@ class AppUpdateGate extends StatefulWidget {
   final bool? requiredUpdateOverride;
   final AppUpdateRealtimeConnector? realtimeConnector;
   final bool realtimeEnabled;
+  final bool autoStartUpdates;
 
   @override
   State<AppUpdateGate> createState() => _AppUpdateGateState();
@@ -80,6 +82,7 @@ class _AppUpdateGateState extends State<AppUpdateGate>
   Timer? _metadataRetryTimer;
   int _reconnectAttempt = 0;
   int _metadataRetryAttempt = 0;
+  String? _autoStartedUpdateKey;
 
   @override
   void initState() {
@@ -155,6 +158,7 @@ class _AppUpdateGateState extends State<AppUpdateGate>
         'Update prompt shown',
         context: {..._logContext(result), 'reason': reason},
       );
+      _autoStartUpdate(result, reason: reason);
     } catch (error, stackTrace) {
       await AppLogger.instance.error(
         'AppUpdate',
@@ -460,9 +464,58 @@ class _AppUpdateGateState extends State<AppUpdateGate>
     try {
       final reloader = widget.reloadPage ?? reloadCurrentPage;
       await reloader();
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'AppUpdate',
+        'Web app reload for update failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: _logContext(result),
+      );
+      if (mounted) {
+        setState(
+          () => _updateActionError =
+              'Chưa tải lại được bản mới. Vui lòng thử lại sau ít phút.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _runningUpdateAction = false);
     }
+  }
+
+  void _autoStartUpdate(AppUpdateCheckResult result, {required String reason}) {
+    if (!widget.autoStartUpdates || _runningUpdateAction) return;
+    final shouldReload = _shouldReloadForUpdate(result);
+    if (!shouldReload && !result.updateInfo.hasSelfUpdatePackage) {
+      unawaited(
+        AppLogger.instance.warn(
+          'AppUpdate',
+          'Automatic update skipped because package metadata is incomplete',
+          context: {..._logContext(result), 'reason': reason},
+        ),
+      );
+      return;
+    }
+
+    final updateKey = _autoUpdateKey(result, shouldReload: shouldReload);
+    if (_autoStartedUpdateKey == updateKey) return;
+    _autoStartedUpdateKey = updateKey;
+    unawaited(
+      AppLogger.instance.info(
+        'AppUpdate',
+        'Automatic update started',
+        context: {..._logContext(result), 'reason': reason},
+      ),
+    );
+    unawaited(shouldReload ? _reloadForUpdate(result) : _installUpdate(result));
+  }
+
+  String _autoUpdateKey(
+    AppUpdateCheckResult result, {
+    required bool shouldReload,
+  }) {
+    final info = result.updateInfo;
+    return '${info.platform}:${info.latestBuild}:${shouldReload ? 'reload' : 'install'}';
   }
 
   Future<void> _installUpdate(AppUpdateCheckResult result) async {
@@ -615,6 +668,14 @@ class _UpdatePromptOverlay extends StatelessWidget {
                       if (!shouldReload) ...[
                         const SizedBox(height: 10),
                         Text(_postInstallInstruction(updateInfo.platform)),
+                      ],
+                      if (runningUpdateAction) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          shouldReload
+                              ? 'OpsHub đang tự tải lại bản web mới.'
+                              : 'OpsHub đang tự tải và cài bản cập nhật mới.',
+                        ),
                       ],
                       if (updateInfo.releaseNotes.isNotEmpty) ...[
                         const SizedBox(height: 12),

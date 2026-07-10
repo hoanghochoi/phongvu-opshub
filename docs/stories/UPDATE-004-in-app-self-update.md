@@ -2,8 +2,8 @@
 
 ## Goal
 
-Android and Windows users can update OpsHub from the update prompt without
-opening a browser to download the new file manually.
+Android and Windows users can update OpsHub from the update gate without
+opening a browser or pressing the update button when a new build is detected.
 
 ## Contract
 
@@ -15,10 +15,13 @@ opening a browser to download the new file manually.
   released APK/installer URL, compute SHA-256 and size from the final published
   files, write those values into the backend env file, and verify the public
   `/app-version` response before the deploy is accepted.
-- `AppUpdateGate` no longer opens the browser for Android/Windows. It starts an
-  in-app download, shows progress, verifies SHA-256 and size, logs start,
-  download, verify, installer handoff, and failure decisions through
-  `AppLogger`, then hands off to the OS installer.
+- `AppUpdateGate` no longer opens the browser for Android/Windows. When
+  startup, realtime, reconnect, resume, or metadata retry detects a newer
+  build, it automatically starts the in-app download when safe package metadata
+  is present, shows progress, verifies SHA-256 and size, logs start, download,
+  verify, installer handoff, and failure decisions through `AppLogger`, then
+  hands off to the OS installer. If package metadata is incomplete, it keeps the
+  visible update gate and logs the skipped automatic start.
 - Windows launches the Inno Setup installer with the published silent args
   such as `/VERYSILENT`, `/SUPPRESSMSGBOXES`, `/NORESTART`, and
   `/CLOSEAPPLICATIONS`, then exits the running app so Setup can replace files.

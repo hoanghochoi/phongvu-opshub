@@ -55,7 +55,49 @@ void main() {
     expect(find.text('Loading route'), findsOneWidget);
   });
 
-  testWidgets('required update blocks later action and starts in-app update', (
+  testWidgets('optional update automatically starts self-update on startup', (
+    tester,
+  ) async {
+    AppUpdateCheckResult? installedResult;
+    final progressEvents = <AppSelfUpdateProgress>[];
+    final installCompleter = Completer<void>();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: _UpdateGateHarness(
+          checkForUpdate: () async => _optionalUpdateResult,
+          autoStartUpdates: true,
+          installUpdate: (result, onProgress) async {
+            installedResult = result;
+            final progress = const AppSelfUpdateProgress(
+              stage: AppSelfUpdateStage.downloading,
+              message: 'Đang tải gói cập nhật...',
+              receivedBytes: 10,
+              totalBytes: 20,
+            );
+            progressEvents.add(progress);
+            onProgress(progress);
+            await installCompleter.future;
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(installedResult, _optionalUpdateResult);
+    expect(progressEvents, hasLength(1));
+    expect(
+      find.text('OpsHub đang tự tải và cài bản cập nhật mới.'),
+      findsOneWidget,
+    );
+    expect(find.text('Đang tải gói cập nhật... 50%'), findsOneWidget);
+
+    installCompleter.complete();
+    await tester.pump();
+  });
+
+  testWidgets('required update blocks later action and auto starts update', (
     tester,
   ) async {
     AppUpdateCheckResult? installedResult;
@@ -66,6 +108,7 @@ void main() {
         home: _UpdateGateHarness(
           checkForUpdate: () async => _requiredUpdateResult,
           requiredUpdateOverride: true,
+          autoStartUpdates: true,
           installUpdate: (result, onProgress) async {
             installedResult = result;
             final progress = const AppSelfUpdateProgress(
@@ -90,9 +133,6 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.text('Cập nhật'));
-    await tester.pump();
-
     expect(installedResult, _requiredUpdateResult);
     expect(progressEvents, hasLength(1));
     expect(find.text('Đang mở trình cài đặt...'), findsOneWidget);
@@ -109,6 +149,7 @@ void main() {
       MaterialApp(
         home: _UpdateGateHarness(
           checkForUpdate: () async => _webUpdateResult,
+          autoStartUpdates: true,
           installUpdate: (result, _) async => installedResult = result,
           reloadPage: () async => reloadCount += 1,
         ),
@@ -128,14 +169,11 @@ void main() {
     expect(find.byIcon(Icons.refresh_rounded), findsOneWidget);
     expect(find.byIcon(Icons.download_rounded), findsNothing);
 
-    await tester.tap(find.text('Tải lại'));
-    await tester.pump();
-
     expect(reloadCount, 1);
     expect(installedResult, isNull);
   });
 
-  testWidgets('shows in-app update error without opening browser', (
+  testWidgets('shows automatic in-app update error without opening browser', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -143,6 +181,7 @@ void main() {
         home: _UpdateGateHarness(
           checkForUpdate: () async => _requiredUpdateResult,
           requiredUpdateOverride: true,
+          autoStartUpdates: true,
           installUpdate: (_, _) async {
             throw const AppSelfUpdateException('Không tải được gói cập nhật.');
           },
@@ -151,12 +190,35 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
-
-    await tester.tap(find.text('Cập nhật'));
     await tester.pump();
 
     expect(find.text('Không tải được gói cập nhật.'), findsOneWidget);
     expect(find.text('Cần cập nhật ứng dụng'), findsOneWidget);
+  });
+
+  testWidgets('keeps manual prompt when package metadata is incomplete', (
+    tester,
+  ) async {
+    var installCalls = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: _UpdateGateHarness(
+          checkForUpdate: () async => _missingPackageUpdateResult,
+          autoStartUpdates: true,
+          installUpdate: (_, _) async => installCalls += 1,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(installCalls, 0);
+    expect(find.text('Có bản cập nhật mới'), findsOneWidget);
+    expect(
+      find.text('OpsHub đang tự tải và cài bản cập nhật mới.'),
+      findsNothing,
+    );
   });
 
   testWidgets('shows update prompt when realtime event arrives', (
@@ -375,6 +437,25 @@ const _webUpdateResult = AppUpdateCheckResult(
   ),
 );
 
+const _missingPackageUpdateResult = AppUpdateCheckResult(
+  currentVersion: '2026.06.01.1',
+  currentBuild: 199999,
+  updateInfo: AppUpdateInfo(
+    platform: 'windows',
+    latestVersion: '2026.06.05.1',
+    latestBuild: 200001,
+    minSupportedBuild: 100000,
+    updateUrl: 'https://opshub.hoanghochoi.com/downloads/app.exe',
+    packageUrl: '',
+    packageSha256: '',
+    packageSizeBytes: 0,
+    packageType: 'windowsInstaller',
+    installerArgs: ['/VERYSILENT', '/OPSHUBRELAUNCH=1'],
+    releaseNotes: 'Thiếu metadata kiểm tra an toàn',
+    forceUpdate: false,
+  ),
+);
+
 class _UpdateGateHarness extends StatefulWidget {
   const _UpdateGateHarness({
     super.key,
@@ -384,6 +465,7 @@ class _UpdateGateHarness extends StatefulWidget {
     this.requiredUpdateOverride,
     this.realtimeConnector,
     this.realtimeEnabled = false,
+    this.autoStartUpdates = false,
   });
 
   final AppUpdateChecker checkForUpdate;
@@ -392,6 +474,7 @@ class _UpdateGateHarness extends StatefulWidget {
   final bool? requiredUpdateOverride;
   final AppUpdateRealtimeConnector? realtimeConnector;
   final bool realtimeEnabled;
+  final bool autoStartUpdates;
 
   @override
   State<_UpdateGateHarness> createState() => _UpdateGateHarnessState();
@@ -413,6 +496,7 @@ class _UpdateGateHarnessState extends State<_UpdateGateHarness> {
       requiredUpdateOverride: widget.requiredUpdateOverride,
       realtimeConnector: widget.realtimeConnector,
       realtimeEnabled: widget.realtimeEnabled,
+      autoStartUpdates: widget.autoStartUpdates,
       child: Scaffold(body: Center(child: Text(_routeLabel))),
     );
   }

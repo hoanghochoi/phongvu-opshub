@@ -4,10 +4,11 @@
 
 - OpsHub direct Windows distribution is internal-only. The primary package is
   the Inno Setup installer EXE; the portable ZIP remains a manual fallback.
-- New Windows clients update without opening the browser: `AppUpdateGate`
-  downloads the installer EXE from `/app-version.packageUrl`, verifies
-  `packageSha256` and `packageSizeBytes`, launches the Inno installer with the
-  published silent args, then exits so Setup can replace the running app.
+- New Windows clients update without opening the browser or waiting for a button
+  press: when `AppUpdateGate` detects a newer build, it downloads the installer
+  EXE from `/app-version.packageUrl`, verifies `packageSha256` and
+  `packageSizeBytes`, launches the Inno installer with the published silent
+  args, then exits so Setup can replace the running app.
 - Microsoft Store/MSIX packaging is a separate submission track. The manual
   `Build Windows MSIX Store Package` workflow may build a Store MSIX artifact,
   but it must not publish to `/download`, change `/app-version`, or replace the

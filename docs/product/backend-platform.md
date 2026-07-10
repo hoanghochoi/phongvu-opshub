@@ -65,10 +65,11 @@ curl http://localhost:3000/app-version
   `APP_FORCE_UPDATE` when shipping a mobile APK. Platform-specific
   `APP_ANDROID_*` and `APP_WINDOWS_*` values override the shared values.
   Clients compare `APP_BUILD_NUMBER` with their installed build number; Android
-  and Windows clients download `packageUrl` inside the app, verify SHA-256 and
-  package size, then hand off to the OS installer. Android still shows the
-  system install-confirmation screen for self-hosted APKs. Windows uses the
-  published silent Inno Setup args and exits after launching the installer.
+  and Windows clients automatically start downloading `packageUrl` inside the
+  app when a newer build is detected, verify SHA-256 and package size, then hand
+  off to the OS installer. Android still shows the system install-confirmation
+  screen for self-hosted APKs. Windows uses the published silent Inno Setup args
+  and exits after launching the installer.
 - Deploy source branches are `staging`, `main`, and `help-content`. Pushing
   `staging` runs the staging workflow. Production app deploys fast-forward
   `main` from accepted `staging` code, then push `main` to run the production
